@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_14_062612) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2093,7 +2093,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
     t.datetime "pr_feedback_poll_selected_at"
     t.integer "rollback_of_id"
     t.integer "rollback_epic_id"
+    t.integer "canonical_job_id"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
+    t.index ["canonical_job_id"], name: "index_jobs_on_canonical_job_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_jobs_on_claimed_at"

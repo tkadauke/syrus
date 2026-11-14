@@ -209,7 +209,7 @@ RSpec.describe "Mcp::Tools access control", :full_chat_access do
   end
 
   it "cannot request cancellation for another user's job" do
-    response = call_tool(Mcp::Tools::CancelJobTool, "cancel_job", job_id: other_user_job.id)
+    response = call_tool(Mcp::Tools::CancelJobTool, "cancel_job", job_id: other_user_job.id, reason: "No longer needed.")
 
     expect_not_authorized(response)
     expect(chat_session.pending_actions).to be_empty
@@ -380,7 +380,7 @@ RSpec.describe "Mcp::Tools access control", :full_chat_access do
     it "can cancel another user's job" do
       job = other_user_job
 
-      response = call_tool(Mcp::Tools::CancelJobTool, "cancel_job", job_id: job.id)
+      response = call_tool(Mcp::Tools::CancelJobTool, "cancel_job", job_id: job.id, reason: "No longer needed.")
 
       expect(response.dig(:result, :isError)).to be_falsey
     end

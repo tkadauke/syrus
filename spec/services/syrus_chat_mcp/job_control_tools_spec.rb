@@ -78,15 +78,31 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
   it "creates a pending cancel_job confirmation without executing it" do
     job = Factories.job(repository: repository)
 
-    response = call_tool("cancel_job", job_id: job.id)
+    response = call_tool("cancel_job", job_id: job.id, reason: "No longer needed.")
     body = payload(response)
     pending_action = chat_session.pending_actions.find(body[:pending_confirmation_id])
 
     expect(body).to include(message: "Cancel #{job.slug}? Cancellation requires operator confirmation.")
     expect(pending_action).to be_pending
     expect(pending_action).to have_attributes(action: "cancel_job", requested_by: "agent")
-    expect(pending_action.payload).to eq("job_id" => job.id)
+    expect(pending_action.payload).to eq("job_id" => job.id, "reason" => "No longer needed.")
     expect(job.reload).to be_open
+  end
+
+  it "rechecks cancellation safety after locking a stale Job" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+    body = payload(call_tool("cancel_job", job_id: job.id, reason: "No longer needed."))
+    pending_action = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
+
+    allow_any_instance_of(Job).to receive(:lock!) do |locked_job|
+      locked_job.update_column(:landed_sha, "landed-while-confirming")
+      locked_job.reload
+    end
+
+    expect { pending_action.confirm!(user: user) }
+      .to raise_error(ArgumentError, "#{job.slug} has landing or deployment evidence and cannot be cancelled.")
+    expect(job.reload).to be_implemented
+    expect(StateTransition.for_subject(job).where(to_state: "closed")).to be_empty
   end
 
   it "does not execute unland_job or unland_epic while the flag is off" do
@@ -177,7 +193,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
   it "rejects cancelling an already closed Job and names the next action" do
     job = Factories.job_record(repository: repository, state: "closed")
 
-    response = call_tool("cancel_job", job_id: job.id)
+    response = call_tool("cancel_job", job_id: job.id, reason: "No longer needed.")
 
     expect(response.dig(:result, :isError)).to be(true)
     expect(response.dig(:result, :content, 0, :text)).to include("already closed", "Reopen")
@@ -218,7 +234,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     job_one = Factories.job(repository: repository)
     job_two = Factories.job(repository: repository, issue_number: 43)
 
-    response = call_tool("cancel_job", job_ids: [ job_one.id, job_two.id ])
+    response = call_tool("cancel_job", job_ids: [ job_one.id, job_two.id ], reason: "No longer needed.")
     body = payload(response)
     group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
 
@@ -295,6 +311,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
 
     Mcp::Tools::CancelJobTool.call(
       job_id: job.id,
+      reason: "No longer needed.",
       server_context: { chat_session: chat_session, current_message: message }
     )
 
@@ -919,11 +936,11 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
   it "allows canceling jobs outside the chat repository when they belong to the chat user" do
     other_job = Factories.job(repository: Factories.repository(user: user))
 
-    response = call_tool("cancel_job", job_id: other_job.id)
+    response = call_tool("cancel_job", job_id: other_job.id, reason: "No longer needed.")
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => other_job.id })
+    expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => other_job.id, "reason" => "No longer needed." })
   end
 
   it "finds epics outside the pinned repository when they belong to the user" do
@@ -1010,11 +1027,11 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     it "allows an admin to cancel another user's job" do
       job = Factories.job_record(repository: other_repository, state: "queued")
 
-      response = admin_call("cancel_job", job_id: job.id)
+      response = admin_call("cancel_job", job_id: job.id, reason: "No longer needed.")
 
       expect(response.dig(:result, :isError)).to be_falsey
       pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
-      expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => job.id })
+      expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => job.id, "reason" => "No longer needed." })
     end
 
     it "allows an admin to request a successful close for another user's job" do

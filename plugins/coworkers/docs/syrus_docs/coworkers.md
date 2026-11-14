@@ -298,6 +298,15 @@ explicit planned execution capabilities, and a coworker cannot target a
 repository its owner cannot write. A missing grant keeps the tools absent;
 an invalid target is returned as an authorization or validation error.
 
+The shared `syrus.jobs` capability exposes the same Job lifecycle tools in
+ordinary chats and coworker chats. Each operation keeps its canonical policy
+and confirmation behavior; in particular, cancellation always creates a
+pending action for the owner to confirm. A cancellation reason is required,
+and duplicate cancellations may link a canonical replacement Job in the same
+repository. The state history records the coworker, chat, prior and resulting
+states, reason, time, and replacement. Jobs with landing or deployment
+evidence are refused.
+
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner
 approval. The card and the coworker's Approvals inbox identify the coworker,
