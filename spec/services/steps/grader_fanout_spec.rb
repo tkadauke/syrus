@@ -2586,6 +2586,41 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       expect(third_names.size + third_carried.size).to eq(131)
     end
 
+    it "reruns a prior failed grader after the repair removes its last matching file from the cumulative diff" do
+      workflow.update!(trigger_kind: "merge_train")
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: models
+              run: bin/models
+              when_files_changed: ["app/models/**"]
+            - name: services
+              run: bin/services
+              when_files_changed: ["app/services/**"]
+      YAML
+      stub_changed_files("app/models/job.rb")
+
+      handler.call
+      workflow.steps.where(kind: "grader", iteration: 1).sole.update_columns(state: "failed")
+
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 250, iteration: 2, loop_id: loop_id)
+      repair.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        step_agent_diff: "diff --git a/app/models/job.rb b/app/models/job.rb\n--- a/app/models/job.rb\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n"
+      )
+      stub_changed_files
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |grader| grader.details["name"] }).to eq([ "models" ])
+      expect(workflow.reload.artifact(described_class::SELECTION_EXPLANATIONS_ARTIFACT_KEY)).to include(
+        include("name" => "models", "explanation" => "prior_failure", "selected" => true)
+      )
+    end
+
     it "deduplicates equivalent failed CI variants with the same identities and inputs" do
       workflow.update!(trigger_kind: "merge_train")
       write_config(<<~YAML)
