@@ -1718,17 +1718,26 @@ describe("chat compose drafts", () => {
     await screen.findByRole("button", { name: "Remove after-proposal.png" })
     await waitFor(() => expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up."))
 
-    await act(async () => rejectMessage?.(new Error("stream closed late")))
-    await screen.findByText("Message failed.")
-    await waitFor(() => expect(deliveryChecks).toBeGreaterThan(0))
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await act(async () => rejectMessage?.(new Error("stream closed late")))
+      await screen.findByText("Message failed.")
+      await waitFor(() => expect(deliveryChecks).toBeGreaterThan(0))
 
-    const checksBeforeDeliveryWasRecorded = deliveryChecks
-    deliveryRecorded = true
-    await waitFor(() => expect(screen.queryByText("Message failed.")).not.toBeInTheDocument())
-    expect(deliveryChecks).toBeGreaterThan(checksBeforeDeliveryWasRecorded)
-    expect(textarea).toHaveValue("Keep this newer follow-up.")
-    expect(screen.getByRole("button", { name: "Remove after-proposal.png" })).toBeInTheDocument()
-    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
+      const checksBeforeDeliveryWasRecorded = deliveryChecks
+      deliveryRecorded = true
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(deliveryChecks).toBeGreaterThan(checksBeforeDeliveryWasRecorded)
+      expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
+      expect(textarea).toHaveValue("Keep this newer follow-up.")
+      expect(screen.getByRole("button", { name: "Remove after-proposal.png" })).toBeInTheDocument()
+      expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
+    } finally {
+      vi.useRealTimers()
+    }
   }, 30000)
 
   it("does not discard newer typing when an earlier send succeeds", async () => {
