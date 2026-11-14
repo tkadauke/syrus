@@ -510,7 +510,10 @@ function chatRecord({
   }
 }
 
-function statusGroup(key: "status-unread" | "status-active" | "status-hidden" | "status-archived", overrides: Partial<ChatsIndexPayload["groups"][number]> = {}) {
+function statusGroup(
+  key: "status-unread" | "status-active" | "status-hidden" | "status-archived",
+  overrides: Partial<ChatsIndexPayload["groups"][number]> = {}
+) {
   const value = key.replace("status-", "")
 
   return {
