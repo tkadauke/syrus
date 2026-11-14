@@ -30,14 +30,14 @@ module PendingActions
     end
 
     def action_detail
-      "job_id: #{payload["job_id"]}, reason: #{payload["reason"]}"
+      [ "job_id: #{payload["job_id"]}", ("reason: #{payload["reason"]}" if payload["reason"].present?) ].compact.join(", ")
     end
 
     def presentation_label
       "Cancel #{presentation_job_slug}"
     end
 
-    def presentation_detail = payload["reason"].to_s
+    def presentation_detail = payload["reason"].presence
 
     private
 
