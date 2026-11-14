@@ -332,6 +332,17 @@ RSpec.describe ScheduledTasks::Task do
       cap.times { task.record_failure! }
       expect(task.reload).to be_auto_paused
     end
+
+    it "counts failures without auto-pausing a system schedule" do
+      task = build_cron(system_key: "test-system")
+      task.save!
+
+      AppSetting.max_job_failures.times { task.record_failure! }
+
+      expect(task.reload).to have_attributes(
+        state: "scheduled", consecutive_failure_count: AppSetting.max_job_failures
+      )
+    end
   end
 
   describe "#record_success!" do

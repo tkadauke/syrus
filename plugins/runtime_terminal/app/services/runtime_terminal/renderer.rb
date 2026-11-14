@@ -106,7 +106,12 @@ module RuntimeTerminal
       # positions; bottom-cropping moves ordinary glyphs onto the last row and
       # erases that distinction.
       available_height = CELL_HEIGHT - line_top
-      glyph = glyph.resize(1, vscale: available_height.to_f / glyph.height) if glyph.height > available_height
+      # Keep one row of headroom when normalizing a host-specific oversized
+      # Pango line box. Filling the entire cell puts the shared baseline on the
+      # bottom row and clips descenders, making otherwise identical bundled
+      # fonts render differently across Linux images.
+      normalized_height = available_height - 1
+      glyph = glyph.resize(1, vscale: normalized_height.to_f / glyph.height) if glyph.height > normalized_height
       clipped_width = [ glyph.width - source_left, cell_width ].min
       clipped_height = [ glyph.height, available_height ].min
       canvas = Vips::Image.black(cell_width, CELL_HEIGHT)

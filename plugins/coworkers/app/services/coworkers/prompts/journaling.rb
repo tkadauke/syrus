@@ -2,7 +2,8 @@ module Coworkers
   module Prompts
     class Journaling < ScheduledTasks::SystemSchedules::Definition
       SUPERSEDED_FORMAT = "~~original text~~ (superseded YYYY-MM-DD by <reference>: <reason>)".freeze
-      FAILURE_RETRY_DELAY = 15.minutes
+      FAILURE_RETRY_DELAY = 1.hour
+      NIGHTLY_RETRY_LIMIT = 3
 
       def catch_up_due?(task:, now:)
         return false unless retry_allowed?(task, now: now)
@@ -21,12 +22,22 @@ module Coworkers
         Coworkers::SystemSchedules.target_dates(task, now: now).first
       end
 
+      def failure_recorded(task:, date:, reason:)
+        Coworkers::JournalingFailureAlert.call(task:, date:, reason:)
+      end
+
       def overdue?(task:, now:)
         first_target = Coworkers::SystemSchedules.target_dates(task, now: now).first
         return false unless first_target
 
         zone = ActiveSupport::TimeZone[task.schedule_timezone] || ActiveSupport::TimeZone["UTC"]
         first_target < now.in_time_zone(zone).to_date - 1
+      end
+
+      def attention_required?(task:, now:)
+        overdue?(task:, now:) ||
+          (task.last_system_result == "failed" &&
+            task.consecutive_failure_count >= Coworkers::JournalingFailureAlert::FAILURE_THRESHOLD)
       end
 
       def prompt(task:, target_date:)
@@ -58,7 +69,11 @@ module Coworkers
       def retry_allowed?(task, now:)
         failure = Array(task.system_result_history).reverse.find { |entry| entry["result"] == "failed" }
         recorded_at = failure && Time.iso8601(failure["recorded_at"].to_s)
-        recorded_at.nil? || recorded_at <= now - FAILURE_RETRY_DELAY
+        return true unless recorded_at
+        return false if task.consecutive_failure_count.positive? &&
+          (task.consecutive_failure_count % NIGHTLY_RETRY_LIMIT).zero?
+
+        recorded_at <= now - FAILURE_RETRY_DELAY
       rescue ArgumentError
         true
       end
