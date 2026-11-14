@@ -1839,7 +1839,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         }.to have_enqueued_job(ChatSessionCleanupJob).with(chat.id, recorded_workspace_path).on_queue("chat")
 
         expect(response).to have_http_status(:ok)
-        expect(parse_body["message"]).to eq("Chat deleted.")
+        expect(parse_body["message"]).to eq("Chat archived.")
 
         # The request itself only marks the row deleted; the filesystem +
         # FTS cleanup runs post-commit on the worker (the web pod doesn't
@@ -1873,6 +1873,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get "/api/v1/app/chats"
       all_chat_ids = parse_body["groups"].flat_map { |group| group["chats"] }.map { |c| c["id"] }
       expect(all_chat_ids).not_to include(chat.id)
+
+      get "/api/v1/app/chats", params: { include_archived: "1" }
+      archived_chat = parse_body["groups"].flat_map { |group| group["chats"] }.find { |candidate| candidate["id"] == chat.id }
+      expect(archived_chat).to include("title" => "Doomed", "archived_at" => chat.deleted_at.iso8601)
     end
 
     it "does not release JobDependency placeholders when the chat has unmaterialized proposals, since nothing is destroyed" do
@@ -1885,7 +1889,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       delete "/api/v1/app/chats/#{chat.id}"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["message"]).to eq("Chat deleted.")
+      expect(parse_body["message"]).to eq("Chat archived.")
       expect(chat.reload.deleted_at).to be_present
       expect(ChatProposal.exists?(proposal.id)).to be(true)
       expect(JobDependency.exists?(dependency.id)).to be(true)
@@ -1908,7 +1912,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       delete "/api/v1/app/chats/#{chat.id}"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["message"]).to eq("Chat deleted.")
+      expect(parse_body["message"]).to eq("Chat archived.")
       expect(chat.reload.deleted_at).to be_present
       expect(chat.stop_requested_at).to be_present
       expect(prepare_process.reload.kill_requested_at).to be_present

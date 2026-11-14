@@ -1797,7 +1797,7 @@ describe("App", () => {
       expect(within(settingsNav).getByRole("link", { name: "Agent Settings" })).toHaveAttribute("href", "/app-shell/settings/agent")
       expect(within(settingsNav).getByRole("link", { name: "Preferences" })).toHaveAttribute("href", "/app-shell/settings/preferences")
       expect(within(settingsNav).getByRole("link", { name: "Themes" })).toHaveAttribute("href", "/app-shell/settings/themes")
-      expect(within(settingsNav).getByRole("link", { name: "Hidden chats" })).toHaveAttribute("href", "/app-shell/settings/hidden_chats")
+      expect(within(settingsNav).queryByRole("link", { name: "Hidden chats" })).not.toBeInTheDocument()
       expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
       expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
       expect(within(settingsNav).queryByRole("link", { name: "Design System" })).not.toBeInTheDocument()
@@ -1810,90 +1810,6 @@ describe("App", () => {
       expect(within(settingsNav).getByRole("link", { name: "Connected Platforms" })).toHaveAttribute("href", "/app-shell/settings/connected_platforms")
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials", expect.objectContaining({ credentials: "same-origin" }))
       expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/settings/hidden_chats?page=1", expect.anything())
-    } finally {
-      fetchSpy.mockRestore()
-      script.remove()
-    }
-  })
-
-  it("restores hidden chats from v2 settings", async () => {
-    const script = document.createElement("script")
-    script.id = "syrus-bootstrap-data"
-    script.type = "application/json"
-    script.textContent = JSON.stringify(
-      bootstrapPayload({
-        current_user: {
-          ...bootstrapPayload().current_user
-        },
-        feature_flags: {
-          v2_ui: true
-        }
-      })
-    )
-    document.body.appendChild(script)
-    let hiddenChats = [
-      {
-        ...sidebarChat({
-          id: 42,
-          title: "Archived planning",
-          repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
-          last_message_at: "2026-06-18T12:00:00Z"
-        }),
-        hidden_at: "2026-06-20T12:00:00Z",
-        app_unhide_path: "/api/v1/app/chats/42/unhide"
-      }
-    ]
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/settings/hidden_chats?page=1") {
-        return Promise.resolve(
-          new Response(JSON.stringify({ chats: hiddenChats, total: hiddenChats.length, page: 1, per_page: 20, total_pages: hiddenChats.length > 0 ? 1 : 0 }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          })
-        )
-      }
-      if (path === "/api/v1/app/chats/42/unhide" && init?.method === "PATCH") {
-        hiddenChats = []
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              message: "Chat restored.",
-              chat: sidebarChat({
-                id: 42,
-                title: "Archived planning",
-                repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
-                last_message_at: "2026-06-18T12:00:00Z"
-              })
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
-      }
-
-      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
-
-    try {
-      render(
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/settings/hidden_chats"]}>
-            <App />
-          </MemoryRouter>
-        </QueryClientProvider>
-      )
-
-      expect(await screen.findByRole("main", { name: "Hidden chats" })).toBeInTheDocument()
-      const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-      expect(within(settingsNav).getByRole("link", { name: "Hidden chats" })).toHaveClass("bg-brand/10", "text-brand")
-      expect(await screen.findByText("Archived planning")).toBeInTheDocument()
-      expect(screen.getByText("acme/widgets")).toBeInTheDocument()
-
-      fireEvent.click(screen.getByRole("button", { name: "Unhide" }))
-
-      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/42/unhide", expect.objectContaining({ method: "PATCH" })))
-      expect(await screen.findByText("Chat restored.")).toBeInTheDocument()
-      expect(await screen.findByText("No hidden chats.")).toBeInTheDocument()
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -2055,7 +1971,7 @@ describe("App", () => {
     }
   }, 30000)
 
-  it("hides a chat from the v2 recent chats sidebar", async () => {
+  it("archives a chat from the v2 recent chats sidebar", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -2102,22 +2018,9 @@ describe("App", () => {
         payload.bookmarks = []
         return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/chats/11/hide" && init?.method === "PATCH") {
+      if (path === "/api/v1/app/chats/11" && init?.method === "DELETE") {
         recentChats = recentChats.filter((chat) => chat.id !== 11)
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              message: "Chat hidden.",
-              chat: sidebarChat({
-                id: 11,
-                title: "Widgets two",
-                repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
-                last_message_at: "2026-06-17T12:00:00Z"
-              })
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
+        return Promise.resolve(new Response(JSON.stringify({ message: "Chat archived." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -2139,9 +2042,10 @@ describe("App", () => {
       // its content on `screen`.
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets two" }))
       expect(await screen.findByText("No bookmarks yet")).toBeInTheDocument()
-      fireEvent.click(screen.getByRole("button", { name: "Hide Chat" }))
+      fireEvent.click(screen.getByRole("button", { name: "Archive Chat" }))
+      fireEvent.click(screen.getByRole("button", { name: "Archive" }))
 
-      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/11/hide", expect.objectContaining({ method: "PATCH" })))
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/11", expect.objectContaining({ method: "DELETE" })))
       await waitFor(() => expect(within(recentNav).queryByRole("link", { name: "Widgets two" })).not.toBeInTheDocument())
     } finally {
       fetchSpy.mockRestore()
@@ -9145,7 +9049,7 @@ describe("App", () => {
     expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
     expect(within(settingsNav).getByRole("link", { name: "Themes" })).toHaveAttribute("href", "/app-shell/settings/themes")
-    expect(within(settingsNav).getByRole("link", { name: "Hidden chats" })).toHaveAttribute("href", "/app-shell/settings/hidden_chats")
+    expect(within(settingsNav).queryByRole("link", { name: "Hidden chats" })).not.toBeInTheDocument()
     expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
     expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
     expect(screen.queryByRole("link", { name: "Invitations" })).not.toBeInTheDocument()

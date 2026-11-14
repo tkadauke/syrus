@@ -736,24 +736,16 @@ curl https://syrus.example.com/api/v1/app/shared_chats/8b0d6a08-6f8d-4a2e-b2d8-0
   -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
 
-## Hide or Restore a Chat
+## Archive a Chat
 
-`PATCH /api/v1/app/chats/:id/hide` hides one of the authenticated user's
-chat sessions from the default sidebar, search, and chat listing surfaces.
-`PATCH /api/v1/app/chats/:id/unhide` restores it. Hide state belongs to the
-current participant, so hiding a group chat does not hide it for anyone else.
-
-```bash
-curl -X PATCH https://syrus.example.com/api/v1/app/chats/123/hide \
-  -H "Authorization: Bearer $SYRUS_API_TOKEN"
-```
-
-`GET /api/v1/app/settings/hidden_chats` returns hidden chats ordered by
-most recently hidden first. Results include `hidden_at`, repository context,
-and an `app_unhide_path` for each row.
+`DELETE /api/v1/app/chats/:id` archives a chat owned by the authenticated
+user. Archiving is a soft deletion: the database record and conversation data
+remain for audit, while active workspace artifacts and search-index entries
+are cleaned up. Pass `include_archived=1` to the chat index to include archived
+rows.
 
 ```bash
-curl "https://syrus.example.com/api/v1/app/settings/hidden_chats?page=1" \
+curl -X DELETE https://syrus.example.com/api/v1/app/chats/123 \
   -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
 
