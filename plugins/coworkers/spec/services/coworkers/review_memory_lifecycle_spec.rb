@@ -71,6 +71,28 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
       manifest: { "protected_prompt" => { "sha256" => "safe" } }, run_id: run.id)
   end
 
+  it "purges plugin-owned context and its isolated workspace without deleting generic evidence" do
+    record = context
+    allow(Coworkers::ReviewWorkspace).to receive(:remove!).with(record)
+
+    coworker.destroy!
+
+    expect(Coworkers::ReviewWorkspace).to have_received(:remove!).with(record)
+    expect(Coworkers::ReviewContext.where(id: record.id)).to be_empty
+    expect(ReviewEvidence.where(id: evidence.id)).to exist
+  end
+
+  it "purges an already-tombstoned context without revalidating its removed workspace" do
+    record = context
+    record.tombstone!
+    expect(Coworkers::ReviewWorkspace).not_to receive(:remove!)
+
+    coworker.destroy!
+
+    expect(Coworkers::ReviewContext.where(id: record.id)).to be_empty
+    expect(ReviewEvidence.where(id: evidence.id)).to exist
+  end
+
   it "serializes persistence for the coworker home branch" do
     record = context
     allow(Coworkers::OperationLock).to receive(:with).with(coworker, wait: 30).and_yield

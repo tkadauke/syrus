@@ -15,6 +15,7 @@ class Coworkers::Coworker < ApplicationRecord
   has_many :coworker_chats, class_name: "Coworkers::Chat", dependent: :destroy, inverse_of: :coworker
   has_many :chats, through: :coworker_chats, source: :chat_session
   has_many :chat_agents, class_name: "Coworkers::ChatAgent", dependent: :destroy, inverse_of: :coworker
+  has_many :review_contexts, class_name: "Coworkers::ReviewContext", dependent: :destroy, inverse_of: :coworker
   has_many :received_chat_shares, as: :target, class_name: "ChatShare", dependent: :destroy
   has_one_attached :avatar, dependent: :purge
 

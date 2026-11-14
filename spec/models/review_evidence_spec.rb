@@ -49,4 +49,28 @@ RSpec.describe ReviewEvidence do
     expect(stale.reload.state).to eq("stale")
     expect(fresh).to have_attributes(state: "pending", run_id: rereview_run.id)
   end
+
+  it "records context and persistence envelopes once without retaining restricted text" do
+    evidence = described_class.create!(evidence_attributes)
+
+    evidence.record_context!("owner" => "example", "type" => "review_context", "manifest" => { "sha256" => "safe" })
+    evidence.record_persistence!("owner" => "example", "type" => "memory", "key" => "receipt-1", "version" => 1)
+
+    expect(evidence.reload).to have_attributes(
+      context_envelope: include("manifest" => { "sha256" => "safe" }),
+      persistence_envelope: include("key" => "receipt-1")
+    )
+    expect {
+      evidence.record_context!("owner" => "example", "type" => "review_context", "manifest" => { "sha256" => "changed" })
+    }.to raise_error(ActiveRecord::ReadOnlyRecord)
+  end
+
+  it "does not replace an empty recorded envelope" do
+    evidence = described_class.create!(evidence_attributes)
+    evidence.record_context!({})
+
+    expect {
+      evidence.record_context!("owner" => "example", "type" => "review_context")
+    }.to raise_error(ActiveRecord::ReadOnlyRecord)
+  end
 end

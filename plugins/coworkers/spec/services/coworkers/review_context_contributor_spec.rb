@@ -22,11 +22,26 @@ RSpec.describe Coworkers::ReviewContextContributor do
 
   it "adapts protected context without exposing the coworker record to core" do
     expect(described_class.prepare(target: { type: "coworker", reference: "7" }, run:, evidence: nil, criteria: []))
-      .to eq(manifest: context.manifest, restricted_text: "restricted exact text", persistence_token: "19")
+      .to eq(owner: "coworkers", type: "review_context", version: 1,
+        manifest: context.manifest, restricted_text: "restricted exact text", persistence_token: "19")
   end
 
   it "binds its contributed tools to the coworker-review workflow capability" do
     expect(described_class.tool_capability(type: "coworker", reference: "7")).to eq(:submit_coworker_review)
+  end
+
+  it "contributes authorized operator links for an archived historical reviewer" do
+    persisted_coworker = Coworkers::Coworker.create!(
+      owner_user: user, name: "Maya", handle: "maya-links", state: "archived",
+      workspace_repo: repository.remote_url
+    )
+
+    expect(described_class.operator_links(
+      target: { type: "coworker", reference: persisted_coworker.id.to_s }, run:, user:
+    )).to eq(
+      "journal" => "/api/v1/app/coworkers/#{persisted_coworker.id}/review_journal/#{run.id}",
+      "restricted_context" => "/api/v1/app/coworkers/#{persisted_coworker.id}/review_contexts/#{run.id}"
+    )
   end
 
   it "returns an opaque idempotent persistence receipt" do

@@ -5,7 +5,8 @@ RSpec.describe ReviewContextContributions do
     Class.new do
       include Syrus::Plugin::ReviewContextContributor
       def self.target_type = "synthetic"
-      def self.prepare(target:, **) = { manifest: { files: [ "safe.md" ] }, restricted_text: "secret context", persistence_token: target.fetch("reference") }
+      def self.prepare(target:, **) = { owner: "synthetic", type: "review_context", version: 1,
+        manifest: { files: [ "safe.md" ] }, restricted_text: "secret context", persistence_token: target.fetch("reference") }
       def self.persist(target:, **) = { owner: "synthetic", type: "journal", key: target.fetch("reference"), version: 1, persisted_at: Time.current.iso8601 }
     end
   end
@@ -28,6 +29,7 @@ RSpec.describe ReviewContextContributions do
 
   it "rejects oversized restricted prompt text" do
     allow(provider).to receive(:prepare).and_return(
+      owner: "synthetic", type: "review_context", version: 1,
       manifest: {}, restricted_text: "x" * (described_class::MAX_RESTRICTED_TEXT_BYTES + 1)
     )
     expect { described_class.prepare(target: { type: "synthetic" }, run: nil, evidence: nil, criteria: []) }
