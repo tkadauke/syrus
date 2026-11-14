@@ -38,6 +38,33 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(old_failure.runs).to be_empty
   end
 
+  it "selects a terminal-cleanup publication failure instead of a repaired grade-loop failure" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+    old_collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 7,
+      state: "failed",
+      iteration: 1,
+      loop_id: "old-grade-loop",
+      details: { Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true }
+    )
+    Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 14,
+      state: "succeeded",
+      iteration: 2,
+      loop_id: "repaired-grade-loop"
+    )
+    publication = Step.create!(workflow: workflow, kind: "pr_open", position: 20, state: "failed")
+    publication.runs.create!(job: job, trigger_kind: "initial", state: "failed")
+
+    expect(described_class.failed_step_for(workflow)).to eq(publication)
+    expect(described_class.failed_step_for(workflow)).not_to eq(old_collect)
+  end
+
   it "does not create a duplicate run when two retry callers loaded the same failed step" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")

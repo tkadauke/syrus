@@ -38,6 +38,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     queued_step_without_run
     queued_workflow_with_failed_step
     queued_workflow_without_first_run
+    repeated_pr_open_failure_retry_recovers
     requested_intent_without_active_unit
     retryable_merge_train_build_rebuilds
     running_step_with_terminal_run
@@ -390,6 +391,24 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(AutoRetryAttempt.where(run: failed_run).count).to eq(1)
     expect(job.workflows.where(trigger_kind: "retry").count).to eq(1)
     expect(result.events.join("\n")).to include("retryable_run_failure", "auto retry")
+  end
+
+  it "retries repeated publication failures without restarting a repaired grade loop" do
+    result = run_scenario("repeated_pr_open_failure_retry_recovers")
+
+    expect(result).to be_success
+    job = Job.find(result.job_ids.first)
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    publication = workflow.steps.find_by!(kind: "pr_open")
+
+    expect(job).to be_implemented
+    expect(workflow).to be_succeeded
+    expect(publication).to be_succeeded
+    expect(publication.runs.where(state: "failed").count).to eq(2)
+    expect(publication.runs.where(state: "cancelled").count).to eq(1)
+    expect(publication.runs.where(state: "succeeded").count).to eq(1)
+    expect(workflow.steps.where(kind: "grader_fanout").count).to eq(2)
+    expect(workflow.runs.active).to be_empty
   end
 
   {

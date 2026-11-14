@@ -195,6 +195,35 @@ RSpec.describe Workflow, :ci_only do
       )
       expect(workflow).not_to be_uncleared_retry_until_barrier
     end
+
+    it "preserves a failed publication Step while cancelling its unused retry and downstream tail" do
+      job.update!(state: "failed")
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "failed")
+      publication = Step.create!(workflow: workflow, kind: "pr_open", position: 1, state: "queued")
+      failed_run = Run.create!(job: job, step: publication, trigger_kind: "initial", state: "failed")
+      unused_retry = Run.create!(job: job, step: publication, trigger_kind: "initial", state: "queued")
+      downstream = Step.create!(workflow: workflow, kind: "push", position: 2, state: "queued")
+
+      workflow.cancel_active_descendants!(reason: "cancel_terminal_workflow_active_descendants")
+
+      expect(failed_run.reload).to be_failed
+      expect(unused_retry.reload).to be_cancelled
+      expect(publication.reload).to be_failed
+      expect(downstream.reload).to be_cancelled
+      expect(workflow.reload).to be_failed
+      expect(job.reload).to be_failed
+    end
+
+    it "does not turn publication cleanup for another reason into a Step failure" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "failed")
+      publication = Step.create!(workflow: workflow, kind: "pr_open", position: 1, state: "queued")
+      Run.create!(job: job, step: publication, trigger_kind: "initial", state: "failed")
+      Run.create!(job: job, step: publication, trigger_kind: "initial", state: "queued")
+
+      workflow.cancel_active_descendants!(reason: "workspace_recovery_failed")
+
+      expect(publication.reload).to be_cancelled
+    end
   end
 
   describe "Job lifecycle propagation" do

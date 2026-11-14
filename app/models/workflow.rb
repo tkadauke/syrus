@@ -491,9 +491,18 @@ class Workflow < ApplicationRecord
       active_steps = persisted_active_steps.to_a
       cancellation_details = active_descendant_cancellation_details(reason)
       attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
+      publication_failure_step_ids = active_steps.filter_map do |step|
+        step.id if preserve_publication_failure_during_terminal_cleanup?(step, reason: reason)
+      end
 
       runs.active.find_each do |run|
-        if run.may_cancel?
+        if publication_failure_step_ids.include?(run.step_id)
+          # Run cancellation normally cascades to its owning Step. Publication
+          # retries are the narrow exception: this unused Run is cancelled,
+          # while the already-established Step failure remains retryable.
+          run.update_columns(state: "cancelled", finished_at: Time.current)
+          RunResourceSummary.refresh_for(run.reload)
+        elsif run.may_cancel?
           run.finished_at = Time.current
           run.cancel!
         end
@@ -501,6 +510,12 @@ class Workflow < ApplicationRecord
 
       active_steps.each do |step|
         step.with_lock do
+          if publication_failure_step_ids.include?(step.id)
+            step.finished_at = Time.current
+            step.fail!
+            next
+          end
+
           next unless step.may_cancel?
 
           step.cancellation_reason = reason
@@ -515,6 +530,15 @@ class Workflow < ApplicationRecord
       end
     end
   end
+
+  def preserve_publication_failure_during_terminal_cleanup?(step, reason:)
+    failed? &&
+      reason == "cancel_terminal_workflow_active_descendants" &&
+      work_definition.review_publication_step_kinds.include?(step.kind) &&
+      step.runs.failed.exists? &&
+      step.may_fail?
+  end
+  private :preserve_publication_failure_during_terminal_cleanup?
 
   def terminal?
     succeeded? || failed? || cancelled? || blocked?
