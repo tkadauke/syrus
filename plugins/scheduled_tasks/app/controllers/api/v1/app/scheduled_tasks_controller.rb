@@ -258,6 +258,7 @@ module Api
             repository_path: repository_path(task.repository),
             schedule_label: schedule_label(task),
             last_fired_at: task.last_fired_at&.utc&.iso8601,
+            coworker_id: task.attributes["coworker_id"],
             system_key: task.system_key,
             scheduled_task_path: "/scheduled_tasks/#{task.id}"
           }

@@ -16,6 +16,7 @@ export type ScheduledTaskRow = {
   repository_path: string
   schedule_label: string | null
   last_fired_at: string | null
+  coworker_id: number | null
   system_key: string | null
   scheduled_task_path: string
 }

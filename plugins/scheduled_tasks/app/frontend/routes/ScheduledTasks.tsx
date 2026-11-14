@@ -800,6 +800,7 @@ function updateScheduledTaskIndex(queryClient: ReturnType<typeof useQueryClient>
       repository_path: task.repository.repository_path,
       schedule_label: task.schedule_label,
       last_fired_at: task.last_fired_at,
+      coworker_id: task.coworker_id,
       system_key: task.system_key,
       scheduled_task_path: task.scheduled_task_path
     }
