@@ -395,6 +395,50 @@ describe("updateChatUnread", () => {
     expect(updated?.groups[0].chats.map((chat) => [chat.id, chat.unread])).toEqual([[1, true]])
   })
 
+  it("keeps archived status chats in the archived group when their unread flag changes", () => {
+    const queryClient = new QueryClient()
+    const key = recentChatsQueryKey({ show_archived: true, group_by: "status" })
+    queryClient.setQueryData(key, {
+      repositories: [],
+      groups: [
+        statusGroup("status-archived", {
+          chats: [chatRecord({ id: 1, title: "Archived", lastMessageAt: "2026-06-25T11:00:00Z" })]
+        }),
+        statusGroup("status-hidden")
+      ]
+    })
+
+    updateChatUnread(queryClient, 1, true)
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(key)
+    expect(updated?.groups.map((group) => group.key)).toEqual(["status-archived", "status-hidden"])
+    expect(updated?.groups[0].chats.map((chat) => [chat.id, chat.unread])).toEqual([[1, true]])
+  })
+
+  it("sorts a newly created unread group ahead of archived status groups", () => {
+    const queryClient = new QueryClient()
+    const key = recentChatsQueryKey({ show_archived: true, group_by: "status" })
+    queryClient.setQueryData(key, {
+      repositories: [],
+      groups: [
+        statusGroup("status-archived"),
+        statusGroup("status-hidden"),
+        statusGroup("status-active", {
+          chats: [chatRecord({ id: 1, title: "Read", lastMessageAt: "2026-06-25T11:00:00Z" })]
+        })
+      ]
+    })
+
+    updateChatUnread(queryClient, 1, true)
+
+    expect(queryClient.getQueryData<ChatsIndexPayload>(key)?.groups.map((group) => group.key)).toEqual([
+      "status-unread",
+      "status-active",
+      "status-hidden",
+      "status-archived"
+    ])
+  })
+
   it("moves a newly active message into the unread status group and updates its ordering timestamp", () => {
     const queryClient = new QueryClient()
     const key = recentChatsQueryKey({ group_by: "status" })
@@ -466,12 +510,12 @@ function chatRecord({
   }
 }
 
-function statusGroup(key: "status-unread" | "status-active" | "status-hidden", overrides: Partial<ChatsIndexPayload["groups"][number]> = {}) {
+function statusGroup(key: "status-unread" | "status-active" | "status-hidden" | "status-archived", overrides: Partial<ChatsIndexPayload["groups"][number]> = {}) {
   const value = key.replace("status-", "")
 
   return {
     key,
-    label: value === "unread" ? "Unread" : value === "hidden" ? "Hidden" : "Active",
+    label: value === "unread" ? "Unread" : value === "hidden" ? "Hidden" : value === "archived" ? "Archived" : "Active",
     repository_id: null,
     group_by: "status" as const,
     group_value: value,

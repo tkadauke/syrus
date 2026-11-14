@@ -820,6 +820,10 @@ describe("RecentChatsSidebar goal marker", () => {
 })
 
 describe("RecentChatsSidebar action and marker slot", () => {
+  afterEach(() => {
+    window.localStorage.removeItem(SIDEBAR_SETTINGS_KEY)
+  })
+
   it("renders Job combinations without an unread dot and shows the indicator popover", () => {
     renderSidebar([
       chatNav({
@@ -1043,6 +1047,50 @@ describe("RecentChatsSidebar action and marker slot", () => {
 
     fireEvent.click(archived)
     expect(screen.getByTestId("location")).toHaveTextContent("/")
+  })
+
+  it("keeps a newly archived chat listed when archived chats are shown", async () => {
+    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify({ show_archived: true }))
+    let archived = false
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/7" && init?.method === "DELETE") {
+        archived = true
+        return Promise.resolve(jsonResponse({ message: "Chat archived." }))
+      }
+      if (path.startsWith("/api/v1/app/chats?include_archived=1")) {
+        return Promise.resolve(
+          jsonResponse(
+            chatsIndexPayload({
+              groups: [
+                chatGroup({
+                  chats: [chatNav({ id: 7, title: "Past planning", archived_at: archived ? "2026-11-14T12:00:00Z" : null })]
+                })
+              ]
+            })
+          )
+        )
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/"]}>
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "Past planning" })).not.toHaveAttribute("aria-disabled", "true")
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Past planning" }))
+    fireEvent.click(screen.getByRole("button", { name: "Archive Chat" }))
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }))
+
+    await waitFor(() => expect(screen.getByRole("link", { name: "Past planning" })).toHaveAttribute("aria-disabled", "true"))
+    expect(screen.getByText("Archived")).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.filter(([input]) => String(input).startsWith("/api/v1/app/chats?include_archived=1"))).toHaveLength(2)
   })
 
   it("uses the same fixed-width slot for section controls, markers, and row actions", () => {
