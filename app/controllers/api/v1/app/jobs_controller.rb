@@ -14,6 +14,7 @@ module Api
         def index
           jobs = policy_scope(Job)
                    .includes(:epic, :repository, :deployment_stage_statuses)
+                   .preload(:proposer)
                    .order(updated_at: :desc, id: :desc)
           jobs = jobs.without_active_runtime_work unless include_active_work?
           jobs = filter_jobs(jobs)
@@ -518,6 +519,10 @@ module Api
             pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
             scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
+          if params[:proposer].present?
+            proposer = Mentionables::Resolver.find_by_handle(params[:proposer])
+            scope = proposer ? scope.where(proposer_type: proposer.class.base_class.name, proposer_id: proposer.mentionable_id) : scope.none
+          end
           # This filter backs compact clients that select rows by the
           # `pr_url` serialized below. External-PR-only Jobs deliberately have
           # a separate URL representation and serialize `pr_url: nil` here,
@@ -583,6 +588,7 @@ module Api
             repository_id: job.repository_id,
             repository_slug: job.repository.slug,
             goal_provenance: ::App::GoalProvenancePayload.for(job),
+            proposer: ::App::ProposerPayload.for(job),
             branch_name: job.branch_name,
             pr_number: job.pr_number,
             pr_url: ::App::Presentation.job_pr_url(job),

@@ -351,6 +351,7 @@ module App
           :repository,
           :user,
           :owner_user,
+          :proposer,
           :claimed_by_user,
           :tags,
           :pr_links,
@@ -381,7 +382,7 @@ module App
           :repository,
           :owner_user,
           dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses }, :unresolved_chat_proposal ]
-        )
+        ).preload(:proposer)
         total = PerformanceLogging.phase("dashboard_epics.total") { scope.count }
         epics = PerformanceLogging.phase("dashboard_epics.query", page: page, view: view) { paginate(apply_sort(scope, :epic)).to_a }
         PerformanceLogging.phase("dashboard_epics.preload_job_stats", count: epics.size) { preload_epic_dashboard_job_stats(epics) }
@@ -393,7 +394,7 @@ module App
 
     def workflows_result
       PerformanceLogging.phase("dashboard_workflows_result", view: view, ownership_scope: ownership_scope) do
-        scope = filtered_workflows_scope.includes(job: [ :repository, :user, :owner_user ])
+        scope = filtered_workflows_scope.includes(job: [ :repository, :user, :owner_user ]).preload(job: :proposer)
         total = PerformanceLogging.phase("dashboard_workflows.total") { scope.count }
         workflows = PerformanceLogging.phase("dashboard_workflows.query", page: page, view: view) { paginate(apply_sort(scope, :workflow)).to_a }
         PerformanceLogging.phase("dashboard_workflows.preload_step_counts", count: workflows.size) { preload_workflow_step_counts(workflows) }

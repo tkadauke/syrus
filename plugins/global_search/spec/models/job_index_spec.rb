@@ -31,6 +31,14 @@ RSpec.describe GlobalSearch::JobIndex do
     expect(body_results.first[:snippet]).to include("<mark>deployment</mark>")
   end
 
+  it "finds a job by proposer handle" do
+    proposer = Factories.user(email_address: "adrian@example.com")
+    job = Factories.job_record(user: user, repository: repo, proposer: proposer)
+    described_class.upsert(job)
+
+    expect(described_class.search("adrian").map { |row| row[:job_id] }).to eq([ job.id ])
+  end
+
   it "replaces stale rows when the job changes" do
     job = Factories.job_record(
       user: user,

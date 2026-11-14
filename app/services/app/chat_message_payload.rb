@@ -22,15 +22,7 @@ module App
     end
 
     def self.proposer_json(proposal)
-      proposer = proposal.proposer
-      return unless proposer
-
-      {
-        type: proposer.try(:kind).presence || proposer.class.model_name.singular,
-        id: proposer.id,
-        label: proposer.try(:name).presence || proposer.try(:display_name).presence || proposer.to_s,
-        handle: proposer.try(:handle).presence
-      }
+      App::ProposerPayload.for(proposal)
     end
 
     def self.anchor_message_id(proposal)

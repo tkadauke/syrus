@@ -187,6 +187,10 @@ and `verbose=1` for workflow artifacts and classifier inputs. The job list
 accepts `fields=min` to omit mergeability, emergency-landing, and provenance
 details. Run artifacts require `include=diff`, `include=logs`, or both.
 
+Job and Epic list/detail payloads include `proposer`, either `null` or
+`{ type, id, label, handle }`. Their admin list endpoints accept
+`proposer=<handle>`; an unknown handle returns an empty list.
+
 Epic details cap descriptions at 4,000 bytes by default (`description_max=N`)
 and accept `jobs=false` to omit child Jobs. Epic owner data is returned once as
 `owner: { status, user }`. Chat details accept `content_max=N` and

@@ -12,14 +12,15 @@ type EpicList struct {
 }
 
 type EpicItem struct {
-	ID             int64     `json:"id"`
-	Number         int64     `json:"number"`
-	Title          string    `json:"title"`
-	State          string    `json:"state"`
-	RepositorySlug string    `json:"repository_slug"`
-	DoneJobsCount  int       `json:"done_jobs_count"`
-	TotalJobsCount int       `json:"total_jobs_count"`
-	Jobs           []JobItem `json:"jobs"`
+	ID             int64        `json:"id"`
+	Number         int64        `json:"number"`
+	Title          string       `json:"title"`
+	State          string       `json:"state"`
+	RepositorySlug string       `json:"repository_slug"`
+	DoneJobsCount  int          `json:"done_jobs_count"`
+	TotalJobsCount int          `json:"total_jobs_count"`
+	Jobs           []JobItem    `json:"jobs"`
+	Proposer       *Mentionable `json:"proposer"`
 }
 
 type EpicDetail struct {

@@ -29,7 +29,7 @@ func TestJobsCommandListsOpenJobs(t *testing.T) {
 		w.Write([]byte(`{
 			"count": 3,
 			"jobs": [
-				{"id":42,"repository_slug":"tkadauke/myapp","title":"Add avatar upload","state":"implemented","pr_number":98},
+				{"id":42,"repository_slug":"tkadauke/myapp","title":"Add avatar upload","state":"implemented","pr_number":98,"proposer":{"type":"human","id":7,"label":"Adrian","handle":"adrian"}},
 				{"id":43,"repository_slug":"tkadauke/myapp","title":"Fix password reset email","state":"running","pr_number":null},
 				{"id":44,"repository_slug":"tkadauke/other-repo","title":"Upgrade Rails to 8.1","state":"queued","pr_number":null}
 			]
@@ -57,6 +57,7 @@ func TestJobsCommandListsOpenJobs(t *testing.T) {
 		"JOB-42   tkadauke/myapp",
 		"Add avatar upload",
 		"implemented",
+		"@adrian",
 		"#98",
 		"JOB-43   tkadauke/myapp",
 		"Fix password reset email",
@@ -90,12 +91,12 @@ func TestJobsCommandFiltersClosedJobsByRepo(t *testing.T) {
 	command := NewRootCommand()
 	command.SetOut(&bytes.Buffer{})
 	command.SetErr(&bytes.Buffer{})
-	command.SetArgs([]string{"jobs", "--closed", "--repo", "tkadauke/myapp"})
+	command.SetArgs([]string{"jobs", "--closed", "--repo", "tkadauke/myapp", "--proposer", "@adrian"})
 
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if gotQuery != "repo=tkadauke%2Fmyapp&state=closed" {
+	if gotQuery != "proposer=adrian&repo=tkadauke%2Fmyapp&state=closed" {
 		t.Fatalf("query = %q", gotQuery)
 	}
 }
@@ -117,13 +118,16 @@ func TestJobsCommandTruncatesLongTitlesForEightyColumns(t *testing.T) {
 	if len(lines[1]) > 80 {
 		t.Fatalf("line length = %d, want <= 80:\n%s", len(lines[1]), lines[1])
 	}
-	if !strings.Contains(lines[1], "This title is intentionall.") {
+	if !strings.Contains(lines[1], "This title i.") {
 		t.Fatalf("title was not truncated as expected:\n%s", lines[1])
 	}
 }
 
 func writeStatusCredentials(t *testing.T, home string, serverURL string) {
 	t.Helper()
+	t.Setenv("SYRUS_CLI_INTERNAL", "")
+	t.Setenv("SYRUS_CLI_URL", "")
+	t.Setenv("SYRUS_CLI_INVOCATION_CONTEXT", "")
 	path := filepath.Join(home, ".syrus", "credentials")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		t.Fatal(err)
