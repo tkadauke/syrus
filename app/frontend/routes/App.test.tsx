@@ -16462,7 +16462,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Refactor checkout flow" })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument()
-    expect(screen.getByText("1 of 3")).toBeInTheDocument()
+    expect(screen.getByText("Pending actions · 1 of 3")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Retry job" })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))

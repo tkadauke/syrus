@@ -88,6 +88,7 @@ import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { Avatar } from "../../components/Avatar"
 import { CloseIcon } from "../../components/CloseIcon"
+import { ChevronIcon } from "../../components/ChevronIcon"
 import { Input } from "../../components/Input"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
@@ -194,6 +195,7 @@ export function PendingActionCarousel({
 }) {
   const { t } = useT("chat")
   const [selectedKey, setSelectedKey] = useState<string | null>(() => items[0]?.key ?? null)
+  const [collapsed, setCollapsed] = useState(false)
   const previousKeysRef = useRef(items.map((item) => item.key))
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const carouselRef = useRef<HTMLElement | null>(null)
@@ -225,7 +227,7 @@ export function PendingActionCarousel({
   return (
     <section
       aria-label={t("pending_action_carousel_label")}
-      className={single ? "motion-safe:transition-opacity" : "rounded-lg border border-border bg-surface p-2 shadow-lg motion-safe:transition-opacity"}
+      className="rounded-lg border border-border bg-surface p-2 shadow-lg motion-safe:transition-opacity"
       data-testid="pending-action-carousel"
       onBlurCapture={(event) => {
         focusWithinRef.current = event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
@@ -234,7 +236,7 @@ export function PendingActionCarousel({
         focusWithinRef.current = true
       }}
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
+        if (collapsed || event.target !== event.currentTarget) return
         if (event.key === "ArrowLeft") {
           event.preventDefault()
           navigate(-1)
@@ -251,7 +253,7 @@ export function PendingActionCarousel({
         const start = touchStartRef.current
         const touch = event.changedTouches[0]
         touchStartRef.current = null
-        if (!start || !touch || items.length < 2) return
+        if (collapsed || !start || !touch || items.length < 2) return
         const deltaX = touch.clientX - start.x
         const deltaY = touch.clientY - start.y
         if (Math.abs(deltaX) < ACTION_CAROUSEL_SWIPE_THRESHOLD || Math.abs(deltaX) <= Math.abs(deltaY) * 1.25) return
@@ -261,13 +263,15 @@ export function PendingActionCarousel({
       tabIndex={0}
       ref={carouselRef}
     >
-      {single ? null : (
-        <div className="mb-2 flex items-center justify-between gap-2 px-1">
-          <span aria-live="polite" className="text-xs font-medium text-text-muted">
-            {t("pending_action_carousel_position", { current: selectedIndex + 1, total: items.length })}
-          </span>
-          {items.length > 1 ? (
-            <div className="flex shrink-0 gap-1">
+      <div className={`${collapsed ? "" : "mb-2"} flex min-w-0 items-center justify-between gap-2 px-1`}>
+        <span aria-live="polite" className="min-w-0 truncate whitespace-nowrap text-xs font-medium text-text-muted">
+          {single
+            ? t("pending_action_count", { count: items.length })
+            : `${t("pending_action_carousel_label")} · ${t("pending_action_carousel_position", { current: selectedIndex + 1, total: items.length })}`}
+        </span>
+        <div className="flex shrink-0 gap-1">
+          {!collapsed && items.length > 1 ? (
+            <>
               <button
                 aria-label={t("pending_action_carousel_previous")}
                 className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
@@ -284,17 +288,29 @@ export function PendingActionCarousel({
               >
                 <span aria-hidden="true">→</span>
               </button>
-            </div>
+            </>
           ) : null}
+          <button
+            aria-expanded={!collapsed}
+            aria-label={t(collapsed ? "pending_action_expand" : "pending_action_collapse")}
+            className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            onClick={() => setCollapsed((value) => !value)}
+            title={t(collapsed ? "pending_action_expand" : "pending_action_collapse")}
+            type="button"
+          >
+            <ChevronIcon className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : "rotate-90"}`} />
+          </button>
+        </div>
+      </div>
+      {collapsed ? null : (
+        <div key={selectedItem.key} className="motion-safe:animate-chat-message-in">
+          {selectedItem.type === "action" ? (
+            <PendingActionCard pendingAction={selectedItem.action} queryKey={queryKey} onNotice={onNotice} />
+          ) : (
+            <PendingActionGroupCard pendingActionGroup={selectedItem.group} queryKey={queryKey} onNotice={onNotice} />
+          )}
         </div>
       )}
-      <div key={selectedItem.key} className="motion-safe:animate-chat-message-in">
-        {selectedItem.type === "action" ? (
-          <PendingActionCard pendingAction={selectedItem.action} queryKey={queryKey} onNotice={onNotice} />
-        ) : (
-          <PendingActionGroupCard pendingActionGroup={selectedItem.group} queryKey={queryKey} onNotice={onNotice} />
-        )}
-      </div>
     </section>
   )
 }
