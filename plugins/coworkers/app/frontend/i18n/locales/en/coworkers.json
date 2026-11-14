@@ -39,6 +39,7 @@
     "run_source": "Run {{id}}",
     "unattributed_source": "Source unavailable",
     "conflict": "Unmerged chat branch {{branch}}:",
+    "branch_counts": "Branches: {{home}} home · {{chat}} chat · {{run}} run",
     "test_push": "Test push access",
     "push_ok": "Push access verified",
     "unsaved_title": "Unsaved workspace changes",

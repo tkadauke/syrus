@@ -164,6 +164,7 @@ export type CoworkerWorkspacePayload = {
   selected_file: { path: string; content: string; truncated: boolean; binary: boolean } | null
   commits: { sha: string; message: string; authored_at: string | null; source: "chat" | "run" | "unattributed"; source_id: number | null }[]
   conflicts: { branch: string; files: string[]; detail: string | null }[]
+  branch_counts: { home: number | null; chat: number | null; run: number | null }
 }
 
 export const fetchCoworkers = () =>

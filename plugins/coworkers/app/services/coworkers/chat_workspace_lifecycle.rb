@@ -79,8 +79,8 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   # Background runs share the exact home-branch merge/retry/conflict path used
-  # at chat turn end. Their immutable run ref preserves the completed work when
-  # a concurrent chat changed the home branch incompatibly.
+  # at chat turn end. Their run ref preserves the completed work until the
+  # home merge succeeds, after which it is safely compare-and-deleted.
   def finalize_background!(path:, workflow:)
     path = Pathname(path)
     return :unavailable unless path.join(".git").directory?
@@ -101,7 +101,10 @@ class Coworkers::ChatWorkspaceLifecycle
         return post_conflict!(files: marked, detail: "Conflict markers were left in the background run's files.",
           source_branch:, ref:)
       end
-      merge_into_home!(source_branch, conflict_checkout: path)
+      source_sha = git_run("rev-parse", "HEAD", chdir: path.to_s).strip
+      outcome = merge_into_home!(source_branch, conflict_checkout: path)
+      delete_merged_run_ref(source_branch, source_sha) if outcome == :merged
+      outcome
     end
   end
 
@@ -123,6 +126,20 @@ class Coworkers::ChatWorkspaceLifecycle
   def identity = Coworkers::GitIdentity.new(name: @coworker.name, handle: @coworker.handle)
   def push_guard = (@push_guard ||= Coworkers::PushGuard.new(coworker: @coworker))
   def checkout_path = ChatWorkspace.repo_path_for(@chat, @repository)
+
+  def delete_merged_run_ref(branch, expected_sha)
+    remote_workspace.guarded_delete_if_matches!(branch, expected_sha:, guard: push_guard)
+  rescue Coworkers::RemoteWorkspace::RefChanged => error
+    Rails.logger.warn("[Coworkers::ChatWorkspaceLifecycle] retained changed run ref: #{error.message}")
+  rescue StandardError => error
+    Rails.logger.warn("[Coworkers::ChatWorkspaceLifecycle] run ref cleanup deferred: #{GitRunner.redact(error.message)}")
+  end
+
+  def remote_workspace
+    match = @coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
+    Coworkers::RemoteWorkspace.new(owner: match[1], name: match[2], user: @coworker.owner_user, git: @git,
+      authenticated_url: @remote_url)
+  end
 
   def workspace_repository
     @coworker.workspace_repository
