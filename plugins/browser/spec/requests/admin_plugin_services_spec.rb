@@ -63,11 +63,19 @@ RSpec.describe "API: admin plugin services (browser)", type: :request do
 
   it "returns the browser container's logs for diagnosis" do
     stub_request(:get, "#{manager}/v1/services/browser/logs?tail=100")
-      .to_return(status: 200, body: "starting playwright-mcp on :8080\nhealthz check ok\n")
+      .to_return(status: 200, body: {
+        logs: "starting playwright-mcp on :8080\nhealthz check ok\n",
+        cursor: "2026-01-01T00:00:00Z"
+      }.to_json)
 
     get "/api/v1/app/admin/plugin_services/browser/logs", params: { tail: 100 }
 
-    expect(json).to eq("v" => ApiVersion::CURRENT, "service" => "browser", "logs" => "starting playwright-mcp on :8080\nhealthz check ok\n")
+    expect(json).to eq(
+      "v" => ApiVersion::CURRENT,
+      "service" => "browser",
+      "logs" => "starting playwright-mcp on :8080\nhealthz check ok\n",
+      "cursor" => "2026-01-01T00:00:00Z"
+    )
   end
 
   it "answers not_found for browser's details panel, since the service reports none" do
