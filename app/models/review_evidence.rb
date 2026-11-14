@@ -71,7 +71,7 @@ class ReviewEvidence < ApplicationRecord
     normalized = value.to_h.deep_stringify_keys
     current = public_send(attribute)
     return current if current == normalized
-    raise ActiveRecord::ReadOnlyRecord, "#{attribute} is immutable" if current.present?
+    raise ActiveRecord::ReadOnlyRecord, "#{attribute} is immutable" unless current.nil?
 
     update!(attribute => normalized)
     normalized

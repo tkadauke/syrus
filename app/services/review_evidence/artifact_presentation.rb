@@ -25,8 +25,22 @@ module ReviewEvidence::ArtifactPresentation
       "review_evidence" => evidence_payload(evidence),
       "cost_usd" => evidence.run.cost_usd&.to_f
     ).compact
+    if user && (links = operator_links(evidence, user:)).present?
+      presented["operator_links"] = links
+    end
     presented["verdict"] = evidence.state if evidence.state.in?(%w[pending failed stale])
     presented
+  end
+
+  def operator_links(evidence, user:)
+    target = evidence.target_envelope.to_h
+    if target.present?
+      ReviewContextContributions.operator_links(target:, run: evidence.run, user:)
+    elsif evidence.reviewer&.respond_to?(:review_evidence_links)
+      evidence.reviewer.review_evidence_links(run: evidence.run, user:)
+    end
+  rescue ReviewContextContributions::Unavailable
+    nil
   end
 
   def evidence_ids(entries)
