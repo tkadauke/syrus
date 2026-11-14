@@ -144,7 +144,7 @@ function updateUnreadGroups(groups: ChatGroupRecord[], id: number, unread: boole
   if (!chat) return updateUnreadFlags(groups, id, unread)
 
   const updated = { ...chat, unread }
-  if (sourceGroup.group_by !== "status" || sourceGroup.key === "status-hidden") {
+  if (sourceGroup.group_by !== "status" || sourceGroup.key === "status-hidden" || sourceGroup.key === "status-archived") {
     return updateUnreadFlags(groups, id, unread)
   }
 
@@ -186,7 +186,8 @@ function sortStatusGroups(groups: ChatGroupRecord[]) {
   const order = new Map([
     ["status-unread", 0],
     ["status-active", 1],
-    ["status-hidden", 2]
+    ["status-hidden", 2],
+    ["status-archived", 3]
   ])
 
   return [...groups].sort((left, right) => (order.get(left.key) ?? 9) - (order.get(right.key) ?? 9))
