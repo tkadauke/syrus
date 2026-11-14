@@ -7,11 +7,11 @@ module Mcp::Tools
     singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "base_refresh_retry_job"
-    description "Request an operator-confirmed retry from a failed Workflow's published checkpoint onto the Job's current effective base."
+    description "Request an operator-confirmed retry from a failed or strictly eligible blocked Workflow's published checkpoint onto the Job's current effective base."
     input_schema(
       properties: {
         job_id: { type: "integer", description: "Syrus Job id to retry." },
-        source_workflow_id: { type: "integer", description: "Failed source Workflow id." },
+        source_workflow_id: { type: "integer", description: "Failed or strictly eligible blocked source Workflow id." },
         reason: { type: "string", description: "Why the effective base must be refreshed." }
       },
       required: %w[job_id source_workflow_id reason]

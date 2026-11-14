@@ -235,15 +235,19 @@ Rebases the PR branch onto the base branch. Skips `commit_agent_changes` (rebase
 
 ## base_refresh_retry
 
-Restores a selected failed Workflow's latest published mutation checkpoint into
-a new Workflow, records the current effective base ref and SHA, and resolves
-that ref again immediately before rebasing the checkpoint. This allows a
+Restores a selected failed, or strictly eligible terminal blocked, Workflow's
+latest published mutation checkpoint into a new Workflow, records the current
+effective base ref and SHA, and resolves that ref again immediately before
+rebasing the checkpoint. This allows a
 queued or retried refresh to follow an advancing base while still detecting a
 base move between the final resolve and fetch. Clean rebases skip agent repair;
 conflicts use the existing bounded agentic rebase machinery. The refreshed
 source is published immutably, then setup, graders, and the normal
 PR-publication tail run without a redundant initial implementation pass.
 Missing checkpoints and concurrent mutation work fail safely. The
+blocked recovery is also detected by the reconciler after stale Runs, WorkUnits,
+and mutation locks have retired; repeated passes reuse the same reserved
+replacement instead of creating duplicate recovery work. The
 operator-confirmed `retry_job` chat tool starts this mode with
 `mode: refresh_base` and an audit reason; the older dedicated
 `base_refresh_retry_job` entry point remains compatible. Ordinary same-snapshot
