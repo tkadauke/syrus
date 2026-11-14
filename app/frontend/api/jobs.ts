@@ -1379,7 +1379,6 @@ export type PendingFeedbackPayload = {
   feedback_policy: string
   comments: PendingFeedbackComment[]
 }
-
 export type JobProviderRoutingPayload = {
   scope: { scope_type: string; scope_id: number; job_id?: number }
   provider_routing_rules: ProviderRoutingRule[]
