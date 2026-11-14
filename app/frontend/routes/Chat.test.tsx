@@ -1668,6 +1668,59 @@ describe("chat compose drafts", () => {
     expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
   }, 30000)
 
+  it("clears a failed send when a displaced message becomes durable after the first delivery check", async () => {
+    let rejectMessage: ((reason?: unknown) => void) | null = null
+    let clientIdempotencyKey = ""
+    let deliveryChecks = 0
+    let proposalReceived = false
+    const messageRequest = new Promise<Response>((_resolve, reject) => {
+      rejectMessage = reject
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        clientIdempotencyKey = JSON.parse(String(init.body)).client_idempotency_key
+        return messageRequest
+      }
+      if (path === `/api/v1/app/chats/8/message_delivery?client_idempotency_key=${clientIdempotencyKey}`) {
+        deliveryChecks += 1
+        return Promise.resolve(jsonResponse({ delivered: proposalReceived }))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [chatMessage(1, "assistant", "Earlier context", new Date())] })))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Create the long proposal." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    await act(async () => rejectMessage?.(new Error("stream closed late")))
+
+    await screen.findByText("Message failed.")
+    act(() => {
+      proposalReceived = true
+      actionCableSubscriptions
+        .find((candidate) => candidate.params.channel === "ChatChannel")
+        ?.mixin.received({
+          type: "updated",
+          resource: "chat",
+          id: 8,
+          payload: {
+            action: "replace_tail",
+            replace_from_id: 10,
+            messages: [messageWithProposal(12, proposal({ title: "Proposal after a long turn" }))]
+          }
+        })
+    })
+
+    await screen.findByText("Discuss proposal 12.")
+    await waitFor(() => expect(screen.queryByText("Message failed.")).not.toBeInTheDocument())
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    await waitFor(() => expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull())
+    expect(deliveryChecks).toBeGreaterThan(1)
+  }, 30000)
+
   it("does not discard newer typing when an earlier send succeeds", async () => {
     let resolveMessage: ((response: Response) => void) | null = null
     const messageRequest = new Promise<Response>((resolve) => {

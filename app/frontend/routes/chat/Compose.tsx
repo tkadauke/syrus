@@ -715,6 +715,37 @@ export function Compose({
     resetSend()
     onNotice(null)
   }, [chatId, payload.messages, onNotice, resetSend])
+  useEffect(() => {
+    if (!send.isError) return
+
+    const inFlight = getInFlightComposerDraft(chatId)
+    if (!inFlight?.clientIdempotencyKey) return
+
+    const clientIdempotencyKey = inFlight.clientIdempotencyKey
+    let cancelled = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    let attempts = 0
+    const reconcile = async () => {
+      attempts += 1
+      try {
+        if (await chatMessageWasDelivered(chatId, clientIdempotencyKey)) {
+          if (!cancelled) acknowledgeInFlightComposerDraft(chatId, clientIdempotencyKey)
+          return
+        }
+      } catch (_deliveryStatusError) {
+        // Keep retrying briefly: the status request can race the commit at the
+        // end of a successful long-running streamed response.
+      }
+
+      if (!cancelled && attempts < 5) timeout = setTimeout(reconcile, 500 * attempts)
+    }
+
+    void reconcile()
+    return () => {
+      cancelled = true
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [chatId, payload.messages, send.isError])
   const runShellCommand = useMutation({
     mutationFn: (input: { command: string; composerText: string }) => createChatShellCommand(chatId, input.command),
     onSuccess: (record, input) => {
