@@ -2,6 +2,7 @@
 
 require "open3"
 require "fileutils"
+require "securerandom"
 require "sqlite3"
 require "spec_helper"
 
@@ -111,26 +112,28 @@ RSpec.describe "bin/simulator", :ci_only do
     stale_paths = [ db_path, search_db_path ].flat_map { |path| [ path, "#{path}-shm", "#{path}-wal" ] }
     stale_paths.each { |path| FileUtils.rm_f(path) }
 
-    first_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     stdout1, stderr1, status1 = run_simulator("spec/fixtures/work_engine_simulations/single_initial_success.yml")
-    first_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - first_started_at
 
     expect(status1).to be_success, stderr1
     expect(stdout1).to include("single initial success: success")
     expect(File.exist?(db_path)).to be(true)
+    reuse_marker = SecureRandom.hex
+    SQLite3::Database.new(db_path) do |db|
+      db.execute(
+        "INSERT INTO ar_internal_metadata (key, value, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        [ "simulator_reuse_spec", reuse_marker ]
+      )
+    end
 
-    second_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     stdout2, stderr2, status2 = run_simulator("spec/fixtures/work_engine_simulations/single_initial_success.yml")
-    second_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - second_started_at
 
     expect(status2).to be_success, stderr2
     expect(stdout2).to include("single initial success: success")
-    # The first invocation pays the full cost of loading db/schema.rb's 150+
-    # tables into a fresh file; a second invocation against the same
-    # (persisted) database should only need a fast schema-checksum check.
-    # A regression that goes back to a fresh random database per run would
-    # make the two invocations take roughly the same time.
-    expect(second_duration).to be < first_duration
+    recorded_marker = nil
+    SQLite3::Database.new(db_path) do |db|
+      recorded_marker = db.get_first_value("SELECT value FROM ar_internal_metadata WHERE key = 'simulator_reuse_spec'")
+    end
+    expect(recorded_marker).to eq(reuse_marker)
   ensure
     stale_paths&.each { |path| FileUtils.rm_f(path) }
   end
