@@ -38,6 +38,22 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
   end
 
+  # Regression: the train workflow carried no base branch, so its workspace
+  # base fell back to the anchor Job's open stack parent. landing_fix then
+  # diffed the whole integration branch against that member branch -- 10
+  # minutes until GitRunner killed it -- and failed the train after hours of
+  # grading.
+  it "pins the train's base branch on the workflow even when the anchor Job is stacked" do
+    parent = approved_child(3)
+    child = approved_child(4)
+    child.update!(parent_job: parent)
+
+    workflow = described_class.try_dispatch!(epic)
+
+    expect(workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq(MergeTrain.last.base_branch)
+    expect(WorkflowWorkspace.base_ref_for(workflow.job, workflow: workflow)).to eq("origin/#{repository.default_branch}")
+  end
+
   it "does not dispatch when any member no longer satisfies delivery approval" do
     valid = approved_child(1)
     invalid = approved_child(2)

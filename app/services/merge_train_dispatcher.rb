@@ -71,7 +71,13 @@ class MergeTrainDispatcher
       workflow = WorkUnits::Launcher.instantiate(
         kind: "merge_train",
         job: members.last,
-        artifacts: { "merge_train_id" => train.id }.merge(fix_replay_artifacts_for(members))
+        artifacts: {
+          "merge_train_id" => train.id,
+          # Pin the train's target. Without it the workspace base falls back to
+          # the anchor Job's open stack parent, and landing_fix diffs the whole
+          # integration branch against that member branch instead of the base.
+          RebaseTarget::BASE_BRANCH_ARTIFACT => train.base_branch
+        }.merge(fix_replay_artifacts_for(members))
       )
     end
 
