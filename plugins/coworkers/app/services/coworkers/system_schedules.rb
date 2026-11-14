@@ -13,6 +13,7 @@ module Coworkers
         task.assign_attributes(attributes_for(coworker)) if task.new_record?
         repair!(task, coworker) unless task.new_record?
         task.save!
+        task.resume! if task.auto_paused?
         desired_zone = attributes_for(coworker).fetch(:schedule_timezone)
         task.update_column(:schedule_timezone, desired_zone) if task.schedule_timezone != desired_zone
         task
@@ -35,7 +36,20 @@ module Coworkers
         first = ([ next_unprocessed ] + failed_dates.select { |date| date <= yesterday }).min
         return [] if first > yesterday
 
-        first.upto([ first + CATCH_UP_LIMIT - 1, yesterday ].min).to_a
+        catch_up_start = [ first, yesterday - CATCH_UP_LIMIT + 1 ].max
+        catch_up_start.upto(yesterday).to_a
+      end
+
+      def record_out_of_window_dates!(task, now: Time.current)
+        zone = ActiveSupport::TimeZone[task.schedule_timezone] || ActiveSupport::TimeZone["UTC"]
+        yesterday = now.in_time_zone(zone).to_date - 1
+        first = task.last_journaled_on ? task.last_journaled_on + 1 : [ task.created_at.in_time_zone(zone).to_date, yesterday ].min
+        cutoff = yesterday - CATCH_UP_LIMIT
+        return if first > cutoff
+
+        first.upto(cutoff) do |date|
+          task.record_system_result!(date:, result: "skipped", reason: "out_of_catch_up_window")
+        end
       end
 
       # Active coworkers old enough to have completed a full health window
