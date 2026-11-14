@@ -125,7 +125,7 @@ describe("chat API", () => {
     const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ groups: [], repositories: [] }))
 
     await fetchChats({
-      status: "active",
+      show_archived: false,
       group_by: "repository",
       chat_types: ["agent", "external"],
       sort_by: "last_activity",
@@ -141,7 +141,7 @@ describe("chat API", () => {
     const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ groups: [], repositories: [] }))
 
     await fetchChats({
-      status: "active",
+      show_archived: false,
       group_by: "agent",
       chat_types: [],
       sort_by: "last_activity",

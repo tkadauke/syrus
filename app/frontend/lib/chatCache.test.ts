@@ -197,10 +197,10 @@ describe("updateRecentChatCache", () => {
   it("only prepends absent chats into recent-chat caches whose filters match", () => {
     const queryClient = new QueryClient()
     const defaultKey = recentChatsQueryKey()
-    const hiddenKey = recentChatsQueryKey({ status: "hidden" })
+    const archivedKey = recentChatsQueryKey({ show_archived: true })
     const groupKey = recentChatsQueryKey({ chat_types: ["group"] })
     const agentKey = recentChatsQueryKey({ chat_types: ["agent"] })
-    for (const key of [defaultKey, hiddenKey, groupKey, agentKey]) {
+    for (const key of [defaultKey, archivedKey, groupKey, agentKey]) {
       queryClient.setQueryData(key, {
         repositories: [],
         groups: [
@@ -227,7 +227,7 @@ describe("updateRecentChatCache", () => {
 
     expect(queryClient.getQueryData<ChatsIndexPayload>(defaultKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
     expect(queryClient.getQueryData<ChatsIndexPayload>(agentKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
-    expect(queryClient.getQueryData<ChatsIndexPayload>(hiddenKey)?.groups[0]?.chats).toEqual([])
+    expect(queryClient.getQueryData<ChatsIndexPayload>(archivedKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
     expect(queryClient.getQueryData<ChatsIndexPayload>(groupKey)?.groups[0]?.chats).toEqual([])
   })
 
