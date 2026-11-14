@@ -496,6 +496,17 @@ class ChatPendingAction < ApplicationRecord
     with_lock do
       return false unless confirming?
 
+      if error.is_a?(PendingActions::AuthorizationLapsed)
+        return update!(
+          state: "cancelled",
+          cancelled_at: Time.current,
+          execution_status: "rejected",
+          execution_step: "Withdrawn: the request lapsed before it was approved.",
+          execution_error: "#{error.class}: #{error.message}",
+          execution_finished_at: Time.current
+        )
+      end
+
       update!(
         state: "failed",
         execution_status: rejected ? "rejected" : "failed",
@@ -597,10 +608,15 @@ class ChatPendingAction < ApplicationRecord
     message || outcome_message
   end
 
+  # A failed card reports something that already happened -- the chat also
+  # carries the failure notice -- so it leaves on its own after this long,
+  # whether or not anyone dismissed it.
+  FAILED_CARD_VISIBLE_FOR = 1.hour
+
   def visible_in_chat_payload?
     return false if dismissed_at? || dismissed?
     return pending_action_group.visible_in_chat_payload? if pending_action_group
-    return true if failed?
+    return (execution_finished_at || updated_at).after?(FAILED_CARD_VISIBLE_FOR.ago) if failed?
     return true unless terminal?
 
     outcome_message_id.blank?

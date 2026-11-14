@@ -7196,6 +7196,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(action.execution_error).to include("ConfirmationStalled")
   end
 
+  it "drops a failed pending action card on its own after it has been visible for a while" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository)
+    action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => job.id })
+    action.update!(state: "confirming")
+    action.fail_confirmation!(StandardError.new("boom"))
+
+    get "/api/v1/app/chats/#{chat.id}"
+    expect(parse_body["pending_actions"].map { |item| item["id"] }).to eq([ action.id ])
+
+    travel ChatPendingAction::FAILED_CARD_VISIBLE_FOR + 1.minute do
+      get "/api/v1/app/chats/#{chat.id}"
+      expect(parse_body["pending_actions"]).to be_empty
+    end
+    expect(action.reload).to be_failed
+  end
+
   it "lets the operator dismiss a failed pending action through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -7209,7 +7227,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    expect(parse_body["pending_actions"]).to contain_exactly(include("id" => action.id, "state" => "failed"))
+    # The card's X renders only with this path; the slim terminal payload
+    # once dropped it, leaving failed cards with no way to close.
+    expect(parse_body["pending_actions"]).to contain_exactly(include(
+      "id" => action.id,
+      "state" => "failed",
+      "app_cancel_path" => "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+    ))
     expect(action.reload.outcome_message).to be_present
     clear_enqueued_jobs
 
@@ -7413,7 +7437,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to contain_exactly(
-      { "id" => action.id, "label" => %(Create document "Runbook"), "state" => "confirmed" }
+      {
+          "id" => action.id, "label" => %(Create document "Runbook"), "state" => "confirmed",
+          "app_cancel_path" => "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+        }
     )
     expect(document).to have_attributes(title: "Runbook", content_type: "text/markdown", attachable: repository)
   end

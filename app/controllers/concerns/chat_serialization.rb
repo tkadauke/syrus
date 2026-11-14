@@ -312,10 +312,13 @@ module ChatSerialization
 
     pending_actions_for_payload(chat_session).map do |action|
       if ChatPendingAction::TERMINAL_REQUEST_STATES.include?(action.state)
+        # Slim, but keep the dismiss path: the card's X needs it, and without
+        # it a failed card could never be closed.
         next {
           id: action.id,
           label: pending_action_label(action),
-          state: action.state
+          state: action.state,
+          app_cancel_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
         }
       end
 

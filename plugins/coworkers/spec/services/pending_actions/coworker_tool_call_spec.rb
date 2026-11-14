@@ -172,6 +172,39 @@ RSpec.describe PendingActions::CoworkerToolCall do
     expect(ChatTurnJob).to have_received(:perform_later).with(chat.id, message.id)
   end
 
+  # Regression: a request overtaken before anyone confirmed it -- its turn
+  # moved on and the invocation no longer revalidated -- was recorded as a
+  # failure and left a permanent "Failed" card, though it had been withdrawn,
+  # never attempted.
+  it "records a lapsed authorization as withdrawn, not failed" do
+    approve_request!(request)
+    allow(ChatTurnJob).to receive(:perform_later)
+    allow(tool).to receive(:call).and_call_original
+    allow_any_instance_of(AuthorizedInvocation).to receive(:claim!) do |invocation|
+      AuthorizedInvocation::ClaimResult.new(status: :revalidation_failed, invocation:)
+    end
+
+    request.reload.execute_confirmation!
+
+    expect(request.reload).to be_cancelled
+    expect(request.execution_step).to include("Withdrawn")
+    expect(tool).not_to have_received(:call)
+    text = chat.messages.find_by!(role: "system").content["text"]
+    expect(text).to include("Pending action cancelled").and include("not applied")
+  end
+
+  it "still records a mismatched invocation as a failure" do
+    approve_request!(request)
+    allow(ChatTurnJob).to receive(:perform_later)
+    allow_any_instance_of(AuthorizedInvocation).to receive(:claim!) do |invocation|
+      AuthorizedInvocation::ClaimResult.new(status: :fingerprint_mismatch, invocation:)
+    end
+
+    request.reload.execute_confirmation!
+
+    expect(request.reload).to be_failed
+  end
+
   it "surfaces a failed outcome in the chat when the tool returns nothing" do
     approve_request!(request)
     allow(ChatTurnJob).to receive(:perform_later)
