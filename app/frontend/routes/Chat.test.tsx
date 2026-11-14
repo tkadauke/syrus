@@ -1668,11 +1668,11 @@ describe("chat compose drafts", () => {
     expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
   }, 30000)
 
-  it("clears a failed send when a displaced message becomes durable after the first delivery check", async () => {
+  it("clears a late failed send after an already displaced message becomes durable", async () => {
     let rejectMessage: ((reason?: unknown) => void) | null = null
     let clientIdempotencyKey = ""
     let deliveryChecks = 0
-    let proposalReceived = false
+    let deliveryRecorded = false
     const messageRequest = new Promise<Response>((_resolve, reject) => {
       rejectMessage = reject
     })
@@ -1685,7 +1685,7 @@ describe("chat compose drafts", () => {
       }
       if (path === `/api/v1/app/chats/8/message_delivery?client_idempotency_key=${clientIdempotencyKey}`) {
         deliveryChecks += 1
-        return Promise.resolve(jsonResponse({ delivered: proposalReceived }))
+        return Promise.resolve(jsonResponse({ delivered: deliveryRecorded }))
       }
       return Promise.resolve(jsonResponse(chatPayload({ messages: [chatMessage(1, "assistant", "Earlier context", new Date())] })))
     })
@@ -1695,11 +1695,7 @@ describe("chat compose drafts", () => {
     fireEvent.change(textarea, { target: { value: "Create the long proposal." } })
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
     await waitFor(() => expect(textarea).toHaveValue(""))
-    await act(async () => rejectMessage?.(new Error("stream closed late")))
-
-    await screen.findByText("Message failed.")
     act(() => {
-      proposalReceived = true
       actionCableSubscriptions
         .find((candidate) => candidate.params.channel === "ChatChannel")
         ?.mixin.received({
@@ -1715,10 +1711,24 @@ describe("chat compose drafts", () => {
     })
 
     await screen.findByText("Discuss proposal 12.")
+    fireEvent.change(textarea, { target: { value: "Keep this newer follow-up." } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["new pixels"], "after-proposal.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove after-proposal.png" })
+    await waitFor(() => expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up."))
+
+    await act(async () => rejectMessage?.(new Error("stream closed late")))
+    await screen.findByText("Message failed.")
+    await waitFor(() => expect(deliveryChecks).toBeGreaterThan(0))
+
+    const checksBeforeDeliveryWasRecorded = deliveryChecks
+    deliveryRecorded = true
     await waitFor(() => expect(screen.queryByText("Message failed.")).not.toBeInTheDocument())
-    await waitFor(() => expect(textarea).toHaveValue(""))
-    await waitFor(() => expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull())
-    expect(deliveryChecks).toBeGreaterThan(1)
+    expect(deliveryChecks).toBeGreaterThan(checksBeforeDeliveryWasRecorded)
+    expect(textarea).toHaveValue("Keep this newer follow-up.")
+    expect(screen.getByRole("button", { name: "Remove after-proposal.png" })).toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
   }, 30000)
 
   it("does not discard newer typing when an earlier send succeeds", async () => {
