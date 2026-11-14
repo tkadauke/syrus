@@ -83,20 +83,24 @@ let nextLegacyMessageIdentity = 1
 
 export function renderChatMessages(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
   const metadata = transcriptMetadata(messages)
-  return measureSync("chat.transcript.derive", () => {
-    const result = renderChatMessagesUnmeasured(messages, cache)
-    if (cache) {
-      metadata.reused_prefix_message_count = cache.lastDerivation.reusedMessageCount
-      metadata.rebuilt_message_count = cache.lastDerivation.rebuiltMessageCount
-      metadata.full_rebuild = cache.lastDerivation.fullRebuild
+  return measureSync(
+    "chat.transcript.derive",
+    () => {
+      const result = renderChatMessagesUnmeasured(messages, cache)
+      if (cache) {
+        metadata.reused_prefix_message_count = cache.lastDerivation.reusedMessageCount
+        metadata.rebuilt_message_count = cache.lastDerivation.rebuiltMessageCount
+        metadata.full_rebuild = cache.lastDerivation.fullRebuild
+      }
+      return result
+    },
+    {
+      metadata,
+      thresholdMs: 8,
+      sampleRate: 0.2,
+      maxPerSession: 20
     }
-    return result
-  }, {
-    metadata,
-    thresholdMs: 8,
-    sampleRate: 0.2,
-    maxPerSession: 20
-  })
+  )
 }
 
 function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
@@ -110,9 +114,8 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
   const sequence = messages.map((message) => ({ id: message.id, revision: sourceMessageRevision(message) }))
   const changedIndex = cache ? earliestChangedMessage(cache.messageSequence, sequence) : 0
   const structuralChange = cache ? structurallyChanged(cache.messageSequence, sequence) : true
-  const checkpoint = cache && !structuralChange && cache.retiredToolUseIds === retiredFingerprint
-    ? latestCheckpoint(cache.checkpoints, changedIndex)
-    : undefined
+  const checkpoint =
+    cache && !structuralChange && cache.retiredToolUseIds === retiredFingerprint ? latestCheckpoint(cache.checkpoints, changedIndex) : undefined
   const startIndex = checkpoint?.messageCount ?? 0
   const items: ChatRenderItem[] = checkpoint ? cache!.previousItems.slice(0, checkpoint.itemCount) : []
   const containerByParentKey = new Map<string, ChatRenderItem[]>([[ROOT_KEY, items]])
@@ -122,9 +125,7 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
   const priorResults = checkpoint ? new Map(checkpoint.priorResults) : new Map<string, unknown>()
   const messageRevisions = new Map<number, string>()
   const callRevisionParts = new Map<number, string[]>()
-  const checkpoints: RenderCheckpoint[] = checkpoint
-    ? cache!.checkpoints.filter((candidate) => candidate.messageCount <= checkpoint.messageCount)
-    : []
+  const checkpoints: RenderCheckpoint[] = checkpoint ? cache!.checkpoints.filter((candidate) => candidate.messageCount <= checkpoint.messageCount) : []
 
   for (let messageIndex = startIndex; messageIndex < messages.length; messageIndex += 1) {
     const message = messages[messageIndex]
@@ -262,11 +263,13 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
   for (const candidate of checkpoints) {
     candidate.itemCount = retainedPrefixCounts[candidate.itemCount] ?? pruned.length
   }
-  const nextRevisions = new Map(pruned.map((item, index) => {
-    const identity = renderIdentity(item)
-    const retainedRevision = checkpoint && index < checkpoint.itemCount ? cache.previousRevisions.get(identity) : undefined
-    return [identity, retainedRevision ?? renderItemRevision(item, messageRevisions, callRevisionParts)]
-  }))
+  const nextRevisions = new Map(
+    pruned.map((item, index) => {
+      const identity = renderIdentity(item)
+      const retainedRevision = checkpoint && index < checkpoint.itemCount ? cache.previousRevisions.get(identity) : undefined
+      return [identity, retainedRevision ?? renderItemRevision(item, messageRevisions, callRevisionParts)]
+    })
+  )
   const reconciled = reconcileRenderItems(cache.previousItems, cache.previousRevisions, pruned, nextRevisions)
   cache.previousItems = reconciled
   cache.previousRevisions = nextRevisions
