@@ -36,6 +36,17 @@ RSpec.describe AgentMemory::ChatToolSet do
     expect(Mcp::CoworkerToolExposure.plugin_definition?(audit)).to be(false)
   end
 
+  it "marks inherited memory writes as mutations for canonical permission gating" do
+    definitions = %i[essential deferred].flat_map do |tier|
+      described_class.tool_definitions(tier: tier, chat_session: chat_session)
+    end.index_by { |definition| definition.fetch(:name) }
+
+    expect(definitions.values_at("write_memory", "delete_memory", "publish_memory", "unpublish_memory"))
+      .to all(include(mutation: true))
+    expect(definitions.values_at("read_memory", "search_memories", "list_memories"))
+      .to all(include(mutation: false))
+  end
+
   it "classifies every non-admin ordinary memory chat tool in the coworker catalog" do
     allow(McpToolContext).to receive(:from_chat_session).with(chat_session).and_return(
       instance_double(McpToolContext, role: AgentRole::COWORKER_CHAT)

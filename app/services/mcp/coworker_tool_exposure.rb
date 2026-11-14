@@ -3,18 +3,6 @@ module Mcp
   # the few context boundaries that registration must preserve; authorization
   # remains the responsibility of the canonical permission descriptor.
   class CoworkerToolExposure
-    EXCLUDED_PLUGIN_PROVIDERS = %w[
-      AdminMysql::ChatToolSet
-      SyrusBrowser::ChatToolSet
-    ].freeze
-
-    # These providers contribute tools specifically for a coworker's own
-    # runtime rather than inheriting an ordinary planning-chat surface.
-    COWORKER_ONLY_PLUGIN_PROVIDERS = %w[
-      Coworkers::ChatToolSet
-      SyrusDev::ChatToolSet
-    ].freeze
-
     DEDICATED_CHAT_ROLES = [
       AgentRole::CHAT_CODING,
       AgentRole::CHAT_LOCAL,
@@ -40,12 +28,13 @@ module Mcp
       end
 
       def plugin_provider?(provider)
-        !EXCLUDED_PLUGIN_PROVIDERS.include?(provider.name)
+        !provider.respond_to?(:coworker_excluded?) || !provider.coworker_excluded?
       end
 
       def plugin_provider_available?(provider, chat_session, tier:)
         return false unless plugin_provider?(provider)
-        return provider.available_for?(chat_session, tier:) unless COWORKER_ONLY_PLUGIN_PROVIDERS.include?(provider.name)
+        return provider.available_for?(chat_session, tier:) unless provider.respond_to?(:coworker_specific_availability?) &&
+          provider.coworker_specific_availability?
 
         provider.available_for_coworker?(chat_session, tier:)
       end

@@ -53,8 +53,9 @@ RSpec.describe "plugin chat tool policy" do
 
     expect(Mcp::Sidecar.filter_by_policy(definitions, :coworker).map { |definition| definition[:name] })
       .to eq(%w[shared legacy_safe])
-    expect(Mcp::CoworkerToolExposure.plugin_provider?(AdminMysql::ChatToolSet)).to be(false)
-    expect(Mcp::CoworkerToolExposure.plugin_provider?(SyrusBrowser::ChatToolSet)).to be(false)
+
+    excluded = class_double("ExcludedToolSet", coworker_excluded?: true)
+    expect(Mcp::CoworkerToolExposure.plugin_provider?(excluded)).to be(false)
   end
 
   it "uses ordinary availability by default and names coworker-only provider exceptions centrally" do
@@ -64,9 +65,12 @@ RSpec.describe "plugin chat tool policy" do
     allow(shared).to receive(:available_for_coworker?).and_return(false)
 
     expect(Mcp::CoworkerToolExposure.plugin_provider_available?(shared, chat, tier: :essential)).to be(true)
-    expect(Mcp::CoworkerToolExposure::COWORKER_ONLY_PLUGIN_PROVIDERS).to contain_exactly(
-      "Coworkers::ChatToolSet", "SyrusDev::ChatToolSet"
+
+    specific = class_double(
+      "SpecificToolSet", coworker_specific_availability?: true,
+      available_for_coworker?: false, coworker_excluded?: false
     )
+    expect(Mcp::CoworkerToolExposure.plugin_provider_available?(specific, chat, tier: :essential)).to be(false)
   end
 
   # A tool set written before the flags existed must behave exactly as it did.
