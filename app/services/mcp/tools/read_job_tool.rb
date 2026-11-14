@@ -43,6 +43,8 @@ module Mcp::Tools
           latest_workflow: workflow_summary_payload(workflow),
           transcript: transcript_payload(workflow)
         )
+      rescue ActiveRecord::StatementInvalid => error
+        Mcp::Tools.database_error(error, operation: "Job inspection")
       end
 
       private

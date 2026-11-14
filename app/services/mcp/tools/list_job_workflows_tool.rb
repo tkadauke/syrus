@@ -23,6 +23,8 @@ module Mcp::Tools
         job = find_job!(job_id)
 
         Mcp::Tools.success(job_id: job.id, workflows: workflow_index_for(job))
+      rescue ActiveRecord::StatementInvalid => error
+        Mcp::Tools.database_error(error, operation: "Workflow listing")
       end
     end
   end
