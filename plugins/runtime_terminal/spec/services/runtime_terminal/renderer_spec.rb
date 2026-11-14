@@ -101,6 +101,17 @@ RSpec.describe RuntimeTerminal::Renderer do
     expect((0...4).map { |col| ink_bounds(repeated, col: col) }.uniq.length).to eq(1)
   end
 
+  it "preserves baseline headroom when Pango returns an oversized line box" do
+    requires_bundled_fonts!
+    stub_const("RuntimeTerminal::Renderer::FONT_SIZE", 20)
+
+    rendered = image("\e[?25lAy", cols: 2, rows: 1)
+    baseline = ink_bounds(rendered, col: 0).fetch(:y).last
+
+    expect(baseline).to be < described_class::CELL_HEIGHT - 1
+    expect(ink_bounds(rendered, col: 1).fetch(:y).last).to be > baseline
+  end
+
   it "keeps styled, combining, box-drawing, wide, and cursor cells on the row metrics" do
     requires_bundled_fonts!
 
