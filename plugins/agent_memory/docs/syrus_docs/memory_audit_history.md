@@ -3,7 +3,7 @@
 > Agent memory ships as the `agent_memory` plugin (enabled by default). It is
 > the registered `memory_store` provider, so disabling it removes the memory
 > tools, the Memories settings page, and the memory section of agent prompts —
-> see `plugins.md`. Existing rows are untouched by disabling; removing them is
+> see the "Plugin lifecycle" section of `plugins.md`. Existing rows are untouched by disabling; removing them is
 > `bin/rails 'plugin:purge[agent_memory]'`.
 
 Every `AgentMemory::Entry` create/update/delete has always been recorded to the append-only

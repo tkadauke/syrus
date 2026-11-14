@@ -2,6 +2,10 @@
 
 Use these rules for plugin lifecycle, registration, boundaries, suggestions, and plugin-owned test coverage.
 
+The complete extension-point interfaces, examples, frontend integration rules,
+icon pipeline, lifecycle hooks, and boundary tooling live in the
+[plugin-authoring reference](plugins/authoring.md).
+
 - **A disabled plugin is not eager loaded.** Its `app/` dirs stay on the
   autoload path, so Zeitwerk resolves constants on demand and enabling needs no
   restart, but its code is skipped at eager load (`Syrus::PluginEagerLoad`,
@@ -44,4 +48,5 @@ Use these rules for plugin lifecycle, registration, boundaries, suggestions, and
   example into the plugin that owns it. Specs that genuinely need a git working
   tree are tagged `:requires_git_checkout`. Same rule between plugins: a
   plugin spec may only name tools from a plugin it declares `depends_on`.
-  See `config/syrus_docs/plugins.md` for the audit recipe.
+  See the [plugin-authoring reference](plugins/authoring.md) for the audit
+  recipe.

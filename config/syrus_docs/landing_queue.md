@@ -1,5 +1,7 @@
 # Landing Queue
 
+The landing queue manages the flow from "approved" to "merged." Once a Job is approved, Syrus queues it for landing via the `auto_merge` workflow, `external_pr_merge` for externally filed PRs, or the unconditional `merge_train` path for Epic children.
+
 ## Patient automatic rebases
 
 System-origin rebases, including behind-base, landing repair, and recovered
@@ -15,389 +17,61 @@ push records unapplied feedback and places a durable landing hold on the Job;
 ordinary PR review polling does not clear that distinct attention reason, so
 the missing feedback stays visible for operator follow-up.
 
-The landing queue manages the flow from "approved" to "merged." Once a Job is approved, Syrus queues it for landing via the `auto_merge` workflow, `external_pr_merge` for externally filed PRs, or the unconditional `merge_train` path for Epic children.
-
 ## Approval and landing
 
-When an operator approves a Job:
+Approval moves a Job into the landing queue. Ready work starts the appropriate landing workflow; blocked work remains approved with an operator-visible reason. Candidates are ordered by priority and FIFO approval time, while dependencies remain before dependents and Epic members remain one atomic unit.
 
-1. The Job transitions to `approved`.
-2. `LandingQueueProcessor.try_land!` evaluates whether the Job can proceed immediately or must wait.
-3. If ready, Syrus dispatches the landing workflow and moves the Job to `landing`.
+When approval propagation is enabled, Syrus mirrors an eligible approval as a GitHub review. It uses the approving operator's connected GitHub identity when possible and falls back to the repository App for a true same-identity self-review. Propagation is skipped only when neither credential is available.
 
-Landing queue candidates are ordered by `Job#priority` first
-(`urgent`, `high`, `medium`, `low`), then by the existing FIFO approval
-order (`approved_at`, falling back to `updated_at`, then `id`) within the
-same priority. Dependency prerequisites still sort before their dependents,
-and Epic merge-train members stay grouped as one atomic landing unit.
-
-When repository approval propagation is enabled, Syrus mirrors eligible Job
-approvals as GitHub PR reviews (`Job::ApprovalPropagator`). It compares the
-approving user's own GitHub login (resolved via their connected PAT) against
-the PR's actual author login: when they differ — the normal case — the
-review is posted authenticated as the approving user's own PAT, so it's
-genuinely attributed to them on GitHub. When they match — a true self-review,
-where the approver is the same GitHub identity as the PR's author — GitHub
-rejects same-identity self-approval, so the review is posted instead using
-the GitHub App's installation token, with the body still crediting the real
-approving human by name. Propagation is skipped only when no usable
-credential exists at all: the approving user has no connected PAT and the
-repository has no active App installation.
-
-Jobs wait in `approved` when:
-- A same-repo Job is already landing (serialized per repo by default).
-- The Job is part of an Epic and siblings aren't yet approved for their shared merge train.
-- A dependency Job hasn't closed successfully.
-- An early-released Epic's upstream Epic has not completed successfully.
-- The repository's main branch health is `broken` and Syrus has paused repository landing for repair.
-
-`inconclusive` main branch health is warning-only. Syrus shows the main-health warning surfaces and notifications, but it does not hold queued workflows or landing queue entries solely because the signal is inconclusive.
+Jobs wait when another unit is landing, Epic siblings are not ready, a dependency or upstream Epic is incomplete, or strict broken-main policy pauses the repository. Inconclusive main health warns but does not block by itself.
 
 ## Broken-main policy and repository pauses
 
-`Repository#breakage_policy` chooses how broadly broken main-branch health
-blocks landing. It is repository policy, read from the repository's risk
-profile (`RiskProfile`), not an instance-wide setting -- "is unrelated work
-allowed to proceed while main is broken" is a statement about one codebase's
-risk tolerance, and answering it globally meant one repository's posture
-silently governed every other one.
+Repository risk posture chooses whether broken main pauses all landing or allows work whose failures are proven unrelated. Strict policy pauses the repository. Isolation policy permits unrelated work and inherited grader failures, while failures introduced by the candidate still block. Pull-request check gating is configured separately as `all`, `own_only`, or `none`.
 
-- `strict` (the `production` posture) treats a broken default branch as a
-  safety stop for unrelated landing in that repository. When main health
-  transitions to `broken`, `MainHealthChangedService` sets
-  `repository.landing_paused`; `LandingQueueProcessor` then blocks approved
-  Jobs for that repository as `landing_paused_main_broken`.
-- `isolate_unrelated_failures` (the `prototype` and `standard` postures) keeps
-  unrelated work moving while main is broken and lets `grader_collect` pass failures proven to be inherited from
-  broken main. It does not auto-land PR checks that merely look inherited; that
-  is controlled separately by the `pr_checks_failing_inherited` gate in
-  `LandingQueueProcessor` and the per-repository
-  `Repository#pr_check_gate` setting.
-
-`Repository#pr_check_gate` governs the Epic-sibling check gate as well
-as the per-Job one. Both classify through `PrCheckAttribution`, so a member
-whose checks are all failing on the base no longer holds its siblings. A
-member whose failure is its *own* still holds them, whatever the setting:
-landing around a member that genuinely broke something is what the gate exists
-for. Until this was shared, one broken default branch could hold every member
-of every Epic — each reported under the own-failure reason key and each naming
-a different member as the culprit, with pairs pointing at each other.
-
-Main health is intentionally conservative: `Repository#main_health` is
-`broken` when either `ci_health` or `grader_health` is broken, so a single
-never-passing CI check can pause landing under `strict`.
-
-A repository on a posture whose policy is `isolate_unrelated_failures` is not
-paused by broken main at all, so a grader that reports main broken for reasons
-unrelated to the work in flight does not stop that repository landing.
-
-Changing the policy does not clear an existing pause. `MainHealthChangedService`
-sets and clears `repository.landing_paused` on health transitions; if landing is
-already paused and an operator changes the policy to
-`isolate_unrelated_failures`, use the repository health page's **Resume
-landing** action (`repositories#resume_landing`) to clear the pause and enqueue
-`LandingQueueProcessorJob`.
-
-The dashboard's landing queue `Blocked reason` column first shows the per-Job
-queue blocker recorded by `LandingQueueProcessor`. If that value is blank,
-the dashboard falls back to merge-train and start-gate diagnostics for the
-same landing unit, such as a queued merge train blocked by `urgent_job_active`,
-an already-active merge train, or landing state drift where a Job is in
-`landing` with no active workflow or train.
+Changing policy does not silently clear an existing pause. Use **Resume landing** on repository health after reviewing the condition. The landing queue shows the effective blocker, falling back to workflow or merge-train diagnostics when necessary.
 
 ## Failures that are not rejections
 
-`LandingFailureHandler` splits a failed landing attempt two ways. A **deferral**
-keeps the Job `approved` and lets the landing queue try again; a **failure**
-reverts it to `implemented`, clears the approval, and waits for an operator.
-Only a genuine rejection of the work — failed graders — belongs on the second
-side. Everything that says nothing about whether the change is landable is a
-deferral: GitHub 5xx, a sidecar that did not come up, a dead worker, lock
-contention, and a `prepare` failure (the workflow never reached a grader, so the
-change was never judged — the environment failed to build).
+Landing failures are either deferrals or rejections. Deferrals keep approval and retry after transient infrastructure, stale-base, preparation, or start-blocker conditions. Genuine validation failures return work to implemented and clear approval. The recorded explanation and stable failure code make the decision auditable.
 
-Current landing failures persist both an operator-facing explanation
-(`landing_failure_reason`) and a structured `landing_failure_code`; pause,
-deferral, start-blocker re-entry, and merge-train cooldown decisions read the
-code first. The old reason-prefix/pattern checks remain only as compatibility
-for rows written before the code existed.
-
-Putting a new failure path on the wrong side of that split costs an operator a
-round of re-approving, potentially every member of a merge train.
-
-Before dispatch, the queue re-evaluates the repository's current delivery
-approval policy. If an approver has lost repository access, an approval was
-withdrawn, or the policy has tightened since the Job entered `approved`, the
-Job remains approved with the non-overridable `approval_not_satisfied` blocker.
-This applies equally to solo landing, Epic merge trains, and Job bundles.
+Before dispatch, Syrus rechecks current approval policy and approver access. A no-longer-valid approval blocks without being overrideable for solo Jobs, Epic trains, and bundles.
 
 ## Failing PR checks: inherited vs. introduced
 
-A Job whose GitHub checks are red is held out of landing, but *why* they are red
-decides which hold applies. `PrCheckAttribution` compares the checks failing on
-the PR head against the checks already failing on its base:
+Syrus compares failing check names on the candidate with settled failures on its base:
 
-- **`own`** — at least one check is red here that is not red on the base. The
-  Job introduced a failure. Blocked as `pr_checks_failing`, and that key is on
-  `LandingBlockerOverride::NON_OVERRIDABLE_KEYS`: no override.
-- **`inherited`** — *every* failing check is also failing on the base. The Job
-  did not cause this. Blocked as `pr_checks_failing_inherited`, which **is**
-  overridable, so an operator who has read the evidence can land it.
-- **`unknown`** — no failing check names recorded for this SHA, or no settled
-  health record for the base. Falls through to `pr_checks_failing`; the system
-  does not guess in the Job's favour.
+- `own` means the candidate introduces at least one failing check and cannot be overridden.
+- `inherited` means all named failures also fail on the base; the default block is operator-overridable.
+- `unknown` means evidence is incomplete and remains blocked conservatively.
 
-Both halves of the comparison are persisted, which is what makes the call
-auditable rather than a black box: `jobs.pr_checks_failing_names` (written by
-`PollPullRequestJob`, `LandingQueueRecheck`, and `CiRepair::CheckRefresh`) and
-`main_branch_health_checks.ci_failed_checks` (written by
-`PollMainBranchHealthJob`). The base compared against is the PR's own
-`mergeability_base_sha` when a health record exists for it, else the
-repository's most recent settled CI poll.
-
-**An inherited verdict is evidence, not proof.** Check-run names are coarse: a
-single `rspec` check can be red on main for spec A and red on a PR for specs A
-*and* B, and by name alone those are indistinguishable. That is why `inherited`
-downgrades the block to overridable by default rather than landing the Job
-automatically — auto-landing on that signal can let a second breakage through
-while main is already red.
-
-`Repository#pr_check_gate` (default `all`, per repository, in the repository
-settings form) decides when a pull request's CI checks may hold a Job. On
-`own_only` an `inherited` verdict clears the checks gate outright and the Job
-keeps moving while main is red. On `none` the checks gate does not apply at
-all — see "Advisory-only CI checks" below.
-Whether that is safe depends on how granular the repository's check names are —
-a repo with one monolithic `tests` check gets very little signal from a name
-match, a repo with per-suite checks gets a lot — which is why it is a
-per-repository setting rather than an instance-wide one.
-
-The opt-in clears the **checks** gate only. Every later gate still applies
-(mergeability, rebase cap, epic siblings, parent Job, dependencies), and it never
-excuses an `own` or `unknown` verdict.
-
-The verdict and its evidence are surfaced in three places so an operator and an
-agent see the same thing: the Job page's PR-checks banner (which checks fail
-here, which fail on the base, and the base SHA), the app payload
-(`job.pr_checks.attribution`), and the admin API
-(`GET /api/v1/admin/jobs/:id` -> `pr_checks_attribution`).
-
-Syrus already made this distinction for its *own* grader steps via
-`.syrus.yml`'s `grade.failures: allow_inherited` ->
-`Adjudicators::InheritedGraderFailure` -> `MainBranchFailureClassifier`. This is
-the same idea applied to GitHub check runs, which previously had nowhere to
-record which checks failed.
+An inherited name match is evidence, not proof: a broad check can hide additional failures. The per-repository `pr_check_gate` setting therefore controls whether all failures block, only own/unknown failures block, or checks are advisory. Mergeability, dependency, rebase, and sibling gates still apply. Job and landing views show candidate failures, base failures, and the compared base revision.
 
 ## known_flaky_failure_dismissal_enabled
 
-`InheritedGraderFailure` cannot catch a spec that fails intermittently on the
-base branch too -- comparing against a single base-branch run proves nothing
-when the flake might simply not have reproduced there this time. That gap has
-stalled a merge train for hours across dozens of retries: a genuinely flaky
-spec kept failing a required grader on every `landing_fix` retry, unrelated
-to the PR's diff.
-
-`Adjudicators::KnownFlakyFailure` closes it from the other direction: when
-every failing test in a required grader Step already has a confirmed-flaky
-history in Test Insights (`flaky: true`, and a flakiness score at or above a
-configurable floor), the failure is dismissed at rung 0 instead of blocking
-landing or spending a `landing_fix` repair turn. The score lookup excludes
-the workflow currently being adjudicated, so repeated failures inside the
-same retry loop cannot manufacture the history that dismisses their own
-failure. It reuses whatever `:test_evidence` plugin already answers "which
-tests failed in this run" and "what is this test's flakiness score" -- with
-no such plugin, or no scoring history yet, it declines rather than guessing.
-It also requires the current failure-message signature to match a historical
-failure for that test and declines if the candidate diff changed the failing
-test file. A flaky reputation alone therefore cannot excuse a new assertion
-or a newly introduced failure mode.
-
-Off by default, opted in per repository via
-`Repository#known_flaky_failure_dismissal_enabled` (same shape as
-`trust_clean_rebase_grade` and `pr_check_gate` above): a
-repository whose flakiness history is not yet trustworthy should not have
-required-grader failures waved off silently.
-`Repository#known_flaky_failure_min_score` optionally raises the minimum
-flakiness score a test needs before its failure counts as "confirmed" flaky
-(default `Adjudicators::KnownFlakyFailure::DEFAULT_MIN_SCORE`), guarding
-against a single historical blip looking like a pattern. A high recent
-failure rate is treated as the opposite signal: when a test is mostly failing
-in the lookback window, `KnownFlakyFailure` declines with
-`recent_failures_too_frequent` so the required grader still blocks until an
-independent confirmation path, such as isolated repro evidence, proves the
-failure is safe to dismiss. A dismissal is recorded as a
-`known_flaky_grader_failure` workflow artifact (the dismissed grader names,
-the confirmed-flaky tests and their scores) and logged on the
-`grader_collect` Step, the same visibility `record_inherited_main_failure!`
-gives an inherited-failure dismissal -- an operator or agent looking at why a
-red required grader did not block landing should never have to infer it from
-the absence of a failure.
+When enabled, landing may dismiss a failing test only when recent evidence meets the configured confidence and sample thresholds for a known flaky test. The decision is auditable and never applies to failures without matching evidence. Disabling the setting makes all such failures block normally.
 
 ## isolated_repro_dismissal_enabled
 
-`KnownFlakyFailure`'s `flakiness_score` needs accumulated cross-run history
-to say anything -- a test that has only ever failed once, or whose history
-was lost to an ingestion bug, gives it nothing to work with. An agent
-investigating a required-grader failure during `landing_fix` (or another
-repair step) often already does the obvious thing: run the exact failing
-example in isolation, against the exact failing commit, before touching any
-code, to see whether it reproduces. That is a different, better-grounded
-signal than either `flakiness_score`'s accumulated history or an agent's
-unverifiable opinion that a test "looks flaky" (rejected elsewhere as
-correlated with each Job's incentive to get its own PR unblocked, not
-independent) -- it's a verifiable *action*, with a command and its raw
-output, that speaks to this one occurrence immediately.
-
-The `record_isolated_repro` MCP tool lets an agent request that check as
-structured evidence -- the exact Syrus-derived command, its observed output,
-and whether it reproduced -- via a `:test_evidence` provider's `record_isolated_repro!`/
-`isolated_repro_evidence` capability (`TestInsights::IsolatedReproAttempt`,
-stored in its own table, never mixed into `TestCase`'s `scored` pool that
-`flakiness_score` reads). `IsolatedReproRecorder` validates the call before
-it is ever stored: it reads the workspace's actual `git rev-parse HEAD`
-rather than trusting an agent-supplied SHA, and requires it to still equal
-the exact commit the last grading iteration failed at -- which rejects both
-a repro run against the wrong commit and one recorded after the agent's own
-fix commits exist (either moves HEAD away from the graded commit) -- and
-requires the named test to be among what the grader Step actually reported
-failing, not merely asserted by the agent. Syrus then asks the registered
-focused-test provider to derive an exact-example command, runs it in the
-workflow workspace, records the observed output and
-exit status, and rejects a claimed reproduced/non-reproduced result that does
-not agree with that exit status. The adjudicator also declines if the
-candidate diff changed the failing test file.
-
-Both dismissal paths also require complete structured test evidence: the
-persisted test-case rows must match the TestRun totals and its full
-failed/error set, and the grader must have a normal non-timeout test exit.
-Partial JUnit from a crash, load error, or mixed command failure therefore
-cannot be represented by one qualifying flaky test and accepted.
-
-Outside landing workflows, `Adjudicators::IsolatedReproDismissal` closes the loop at rung 0: when every
-failing test in a required grader Step has a same-SHA, pre-fix "did not
-reproduce" record, the failure is dismissed instead of blocking landing or
-spending another repair turn. Landing workflows require the equivalent full
-grader command to pass on the authoritative landing tree; an isolated example
-pass alone cannot dismiss an order-dependent suite failure. Off by default,
-opted in per repository via
-`Repository#isolated_repro_dismissal_enabled` (same shape as
-`known_flaky_failure_dismissal_enabled` above). A dismissal is recorded as an
-`isolated_repro_grader_failure` workflow artifact (the dismissed grader
-names, the non-reproducing tests, and the SHA) and logged on the
-`grader_collect` Step, the same visibility `record_known_flaky_failure!`
-gives a flakiness-history dismissal.
-
-A same-workflow `retry_until` re-run of the whole grader is a different
-thing entirely and is not what this records: that is a normal grading
-execution and already belongs in `TestCase`'s `scored` pool (excluded from
-it only via `TestCase.wip_repair_failures` when it's the workflow's own
-in-loop self-repair). `record_isolated_repro` is for a single, deliberately
-targeted example run outside the normal grading loop.
+When enabled, Syrus may run a clean isolated reproduction for a failing test. A conclusive clean reproduction can dismiss that failure; failed, unavailable, stale, or inconclusive reproduction evidence cannot. Evidence is scoped to the relevant source and test identity, expires according to policy, and is shown with the landing decision. The feature is off by default.
 
 ## The landing slot and blocks that cannot clear
 
-Every landing path -- `JobBundleDispatcher`, `MergeTrainDispatcher`,
-`auto_merge` -- asks whether a unit already holds
-`landing:repository:<id>` before starting. That lock is the repository-wide
-landing mutex, and `blocked` counts as an active ownership state, so a blocked
-unit still reads as "a landing is in progress".
+Only one landing unit may occupy a repository's landing slot. Jobs blocked by an active landing unit, repository pause, urgent-work gate, dependency, or another external condition remain visible with the effective reason. Syrus releases stale ownership when no active work can clear it and does not let a failed or cancelled unit hold the slot indefinitely.
 
-A landing unit also takes the plain `repository:<id>` lock, which is *not*
-landing-specific: any repository-scoped WorkUnit holds it, so work that has
-nothing to do with landing can stall the queue through it. `main_grader` did
-exactly that. It runs after every landing, graded for 40 minutes to several
-hours, and held the repository lock throughout, so `WorkUnits::Launcher`
-refused the next bundle for the whole grade. It now takes only its own
-`main_grader:repository:<id>` key: a main grade observes a commit that is
-already on the branch, and the landing unit it used to block is assembled on
-top of that same commit, so the two can run at once. One main grade at a time
-per repository is still enforced, by that narrower key.
-
-That stall was also invisible. `JobBundleDispatcher#try_dispatch!` rescues the
-launcher's `LockConflict` to `nil`, and `blocker_reason` -- the explanation the
-landing queue shows -- did not consult the lock table at all, so a queue frozen
-behind another unit's lock reported only that the bundle was "not ready to
-land yet". Both dispatchers now ask `WorkUnits::Ownership.blocking_lock_owner`
-for the keys they are about to take and name the holder ("`main_grader`
-WF-12345 holds `repository:7`; the job bundle starts once it releases"), and the
-rescued conflict is logged rather than dropped.
-
-That is correct for blocks that clear on their own (retry backoff, lock
-contention, a dependency finishing): those units really are about to run, and
-releasing the slot would let a later landing cut ahead of them.
-
-It is wrong for a block that clears only when an operator changes something.
-`WorkUnit::EXTERNALLY_CLEARED_BLOCKED_REASONS` lists those -- currently
-`no_capable_worker`, raised when a step's required capabilities match no live
-worker in the fleet. A unit parked on one of those is waiting for a machine
-that does not exist, so it:
-
-- surrenders the landing slot in `WorkUnit#block!` (its job- and epic-scoped
-  locks stay held, because those stop a second attempt at the *same* work),
-  and
-- does not count as active landing work, so the Job is not marked `landing` --
-  a Job in `landing` is itself a landing-in-progress signal, so leaving it
-  there would keep the queue stalled even after the lock was released.
-
-For units that were already parked before this behavior existed, the
-reconciler raises `externally_blocked_landing_slot` and the
-`release_externally_blocked_landing_slot` repair frees the slot and wakes the
-landing queue.
-
-Urgent work uses the same lock-surrender rule without discarding the displaced
-landing attempt. A queued landing Workflow blocked by `urgent_job_active`
-before its first Run releases only `landing:repository:<id>`; its job- and
-Epic-scoped locks remain active, preventing a duplicate attempt. If an older
-blocked WorkUnit still owns the repository slot, the reconciler reports
-`urgent_blocked_landing_slot`, naming the lock owner, blocked Workflow, and
-unrelated urgent blocker Jobs. Its automatic
-`release_urgent_blocked_landing_slot` repair revalidates those conditions,
-releases only the repository landing slot, and wakes the landing queue. After
-the urgent Job finishes, normal queue processing wakes the original Workflow,
-which must reacquire the repository slot through ordinary lock-conflict
-handling before its first Run is created.
-
-That last step assumed the urgent Job finishes. An urgent Job that cannot
-finish -- a pull request whose checks keep failing, so it can neither land nor
-leave `approved` -- used to hold the gate open for as long as it sat there,
-and because the gate is repository-wide it starved ordinary `initial` and
-`retry` work as well as landing. Priority decided who went at all, rather than
-who went first.
-
-An urgent Job now holds the gate only while it is making progress: it has a
-queued or running Workflow, or it changed state within
-`UrgentWorkGate::STALLED_AFTER` (30 minutes). Past that, with nothing in
-flight, it stops blocking non-urgent work and takes the gate back as soon as
-it moves again. The window is wide enough to cover an urgent Job sitting
-between workflows while its landing attempt is picked up. Nothing about
-ordering changes: urgent work still sorts ahead of everything else, and a
-stalled urgent Job keeps its place in the queue. Operators who see non-urgent
-work waiting on `urgent_job_active` should check whether the urgent blocker is
-actually advancing; if it is parked, the gate releases itself within the
-window rather than needing intervention.
-
-When the capability does arrive, the unit re-acquires the slot through
-`ensure_active_locks!` on its next start; if another landing holds it by then
-it waits its turn, which is ordinary contention rather than starvation.
-
-Operationally: a repository whose landing queue is stalled with nothing marked
-failed is worth checking against this. A blocked unit holding the landing slot
-shows up in `/admin/work_units`, and the held lock is visible as a
-`work_unit_locks` row with `released_at` null.
+Temporary blockers are rechecked automatically. Conditions that require operator action remain blocked until that action occurs. A stalled urgent Job stops delaying unrelated landing after 30 minutes when it has no active work and is not already landing.
 
 ## Stopping a landing attempt
 
 While a Job is `landing` -- solo (`auto_merge`/`external_pr_merge`) or as part
 of an Epic merge train -- the Job detail page shows a **Stop Landing** button.
-It is available to the same operators who can otherwise mutate the Job (the
-owner, an admin, or a repository member with write access), via
-`POST /api/v1/app/jobs/:job_id/stop_landing` (`Job#stop_landing!`).
+It is available to the owner, an admin, or a repository member with write access.
 
 Stop Landing cancels the Job's active landing Workflow -- the solo
 `auto_merge`/`external_pr_merge` Workflow, or the single Epic-wide
 `merge_train` Workflow when the Job is a train member -- and reverts the Job
 to `implemented`, clearing its approval the same way a genuine landing
-failure does (`LandingFailureHandler`/`MergeTrainFailureHandler`). This is
+failure does. This is
 deliberate: an explicit stop should require the operator to re-approve before
 Syrus attempts to land the Job again, not silently re-enter the landing
 queue. For a merge-train member, stopping the train reverts every member Job
@@ -481,7 +155,7 @@ For an ordinary PR, the workflow:
 - Fetches the current landing workflow's local `HEAD` as the predicted future base.
 - Rebases the candidate onto that predicted base without pushing.
 - Runs the same fast landing graders without `landing_fix`.
-- Records a `LandingValidationCache` artifact with the predicted base SHA and base tree SHA.
+- Records validation evidence for the predicted base commit and tree.
 
 For an Epic merge-train unit, the workflow builds the candidate integration tree
 on top of the same predicted future base, mechanically rebases each member
@@ -523,41 +197,26 @@ For same-repository external PRs, grader failures enter the `landing_fix` retry 
 
 ## trust_clean_rebase_grade
 
-When `Repository#trust_clean_rebase_grade` is enabled (off by default), a clean `rebase` workflow can carry forward a prior green landing validation to the new head/base pair. A clean `merge_train_rebase` recovery can do the same for a base-moved Epic integration branch. This allows later `auto_merge` or `merge_train` landing steps to skip re-running graders when the only change is a mechanical clean rebase onto the base branch.
+When `trust_clean_rebase_grade` is enabled (off by default), a clean `rebase`
+workflow can carry forward a prior green landing validation to the new
+head/base pair. A clean merge-train rebase can do the same for a base-moved
+Epic integration branch.
 
-Skipping a grade loop this way also retires it. A skipped `grader_collect` is a `retry_until` barrier, and `StepDispatcher` gates every later step on the loop's latest barrier having *succeeded* -- which a skipped one never did. So the skip marks each barrier superseded, and a loop whose barriers are all superseded gates nothing. Both halves are required: without the mark the land step waits on a barrier that will never succeed, and without the second rule the superseded barriers simply disappear from the lookup and the step waits on nothing at all. Either way it stays queued, never gets a Run, and the train stalls with nothing marked failed -- which is exactly how a production merge train sat for two hours after a clean base-moved recovery rebase.
+Carried validation retires the skipped grade loop so later landing steps do not
+wait on work that will never run.
 
-Grade carry-forward records a fresh `LandingValidationCache` artifact for the post-rebase head, tree, base ref, base SHA, required-grader fingerprint, and changed-file fingerprint. It only carries forward from a successful required-grader validation, not from another carried validation, and the base ref plus required-grader fingerprint must match the source validation. The changed-file fingerprint is recomputed and stored on the new artifact for diagnostics and later exact-head reuse, but it does not veto carry-forward: with `trust_clean_rebase_grade` enabled, the operator is explicitly accepting the risk that a clean rebase onto a moved base changes the apparent diff. Later reuse reports this as `clean_rebase_carry_forward` rather than as a normal exact-head hit. It is never applied speculatively.
+Grade carry-forward records fresh validation evidence for the post-rebase head,
+tree, base, grader plan, and changed files. It only carries forward from a real
+successful required-grader validation, not another carried result. With
+`trust_clean_rebase_grade`, changed files are diagnostic rather than a veto;
+the accepted risk is that a clean rebase onto a moved base changes the apparent
+diff. Carry-forward is reported distinctly and never applied speculatively.
 
-## LandingValidationCache
+## Landing validation reuse
 
-Stores the result of a successful required-grader run as a workflow artifact:
+A successful required-grader validation may be reused only for the same candidate head and tree, base ref, required grader plan, and changed-file set. Non-speculative reuse also requires the same base commit. Entries older than seven days are rejected.
 
-```json
-{
-  "required_graders_passed": true,
-  "head_sha": "abc123",
-  "tree_sha": "tree789",
-  "base_sha": "def456",
-  "base_tree_sha": "basetree123",
-  "base_ref": "main",
-  "grader_fingerprint": "grade-plan-sha256",
-  "validation_source": "graders",
-  "checked_at": "2026-07-13T10:00:00Z"
-}
-```
-
-Later `auto_merge` or `merge_train` retries can skip re-validation when:
-
-- `exact_head`: the artifact's `head_sha` matches the commit being landed.
-- `clean_rebase_carry_forward`: a trusted clean rebase re-stamped the validation for the new head/base.
-- `same_tree`: the commit SHA differs, but the Git tree SHA matches the validated tree.
-
-All reuse requires the base ref and required grader fingerprint to remain unchanged when those values are recorded. Non-speculative validations also require the base SHA to remain unchanged. Stale validations older than seven days are rejected. Audit logs explain whether landing graders were skipped or rerun, including changed base, changed grader configuration, stale validation, and cache-miss reasons.
-
-Speculative validations may also record `base_tree_sha`. For those artifacts,
-later reuse accepts a changed `base_sha` only when `base_tree_sha` still matches,
-then continues checking grader and changed-file fingerprints normally.
+With `trust_clean_rebase_grade`, a successful validation can carry forward across a clean rebase onto a moved base when the base ref and required grader plan still match. Carry-forward must originate from a real successful validation, never another carried result, and is reported distinctly from exact-head reuse. Speculative validation never uses this exception. Audit logs explain every reuse or rerun decision.
 
 ## Dependency gating
 
@@ -565,7 +224,11 @@ A Job blocked on another Job will not enter the landing queue until the dependen
 
 If the prerequisite Job closes unsuccessfully, including `cancelled`, dependents remain blocked with `dependency_failed` until an operator removes or overrides the dependency. Syrus should not keep creating maintenance rebase workflows for a dependent while it is in this permanent dependency-failed state.
 
-Manual dependency rows can opt into `satisfaction_mode: "closed"` for cleanup or teardown gates that only need the target Job to reach any terminal close. In that mode a dependency on a cancelled Job is satisfied. Normal implementation dependencies default to `satisfaction_mode: "success"` and must not be weakened to closed mode just because the prompt says "after" or "once"; use closed mode only when any terminal outcome is explicitly acceptable.
+Manual dependencies can opt into `satisfaction_mode: "closed"` for cleanup or
+teardown gates that only need the target Job to reach any terminal close. In
+that mode a cancelled dependency is satisfied. Normal implementation
+dependencies default to `success`; use closed mode only when any terminal
+outcome is explicitly acceptable.
 
 Use `satisfaction_mode: "landed"` when the dependent must not execute until an upstream Job's change is actually on the landing branch. Implemented, approved, landing, and `pr_approved` states do not satisfy this gate. A successful landing closure requires durable evidence in `landed_sha`; `no_changes` is the exception and satisfies the gate only through that explicit successful closure, because it records that there was genuinely no change to land. Failed, cancelled, rejected, and other unsuccessful closures permanently produce `dependency_failed`. Landed dependencies accept only Job targets: an Epic's completion or atomic merge-train landing is not silently treated as proof that an individual Job change landed.
 
@@ -587,13 +250,13 @@ When a PR is closed without GitHub marking it merged, Syrus inspects the branch 
 
 ## Advisory-only CI checks (`pr_check_gate: none`)
 
-`Repository#pr_check_gate` has a third value. On `none` a pull request's CI
+`pr_check_gate` has a third value. On `none` a pull request's CI
 checks never gate landing — neither the Job's own cached `pr_checks_state` nor
 its Epic siblings'. Both gates honour the same value, because a single sibling
 with red or pending checks holds an entire Epic; leaving the sibling gate on
 would make the setting a no-op for exactly the Jobs it exists for.
 
-Nothing else about checks changes. `PollPullRequestJob` still polls them, still
+Nothing else about checks changes. Syrus still polls them, still
 caches `pr_checks_state` for display, still records target health from them, and
 still triggers main-branch repair and main-health polling on an inherited or
 unknown attribution. They remain a signal that something may be broken; they
@@ -607,7 +270,7 @@ believe the narrower suite. A deployment that cannot run its full grader set
 itself should stay on `all`; that is what the default is for.
 
 One consequence worth stating: CI repair for an approved Epic child is deferred
-to the merge train (`PollPullRequestJob#ci_repair_deferred_to_epic_merge_train?`),
+to the merge train,
 on the premise that the train grades the integration branch and repairs it
 there. While the checks gate held those members out of the queue, that premise
 could not hold — repair waited for a train that the gate prevented from
@@ -638,9 +301,9 @@ The manifest records:
 
 ### Landing gate
 
-`Steps::AutoMerge` and `Steps::MergeTrainLand` refuse to merge unless the
-manifest for that exact SHA shows a conclusive pass for every required
-target. Evidence for another SHA is never promoted to exact-SHA evidence,
+Auto-merge and merge-train landing refuse to merge unless the manifest for
+that exact SHA shows a conclusive pass for every required target. Evidence for
+another SHA is never promoted to exact-SHA evidence,
 even when the tree is identical; the only exception is an explicit,
 operator-trusted clean-rebase carry-forward (`trust_clean_rebase_grade`),
 which re-binds the manifest to the rebased SHA and records `carried_from_sha`.
@@ -682,8 +345,8 @@ selected target to matching pre-merge evidence or an explicit delta
 the integration is declared healthy. It is diagnostic and never changes
 health on its own.
 
-Operators read both artifacts, plus the manifest summary, under
-`validation_parity` in `GET /api/v1/admin/workflows/:id`.
+Operators can read both artifacts, plus the manifest summary, in the workflow's
+`validation_parity` details.
 
 ### When main repair may still be spawned
 

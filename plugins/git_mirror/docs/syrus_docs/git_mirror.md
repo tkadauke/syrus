@@ -12,7 +12,7 @@ Syrus's reads, and the biggest single source of traffic (a full clone per
 Workflow), off GitHub's rate limit and out of a network round trip, at the
 cost of disk space for the mirrors. Off by default.
 
-It is a `:replica` `repository_content_provider` (see `plugins.md`) for file,
+It is a `:replica` `repository_content_provider` (see `docs/engineering/conventions/plugins/authoring.md`) for file,
 tree, diff, commit history, and commit tree SHA reads: whenever it cannot
 answer -- the service is down, a commit has not reached it, a request it does
 not support -- the read falls through to the host, exactly as if the plugin

@@ -20,7 +20,7 @@ Rails.application.routes.draw do
     as: :chat_workspace_file_raw
 
   # Admin REST API. Prefix ownership is documented in
-  # config/syrus_docs/admin_api_prefixes.md.
+  # docs/engineering/architecture/admin_api_prefixes.md.
   namespace :api do
     namespace :v1 do
       namespace :app do
@@ -768,7 +768,7 @@ Rails.application.routes.draw do
   get "readyz" => "readiness#show", as: :readiness_check
 
   # Prometheus scrape endpoint. Aggregate, label-bounded metrics only; see
-  # config/syrus_docs/metrics.md.
+  # docs/engineering/operations/metrics.md.
   get "metrics" => "metrics#show", as: :metrics
 
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)

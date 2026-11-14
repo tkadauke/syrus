@@ -35,9 +35,10 @@ When sources disagree, use the first applicable source in this list:
    deliberately describe a target not fully implemented yet; executable state
    remains the truth about current behavior. Supersede an ADR explicitly
    rather than silently editing its decision.
-4. **Operator documentation:** `config/syrus_docs/` describes supported
-   operator-facing behavior. It is authoritative for how operators configure
-   and use core Syrus, but not for internal implementation details.
+4. **Searchable harness documentation:** `config/syrus_docs/` describes
+   supported behavior and functionality that agents or operators need when
+   using core Syrus. It is authoritative for that behavior, but not for
+   internal implementation or operating the Syrus service itself.
 5. **Repository memory:** the root agent guide and other checked-in agent
    orientation summarize high-frequency rules. They route to, rather than
    override, the fuller sources above.
@@ -54,7 +55,13 @@ regardless of where they are documented.
 
 Some documentation intentionally lives outside this hierarchy:
 
-- `config/syrus_docs/` owns searchable, core operator documentation.
+- `config/syrus_docs/` is searchable by chat and implementation agents working
+  on any project. It owns only the behavior and functionality needed to use
+  core Syrus: `.syrus.yml` keys, operator settings and feature flags, workflow
+  steps and trigger kinds, review/grader/landing/merge behavior, MCP tool
+  semantics, permission behavior as it affects agents, and user-visible
+  features. Internal-only changes such as response compression, payload
+  shapes, caching, or polling do not require a page there.
 - `plugins/<name>/docs/` owns plugin-specific documentation, including a
   plugin's operator docs. Core may link to it but must not make the plugin
   undeletable by copying it here.
@@ -66,6 +73,17 @@ Some documentation intentionally lives outside this hierarchy:
   hierarchy or an ADR instead of treating a plan as current truth.
 
 Update the owning source and link to it. Do not maintain a second copy here.
+
+Keep Syrus implementation material in this hierarchy instead: contributor
+practices belong in `conventions/`; internal architecture, data models, and
+telemetry in `architecture/` (with navigational inventories in `maps/`);
+runbooks for running, deploying, scaling, and upgrading Syrus in `operations/`;
+plugin-authoring guidance in `conventions/plugins.md`; durable choices in
+`decisions/`; and recurring failure modes in `pitfalls/`. Ruby or React class,
+file, and database-column names belong here only when needed to explain those
+engineering concerns. Internal telemetry and audit tables, internal data APIs,
+incident post-mortems, and historical “we used to” accounts do not belong in
+`config/syrus_docs/`.
 
 ## Ownership
 

@@ -22,167 +22,31 @@ attributed to its target and semantic screen generation in the Review UI.
 
 ## On by default
 
-Visual review is on by default instance-wide — there is no `visual_review`
-Feature flag to toggle (the September 2026 Labs graduation removed the
-instance-wide gate outright, not just flipped its default: visual review was
-already independently gated per-repository via `.syrus.yml`'s
-`visual_review.enabled`, so the instance-wide flag was redundant once it
-became unconditionally available). A repository opts out (or overrides
-rounds/files/seed notes) per repo via `.syrus.yml`'s `visual_review` block
-(see [`syrus_yml.md`](syrus_yml.md)); omitting the block (or the `enabled`
-key within it) defers to the always-on default.
+Visual review is on by default instance-wide; there is no feature flag to
+toggle. A repository opts out (or overrides rounds/files/seed notes) per repo via
+`.syrus.yml`'s `visual_review` block (see [`syrus_yml.md`](syrus_yml.md));
+omitting the block (or the `enabled` key within it) defers to the always-on
+default.
 
 ## How it works
 
-When visual review is enabled and configured with `rounds > 0`, Syrus
-inserts a bounded, review-first loop immediately after the `adversarial_review`
-loop and before the grader retry loop. Iteration 1 is the reviewer alone,
-looking at whatever `implement`/`respond` step already ran before the loop —
-either the workflow's own top-level `implement`/`respond` step, or the tail
-of the `adversarial_review` loop when both are enabled:
+Visual review starts a repository preview when needed, opens affected pages in a browser, checks desktop and mobile layouts, exercises relevant interactions, captures evidence, and records `approved`, `needs_work`, or `skipped`. A `needs_work` verdict enters the configured repair loop; skipped means the change is not visually testable or the environment cannot support a meaningful review.
 
-```
-visual_review(1)
-  approved/skipped → exits the loop
-  needs_work       → implement/respond (repair), then, if rounds allow
-                      another look, visual_review(2) → repeat
-```
+Draft browser captures are private to the active review until submitted. Submitted screenshots and comparisons appear in the workflow review surface. Draft evidence is bounded and expires; failed curation remains available without publishing misleading evidence.
 
-A `needs_work` verdict always gets a repair reaction — the corresponding
-`implement`/`respond` step is inserted unconditionally, regardless of
-remaining review budget — paired with another `visual_review` call whenever
-budget remains. Once the review that just ran was the last one `rounds`
-allows, its `needs_work` repair runs alone, with no further review to act on.
-`rounds: N` means exactly N review opinions get sought, and every one of
-them — including the last — gets exactly one repair reaction; the loop never
-fails the workflow. Every successful `browser_screenshot` is retained first as
-run-scoped draft evidence with a stable ID, capture order, sanitized page
-identity, viewport/device metadata, and subject metadata when available. URL
-credentials and query strings are stripped. Identical captures are deduplicated
-and each Run is capped at 50 drafts. `submit_visual_artifact` can curate a draft
-with `captured_evidence_id`; a failed submission leaves the capture intact.
-Unsubmitted drafts use the configurable `draft_visual_evidence` retention
-policy (seven days by default), while submitted evidence remains with its
-Workflow. Each `visual_review` call:
-
-The Job Review workspace shows submitted evidence by default and reports both
-submitted and captured counts. Authorized viewers can open the fallback gallery
-of all retained captures, including capture order, sanitized page identity,
-viewport, timestamp, and whether a curation attempt failed. This makes reviews
-with no curated evidence explicit without weakening Job access controls.
-
-**visual_review** — a fresh agent (in a new session) independently decides
-whether the change is visually testable, drives a headless browser against
-its own `start_preview` instance if so, captures screenshots, and calls
-`submit_visual_review` with a verdict and critique. Any workspace changes
-the reviewer makes are discarded — the reviewer is read-only.
-
-Before spending an agent turn, a deterministic pre-filter can skip the step
-outright: if `.syrus.yml` sets `visual_review.when_files_changed` and none of
-the files changed since the default branch match, the step records a
-`skipped` verdict without ever invoking the agent (mirrors a grader's
-`when_files_changed`).
-
-In project-aware monorepos, Syrus resolves affected preview-capable projects
-before invoking the reviewer. The visual-review prompt lists the affected
-projects with `project_id`, label, path, and owning `.syrus.yml`. If exactly
-one affected preview exists, the reviewer can call `start_preview` without a
-`project_id` or pass that id explicitly. If several affected previews exist,
-the reviewer must choose the relevant `project_id` for the UI under test and
-may start more than one project preview when the diff crosses products. A bare
-`start_preview` is ambiguous in that case. If no affected project has preview
-configuration, the reviewer should record `skipped` or explain the preview
-configuration gap rather than testing an unrelated app.
-
-When the agent does run, it reads the `submit_test_plan` artifact's
-`visual_review_recommended` / `visual_review_reason` fields — set by the
-implementing agent as a hint about whether this change is worth visually
-testing — but makes its own independent call before ever starting a preview.
-This is a three-layer gate: the glob pre-filter (deterministic, no agent
-turn), the implementer's hint (informational only), and the reviewer's own
-judgment (authoritative).
+The review uses the submitted test plan and changed-file surface map to choose pages. It may skip before invoking an agent when configured file patterns do not match. In multi-project repositories it selects an affected preview-capable project and reports ambiguity rather than testing an unrelated app.
 
 ## Changed-surface coverage
 
-Independence from the implementer does not mean the reviewer can substitute a
-different page for the one that actually changed. `Prompts::VisualReview`
-requires the reviewer to identify the specific route/screen/component state
-the diff changed and, if that exact surface can't be reached or populated in
-the preview (unsynced clone, missing seed data, a route that errors, auth it
-can't obtain), forbids approving from screenshots of an unrelated or merely
-similar-looking proxy page instead. A proxy is only acceptable when the Job
-description or diff itself makes verifying a shared component through another
-page the intended target of the review — and even then the reviewer must say
-in its critique why that proxy is faithful, not just convenient.
-
-When the intended surface is unreachable and no faithful proxy applies, the
-reviewer must not approve. It records `skipped` when the blocker is
-tooling/environment (no synced clone, missing seed data, preview
-infrastructure not wired up for that route, auth/session state the reviewer
-cannot obtain), or `needs_work` when the missing route, missing data, redirect,
-or broken preview setup is itself an implementation or preview-seeding defect.
-Either way, the critique must name both the intended
-surface that couldn't be exercised and the fallback/proxy that was considered
-and rejected — so a review that couldn't reach the real surface is auditable
-rather than silently passing on the strength of an adjacent page's
-screenshots.
-
-Auth/error walls are called out in the reviewer prompt because they are easy
-to mistake for valid evidence when a browser lands somewhere other than the
-changed surface. If a non-auth target such as `/credential_store` redirects to
-`/session/new`, a sign-in page, a 404, or an application error, those
-screenshots are evidence of the blocker rather than evidence that the intended
-surface looks correct. The reviewer should submit `skipped` for external
-tooling/auth/seed blockers, or `needs_work` when the redirect/error is an
-implementation or preview defect. Legitimate auth/session-screen work remains
-reviewable: sign-in screenshots are valid evidence when the changed surface is
-the sign-in/login/signup/session screen itself, even if the Job mentions a
-post-login route or redirect.
-
-For authenticated routes, the expected review path is to use the repository's
-seeded/demo login from `visual_review.seed_notes` inside the MCP browser that
-`start_preview` opened, then capture evidence from that same browser session.
-Reviewers should not launch a separate unauthenticated browser context or copy
-its screenshot files solely to create artifacts. Use
-`submit_visual_artifact(capture_current_browser: true, ...)` or omit all image
-inputs so Syrus captures the active authenticated page and records the URL,
-path, title, viewport, source, and capture time. An unexpected redirect to a
-login page is a blocker unless the auth screen is the changed surface being
-reviewed.
-
-Screenshot artifact types may be descriptive (for example,
-`visual_review_mobile_bulk_progress`). When `submit_visual_review` records the
-iteration, it associates image artifacts through the submitting Run's trusted
-provenance, image metadata, and image renderer identity. The association does
-not depend on an exact caller-chosen type; artifacts from other Runs and
-non-image typed artifacts remain excluded.
+Syrus expects evidence for the actual changed route, screen, or component state. A faithful proxy is acceptable only when the task or diff makes that shared surface the intended target and the reviewer explains the choice. Unreachable routes, authentication walls, missing seed data, unexpected redirects, and preview errors are reported as blockers, not approved from an adjacent page.
 
 ## Verdicts
 
-The reviewer agent must call `submit_visual_review` with one of three
-verdicts:
+- `approved` — the changed surfaces were exercised and look correct.
+- `needs_work` — findings are actionable and enter the repair loop.
+- `skipped` — the change is not visually testable or an external environment blocker prevents review.
 
-- **`approved`** — the change looks correct. Exits the loop the same as
-  `skipped`.
-- **`needs_work`** — the reviewer found a visible defect. Findings are
-  stored and fed back to the `implement`/`respond` agent in an always-inserted
-  repair iteration, the same way `adversarial_review`'s `needs_work` does.
-- **`skipped`** — the change isn't visually testable (invisible/backend-only
-  diff, tests, docs, non-UI config). Exits the loop without treating it as a
-  failure.
-
-If the agent does not call `submit_visual_review`, the step fails with
-"agent didn't call submit_visual_review".
-
-Findings accumulate through `workflow.artifacts["visual_review_iterations"]`.
-The growth-bound value is stored separately in `workflow_artifact_values`, and the
-Workflow artifact API merges it with legacy inline values. The
-reviewer itself sees every prior iteration via `prior_findings` in
-`Prompts::VisualReview`; the `needs_work` iterations are separately rendered
-by `Prompts::ReviewFeedback` and appended to the next `implement`/`respond`
-prompt (`Steps::Base#append_review_feedback`) — the same mechanism
-`adversarial_review` uses to feed its findings back to the implementing
-agent.
+Every requested review opinion receives one repair reaction when it returns `needs_work`, including the final configured round. Findings from prior iterations remain available to later review and repair turns. The reviewer must submit a verdict explicitly.
 
 ## Configuration (`.syrus.yml`)
 
@@ -252,128 +116,13 @@ driving the browser.
 
 ## The browser tool set
 
-The reviewer's browser tools are provided by the `browser` plugin
-(`plugins/browser/`), a granular MCP tool set — `browser_navigate`,
-`browser_snapshot`, `browser_click`, `browser_fill`, `browser_hover`,
-`browser_screenshot`, `browser_wait_for`, `browser_resize`, `browser_evaluate`,
-`browser_file_upload`, `browser_drop`, `browser_drag`, `browser_close` —
-rather than one opaque "run test suite" tool, so the agent improvises its own
-test plan against the running preview. Each call is proxied to a per-Run
-`@playwright/mcp` subprocess. `browser_hover` exists specifically so
-`:hover`/`mouseenter`-triggered UI (tooltips, hover popups/cards,
-hover-revealed controls) is reviewable — without it, the reviewer had no way
-to trigger that behavior and could only record `skipped` for it.
-
-**Drag-and-drop and file attachment.** Four tools cover the cases a
-click/fill/hover-only tool set can't reach:
-
-- **`browser_drop(target, paths?, data?, element?)`** — drops files or
-  MIME-typed data onto an element "as if dragged from outside the page," via
-  Playwright's own drag/drop synthesis. This is the **preferred** tool for
-  native file drag-and-drop onto a drop zone: it drops real files backed by
-  real bytes on disk, more faithful than hand-constructing a `DataTransfer`.
-  At least one of `paths` or `data` is required.
-- **`browser_evaluate(function, target?, element?)`** — runs a JS function in
-  the page, optionally scoped to an element. General-purpose fallback for
-  page inspection or assertions no other tool covers, including drag-and-drop
-  edge cases `browser_drop`'s paths/data model doesn't reach — an
-  intermediate drag state, a custom `DataTransfer` configuration. For the
-  common native-file-drop case it can still construct a synthetic `File` +
-  `DataTransfer` and dispatch the `dragenter`/`dragover`/`drop` event
-  sequence by hand — the same pattern the codebase's own RTL tests use
-  (`fireEvent.drop(target, { dataTransfer: { files } })`) — but `browser_drop`
-  should be tried first.
-- **`browser_file_upload(paths?)`** — responds to an open file chooser with
-  absolute file paths (Playwright's `setInputFiles()` equivalent), or cancels
-  the chooser when called with no paths. Covers the file-*picker*
-  (`<input type="file">`) attachment path.
-- **`browser_drag(start_target, end_target, start_element?, end_element?)`** —
-  a real mouse-driven drag between two `browser_snapshot`-targeted elements.
-  Covers non-file drag interactions (list reordering, sliders, resizable
-  panels) — dragging two on-page elements isn't the same operation as
-  `browser_drop`'s "dropped from outside the page" file/data semantics.
-
-**Permanent limitation.** None of the above can simulate a literal OS-level
-drag of a file from the desktop file system into the browser — that's not
-buildable by any browser automation tool (Playwright, Puppeteer, Selenium),
-because it happens below the browser's event model, in the OS window manager.
-This is distinct from the DOM `drop` event itself, which `browser_drop` and
-`browser_evaluate` both synthesize and cover completely. `Prompts::VisualReview`
-tells the reviewer to call `submit_visual_review` with verdict `skipped` and
-say so plainly for that specific desktop-drag scenario rather than spend
-retries hunting for a workaround; this is a hard boundary, not a tooling gap
-to keep chasing.
-
-**`browser_resize(width, height)`** resizes the viewport in CSS pixels
-within the same session — no new browser instance, no manual Playwright
-script. By default, `Prompts::VisualReview` instructs the reviewer to test
-every visually testable change at both a desktop viewport (1280x800) and a
-mobile viewport (390x844), capturing labeled screenshots at each with
-`submit_visual_artifact`. Subjects are structured as a fresh snapshot ref plus
-its `browser_snapshot` token, an explicit CSS selector, or an accessibility role
-plus optional accessible name. The reviewer may skip one viewport when the
-issue/diff context makes it clearly irrelevant (a mobile-nav-only bug
-report, a component hidden below a desktop breakpoint, an admin-only
-desktop tool), but must state why in its critique so the omission is an
-auditable judgment call rather than silent. Resizing triggers a layout
-reflow, so the reviewer is instructed to re-run `browser_snapshot` before
-the next click/fill after a resize instead of reusing refs captured at the
-previous viewport size. The two viewport sizes are prompt-level constants
-(`Prompts::VisualReview::DESKTOP_VIEWPORT` / `MOBILE_VIEWPORT`) — no
-`.syrus.yml` configuration exists yet to override them.
-
-**Loopback restriction.** `browser_navigate` is hard-restricted to the
-worker's own loopback preview (`SyrusBrowser::LoopbackGuard`): only literal
-`localhost`, `::1`, or `127.x.x.x` hostnames are accepted, over `http`/
-`https`. Any other host is rejected before the browser is touched. This is
-enforced in the tool handler, not just in the agent's prompt, so a
-malicious or confused navigate call can't turn the agent's headless browser
-into an SSRF or exfiltration path — the agent driving a real Chromium
-instance can only ever reach the app `start_preview` started, never an
-arbitrary URL on the network or public internet. The guard is deliberately
-string-based rather than DNS-based: resolving a hostname and checking
-whether it resolves to loopback is vulnerable to DNS rebinding (a name that
-answers `127.0.0.1` at check time and something else when Chromium actually
-connects), so only a small, fixed set of literal loopback spellings is
-allowed.
+The reviewer can navigate, inspect accessibility structure, click, type, select, hover, evaluate page behavior, resize the viewport, and capture screenshots. Reviews normally exercise desktop (1280×800) and mobile (390×844) layouts unless a surface is genuinely single-viewport. Browser access is limited to the active preview and literal local preview hosts.
 
 ## Screenshot artifacts
 
-The reviewer captures PR/head "after" screenshots with `submit_visual_artifact`, an
-image-capable sibling of `submit_artifact`. The preferred path is
-`capture_current_browser: true` (also the default when no image input is
-provided), which captures the active MCP browser session and stamps page
-provenance. A supplied `subject` is scrolled into view and must have at least
-half its area in the viewport by default before capture; the artifact records
-the subject rectangle, visible fraction, and scroll position. The tool still
-accepts `image_path` for an existing screenshot
-file inside the workflow workspace or `image_base64` when image bytes are
-already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists the image as
-an ActiveStorage blob on the current Workflow, and records a `typed_artifacts`
-entry that Job detail review/report surfaces and the Artifacts tab render
-through the `:image_diff` renderer so operators can see what the reviewer
-actually tested.
+Use `submit_visual_artifact` to publish an intentional browser capture with a title and description. It can capture the current browser or a selected visible element and records page, viewport, and subject context. A file-path upload is reserved for repository-owned render outputs, not arbitrary worker files.
 
-When an approved visual-review iteration records after screenshots, Syrus
-also requests a low-priority `visual_diff` workflow on the same Job. That
-deferred workflow checks out the merge-base for `Job#effective_base_branch`,
-inspects the after screenshots' page provenance, starts the same
-preview/browser capture flow on that before revision, asks the agent to
-capture matching baseline screenshots, then persists a
-`visual_diff_comparison` typed artifact with `before` (merge-base) and
-`after` (PR/head) images. The Job review UI overlays each matching pair in an
-interactive slider, with the after image on the left and the before image on
-the right. The divider supports pointer, touch, and keyboard input; tapping
-without dragging opens a full-size, swipeable before/after preview. This work
-does not block approval or landing; automatically queued comparisons are cancelled or skipped once the
-Job has already moved to approval/landing, while operators can still request
-an explicit rerun from the Job detail actions.
-
-If an after screenshot looks like an auth/sign-in/error wall for a different
-changed surface, `visual_diff` records the rejected artifact and skips rather
-than training the baseline agent to reproduce the wall. Comparisons for
-auth/session pages themselves remain valid when the Job or prompt names that
-auth route as the intended surface.
+When compatible before-and-after evidence exists, Syrus may generate a visual comparison and quantitative diff. Incompatible dimensions or mismatched subjects are reported and skipped rather than compared misleadingly. Evidence appears in workflow and Job review surfaces.
 
 ## Manual "Run visual review" trigger
 
@@ -382,7 +131,7 @@ implementation, or to cover a pass that was skipped or never configured —
 without waiting for a new implementation. The Job detail page exposes a
 "Run visual review" action (and chat exposes the equivalent
 `run_visual_review` pending action) on implemented or approved Jobs with no
-active run, gated by the same `RepoVisualReviewPlan` resolution the
+active run, gated by the same visual-review plan resolution the
 automatic loop uses — the action is unavailable if visual review isn't
 configured/enabled for the repository. This dispatches a standalone
 `manual_visual_review` workflow and does not create before/after comparison
@@ -449,7 +198,7 @@ visual_review(1) → [coding_handoff_fix → visual_review(2) → ...] → grade
 ```
 
 Because the chain has no `implement`/`respond` step at all,
-`Steps::VisualReview#latest_agentic_diff` falls back to a fresh `git diff`
+Visual review falls back to a fresh `git diff`
 against the default branch — the same fallback path used by the standalone
 `manual_visual_review` workflow. A `needs_work` verdict is repaired by
 `coding_handoff_fix`, which also handles the workflow's grader retry loop.

@@ -103,6 +103,7 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
 
     expect(response).to have_http_status(:unauthorized)
     expect(parse_body).to eq(
+      "v" => ApiVersion::CURRENT,
       "error" => {
         "code" => "unauthorized",
         "message" => "Sign in to use the app API."

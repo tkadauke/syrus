@@ -16,7 +16,7 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
       get snapshots_path(chat), as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("whiteboard_snapshots" => [])
+      expect(parse_body).to eq("v" => ApiVersion::CURRENT, "whiteboard_snapshots" => [])
     end
 
     it "returns snapshots for the chat newest first without scene JSON" do
@@ -41,6 +41,7 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).to eq(
+        "v" => ApiVersion::CURRENT,
         "whiteboard_snapshots" => [
           {
             "id" => newer.id,
@@ -81,6 +82,7 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).to eq(
+        "v" => ApiVersion::CURRENT,
         "id" => snapshot.id,
         "name" => "Milestone",
         "snapshot_kind" => "manual",

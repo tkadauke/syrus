@@ -18,7 +18,7 @@ RSpec.describe "Calendar events API", type: :request do
     allow(Calendar::EventQuery).to receive(:call).and_return(payload)
     get "/api/v1/app/calendar/events", params: { starts_at: Time.current.iso8601, ends_at: 1.day.from_now.iso8601 }
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body).to eq("events" => [], "failures" => [])
+    expect(response.parsed_body).to eq("v" => ApiVersion::CURRENT, "events" => [], "failures" => [])
   end
 
   it "is unavailable while the plugin is disabled" do

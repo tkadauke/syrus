@@ -10,18 +10,20 @@ Simple mode forces the flag off in the same way it disables Coding Mode and Loca
 
 ## Permission
 
-The confirming user must satisfy `EmergencyLand::Permission.granted?(user:, repository:)`, which delegates to `RepositoryPolicy#admin?`.
-
-That means either:
+The confirming user must be either:
 
 - a global admin user, or
-- an admin-tier `RepositoryMembership` for the target repository.
+- an admin-tier repository membership for the target repository.
 
 The repository owner gets that membership through the existing owner-membership seeding path. Emergency land does not introduce a new role.
 
 ## Confirmation Flow
 
-The `emergency_land` MCP tool never merges code immediately. It initially creates only a `ChatPendingAction` with `action: "emergency_land"` for the operator to confirm or decline in chat; no Job, Workflow, or WorkUnit is created at request time. After confirmation, the action remains visibly `confirming` while the chat worker captures and lands the change without admission control, a Workflow, or a WorkUnit. Only a successful merge marks it `confirmed`, and capture, permission, validation, or GitHub failures durably mark it `failed` with the actionable error.
+The `emergency_land` MCP tool never merges code immediately. It first creates a
+pending chat action for the operator to confirm or decline; no Job or Workflow
+is created at request time. After confirmation, the action remains visibly
+`confirming` while Syrus captures and lands the change. Only a successful merge
+marks it confirmed; failures remain visible with an actionable error.
 
 Repeating the same request reuses only an identical action that is still queued, pending, or confirming. A failed, rejected, cancelled, or confirmed action is historical: a retry creates a fresh confirmation without requiring the operator to dismiss the old action first.
 
@@ -45,7 +47,7 @@ Emergency land skips only Syrus's own automation gates:
 
 It does not skip GitHub or repository mechanics:
 
-- Syrus still opens a normal pull request with `PullRequestOpener` if the Job has no PR yet.
+- Syrus still opens a normal pull request if the Job has no PR yet.
 - Syrus merges through GitHub's merge API rather than pushing directly to the default branch.
 - GitHub branch protection, mergeability, required checks, repository permissions, and merge conflicts still apply.
 - A newly opened PR may temporarily have unknown mergeability while GitHub computes it. Syrus polls for up to about 30 seconds; a reported conflict refuses immediately, while a value that remains unknown produces a distinct retryable refusal.
@@ -54,18 +56,6 @@ It does not skip GitHub or repository mechanics:
 
 ## Audit Trail
 
-Successful emergency lands close the Job with `closure_reason: "emergency_landed"` and record:
-
-- `emergency_landed_at`
-- `emergency_landed_by_user_id`
-- `emergency_landed_by_membership_tier`
-- `emergency_land_source_sha`
-- `emergency_land_skipped_controls` (graders, adversarial review, visual review, admission control, and the normal workflow worker queue)
-
-Operators can audit usage from the Job detail page, which shows the closure reason plus the confirming user, membership tier, and timestamp. Admins can also query the admin Jobs API with:
-
-```text
-GET /api/v1/admin/jobs?closure_reason=emergency_landed
-```
-
-The dashboard/filter schema includes `closure_reason = emergency_landed`, so shared Job filters can also surface these Jobs.
+Successful emergency lands close the Job as emergency-landed. The Job detail
+page shows the confirming user, membership tier, timestamp, source commit, and
+skipped controls. Dashboard filters can surface these Jobs by closure reason.

@@ -20,8 +20,8 @@ Read the guide that matches the work in front of you:
 - [Frontend](frontend.md) — React routing, interaction patterns, and visual
   consistency.
 - [Localization](localization.md) — frontend and backend user-visible copy.
-- [Plugins](plugins.md) — lifecycle, registration, boundaries, and plugin-owned
-  coverage.
+- [Plugins](plugins.md) — lifecycle, registration, boundaries, plugin-owned
+  coverage, and the [full authoring reference](plugins/authoring.md).
 - [Prompts and agent tools](prompts-and-tools.md) — prompt composition, chat
   orientation, and invocation limits.
 - [CLI and desktop](cli-and-desktop.md) — Go CLI and Electron application
@@ -30,6 +30,19 @@ Read the guide that matches the work in front of you:
   and repository documentation ownership.
 - [Deployment](deployment.md) — single-host Docker distribution and image
   lifecycle.
+- [Design-system ESLint ratchet](design_system_eslint_ratchet.md) — enforced
+  semantic UI rules and ratchet workflow.
+- [Semantic UI](semantic_ui.md) — component semantics and accessibility
+  conventions.
+- [Style-debt report](style_debt_report.md) — report-only frontend debt
+  measurement.
+- [Server localization](server_localization.md) — Rails localization rules.
+- [Process execution](process_execution.md) — subprocess execution and
+  cancellation conventions.
+- [Rollout compatibility](rollout_compatibility.md) — safe mixed-version
+  deployment practices.
+- [App-setting scope audit](app_setting_scope_audit.md) — setting ownership and
+  scoping checks.
 
 Executable workflow instructions remain in [`.claude/skills/`](../../../.claude/skills/),
 and component-level contracts remain next to their implementations. The legacy

@@ -67,7 +67,7 @@ The analysis report and extracted screenshots persist indefinitely. Only the raw
 ## Metrics
 
 While enabled, exports `syrus_video_walkthroughs_storage_bytes` (a gauge) to `/metrics` (see
-`config/syrus_docs/metrics.md`): the total stored video bytes `PruneJob`'s size sweep is weighing against
+`docs/engineering/operations/metrics.md`): the total stored video bytes `PruneJob`'s size sweep is weighing against
 `AppSetting.video_storage_budget_bytes`, so the budget is visible before it starts evicting rather than only
 after the fact. It uses the declarative sample-block form of the manifest `metrics` DSL
 (`gauge :storage_bytes do ... end`, see `Syrus::PluginApi::Definition#metrics`), calling

@@ -14,8 +14,7 @@ Steps may need the same files. Terminal Workflow transitions schedule cleanup;
 `WorkflowWorkspacePruneJob` sweeps retained terminal workspaces after the
 retention period. See `app/services/workflow_workspace.rb` and
 `app/jobs/workflow_workspace_prune_job.rb`. Supported operator behavior is in
-[Workflow workspace lifecycle](../../../config/syrus_docs/workflow_workspace_lifecycle.md).
-
+[Workflow workspace lifecycle](workflow_workspace_lifecycle.md).
 For one Job, retain the latest retryable or otherwise actionable Workflow
 workspace and retire superseded sibling workspaces eagerly. “Keep the
 workspace” applies to the active attempt, not to every historical attempt.

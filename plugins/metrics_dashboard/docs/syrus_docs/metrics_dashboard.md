@@ -189,13 +189,13 @@ has two very different causes and an empty chart does not distinguish them.
 ## Plugin tabs
 
 Core panels are not the whole page. Any other plugin that declares its own Prometheus metrics (via the
-manifest's `metrics do ... end` block, see `config/syrus_docs/metrics.md`) can contribute a tab of its own,
+manifest's `metrics do ... end` block, see `docs/engineering/architecture/metrics.md`) can contribute a tab of its own,
 without this plugin ever naming it -- the same reason a contributing plugin staying independently deletable
 matters (`bin/plugin-boundary-audit`) applies between this plugin and its contributors, not just between a
 plugin and core.
 
 This plugin **hosts** a `:tab` extension point (`hosts [ :tab ]` in the manifest), giving the qualified point
-`"metrics_dashboard:tab"` (see `config/syrus_docs/plugins.md`'s "Hosting a point for other plugins" -- the same
+`"metrics_dashboard:tab"` (see `docs/engineering/conventions/plugins/authoring.md`'s "Hosting a point for other plugins" -- the same
 mechanism `test_insights` uses for its own `"test_insights:parser"` point). This is deliberately *not* a
 top-level `EXTENSION_POINTS` entry the way core's `ui_slot` is: core's own points are for surfaces core itself
 consumes, and the consumer here is this plugin, which is off by default and fully uninstallable. A hosted

@@ -25,7 +25,7 @@ module Syrus
       # ...) are sampled centrally from one process and cached, not scraped
       # per-pod -- there is no Prometheus-assigned `instance` label to fall
       # back on, since only the web role currently serves /metrics (see
-      # config/syrus_docs/metrics.md). The set of values actually alive at any
+      # docs/engineering/architecture/metrics.md). The set of values actually alive at any
       # moment is small (the live worker fleet, "two versions during a
       # rollout"), which is what keeps this from becoming the per-request
       # unbounded case the rest of this list guards against.

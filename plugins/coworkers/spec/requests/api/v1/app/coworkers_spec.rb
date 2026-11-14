@@ -636,7 +636,7 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.fetch("approvals").pluck("id")).not_to include(interactive_confirmation.id)
 
     get "/api/v1/app/coworkers/sidebar_badge"
-    expect(response.parsed_body).to eq("count" => 1)
+    expect(response.parsed_body).to eq("v" => ApiVersion::CURRENT, "count" => 1)
 
     expect {
       post "/api/v1/app/coworkers/#{coworker.id}/approvals/#{approval.id}/reject"

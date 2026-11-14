@@ -102,6 +102,8 @@ the rest of the tree.
 
 ### merge_train
 
+`merge_train:` takes two optional keys, `failure_policy` and `failure_rungs`.
+
 `merge_train.failure_policy` is an ordered escalation ladder for failed merge
 trains. It belongs in `.syrus.yml` because the rung order expresses repository
 workflow semantics: which recovery strategies are acceptable, and in what
@@ -132,13 +134,9 @@ Currently implemented rungs:
   integration branch after the train IS torn down, so the replacement train can
   replay the landing fixes committed during the grade loop.
 
-A failure counts as not-the-member's-fault when either its run classification is
-retryable, or it occurred in a step that runs before any member's code is
-exercised — `merge_train_assemble`, `merge_train_reconcile`, `merge_train_land`,
-`merge_train_land_after_rebase`. Retryability alone used to be the test, which
-missed every non-retryable train-level failure: an assemble that lost the
-landing lock, a base that moved mid-start, no capable worker. Each of those tore
-down a sound assembly and reassembled and regraded the identical members.
+A failure counts as not-the-member's-fault when it is retryable or occurs in a
+train-level step before member code is exercised: assembly, reconciliation, or
+landing.
 
 `merge_train_build` is deliberately not on that list — a conflict while rebasing
 members into the integration branch is a member's fault — and neither is the
@@ -148,8 +146,8 @@ default remains conservative.
 Preserving a train is a scheduling decision, not just a verdict. A rung that
 keeps the assembly also schedules the relaunch that continues it: an automatic
 retry attempt, visible on the Job alongside every other retry, that resumes the
-preserved workflow from the step that failed so the integration branch, the
-grades already earned and the member rows are all reused. The attempt is what
+preserved workflow from the step that failed so the integration branch and
+grades already earned are reused. The attempt is what
 advances the ladder, so a train that keeps failing the same way escalates to the
 next rung and eventually to `restart` instead of preserving itself forever.
 
@@ -171,6 +169,27 @@ instance `AppSetting.merge_train_failure_policy` compatibility default. If
 Syrus cannot parse or read the repository's default-branch `.syrus.yml`, it
 uses the conservative `restart` behavior instead of applying the instance
 default.
+
+`merge_train.failure_rungs` is a separate, optional list of enabled
+failure-response rungs. Today the only
+supported value is `multisect`; any other value is a parse error. A single
+string is accepted as well as a list.
+
+```yaml
+merge_train:
+  failure_rungs: [multisect]
+```
+
+The multisect section width is instance-wide:
+`AppSetting.merge_train_multisect_section_width` controls how many sections the
+walk uses per round. It must be between 2 and 16 and defaults to 4. Wider values
+spend more concurrent focused grades per round to reduce wall-clock rounds, so
+raise the setting only when the instance's worker/build capacity can absorb the
+extra subset builds. The rung runs as visible prepare/evaluate/collect Steps
+inside the failed merge-train workflow; with distributed workflow DAG execution
+enabled for the repository, each focused section evaluation gets its own
+immutable-source workspace and Run. Terminal multisect results are record-only
+and preserve the train for the next rung or operator review.
 
 ### capabilities
 
@@ -222,10 +241,8 @@ graph structure.
 ### iOS projects and Xcode targets
 
 iOS work is modeled as a macOS project plus executable targets that run Xcode
-and simulator commands. Use only `os: macos` for placement, then express
-scheme, workspace/project, destination, signing, and output details in the
-target command, target name, wrapper script, and worker readiness checks.
-
+and simulator commands. Use only `os: macos` for placement; express scheme,
+workspace/project, destination, and output details in the target command.
 A monorepo should put an iOS `.syrus.yml` next to the app project:
 
 ```yaml
@@ -236,27 +253,14 @@ project:
   kind: ios_app
   capabilities:
     os: macos
-    arch: arm64
-    toolchain: xcode
-    runtime: ios_simulator
 
 targets:
   - name: app-sources
     kind: application
     sources:
       - "App/**/*.swift"
-      - "Packages/**/*.swift"
       - "MobileApp.xcodeproj/**"
-      - "MobileApp.xcworkspace/**"
 
-  # With the bundled iOS plugin enabled, the common command can be declared as:
-  # - type: xcodebuild
-  #   workspace: MobileApp.xcworkspace
-  #   scheme: MobileApp
-  #   destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
-  #   derived_data_path: .syrus/DerivedData/mobile
-  #   result_bundle_path: build/syrus/MobileApp.xcresult
-  #   junit_output: build/syrus/junit/mobile.xml
   - name: test
     kind: grader
     run: >
@@ -273,154 +277,20 @@ targets:
     timeout_minutes: 45
     capabilities:
       os: macos
-      arch: arm64
-      toolchain: xcode
-      runtime: ios_simulator
 ```
 
-If the repository still relies on root workflow validation, keep the executable
-root grader and use the nested file as project/target metadata until nested
-grader execution is enabled for that workflow path:
+Name the `-scheme` explicitly, keep DerivedData and result bundles under the
+workspace (for example `.syrus/DerivedData` and `build/syrus/`), and never put
+signing secrets in `.syrus.yml`. If the repository still relies on root
+workflow validation, keep an executable root `grade:` entry with
+`capabilities: {os: macos}` and use the nested file as project/target metadata.
 
-```yaml
-# /.syrus.yml
-grade:
-  - name: ios-tests
-    run: >
-      xcodebuild test
-      -workspace apps/ios/MobileApp.xcworkspace
-      -scheme MobileApp
-      -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
-      -derivedDataPath "$PWD/.syrus/DerivedData/ios"
-      -resultBundlePath "$PWD/build/syrus/ios/MobileApp.xcresult"
-      CODE_SIGNING_ALLOWED=NO
-      CODE_SIGNING_REQUIRED=NO
-    when_files_changed:
-      - "apps/ios/**"
-      - "packages/api-client/**"
-    phases: [landing, ci]
-    timeout_minutes: 45
-    capabilities:
-      os: macos
-      arch: arm64
-      toolchain: xcode
-      runtime: ios_simulator
-```
-
-With the bundled iOS plugin enabled, prefer typed graders for common commands
-so artifact paths, timeouts, and capability metadata stay consistent:
-
-```yaml
-grade:
-  - type: xcodebuild
-    workspace: apps/ios/MobileApp.xcworkspace
-    scheme: MobileApp
-    destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
-    derived_data_path: .syrus/DerivedData/ios
-    result_bundle_path: build/syrus/ios/MobileApp.xcresult
-    junit_output: build/syrus/junit/ios-tests.xml
-    when_files_changed:
-      - "apps/ios/**"
-    phases: [landing, ci]
-    timeout_minutes: 45
-
-  - type: swiftpm
-    package_path: apps/ios/Packages/Shared
-    build_path: .syrus/DerivedData/swiftpm-shared
-    when_files_changed:
-      - "apps/ios/Packages/Shared/**"
-    timeout_minutes: 20
-```
-
-For a repository-root Swift package, auto-detected prepare can run
-`swift package resolve`; otherwise add the same command explicitly in the
-owning root or nested `prepare:` block. Xcode package resolution should stay
-explicit because `xcodebuild -resolvePackageDependencies` needs the same
-workspace/project and scheme choices as the grader.
-
-Use `-workspace` when the app has a workspace, especially with CocoaPods or
-Swift packages that generate one. Use `-project` only for project-only apps.
-Always name the `-scheme` explicitly and choose a simulator `-destination`
-available on the Mac worker pool. Keep `OS=latest` only when the fleet is
-intentionally kept current; otherwise pin the runtime version operators have
-installed.
-
-Keep Xcode build products isolated from the source tree and from other Runs.
-Set `-derivedDataPath` under the workspace, usually below `.syrus/DerivedData`,
-and write machine-readable outputs under a stable build artifact directory such
-as `build/syrus/`. `-resultBundlePath` produces the `.xcresult` bundle that can
-be archived or inspected. If the repository uses a formatter that emits JUnit
-XML, write it to a stable path such as `build/syrus/junit/ios-tests.xml` and
-declare that path on the grader's JUnit settings when the workflow consumes
-JUnit artifacts.
-
-For ordinary simulator tests, make no-signing intent explicit with
-`CODE_SIGNING_ALLOWED=NO` and `CODE_SIGNING_REQUIRED=NO`. Signing, notarization,
-Keychain unlock, provisioning profiles, and private Apple credentials are host
-and repository policy concerns; do not put secrets in `.syrus.yml`. If a target
-really needs signing, document the required Keychain/profile access in the
-worker runbook and make sure the launchd worker user can access it.
-
-For an iOS-only implementation Job, make the primary placement explicit when
-filing a chat/API proposal:
-
-```json
-{
-  "planned_execution": {
-    "project_label": "iOS App",
-    "target_label": "//apps/ios:test",
-    "capabilities": {
-      "os": ["macos"],
-      "arch": ["arm64"],
-      "toolchain": ["xcode"],
-      "runtime": ["ios_simulator"]
-    }
-  }
-}
-```
-
-Use the same primary placement for mixed iOS/backend implementation Jobs when
-the agent must edit and test the iOS app in the same attempt, while backend
-graders keep their own Linux target requirements:
-
-```json
-{
-  "planned_execution": {
-    "project_label": "iOS App",
-    "capabilities": {
-      "os": ["macos"],
-      "arch": ["arm64"],
-      "toolchain": ["xcode"],
-      "runtime": ["ios_simulator"]
-    },
-    "source": "operator"
-  }
-}
-```
-
-```yaml
-# apps/api/.syrus.yml
-project:
-  id: api
-  label: Backend API
-
-grade:
-  - name: api-tests
-    run: bin/rspec
-    when_files_changed:
-      - "app/**"
-      - "spec/**"
-    capabilities:
-      os: linux
-```
-
-Common iOS pitfalls are operational rather than schema problems. If a macOS
-Run is blocked with no capable worker, check that a fresh worker advertises
-`os:macos` and consumes the macOS compute queues. If `xcodebuild` fails before
-compilation, run the macOS worker check, verify full Xcode is selected,
-accept the Xcode license, and install the simulator runtime named by the
-destination. If signing or Keychain access fails, debug as the launchd worker
-user rather than an interactive admin user.
+With the bundled iOS plugin enabled, prefer the typed `xcodebuild` and `swiftpm`
+graders. For typed grader fields, SwiftPM and Xcode package resolution, and
+proposal placement examples, see the
+[iOS plugin guide](../../plugins/ios/docs/syrus_docs/ios.md). For worker, Xcode,
+simulator, signing, and Keychain diagnosis, see
+[iOS and macOS compute](../../docs/engineering/operations/ios-compute.md).
 
 ### scripts
 
@@ -755,19 +625,15 @@ Use `runtime` when large suites have uneven spec-file costs. Syrus asks enabled
 grader input materializers to write a `parallel_tests` runtime log into the
 grader workspace before the command starts; if none is produced, the Ruby
 grader falls back to `--group-by filesize` and says so. It does not fall back
-to `parallel_tests`' own default, which balances by *file count*: on one
-production suite that produced shards from 3m53s to 9m56s, and since the
-slowest shard sets the grader's wall clock that 2.5x spread was paid in full.
-File size needs no recorded state and is a much better proxy for runtime. Runtime logs use
+to `parallel_tests`' own default, which balances by file count. File size needs
+no recorded state and is a better fallback proxy for runtime. Runtime logs use
 the `path/to/spec.rb:seconds` format that `parallel_tests` writes. When the log
 is partial, `parallel_rspec.allowed_missing` and
 `parallel_rspec.unknown_runtime` pass through to `parallel_tests` so known
 expensive files can still drive the split while unmeasured files get a
 conservative default.
 
-Custom `run:` commands are executed as-is. A `fast:` key is no longer accepted
-at all — declaring it in `.syrus.yml` has no effect and is not parsed into
-anything.
+Custom `run:` commands are executed as-is.
 
 ### phases
 
@@ -877,9 +743,8 @@ same suite at the base revision and can distinguish an inherited red suite from
 a regression introduced by the repair.
 
 A custom (`type: custom` or bare `run:`) grader has no framework plugin to
-compare structured failed-test identities, so without an explicit `base_retry:`
-it used to get no base-revision comparison at all once it opted into
-`allow_inherited`. Syrus now defaults a bare `allow_inherited` custom grader to
+compare structured failed-test identities. Syrus defaults a bare
+`allow_inherited` custom grader to
 `base_retry: { strategy: full_command }` -- rerunning the exact command already
 trusted against the candidate is a safe default with no extra config. An
 explicit `base_retry:` key, including `base_retry: false` to opt out, always
@@ -999,7 +864,7 @@ grade:
 
 Glob matching uses `File::FNM_DOTMATCH` so `*` and `**` cross directory separators — `website/**` matches any file under the `website/` directory at any depth, including dotfiles. If the git diff command fails (e.g. no commits on the branch yet), Syrus logs a warning, treats the changed-file list as empty, and skips any grader with `when_files_changed` set while still running graders without it.
 
-If a registered `:affected_test_analyzer` plugin (see [`plugins.md`](plugins.md#affected_test_analyzer)) can confidently analyze the diff, Syrus adds its reported files to the changed-file set before glob matching — this can only turn a would-be skip into a run (e.g. a grader whose glob only matches spec files still runs when a changed source file transitively affects one of those specs), never the reverse. No registered analyzer, a declining analyzer, or an analyzer error all behave identically to plain glob matching against the raw diff.
+If a registered `:affected_test_analyzer` plugin (see `plugins.md`, "Autofix, audits, affected tests, and review criteria") can confidently analyze the diff, Syrus adds its reported files to the changed-file set before glob matching — this can only turn a would-be skip into a run (e.g. a grader whose glob only matches spec files still runs when a changed source file transitively affects one of those specs), never the reverse. No registered analyzer, a declining analyzer, or an analyzer error all behave identically to plain glob matching against the raw diff.
 
 ### grade.max_iterations
 
@@ -1016,77 +881,15 @@ grade:
       run: npm run typecheck
 ```
 
-Boolean, **defaults to `true`** (`SyrusYml::DEFAULT_RERUN_ONLY_FAILED`). Both
-forms of `grade:` get that default -- the bare array shorthand takes it too,
-and only the mapping form can override it, by setting
-`grade.rerun_only_failed: false` for the old always-rerun-everything
-behavior. A repository that wants carry-forward therefore has to configure
-nothing at all.
-
-Infrastructure-only retries are narrower regardless of this setting. Because
-no repair step changed the checkout, Syrus carries forward successful required
-graders whose target fingerprints are unchanged and reruns only graders with
-failed or inconclusive infrastructure outcomes. This avoids turning one lost
-worker or database interruption into another full grader burst.
-
-When `true`, the **first** grading iteration always runs every active grader, but from the **second** iteration onward a repair loop can carry forward a grader that already passed within the current reuse window (see the lookback note below). Carry-forward is allowed only for required graders whose current target-health fingerprints still match known-passing health for the grader target and its executable dependencies. If the current inputs, dependency closure, command, environment, or policy no longer prove that pass, Syrus forces a fresh rerun and records the reason in `target_health_forced_targets`.
-
-Optional graders are never carried forward by this setting; they run again when active. A grader whose `when_files_changed` glob starts matching only on a later iteration is also still run then, regardless of this setting — `rerun_only_failed` only narrows within graders that were already active, it never overrides file-glob activation.
-
-**The reuse window is bounded by the last repair that changed code**, not by a
-fixed number of iterations. `Steps::GraderFanout#reusable_passed_steps_by_name`
-considers every grader that succeeded at an iteration `>= last_code_changing_repair_iteration`,
-and "code changing" is measured per repair Run (`step_agent_diff` present, or
-`head_sha != base_sha`) rather than assumed. So a grader that passed on
-iteration 2 is still reusable on iteration 5 as long as no repair in between
-actually modified the tree -- the invariant is "a pass holds until the code
-changes", which is the only thing that can invalidate it.
-
-Two consequences follow, and both are deliberate:
-
-- **A code-changing repair empties the window.** Its own iteration becomes the
-  floor, so `iteration >= N AND iteration < N` matches nothing and every active
-  grader runs again. This is why a normal repair loop looks like it carries
-  nothing forward: the repair that caused the iteration is exactly the thing
-  that invalidates the previous passes. `skip_reusable_target_health!` stands
-  down for the same iteration too, unless the work definition opts into
-  per-grader target-health narrowing
-  (`target_health_narrows_after_code_changing_repair?`, on for `job_bundle`
-  and `merge_train` -- see "Target health" in `workflow_steps.md`).
-- **A carry-forward cannot chain off another carry-forward.** A carried grader
-  is dropped from the fanout and gets no Step of its own, and the lookback
-  query requires `state: "succeeded"`, so reuse always traces back to a real
-  run. A long loop therefore reruns a still-green grader occasionally instead
-  of skipping it forever on the strength of an ever-older result.
-
-Where the setting does pay off is an iteration whose repair committed nothing
-and an infrastructure-only retry -- and those are carried forward
-unconditionally anyway (see above), independent of `rerun_only_failed`.
-
-Useful for repos with slow or expensive graders (e.g. a full website build) where re-running an already-green check on every repair iteration wastes time the agent could spend on the graders that are actually still failing.
-
-## merge_train
-
-Configures repository-local merge-train failure handling.
-
-```yaml
-merge_train:
-  failure_rungs: [multisect]
-```
-
-`failure_rungs` is an ordered list of enabled failure-response rungs. Today the
-supported repository-configured rung is `multisect`.
-
-The multisect section width is instance-wide:
-`AppSetting.merge_train_multisect_section_width` controls how many sections the
-walk uses per round. It must be between 2 and 16 and defaults to 4. Wider values
-spend more concurrent focused grades per round to reduce wall-clock rounds, so
-raise the setting only when the instance's worker/build capacity can absorb the
-extra subset builds. The rung runs as visible prepare/evaluate/collect Steps
-inside the failed merge-train workflow; with distributed workflow DAG execution
-enabled for the repository, each focused section evaluation gets its own
-immutable-source workspace and Run. Terminal multisect results are record-only
-and preserve the train for the next rung or operator review.
+Boolean, **defaults to `true`**; only the mapping form can set
+`grade.rerun_only_failed: false`. When `true`, the first grading iteration runs
+every active grader. Later repair iterations carry forward a required grader's
+earlier pass only while its inputs, dependencies, command, environment, and
+policy still prove it, and only when no repair changed code. Optional graders and
+graders whose `when_files_changed` glob newly matches always run. After an
+infrastructure-only failure (lost worker, database interruption), unchanged
+successful required graders are carried forward regardless of this setting and
+only failed or inconclusive graders rerun.
 
 ## formatters
 
@@ -1104,7 +907,7 @@ formatters:
 
 Each entry's `command` runs only when this iteration's diff (`git diff --name-only <base>...HEAD`) touches at least one file matching its `files` glob (same `File::FNM_DOTMATCH` semantics as a grader's `when_files_changed`); an entry whose glob matches nothing is skipped. `command` and `files` are both required.
 
-Omitting `formatters:` entirely runs no formatting at all — this is the safe default. To opt into Syrus's plugin-provided defaults (RuboCop, ESLint/Prettier, gofmt, ruff/black — see [`plugins.md`](plugins.md#autofix_command)), set `formatters: []` (an explicit blank array): each applicable plugin default then runs, gated on the plugin detecting its own config signal in the repo and on this iteration's diff being non-empty.
+Omitting `formatters:` entirely runs no formatting at all — this is the safe default. To opt into Syrus's plugin-provided defaults (RuboCop, ESLint/Prettier, gofmt, ruff/black — see the "Autofix, audits, affected tests, and review criteria" section of `plugins.md`), set `formatters: []` (an explicit blank array): each applicable plugin default then runs, gated on the plugin detecting its own config signal in the repo and on this iteration's diff being non-empty.
 
 Set `formatters: false` (or `off`) to disable formatting altogether for this repository, including the plugin defaults. This is mostly redundant with omitting the key, but it lets an operator record the choice explicitly and is future-proofed against any later change to what "absent" means.
 
@@ -1426,13 +1229,16 @@ deployment_stages:
     tag_pattern: "desktop-v*"
 ```
 
-`PollAllDeploymentStagesJob` runs every 5 minutes and fans out to repositories with `deployment_stages` configured. For each landed Job (`landed_sha` present), Syrus compares the merge commit against each configured stage tag. When GitHub reports the tag as `identical` to or `ahead` of the merge commit, Syrus records a `JobDeploymentStageStatus` with the first detected time and the tag commit SHA for audit/debugging.
+Every five minutes, Syrus checks configured deployment-stage tags for landed
+Jobs. When a tag contains the merge commit, it records when the stage was first
+reached and the observed tag revision.
 
 Configured stages are shown on Job detail pages and as per-stage columns in the Epic detail jobs table. Epic rows show a reached timestamp for landed Jobs that have reached a stage, a pending marker for landed Jobs still waiting on a stage, and an empty marker for Jobs that have not landed yet.
 
 ## deploy
 
-Configures a shell command Syrus can run to actually deploy this repository — a manual action on a Job, or (with `mode: continuous`) an automatic trigger after a landing Workflow succeeds. See [`deploy.md`](deploy.md) for the full feature: the `deploy` trigger_kind, the `prepare → deploy` Workflow chain, the `Steps::Deploy` handler, and `MaybeDeployJob`'s continuous-deploy debounce/throttle.
+Configures a shell command Syrus can run to deploy this repository manually or,
+with `mode: continuous`, after landing. See [`deploy.md`](deploy.md).
 
 ```yaml
 deploy:
@@ -1560,7 +1366,10 @@ silently mark unrelated targets healthy.
 
 ## project
 
-Names the operator-facing **project** this `.syrus.yml` file belongs to — an internal `TargetGraph::Project` used for project-aware workflow features. See [`target_graph.md`](target_graph.md) for the full model; the short version: a **project** is a workflow/operator boundary (which preview to start, which hooks run, which review/coverage policy applies), while a **target** is a lower-level execution graph node (a grader, formatter, generator, or prepare action). Declaring `project:` does not change which `prepare`/`formatters`/`generated`/`grade` commands compile into targets.
+Names the operator-facing project this `.syrus.yml` file belongs to. See
+[`target_graph.md`](target_graph.md): a project is a workflow/operator boundary,
+while a target is an execution graph node. Declaring `project:` does not change
+which commands compile into targets.
 
 Every `.syrus.yml` file has an implicit project even with no `project:` key: the root `.syrus.yml` gets the implicit root project (id `repo`), and a nested `.syrus.yml` (in a subdirectory) gets an implicit project derived from its directory (e.g. `apps/desktop/.syrus.yml` implies id `apps-desktop`, label `apps/desktop`). Most repositories never need to declare `project:` at all.
 

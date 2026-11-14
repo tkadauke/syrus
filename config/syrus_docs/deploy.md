@@ -1,6 +1,6 @@
 # Deploy
 
-Deploy lets a repository configure a shell command Syrus can run to actually deploy the target application — not a preview, a real deployment. It is modeled as a first-class Workflow (`trigger_kind: "deploy"`) rather than a bespoke side-model, so it gets retry-from-failed-step, Run transcripts, the admin repair toolkit, and `WorkflowWorkspacePruneJob` cleanup for free.
+Deploy lets a repository configure a shell command Syrus can run to actually deploy the target application — not a preview, a real deployment. It is modeled as a first-class Workflow (`trigger_kind: "deploy"`) rather than a bespoke side-model, so it gets retry-from-failed-step, Run transcripts, the admin repair toolkit, and workspace cleanup for free.
 
 ## Configuration
 
@@ -23,228 +23,63 @@ deploy:
 
 Omitting `deploy:` disables the feature for the repository — the same safe default `formatters:`/`generated:` use. See [`syrus_yml.md`](syrus_yml.md#deploy) for how this fits alongside the rest of the `.syrus.yml` schema, including why it is independent of `deployment_stages`' read-only tag tracking.
 
-`deploy:` is parsed by `SyrusYml` (`app/services/syrus_yml.rb`) into a `SyrusYml::DeployConfig`.
-
 ## The `deploy` Workflow
 
-`Workflows::Deploy` (`app/services/workflows/deploy.rb`) declares a short, entirely non-agentic chain:
+The `deploy` Workflow is a short, entirely non-agentic chain:
 
 ```
 prepare → deploy
 ```
 
-`prepare` is the same deterministic setup step every other chain uses — it runs `.syrus.yml`'s `prepare:` commands (or auto-detects) so the deploy command runs against an installed workspace. `deploy` (`Steps::Deploy`, `app/services/steps/deploy.rb`) then runs `.syrus.yml`'s `deploy.run` command.
+`prepare` is the same deterministic setup step every other chain uses — it runs `.syrus.yml`'s `prepare:` commands (or auto-detects) so the deploy command runs against an installed workspace. `deploy` then runs `.syrus.yml`'s `deploy.run` command.
 
-`Steps::Deploy` follows `Steps::Prepare#run_shell`'s idiom: streamed output buffered into `JobLog`, a per-command timeout, and a `kind: "deploy"` tag on the underlying `ProcessRunner` call so deploy subprocesses show up in `/admin/processes` like every other spawned subprocess (`SpawnedProcess::KINDS`).
+Like `prepare`, the deploy step streams output into the Job log, applies a per-command timeout, and tags its subprocess so it shows up in `/admin/processes` like every other spawned subprocess.
 
-Unlike `prepare`, there is no auto-detected fallback for a deploy command — there's nothing sensible to guess. A missing `.syrus.yml`, an absent `deploy:` block, an unparsable config, or a failing `run` command are all hard failures: the step raises `StepFailed` and the Workflow fails, the same as any other required step. Repair semantics default to `:operator_review` (the non-agentic default), not `:deterministic_idempotent` — a deploy command isn't guaranteed safe to blindly auto-retry the way `prepare`/`format`/grader commands are, so a failure surfaces for an operator to look at rather than auto-retrying.
+Unlike `prepare`, there is no auto-detected fallback for a deploy command — there's nothing sensible to guess. A missing `.syrus.yml`, an absent `deploy:` block, an unparsable config, or a failing `run` command are all hard failures: the step fails and the Workflow fails, the same as any other required step. Repair semantics default to `:operator_review` (the non-agentic default), not `:deterministic_idempotent` — a deploy command isn't guaranteed safe to blindly auto-retry the way `prepare`/`format`/grader commands are, so a failure surfaces for an operator to look at rather than auto-retrying.
 
-`WorkDefinitions::BuiltIns::Deploy` (`app/services/work_definitions/built_ins.rb`) registers the matching `WorkDefinition` (`kind: "deploy"`, `workflow_trigger_kind: "deploy"`, `scope: "job"`) so the `deploy` trigger_kind participates in the standard retry/lock/landing policy machinery like every other first-class Workflow.
+The `deploy` trigger kind participates in the standard retry/lock/landing policy machinery like every other first-class Workflow.
 
 ## Redeploying a closed Job
 
-GitHub deletes a PR's branch shortly after merge, so `WorkflowWorkspace` (which normally clones and checks out `job.branch_name`) cannot set up a workspace for a `deploy` Workflow on an already-landed Job by branch name alone. `WorkflowWorkspace` special-cases this: when the target Job is `closed?` with `landed_sha` present **and** the Workflow's `trigger_kind` is `"deploy"`, it clones the repository's default branch (always present, non-shallow) and checks out `job.landed_sha` directly instead of fetching or creating a branch — the same fix `PreviewWorkspace`'s `:commit_sha` revision mode already applies for post-land previews. This fallback is scoped narrowly to `deploy` Workflows; every other trigger_kind still targets an open/approved Job with a live branch and is unaffected.
+GitHub deletes a PR's branch shortly after merge, so the workflow workspace (which normally clones and checks out the Job's branch) cannot set up a workspace for a `deploy` Workflow on an already-landed Job by branch name alone. Syrus special-cases this: when the target Job is closed with a landed commit **and** the Workflow's trigger kind is `deploy`, it clones the repository's default branch and checks out the landed commit directly instead of fetching or creating a branch — the same approach post-land previews use. This fallback is scoped narrowly to `deploy` Workflows; every other trigger_kind still targets an open/approved Job with a live branch and is unaffected.
 
-A `deploy` Workflow launched on a Job that hasn't landed yet (still open, with a live branch) is unaffected by this fallback and clones/checks out `job.branch_name` as normal.
+A `deploy` Workflow launched on a Job that hasn't landed yet (still open, with a live branch) is unaffected by this fallback and clones/checks out the Job's branch as normal.
 
 ## Manually triggering a deploy
 
-A Job's detail page shows a **Deploy** control next to **Preview**, inside the same panel (`PreviewPanel.tsx`, `DeployControls`). It is visible whenever the repository has a `deploy:` block configured (`App::DeployAvailability.configured?`) and the Job is `deployable?` — `implemented`, `approved`, `landing`, or `closed` with a `landed_sha` (the same "resolvable revision" shape `previewable?` uses; see "Redeploying a closed Job" above for how the closed case checks out the right commit). Clicking it shows the latest deploy Workflow's state (queued/running/succeeded/failed/cancelled) and links to it in the Workflows tab; it polls while a deploy is in flight the same way the Preview control polls its own environment, since a Workflow's own state-change events only refresh the Workflows tab's query, not this panel.
+A Job's detail page shows a **Deploy** control next to **Preview**, inside the same panel. It is visible whenever the repository has a `deploy:` block configured and the Job is deployable — `implemented`, `approved`, `landing`, or `closed` with a `landed_sha` (the same "resolvable revision" shape `previewable?` uses; see "Redeploying a closed Job" above for how the closed case checks out the right commit). Clicking it shows the latest deploy Workflow's state (queued/running/succeeded/failed/cancelled) and links to it in the Workflows tab; it polls while a deploy is in flight the same way the Preview control polls its own environment, since a Workflow's own state-change events only refresh the Workflows tab's query, not this panel.
 
-The same action is available over the API: `POST /api/v1/app/jobs/:job_id/deploy` launches a `deploy` Workflow via `WorkUnits::Launcher.instantiate(kind: "deploy", job:)` + `.start!` (`Api::V1::App::JobDeployController#create`); `GET /api/v1/app/jobs/:job_id/deploy` returns the latest deploy Workflow's status. `Job#deployable?` gates both: a Job with no resolvable revision (still triaging, queued, running, coding, or closed without a `landed_sha`) is rejected with `422 validation_failed`.
+The same action is available over the API: `POST /api/v1/app/jobs/:job_id/deploy` launches a `deploy` Workflow; `GET /api/v1/app/jobs/:job_id/deploy` returns the latest deploy Workflow's status. The same deployability check gates both: a Job with no resolvable revision (still triaging, queued, running, coding, or closed without a `landed_sha`) is rejected with `422 validation_failed`.
 
 ### Approval gate
 
-Deploying an unapproved Job is forbidden by default — `403 forbidden` unless the Job is `approved?` or the repository's `.syrus.yml` sets `deploy.allow_unapproved: true` (checked via `App::DeployAvailability.allow_unapproved?`, which reads the same GitHub-fetched `.syrus.yml` copy `configured?` uses — `RepoDefaultBranchSyrusYml` fetches the default branch's `.syrus.yml` through `GithubClient` rather than a local bare clone, since this gate runs on the web tier and web pods don't mount the worker's on-disk clone). This is separate authorization logic from Preview, which has no approval gate at all — previewing an implemented-but-unapproved Job is fine, since it doesn't touch anything outside Syrus's own preview infrastructure; deploying does, so it defaults to approved-only.
+Deploying an unapproved Job is forbidden by default — `403 forbidden` unless the Job is `approved?` or the repository's `.syrus.yml` sets `deploy.allow_unapproved: true` (read from the default branch's `.syrus.yml`). This is separate authorization logic from Preview, which has no approval gate at all — previewing an implemented-but-unapproved Job is fine, since it doesn't touch anything outside Syrus's own preview infrastructure; deploying does, so it defaults to approved-only.
 
 Only one deploy Workflow may be queued or running per Job at a time — a second `POST` while one is active returns `409 conflict` rather than piling deploys up behind Solid Queue's per-Job concurrency limit.
 
 ## Continuous deploy
 
-Setting `deploy.mode: continuous` auto-triggers a deploy of the repository's default-branch HEAD every time a Job lands, without any manual click. It reuses the exact debounce pattern `Workflows::MainGrader`/`MainGraderWorkflowJob` already use for main-branch health checks.
+Setting `deploy.mode: continuous` auto-triggers a deploy of the repository's default-branch HEAD every time a Job lands, without any manual click. It reuses the debounce pattern main-branch health checks use.
 
 ### Trigger point
 
-`Workflows::AutoMerge`, `Workflows::MergeTrain`, and `Workflows::ExternalPrMerge` each call `DeployContinuousTrigger.after_landing!(repository)` from their `after_success` hook — i.e. once a Job (or, for a merge train, an Epic's children) has actually landed on the default branch. `DeployContinuousTrigger` re-reads the repository's `.syrus.yml` (the same GitHub-fetched read `App::DeployAvailability` uses for the manual-deploy gate — see above) and, only when `deploy.mode == "continuous"`, enqueues `MaybeDeployJob.perform_later(repository_id)`. A repository without `deploy:` configured, or with `mode: manual` (the default), never enqueues anything here — landing a Job costs nothing extra unless continuous deploy is opted into.
+Auto-merge, the merge train, and external-PR merges each trigger the continuous-deploy check once a Job (or, for a merge train, an Epic's children) has actually landed on the default branch. The check re-reads the repository's `.syrus.yml` and, only when `deploy.mode == "continuous"`, enqueues a deploy-admission job. A repository without `deploy:` configured, or with `mode: manual` (the default), never enqueues anything — landing a Job costs nothing extra unless continuous deploy is opted into.
 
-### `MaybeDeployJob`
+### Deploy admission
 
-`MaybeDeployJob` (`queue_as :control_plane`) does the actual gating, mirroring `MainGraderWorkflowJob`:
+The admission job does the actual gating, mirroring main-branch health-check debouncing:
 
-- `limits_concurrency to: 1, key: "deploy:<repository_id>"` bounds how many `MaybeDeployJob` executions for one repository can be in flight at once — this only serializes the (fast) admission check itself, not the deploy Workflow's runtime.
-- **Concurrency guard**: if a `deploy`-trigger_kind Workflow is already `queued` or `running` for the repository, this run is a no-op. It does not reschedule — a fresh trigger is not needed here because every subsequent landing independently calls the trigger point again, and by the time a later merge lands (if one does), the earlier deploy has typically already settled.
-- **Throttle guard**: if `deploy.min_interval_minutes` is configured and less time has elapsed since the most recent `deploy`-trigger_kind Workflow's `finished_at` for this repository than that interval, the trigger is **rescheduled** (`MaybeDeployJob.set(wait_until: ...).perform_later(repository_id)`) for the earliest allowed time — never silently dropped. This is what turns a burst of merges landing inside the throttle window into exactly one deploy of the latest HEAD once the window opens: each merge's trigger either launches the deploy or reschedules for the same "earliest allowed" instant, and whichever check actually runs at that instant resolves the default branch's *current* HEAD, not a HEAD captured at trigger time — so any commits that landed in between are included for free, with no explicit commit-batching data structure.
-- **Launch**: otherwise, `MaybeDeployJob` creates a synthetic anchor `Job` (`kind: "deploy"`, no `issue_number` — same shape as the `main_grader` anchor Job), resolves the repository's current default-branch HEAD sha via `GithubClient#branch_head_sha`, and launches `Workflows::Deploy` on it through `WorkUnits::Launcher.instantiate(kind: "deploy", job:, artifacts: { "deploy_sha" => sha })` + `.start!`. `WorkflowWorkspace` clones the default branch and detaches HEAD at that exact `deploy_sha` (the same `checkout_main_sha!`-style pinning `main_grader` Workflows use), so the deploy command runs against the resolved commit even if the default branch advances again before the workspace clones.
-- **Anchor Job closure**: `Workflows::Deploy#after_success`/`#after_fail` close the anchor Job (`job.deploy_job?` is true only for this synthetic Job, never for a manual deploy's ordinary Job) the same way `Workflows::MainGrader.close_anchor_job!` closes its own anchor Job — regardless of whether the deploy succeeded, since the pass/fail detail lives on the Workflow/Run, not the Job. The anchor Job is filtered out of the operator dashboard and other Job pickers the same way `main_grader` Jobs already are (`Filters::Chips::Jobs::JobType::SYSTEM_KINDS`, chat attachment search, agent-insight's recent-Job sampling).
+- Admission checks for one repository are serialized, so only one runs at a time. This covers only the (fast) admission check, not the deploy Workflow's runtime.
+- **Concurrency guard**: if a deploy Workflow is already `queued` or `running` for the repository, this run is a no-op. It does not reschedule — a fresh trigger is not needed here because every subsequent landing independently triggers the check again, and by the time a later merge lands (if one does), the earlier deploy has typically already settled.
+- **Throttle guard**: if `deploy.min_interval_minutes` is configured and less time has elapsed since the most recent deploy Workflow finished for this repository than that interval, the trigger is **rescheduled** for the earliest allowed time — never silently dropped. A burst of merges inside the throttle window therefore produces exactly one deploy of the latest HEAD once the window opens: the check that runs at that instant resolves the default branch's *current* HEAD, so any commits that landed in between are included.
+- **Launch**: otherwise, admission creates a synthetic anchor Job (kind `deploy`, no issue number — the same shape as the main-branch health-check anchor Job), resolves the default branch's current HEAD sha, and launches the `deploy` Workflow pinned to that sha. The workspace detaches HEAD at that exact commit, so the deploy command runs against the resolved commit even if the default branch advances again before the workspace clones.
+- **Anchor Job closure**: the anchor Job is closed when the deploy Workflow finishes, regardless of outcome, since the pass/fail detail lives on the Workflow/Run, not the Job. A manual deploy's ordinary Job is never closed this way. Like main-branch health-check anchor Jobs, the anchor Job is hidden from the operator dashboard and other Job pickers.
 
 A manually-triggered deploy (see above) is unaffected by any of this — it always targets the ordinary Job it was launched on and is never subject to the concurrency/throttle checks here, which only gate the synthetic continuous-deploy anchor Job.
 
-## Two-version compatibility
 
-A rolling deploy always runs two versions against one database, so every
-release must be compatible with the one before it in both directions: new code
-against the old schema, and old code against the new schema. Both halves have
-caused production incidents here. The rule, the expand/migrate/contract
-sequence, and how to read a new column defensively are in
-[Rollout Compatibility](rollout_compatibility.md).
-
-## Client behavior during a rollout
-
-The web Deployment runs `replicas=2` with `RollingUpdate(maxSurge=1,
-maxUnavailable=0)`, so a ready pod exists throughout — but the ingress can
-still answer `502` for the moment it keeps routing at a pod that has begun
-terminating. In a browser tab that is a flicker; in an installed PWA it
-replaces the app with a proxy error page the user cannot reload from, because
-there is no address bar.
-
-`app/views/pwa/service_worker.js.erb` closes that gap. It is registered from
-the SPA layout and does exactly two things: it precaches
-`/pwa/unavailable`, and it intercepts **navigation** requests only. When one
-fails outright or returns `502`/`503`/`504`, it serves that cached page, which
-polls `/up` with backoff and navigates back to the original path (remembered
-in `sessionStorage` before the failure) once a backend answers.
-
-What it deliberately does not do:
-
-- **It caches no application assets.** A caching worker in front of digested
-  Vite bundles is how a client ends up pinned to a build that no longer
-  exists. Every request except a failed navigation is passed straight through.
-- **It does not swallow application errors.** A `500` from Rails is the app's
-  own error, not a rollover, and passes through to the app's error page; only
-  gateway statuses are treated as "still coming up".
-- **It is not a substitute for a graceful drain.** The fallback hides the
-  symptom. Eliminating it means the ingress stopping routing at a pod before
-  that pod stops accepting connections — a `preStop` drain delay on the web
-  pods in the infrastructure repo.
-
-The cache name carries the build SHA, so each deploy's worker drops the
-previous cache on activate. `/service-worker.js` is served `no-cache` and
-`skip_forgery_protection`, because Rails' cross-origin JavaScript protection
-otherwise rejects a `.js`-format response fetched as a worker.
-
-## Syrus Kubernetes rollout ordering
-
-`bin/deploy` is a Ruby program. It loads no Rails -- it runs on an operator's
-machine, against a cluster, before the image it is deploying exists -- and its
-implementation lives in `lib/deploy/`, one file per phase, with
-`lib/deploy/cluster_rollout.rb` holding the order a rollout runs in.
-
-`bin/deploy --dry-run` changes nothing and prints the sequence of commands a
-deploy would run, one `DRYRUN <command>` per line. Reads still execute, because
-almost everything the deploy does is derived from live cluster state, and a dry
-run that could not read would describe a deploy against a cluster it never
-looked at. `DRY_RUN_STREAM=path` captures the stream to a file for diffing.
-
-The previous Bash implementation is kept as `bin/deploy-legacy`. It takes the
-same flags, including `--dry-run`, so the two can be compared rather than
-trusted, and it is the fallback if the Ruby one is ever in doubt.
-
-Syrus's own `bin/deploy` applies database migrations as an explicit
-pre-rollout step. After images are built and pushed, and after Flux is
-suspended/image overrides are pinned, the script creates a one-shot
-`syrus-db-prepare-*` Kubernetes Job from the `syrus-web` deployment's runtime
-environment. That Job runs the newly built app image with `./bin/rails
-db:prepare` and must complete before any live workload is pointed at the new
-SHA -- the web, worker, preview, and plugin service workloads alike.
-
-Workloads are discovered by image rather than named in the script: every
-container (init containers included) of a Deployment, DaemonSet, or StatefulSet
-whose image repository is one Syrus publishes is pinned to the deploy's SHA, at
-whatever tag or digest it currently runs. Changing the image is the only
-rollout trigger; `bin/deploy` never issues a `kubectl rollout restart`, because
-Flux strips the imperative annotation when it resumes and would replace every
-pod a second time.
-
-While that work runs, a cluster-side watchdog guarantees that Flux is resumed
-if the deploy process exits before its cleanup runs. By default,
-`FLUX_SUSPEND_TTL` is derived separately for each cluster from the enabled
-pre-pull timeout, both migration budgets, discovered core and plugin rollout
-targets, one additional rollout window, and `FLUX_SUSPEND_SLACK` (default
-`5m`). Operators may set `FLUX_SUSPEND_TTL` to a fixed number of seconds, but
-`bin/deploy` warns when that override is shorter than the computed budget.
-
-This deliberately trades "new code against the old schema" for "old code
-against the new schema" during the rollout. That is the safe direction only
-when migrations are backward compatible with the currently running release:
-add columns/tables/indexes first, keep old readers and writers working, and
-land destructive or contract migrations only after the old code is no longer
-running.
-
-The web deployment *also* runs `db:prepare`, in its own `db-prepare`
-initContainer, on every replica at every boot. Rails serializes migrations with
-a MySQL advisory lock, so the pre-rollout Job and a web pod that happens to be
-starting at the same moment -- a Flux reconcile mid-deploy, an eviction, a
-crash-restart, or both replicas booting together -- race for it, and the loser
-aborts with `ActiveRecord::ConcurrentMigrationError`. Losing that race means
-another process is already applying the same migrations, so `bin/deploy` deletes
-the Job and retries: `DB_PREPARE_ATTEMPTS` attempts (default `4`), waiting
-`DB_PREPARE_RETRY_DELAY` seconds (default `20`) between them. Only that specific
-error is retried -- a migration that genuinely failed stops the deploy on the
-first attempt, and the failure message distinguishes a Job that failed from one
-that ran out of its budget.
-
-Before each retry, and before giving up, `bin/deploy` asks whether the work is
-still outstanding at all: `db_prepare_satisfied` runs a short Job on
-`${REGISTRY}:${SHA}` that exits zero when `needs_migration?` is false. The
-process that won the lock runs the same migrations from the same image, so by
-the time the loser is told "another migration is running" the schema may
-already be where this deploy wants it, and continuing is correct. The probe
-runs on the image being deployed rather than against a live web pod on purpose:
-a running pod answers from the old image's `db/migrate`, which cannot contain
-this release's migrations, and would report "nothing pending" for a database
-that is genuinely behind.
-
-That check exists because its absence cost a production deploy. Every attempt
-lost the race to a web pod's `db-prepare` initContainer, the Job exhausted its
-attempts, and `bin/deploy` rolled the image overrides back -- while the
-migration had already been applied successfully by the pod that won.
-
-### Two migration budgets, not one
-
-Getting a migration pod running and applying migrations are separately
-budgeted, because they fail for unrelated reasons and on unrelated timescales:
-
-- `MIGRATION_START_TIMEOUT` (default `5m`) covers scheduling the pod, pulling
-  the image and booting Rails. A container state that will never resolve on its
-  own -- `ImagePullBackOff`, `CreateContainerConfigError`, an unschedulable pod
-  -- fails the deploy immediately with the reason, instead of being waited out.
-- `MIGRATION_RUN_TIMEOUT` (default `30m`) covers applying the migrations, which
-  is legitimately long: Syrus has shipped single data migrations that rewrote
-  tens of thousands of rows. While it runs, `bin/deploy` reports elapsed time
-  and the migration Job's latest log line every 30 seconds, so a slow migration
-  and a wedged one do not look alike.
-
-`DB_PREPARE_TIMEOUT` is still honoured and sets the migration run budget, which
-is what raising it has always been used for. Both accept seconds or a compound
-duration such as `1h30m`. The Job's own `activeDeadlineSeconds` is derived from
-the sum of both budgets, so Kubernetes never kills a migration before
-`bin/deploy` decides to.
-
-A single shared budget is what made this worth separating: one ten-minute clock
-covering both phases failed a production deploy -- and rolled it back -- over a
-data migration that was running correctly and would have finished.
-
-### An interrupted deploy never kills a running migration
-
-Deleting a Kubernetes Job propagates to its pod, which means SIGTERM to Rails
-in the middle of whatever it is applying: a half-finished `ALTER`, a backfill
-stopped at an arbitrary row. So `bin/deploy` will not delete a migration Job
-whose pod is still running, on any path -- a failure elsewhere in the deploy,
-`SIGTERM`, or Ctrl-C. It reports that it left the Job alone and prints the
-`kubectl logs -f` command to watch it:
-
-```
-⚠ left migration job/syrus-db-prepare-… in place: it is still applying
-  migrations — watch it with `kubectl logs -f -n syrus-production job/…`,
-  and deploy again once it finishes
-```
-
-A Job that has finished is deleted as usual; only an active one is spared.
-
-Worker containers also check `db:abort_if_pending_migrations` before starting
-`bin/jobs`. In a normal deploy that check is already satisfied by the
-pre-rollout Job. If a worker is started against a database that is still behind
-the image, it exits loudly before it can claim Solid Queue work.
+For Syrus maintainer rollout procedures, see
+[`deploying-syrus.md`](../../docs/engineering/operations/deploying-syrus.md).
 
 # Server and user time zones
 

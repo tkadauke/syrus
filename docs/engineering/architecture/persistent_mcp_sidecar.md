@@ -282,7 +282,8 @@ dispatching daemon's `worker_id`. `ChatTurnJob` skips its own
 transcript-derived recording for any turn whose transport decision was
 `:persistent` (`ChatTurnJob#record_transcript_mcp_usage?`), so a persistent-
 mode call is recorded exactly once, at the daemon, not twice. See
-`mcp_tool_usage.md`'s "Sidecar mode" section for the full comparison between
+the [MCP tool usage](mcp-tool-usage.md#sidecar-mode-sidecarmode-daemonworkerid)
+reference for the full comparison between
 this path and stdio's transcript-derived recording, including how a
 before-dispatch rejection ends up as a `status: "failed"` row with no
 `chat_session` when the invocation context couldn't even be resolved.

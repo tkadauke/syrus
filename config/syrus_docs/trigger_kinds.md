@@ -1,6 +1,6 @@
 # Workflow Trigger Kinds
 
-Every `Workflow` has a `trigger_kind` that identifies what the attempt is for and which step chain it runs. Trigger kinds are defined in `app/models/workflow/trigger_kind.rb`.
+Every Workflow has a trigger kind that identifies why the attempt exists and which step chain it runs.
 
 ## initial
 
@@ -27,7 +27,7 @@ the child dependency order bounds the commit set; shared ownership, partial
 landing, and previously reverted children block creation. Once confirmed,
 Syrus creates one linked rollback Job and one revert PR while leaving every
 original Job's closed state, closure reason, landed SHA, and dependency graph
-intact. It verifies the recorded `LandedCommit` rows against current default-branch ancestry,
+intact. It verifies recorded landing evidence against current default-branch ancestry,
 reverts them in reverse order from the current default tip, and invokes the
 implementing agent only for conflicts. The proposed tree uses only graders
 explicitly configured with `phases: [unland]`; after changed-file filtering it
@@ -46,125 +46,19 @@ reopening or rewriting the original record.
 
 ## skill
 
-**When it fires:** A `direct` Job is created with `skill_name` + `skill_args` set (`SkillJobs::Creator`), rather than a free-form prompt.
+**When it fires:** A direct Job launches a named built-in or repository-local skill with validated arguments.
 
 **Step chain:** `prepare → run_skill → retry_until(run_skill, graders) → summarize → pr_open`
 
-`run_skill` resolves the named skill via `Skills.for` (a repo-local
-`.syrus/skills/<name>/SKILL.md` override, or a built-in `Skills::` class),
-renders its instructions with `skill_args` substituted, and invokes the agent
-the same way `implement` does. There is no dedicated "conditional PR" control
-node: like `implement`, `run_skill` raises `Steps::Base::NoChangesProduced`
-when the agent commits nothing, which fails the step before the grader retry
-loop has anything to grade — `propagate_fail_to_job!` then closes the Job
-with `closure_reason: "no_changes"` instead of `:failed`, the same happy path
-cron Jobs use for a no-op survey. This makes read-only skills (an
-`investigate` skill, an operational skill that only reports) first-class: no
-diff is a successful, PR-less outcome, not an error.
+The named skill resolves repository overrides before built-ins, renders its instructions with the supplied arguments, and invokes the agent. A read-only skill that produces no diff closes successfully without a PR. Ending while expecting background work to notify a later turn is instead a retryable misuse.
 
-The exception is the background-wait misuse pattern: if the transcript shows
-the agent backgrounded or scheduled work and ended the turn expecting a later
-notification or `ScheduleWakeup` continuation, Syrus raises
-`Steps::Base::AgentGaveUpWaiting` and classifies the run as retryable
-`agent_gave_up_waiting` instead of closing the Job as `no_changes`.
-
-When the agent does commit a diff, it is gated through the same
-`retry_until(agent_step, graders)` mechanism `initial`/`retry` use for
-`implement`: `run_skill` repairs, `grader_fanout`/`grader_collect` check, and
-a failing check re-runs `run_skill` (not just the graders) up to
-`AppSetting.grade_max_iterations` before the workflow fails outright. This
-closes the gap where a `skill` Job could open a PR with zero automated
-verification. The `adversarial_review`/`visual_review` loops that `initial`
-also runs are intentionally not part of the `skill` chain.
-
-Which tier resolved (`skill_source`: `repo_override` or `built_in`) and the
-resolved path/class are recorded on the Run so a repo-local skill silently
-shadowing a built-in one of the same name is never a debugging trap — see the
-Run detail payload and `Admin::JobStateSerializer`.
+A committed diff enters the same bounded grader-repair loop as implementation work. The Run detail shows whether a built-in or repository override resolved, including its path, so shadowing remains visible.
 
 ## investigation
 
-**When it fires:** An investigable Job (`direct`, `issue`, `cron`, or a
-plugin-contributed investigable kind) is created with `investigation: true`
-set, rather than as a free-form implementation prompt.
-`Job#investigation_launch?` is what `Job#create_initial_run` checks to
-dispatch this chain instead of `Workflows::Initial`.
+Investigation Jobs perform read-only analysis and report findings; they do not open a PR or enter the landing queue. The agent may propose follow-up Jobs during the investigation and submits its report separately. Proposed follow-ups remain in triage until an operator accepts or rejects them. Accepting creates the normal initial workflow; rejecting closes the proposal without counting it as delivered work.
 
-**Step chain:** `prepare → investigate → submit_report`
-
-Investigation Jobs are for read-only exploration — QA walkthroughs, audits,
-"why is X slow" questions — where no PR is ever expected and no code change
-is the normal, successful outcome. They are always standalone and cannot be
-assigned to an Epic, whose children must be implementation Jobs. `investigate` invokes the agent with
-`Prompts::Investigation` (the operator's prompt plus the standard
-safety/context blocks) but, unlike `implement`/`run_skill`, never commits,
-captures a diff, or calls `raise_no_changes_produced!` — it is read-only, the
-same as `AgentInsights::RunStep`. Its agent role defaults to
-`AgentRole::WORKFLOW_IMPLEMENT`, so it keeps the browser MCP tools,
-`start_preview`/`stop_preview`, and `submit_artifact`/`submit_visual_artifact`
-for capturing evidence along the way. `submit_report` then resumes the
-`investigate` session and asks the agent to call the `submit_report` MCP tool
-with a narrative report (`title`, `narrative`, optional `findings`, and an
-optional ordered `references` list pointing back at artifacts/screenshots
-already submitted this run by `type`), stored
-on `Workflow#artifacts["investigation_report"]`; the step raises
-`Steps::Base::StepFailed` if the agent never calls it, the same
-required-tool-call pattern `test_plan`/`summarize` use. Success is always
-defined by a submitted report, never by a diff, so this chain always reaches
-a narrative-producing step instead of dead-ending in the generic
-`no_changes` closure with nothing captured.
-
-Unlike `agent_insight` (which ends its chain in the non-agentic `auto_close`
-step and closes its anchor Job immediately), an investigation Job does NOT
-auto-close once `submit_report` succeeds. This trigger kind does not set
-`owns_job_lifecycle`, so the ordinary `Workflows::JobLifecyclePropagation`
-success/failure propagation applies the same way it does for a bare
-`implement`/`respond` chain: a successful workflow carries the Job from
-`:running` to `:implemented` — the same "done, awaiting operator review"
-state a PR-based Job reaches after `pr_open` — and a failed
-`investigate`/`submit_report` step leaves the Job on the normal `:failed` →
-Retry path. Investigation Jobs are operator-facing, not infrastructure, so a
-submitted report should surface for review, not disappear the instant it's
-written.
-
-The operator reviews the report and closes the Job explicitly once satisfied
-— either the Job detail page's **Close** header action
-(`POST /api/v1/app/jobs/:job_id/close_investigation`,
-`JobLifecycleController#close_investigation`, gated on `investigation? &&
-implemented?`) or the `close_job_successfully` chat/admin MCP tool. Both
-paths apply `closure_reason: "investigation_reported"`
-(`Job::INVESTIGATION_REPORTED_CLOSURE_REASON`) — a
-`Job::SUCCESSFUL_CLOSURE_REASONS` entry, so a completed and reviewed
-investigation satisfies dependency gates and counts as a successful outcome
-like `no_changes` or `pr_merged` do. Nothing closes an investigation Job
-automatically.
-
-**Filtering and the Investigations smart folder:** the `investigation`
-boolean filter chip (`Filters::Chips::Jobs::Investigation`) lets operators
-filter the Jobs list directly by `Job#investigation`. The `investigations`
-attention preset (`Filters::Chips::Jobs::Attention`) matches open
-investigation Jobs, and the built-in **Investigations** smart folder
-(`SmartFolder::JOB_BUILTINS`, `visibility: :when_present`) surfaces it in the
-sidebar whenever there's an investigation Job to look at — most usefully
-ones sitting in `:implemented` awaiting review. Separately, the existing
-`inbox` preset already ORs in `state == "implemented"`, so a reviewable
-investigation Job surfaces there too with no extra wiring.
-
-**Job detail rendering:** since an investigation Job never reaches `pr_open`,
-its Job detail page swaps the PR-shaped Summary tab for a **Report** tab
-(`app/frontend/routes/jobDetail/Report.tsx`) whenever `Job#investigation` is
-true (`App::JobDetailPayload#report_json`, gated the same way). The Report
-tab renders the submitted `investigation_report` narrative (markdown) and
-findings, plus any referenced artifacts/screenshots resolved against
-`Workflow#artifacts["typed_artifacts"]` and rendered with the same
-shared `ArtifactBody` renderer used by other typed-artifact surfaces. The
-PR-only Review tab is hidden entirely for investigation Jobs; other tabs
-(Workflows, Agent Conversation, Timeline, Source, etc.) are unaffected. Because an
-investigation Job's `:implemented` state is shared with the normal
-approve-and-land pipeline, `App::JobDetailPayload#actions_json` also excludes
-`investigation?` Jobs from `can_approve`/`reviewable_job` and exposes
-`can_close_investigation` instead, so the Job detail header shows **Close**
-rather than **Approve**/**Land** for a reviewable investigation Job.
+Investigation attempts are bounded and must use the repository's available tools and credentials. Failures remain visible for retry or operator review. An investigation can be closed when its report is accepted even if no follow-up work is proposed.
 
 ## pr_comment
 
@@ -172,7 +66,7 @@ rather than **Approve**/**Land** for a reviewable investigation Job.
 
 **Step chain:** `prepare → retry_until(respond, graders) → coverage_analyze? → coverage_pr_comment? → summarize_amend → refresh_job_metadata → try(push)`
 
-Addresses review feedback, produces revision-scoped commit copy, optionally refreshes canonical Job/PR metadata when feedback changed the effective intent, and pushes. Comments authored by the configured Syrus GitHub App bot are ignored so automated comments such as coverage reports do not self-trigger feedback workflows. Syrus records which `PrReviewComment` rows a workflow is handling, marks them handled only after the workflow succeeds, and leaves failed or rate-limited handling visible on the Job detail pending-feedback panel for manual retry. If the push encounters a non-fast-forward conflict, dynamically inserts an agent-rebase recovery chain.
+Syrus records which comments the workflow is addressing and marks them handled only after success. Failed or rate-limited feedback remains visible for manual retry. A non-fast-forward push adds an agent-assisted rebase recovery chain.
 
 ## chat_feedback
 
@@ -216,10 +110,8 @@ the same observed main SHA, failing grader, and reason, Syrus instead records
 continues to `summarize_amend`/`push`. This avoids burning the full retry budget
 against a self-diagnosed pre-existing main failure.
 
-`PollPullRequestJob#react_to_ci_failures` skips dispatch entirely — without
-spending any of the Job's `CI_FAILURE_CAP` budget — while the repository's
-main branch is known-broken (`repository.landing_paused? && repository.main_health_broken?`,
-the same condition `StepDispatcher` already uses to hold workflow starts). This
+Syrus skips CI-repair dispatch without spending its retry budget while the
+repository's main branch is known broken and landing is paused. This
 avoids blaming the Job's own diff for a red check caused by a broken base
 revision. `main_branch_repair` Jobs are exempt from this guard the same way
 they're exempt from the `ci_failure` cap, since a repair job must keep
@@ -300,7 +192,7 @@ scratch integration branch on top of the predicted post-merge tree from the
 current landing workflow, mechanically rebases each member branch into that
 scratch integration branch, and runs fast landing graders so the later real
 `merge_train` may skip duplicate grader work. It never creates a real
-`MergeTrain`, pushes, repairs, or merges, and failed/cancelled workflows do not
+a merge train, pushes, repairs, or merges, and failed/cancelled workflows do not
 fail the Job.
 
 ## external_pr_merge
@@ -335,7 +227,7 @@ documentation for details.
 
 ## rebase
 
-**When it fires:** `PollAllMergeStatesJob` detects that the Job's PR branch is `mergeable: false` and Syrus controls the head branch.
+**When it fires:** Polling detects that the Job's PR branch is unmergeable and Syrus controls the head branch.
 
 **Step chain:** `auto_rebase → agent_rebase → force_push`
 
@@ -374,45 +266,9 @@ merge trains while branches are being force-pushed.
 
 ## coding_handoff
 
-**When it fires:** An operator confirms the handoff after a Coding Mode chat session commits changes.
+Created when an operator confirms submission of Coding Mode changes. Syrus captures the committed checkout, validates that it belongs to the expected repository and base, and creates or updates the implementation Job. It then runs the normal format, generate, grader, review, summary, push, and PR flow as configured.
 
-**Step chain:** `prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open → post_implementation_review?`
-
-Reviews and validates the chat agent's committed work before opening a PR.
-There is no bare leading agentic step — the chat coding session already
-produced the diff before this workflow starts, so `coding_handoff_fix` plays
-the repair role the `implement`/`respond` step plays in `initial`/`retry`:
-it repairs a review's `needs_work` verdict and/or a required grader failure
-with a fresh workflow-agent turn. The `adversarial_review` loop only appears
-when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the
-`visual_review` loop only appears when `visual_review.enabled` is true (per
-`.syrus.yml`, which defaults to on instance-wide). Because the
-reviewers have no `implement`/`respond` step to read a diff off of, both
-`Steps::AdversarialReview` and `Steps::VisualReview` fall back to a fresh
-`git diff` against the default branch when the chain has no step of that kind.
-If a review flags `needs_work` or required graders fail, `coding_handoff_fix`
-repairs using the original Job context, captured handoff branch metadata,
-recent commits, `Prompts::ReviewFeedback`, and/or `Prompts::GradeFailureFeedback`;
-graders retry up to `grade_max_iterations`. The original chat is not queued for
-repair. Syrus may post a passive chat notification identifying the Job. On
-success it notifies the originating chat after the PR opens, schedules coding
-workspace reclaim, then clears the chat link. When an enabled Review Notes
-provider requests review for the workflow, Syrus appends the best-effort
-`post_implementation_review` step after `pr_open`, so Coding Mode handoff PRs
-get the same final-diff review-note pass as other implementation-style
-workflows.
-
-Each successful `coding_handoff_fix` records a `latest_coding_handoff_fix`
-artifact containing the repair Run, Step, base/head SHAs, and stable patch-id.
-`pr_open` and later `rebase → force_push` workflows compare the branch they are
-about to publish against that patch-id. If the latest repair is missing, Syrus
-fails before pushing so an older visually rejected iteration cannot become the
-final PR branch. The publication/rebase check records
-`coding_handoff_publication_provenance`, including final HEAD, latest-fix
-metadata, verification result, and whether visual review approved/skipped the
-revision after the latest fix. Treat earlier `visual_review_iterations` as
-historical findings unless this provenance links a visual verdict to the final
-published revision.
+Repeated submission is idempotent for the same captured change. Empty or unverifiable handoffs are refused. Stack-aware handoffs preserve their declared parent/base relationship, and subsequent feedback or rebases use the ordinary Job workflow behavior.
 
 ## local_mode_handoff
 
@@ -430,141 +286,14 @@ handoff succeeds.
 
 ## main_branch_repair
 
-**When it fires:** Spawned automatically by `MainHealthChangedService` when the repository's main branch is detected as broken and Syrus has a settled broken signal from either CI or the main-grader workflow. Repair does not wait for both probes to finish: if CI has already failed, the repair job can start while the main-grader is still running, and vice versa.
+When the default branch is unhealthy, Syrus can create an infrastructure repair Job that checks out the failing revision, attempts a bounded repair, validates it, and opens the normal reviewed change. Repository landing is held while main is known broken and resumes when health becomes healthy or inconclusive according to policy.
 
-If a main-branch repair Job already exists, it blocks spawning a duplicate.
-When that blocker is still in a non-progressing pre-runtime state
-(`needs_triage`, `triaging`, or `queued`) after
-`MainHealthChangedService::STUCK_REPAIR_ALERT_AFTER` while main is still
-broken, `MainHealthChangedService` logs the condition and requests
-job-scoped reconciler inspection. Admins also get a system alert banner that
-links to `/admin/stuck?refresh=1`, forcing the stuck page to recompute before
-showing the `stuck_main_branch_repair_job` evidence.
+Only one active repair is maintained for the same repository health episode. Polling retries transient GitHub failures without treating missing data as healthy; sustained inability to inspect an already-broken branch makes health inconclusive so the outage does not freeze landing forever. Recovery work is rate-limited to avoid a burst after a broad outage.
 
-**Step chain:** `prepare → preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open`
-
-The workflow runs a preflight grader check before invoking the agent. Preflight resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_repair` is a `LandingGraderPlan::CI_TRIGGER_KINDS` entry) — the same phase `ci_failure`/`main_grader` use, and the phase that actually mirrors `ci_health` (for example the `ci` variant generated by `type: rspec`, not a `phases: [landing]`-only grader). If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates both `grader_health` and `ci_health` to healthy (a preflight pass under the `:ci` phase is conclusive evidence for both signals), calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
-
-If any required preflight grader fails, `preflight_grader_collect` stores the
-failed grader names, exact commands, exit metadata, log paths, and captured
-output tails in the `preflight_failures` workflow artifact. The following
-`implement` prompt includes that artifact and tells the repair agent to
-reproduce those exact commands and then run focused examples before any
-optional full-suite verification. The agent fixes the broken code, graders
-validate the fix, and a PR is opened. `PollPullRequestJob` calls
-`MainHealthChangedService.repair_landed!` when the PR merges. If the agent
-times out after already committing a clean diff for the implement step, Syrus
-captures that committed result and lets the downstream graders validate it
-instead of failing the step before commit/diff capture.
-
-**Recovery sweep:** `MainHealthChangedService#recovered!` runs whenever main
-health returns to healthy (either via `repair_landed!` above or an independent
-health poll), and — after resuming landing and retrying held Jobs — sweeps the
-repository's open Jobs where `pr_checks_state == "failing"` (kept fresh on
-every PR poll, so no extra GitHub calls are needed to find candidates). For
-each one without an already-active rebase or merge train
-(`RebaseWorkflowSelector.active_for_stack?` / `active_merge_train_for_stack?`),
-and that is not permanently blocked from rebasing
-(`RebaseAttemptGuard.permanently_blocked?`), it dispatches a mechanical
-`rebase` workflow the same way the admin "force rebase" repair action does.
-
-The sweep still bypasses the attempt cap and its cooldown on purpose — main
-recovering is new information, so a Job that had exhausted its retries against
-the broken base deserves another against the healthy one. It does not bypass a
-*decided* outcome. A rebase whose last failure was classified non-retryable
-fails identically however often the base moves, and sweeping those in turned
-one such Job into a full rebase plus an agent run every few minutes for two
-days on a branch that could never be published (its `force_push` was correctly
-refusing to publish a branch missing its latest `coding_handoff_fix`, which no
-amount of rebasing could supply). This exists because GitHub does not
-silently re-run stale failed check results just because the base branch
-changed — without an explicit nudge, PRs left on the broken base would sit red
-until something else touched them. Since `rebase`'s `auto_rebase` step tries a
-plain `git rebase` first and only escalates to an agent on a real conflict,
-the common case is a cheap clean force-push that gives GitHub a fresh SHA to
-check against the now-healthy base; the next poll only fires `ci_failure` if
-the PR's own diff is genuinely still broken. The fan-out is capped at
-`MainHealthChangedService::MAX_RECOVERY_RETRIES` (10, shared with the held-Job
-retry sweep) so a big outage's recovery doesn't dogpile the `merges` queue.
-There is deliberately no persistent "deferred because main was broken"
-marker — querying live `pr_checks_state` at recovery time sweeps up every
-red-CI Job regardless of which guard skipped its repair (the `ci_failure`
-main-health gate above, the pre-existing `ci_failure` cap, or a race-window
-miss), with no bookkeeping to fall out of sync. The recovery notification
-includes the rebased-PR count alongside the retried-Job count.
+Infrastructure workflow workspaces are cleaned after either success or failure. They are not operator-retryable through ordinary Job retry/reopen actions; a new health evaluation creates the appropriate recovery attempt.
 
 ## main_grader
 
-**When it fires:** An internal trigger for maintaining executable target
-health on the main branch (used for automated main-branch health checks).
+A main-grader workflow checks the repository default branch with configured CI-phase graders and target-health rules. It records healthy, broken, inconclusive, or not-configured health and updates landing gates accordingly. Healthy reusable target evidence may avoid redundant work; stale, missing, or unhealthy evidence runs fresh validation.
 
-This trigger kind is infrastructure-facing and not surfaced in the operator Job state machine. It does not produce a PR or appear in the normal Job workflow list.
-
-On each main-branch update, `PollMainBranchHealthJob` captures the repository's
-previous checked main SHA and passes it to the `main_grader` Workflow. Grader
-fanout diffs that previous SHA against the checked-out main SHA, asks the
-TargetGraph which grader targets are affected by those changed files and
-dependency scopes, and materializes only affected required targets whose
-current target-health fingerprints are stale, missing, or unhealthy. Healthy
-target records with matching inputs are reused; unaffected target health is
-left intact and still contributes to the repository-level `grader_health`
-summary when the workflow settles.
-
-Main-health polling normally uses the repository's configured default branch
-from Syrus settings. If GitHub reports that configured branch no longer exists,
-the poller uses GitHub's current repository metadata default branch for that
-single health check and stamps it onto the `main_grader` Workflow as the base
-branch artifact. It does not rewrite `Repository#default_branch`; an operator
-can intentionally configure a non-GitHub-default branch such as `develop`, and
-Syrus will keep using it as long as GitHub still has that branch.
-
-If there is no previous main SHA, the workflow logs that it is establishing a
-baseline and selects every configured grader target. That baseline/broad sweep
-does not reuse target-health records or a cached successful full-plan grader
-conclusion; it runs fresh so Syrus can catch missed dependency edges or
-undercoverage that previous affected-target selection may have hidden.
-After the baseline exists, root-only repositories keep the understandable
-legacy shape: a repo-wide grader target with no file scope is affected by
-every incremental main update and can skip only when target health proves the
-same inputs already passed.
-
-If the workflow fails before any required grader can report a result — for
-example, because repository preparation fails — Syrus records the checked SHA
-as `inconclusive` and links the health-check history row to the failed
-workflow. The SHA is considered graded for scheduled polling, so a persistent
-setup problem does not create a new infrastructure Job on every poll. This is
-warning-only rather than evidence that main is broken; an explicit retry can
-still check the same SHA again, and a later main SHA receives its own check.
-
-Main-branch CI health counts GitHub Actions checks from every workflow run
-triggered by a `push` to the checked default-branch SHA; the workflow's display
-name is irrelevant. A failing workflow named `Tests`, `ci`, release, deploy, or
-anything else can therefore mark main broken, pause landing under the
-repository's breakage policy, and spawn a main-branch repair Job. Checks from
-non-`push` runs, such as a manually dispatched release, are excluded. Syrus
-also keeps non-Actions checks and Actions checks whose workflow-run metadata is
-missing from GitHub's bounded lookup, so an incomplete lookup cannot make a
-repository with checks appear not configured.
-
-**GitHub outage handling:** `PollMainBranchHealthJob` (every 5 minutes, per `config/recurring.yml`) rescues transient GitHub-side failures (`Octokit::ServerError`, `Faraday::TimeoutError`, `Faraday::ConnectionFailed`) around its two GitHub calls instead of letting them crash the job. A single failed poll is normal noise — it's logged, `Repository#main_health_poll_error_streak` is incremented, and `last_main_health_poll_error_at` is stamped; the next scheduled tick retries. Only after `Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD` (3, roughly 15 minutes of sustained outage) *consecutive* failures, and only when `ci_health` is already `"broken"`, does the job downgrade `ci_health` to `"inconclusive"` and call `MainHealthChangedService.on_health_change!` — this reuses the existing inconclusive path (resumes landing, emits a `main_inconclusive` notification) instead of a distinct outage notification, and never fabricates a `"healthy"` result from missing data. Any successful poll resets the streak to zero and normal broken/healthy/inconclusive/not_configured evaluation resumes.
-
-`main_grader` is exempt from user Job start gates and the global agent-run concurrency deferral that would make the health signal stale. It starts and runs even while another Job in the repository has urgent priority, and its RunJobs use an internal Solid Queue priority ahead of user-facing `urgent` Jobs so queued urgent work cannot delay the main-health check. It is also exempt from the broken-main gate because the workflow is the check that measures main-branch grader health. It holds only its own `main_grader:repository:<id>` WorkUnit lock, never the repository-wide `repository:<id>` key that landing needs, so a main grade and a landing unit run concurrently -- see "The landing slot and blocks that cannot clear" in the landing-queue guide for why that is safe and what it cost when it was not.
-
-**Workspace lifecycle:** Infrastructure workflows (those in `Workflow::INFRASTRUCTURE_TRIGGER_KINDS`) clean their workspace immediately on both success and failure — they do not participate in the normal failed-workflow workspace retention. This is enforced at two layers:
-
-1. The `fail` AASM event in `Workflow` calls `cleanup_workspace!` immediately for infrastructure workflows.
-2. `WorkflowWorkspacePruneJob#db_sweep` and `#filesystem_sweep` apply `RETAIN_AFTER_SUCCESS_OR_CANCEL` (2 hours) as a backstop for infrastructure failed workflows instead of the normal tiered retention logic.
-
-**Normal (non-infrastructure) failed workflow workspace retention:** Syrus keeps at most one workspace per Job on disk at a time. When a new workflow's first run starts, it eagerly sweeps all sibling workflows' workspace directories (`WorkflowWorkspace#sweep_sibling_workspaces!`), stamping `cleaned_up_at` on each so the "Retry from failed step" button is immediately disabled for superseded workflows.
-
-`WorkflowWorkspacePruneJob` applies a three-tier backstop for any workspaces not caught by the eager sweep:
-
-1. **Non-latest workflow:** pruned immediately on the next prune pass. The eager sweep should have handled these; this is the defense-in-depth backstop.
-2. **Latest workflow + job is closed:** pruned after `RETAIN_AFTER_SUCCESS_OR_CANCEL` (2 hours). The job is done; no retry is coming.
-3. **Latest workflow + job is open:** retained up to `RETAIN_AFTER_FAILURE` (7 days). The operator may still use "Retry from failed step."
-
-Only the Job's latest workflow is eligible for "Retry from failed step" (`Workflow#retry_available?` checks `latest_for_job?`). The `reopen` AASM event also carries this guard, so a superseded workflow cannot be reopened even by direct API calls.
-
-**Runaway workflow guard:** Syrus closes a Job as `too_many_failed_workflows` after 10 consecutive failed Workflows, and as `too_many_workflows` once it reaches 50 total Workflows. A successful Workflow breaks the failed streak. The total-workflow guard cancels the newly-created Workflow before it starts, so repeated queue wakeups cannot create hundreds of attempts for one Job.
-
-**Retry/Reopen suppression:** Infrastructure Jobs and their anchor workflows are not operator-retryable. The "Retry from failed step", "Retry implementation", and "Reopen" UI actions are suppressed for infrastructure jobs in `App::JobDetailPayload` and `App::JobRetryActions`.
+Main-grader work is infrastructure work: it is rate-limited, cleans its workspace after success or failure, and is not exposed through ordinary Job retry or reopen actions. Transient GitHub inspection failures retry on the next poll and never fabricate a healthy result from missing data.

@@ -1,44 +1,26 @@
 # Repository readiness
 
-Syrus statically inspects repository readiness without cloning the repository
-or executing its code. During first-run setup, the completed **Repository**
-checklist step shows the readiness status as a button. The same compact status
-button appears in the summary area of each repository's **Overview** page.
-Either button opens the full **Repository readiness** modal.
+Syrus can inspect repository readiness without executing repository code. The
+first-run checklist and Repository Overview show a compact status that opens a
+full report.
 
-The modal's report resolves the configured default branch through `RepositoryContent`,
-validates `.syrus.yml`, inspects language-version files, package manifests and
-lockfiles, and uses the same prepare, grader, capability, and queue-resolution
-logic as execution. It shows the exact proposed prepare and grader commands.
-Worker compatibility is evaluated separately for the workflow workspace and
-for each executable target or grader, because independently scheduled scopes
-may run on different workers. The report lists each scope's command,
-capabilities, queue, and live-worker result.
+The report validates `.syrus.yml`, language versions, manifests, lockfiles,
+resolved prepare and grader commands, capability requirements, queues, and
+live-worker compatibility. Mutable implementation workspaces and independently
+scheduled targets are evaluated separately.
 
 Results are **Ready**, **Ready with warnings**, **Needs configuration**, or
-**Incompatible**. Heuristic environment and system-package findings are
-warnings. Hard blocks are limited to invalid configuration, unavailable or
-inaccessible repository content (including missing credentials), and no live
-worker satisfying explicitly required capabilities.
+**Incompatible**. Environment heuristics are warnings. Hard blocks are limited
+to invalid configuration, unavailable repository content or credentials, and
+the absence of a live worker satisfying explicit capabilities.
 
-Operators can explicitly start a **disposable execution probe** from this
-report. The probe is its own persisted lifecycle record, not a Job, Workflow,
-Step, or Run. A worker shallow-clones the default branch into
-`$SYRUS_DATA_ROOT/execution-probes/<probe-id>`, scrubs the authenticated remote,
-runs `mise install` when version declarations are present, runs the resolved
-prepare commands, and then runs at most one configured grader (or one detected
-grader candidate). Each command is time-bounded. The result records durations,
-checkout and final byte counts, disk growth, bounded output tails, missing
-executables, and cleanup state. The checkout is removed in an `ensure` path on
-success and failure; retrying creates a new record and checkout.
-The readiness status and modal poll while a probe is queued or running and stop
-after the first terminal result. A database single-flight constraint permits
-only one queued/running probe per repository, so concurrent clicks or requests
-reuse the same probe instead of launching duplicate dependency installs.
+Operators may start one disposable execution probe per repository. It checks
+out the default branch, installs declared toolchains, runs prepare, and runs at
+most one grader under time limits. The report shows durations, disk growth,
+bounded output, missing executables, and cleanup status. Concurrent requests
+reuse the active probe; retries start a fresh one.
 
-Toolchain failures are reported separately and prominently. If an explicitly
-required prepare or grader command exits because it cannot be started, the
-latest probe blocks the repository's first initial implementation workflow.
-An operator can acknowledge and override that warning from the readiness modal
-on either first-run setup or Repository Overview; the queued workflow is then
-reconsidered without creating another Job or branch.
+An explicitly required command that cannot start blocks the first initial
+implementation workflow. An operator can acknowledge and override that warning
+from either readiness surface, after which the queued workflow is reconsidered
+without creating another Job or branch.

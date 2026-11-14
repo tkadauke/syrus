@@ -9,18 +9,16 @@ failure policy, but there is no global enable/disable switch.
 ## When a merge train fires
 
 1. An operator approves the last open child Job in an Epic.
-2. `LandingQueueProcessor` confirms all upstream Epic dependencies completed successfully and all open sibling Jobs are `approved`.
+2. Syrus confirms all upstream Epic dependencies completed successfully and all open sibling Jobs are `approved`.
 3. Syrus dispatches a `merge_train` workflow on the Epic.
 4. All member Jobs move to `landing` state until the train succeeds or fails.
 
 While waiting for siblings, Jobs show a blocked reason: "waiting for Epic merge-train."
 An Epic released by the experimental early dependency-execution feature may
 implement and collect approval while its upstream Epic is unfinished, but it
-remains outside the merge train. The dispatcher checks strict Epic dependency
-completion both before dispatch and again while holding the Epic lock; the
-assemble step rechecks it once more before building. This keeps landing and
-Epic completion in dependency order even across scheduler restarts or stale
-queue snapshots.
+remains outside the merge train. Strict Epic dependency completion is rechecked
+immediately before the train is built, so landing and Epic completion stay in
+dependency order.
 
 Merge trains are Epic-wide workflows. Only one Epic-wide workflow may be active
 for an Epic at a time, and an active Epic-wide workflow blocks ordinary Job
@@ -39,115 +37,17 @@ If a check fails, the train is cancelled and member Jobs revert to `approved`.
 
 ## Build phase
 
-`merge_train_build` creates a fresh integration branch starting from the base branch tip. It then rebases each member branch onto the growing integration tip in dependency order (respecting `Depends-on:` lines between child Jobs). A legacy Epic whose `JobDependency` graph predates the unconditional same-Epic linear-chain enforcement is handled the same way: a root with multiple approved leaves produces one integration branch containing every member branch before reconciliation runs. No new fan-in/fan-out structure can be created going forward — see [Epic Dependency Policy](epic_dependency_policy.md) — but the build phase keeps serving whatever structure already exists on older Epics unmodified.
+Syrus creates a fresh integration branch from the current base and rebases each member onto it in dependency order. Clean rebases proceed automatically; conflicts are offered to an agent and reported as actionable merge-train conflicts if unresolved. Private branches use the repository's configured credentials.
 
-For each member branch:
-- Syrus first tries a deterministic `git rebase`. If clean, it advances the integration tip.
-- On conflict, the agentic `merge_train_build` step hands the in-progress rebase to the agent, which must resolve conflicts and run `git rebase --continue`. Syrus verifies completion by end-state (clean worktree, integration branch is an ancestor) rather than by rebase-internal refs.
-- If the agent cannot complete that conflict resolution, the run is classified as `merge_train_rebase_conflict` so operators see an actionable merge-train conflict instead of a generic git failure.
-
-Branch refs are fetched through the repository's authenticated GitHub URL so private branches work under App or PAT credentials.
-
-Once the integration branch is assembled, `merge_train_build` immediately pushes it to the repository and records it as the workflow's required workspace branch. Workflow workspaces live on each worker's local disk, but every Run is picked up by whichever worker is free, so a train routinely continues on a machine that has no copy of the workspace and re-clones. Publishing the branch means that re-clone can check out the branch the train is actually about to land; recording it means `WorkflowWorkspace` refuses to substitute anything else. Without both, the re-clone fell back to a single member's branch, and every later step — graders, `landing_fix`, and finally the land push — silently operated on that member branch while reporting on the train.
-
-`keep_fixes` is the only rung that preserves the branch for replay; under
-`keep_assembly` or `restart` the branch is deleted as usual.
-
-A rung that keeps the assembly alive also schedules the relaunch that continues
-it, as an ordinary automatic retry attempt on the Job. Until it did, a preserved
-train sat active with a failed workflow and nothing driving it: no replacement
-train could be dispatched while it was active, and the stale-train reaper failed
-it a couple of minutes later as "no active Workflow or WorkUnit owns it", which
-replaced the real cause with a report about missing runtime. Preservation that
-cannot schedule a relaunch now tears the train down for its real reason instead.
-
-When the resolved repository failure-policy rung is `keep_fixes`, a rebuilt
-train may carry a `merge_train_keep_fixes_source_train_id` artifact from a
-previous failed train. This also applies after non-retryable grader exhaustion:
-successful `landing_fix` runs are durable repair progress even though the final
-grader failure itself is not retryable. After member branches have been rebuilt
-on the current base, `merge_train_build` checks that the source and replacement
-trains have the same ordered member set. It only cherry-picks commits whose SHA
-is both reachable in the recorded source integration range and the recorded
-head of a successful `landing_fix` run. Member commits and unrelated branch
-commits are not replayed. The replay artifact records discovered, replayed,
-skipped, and rejected commits with reasons, including successful run heads that
-cannot be verified in the source range. If the member set changed, the source
-branch is missing, or a repair cherry-pick conflicts, replay is skipped or
-aborted and the branch is reset to the rebuilt member-only tip before the
-workflow continues.
-
-The published branch is disposable bookkeeping: `merge_train_land` deletes it after a successful landing, and a train that fails or is cancelled deletes it too unless `keep_fixes` leaves a stale failed branch available for the replacement train. CI is unaffected because the repository's workflows build only `main` and pull requests, and the branch name is unique per train.
-
-Because the branch now exists on the remote before landing, `merge_train_land` states its `--force-with-lease` value explicitly (`--force-with-lease=refs/heads/<branch>:<remote tip from ls-remote>`). A bare `--force-with-lease` leases against the remote-tracking ref, and Syrus pushes to an authenticated URL rather than a named remote, so git has no tracking namespace to read and rejects the push with `stale info`. That only ever worked because the branch did not exist remotely until the landing push itself — with no ref to protect, git allowed it.
+The assembled branch is published so later Runs on another worker can resume the exact integration. The branch is disposable and is removed after success, failure, or cancellation unless the configured `keep_fixes` rung preserves verified repair commits for the replacement train. Preserved fixes are replayed only when membership and source evidence match; conflicts or unverifiable commits are discarded safely.
 
 ## When a train does not land
 
-A merge train that fails routes every member through `LandingFailureHandler`,
-which decides between two very different outcomes:
+A failure either defers members, leaving approval intact for an automatic retry, or rejects the landing and returns members to implemented for review. Transient infrastructure, stale-base, and temporary start blockers defer; grader or reconciliation failures reject. Structured failure reasons drive this choice, and missing diagnostics fall back to the Run's failure classification.
 
-- **Deferral** — the Job stays `approved` and the landing queue tries again.
-  Used for conditions that say nothing about whether the work is landable: a
-  stale train that needs rebuilding, a landing-start blocker, the rebase cap,
-  and structured transient failure codes for GitHub 5xx responses, MCP sidecar
-  failures, worker deaths, lock contention and connection timeouts.
-- **Failure** — the Job reverts to `implemented` and its approval is cleared,
-  requiring an operator to re-approve. This is for genuine rejections: graders
-  that failed, an integration the agent could not reconcile.
+A train whose assembled changes are already on the base settles only members that can be verified as landed. A member that leaves landing before assembly causes a rebuild rather than a rejection.
 
-The human `failure_reason`/`landing_failure_reason` text is preserved for
-operators, but current control flow uses structured `failure_code` and
-`landing_failure_code` values first; legacy text matching only exists for old
-rows without those codes.
-
-Getting that split wrong is expensive in operator time rather than in
-correctness — a five-second GitHub outage used to cost a full round of
-re-approving every member of a train. When adding a new failure path, decide
-which side it belongs on before deciding what to log.
-
-A train whose failing Run left no diagnostic — a worker that died takes
-`CaptureRunDiagnostic` down with it — falls back to the Run's
-`RunFailureClassification` for its reason. Without that fallback the train was
-recorded as the bare string `merge_train failed`, which is both unclassifiable
-after the fact and unmatchable by the transient patterns, so a dead process
-cleared every member's approval.
-
-Three cases are handled before they can fail at all:
-
-- **The integration branch has nothing ahead of base.** Every commit the build
-  put on it is already on base, so the members landed earlier — usually through
-  a train whose reconciliation could not verify them and so never closed their
-  Jobs. Syrus settles the members against the base tip using the same
-  per-member verification the normal path uses, instead of pushing an empty
-  branch and taking GitHub's 422 "No commits between". Before this, that 422
-  failed the train, reverted the members, and queued another train that would
-  be just as empty.
-- **A member is no longer in `:landing`** when assemble runs. The dispatcher
-  locked the members, but the train's first Run can be claimed much later, and
-  a sibling train, a poller, or an operator can move one out in between.
-  Nothing has been published at that point, so this asks for a rebuild rather
-  than failing the train and clearing every other member's approval.
-
-Repositories can opt into a `multisect` failure rung in `.syrus.yml`. The rung
-appears as visible `merge_train_multisect_prepare`,
-`merge_train_multisect_evaluate`, and `merge_train_multisect_collect` Steps in
-the failed merge-train workflow. Prepare records the selected rung, candidate
-members, focused selector, base/integration SHAs, section width, planned first
-sections, and oracle eligibility. Evaluation Steps run the focused subset
-checks; when distributed workflow DAG execution is enabled for the repository,
-those section evaluations use immutable-source workspaces so a round's
-`AppSetting.merge_train_multisect_section_width - 1` focused grades can fan out
-across workers. Collect validates that the full assembly oracle reproduced,
-checks the existing flaky/inherited-failure gates, narrows to the reproducing
-section, and schedules the next round or omitted-section confirmation.
-
-When one graded section reproduces, Syrus also confirms the omitted section
-before narrowing so an interaction with the omitted section cannot be
-misreported as a single culprit. Multiple reproducing sections abort as an
-interaction failure; an empty selector or a non-reproducing oracle aborts
-without attribution. On success Syrus records a `merge_train_multisect` workflow
-artifact naming the attributed member and preserves the train for the next rung
-or operator review. Automatic member withdrawal is not part of this rung.
+Repositories can opt into a `multisect` failure rung. It runs visible prepare, evaluate, and collect Steps, uses `merge_train_multisect_section_width`, confirms omitted sections before attributing one member, and records the result without automatically withdrawing that member. Ambiguous, interacting, flaky, inherited, or non-reproducing results remain unattributed for operator review.
 
 ## Reconciliation phase
 
@@ -171,7 +71,7 @@ It may make a focused repair on the integration branch or withdraw one
 evidence-backed culprit. A repair is not a merge decision: Syrus publishes the
 repaired integration branch, runs prepare and the normal landing graders again,
 and only then can `merge_train_land` run. A withdrawal stops the current train,
-routes the culprit through `LandingFailureHandler` so its approval is cleared
+routes the culprit through normal landing failure handling so its approval is cleared
 and it returns to `implemented`, and defers the other members back to
 `approved` so the landing queue can rederive a train without the withdrawn
 member. The agent writes a durable `merge_train_agent` workflow artifact
@@ -179,82 +79,13 @@ recording the action, evidence, and repair diff metadata or withdrawn member.
 
 ## Land phase
 
-`merge_train_land`:
-1. Pushes the integration branch to GitHub.
-2. Merges the integration PR into the base branch via the GitHub API. The resulting merge commit is created by GitHub, not locally, so Syrus fetches the base branch again before verifying members — otherwise the very next step would be checking ancestry against a commit the workspace has never seen.
-3. For each member, verifies that its rebased commits (recorded during the build phase as `LandedCommit` rows) are actually reachable from the merged SHA before touching it. A member that verifies is commented on, its PR closed with a note that it was included in the train, and its Job closed `pr_merged` with the merge SHA recorded as `landed_sha`. A member that does **not** verify — for example a stale `MergeTrainMember` carried over from an earlier failed/rebuilt train whose branch was never actually rebased into *this* train's integration branch — is left open (PR untouched, branch not deleted) and routed through the normal landing-failure path instead of being closed against a landing it was never part of.
+Syrus pushes and merges the integration branch through GitHub, refreshes the base, and verifies each member's changes are present before closing its PR and Job. A member without positive landing evidence remains open and follows the normal landing-failure path; Syrus never closes it merely because the train merged. Content-equivalent changes already present on the base count as landed.
 
-   Verification distinguishes "git can't answer the question" from "git answered no": a genuinely unreachable commit fails the member, but a SHA missing from the local object database (even after the extra fetch above — a `fatal: Not a valid commit name`/`Not a valid object name` error) is not proof the member didn't land. In that case Syrus instead trusts the member's own `LandedCommit` row when it was written by *this* workflow's own build phase moments earlier — the same positive-evidence standard `MergeTrainFailureHandler` uses for the failure path below — and only fails the member when no such recent evidence exists. This prevents a workspace-local gap (e.g. a Step's Run resuming on a different worker's disk) from reporting a successful integration merge as a failed member reconciliation.
-
-   A member's recorded `LandedCommit` can also point at a rebase from a build whose own integration branch was later discarded, even though that member's actual diff already reached the base branch through an earlier, different build that landed successfully. Ancestry alone cannot see that — the two commits share content, not lineage — so a stale recorded SHA fails member verification on every subsequent single-member train, indefinitely, with no way out short of an operator noticing and manually reconciling it. When ancestry says the recorded commit is not reachable (or cannot say), Syrus falls back to a patch-equivalence check (`BranchPatchPresence`, the same `git cherry` check `ClosedPullRequestResolution` already trusts for "this PR was closed unmerged, but did the work land anyway?") of the member's own PR branch against the train's base branch. A branch whose commits are all patch-equivalent to something already on base is treated as landed on the first verification that reaches this fallback, rather than failing the member and re-queuing an already-satisfied landing attempt.
-
-   The WorkEngine reconciler repairs `MergeTrainMember` rows a past instance of this bug already left `failed` under a train that otherwise reached `state: "succeeded"`: it re-closes each member's Job `pr_merged` only when that member has its own recorded `LandedCommit` for the train, and never touches a train that never landed or a member with no such evidence.
-
-If the base branch advances between build and land (GitHub returns a
-base-moved error), Syrus inserts a `merge_train_rebase` →
-`merge_train_agent_rebase` → re-grade → `merge_train_land_after_rebase`
-recovery chain dynamically. `merge_train_rebase` first tries a deterministic
-rebase of the integration branch onto the moved base. When that rebase is
-clean, Syrus skips `merge_train_agent_rebase`; when it conflicts, the agentic
-step resolves and completes the in-progress rebase before the train re-runs
-landing graders.
-
-Either way the rebased integration branch is **published as soon as it is
-verified**, before anything downstream depends on it. A rebase rewrites the
-branch, so until it is pushed the new head exists on one worker's disk and
-nowhere else -- while the land step that consumes it is not pinned to that
-worker. A train was lost exactly there: its recovery rebase succeeded, the
-land step ran on a different node, and it refused with
-`WorkflowWorkspace::RequiredBranchUnavailable` because the commit it required
-"is not available from the branch or a checkpoint". Publishing also stamps the
-required-branch artifact, so a workspace rebuilt on any node can restore the
-branch. For the agent path, publishing happens only after
-`verify_rebase_complete!` and `verify_integration_branch_rebased!` pass -- an
-unverified or wrong-base rebase must never reach the remote.
-
-The `merge_train_land` Step stays `failed` for the rest of the workflow while
-that branch runs: its failure was handed to the branch, not left unhandled. The
-work-engine reconciler therefore skips a failed Step whose branch has been
-expanded and is still progressing, instead of treating it as an orphaned
-failure. Without that, a train sitting between recovery steps — waiting on host
-admission, say, with no active Run — looked exactly like a stuck workflow, and
-was failed out from under a rebase that had already succeeded and carried its
-green grade forward. A dead recovery still fails the train, through the failure
-of the branch's own final land Step.
-
-While a merge train is active, Syrus suppresses new `rebase`, `stack_rebase`,
-and ordinary Job workflows for child Jobs in the Epic. Those workflows resume
-only after the train succeeds, fails, or is cancelled. If a race still creates
-overlapping active work, the reconciler cancels the conflicting newer workflow
-and keeps the older Epic-wide workflow running.
+If the base moves, Syrus rebases the integration, lets an agent resolve conflicts when needed, reruns required graders, and retries landing. A push-protection rejection follows the documented push-protection recovery policy rather than rewriting shared train history.
 
 ## Failure behavior
 
-If the train fails at any phase, `MergeTrainFailureHandler` does **not** blanket-revert every member — reverting a member requires positive evidence its work did not land, not just "the workflow step failed":
-- Members with no evidence their commits are on base go through `LandingFailureHandler`, which reverts them out of `landing`: transient blockers defer them back to `approved` (auto-retried once the blocker clears), while genuine failures fail them to `implemented`, clearing approval and requiring an operator to re-approve.
-- A member whose commits are already verifiably on base when the train fails — e.g. GitHub reported the integration merge before a crash partway through closing member PRs — is instead completed retroactively: closed `pr_merged` with the landed SHA recorded, the same as the happy path. Its PR/branch may still need manual GitHub cleanup since the usual comment/close/delete-branch steps did not get to run for it.
-- A 30-minute retry cooldown prevents the landing queue from immediately re-attempting an unrepaired integration conflict.
-- Transient landing-start blockers and stale-base rebuild states are persisted as structured failure codes, so changing the explanatory text does not change cooldown behavior. Once the blocker clears, the approved Epic children re-enter the landing queue and Syrus can dispatch a fresh train automatically. Deferred failures — including a member reconciliation that could not verify a landing — are transient in this sense too, so a train that keeps failing that way can rebuild and re-dispatch every few minutes rather than every 30.
-- Deterministic infrastructure/application crashes are bounded by the
-  repeated-failure circuit in `WorkEngine::Reconciler`. If the same
-  exception fingerprint (app revision, exception class/message, and top stack
-  frames) is observed on three failed train attempts in a row, Syrus stops
-  planning `rebuild_merge_train` and emits an operator-only review plan with
-  the latest fingerprint, revision, and run identifiers in the reconciler
-  evidence. A deploy that changes the app revision resets the automatic
-  streak.
-- After the cooldown, `LandingQueueProcessor` can assemble a new train.
-- If a member Job's own runaway protection trips (too many consecutive failed Workflows), `WorkIntents::Gates::RunawayProtection` blocks admission of the next WorkIntent for that member's scope (its Job, or the Epic/bundle it belongs to) until an operator retries the Job and clears the flag. This is the backstop for a train that keeps failing for a reason the patch-equivalence check above cannot resolve: without it, a fast-failing deferral loop can keep rebuilding and re-dispatching for hours after runaway protection already flagged the member as needing operator attention, because nothing previously consulted that flag before admitting the next attempt.
-
-Operators can also manually retry the train from the Epic detail page.
-
-An operator can also proactively stop a landing train from any member Job's
-detail page with the **Stop Landing** button (`Job#stop_landing!`, see
-`config/syrus_docs/landing_queue.md`). It cancels the train's `merge_train`
-Workflow, which routes through `MergeTrainFailureHandler` exactly as above
-(`cancelled: true`) — every member without positive landed evidence reverts
-to `implemented` with approval cleared, since an explicit stop should require
-re-approval before Syrus retries.
+Failed trains clean up disposable branches and release their landing slot. Genuine validation failures clear member approval; transient and rebuild-required outcomes return members to approved. Repeated automatic failures are bounded and eventually require an explicit operator retry, preventing a fast failure from rebuilding indefinitely.
 
 ## Size limit
 

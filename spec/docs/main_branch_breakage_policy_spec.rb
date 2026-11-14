@@ -7,19 +7,17 @@ RSpec.describe "main branch breakage policy operator docs" do
       config/syrus_docs/landing_queue.md
     ].map { |path| Rails.root.join(path).read }.join("\n")
 
-    # The policy is repository-scoped: it comes from the repository's risk
-    # profile, not from an instance-wide setting. Asserting the accessor keeps
-    # the docs from drifting back to describing a global knob.
-    expect(docs).to include("Repository#breakage_policy")
+    # Keep this contract on operator-visible policy rather than internal Ruby
+    # accessors, jobs, or controller actions. Searchable harness docs describe
+    # how the setting behaves, while implementation details belong in the
+    # engineering hierarchy.
+    expect(docs).to include("Repository risk posture")
     expect(docs).to include("strict")
-    expect(docs).to include("isolate_unrelated_failures")
-    expect(docs).to include("Repository#main_health")
-    expect(docs).to include("ci_health")
-    expect(docs).to include("grader_health")
-    expect(docs).to include("repository.landing_paused")
-    expect(docs).to include("MainHealthChangedService")
-    expect(docs).to include("Repository#pr_check_gate")
-    expect(docs).to include("repositories#resume_landing")
-    expect(docs).to include("LandingQueueProcessorJob")
+    expect(docs).to include("Isolation policy")
+    expect(docs).to include("inherited grader failures")
+    expect(docs).to include("`pr_check_gate`")
+    expect(docs).to include("`all`, `own_only`, or `none`")
+    expect(docs).to include("**Resume landing**")
+    expect(docs).to include("main repair")
   end
 end

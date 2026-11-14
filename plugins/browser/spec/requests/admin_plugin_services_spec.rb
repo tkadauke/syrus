@@ -67,7 +67,7 @@ RSpec.describe "API: admin plugin services (browser)", type: :request do
 
     get "/api/v1/app/admin/plugin_services/browser/logs", params: { tail: 100 }
 
-    expect(json).to eq("service" => "browser", "logs" => "starting playwright-mcp on :8080\nhealthz check ok\n")
+    expect(json).to eq("v" => ApiVersion::CURRENT, "service" => "browser", "logs" => "starting playwright-mcp on :8080\nhealthz check ok\n")
   end
 
   it "answers not_found for browser's details panel, since the service reports none" do

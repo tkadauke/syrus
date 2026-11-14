@@ -2,7 +2,8 @@ require "rails_helper"
 
 RSpec.describe "iOS capability documentation" do
   OPERATOR_DOC = Rails.root.join("config/syrus_docs/syrus_yml.md")
-  RUNBOOK_DOC = Rails.root.join("config/syrus_docs/ios_compute_runbook.md")
+  PLUGIN_DOC = Rails.root.join("plugins/ios/docs/syrus_docs/ios.md")
+  RUNBOOK_DOC = Rails.root.join("docs/engineering/operations/ios-compute.md")
   PUBLIC_DOCS = [
     Rails.root.join("website/src/content/docs/configuration.md"),
     Rails.root.join("website/src/content/docs/monorepo-adoption.md"),
@@ -16,19 +17,19 @@ RSpec.describe "iOS capability documentation" do
     expect(body).to include("os: macos")
     expect(body).to include("`os` is the only supported dimension")
     expect(body).to include("-workspace")
-    expect(body).to include("-project")
     expect(body).to include("-scheme")
     expect(body).to include("-destination")
     expect(body).to include("-derivedDataPath")
     expect(body).to include("-resultBundlePath")
     expect(body).to include("CODE_SIGNING_ALLOWED=NO")
-    expect(body).to include("type: xcodebuild")
-    expect(body).to include("type: swiftpm")
-    expect(body).to include("JUnit")
-    expect(body).to include("\"planned_execution\"")
-    expect(body).to include("Xcode license")
-    expect(body).to include("simulator runtime")
-    expect(body).to include("Keychain")
+    plugin = PLUGIN_DOC.read
+    expect(plugin).to include("\"planned_execution\"", "ios_simulator")
+    expect(plugin).to include("-project", "type: xcodebuild", "type: swiftpm", "JUnit")
+
+    runbook = RUNBOOK_DOC.read
+    expect(runbook).to include("Xcode license")
+    expect(runbook).to include("simulator runtime")
+    expect(runbook).to match(/keychain/i)
   end
 
   it "documents the iOS compute readiness runbook" do

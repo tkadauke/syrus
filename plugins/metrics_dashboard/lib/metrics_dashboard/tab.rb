@@ -1,6 +1,6 @@
 module MetricsDashboard
   # The contract for a dashboard tab contributed through this plugin's
-  # "metrics_dashboard:tab" point (see docs/syrus_docs/plugins.md's "Hosting
+  # "metrics_dashboard:tab" point (see docs/engineering/conventions/plugins/authoring.md's "Hosting
   # a point for other plugins" and TestInsights::Parser for the same shape
   # applied to a different host).
   #

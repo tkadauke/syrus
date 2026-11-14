@@ -3,9 +3,8 @@
 ## Canonical profiles and tool-set bundles
 
 Permission setup offers three stable profiles: `full_access@v1`,
-`ask_on_first_use@v1`, and `restricted@v1`. Profiles compile into ordinary
-role-layer `Permissions::PolicyRule` records and are evaluated by the same
-`Permissions::PolicyEvaluator` as customized rules and leases. They never
+`ask_on_first_use@v1`, and `restricted@v1`. Profiles are evaluated with
+customized rules and temporary authority. They never
 bypass resource authorization, provider ceilings, confinement, credential
 checks, or nondelegable operations. Full access means every capability the
 operator is eligible to delegate, not unrestricted process authority.
@@ -35,8 +34,8 @@ change each chat surface independently later in the Permissions Hub.
 
 ## Permission authority lifetimes
 
-Syrus represents permanent agent authority as an audited `PermissionRule` and
-temporary authority as a `PermissionLease`. Temporary leases support one exact
+Syrus represents permanent agent authority as an audited permission rule and
+temporary authority as a permission lease. Temporary leases support one exact
 invocation, the current chat session, or the current Job. Workflow and Run ids
 may identify where a request originated, but they are not authority lifetimes.
 
@@ -46,13 +45,11 @@ matching when their chat is deleted. Job leases stop matching when their Job
 reaches a terminal state, including across retries and follow-up Workflows.
 Every lease can additionally have an expiry or use limit and can be revoked.
 
-`Permissions::AuthorityGrant` validates the requested duration against the
-capability descriptor and evaluates the proposed authority against current
-non-delegable policy ceilings before persisting it. `Permissions::LeaseAuthorizer`
-locks candidate leases, rechecks subject, scope, fingerprint, lifecycle,
-expiry, revocation, use count, and the complete current policy chain, then
-consumes the decisive lease in the same transaction. An existing or newly
-introduced deny therefore prevents a queued lease from authorizing a call.
+Syrus validates requested duration against the capability and current
+non-delegable policy ceilings. Immediately before dispatch it rechecks subject,
+scope, invocation identity, lifecycle, expiry, revocation, use count, and the
+complete current policy chain. An existing or newly introduced deny therefore
+prevents a queued permission from authorizing a call.
 
 This is authorization substrate. Capability integrations must call the
 authorizer immediately before dispatch; merely creating a lease never executes
@@ -172,13 +169,9 @@ delivery never hides the global Approvals badge, the blocked-agent indicator,
 the central inbox entry, or the request at its origin.
 
 The global Approvals shield sits beside notifications and always shows the
-pending total. When an agent is stopped at an authorization checkpoint, the
-shield uses an amber waiting halo until the request is resolved and announces
-newly blocked agents to assistive technology. Reduced-motion preferences replace
-the animated halo with a static ring. On mobile widths the shield opens the
-shared full-screen Activity shell (`ActivityProvider`) on its Approvals tab
-instead of the side drawer; notifications and approvals stay separate data
-models and every decision keeps the same audit path. Infrastructure and security banners remain
+pending total, with a visible waiting indicator while an agent is stopped at an
+authorization checkpoint. Notifications and approvals stay separate, and every
+decision keeps the same audit path. Infrastructure and security banners remain
 the higher-priority alert surface.
 
 ## Plugin-provided AI approval
@@ -201,11 +194,11 @@ ceilings from the effective policy chain before calling the provider. Missing
 providers, invalid output, confidence below `0.8`, and provider-owned cost or
 rate outcomes escalate the existing request to a human.
 
-The classifier envelope orders core non-overridable guidance, the provider's
+Classifier instructions order core non-overridable guidance, the provider's
 default guidance, and repository guidance supplied by the authorization
 context.
 
-Transcript entries retain their explicit roles. The envelope labels transcript,
+Transcript entries retain their explicit roles. The instructions label transcript,
 tool-call, and repository content as untrusted evidence; only the effective
 policy chain is authoritative. Providers must disclose where this evidence is
 processed and retained. The provider receives the complete evidence needed for
@@ -228,7 +221,7 @@ its transcript evidence differs from the last evaluation.
 
 ### Delegation and audit management
 
-The Permissions Hub's AI approvals view (`/api/v1/app/approval_delegations`)
+The Permissions Hub's AI approvals view
 shows providers with their disclosure and default guidance, the owner's
 delegations (provider, capability, resource type, bounded scope, status),
 the core human-only exclusions, and the owner's `ai_approval_evaluated`
@@ -270,7 +263,7 @@ and the rest of the permission store stay chat-only).
 - `request_permission` asks the owner for authority for the coworker itself:
   exact capability and operation, normalized resource scope, descriptor-supported
   constraints, a purpose and the narrowest suitable duration. The request is
-  validated through the same `RuleDraft` preview the Permissions Hub applies, so
+  validated through the same preview the Permissions Hub applies, so
   only durations the descriptor autonomy ceiling and the owner's policy accept
   are offered. Creating it grants nothing: it creates (or reuses) the same
   durable authorization request shown in chats and the approval inbox. The
@@ -290,34 +283,26 @@ and the rest of the permission store stay chat-only).
 Authority is never transferable: when coworker A asks coworker B to do
 something, B is evaluated only against B's own rules and leases.
 
-Requests, deduplications, rate limits, denials, grants, surrenders, revocation
-requests and final revocations are recorded as append-only admin actions named
-`coworker_permission_*`; rule creation and revocation also keep their
-`PermissionRuleAuditEvent` rows.
+Requests, deduplications, rate limits, denials, grants, surrenders, and
+revocations are retained in the permission audit history.
 
 ## Coworker enforcement
 
 A gated coworker invocation runs through the common evaluator. Descriptor
-defaults are active authority; legacy coworker grants neither advertise a tool
+defaults are active authority; older coworker grants neither advertise a tool
 nor bypass its decision. An `allow` decision dispatches immediately, `deny`
 fails closed, and `ask` creates one exact-operation request containing a
 redacted argument snapshot and stable invocation fingerprint. Equivalent active
 requests deduplicate.
 
-The coworker cutover translates each historical grant into operation-level,
-exact-agent rules. Migration provenance records the legacy row ID, preserves
-any remaining old row for audit and rollback diagnosis, and makes reruns idempotent.
-Pre-existing canonical rules win and are reported as conflicts rather than
-being overwritten; policy, scope, and constraint parity failures are included
-in the migration diagnostics without blocking unrelated rows. Rollback revokes
-only rules created by that migration. New coworker creation and permission
-edits never write the legacy table.
+Older coworker grants do not authorize execution. Supported grants are
+represented as explicit agent-scoped rules, while conflicts or unsupported
+entries remain visible for operator review. New coworker permission edits use
+the current permission model.
 
-Approval creates an invocation-only lease and an `AuthorizedInvocation` before
-enqueueing execution. The worker atomically claims that record, re-evaluates the
-current rule and lease chain under the claim lock, and dispatches only for a new
-claim with an exact fingerprint. A revoked or newly denied authority therefore
-invalidates queued work, and retries cannot replay an already claimed call.
+Approval authorizes only the exact invocation. Current authority is rechecked
+before dispatch, so revocation or a new deny invalidates queued work and retries
+cannot replay an invocation already claimed.
 Only protocol controls explicitly classified as ungated bypass this flow; they
 cannot perform a capability effect. Ordinary chat, coworker, scheduled,
 workflow, and Local Mode invocations now use the canonical evaluator as their
@@ -374,16 +359,28 @@ Scopes are visibility-safe: the repository scope is the slug alone and is never 
 
 ## Host and container execution (fail-closed enforcement)
 
-Processes Syrus starts through `Execution::Router` are evaluated by `Permissions::ExecutionGate` under `syrus.execution@v1` (`host_process` on the worker, `container_process` in a confined backend). The classifier derives `network_read`, `external_write`, `credential_use`, `destructive`, and `privilege_change` from the command line (sharing the Local Mode patterns) and the network profile. Injected environment variables are not treated as credential use. Plain work keeps its `allow` default; sensitive effects that were allowed only by default become `ask`.
+Processes Syrus starts use `syrus.execution@v1` (`host_process` on the worker,
+`container_process` in a confined backend). Classification derives
+`network_read`, `external_write`, `credential_use`, `destructive`, and
+`privilege_change` from the command and network profile. Injected environment
+variables are not treated as credential use. Plain work keeps its `allow`
+default; sensitive effects allowed only by default become `ask`.
 
 An explicit `allow` is required before the process starts. A `deny` stops it, whether it comes from the owner's durable rules or from a ceiling. An `ask` also stops it: raw process execution has no exact-invocation replay boundary, so a noninteractive caller cannot convert missing approval into authority. Invocation-limited authority is reserved only after all ceilings allow the request, committed when the backend reports that the process spawned, and released if startup fails before that boundary. Rules are created through the normal permission tools and the Permissions Hub (the execution operations are in the catalog) and match a process by subject selector: the chat role (`interactive_chat`, `coding_chat`, `local_chat`), `workflow_role`, `repository_role`, `agent`, or `eligible_roles`. When several apply, the strictest result wins. The only default ceiling is `FailClosedHost`, which denies host execution under a fail-closed workload policy. `NetworkProfile` and provider `ProviderLimits` ceilings exist but are opt-in. Ceilings only lower a decision; no rule or lease raises one, and existing confinement (the grader network profile, container backends) is unchanged.
 
 Workflow MCP operations use the same descriptors, rules, leases, ceilings, and authorization records as chat. Their subject and owner derive from the Job, and their runtime role derives from the current Step. An `ask` persists a checkpoint on the Run, releases the provider process, and resumes the exact invocation after approval or with a structured denial. Scheduled MCP operations derive authority from the schedule owner's durable rules and leases. Equivalent later fires attach to the existing request and skip only the gated operation instead of opening prompt storms or treating silence as approval.
 
-**Unsupported provider-native gap:** a provider's own shell, file, browser, or web tools run inside its CLI and do not cross `Execution::Router` or the MCP dispatch boundary. Syrus cannot broker or audit those individual calls until that provider exposes a pre-execution interception hook. `ExecutionActions.subject_for_provider_action` and `ProviderLimits` describe the intended contract, but they are not enforcement. Deployments that require hard guarantees must restrict or disable provider-native tools and route effects through brokered Syrus tools or a confined execution backend.
+**Unsupported provider-native gap:** a provider's own shell, file, browser, or
+web tools run inside its CLI and do not cross Syrus's brokered execution or MCP
+boundaries. Syrus cannot audit those individual calls without a provider
+interception hook. Deployments requiring hard guarantees must restrict native
+tools and use brokered Syrus tools or a confined execution backend.
 
 ## Fresh authentication and budget metadata
 
 A capability descriptor may declare `fresh_authentication_window`. When the approver's authentication is older than that window (or unknown), an `allow` is lowered to `ask`; like the execution ceilings it can never raise a decision, and a `deny` stays a `deny`. Dropping the window or lengthening it in a capability successor is reported as semantic widening.
 
-A descriptor may also declare `budget_dimensions` (`model_tokens`, `compute_time`, `network_egress`, `external_spend`, `storage`). This is effect metadata only: `Permissions::EffectMetadata` hands observers the classified effects, risk, and dimensions of a non-denied decision. Budgets are not permission grants — observer return values are ignored and a failing observer never changes the decision.
+A descriptor may also declare `budget_dimensions` (`model_tokens`,
+`compute_time`, `network_egress`, `external_spend`, `storage`). This is effect
+metadata only. Budgets are not permission grants, and budget observers never
+change the permission decision.

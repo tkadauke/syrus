@@ -4,7 +4,7 @@
 // directory. Unlike the enforced ratchet rules in eslint-rules/ (which fail
 // lint beyond a per-file baseline), these rules always report every match --
 // bin/style-debt-report aggregates their output into counts instead of
-// gating CI. See config/syrus_docs/style_debt_report.md.
+// gating CI. See docs/engineering/conventions/style_debt_report.md.
 //
 // The exclusion set itself (design-system files, generated files, documented
 // exceptions) is shared verbatim with the enforced ratchet rules -- it lives
