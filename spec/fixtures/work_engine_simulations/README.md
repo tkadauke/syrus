@@ -141,6 +141,17 @@ steps may still run on any configured worker. This models the production
 contract that post-grader repair/publication steps must not accidentally run
 inside a distributed grader worker that lacks the mutable workflow workspace.
 
+Scenarios that verify durable Git refs can declare exact, immutable resolutions
+under `runtime.repository_revisions`. The simulation provider answers only
+those refs and falls through for ordinary repository content reads:
+
+```yaml
+runtime:
+  repository_revisions:
+    main: base-sha
+    refs/syrus/checkpoints/scenarios/example: checkpoint-sha
+```
+
 ```yaml
 runtime:
   workers:
