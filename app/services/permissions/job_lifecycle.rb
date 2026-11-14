@@ -59,10 +59,11 @@ module Permissions
 
       def covers?(tool_name) = OPERATIONS.key?(tool_name.to_s)
 
-      def descriptor_for(tool_name, required_roles: AgentRole::CHAT_ROLES)
+      def descriptor_for(tool_name, required_roles: AgentRole::CHAT_ROLES, default_policies: {})
         operation = OPERATIONS.fetch(tool_name.to_s)
         identifier = "#{operation.capability.delete_suffix('@v1')}/#{operation.name}@v1"
         roles = Array(required_roles)
+        policies = default_policies.to_h.stringify_keys
 
         CapabilityDescriptor.new(
           capability: operation.capability,
@@ -71,7 +72,7 @@ module Permissions
           effects: operation.effects,
           risk: operation.risk,
           requestable_roles: roles,
-          defaults: roles.index_with { :ask },
+          defaults: roles.index_with { |role| policies.fetch(role, :ask) },
           maximum_autonomy: :invocation,
           authority_durations: %i[invocation],
           resource_scope: { type: :none },
