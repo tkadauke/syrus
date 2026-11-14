@@ -11,6 +11,7 @@ import {
   decideAuthorizationItem,
   smartDecideAuthorizationItem,
   fetchChatMedia,
+  fetchPreviewPanelHistory,
   fetchChatProposal,
   rejectChatProposal,
   rejectPendingAction,
@@ -135,15 +136,16 @@ export function ProposalEditModal({
   const [epicResults, setEpicResults] = useState<ChatEpicDependencySearchResult[]>([])
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
   const payload = queryClient.getQueryData<ChatPayload>(queryKey)
+  const previewPanels = usePreviewPanelsWithHistory(payload?.preview_panels || [], true)
   const media = useQuery({
     queryKey: ["chat_media", String(chatId)],
     queryFn: () => fetchChatMedia(chatId),
     enabled: String(chatId).length > 0
   })
   const availableMediaItems = proposalMediaItems(
-    availableProposalMediaRefs(media.data, payload?.preview_panels || []),
+    availableProposalMediaRefs(media.data, previewPanels),
     media.data,
-    payload?.preview_panels || []
+    previewPanels
   )
   const searchProposals = useCallback(
     (query: string, signal: AbortSignal) => searchChatProposals(chatId, query, proposal.id, { signal }),
@@ -822,7 +824,11 @@ type ProposalMediaItem = {
 }
 
 function ProposalMediaTiles({ media, mediaIds, previewPanels }: { media?: ChatMediaPayload; mediaIds: string[]; previewPanels: ChatPreviewPanel[] }) {
-  const items = proposalMediaItems(mediaIds, media, previewPanels)
+  const panelsWithHistory = usePreviewPanelsWithHistory(
+    previewPanels,
+    mediaIds.some((ref) => ref.startsWith("preview_panel_version:"))
+  )
+  const items = proposalMediaItems(mediaIds, media, panelsWithHistory)
   if (items.length === 0) return null
 
   return (
@@ -832,6 +838,23 @@ function ProposalMediaTiles({ media, mediaIds, previewPanels }: { media?: ChatMe
       ))}
     </div>
   )
+}
+
+function usePreviewPanelsWithHistory(previewPanels: ChatPreviewPanel[], enabled: boolean) {
+  const history = useQuery({
+    queryKey: ["proposal_preview_panel_versions", previewPanels.map((panel) => [panel.id, panel.current_version_id])],
+    queryFn: () =>
+      Promise.all(
+        previewPanels.map(async (panel) => ({
+          ...panel,
+          ...(await fetchPreviewPanelHistory(panel.id))
+        }))
+      ),
+    enabled: enabled && previewPanels.length > 0,
+    staleTime: Infinity
+  })
+
+  return history.data || previewPanels
 }
 
 function ProposalMediaPicker({

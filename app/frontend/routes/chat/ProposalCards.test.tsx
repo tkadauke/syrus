@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
 import { applyAppEvent } from "../../lib/appEvents"
 import { PendingActionCard, PendingActionGroupCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
-import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatProposal } from "../../api/chats"
+import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatPreviewPanel, ChatProposal } from "../../api/chats"
 import type { ChatQueryKey } from "./constants"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 
@@ -363,11 +363,12 @@ const mediaPayload: ChatMediaPayload = {
 function renderProposalCard(
   p: ChatProposal,
   onNotice = vi.fn(),
-  options: { currentUser?: Record<string, unknown>; onSelectWorkspaceTab?: () => void; chatOverrides?: Record<string, unknown> } = {}
+  options: { currentUser?: Record<string, unknown>; onSelectWorkspaceTab?: () => void; chatOverrides?: Record<string, unknown>; previewPanels?: ChatPreviewPanel[] } = {}
 ) {
   const queryKey: ChatQueryKey = ["chats", "122", ""]
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const payload = payloadFor(queryKey, p)
+  payload.preview_panels = options.previewPanels || []
   client.setQueryData(queryKey, options.chatOverrides ? { ...payload, chat: { ...payload.chat, ...options.chatOverrides } } : payload)
   client.setQueryData(["bootstrap"], { current_user: { id: 1, role: "developer", admin: true, ...options.currentUser } })
   client.setQueryData(["chat_media", "122"], mediaPayload)
@@ -975,6 +976,40 @@ describe("ProposalCard media", () => {
 
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(screen.getAllByRole("img", { name: "Safari capture" })).toHaveLength(2)
+  })
+
+  it("loads trimmed preview panel history for historical proposal media", async () => {
+    const panel: ChatPreviewPanel = {
+      id: 9,
+      title: "Checkout mockup",
+      file_count: 1,
+      url: "http://preview-panel-9.lvh.me",
+      visibility: "public",
+      app_close_path: "/api/v1/app/chats/122/preview_panels/9",
+      app_visibility_path: "/api/v1/app/chats/122/preview_panels/9",
+      app_export_path: "/api/v1/app/chats/122/preview_panels/9/export",
+      app_file_base_path: "/api/v1/app/chats/122/preview_panels/9/files",
+      app_token_path: "/api/v1/app/chats/122/preview_panels/9/token",
+      current_version_id: 92,
+      entry_path: "index.html",
+      entry_content_type: "text/html",
+      entry_viewer_kind: "html",
+      versions: [{ id: 92, created_at: "2026-08-30T00:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" }]
+    }
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        ...panel,
+        versions: [
+          { id: 91, created_at: "2026-08-29T00:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" },
+          ...panel.versions
+        ]
+      })
+    )
+
+    renderProposalCard(proposal({ media_ids: ["preview_panel_version:91"] }), vi.fn(), { previewPanels: [panel] })
+
+    expect(await screen.findByText("Checkout mockup")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/preview_panels/9?include=versions", expect.anything())
   })
 
   it("lets proposal edits add and remove media refs", async () => {
