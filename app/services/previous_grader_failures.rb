@@ -53,7 +53,7 @@ class PreviousGraderFailures
     @previous_steps ||= step.workflow.steps
       .where(kind: step.kind, loop_id: step.loop_id)
       .where("iteration < ?", step.iteration.to_i)
-      .order(iteration: :desc, position: :desc)
+      .reorder(iteration: :desc, position: :desc)
       .select { |candidate| equivalent_grader?(candidate) }
   end
 
