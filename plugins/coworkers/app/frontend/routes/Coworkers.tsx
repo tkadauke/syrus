@@ -1054,6 +1054,9 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
         <div>
           <div className="font-medium text-text-primary">{workspace.remote}</div>
           <div className="text-text-muted">{workspace.branch}</div>
+          <div className="mt-1 text-text-muted">
+            {t("workspace.branch_counts", workspace.branch_counts)}
+          </div>
         </div>
         <div>
           <button className="rounded border border-border px-3 py-2" disabled={pushTest.isPending} onClick={() => pushTest.mutate()} type="button">

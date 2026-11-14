@@ -5,10 +5,11 @@ class Coworkers::RemoteWorkspace
   RefChanged = Class.new(StandardError)
   attr_reader :repository
 
-  def initialize(owner:, name:, user:, git: GitRunner.new)
+  def initialize(owner:, name:, user:, git: GitRunner.new, authenticated_url: nil)
     @repository = Repository.new(owner: owner, name: name, user: user)
     @user = user
     @git = git
+    @authenticated_url = authenticated_url
   end
 
   def branch_exists?(branch)
@@ -64,6 +65,49 @@ class Coworkers::RemoteWorkspace
     delete!(guard.allow!(branch))
   end
 
+  def guarded_delete_if_matches!(branch, expected_sha:, guard:)
+    delete_if_matches!(guard.allow!(branch), expected_sha:)
+  end
+
+  def branch_counts(coworker:, guard:)
+    refs = @git.run("ls-remote", "--heads", authenticated_url, "refs/heads/coworkers/*").lines.filter_map do |line|
+      line.split[1]&.delete_prefix("refs/heads/")
+    end
+    owned = refs.filter do |branch|
+      guard.allow!(branch)
+      true
+    rescue Coworkers::PushGuard::ForeignRef
+      false
+    end
+    { home: owned.count { |branch| branch == "coworkers/#{coworker.handle}" },
+      chat: owned.count { |branch| branch.start_with?("coworkers/chat/") },
+      run: owned.count { |branch| branch.start_with?("coworkers/run/") } }
+  end
+
+  # Returns run refs that are already contained by home, with the source
+  # commit timestamp used for retention. Fetching into a temporary repository
+  # avoids trusting branch names as proof that work was persisted.
+  def merged_run_refs(home_branch:, run_prefix:, guard:)
+    home_branch = guard.allow!(home_branch)
+    run_prefix = guard.allow!("#{run_prefix}0").delete_suffix("0")
+    Dir.mktmpdir("syrus-coworker-retention-") do |path|
+      @git.run("init", path)
+      @git.run("fetch", "--no-tags", authenticated_url,
+        "+refs/heads/#{home_branch}:refs/remotes/workspace/home",
+        "+refs/heads/#{run_prefix}*:refs/remotes/workspace/runs/*", chdir: path)
+      output = @git.run("for-each-ref", "--format=%(refname) %(objectname) %(committerdate:unix)",
+        "refs/remotes/workspace/runs", chdir: path)
+      output.lines.filter_map do |line|
+        ref, sha, timestamp = line.split
+        next unless @git.capture("merge-base", "--is-ancestor", sha, "refs/remotes/workspace/home", chdir: path).success?
+
+        branch = "#{run_prefix}#{ref.split('/').last}"
+        next unless guard.allow!(branch)
+        { branch:, sha:, committed_at: Time.zone.at(timestamp.to_i) }
+      end
+    end
+  end
+
   def delete!(branch)
     validate_coworker_namespace!(branch)
     with_seed_checkout do |path|
@@ -89,7 +133,7 @@ class Coworkers::RemoteWorkspace
 
   private
 
-  def authenticated_url = repository.authenticated_url(user: @user)
+  def authenticated_url = @authenticated_url || repository.authenticated_url(user: @user)
 
   def validate_coworker_namespace!(branch)
     raise ArgumentError, "coworker pushes may only target refs under coworkers/" unless branch.to_s.start_with?("coworkers/")

@@ -44,6 +44,7 @@
     "run_source": "Run {{id}}",
     "unattributed_source": "Quelle nicht verfügbar",
     "conflict": "Nicht zusammengeführter Chat-Branch {{branch}}:",
+    "branch_counts": "Branches: {{home}} Home · {{chat}} Chat · {{run}} Run",
     "test_push": "Push-Zugriff testen",
     "push_ok": "Push-Zugriff bestätigt",
     "unsaved_title": "Nicht gespeicherte Workspace-Änderungen",

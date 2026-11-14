@@ -320,6 +320,7 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     expect { home_file("memory/daily.md") }.to raise_error(Errno::ENOENT)
     expect(run_git("log", "-1", "--format=%an <%ae>", "coworkers/maya", chdir: @remote).strip)
       .to eq("Maya (@maya) <maya@coworkers.syrus.invalid>")
+    expect(run_git("ls-remote", "--heads", @remote.to_s, "refs/heads/coworkers/run/#{coworker.id}-49")).to be_empty
   end
 
   it "merges an agent-authored background commit without requiring more workspace edits" do

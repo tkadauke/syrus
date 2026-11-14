@@ -14,6 +14,8 @@ RSpec.describe Coworkers::PushGuard do
   it "rejects a foreign ref" do
     expect { guard.allow!("coworkers/ada") }.to raise_error(described_class::ForeignRef)
     expect { guard.allow!("main") }.to raise_error(described_class::ForeignRef)
+    expect { guard.allow!("coworkers/run/8-42") }.to raise_error(described_class::ForeignRef)
+    expect { guard.allow!("coworkers/chat/8-42") }.to raise_error(described_class::ForeignRef)
   end
 
   it "allows only this coworker's recovery refs" do
