@@ -212,6 +212,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
 | `list_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - |
 | `list_repository_files` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
+| `manage_job_state` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.manage_job_state` | - |
 | `propose_epic_with_jobs` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - |
 | `propose_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - |
 | `read_admission_diagnostics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
