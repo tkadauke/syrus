@@ -1115,16 +1115,16 @@ RSpec.describe SyrusYml do
   end
 
   it "clamps timeout_minutes above the hard ceiling with a warning" do
-    expect(Rails.logger).to receive(:warn).with(/timeout_minutes 150 exceeds 120; clamping/)
+    expect(Rails.logger).to receive(:warn).with(/timeout_minutes 180 exceeds 150; clamping/)
 
     config = parse(<<~YAML)
       grade:
         - name: tests
           run: bin/rspec
-          timeout_minutes: 150
+          timeout_minutes: 180
     YAML
 
-    expect(config.grade.steps.first.timeout_minutes).to eq(120)
+    expect(config.grade.steps.first.timeout_minutes).to eq(150)
   end
 
   it "rejects non-positive grader timeout_minutes" do
@@ -1156,10 +1156,10 @@ RSpec.describe SyrusYml do
       grade:
         - name: tests
           run: bin/rspec
-          timeout_minutes: 120
+          timeout_minutes: 150
     YAML
 
-    expect(config.grade.steps.first.timeout_minutes).to eq(120)
+    expect(config.grade.steps.first.timeout_minutes).to eq(150)
   end
 
   it "clamps max_iterations below the lower bound with a warning" do

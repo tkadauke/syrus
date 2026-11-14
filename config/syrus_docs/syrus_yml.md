@@ -511,7 +511,7 @@ most once per workflow workspace.
 | `ci` | no | — | Legacy alternate command; expanded into a `<name>-ci` grader in the `ci` phase |
 | `description` | no | — | Human-readable label |
 | `required` | no | `true` | Non-required failures warn but don't block |
-| `timeout_minutes` | no | 15 | Clamped to 120 max |
+| `timeout_minutes` | no | 15 | Clamped to 150 max |
 | `<mode>_timeout_minutes` / `timeouts` | no | `timeout_minutes` | Plugin-defined graders can override generated `full`, `focused`, or `ci` grader timeouts |
 | `<mode>_display_name` / `display_names` | no | mode-aware default | Plugin-defined graders can override one generated mode's display name without changing `display_name`, which applies to every generated mode |
 | `tags` / `<mode>_include_tags` / `<mode>_exclude_tags` | no | plugin-defined | Plugin-defined test graders can add RSpec/Vitest tag filters per generated mode |
