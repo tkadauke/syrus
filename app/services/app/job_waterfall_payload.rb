@@ -18,7 +18,7 @@ module App
     end
 
     def payload
-      result = ::Timeline::WorkflowWaterfallQuery.call(workflow_id: @workflow.id)
+      result = ::Timeline::WorkflowWaterfallQuery.call(workflow_id: @workflow.id, include_step_worker_identity: true)
       return result if @admin
 
       {
