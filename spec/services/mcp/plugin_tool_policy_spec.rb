@@ -7,6 +7,7 @@ require "rails_helper"
 # from it. That opt-in is declarable on the definition.
 RSpec.describe "plugin chat tool policy" do
   let(:user) { Factories.user }
+  let(:chat) { instance_double(ChatSession) }
 
   def tool_set(definitions)
     Class.new do
@@ -54,6 +55,18 @@ RSpec.describe "plugin chat tool policy" do
       .to eq(%w[shared legacy_safe])
     expect(Mcp::CoworkerToolExposure.plugin_provider?(AdminMysql::ChatToolSet)).to be(false)
     expect(Mcp::CoworkerToolExposure.plugin_provider?(SyrusBrowser::ChatToolSet)).to be(false)
+  end
+
+  it "uses ordinary availability by default and names coworker-only provider exceptions centrally" do
+    shared = class_double("SharedToolSet").as_stubbed_const
+    allow(shared).to receive(:name).and_return("Example::SharedToolSet")
+    allow(shared).to receive(:available_for?).with(chat, tier: :essential).and_return(true)
+    allow(shared).to receive(:available_for_coworker?).and_return(false)
+
+    expect(Mcp::CoworkerToolExposure.plugin_provider_available?(shared, chat, tier: :essential)).to be(true)
+    expect(Mcp::CoworkerToolExposure::COWORKER_ONLY_PLUGIN_PROVIDERS).to contain_exactly(
+      "Coworkers::ChatToolSet", "SyrusDev::ChatToolSet"
+    )
   end
 
   # A tool set written before the flags existed must behave exactly as it did.

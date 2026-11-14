@@ -9,10 +9,8 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
   let(:coworker) do
-    instance_double(
-      "CoworkerActor",
-      kind: "coworker",
-      permission_rules: instance_double("PermissionRules", entries: [])
+    Coworkers::Coworker.create!(
+      owner_user: user, name: "Insight reader", handle: "insight-reader", workspace_repo: repository.remote_url
     )
   end
 
@@ -40,6 +38,12 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
     jsonrpc(server, "tools/call", params: { name: name, arguments: arguments })
   end
 
+  def allow_insight_reads!(actor: coworker)
+    %w[list_insights read_insight].each do |capability|
+      actor.permission_rules.update!(capability: capability, approval_policy: "auto", actor: actor.owner_user)
+    end
+  end
+
   it "advertises insight read and retire tools via the deferred tools/list while the plugin is enabled" do
     enable!(true)
 
@@ -63,9 +67,8 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
     expect(tool_names).not_to include("list_insights", "read_insight", "retire_insight", "submit_insight", "update_insight")
   end
 
-  it "advertises only read-only insight tools to coworkers on the deferred tier" do
+  it "inherits every ordinary insight chat tool for coworkers on the deferred tier" do
     enable!(true)
-    allow(AgentInsights::ChatToolSet).to receive(:coworker_chat?).with(chat_session).and_return(true)
 
     essential_names = described_class.chat_tools(chat_session, tier: :essential, agent_actor: coworker)
       .map { |tool| McpToolRegistry.tool_name_for(tool) }
@@ -73,28 +76,29 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
       .map { |tool| McpToolRegistry.tool_name_for(tool) }
 
     expect(essential_names).not_to include("list_insights", "read_insight")
-    expect(deferred_names).to include("list_insights", "read_insight")
-    expect(deferred_names).not_to include(
-      "accept_insight", "dismiss_insight", "retire_insight", "submit_insight", "update_insight"
+    expect(deferred_names).to include(
+      "list_insights", "read_insight", "accept_insight", "dismiss_insight", "retire_insight"
     )
+    expect(deferred_names).not_to include("submit_insight", "update_insight")
   end
 
-  it "classifies coworker insight reads in the catalog without requiring a grant" do
+  it "classifies every ordinary insight chat tool in the coworker catalog" do
     enable!(true)
     allow(McpToolContext).to receive(:from_chat_session).with(chat_session).and_return(
       instance_double(McpToolContext, role: AgentRole::COWORKER_CHAT)
     )
 
+    names = AgentInsights::ChatToolSet::TOOL_CLASSES.map(&:tool_name)
     descriptors = Mcp::CoworkerToolCatalog.all(chat_session: chat_session)
-      .select { |descriptor| %w[list_insights read_insight].include?(descriptor.tool_name) }
+      .select { |descriptor| names.include?(descriptor.tool_name) }
 
-    expect(descriptors.map(&:tool_name)).to contain_exactly("list_insights", "read_insight")
-    expect(descriptors).to all(have_attributes(tier: :deferred, ungated: true, availability_state: :available))
+    expect(descriptors.map(&:tool_name).uniq).to contain_exactly(*names)
+    expect(descriptors).to all(have_attributes(tier: :deferred, ungated: false, availability_state: :available))
   end
 
   it "keeps coworker reads scoped to attached repositories without leaking inaccessible insights" do
     enable!(true)
-    allow(AgentInsights::ChatToolSet).to receive(:coworker_chat?).with(chat_session).and_return(true)
+    allow_insight_reads!
     visible_job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
     visible = AgentInsights::Suggestion.create!(
       job: visible_job, repository: repository, title: "Visible finding",
@@ -133,7 +137,11 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
     admin = Factories.user(admin: true)
     admin_repository = Factories.repository(user: admin)
     admin_chat = ChatSession.create!(user: admin, repository: admin_repository)
-    allow(AgentInsights::ChatToolSet).to receive(:coworker_chat?).with(admin_chat).and_return(true)
+    admin_coworker = Coworkers::Coworker.create!(
+      owner_user: admin, name: "Admin insight reader", handle: "admin-insight-reader",
+      workspace_repo: admin_repository.remote_url
+    )
+    allow_insight_reads!(actor: admin_coworker)
     visible_job = Job.create!(user: admin, repository: admin_repository, kind: "agent_insight", priority: "low")
     visible = AgentInsights::Suggestion.create!(
       job: visible_job, repository: admin_repository, title: "Attached admin finding",
@@ -145,7 +153,7 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
       job: hidden_job, repository: hidden_repository, title: "Global admin finding",
       category: "secret", severity: "low", confidence: 0.5
     )
-    server = server_for(admin_chat, tier: :deferred, agent_actor: coworker)
+    server = server_for(admin_chat, tier: :deferred, agent_actor: admin_coworker)
     _ = jsonrpc(server, "initialize", id: 0)
 
     listed = call_tool(server, "list_insights")

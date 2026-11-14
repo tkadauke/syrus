@@ -8,6 +8,13 @@ module Mcp
       SyrusBrowser::ChatToolSet
     ].freeze
 
+    # These providers contribute tools specifically for a coworker's own
+    # runtime rather than inheriting an ordinary planning-chat surface.
+    COWORKER_ONLY_PLUGIN_PROVIDERS = %w[
+      Coworkers::ChatToolSet
+      SyrusDev::ChatToolSet
+    ].freeze
+
     DEDICATED_CHAT_ROLES = [
       AgentRole::CHAT_CODING,
       AgentRole::CHAT_LOCAL,
@@ -34,6 +41,13 @@ module Mcp
 
       def plugin_provider?(provider)
         !EXCLUDED_PLUGIN_PROVIDERS.include?(provider.name)
+      end
+
+      def plugin_provider_available?(provider, chat_session, tier:)
+        return false unless plugin_provider?(provider)
+        return provider.available_for?(chat_session, tier:) unless COWORKER_ONLY_PLUGIN_PROVIDERS.include?(provider.name)
+
+        provider.available_for_coworker?(chat_session, tier:)
       end
 
       def plugin_definition?(definition)
