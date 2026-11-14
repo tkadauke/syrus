@@ -1014,14 +1014,19 @@ grant. A scopeable grant additionally supplies `scope_options_callback`
 `chat_mcp_tool_set` providers are collected, so disabling a plugin removes its
 declarations from the catalog.
 
-Each definition offered to coworkers must set `coworker_safe: true` and must
-either name a `capability` whose provider grant lists that tool or explicitly
-set `ungated: true`. Gated calls honor the coworker's `auto`, `confirm`, or
-`queue` policy even when the tool is read-only. `ungated` is reserved for
-tools confined to the coworker's workspace or current chat that reveal no data
-beyond the owner's visibility and incur no external cost. Approval replay
-resolves the tool by name through the enabled provider instead of coupling core
-code to plugin handler classes.
+Coworkers inherit plugin chat tools by default. A plugin may set
+`coworker_excluded: true` only when an operation depends on a dedicated chat
+mode, checkout, runtime, workflow role, or otherwise has no coherent coworker
+semantics; admin-only definitions set `admin_only: true`. These exclusions are
+registration boundaries, not authorization shortcuts. Every inherited tool
+keeps its canonical capability descriptor, availability checks, resource
+scope, and handler. Definitions without a legacy `coworker_grants` declaration
+are grouped by their descriptor capability and default to confirmation.
+Existing grants remain supported for labels, scope choices, and compatibility.
+`ungated` remains reserved for tools confined to the coworker's workspace or
+current chat that reveal no data beyond the owner's visibility and incur no
+external cost. Approval replay resolves the tool by name through the enabled
+provider instead of coupling core code to plugin handler classes.
 
 Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
 (`chat_mcp_tool_set`). A plugin registers exactly one tool-set entrypoint per

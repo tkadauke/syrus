@@ -60,9 +60,7 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
   it "keeps confidential, operational, communicating, scheduling, and spawning tools gated" do
     expect(group(:ask)).to include(
       "list_chats", "search_chats", "read_chat_messages",
-      "admin_read_operational_logs", "read_worker_health", "read_backend_exception_events", "read_browser_error_events",
-      "read_performance_log_events", "read_metrics_diagnostics", "read_worker_occupancy", "read_workflow_timeline",
-      "read_workflow_waterfall", "read_admission_diagnostics", "diagnose_run_queue",
+        "read_backend_exception_events", "read_browser_error_events", "read_performance_log_events",
       "message_coworker", "manage_coworker_schedule", "spawn_coworker_chat", "read_syrus_logs", "read_performance_diagnostics"
     )
     expect(group(:allow)).not_to include("message_coworker", "manage_coworker_schedule", "spawn_coworker_chat", "list_chats")

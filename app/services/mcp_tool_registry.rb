@@ -422,11 +422,26 @@ class McpToolRegistry
       ]
     end
 
-    # Coworker chats are deliberately deny-by-default. Every entry here names
-    # the persisted grant required to advertise it; ordinary chat/admin status
-    # never widens this surface.
     def coworker_entries
-      [
+      shared_chat_entries = chat_entries.select { |entry| Mcp::CoworkerToolExposure.core_entry?(entry) }
+      family_defaults = shared_chat_entries.group_by { |entry| entry.descriptor.capability }.transform_values do |entries|
+        entries.all? do |entry|
+          entry.descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask) == :allow &&
+            Permissions::CoworkerDefaultPolicy.descriptor_auto_allowable?(entry.descriptor)
+        end ? :allow : :ask
+      end
+      shared = shared_chat_entries.map do |entry|
+        descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
+          entry.descriptor, default_policy: family_defaults.fetch(entry.descriptor.capability)
+        )
+        coworker(entry.tool, tier: entry.tier, feature_flag: entry.feature_flag,
+          feature_flags_by_role: entry.feature_flags_by_role, available_if: entry.available_if,
+          interactive_only: entry.interactive_only, mutation: entry.mutation, ungated: entry.ungated,
+          approval_effect: entry.approval_effect,
+          capability: entry.capability || descriptor.capability.delete_suffix("@v1"), descriptor: descriptor)
+      end
+
+      coworker_specific = [
         coworker_action(Mcp::Tools::AttachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
         coworker_action(Mcp::Tools::DetachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
         coworker_action(Mcp::Tools::ListRepositoryFilesTool, capability: "code.read"),
@@ -458,18 +473,11 @@ class McpToolRegistry
         coworker_action(Mcp::Tools::ListChatsTool, tier: :deferred, capability: "chats.read_shared"),
         coworker_action(Mcp::Tools::SearchChatsTool, tier: :deferred, capability: "chats.read_shared"),
         coworker_action(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared"),
-        coworker_action(Mcp::Tools::AdminReadOperationalLogsTool, capability: "ops.read_logs"),
-        coworker_action(Mcp::Tools::ReadWorkerHealthTool, capability: "ops.read_logs"),
         coworker_action(Mcp::Tools::ReadBackendExceptionEventsTool, capability: "ops.read_logs"),
         coworker_action(Mcp::Tools::ReadBrowserErrorEventsTool, capability: "ops.read_logs"),
-        coworker_action(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs"),
-        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, capability: "ops.read_logs"),
-        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, capability: "ops.read_logs"),
-        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, capability: "ops.read_logs"),
-        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, capability: "ops.read_logs"),
-        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, capability: "ops.read_logs"),
-        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, capability: "ops.read_logs")
+        coworker_action(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs")
       ]
+      (coworker_specific + shared).uniq(&:tool_name)
     end
 
     def workflow_entries

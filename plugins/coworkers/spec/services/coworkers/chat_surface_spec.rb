@@ -87,15 +87,8 @@ RSpec.describe "Coworker chat surface" do
     entries = McpToolRegistry.entries(surface: :coworker)
     expect(entries).to all(have_attributes(capability: be_present))
 
-    entries.reject { |entry| entry.interactive_only || entry.ungated }.each do |entry|
-      coworker.grants.delete_all
-      expect(names(tier: entry.tier)).to include(entry.tool_name)
-
-      attributes = { capability: entry.capability.to_s, approval_policy: "auto" }
-      attributes[:scope] = [ repository.id ] if entry.capability.to_s == "code.read"
-      coworker.grants.create!(attributes)
-      expect(names(tier: entry.tier)).to include(entry.tool_name)
-    end
+    expect(names).to include("list_jobs", "read_job", "approve_job", "cancel_job")
+    expect(names(tier: :deferred)).to include("read_workflow", "read_run_transcript", "send_chat_message")
 
     coworker.grants.delete_all
     expect(names(tier: :deferred)).to include("discover_coworker_capabilities")
@@ -107,7 +100,8 @@ RSpec.describe "Coworker chat surface" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
 
     expect(names).to include("propose_job", "propose_epic_with_jobs")
-    expect(names).not_to include("list_proposals", "confirm_proposal", "delete_proposal")
+    expect(names).to include("list_proposals", "delete_proposal")
+    expect(names).not_to include("confirm_proposal")
   end
 
   it "creates ordinary pending Job proposal cards with coworker provenance" do
@@ -171,6 +165,19 @@ RSpec.describe "Coworker chat surface" do
       workflow_id: workflow.id,
       feedback_source: action.payload.fetch("feedback_source")
     )
+  end
+
+  it "preserves a lifecycle tool's mandatory pending action after permission allows the call" do
+    allow_tool(Mcp::Tools::CancelJobTool)
+    job = Factories.job(repository: repository)
+
+    response = coworker_tool("cancel_job").call(job_id: job.id, server_context: { chat_session: chat })
+
+    expect(response).not_to be_error
+    action = chat.pending_actions.find(response_payload(response).fetch("pending_action_id"))
+    expect(action).to have_attributes(action: "cancel_job", state: "pending", requested_by: "agent")
+    expect(action.payload).to eq("job_id" => job.id)
+    expect(job.reload).to be_open
   end
 
   it "creates an ordinary pending Epic card and child cards with coworker provenance" do
@@ -409,7 +416,7 @@ RSpec.describe "Coworker chat surface" do
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: other_coworker_chat.id)).not_to be_error
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).not_to be_error
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: inaccessible_chat.id)).to be_error
-    expect(names(tier: :deferred)).not_to include("send_chat_message")
+    expect(names(tier: :deferred)).to include("send_chat_message")
 
     owner_accessible_chat.chat_shares.destroy_all
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).to be_error

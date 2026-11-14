@@ -3,6 +3,19 @@ module Permissions
     REDACTED_KEYS = /(?:token|secret|password|credential|authorization|api[_-]?key)/i
 
     class << self
+      def for_coworker_parity(descriptor, default_policy: nil)
+        descriptor = coerce(descriptor)
+        roles = descriptor.requestable_roles | [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]
+        ordinary_default = default_policy || descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask)
+        ordinary_default = :ask if ordinary_default == :allow &&
+          !CoworkerDefaultPolicy.descriptor_auto_allowable?(descriptor)
+        defaults = descriptor.defaults.merge(
+          AgentRole::COWORKER_CHAT => ordinary_default,
+          AgentRole::COWORKER => ordinary_default
+        )
+        CapabilityDescriptor.new(**descriptor.to_h.merge(requestable_roles: roles, defaults: defaults))
+      end
+
       def for_registry_entry(tool_name:, capability:, mutation:, required_roles: [], admin_only: false, descriptor: nil,
         default_policy: nil)
         return coerce(descriptor) if descriptor

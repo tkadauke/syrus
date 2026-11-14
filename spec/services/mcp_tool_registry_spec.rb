@@ -140,6 +140,24 @@ RSpec.describe McpToolRegistry do
         "submit_visual_review", "submit_adversarial_review", "submit_security_review", "submit_coworker_review"
       )
     end
+
+    it "derives the coworker surface from ordinary chat registration with centralized exclusions" do
+      chat_entries = described_class.entries(surface: :chat)
+      coworker_names = described_class.entries(surface: :coworker).map(&:tool_name)
+      expected_shared = chat_entries.select { |entry| Mcp::CoworkerToolExposure.core_entry?(entry) }.map(&:tool_name)
+
+      expect(coworker_names).to include(*expected_shared)
+      expect(coworker_names).not_to include(
+        *chat_entries.reject { |entry| Mcp::CoworkerToolExposure.core_entry?(entry) }.map(&:tool_name)
+      )
+      expect(coworker_names).to include(
+        "approve_job", "cancel_job", "read_workflow", "read_run_transcript", "list_pending_actions"
+      )
+      expect(coworker_names).not_to include(
+        "admin_overview", "force_fail_job", "run_command", "runtime_start", "submit_coding_changes",
+        *Mcp::CoworkerToolExposure::WORKFLOW_ROLE_TOOL_NAMES
+      )
+    end
   end
 
   describe ".tools_for_context" do

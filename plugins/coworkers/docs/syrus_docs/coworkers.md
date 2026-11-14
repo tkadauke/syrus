@@ -292,11 +292,13 @@ The `syrus.propose_job` grant exposes both `propose_job` and
 `propose_epic_with_jobs`. They create the same pending proposal cards as an
 ordinary Syrus Chat, retain the originating coworker as audit provenance, and
 show that coworker's name and handle on the proposal card. They still require
-an operator to confirm before any Job or Epic exists. Proposal
+an operator to confirm before any Job or Epic exists. Registration is shared
+with ordinary chat tools, so a missing permission does not hide these tools;
+canonical policy decides whether an invocation runs, asks, or is denied. Proposal
 placement and repository-write checks are unchanged: every child declares
 explicit planned execution capabilities, and a coworker cannot target a
-repository its owner cannot write. A missing grant keeps the tools absent;
-an invalid target is returned as an authorization or validation error.
+repository its owner cannot write. An invalid target is returned as an
+authorization or validation error.
 
 Coworkers can also use the ordinary `submit_chat_feedback` tool on Jobs visible
 to their owner. It uses the same `syrus.jobs` permission policy, Job-state
@@ -335,12 +337,20 @@ context until the gate is healthy again. Credentials stay inside broker
 services; grant state, tool metadata, workspaces, mounts, and logs contain only
 credential identifiers and redacted lease provenance, never secret material.
 
+Coworkers inherit every ordinary core and enabled-plugin chat tool unless its
+registration is admin-only, tied to Coding or Local Mode, tied to a workflow
+submission role, or centrally excluded because it has no coherent coworker
+semantics. Shared registration preserves the handler, input/output contract,
+permission descriptor, resource checks, pending-action behavior, and audit
+model. It grants no authority by itself.
+
 Operator chat exposes the same aggregated catalog through
 `list_coworker_grants`. `propose_coworker_grants` accepts one or more desired
 capability, policy, and optional scope changes; `off` removes a grant and lower
 policies reduce it. The proposal remains inert until its pending-action card is
-confirmed. Ordinary coworker prompts and tool lists contain only callable
-tools. Deferred discovery adds `discover_coworker_capabilities`, a read-only,
+confirmed. Ordinary coworker prompts and tool lists advertise contextually
+meaningful tools even when policy will require a request. Deferred discovery
+adds `discover_coworker_capabilities`, a read-only,
 ungated lookup for eligible but locked capability families. Each result names
 the required resource scope, effective policy, and lock reason without granting
 authority. Explicit discovery keeps `available`, `requestable`, `prohibited`,
