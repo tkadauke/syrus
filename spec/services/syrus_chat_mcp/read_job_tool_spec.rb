@@ -254,23 +254,9 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     expect(payload[:workflows_index].first).to include(summary: "Addressed feedback.", started_at: nil)
   end
 
-
   it "keeps a 200-run workflow index bounded and avoids whole-row association sorts" do
-    job = Factories.job(repository: repository)
+    job = build_large_inspection_job(user: user, repository: repository)
     workflow = job.latest_workflow
-    now = Time.current
-    step_rows = 205.times.map do |index|
-      { workflow_id: workflow.id, kind: "implement", position: index + 1, iteration: 1,
-        state: "succeeded", details: {}, depends_on_ids: [], placement_policy: "pinned_workflow_workspace",
-        created_at: now, updated_at: now }
-    end
-    Step.insert_all!(step_rows)
-    step_ids = Step.where(workflow_id: workflow.id).where.not(id: workflow.first_step.id).pluck(:id)
-    Run.insert_all!(step_ids.map.with_index do |step_id, index|
-      { job_id: job.id, user_id: user.id, step_id: step_id, trigger_kind: workflow.trigger_kind,
-        state: "succeeded", agent_provider: "claude", iteration: 1, effective_at: now,
-        prompt: "wide prompt #{index}" * 1_000, created_at: now + index.seconds, updated_at: now }
-    end)
     expected_step_count = workflow.steps.count
     expected_run_count = Run.joins(:step).where(steps: { workflow_id: workflow.id }).count
 
@@ -281,5 +267,25 @@ RSpec.describe Mcp::Tools::ReadJobTool do
 
     expect(payload[:workflows_index].first).to include(step_count: expected_step_count, run_count: expected_run_count)
     expect(queries.size).to be < 40
+  end
+
+  it "returns the underlying database error when Job inspection SQL fails" do
+    job = Factories.job(repository: repository)
+    allow(described_class).to receive(:workflow_index_for).and_raise(
+      ActiveRecord::StatementInvalid, "Out of sort memory, consider increasing server sort buffer size"
+    )
+
+    response = call_tool(job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response_payload(response)).to eq(
+      error: {
+        code: "database_error", message: "Job inspection could not query the database.", retryable: true,
+        diagnostics: {
+          exception: "ActiveRecord::StatementInvalid",
+          database_message: "Out of sort memory, consider increasing server sort buffer size"
+        }
+      }
+    )
   end
 end

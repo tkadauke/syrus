@@ -36,6 +36,8 @@ module Mcp::Tools
         )
 
         Mcp::Tools.success(Admin::StuckJobExplainer.call(job))
+      rescue ActiveRecord::StatementInvalid => error
+        Mcp::Tools.database_error(error, operation: "Stuck Job explanation")
       end
     end
   end

@@ -100,6 +100,21 @@ module Mcp
         tool_error("Tool failed with #{exception.class}. This is an unexpected Syrus tool error; report it to the operator and retry only after the underlying bug is fixed.")
       end
 
+      def database_error(exception, operation:)
+        message = (exception.cause&.message.presence || exception.message).to_s.truncate(500)
+        MCP::Tool::Response.new(
+          [ { type: "text", text: JSON.generate({
+            error: {
+              code: "database_error",
+              message: "#{operation} could not query the database.",
+              retryable: true,
+              diagnostics: { exception: exception.class.name, database_message: message }
+            }
+          }) } ],
+          error: true
+        )
+      end
+
       def with_execution_authority(response, authority)
         response.define_singleton_method(:execution_authority) { authority }
         response

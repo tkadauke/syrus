@@ -238,6 +238,16 @@ searches across all repositories visible to the current chat user by Job title
 and stored body text, accepts an optional exact `state` filter, defaults to 20
 results, and caps `limit` at 100 to match sibling list tools.
 
+Job inspection stays progressive for Jobs with long histories. `read_job`,
+`list_job_workflows`, and `explain_stuck_job` return bounded Workflow and Run
+summaries; use `read_run_transcript` for paginated transcript chunks. Transcript
+metadata reports both cumulative `agent_diff_bytes` and per-Step
+`step_agent_diff_bytes`, plus the Run's base and head SHAs. `get_job_diff`
+selects the newest Run with a stored diff and prefers its per-Step diff. Pass
+`run_id` to inspect a particular iteration and set `artifact` to
+`step_agent_diff` or `agent_diff` when the caller needs that exact artifact;
+diff text remains paginated and redacted.
+
 Mention gating: `ChatSession#should_trigger_agent?` is computed live
 from `chat_participants.count`, not a stored setting — chats with 0-1 human
 participants trigger the agent on every message; chats with 2+ require a
