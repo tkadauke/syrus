@@ -42,6 +42,20 @@ RSpec.describe "plugin chat tool policy" do
     expect(names_for(:evaluator)).to eq(%w[plugin_read])
   end
 
+  it "offers coworkers shared plugin tools by default with explicit exclusions" do
+    definitions = [
+      { name: "shared" },
+      { name: "legacy_safe", coworker_safe: true },
+      { name: "admin", admin_only: true },
+      { name: "mode_bound", coworker_excluded: true }
+    ]
+
+    expect(Mcp::Sidecar.filter_by_policy(definitions, :coworker).map { |definition| definition[:name] })
+      .to eq(%w[shared legacy_safe])
+    expect(Mcp::CoworkerToolExposure.plugin_provider?(AdminMysql::ChatToolSet)).to be(false)
+    expect(Mcp::CoworkerToolExposure.plugin_provider?(SyrusBrowser::ChatToolSet)).to be(false)
+  end
+
   # A tool set written before the flags existed must behave exactly as it did.
   it "treats an unflagged tool set as it did before the flags existed" do
     plain = [ { name: "a" }, { name: "b" } ]
