@@ -669,7 +669,17 @@ function jobQueryKeysFor(event: AppEvent): QueryKey[] {
   const id = String(event.id)
   const previewKey: QueryKey = ["jobs", id]
   const detailKey: QueryKey = workflowOnlyJobEvent(event) ? ["jobs", id, "workflows"] : ["jobs", id, "detail"]
-  return [["dashboard"], ["jobs"], previewKey, detailKey, ["job_run_artifacts", id]]
+  return [["dashboard"], ["jobs"], previewKey, detailKey, ...jobSectionQueryKeys(event, id), ["job_run_artifacts", id]]
+}
+
+function jobSectionQueryKeys(event: AppEvent, id: string): QueryKey[] {
+  const changed = event.changed || []
+  const keys: QueryKey[] = []
+  if (changed.some((field) => /feedback|comment/.test(field))) keys.push(["jobs", id, "pending_feedback"], ["jobs", id, "tab", "summary"])
+  if (changed.some((field) => /artifact|coverage|visual_evidence|review/.test(field))) keys.push(["jobs", id, "tab", "review"])
+  if (changed.some((field) => /attachment/.test(field))) keys.push(["jobs", id, "tab", "attachments"])
+  if (changed.some((field) => /authorization|classification|summary|test_plan|report|work_unit/.test(field))) keys.push(["jobs", id, "tab", "summary"])
+  return keys
 }
 
 function workflowOnlyJobEvent(event: AppEvent) {

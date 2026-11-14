@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { JobDetailPayload, JobWorkflowsPayload } from "../../api/jobs"
-import { mergeJobWorkflowsPayload, tabFromLocation } from "./queryKeys"
+import { jobTabQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./queryKeys"
+
+it("keys lazy tab payloads independently", () => {
+  expect(jobTabQueryKey(42, "review")).toEqual(["jobs", "42", "tab", "review"])
+})
 
 describe("tabFromLocation", () => {
   it("recognizes core tabs from the ?tab= query param", () => {

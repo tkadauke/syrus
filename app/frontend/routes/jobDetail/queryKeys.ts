@@ -17,6 +17,7 @@ export type JobTab = CoreJobTab | (string & {})
 export type JobDetailQueryKey = readonly ["jobs", string, "detail", string]
 export type JobWorkflowsQueryKey = readonly ["jobs", string, "workflows", string]
 export type JobWorkflowDetailQueryKey = readonly ["jobs", string, "workflow_detail", string]
+export type JobTabQueryKey = readonly ["jobs", string, "tab", string]
 
 export function jobDetailQueryKey(id: string | number, search: string): JobDetailQueryKey {
   return ["jobs", String(id), "detail", search] as const
@@ -28,6 +29,10 @@ export function jobWorkflowsQueryKey(id: string | number, search: string): JobWo
 
 export function jobWorkflowDetailQueryKey(jobId: string | number, workflowId: string | number): JobWorkflowDetailQueryKey {
   return ["jobs", String(jobId), "workflow_detail", String(workflowId)] as const
+}
+
+export function jobTabQueryKey(jobId: string | number, tab: string): JobTabQueryKey {
+  return ["jobs", String(jobId), "tab", tab] as const
 }
 
 export function mergeJobWorkflowsPayload(
@@ -46,6 +51,7 @@ export function mergeJobWorkflowsPayload(
     ...payload,
     workflows: workflows.workflows,
     workflows_pagination: workflows.workflows_pagination,
+    ui_workflow_actions: workflows.ui_workflow_actions,
     actions,
     paths: payload.paths
   }
