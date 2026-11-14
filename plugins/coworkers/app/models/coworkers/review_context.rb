@@ -16,10 +16,16 @@ class Coworkers::ReviewContext < ApplicationRecord
 
   scope :retention_candidates, -> { where.not(persistence_state: "tombstoned") }
 
-  before_destroy { Coworkers::ReviewWorkspace.remove!(self) }
+  before_destroy :remove_live_workspace
 
   def tombstone!
     update!(exact_context: "[tombstoned]", workspace_path: "[tombstoned]",
             persistence_state: "tombstoned", tombstoned_at: Time.current)
+  end
+
+  private
+
+  def remove_live_workspace
+    Coworkers::ReviewWorkspace.remove!(self) unless persistence_state == "tombstoned"
   end
 end
