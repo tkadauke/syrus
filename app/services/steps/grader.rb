@@ -172,7 +172,12 @@ module Steps
         after: capture_git_metadata_digest
       )
 
-      duration_s = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+      # ProcessRunner owns the command lifetime, including the time spent
+      # terminating its process group. Use its measurement as the durable
+      # grader duration instead of measuring again after log flushing and
+      # diagnostic work. The latter made a configured timeout appear to have
+      # run substantially longer than the Step/Run timestamps showed.
+      duration_s = runner_result&.duration_s || (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
       passed = runner_result&.success?
 
       coverage_output_results = if passed
@@ -212,6 +217,9 @@ module Steps
         details: definition.merge(
           "exit_code" => exit_code,
           "timed_out" => timed_out,
+          "silent_timed_out" => runner_result&.silent_timed_out?,
+          "stopped" => runner_result&.stopped?,
+          "operator_killed" => runner_result&.operator_killed?,
           "log_bytes" => log_capture.fetch(:bytes),
           "output" => output_excerpt,
           "cancelled" => (runner_result&.stopped? || runner_result&.operator_killed?) ? true : nil
@@ -233,7 +241,12 @@ module Steps
         "outcome" => outcome.outcome,
         "outcome_reason" => outcome.reason,
         "duration_s" => duration_s.round(1),
+        "configured_timeout_s" => timeout_minutes.minutes.to_i,
         "timed_out" => timed_out,
+        "silent_timed_out" => runner_result&.silent_timed_out? || false,
+        "stopped" => runner_result&.stopped? || false,
+        "operator_killed" => runner_result&.operator_killed? || false,
+        "process_outcome" => grader_process_outcome(runner_result),
         "log_path" => log_path.to_s,
         "log_bytes" => log_capture.fetch(:bytes),
         "output" => output_excerpt,
@@ -293,6 +306,17 @@ module Steps
     end
 
     private
+
+    def grader_process_outcome(result)
+      return "worker_lost" if result&.aliveness_failed?
+      return "operator_killed" if result&.operator_killed?
+      return "cancelled" if result&.stopped?
+      return "silent_timed_out" if result&.silent_timed_out?
+      return "timed_out" if result&.timed_out?
+      return "succeeded" if result&.success?
+
+      "failed"
+    end
 
     def materialize_grader_inputs!(name:, definition:)
       GraderInputMaterialization.call(

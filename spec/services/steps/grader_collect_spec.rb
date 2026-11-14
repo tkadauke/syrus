@@ -1201,6 +1201,54 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "treats a timeout without assertion evidence as infrastructure and records operator evidence" do
+    grader = workflow.steps.find_by!(kind: "grader")
+    grader.update!(
+      state: "failed",
+      details: {
+        "name" => "rspec",
+        "required" => true,
+        "timeout_minutes" => 60,
+        "configured_timeout_s" => 3600,
+        "duration_s" => 3608.4,
+        "timed_out" => true,
+        "process_outcome" => "timed_out",
+        "output" => "720 examples, 0 failures"
+      }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed due to infrastructure: rspec")
+
+    expect(step.reload.details).to include(
+      Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true
+    )
+    expect(workflow.reload.artifact("grader_infrastructure_failures")).to contain_exactly(
+      include(
+        "grader_name" => "rspec",
+        "configured_timeout_s" => 3600,
+        "observed_duration_s" => 3608.4,
+        "process_outcome" => "timed_out",
+        "assertion_failures_present" => false
+      )
+    )
+  end
+
+  it "preserves a real assertion failure when another required grader times out" do
+    timed_out = workflow.steps.find_by!(kind: "grader")
+    timed_out.update!(
+      state: "failed",
+      details: { "name" => "integration", "required" => true, "timed_out" => true, "duration_s" => 60.0 }
+    )
+    assertion = Step.create!(
+      workflow: workflow, kind: "grader", position: 100, iteration: 1, loop_id: loop_id,
+      state: "failed", details: { "name" => "rspec", "required" => true, "exit_code" => 1, "output" => "1 failure" }
+    )
+    assertion.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+    expect(step.reload.details[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY]).to be_nil
+  end
+
   it "records grader loop timing and rollout metrics" do
     base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
     workflow.steps.where(kind: "grader").delete_all
