@@ -92,7 +92,20 @@ RSpec.describe Timeline::MacroQuery do
     expect(idle_lane).to be_present
     expect(idle_lane[:pid]).to be_nil
     expect(idle_lane[:spans]).to eq([])
-    expect(idle_lane[:instance]).to include(hostname: "worker-idle")
+    expect(idle_lane).not_to have_key(:instance)
+  end
+
+  it "caps returned spans and marks the payload truncated" do
+    stub_const("Timeline::MacroQuery::MAX_SPANS", 2)
+    3.times do |index|
+      Workflow.create!(job: job, trigger_kind: "initial", state: "running",
+                       started_at: (10 - index).minutes.ago, worker_hostname: "worker-a")
+    end
+
+    result = described_class.call(from: 1.hour.ago, to: Time.current)
+
+    expect(result[:lanes].sum { |lane| lane[:spans].size }).to eq(2)
+    expect(result[:truncated]).to be(true)
   end
 
   it "filters by repository_id, epic_id, job_id, hostname, status, and job_type" do

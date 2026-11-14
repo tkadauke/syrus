@@ -16,7 +16,7 @@ function mockUseConfirm(confirmed: boolean) {
 
 describe("AdminMysql", () => {
   it("keeps the statement digests and slow log panels shrinkable so their tables scroll instead of overflowing the page", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mysqlPayload()))
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(mysqlPayload())))
 
     renderRoute(<AdminMysql />)
 
@@ -36,18 +36,33 @@ describe("AdminMysql", () => {
   })
 
   it("hides idle (Sleep) threads by default and reveals them when the toggle is unchecked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mysqlPayload({
-      process_list: [
-        { id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Sleep", time_seconds: 12, state: null, info: null },
-        { id: 2, user: "app", host: "10.0.0.2:5000", database: "syrus_production", command: "Query", time_seconds: 3, state: "executing", info: "SELECT 1" }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          mysqlPayload({
+            process_list: [
+              { id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Sleep", time_seconds: 12, state: null, info: null },
+              {
+                id: 2,
+                user: "app",
+                host: "10.0.0.2:5000",
+                database: "syrus_production",
+                command: "Query",
+                time_seconds: 3,
+                state: "executing",
+                info: "SELECT 1"
+              }
+            ]
+          })
+        )
+      )
+    )
 
     renderRoute(<AdminMysql />)
 
     await waitFor(() => expect(screen.queryByText("Loading MySQL state...")).not.toBeInTheDocument())
 
-    const toggle = await screen.findByLabelText(/Hide idle threads/)
+    const toggle = await screen.findByLabelText("Hide idle threads (8)")
     expect(toggle).toBeChecked()
 
     expect(screen.queryByText("Sleep")).not.toBeInTheDocument()
@@ -56,17 +71,41 @@ describe("AdminMysql", () => {
     fireEvent.click(toggle)
 
     expect(toggle).not.toBeChecked()
-    expect(screen.getByText("Sleep")).toBeInTheDocument()
+    expect(await screen.findByText("Sleep")).toBeInTheDocument()
     expect(screen.getByText("Query")).toBeInTheDocument()
   })
 
   it("renders the process list with shared sortable and configurable table controls", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mysqlPayload({
-      process_list: [
-        { id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Query", time_seconds: 12, state: "executing", info: "SELECT slow" },
-        { id: 2, user: "app", host: "10.0.0.2:5000", database: "syrus_production", command: "Query", time_seconds: 3, state: "executing", info: "SELECT fast" }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          mysqlPayload({
+            process_list: [
+              {
+                id: 1,
+                user: "app",
+                host: "10.0.0.1:5000",
+                database: "syrus_production",
+                command: "Query",
+                time_seconds: 12,
+                state: "executing",
+                info: "SELECT slow"
+              },
+              {
+                id: 2,
+                user: "app",
+                host: "10.0.0.2:5000",
+                database: "syrus_production",
+                command: "Query",
+                time_seconds: 3,
+                state: "executing",
+                info: "SELECT fast"
+              }
+            ]
+          })
+        )
+      )
+    )
 
     renderRoute(<AdminMysql />)
 
@@ -94,11 +133,24 @@ describe("AdminMysql", () => {
       if (path === "/api/v1/app/admin/mysql/kill_query" && init?.method === "POST") {
         return Promise.resolve(jsonResponse({ killed: true, thread_id: 2 }))
       }
-      return Promise.resolve(jsonResponse(mysqlPayload({
-        process_list: [
-          { id: 2, user: "app", host: "10.0.0.2:5000", database: "syrus_production", command: "Query", time_seconds: 3, state: "executing", info: "SELECT 1" }
-        ]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          mysqlPayload({
+            process_list: [
+              {
+                id: 2,
+                user: "app",
+                host: "10.0.0.2:5000",
+                database: "syrus_production",
+                command: "Query",
+                time_seconds: 3,
+                state: "executing",
+                info: "SELECT 1"
+              }
+            ]
+          })
+        )
+      )
     })
 
     renderRoute(<AdminMysql />)
@@ -107,10 +159,13 @@ describe("AdminMysql", () => {
 
     await waitFor(() => expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true })))
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/mysql/kill_query", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ thread_id: 2 })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/mysql/kill_query",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ thread_id: 2 })
+        })
+      )
     })
   })
 })
@@ -118,9 +173,7 @@ describe("AdminMysql", () => {
 function renderRoute(children: ReactNode) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/app-shell/admin/mysql"]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/app-shell/admin/mysql"]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -171,20 +224,38 @@ function baseMysqlPayload(): MysqlSnapshot {
       Innodb_os_log_fsyncs: 300,
       Innodb_log_waits: 0
     },
-    process_list: [
-      { id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Sleep", time_seconds: 12, state: null, info: null }
-    ],
+    process_list: [{ id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Sleep", time_seconds: 12, state: null, info: null }],
     statement_digests: {
       available: true,
       rows: [
-        { schema_name: "syrus_production", digest_text: "SELECT `jobs` . * FROM `jobs` WHERE `jobs` . `state` = ?", count: 54392498, total_seconds: 24831.6, avg_seconds: 0.001, max_seconds: 215.0, rows_sent: 1, rows_examined: 1, first_seen: null, last_seen: null }
+        {
+          schema_name: "syrus_production",
+          digest_text: "SELECT `jobs` . * FROM `jobs` WHERE `jobs` . `state` = ?",
+          count: 54392498,
+          total_seconds: 24831.6,
+          avg_seconds: 0.001,
+          max_seconds: 215.0,
+          rows_sent: 1,
+          rows_examined: 1,
+          first_seen: null,
+          last_seen: null
+        }
       ]
     },
     slow_log: {
       available: true,
       config: { slow_query_log: "ON", log_output: "TABLE", long_query_time: "1.000000" },
       rows: [
-        { start_time: "2026-08-27T11:59:00Z", user_host: "app[app] @ 10.0.0.1", query_time: "1.200000", lock_time: "0.000000", rows_sent: 1, rows_examined: 1000, database: "syrus_production", sql_text: "SELECT * FROM jobs" }
+        {
+          start_time: "2026-08-27T11:59:00Z",
+          user_host: "app[app] @ 10.0.0.1",
+          query_time: "1.200000",
+          lock_time: "0.000000",
+          rows_sent: 1,
+          rows_examined: 1000,
+          database: "syrus_production",
+          sql_text: "SELECT * FROM jobs"
+        }
       ]
     }
   }

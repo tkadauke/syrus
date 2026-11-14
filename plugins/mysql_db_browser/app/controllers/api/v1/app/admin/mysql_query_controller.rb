@@ -26,7 +26,7 @@ module Api
           # and pagination - then runs it through the same guardrailed
           # executor as raw queries.
           def content
-            table_payload = schema_inspector.table(params[:database], params[:table])
+            table_payload = schema_inspector.table(params[:database], params[:table], sections: %w[info columns])
             columns = table_payload.dig(:columns, :available) ? table_payload[:columns][:rows] : []
             filter_schema = ::MysqlDbBrowser::FilterSchemaBuilder.build(columns)
             filter_tree = ::Filters::QueryParam.decode(params[:q])
@@ -111,7 +111,7 @@ module Api
             raise ::MysqlDbBrowser::QueryBuilderCompiler::InvalidSpec, "table is required" if table_name.blank?
             raise ::MysqlDbBrowser::QueryBuilderCompiler::InvalidSpec, "table must be a string" unless table_name.is_a?(String)
 
-            payload = schema_inspector.table(database, table_name)
+            payload = schema_inspector.table(database, table_name, sections: %w[info columns])
             payload.dig(:columns, :available) ? payload[:columns][:rows] : []
           end
 

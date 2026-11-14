@@ -30,6 +30,7 @@ module MysqlDbBrowser
              chat_mcp_tool_set: "MysqlDbBrowser::ChatToolSet",
              permission_provider: "MysqlDbBrowser::PermissionProvider"
     route :get, "/api/v1/app/admin/mysql_connections", to: "api/v1/app/admin/mysql_connections#index"
+    route :get, "/api/v1/app/admin/mysql_connections/credential_scope_options", to: "api/v1/app/admin/mysql_connections#credential_scope_options"
     route :post, "/api/v1/app/admin/mysql_connections", to: "api/v1/app/admin/mysql_connections#create"
     route :patch, "/api/v1/app/admin/mysql_connections/:id", to: "api/v1/app/admin/mysql_connections#update"
     route :delete, "/api/v1/app/admin/mysql_connections/:id", to: "api/v1/app/admin/mysql_connections#destroy"

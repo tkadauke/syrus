@@ -138,11 +138,11 @@ export type RepositoryThroughputMetricsPayload = {
   version: number
   repository_id: number
   generated_at: string
-  windows: Record<RepositoryThroughputWindowKey, RepositoryThroughputWindow>
+  windows: Partial<Record<RepositoryThroughputWindowKey, RepositoryThroughputWindow>>
   repository: { id: number; slug: string; github_url: string }
   tabs: RepositoryTab[]
 }
 
-export function fetchRepositoryThroughputMetrics(id: number | string) {
-  return getJson<RepositoryThroughputMetricsPayload>(`/api/v1/app/repositories/${id}/throughput_metrics`)
+export function fetchRepositoryThroughputMetrics(id: number | string, window: RepositoryThroughputWindowKey) {
+  return getJson<RepositoryThroughputMetricsPayload>(`/api/v1/app/repositories/${id}/throughput_metrics?window=${window}`)
 }

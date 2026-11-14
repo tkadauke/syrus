@@ -249,10 +249,9 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.dig("worker_health", "hosts")).to eq([])
-    sample = body.dig("worker_health", "current", 0, "sample")
-    expect(sample).to include("cpu_used_percent" => 42.0)
-    expect(sample).not_to have_key("raw_metrics")
+    expect(body.dig("worker_health", "levels")).to eq("ok" => 1)
+    expect(body.fetch("worker_health")).not_to include("hosts", "current")
+    expect(body).not_to have_key("worker_data_root_usages")
   end
 
   it "returns resource admission diagnostics only when requested for the subpage" do
@@ -269,6 +268,7 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "recent_top_consumers" => []
     )
     expect(parse_body).not_to have_key("chat_scoped_events")
+    expect(parse_body.keys).to eq([ "v", "resource_admission" ])
   end
 
   it "returns scoped chat event diagnostics only when requested for the subpage" do
@@ -298,5 +298,16 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       finished_at: finished_at,
       scheduled_at: scheduled_at
     )
+  end
+
+  it "includes per-worker data-root usage only when requested" do
+    admin = Factories.user
+    sign_in_as(admin)
+
+    get api_v1_app_admin_overview_path
+    expect(parse_body).not_to have_key("worker_data_root_usages")
+
+    get api_v1_app_admin_overview_path, params: { include: "worker_data_root_usages" }
+    expect(parse_body).to have_key("worker_data_root_usages")
   end
 end

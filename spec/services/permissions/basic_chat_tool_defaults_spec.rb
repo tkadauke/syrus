@@ -24,6 +24,10 @@ RSpec.describe "defaults for basic chat tools" do
     end
   end
 
+  it "allows listing pending actions without asking because it is read-only and chat-local" do
+    expect(chat_defaults("list_pending_actions")).to eq([ :allow ])
+  end
+
   # Circular gates. An agent needed the operator's approval in order to ask
   # the operator a question, or to request a permission -- a gate nobody can
   # pass, since passing it is the thing being gated. Both are allowed on the

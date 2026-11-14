@@ -1050,6 +1050,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
     return value ? `?${value}` : ""
   }, [location.search])
   const queryKey = ["repositories", repositoryId, "sdlc_pipeline", requestSearch]
+  const staticPayloads = useRef(new Map<string, PipelinePayload>())
   const withHistory = (value: string, enabled: boolean) => {
     const params = new URLSearchParams(value)
     params.set("history", enabled ? "1" : "0")
@@ -1057,7 +1058,14 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
   }
   const pipeline = useQuery({
     queryKey,
-    queryFn: () => fetchPipeline(repositoryId, withHistory(requestSearch, false)),
+    queryFn: async () => {
+      const cached = staticPayloads.current.get(requestSearch)
+      const search = withHistory(requestSearch, false)
+      const payload = await fetchPipeline(repositoryId, cached ? `${search}&section=poll` : search)
+      const merged = cached ? { ...cached, ...payload } : payload
+      staticPayloads.current.set(requestSearch, merged)
+      return merged
+    },
     enabled: repositoryId.length > 0,
     placeholderData: (previous) => previous,
     staleTime: 0,
@@ -1065,7 +1073,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
   })
   const history = useQuery({
     queryKey: [...queryKey, "history"],
-    queryFn: () => fetchPipeline(repositoryId, withHistory(requestSearch, true)),
+    queryFn: () => fetchPipeline(repositoryId, `${withHistory(requestSearch, true)}&section=history-only`),
     enabled: repositoryId.length > 0,
     placeholderData: (previous) => previous,
     staleTime: POLL_INTERVAL_MS,

@@ -51,6 +51,33 @@ RSpec.describe AdminMysql::Inspector do
     expect(inspector).not_to have_received(:select_all).with(include("information_schema.PROCESSLIST"))
   end
 
+  it "reports sleeping connections when idle process rows are omitted" do
+    inspector = described_class.new
+    allow(described_class).to receive(:mysql?).and_return(true)
+    allow(inspector).to receive(:process_list).with(limit: 50, include_idle: false).and_return([])
+    allow(inspector).to receive(:status_hash).and_return({
+      "Threads_connected" => 10,
+      "Threads_running" => 2,
+      "Max_used_connections" => 20,
+      "Aborted_connects" => 0,
+      "Connection_errors_max_connections" => 0
+    })
+    allow(inspector).to receive(:variable_hash).and_return({
+      "max_connections" => 200,
+      "wait_timeout" => 28_800,
+      "interactive_timeout" => 28_800
+    })
+
+    payload = inspector.snapshot(sections: [ "live" ])
+
+    expect(payload.fetch(:process_list)).to be_empty
+    expect(payload.fetch(:connection_summary)).to include(
+      threads_connected: 10,
+      threads_running: 2,
+      sleeping_connections: 8
+    )
+  end
+
   it "redacts literals from process-list and slow-log SQL" do
     inspector = described_class.new
     sql = "SELECT * FROM users WHERE email = 'person@example.com' AND attempts = 12 AND token = 0xdeadbeef"

@@ -13,13 +13,13 @@ module Api
           end
 
           def tables
-            render json: inspector.tables(params[:database])
+            render json: inspector.tables(params[:database], compact: true)
           rescue ::MysqlDbBrowser::SchemaInspector::Unavailable => e
             render_error("connection_unavailable", e.message, status: :bad_gateway)
           end
 
           def show
-            render json: inspector.table(params[:database], params[:table])
+            render json: inspector.table(params[:database], params[:table], sections: params[:sections].to_s.split(","))
           rescue ::MysqlDbBrowser::SchemaInspector::Unavailable => e
             render_error("connection_unavailable", e.message, status: :bad_gateway)
           rescue ::MysqlDbBrowser::SchemaInspector::NotFound => e

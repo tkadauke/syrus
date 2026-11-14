@@ -69,7 +69,7 @@ type Docker interface {
 	StartContainer(ctx context.Context, id string) error
 	StopContainer(ctx context.Context, id string, timeout time.Duration) error
 	RestartContainer(ctx context.Context, id string, timeout time.Duration) error
-	ContainerLogs(ctx context.Context, id string, tail int, maxBytes int64) (string, error)
+	ContainerLogs(ctx context.Context, id string, tail int, maxBytes int64, since string) (string, error)
 	RemoveContainer(ctx context.Context, id string) error
 	CreateVolume(ctx context.Context, name string, labels map[string]string) error
 	ListVolumes(ctx context.Context, labels map[string]string) ([]docker.VolumeSummary, error)
@@ -417,15 +417,17 @@ func (m *Manager) Restart(ctx context.Context, name string) (Status, error) {
 }
 
 // Logs returns the last tail lines of the service's stdout and stderr.
-func (m *Manager) Logs(ctx context.Context, name string, tail int) (string, error) {
+func (m *Manager) Logs(ctx context.Context, name string, tail int, since string) (string, string, error) {
 	existing, err := m.find(ctx, name)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if existing == nil {
-		return "", ErrNotFound
+		return "", "", ErrNotFound
 	}
-	return m.docker.ContainerLogs(ctx, existing.ID, tail, MaxLogBytes)
+	cursor := m.Now().UTC().Format(time.RFC3339Nano)
+	logs, err := m.docker.ContainerLogs(ctx, existing.ID, tail, MaxLogBytes, since)
+	return logs, cursor, err
 }
 
 func (m *Manager) act(ctx context.Context, name string, action func(id string) error) (Status, error) {

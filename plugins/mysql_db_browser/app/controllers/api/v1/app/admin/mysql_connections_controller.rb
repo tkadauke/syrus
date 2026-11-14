@@ -11,9 +11,12 @@ module Api
             render json: {
               mysql_connections: connections.map do |connection|
                 connection_json(connection, credential: credentials_by_id[connection.credential_store_credential_id])
-              end,
-              credential_scope_options: management_authorization.manageable_options
+              end
             }
+          end
+
+          def credential_scope_options
+            render json: { credential_scope_options: management_authorization.manageable_options }
           end
 
           def create

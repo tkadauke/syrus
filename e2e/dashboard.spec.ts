@@ -86,9 +86,14 @@ test("retries a failed job in bulk from the dashboard and reflects it in the das
   await row.getByRole("checkbox", { name: `Select ${title}` }).check()
   await expect(page.getByText("1 selected")).toBeVisible()
 
+  const retryResponsePromise = page.waitForResponse(
+    (response) => response.url().includes("/api/v1/app/dashboard/jobs/bulk") && response.request().method() === "POST"
+  )
   await page.getByRole("button", { name: "Retry", exact: true }).click()
+  const retryResponse = await retryResponsePromise
+  expect(retryResponse.ok()).toBe(true)
+  expect((await retryResponse.json()).message).toBe("Retry enqueued for 1 job.")
 
-  await expect(page.getByText("Retry enqueued for 1 job.")).toBeVisible()
   await expect(row).toContainText("running")
 })
 

@@ -1,7 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
+import {
+  createTerminalSession,
+  fetchTerminalSessions,
+  fetchTerminalWorkspaces,
+  killTerminalSession,
+  type TerminalSessionRecord,
+  type TerminalSessionsPayload
+} from "../api/terminal"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { CloseIcon } from "@app/components/CloseIcon"
@@ -11,6 +18,7 @@ import type { TerminalWorkspaceRecord } from "../api/terminal"
 import type { BootstrapPayload } from "@app/api/bootstrap"
 
 const terminalSessionsQueryKey = ["terminal_sessions"] as const
+const terminalWorkspacesQueryKey = ["terminal_workspaces"] as const
 const pickerSections: TerminalWorkspaceRecord["section"][] = ["interesting_workflows", "coding_chats", "workers"]
 
 export function TerminalRoute() {
@@ -35,8 +43,15 @@ export function TerminalRoute() {
   })
 
   const sessions = sessionsQuery.data?.sessions ?? []
-  const workspaces = sessionsQuery.data?.workspaces ?? []
   const [workspaceSearch, setWorkspaceSearch] = useState("")
+  const workspacesQuery = useQuery({
+    queryKey: [...terminalWorkspacesQueryKey, workspaceSearch.trim()],
+    queryFn: ({ signal }) => fetchTerminalWorkspaces({ query: workspaceSearch, signal }),
+    enabled: workspacePickerOpen,
+    placeholderData: keepPreviousData,
+    staleTime: 0
+  })
+  const workspaces = workspacesQuery.data?.workspaces ?? []
   const pickerGroups = useMemo(() => workspacePickerGroups(workspaces, workspaceSearch), [workspaces, workspaceSearch])
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? sessions[0] ?? null
 
@@ -44,7 +59,7 @@ export function TerminalRoute() {
     mutationFn: createTerminalSession,
     onSuccess(payload) {
       queryClient.setQueryData(terminalSessionsQueryKey, (current: TerminalSessionsPayload | undefined) => {
-        if (!current) return { sessions: [payload.session], workspaces: [] }
+        if (!current) return { sessions: [payload.session] }
         return {
           ...current,
           sessions: [payload.session, ...current.sessions.filter((session) => session.id !== payload.session.id)]

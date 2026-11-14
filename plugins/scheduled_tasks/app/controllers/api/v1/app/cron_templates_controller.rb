@@ -4,10 +4,10 @@ module Api
       class CronTemplatesController < BaseController
         def index
           templates = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).order(:name)
+          applied_task_counts = ScheduledTasks::Task.alive.where(cron_template_id: templates.select(:id)).group(:cron_template_id).count
           render json: {
-            templates: templates.map { |template| template_index_json(template) },
-            pr_pileup_policies: ScheduledTasks::CronTemplate::PR_PILEUP_POLICIES,
-            repositories: template_repositories
+            templates: templates.map { |template| template_index_json(template, applied_tasks_count: applied_task_counts.fetch(template.id, 0)) },
+            pr_pileup_policies: ScheduledTasks::CronTemplate::PR_PILEUP_POLICIES
           }
         end
 
@@ -58,13 +58,7 @@ module Api
         def destroy
           template = find_template
           template.destroy!
-
-          templates = ScheduledTasks::CronTemplate.where(user_id: Current.user.id).order(:name)
-          render json: {
-            templates: templates.map { |row| template_index_json(row) },
-            pr_pileup_policies: ScheduledTasks::CronTemplate::PR_PILEUP_POLICIES,
-            message: "Template deleted."
-          }
+          head :no_content
         end
 
         private
@@ -82,7 +76,7 @@ module Api
           }
         end
 
-        def template_index_json(template)
+        def template_index_json(template, applied_tasks_count: nil)
           {
             id: template.id,
             name: template.name,
@@ -98,7 +92,7 @@ module Api
             pr_pileup_policy: template.pr_pileup_policy,
             enabled: template.enabled?,
             skill_name: template.skill_name,
-            applied_tasks_count: template.scheduled_tasks.alive.count,
+            applied_tasks_count: applied_tasks_count || template.scheduled_tasks.alive.count,
             created_at: template.created_at.iso8601,
             updated_at: template.updated_at.iso8601
           }

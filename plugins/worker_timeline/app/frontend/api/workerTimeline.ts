@@ -12,8 +12,9 @@ export type WorkerTimelineBlockedInfo = {
 }
 
 export type WorkerTimelineSpan = {
-  worker_storage_key: string | null
-  queue_role: string | null
+  /** Legacy fields omitted by the compact API; retained as optional for cached payload compatibility. */
+  worker_storage_key?: string | null
+  queue_role?: string | null
   hostname: string | null
   pid: number | null
   workflow_id: number
@@ -35,21 +36,14 @@ export type WorkerTimelinePendingEntry = {
   blocked: WorkerTimelineBlockedInfo
 }
 
-export type WorkerTimelineInstance = {
-  id: number
-  hostname: string
-  started_at: string | null
-  last_heartbeat_at: string | null
-  finished_at: string | null
-}
-
 export type WorkerTimelineLane = {
   key: string
   worker_storage_key: string | null
   queue_role: string | null
   hostname: string | null
   pid: number | null
-  instance: WorkerTimelineInstance | null
+  /** Omitted by the compact API; optional for cached payload compatibility. */
+  instance?: { id: number; hostname: string; started_at: string | null; last_heartbeat_at: string | null; finished_at: string | null } | null
   spans: WorkerTimelineSpan[]
 }
 
@@ -57,6 +51,7 @@ export type WorkerTimelineMacroPayload = {
   range: { from: string; to: string }
   lanes: WorkerTimelineLane[]
   pending: WorkerTimelinePendingEntry[]
+  truncated?: boolean
   filter: Record<string, unknown> | null
   filter_schema: FilterSchemaField[]
   active_smart_folder_id: number | null
@@ -98,10 +93,6 @@ export type WorkerTimelineWaterfallStep = {
   iteration: number
   started_at: string | null
   finished_at: string | null
-  worker_storage_key: string | null
-  queue_role: string | null
-  hostname: string | null
-  pid: number | null
   runs: WorkerTimelineWaterfallRun[]
   blocked?: WorkerTimelineBlockedInfo
 }

@@ -10,6 +10,7 @@ import { MetricsChart } from "./MetricsChart"
 
 const DEFAULT_WINDOW = "6h"
 const TAB_PARAM = "tab"
+const DEFAULT_TAB = "queue_throughput"
 
 export function MetricsDashboardRoute() {
   const { t } = useT("metrics_dashboard")
@@ -17,6 +18,7 @@ export function MetricsDashboardRoute() {
   const [searchParams, setSearchParams] = useSearchParams()
   const window = searchParams.get("window") || DEFAULT_WINDOW
   const requestedTab = searchParams.get(TAB_PARAM)
+  const selectedTab = requestedTab || DEFAULT_TAB
 
   // Lifted to the page, not held per chart: hovering one chart has to move the
   // crosshair in all of them, which is the whole point of serving every panel
@@ -26,8 +28,8 @@ export function MetricsDashboardRoute() {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   const dashboard = useQuery({
-    queryKey: ["metrics_dashboard", window],
-    queryFn: () => fetchMetricsDashboard(window),
+    queryKey: ["metrics_dashboard", window, selectedTab],
+    queryFn: () => fetchMetricsDashboard(window, selectedTab),
     placeholderData: keepPreviousData,
     staleTime: 0,
     refetchInterval: 60_000
@@ -65,7 +67,7 @@ export function MetricsDashboardRoute() {
   // resolve against a namespace this plugin doesn't own. Concatenated once so
   // the rest of the page treats every tab the same way.
   const tabs = [...payload.categories.map((id) => ({ id, label: t(`tabs.${id}`) })), ...payload.plugin_tabs]
-  const activeTab = requestedTab && tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0]?.id
+  const activeTab = tabs.some((tab) => tab.id === selectedTab) ? selectedTab : tabs[0]?.id
   const visiblePanels = payload.panels.filter((panel) => panel.category === activeTab)
 
   return (

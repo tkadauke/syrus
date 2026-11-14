@@ -65,5 +65,7 @@
   "filter_volume": "Volume",
   "filter_volume_plugin": "Volume-Plugin",
   "filter_volume_state": "Volume-Zustand",
-  "filter_min_size": "Mindestgröße"
+  "filter_min_size": "Mindestgröße",
+  "previous": "Zurück",
+  "next": "Weiter"
 }

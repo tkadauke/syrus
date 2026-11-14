@@ -97,7 +97,7 @@ module AgentInsights
           requested_id = normalized_repository_id(repository_id)
           return invalid_repository_id(repository_id) if repository_id.present? && requested_id.nil?
 
-          if context.user.admin?
+          if admin_chat?(context)
             requested_id ? scope.where(repository_id: requested_id) : scope
           else
             allowed_ids = context.allowed_repository_ids
@@ -109,6 +109,10 @@ module AgentInsights
 
         def normalized_repository_id(value)
           Integer(value, exception: false) if value.present?
+        end
+
+        def admin_chat?(context)
+          context.user.admin? && !context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
         end
 
         def not_accessible(repository_id)

@@ -16,12 +16,25 @@ export function AdminMysql() {
   const [hideIdle, setHideIdle] = useState(true)
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
-  const mysql = useQuery({
-    queryKey: ["admin", "mysql", limit, includeSlowLog],
-    queryFn: () => fetchAdminMysql(limit, includeSlowLog),
+  const liveMysql = useQuery({
+    queryKey: ["admin", "mysql", "live", limit, hideIdle],
+    queryFn: () => fetchAdminMysql(limit, false, "live", !hideIdle),
     staleTime: 0,
-    refetchInterval: includeSlowLog ? false : 10_000
+    refetchInterval: 10_000
   })
+  const staticMysql = useQuery({
+    queryKey: ["admin", "mysql", "static", limit, includeSlowLog],
+    queryFn: () => fetchAdminMysql(limit, includeSlowLog, "configuration,diagnostics"),
+    staleTime: 0,
+    refetchInterval: 60_000
+  })
+  const mysql = {
+    data: liveMysql.data && staticMysql.data ? ({ ...staticMysql.data, ...liveMysql.data } as MysqlSnapshot) : undefined,
+    error: liveMysql.error || staticMysql.error,
+    isPending: liveMysql.isPending || staticMysql.isPending,
+    isError: liveMysql.isError || staticMysql.isError,
+    refetch: () => Promise.all([liveMysql.refetch(), staticMysql.refetch()])
+  }
   const killQuery = useMutation({
     mutationFn: killMysqlQuery,
     onSuccess: () => {
@@ -114,7 +127,6 @@ function MysqlDashboard({
 }) {
   const summary = payload.connection_summary
   const activeProcesses = payload.process_list.filter((process) => process.command !== "Sleep")
-  const idleCount = payload.process_list.length - activeProcesses.length
   const visibleProcesses = hideIdle ? activeProcesses : payload.process_list
   return (
     <div className="space-y-6">
@@ -179,7 +191,7 @@ function MysqlDashboard({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <SectionHeading>{t("process_list")}</SectionHeading>
           <div className="flex flex-wrap items-center gap-3">
-            <Checkbox checked={hideIdle} label={t("hide_idle_threads", { count: idleCount })} onChange={onToggleHideIdle} />
+            <Checkbox checked={hideIdle} label={t("hide_idle_threads", { count: summary.sleeping_connections })} onChange={onToggleHideIdle} />
             <p className="text-xs text-gray-500 dark:text-gray-400">{t("generated", { time: new Date(payload.generated_at).toLocaleString() })}</p>
           </div>
         </div>

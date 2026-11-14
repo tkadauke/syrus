@@ -4,17 +4,22 @@ module K8sCluster
   class Events < ResourceService
     MAX_EVENTS = 500
 
-    def list(namespace: nil)
+    def list(namespace: nil, limit: nil, since: nil)
       validate_identifiers!(namespace: namespace)
+      requested_limit = Integer(limit, exception: false).to_i
+      requested_limit = MAX_EVENTS unless requested_limit.positive?
+      requested_limit = requested_limit.clamp(1, MAX_EVENTS)
       with_client(api_client.core) do |client|
         items = client.get_events(namespace_scope(namespace)).fetch("items", [])
         sorted = items.sort_by { |item| timestamp(item) }.reverse
+        filtered = since.present? ? sorted.select { |item| timestamp(item) > since } : sorted
 
         {
           available: true,
           generated_at: Time.current.iso8601,
-          truncated: sorted.length > MAX_EVENTS,
-          events: sorted.first(MAX_EVENTS).map { |item| summary(item) }
+          truncated: filtered.length > requested_limit,
+          events: filtered.first(requested_limit).map { |item| summary(item) },
+          cursor: [ since, timestamp(sorted.first || {}) ].compact_blank.max.to_s
         }
       end
     end

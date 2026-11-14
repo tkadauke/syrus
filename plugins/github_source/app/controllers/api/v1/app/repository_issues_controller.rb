@@ -18,7 +18,7 @@ module Api
 
         def issues
           repository = find_repository
-          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort)
+          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort, page: issue_page)
         end
 
         def close_issue
@@ -29,7 +29,7 @@ module Api
           GithubClient.for(repository: repository, user: Current.user).close_issue(repository.slug, issue_number)
           GithubSource::Issue.where(repository: repository).where(number: issue_number).update_all(state: "closed", synced_at: Time.current)
 
-          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort, message: I18n.t("api.repositories.issue_closed", number: issue_number))
+          render json: issue_mutation_payload(repository, [ issue_number ], I18n.t("api.repositories.issue_closed", number: issue_number))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.issue_close_failed", error: e.message), status: :bad_gateway)
         end
@@ -43,7 +43,7 @@ module Api
           GithubClient.for(repository: repository, user: Current.user).add_label_to_issue(repository.slug, issue_number, repository.trigger_label)
           mark_cached_issues_delegated!(repository, [ issue_number ])
 
-          render json: repository_issues_payload(repository, folder: issue_folder, filter: issue_filter, sort: issue_sort, message: I18n.t("api.repositories.issue_delegated", number: issue_number))
+          render json: issue_mutation_payload(repository, [ issue_number ], I18n.t("api.repositories.issue_delegated", number: issue_number))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.issue_delegate_failed", error: e.message), status: :bad_gateway)
         end
@@ -71,21 +71,14 @@ module Api
 
 
         # Reads both states locally so all smart-folder counts stay accurate.
-        def repository_issues_payload(repository, folder:, filter:, sort: issue_sort, message: nil)
-          open_issues = GithubSource::Issue.where(repository: repository).open.to_a
-          closed_issues = GithubSource::Issue.where(repository: repository).closed.to_a
+        def repository_issues_payload(repository, folder:, filter:, sort: issue_sort, page: issue_page, message: nil)
+          scope = GithubSource::Issue.where(repository: repository)
           error_message = repository.last_poll_status == "failed" ? repository.last_poll_error : nil
-
-          delegated_issues, inbox_issues = open_issues.partition { |issue| issue_delegated?(repository, issue) }
-          folder_issues = {
-            "all" => open_issues + closed_issues,
-            "inbox" => inbox_issues,
-            "delegated" => delegated_issues,
-            "open" => open_issues,
-            "closed" => closed_issues
-          }
-          matching_issues = sort_issues(repository, filter_issues(repository, folder_issues.fetch("all"), filter), sort)
-          visible_issues = matching_issues.first(ISSUES_PER_PAGE)
+          matching_issues = filter_issue_scope(repository, scope, filter)
+          issue_count = matching_issues.count
+          visible_issues = sort_issue_scope(repository, matching_issues, sort)
+            .select(issue_list_columns)
+            .offset((page - 1) * ISSUES_PER_PAGE).limit(ISSUES_PER_PAGE)
 
           {
             message: message,
@@ -97,7 +90,7 @@ module Api
               stale: repository.last_poll_status == "failed",
               error: repository.last_poll_error
             },
-            repository: repository_detail_json(repository),
+            repository: issues_repository_json(repository),
             tabs: repository_tabs_json(repository),
             folder: folder,
             query: filter.query,
@@ -105,9 +98,12 @@ module Api
             untouched_preset: !explicit_issue_filter? && filter.preset.present?,
             filter_schema: GithubSource::IssuesFilter.schema,
             sort: sort,
-            issue_count: matching_issues.size,
+            page: page,
+            per_page: ISSUES_PER_PAGE,
+            total_pages: (issue_count.to_f / ISSUES_PER_PAGE).ceil,
+            issue_count: issue_count,
             issues: visible_issues.map { |issue| issue_json(repository, issue) },
-            folder_counts: folder_issues.transform_values(&:size),
+            folder_counts: issue_folder_counts(repository, scope),
             folder_paths: FOLDERS.index_with { |value| "/repositories/#{repository.id}/plugin/issues?folder=#{value}" },
             paths: {
               github_issues_path: "https://github.com/#{repository.slug}/issues",
@@ -125,7 +121,7 @@ module Api
             title: issue.title.to_s,
             state: issue.state.to_s,
             html_url: issue.html_url.to_s,
-            body_excerpt: issue.body_excerpt,
+            body_excerpt: issue[:body_excerpt_text].to_s.gsub(/\r?\n/, " ").truncate(180),
             user_login: issue.author_login,
             created_at: issue.github_created_at&.iso8601,
             labels: issue.labels,
@@ -134,82 +130,47 @@ module Api
           }
         end
 
+        def issues_repository_json(repository)
+          { id: repository.id, slug: repository.slug, github_url: "https://github.com/#{repository.slug}",
+            trigger_label: repository.trigger_label, github_rate_limit: github_rate_limit_json(repository.user) }
+        end
+
+        def issue_list_columns
+          %i[id number title state html_url author_login github_created_at labels linked_open_pr] +
+            [ Arel.sql("SUBSTR(body, 1, 240) AS body_excerpt_text") ]
+        end
+
+        def delegated_sql(repository)
+          label = ActiveRecord::Base.sanitize_sql_like(repository.trigger_label)
+          [ "CAST(labels AS CHAR) LIKE ?", "%\"name\":\"#{label}\"%" ]
+        end
+
+        def issue_folder_counts(repository, scope)
+          delegated = scope.open.where(delegated_sql(repository)).count
+          opened = scope.open.count
+          closed = scope.closed.count
+          { all: opened + closed, inbox: opened - delegated, delegated: delegated, open: opened, closed: closed }
+        end
+
+        def filter_issue_scope(repository, scope, filter)
+          scope = scope.where("LOWER(title) LIKE :q OR LOWER(body) LIKE :q OR LOWER(author_login) LIKE :q", q: "%#{ActiveRecord::Base.sanitize_sql_like(filter.query.downcase)}%") if filter.query.present?
+          scope = scope.where("LOWER(author_login) LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(filter.author.downcase)}%") if filter.author.present?
+          scope = scope.where("LOWER(CAST(labels AS CHAR)) LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(filter.label.downcase)}%") if filter.label.present?
+          scope = scope.where(state: filter.state) if filter.state.present?
+          scope = filter.delegated ? scope.where(delegated_sql(repository)) : scope.where.not(delegated_sql(repository)) unless filter.delegated.nil?
+          scope
+        end
+
+        def sort_issue_scope(repository, scope, sort)
+          column = { "number" => :number, "title" => :title, "state" => :state, "author" => :author_login, "created_at" => :github_created_at }.fetch(sort[:column], :number)
+          return scope.order(Arel.sql("CASE WHEN #{ActiveRecord::Base.sanitize_sql_array(delegated_sql(repository))} THEN 1 ELSE 0 END #{sort[:direction].upcase}"), number: sort[:direction]) if sort[:column] == "delegated"
+
+          scope.order(column => sort[:direction], number: sort[:direction])
+        end
+
 
         def issue_delegated?(repository, issue)
           issue.delegated?(repository.trigger_label)
-        end
-
-
-        def filter_issues(repository, issues, filter)
-          issues
-            .then { |filtered| filter_by_query(filtered, filter.query) }
-            .then { |filtered| filter_by_author(filtered, filter.author) }
-            .then { |filtered| filter_by_label(filtered, filter.label) }
-            .then { |filtered| filter_by_state(filtered, filter.state) }
-            .then { |filtered| filter_by_delegated(repository, filtered, filter.delegated) }
-        end
-
-
-        def filter_by_query(issues, query)
-          return issues if query.blank?
-
-          needle = query.downcase
-          issues.select do |issue|
-            issue.title.to_s.downcase.include?(needle) ||
-              issue.body.to_s.downcase.include?(needle) ||
-              issue.author_login.to_s.downcase.include?(needle)
-          end
-        end
-
-
-        def filter_by_author(issues, author)
-          return issues if author.blank?
-
-          needle = author.downcase
-          issues.select { |issue| issue.author_login.to_s.downcase.include?(needle) }
-        end
-
-
-        def filter_by_label(issues, label)
-          return issues if label.blank?
-
-          needle = label.downcase
-          issues.select do |issue|
-            issue.labels.any? { |issue_label| issue_label["name"].to_s.downcase.include?(needle) }
-          end
-        end
-
-
-        def filter_by_state(issues, state)
-          return issues if state.blank?
-
-          issues.select { |issue| issue.state.to_s == state }
-        end
-
-
-        def filter_by_delegated(repository, issues, delegated)
-          return issues if delegated.nil?
-
-          issues.select { |issue| issue_delegated?(repository, issue) == delegated }
-        end
-
-
-        def sort_issues(repository, issues, sort)
-          sorted = issues.sort_by { |issue| issue_sort_value(repository, issue, sort.fetch(:column)) }
-          sort.fetch(:direction) == "desc" ? sorted.reverse : sorted
-        end
-
-
-        def issue_sort_value(repository, issue, column)
-          values = {
-            "number" => [ issue.number.to_i ],
-            "title" => [ issue.title.to_s.downcase, issue.number.to_i ],
-            "state" => [ issue.state.to_s, issue.number.to_i ],
-            "author" => [ issue.author_login.to_s.downcase, issue.number.to_i ],
-            "created_at" => [ issue.github_created_at || Time.zone.at(0), issue.number.to_i ],
-            "delegated" => [ issue_delegated?(repository, issue) ? 1 : 0, issue.number.to_i ]
-          }
-          values.fetch(column)
         end
 
 
@@ -229,6 +190,10 @@ module Api
             column: params[:sort].presence_in(SORT_COLUMNS) || "created_at",
             direction: params[:direction].presence_in(SORT_DIRECTIONS) || "desc"
           }
+        end
+
+        def issue_page
+          [ params.fetch(:page, 1).to_i, 1 ].max
         end
 
 
@@ -255,13 +220,7 @@ module Api
             mark_cached_issues_delegated!(repository, [ issue_number ])
           end
 
-          render json: repository_issues_payload(
-            repository,
-            folder: issue_folder,
-            filter: issue_filter,
-            sort: issue_sort,
-            message: I18n.t("api.repositories.bulk_delegated", count: issue_numbers.size)
-          )
+          render json: issue_mutation_payload(repository, issue_numbers, I18n.t("api.repositories.bulk_delegated", count: issue_numbers.size))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.bulk_delegate_failed", error: e.message), status: :bad_gateway)
         end
@@ -274,19 +233,22 @@ module Api
             GithubSource::Issue.where(repository: repository, number: issue_number).update_all(state: "closed", synced_at: Time.current)
           end
 
-          render json: repository_issues_payload(
-            repository,
-            folder: issue_folder,
-            filter: issue_filter,
-            sort: issue_sort,
-            message: I18n.t("api.repositories.bulk_closed", count: issue_numbers.size)
-          )
+          render json: issue_mutation_payload(repository, issue_numbers, I18n.t("api.repositories.bulk_closed", count: issue_numbers.size))
         rescue Octokit::Error => e
           render_error("github_error", I18n.t("api.repositories.bulk_close_failed", error: e.message), status: :bad_gateway)
         end
 
 
         private
+
+        def issue_mutation_payload(repository, issue_numbers, message)
+          scope = GithubSource::Issue.where(repository: repository)
+          {
+            message: message,
+            changed_issues: scope.where(number: issue_numbers).select(issue_list_columns).map { |issue| issue_json(repository, issue) },
+            folder_counts: issue_folder_counts(repository, scope)
+          }
+        end
 
         def mark_cached_issues_delegated!(repository, issue_numbers)
           GithubSource::Issue.where(repository: repository).where(number: issue_numbers).find_each do |issue|

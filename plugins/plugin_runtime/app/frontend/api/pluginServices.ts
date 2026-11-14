@@ -9,8 +9,6 @@ export type PluginService = {
   endpoint?: string | null
   image?: string | null
   error?: string | null
-  container_id?: string | null
-  checked_at?: string | null
   desired: boolean
   held: boolean
   privileged?: boolean
@@ -30,7 +28,7 @@ export type PluginServicesPayload = {
   manageable: boolean
   manager_error: string | null
   services: PluginService[]
-  volumes: PluginServiceVolume[]
+  volumes?: PluginServiceVolume[]
 }
 
 const BASE = "/api/v1/app/admin/plugin_services"
@@ -39,12 +37,18 @@ export function fetchPluginServices() {
   return getJson<PluginServicesPayload>(BASE)
 }
 
+export function fetchPluginServiceVolumes() {
+  return getJson<{ volumes: PluginServiceVolume[] }>(`${BASE}?view=volumes`)
+}
+
 export function runPluginServiceAction(name: string, action: "stop" | "start" | "restart") {
   return postJson<{ service: PluginService }>(`${BASE}/${encodeURIComponent(name)}/${action}`)
 }
 
-export function fetchPluginServiceLogs(name: string, tail: number) {
-  return getJson<{ service: string; logs: string }>(`${BASE}/${encodeURIComponent(name)}/logs?tail=${tail}`)
+export function fetchPluginServiceLogs(name: string, tail: number, since?: string | null) {
+  const search = new URLSearchParams({ tail: String(tail) })
+  if (since) search.set("since", since)
+  return getJson<{ service: string; logs: string; cursor: string }>(`${BASE}/${encodeURIComponent(name)}/logs?${search.toString()}`)
 }
 
 export function deletePluginServiceVolume(name: string) {
@@ -59,8 +63,10 @@ export type PluginServiceDetails = {
     columns: { key: string; label_key: string; format: DetailFormat }[]
     rows: Record<string, string | number | null>[]
   }
+  pagination?: { page: number; per_page: number; total: number; total_pages: number }
 }
 
-export function fetchPluginServiceDetails(name: string) {
-  return getJson<{ service: string; details: PluginServiceDetails }>(`${BASE}/${encodeURIComponent(name)}/details`)
+export function fetchPluginServiceDetails(name: string, page = 1) {
+  const suffix = page > 1 ? `?page=${page}` : ""
+  return getJson<{ service: string; details: PluginServiceDetails }>(`${BASE}/${encodeURIComponent(name)}/details${suffix}`)
 }

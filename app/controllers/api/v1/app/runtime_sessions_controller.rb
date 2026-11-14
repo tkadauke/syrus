@@ -9,6 +9,9 @@ module Api
       # DOC-17's Shared Human/Agent Control, acquiring/releasing leases with
       # owner: "user" instead of "agent".
       class RuntimeSessionsController < BaseController
+        DEFAULT_LOG_LIMIT = 200
+        MAX_LOG_LIMIT = 500
+
         before_action :require_coding_mode_feature
         before_action :find_chat_session
         before_action :require_coding_chat
@@ -16,8 +19,10 @@ module Api
 
         # GET /api/v1/app/chats/:chat_id/runtime_sessions
         def index
-          sessions = @chat_session.runtime_sessions.order(:created_at)
-          render json: { runtime_sessions: sessions.map { |session| session_payload(session) } }
+          sessions = @chat_session.runtime_sessions.preload(:active_input_leases).order(:created_at)
+          payload = { runtime_sessions: sessions.map { |session| session_payload(session) } }
+          # The panel polls this; unchanged payloads answer 304 with no body.
+          render json: payload if stale?(etag: payload)
         end
 
         # GET /api/v1/app/chats/:chat_id/runtime_sessions/:id
@@ -28,9 +33,9 @@ module Api
         # GET /api/v1/app/chats/:chat_id/runtime_sessions/:id/logs
         def logs
           cursor = params[:cursor].presence || 0
-          limit = params[:limit].presence
-          result = provider_for(@runtime_session).logs(@runtime_session.id, cursor, { limit: limit }.compact)
-          render json: result
+          limit = clamped_log_limit
+          result = provider_for(@runtime_session).logs(@runtime_session.id, cursor, { limit: limit })
+          render json: bound_log_result(result, cursor, limit)
         rescue RuntimeSessionProviders::ConfigurationError => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
@@ -172,10 +177,27 @@ module Api
         end
 
         def current_user_input_lease(runtime_session = @runtime_session)
-          runtime_session.runtime_control_leases.active
-            .held_by("user")
-            .for_mode("input")
-            .find_by(owner_ref: "operator:#{Current.user.id}")
+          runtime_session.active_user_input_lease("operator:#{Current.user.id}")
+        end
+
+        # Enforce the limit on the response itself when the provider ignored
+        # it. Only line-index (integer) cursors can be advanced safely; the
+        # client then picks the remainder up on its next poll.
+        def bound_log_result(result, cursor, limit)
+          return result unless result.is_a?(Hash)
+
+          entries = result[:entries] || result["entries"]
+          return result unless entries.is_a?(Array) && entries.size > limit
+          return result unless cursor.to_s.match?(/\A\d+\z/)
+
+          { entries: entries.first(limit), cursor: cursor.to_i + limit }
+        end
+
+        # Providers may ignore `limit`, so bound it here rather than trusting
+        # the client value.
+        def clamped_log_limit
+          requested = params[:limit].to_i
+          requested.positive? ? [ requested, MAX_LOG_LIMIT ].min : DEFAULT_LOG_LIMIT
         end
 
         def input_event_hash(event)

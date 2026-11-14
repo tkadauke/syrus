@@ -257,6 +257,25 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(offenders).to be_empty
   end
 
+  # Regression: the job detail payload loaded every visible Step by id with
+  # ORDER BY workflow_id, position -- an id list no index can sort -- and
+  # grader output in `details` exhausted MySQL's sort buffer.
+  it "shows a job without sorting wide Step rows across an id list" do
+    2.times do
+      workflow = Workflow.create!(job: job, user: user, trigger_kind: "retry", state: "succeeded",
+        finished_at: Time.current)
+      Step.create!(workflow: workflow, kind: "grader", position: 1, state: "succeeded",
+        finished_at: Time.current, details: { "name" => "rspec", "output" => "x" * 2_048 })
+    end
+
+    offenders = wide_row_sort_statements { get "/api/v1/app/jobs/#{job.id}", as: :json }
+
+    expect(response).to have_http_status(:ok)
+    # Steps (grader output) and runs (agent diffs) are the rows that blew the
+    # buffer; the single-Job workflow scan reads in primary-key order.
+    expect(offenders.grep(/[`"]?(steps|runs)[`"]?\.\*/i)).to be_empty
+  end
+
   it "lists jobs for bearer-token CLI clients without admin access" do
     user.update!(api_token: "syrus_cli_token", global_role: "user")
     epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct")

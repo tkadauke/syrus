@@ -41,14 +41,15 @@ module Api
           end
 
           def index
-            render json: payload_for(visible_credentials)
+            payload = payload_for(visible_credentials)
+            fresh_when(etag: payload, public: false)
+            render json: payload unless performed?
           end
 
           def show
             credential = find_visible_credential
             render json: {
-              credential: ::CredentialStore::ManagementPayload.credential_json(credential, user: Current.user),
-              options: payload_for([]).fetch(:options)
+              credential: credential_json(credential)
             }
           end
 
@@ -66,7 +67,7 @@ module Api
             ))
             if credential.save
               record_change!(credential, "create", before: nil, after: audit_snapshot(credential), payload_replaced: true)
-              render json: payload_for(visible_credentials.reload).merge(message: "Credential created."), status: :created
+              render json: credential_mutation_payload(credential, "Credential created."), status: :created
             else
               render_error("validation_failed", credential.errors.full_messages.to_sentence, status: :unprocessable_content)
             end
@@ -85,7 +86,7 @@ module Api
             before = audit_snapshot(credential)
             if credential.update(attrs)
               record_change!(credential, "update", before: before, after: audit_snapshot(credential), payload_replaced: attrs.key?(:payload))
-              render json: payload_for(visible_credentials.reload).merge(message: "Credential updated.")
+              render json: credential_mutation_payload(credential, "Credential updated.")
             else
               render_error("validation_failed", credential.errors.full_messages.to_sentence, status: :unprocessable_content)
             end
@@ -111,7 +112,7 @@ module Api
                 result: "allowed",
                 metadata: { payload_replaced: true, unrevoked: was_revoked }
               )
-              render json: payload_for(visible_credentials.reload).merge(message: "Credential rotated.")
+              render json: credential_mutation_payload(credential, "Credential rotated.")
             else
               render_error("validation_failed", credential.errors.full_messages.to_sentence, status: :unprocessable_content)
             end
@@ -129,7 +130,7 @@ module Api
               action: "revoke",
               result: "allowed"
             )
-            render json: payload_for(visible_credentials.reload).merge(message: "Credential revoked.")
+            render json: credential_mutation_payload(credential, "Credential revoked.")
           end
 
           private
@@ -195,6 +196,14 @@ module Api
 
           def payload_for(credentials)
             ::CredentialStore::ManagementPayload.new(user: Current.user, credentials: credentials).as_json
+          end
+
+          def credential_json(credential)
+            ::CredentialStore::ManagementPayload.credential_json(credential, user: Current.user)
+          end
+
+          def credential_mutation_payload(credential, message)
+            { credential: credential_json(credential), message: message }
           end
 
           def credential_attrs(require_payload: true)

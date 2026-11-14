@@ -31,20 +31,12 @@ export type WorkIntentSummary = {
   priority: string | null
   scope_type: string
   scope_id: number | null
-  delivery_track: string | null
   wait_reason: string | null
   wait_until: string | null
-  wait_details: Record<string, unknown>
   requested_at: string | null
-  satisfied_at: string | null
-  cancelled_at: string | null
-  source_type: string | null
-  source_id: number | null
   source_ref: string | null
   target_ref: string | null
   repository: LinkedRepository | null
-  source_repository: LinkedRepository | null
-  target_repository: LinkedRepository | null
   actor: { id: number; display_name: string; email_address: string } | null
   jobs: LinkedJob[]
   units: WorkUnitSummary[]
@@ -52,25 +44,14 @@ export type WorkIntentSummary = {
 
 export type WorkUnitSummary = {
   id: number
-  kind: string
   label: string
   state: string
-  scope_type: string
-  scope_id: number | null
-  delivery_track: string | null
   blocked_reason: string | null
   blocked_until: string | null
-  blocked_details: Record<string, unknown>
   pause_requested: boolean
   preemption_reason: string | null
   source_ref: string | null
   target_ref: string | null
-  created_at: string | null
-  started_at: string | null
-  finished_at: string | null
-  repository: LinkedRepository | null
-  source_repository: LinkedRepository | null
-  target_repository: LinkedRepository | null
   workflow: LinkedWorkflow | null
   provider_availability: ProviderAvailability
   members: Array<{ role: string; job: LinkedJob | null }>

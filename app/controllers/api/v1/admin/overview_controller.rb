@@ -9,7 +9,7 @@ module Api
       #   GET /api/v1/admin/stuck    → full StuckItems list
       class OverviewController < BaseController
         def show
-          render json: ::Admin::OverviewPayload.new(params: params).as_json
+          render json: ::Admin::OverviewPayload.new(params: params.merge(include: "worker_data_root_usages,worker_health")).as_json
         end
 
         def stuck

@@ -12,7 +12,9 @@ module PluginRuntime
       @client = client
     end
 
-    def as_json(*)
+    def as_json(view: nil, **)
+      return { volumes: volumes } if view == "volumes"
+
       desired = DesiredServices.all + DesiredPrivilegedServices.all
       live, manager_error = live_statuses
       held = Holds.all
@@ -32,8 +34,7 @@ module PluginRuntime
         mode: @configuration.managed? ? "managed" : "external",
         manageable: @configuration.managed?,
         manager_error: manager_error,
-        services: services.sort_by { |service| service[:service] },
-        volumes: volumes
+        services: services.sort_by { |service| service[:service] }
       }
     end
 
@@ -43,7 +44,7 @@ module PluginRuntime
       return [ {}, nil ] unless @configuration.managed?
 
       statuses = client.list.to_h do |payload|
-        [ payload["service"], payload.symbolize_keys.slice(:service, :plugin, :state, :endpoint, :image, :error, :pull, :container_id, :privileged) ]
+        [ payload["service"], payload.symbolize_keys.slice(:service, :plugin, :state, :endpoint, :image, :error, :container_id, :privileged) ]
       end
       [ statuses, nil ]
     rescue Client::Error => e
@@ -65,14 +66,14 @@ module PluginRuntime
       status = StatusCache.read(entry.name)
       return { service: entry.name, state: "pending" } unless status
 
-      status.to_h.slice(:service, :state, :endpoint, :image, :error, :pull, :checked_at, :privileged)
+      status.to_h.slice(:service, :state, :endpoint, :image, :error, :container_id, :privileged)
     end
 
     def row(status, plugin:, desired:, held:, details:)
       actions = actions_for(status, desired: desired)
       # Details come from the service itself, so only while it answers.
       actions += [ "details" ] if details && status[:state] == "running"
-      status.merge(plugin: plugin, desired: desired, held: held, actions: actions)
+      status.except(:container_id).merge(plugin: plugin, desired: desired, held: held, actions: actions)
     end
 
     def actions_for(status, desired:)

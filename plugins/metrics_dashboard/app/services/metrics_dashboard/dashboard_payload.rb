@@ -159,18 +159,20 @@ module MetricsDashboard
     # How long a gauge reading stays good for once the samples stop.
     STALENESS = 5.minutes
 
-    def self.build(window: DEFAULT_WINDOW) = new(window: window).build
+    def self.build(window: DEFAULT_WINDOW, category: nil) = new(window: window, category: category).build
 
-    def initialize(window: DEFAULT_WINDOW)
+    def initialize(window: DEFAULT_WINDOW, category: nil)
       @window = WINDOWS.key?(window) ? window : DEFAULT_WINDOW
+      @category = category.presence
     end
 
     def build
-      panels = PANELS.map { |panel| panel_for(panel) }
       plugin_tabs = PluginTabs.build
-      plugin_panels = plugin_tabs.flat_map do |tab|
-        tab[:panels].map { |panel| panel_for(panel.merge(category: tab[:id])) }
-      end
+      definitions = PANELS + plugin_tabs.flat_map { |tab| tab[:panels].map { |panel| panel.merge(category: tab[:id]) } }
+      selected_category = @category
+      selected_category = CATEGORY_QUEUE_THROUGHPUT if selected_category && definitions.none? { |panel| self.class.category_for(panel) == selected_category }
+      selected_definitions = selected_category ? definitions.select { |panel| self.class.category_for(panel) == selected_category } : definitions
+      panels = selected_definitions.map { |panel| panel_for(panel) }
 
       {
         window: @window,
@@ -183,14 +185,14 @@ module MetricsDashboard
         # Canonical tab order, plus "other" appended only if some panel
         # actually fell back to it -- so the frontend never has to guess at
         # ordering or invent a tab nobody needs.
-        categories: CATEGORIES + (panels.any? { |p| p[:category] == CATEGORY_OTHER } ? [ CATEGORY_OTHER ] : []),
+        categories: CATEGORIES + (definitions.any? { |panel| self.class.category_for(panel) == CATEGORY_OTHER } ? [ CATEGORY_OTHER ] : []),
         # One entry per currently enabled plugin that contributes a tab
         # (see PluginTabs). Kept separate from `categories` rather than
         # merged into it: a core category's label comes from this plugin's
         # own i18n namespace via `tabs.<id>`, but a plugin's label is a
         # literal string this plugin cannot own a translation for.
         plugin_tabs: plugin_tabs.map { |tab| { id: tab[:id], label: tab[:label] } },
-        panels: panels + plugin_panels
+        panels: panels
       }
     end
 
@@ -264,7 +266,7 @@ module MetricsDashboard
     def series_for(name, points, panel)
       values = panel[:mode] == :rate ? rate_values(points) : gauge_values(points)
       display_name = display_name_for(name, points, panel[:label_by])
-      { name: display_name, key: name, values: values }
+      { name: display_name, values: values.map { |value| value&.round(3) } }
     end
 
     # Highest reading in each bucket. nil where nothing was recorded, so a gap

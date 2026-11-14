@@ -45,6 +45,7 @@ export type MetricsDashboardPayload = {
   panels: MetricsPanel[]
 }
 
-export function fetchMetricsDashboard(window: string) {
-  return getJson<MetricsDashboardPayload>(`/api/v1/app/admin/metrics_dashboard?window=${encodeURIComponent(window)}`)
+export function fetchMetricsDashboard(window: string, category: string) {
+  const params = new URLSearchParams({ window, category })
+  return getJson<MetricsDashboardPayload>(`/api/v1/app/admin/metrics_dashboard?${params}`)
 }

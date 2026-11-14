@@ -17,7 +17,6 @@ module Admin
     end
 
     def as_json(*)
-      Observability::EventSink.flush!(kinds: [ :workflow_activity ])
       rows = relation.offset((page - 1) * per_page).limit(per_page).to_a
       {
         events: rows.map { |event| event_json(event) },

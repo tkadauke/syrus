@@ -54,11 +54,15 @@ module AgentInsights
           if context.run?
             repository = context.repository || context.run&.job&.repository
             scope.for_repository(repository)
-          elsif context.user.admin?
+          elsif admin_chat?(context)
             scope
           else
             scope.where(repository_id: context.allowed_repository_ids)
           end
+        end
+
+        def admin_chat?(context)
+          context.user.admin? && !context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
         end
 
         def full_payload(insight, include_repository:)

@@ -2,13 +2,14 @@ module Admin
   class StuckItemPayload
     def self.serialize(...) = new(...).serialize
 
-    def initialize(item:, include_actions: true)
+    def initialize(item:, include_actions: true, include_diagnostics: true)
       @item = item
       @include_actions = include_actions
+      @include_diagnostics = include_diagnostics
     end
 
     def serialize
-      {
+      payload = {
         kind: item.kind.to_s,
         severity: item.severity.to_s,
         reconciler_severity: item.reconciler_severity,
@@ -26,16 +27,19 @@ module Admin
         job_state: item.job&.state,
         job_path: item.job ? "/jobs/#{item.job.id}" : nil,
         force_fail_path: include_actions ? force_fail_path_for(item.job) : nil,
-        has_transcript: item.has_provider_session,
+        has_transcript: item.has_provider_session
+      }
+      payload.merge!(
         issue: item.issue&.as_json,
         repair_plan: item.repair_plan&.as_json,
         repair_execution: item.repair_execution&.as_json
-      }
+      ) if include_diagnostics
+      payload
     end
 
     private
 
-    attr_reader :item, :include_actions
+    attr_reader :item, :include_actions, :include_diagnostics
 
     def step_kind
       item.run&.step&.kind || item.workflow&.current_step&.kind

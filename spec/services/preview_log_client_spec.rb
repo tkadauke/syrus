@@ -26,6 +26,21 @@ RSpec.describe PreviewLogClient do
     )
   end
 
+  it "forwards the since cursor and parses size/incremental" do
+    env = create_env
+    since = { "log/development.log" => 4 }
+    stub = stub_request(:get, "#{control_url(env, lines: 50)}&#{URI.encode_www_form(since: since.to_json)}").to_return(
+      status: 200,
+      headers: { "Content-Type" => "application/json" },
+      body: { logs: [ { path: "log/development.log", content: "\nc", missing: false, size: 6, incremental: true } ] }.to_json
+    )
+
+    logs = described_class.call(env, lines: 50, since: since)
+
+    expect(stub).to have_been_requested
+    expect(logs).to contain_exactly(have_attributes(content: "\nc", size: 6, incremental: true))
+  end
+
   it "raises Unavailable when the environment has no internal host" do
     env = create_env(internal_host: nil)
 

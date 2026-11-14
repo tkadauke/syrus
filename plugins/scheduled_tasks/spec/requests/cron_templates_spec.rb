@@ -24,6 +24,17 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql].to_s.squish unless payload[:name] == "SCHEMA"
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/cron_templates"
 
@@ -95,7 +106,23 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
       )
     )
     expect(parse_body["pr_pileup_policies"]).to eq(ScheduledTasks::CronTemplate::PR_PILEUP_POLICIES)
+    expect(parse_body).not_to have_key("repositories")
     expect(response.body).not_to include("Their template")
+  end
+
+  it "counts applied tasks for the index in one grouped query" do
+    sign_in_as(user)
+    templates = 3.times.map { |index| ScheduledTasks::CronTemplate.create!(valid_attrs.merge(user: user, name: "Template #{index}")) }
+    repository = Factories.repository(user: user)
+    templates.each do |template|
+      ScheduledTasks::Task.create!(user: user, repository: repository, cron_template: template, kind: "cron", **valid_attrs.slice(:name, :prompt, :cron_expression, :pr_pileup_policy))
+    end
+
+    queries = capture_sql { get "/api/v1/app/cron_templates" }
+
+    count_queries = queries.select { |sql| sql.match?(/scheduled_tasks/i) && sql.match?(/COUNT/i) }
+    expect(count_queries.size).to eq(1)
+    expect(parse_body.fetch("templates").pluck("applied_tasks_count")).to all(eq(1))
   end
 
   it "shows a template with active repositories and applied tasks" do
@@ -280,9 +307,8 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
       delete "/api/v1/app/cron_templates/#{template.id}"
     }.to change { ScheduledTasks::CronTemplate.where(user_id: user.id).count }.by(-1)
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Template deleted.")
-    expect(parse_body["templates"]).to eq([])
+    expect(response).to have_http_status(:no_content)
+    expect(response.body).to be_empty
   end
 
   it "does not allow managing another user's template" do

@@ -23,7 +23,7 @@ import {
 import { errorMessage } from "@app/lib/errorMessage"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useT } from "@app/hooks/useT"
 import type { TFunction } from "i18next"
 import { DataTable, Notice, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
@@ -34,12 +34,15 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
   const location = useLocation()
   const listSearch = useMemo(() => searchWithoutTestId(location.search), [location.search])
   const [historyPage, setHistoryPage] = useState(1)
+  const filterSchema = useRef<RepositoryTestsPayload["filter_schema"]>([])
   const navigate = useNavigate()
   const tests = useQuery({
     queryKey: ["repositories", repositoryId, "tests", listSearch],
-    queryFn: () => fetchRepositoryTests(repositoryId, listSearch),
+    queryFn: () => fetchRepositoryTests(repositoryId, listSearch, !filterSchema.current?.length),
     placeholderData: keepPreviousData
   })
+
+  if (tests.data?.filter_schema?.length) filterSchema.current = tests.data.filter_schema
 
   useEffect(() => {
     setHistoryPage(1)
@@ -96,7 +99,7 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
               error={tests.error}
               filter={tests.data?.filter ?? null}
               filterActive={hasActiveFilter(tests.data?.filter)}
-              filterSchema={tests.data?.filter_schema ?? []}
+              filterSchema={tests.data?.filter_schema ?? filterSchema.current ?? []}
               isError={tests.isError}
               isFetching={tests.isFetching}
               payload={tests.data}
@@ -369,7 +372,7 @@ function TestDetailPanel({
           </div>
           <TonePill tone="gray">{detail.test.fingerprint.slice(0, 12)}</TonePill>
         </div>
-        <DurationChart history={detail.history} points={detail.duration_points} prefix={prefix} t={t} />
+        <DurationChart history={detail.history} points={detail.duration_points ?? []} prefix={prefix} t={t} />
       </Section.Root>
 
       <div className="space-y-2">

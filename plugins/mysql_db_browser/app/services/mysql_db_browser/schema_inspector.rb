@@ -14,6 +14,7 @@ module MysqlDbBrowser
     MAX_COLUMNS = 1_000
     MAX_INDEXES = 500
     MAX_FOREIGN_KEYS = 500
+    TABLE_SECTIONS = %w[info columns indexes foreign_keys].freeze
 
     # Always browsable alongside user databases, per the issue - these are
     # ordinary rows in information_schema.SCHEMATA so no special-casing is
@@ -47,7 +48,7 @@ module MysqlDbBrowser
       end
     end
 
-    def tables(database)
+    def tables(database, compact: false)
       with_client do |client|
         safe_section do
           rows = query(client, <<~SQL.squish)
@@ -64,24 +65,27 @@ module MysqlDbBrowser
             database: database,
             system_schema: system_schema?(database),
             truncated: rows.length > MAX_TABLES,
-            tables: rows.first(MAX_TABLES).map { |row| table_summary_payload(row) }
+            tables: rows.first(MAX_TABLES).map { |row| table_summary_payload(row, compact: compact) }
           }
         end
       end
     end
 
-    def table(database, table_name)
+    def table(database, table_name, sections: TABLE_SECTIONS)
+      requested = Array(sections).map(&:to_s) & TABLE_SECTIONS
+      requested = TABLE_SECTIONS if requested.empty?
       with_client do |client|
-        {
+        payload = {
           database: database,
           table: table_name,
           system_schema: system_schema?(database),
-          generated_at: Time.current.iso8601,
-          info: safe_section { table_info(client, database, table_name) },
-          columns: safe_section { columns(client, database, table_name) },
-          indexes: safe_section { indexes(client, database, table_name) },
-          foreign_keys: safe_section { foreign_keys(client, database, table_name) }
+          generated_at: Time.current.iso8601
         }
+        payload[:info] = safe_section { table_info(client, database, table_name) } if requested.include?("info")
+        payload[:columns] = safe_section { columns(client, database, table_name) } if requested.include?("columns")
+        payload[:indexes] = safe_section { indexes(client, database, table_name) } if requested.include?("indexes")
+        payload[:foreign_keys] = safe_section { foreign_keys(client, database, table_name) } if requested.include?("foreign_keys")
+        payload
       end
     end
 
@@ -169,18 +173,18 @@ module MysqlDbBrowser
       }
     end
 
-    def table_summary_payload(row)
-      {
+    def table_summary_payload(row, compact: false)
+      payload = {
         name: row["TABLE_NAME"],
         type: row["TABLE_TYPE"],
         engine: row["ENGINE"],
         approximate_row_count: integer(row["TABLE_ROWS"]),
         data_length_bytes: integer(row["DATA_LENGTH"]),
-        index_length_bytes: integer(row["INDEX_LENGTH"]),
-        created_at: row["CREATE_TIME"]&.iso8601,
-        updated_at: row["UPDATE_TIME"]&.iso8601,
-        comment: row["TABLE_COMMENT"].presence
+        index_length_bytes: integer(row["INDEX_LENGTH"])
       }
+      payload.merge!(created_at: row["CREATE_TIME"]&.iso8601, updated_at: row["UPDATE_TIME"]&.iso8601,
+        comment: row["TABLE_COMMENT"].presence) unless compact
+      payload
     end
 
     def table_info(client, database, table_name)
@@ -217,6 +221,14 @@ module MysqlDbBrowser
         WHERE TABLE_SCHEMA = #{quote(client, database)} AND TABLE_NAME = #{quote(client, table_name)}
         ORDER BY ORDINAL_POSITION
       SQL
+      if rows.empty?
+        exists = query(client, <<~SQL.squish)
+          SELECT TABLE_NAME
+          FROM information_schema.TABLES
+          WHERE TABLE_SCHEMA = #{quote(client, database)} AND TABLE_NAME = #{quote(client, table_name)}
+        SQL
+        raise NotFound, "Table #{database}.#{table_name} was not found" if exists.empty?
+      end
 
       {
         available: true,

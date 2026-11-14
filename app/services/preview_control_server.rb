@@ -51,7 +51,7 @@ class PreviewControlServer
     match = LOGS_PATH.match(request.path)
     return not_found unless match
 
-    logs_response(match[1].to_i, request.params["lines"])
+    logs_response(match[1].to_i, request.params["lines"], request.params["since"])
   rescue StandardError => e
     Rails.logger.error("[PreviewControlServer] #{e.class}: #{e.message}")
     json_response(500, error: "internal_error")
@@ -59,12 +59,19 @@ class PreviewControlServer
 
   private
 
-  def logs_response(environment_id, lines)
+  def logs_response(environment_id, lines, since)
     environment = with_connection { PreviewEnvironment.find_by(id: environment_id) }
     return not_found unless environment
 
-    logs = PreviewLogReader.call(environment, lines: lines.presence || PreviewLogReader::DEFAULT_LINES)
-    json_response(200, logs: logs.map { |log| { path: log.path, content: log.content, missing: log.missing } })
+    logs = PreviewLogReader.call(environment, lines: lines.presence || PreviewLogReader::DEFAULT_LINES, since: parse_since(since))
+    json_response(200, logs: logs.map { |log| { path: log.path, content: log.content, missing: log.missing, size: log.size, incremental: log.incremental } })
+  end
+
+  def parse_since(raw)
+    parsed = JSON.parse(raw.to_s)
+    parsed.is_a?(Hash) ? parsed : nil
+  rescue JSON::ParserError
+    nil
   end
 
   def not_found

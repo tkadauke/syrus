@@ -90,7 +90,7 @@ module Admin
 
     def intent_json(intent, provider_context:)
       units = intent.work_units.sort_by { |unit| [ unit.created_at || Time.zone.at(0), unit.id ] }.reverse
-      {
+      payload = {
         id: intent.id,
         kind: intent.kind,
         label: definition_label(intent.kind),
@@ -98,53 +98,59 @@ module Admin
         priority: intent.priority,
         scope_type: intent.scope_type,
         scope_id: intent.scope_id,
-        delivery_track: intent.delivery_track,
         wait_reason: intent.wait_reason,
         wait_until: intent.wait_until&.iso8601,
-        wait_details: intent.wait_details || {},
         requested_at: intent.requested_at&.iso8601,
-        satisfied_at: intent.satisfied_at&.iso8601,
-        cancelled_at: intent.cancelled_at&.iso8601,
-        source_type: intent.source_type,
-        source_id: intent.source_id,
         source_ref: intent.source_ref,
         target_ref: intent.target_ref,
         repository: repository_json(intent.repository),
-        source_repository: repository_json(intent.source_repository),
-        target_repository: repository_json(intent.target_repository),
         actor: user_json(intent.actor),
         jobs: jobs_json(units),
         units: units.map { |unit| unit_json(unit, provider_context: provider_context) }
       }
+      payload[:debug] = {
+        delivery_track: intent.delivery_track,
+        wait_details: intent.wait_details || {},
+        satisfied_at: intent.satisfied_at&.iso8601,
+        cancelled_at: intent.cancelled_at&.iso8601,
+        source_type: intent.source_type,
+        source_id: intent.source_id,
+        source_repository: repository_json(intent.source_repository),
+        target_repository: repository_json(intent.target_repository)
+      } if AppSetting.show_work_unit_debug?
+      payload
     end
 
     def unit_json(unit, provider_context:)
       workflow_job = unit.workflow&.job_id
-      {
+      payload = {
         id: unit.id,
-        kind: unit.kind,
         label: definition_label(unit.kind),
         state: unit.state,
-        scope_type: unit.scope_type,
-        scope_id: unit.scope_id,
-        delivery_track: unit.delivery_track,
         blocked_reason: unit.blocked_reason,
         blocked_until: unit.blocked_until&.iso8601,
-        blocked_details: unit.blocked_details || {},
         pause_requested: unit.pause_requested,
         preemption_reason: unit.preemption_reason,
         source_ref: unit.source_ref,
         target_ref: unit.target_ref,
+        workflow: unit.workflow ? workflow_json(unit.workflow, workflow_job) : nil,
+        provider_availability: provider_availability_json(unit, provider_context: provider_context),
+        members: unit.work_unit_members.map { |member| member_json(member) }
+      }
+      payload[:debug] = {
+        kind: unit.kind,
+        scope_type: unit.scope_type,
+        scope_id: unit.scope_id,
+        delivery_track: unit.delivery_track,
+        blocked_details: unit.blocked_details || {},
         created_at: unit.created_at&.iso8601,
         started_at: unit.started_at&.iso8601,
         finished_at: unit.finished_at&.iso8601,
         repository: repository_json(unit.repository),
         source_repository: repository_json(unit.source_repository),
-        target_repository: repository_json(unit.target_repository),
-        workflow: unit.workflow ? workflow_json(unit.workflow, workflow_job) : nil,
-        provider_availability: provider_availability_json(unit, provider_context: provider_context),
-        members: unit.work_unit_members.map { |member| member_json(member) }
-      }
+        target_repository: repository_json(unit.target_repository)
+      } if AppSetting.show_work_unit_debug?
+      payload
     end
 
     def provider_availability_json(unit, provider_context:)

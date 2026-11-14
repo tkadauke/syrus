@@ -108,7 +108,6 @@ RSpec.describe MetricsDashboard::DashboardPayload do
 
       series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
 
-      expect(series.sole[:key]).to eq("storage-a")
       expect(series.sole[:name]).to eq("worker-new")
       expect(series.sole[:values].compact.max).to eq(63)
     end
@@ -120,7 +119,6 @@ RSpec.describe MetricsDashboard::DashboardPayload do
 
       series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
 
-      expect(series.map { |entry| entry[:key] }).to contain_exactly("worker-old", "worker-new")
       expect(series.map { |entry| entry[:name] }).to contain_exactly("worker-old", "worker-new")
     end
 
@@ -131,7 +129,6 @@ RSpec.describe MetricsDashboard::DashboardPayload do
 
       series = panel(described_class.build(window: "6h"), "worker_disk")[:series]
 
-      expect(series.map { |entry| entry[:key] }).to contain_exactly("storage-a", "storage-b")
       expect(series.map { |entry| entry[:name] }).to contain_exactly("storage-a", "storage-b")
     end
   end
@@ -219,6 +216,13 @@ RSpec.describe MetricsDashboard::DashboardPayload do
   end
 
   describe "panel categories" do
+    it "queries only the requested category" do
+      payload = described_class.build(window: "6h", category: described_class::CATEGORY_WORKERS_FLEET)
+
+      expect(payload[:panels]).to be_present
+      expect(payload[:panels].pluck(:category).uniq).to eq([ described_class::CATEGORY_WORKERS_FLEET ])
+    end
+
     # A panel named slightly differently than guessed ahead of time is
     # exactly the drift this guards against: every real panel must declare a
     # real category, not quietly ride the "other" fallback.

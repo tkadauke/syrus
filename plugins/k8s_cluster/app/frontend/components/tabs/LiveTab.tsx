@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -54,7 +54,7 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
   const { query, setQuery } = useTableSearch()
   const pods = useQuery({
     queryKey: ["k8s_cluster", "live", "pods", clusterId],
-    queryFn: () => fetchKubernetesPods(clusterId),
+    queryFn: () => fetchKubernetesPods(clusterId, null, "status"),
     staleTime: 0,
     refetchInterval: 10_000
   })
@@ -90,9 +90,16 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
 function RecentEventsLive({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const { query, setQuery } = useTableSearch()
+  const cursor = useRef<string | null>(null)
+  const recentEvents = useRef<Awaited<ReturnType<typeof fetchKubernetesEvents>>["events"]>([])
   const events = useQuery({
     queryKey: ["k8s_cluster", "live", "events", clusterId],
-    queryFn: () => fetchKubernetesEvents(clusterId),
+    queryFn: async () => {
+      const response = await fetchKubernetesEvents(clusterId, null, { limit: 20, since: cursor.current })
+      cursor.current = response.cursor
+      recentEvents.current = [...response.events, ...recentEvents.current].slice(0, 20)
+      return { ...response, events: recentEvents.current }
+    },
     staleTime: 0,
     refetchInterval: 10_000
   })

@@ -178,7 +178,7 @@ func (f *fakeDocker) RestartContainer(_ context.Context, id string, _ time.Durat
 	return nil
 }
 
-func (f *fakeDocker) ContainerLogs(_ context.Context, id string, tail int, _ int64) (string, error) {
+func (f *fakeDocker) ContainerLogs(_ context.Context, id string, tail int, _ int64, _ string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.containers[id] == nil {

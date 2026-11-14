@@ -74,16 +74,18 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
       updateRepositoryScheduledTask(payload.repository.id, task.id, enabled),
     onSuccess: (updated) => {
       setNotice(updated.message || null)
-      queryClient.setQueryData(queryKey, updated)
-      void queryClient.invalidateQueries({ queryKey: ["scheduled_tasks"] })
+      queryClient.setQueryData<RepositoryScheduledTasksPayload>(queryKey, (current) =>
+        current ? { ...current, tasks: current.tasks.map((task) => (task.id === updated.task.id ? updated.task : task)) } : current
+      )
     }
   })
   const destroy = useMutation({
     mutationFn: (task: RepositoryScheduledTask) => deleteRepositoryScheduledTask(payload.repository.id, task.id),
     onSuccess: (updated) => {
       setNotice(updated.message || null)
-      queryClient.setQueryData(queryKey, updated)
-      void queryClient.invalidateQueries({ queryKey: ["scheduled_tasks"] })
+      queryClient.setQueryData<RepositoryScheduledTasksPayload>(queryKey, (current) =>
+        current ? { ...current, tasks: current.tasks.filter((task) => task.id !== updated.task.id) } : current
+      )
     }
   })
 

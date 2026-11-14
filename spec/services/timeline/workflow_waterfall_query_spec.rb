@@ -39,7 +39,8 @@ RSpec.describe Timeline::WorkflowWaterfallQuery do
       pid: 555
     )
     expect(result[:steps].map { |step| step[:id] }).to eq([ prepare_step.id, implement_step.id ])
-    expect(result[:steps].first).to include(kind: "prepare", status: "succeeded", worker_storage_key: "storage-a", queue_role: "runs", hostname: "worker-a", pid: 555)
+    expect(result[:steps].first).to include(kind: "prepare", status: "succeeded")
+    expect(result[:steps].first).not_to include(:worker_storage_key, :queue_role, :hostname, :pid)
 
     implement_payload = result[:steps].second
     expect(implement_payload[:runs]).to contain_exactly(

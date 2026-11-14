@@ -39,6 +39,9 @@ RSpec.describe JobBundleDispatcher do
     expect(train.base_branch).to eq(repository.default_branch)
     expect(train.members.count).to eq(2)
     expect(workflow.artifact("merge_train_id")).to eq(train.id)
+    # Pinned so the workspace base is the train's target, not a member's
+    # stack parent (see MergeTrainDispatcher).
+    expect(workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq(train.base_branch)
     expect(a.reload.state).to eq("landing")
     expect(b.reload.state).to eq("landing")
     expect(StepDispatcher).to have_received(:start_workflow).with(workflow)

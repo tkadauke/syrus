@@ -100,7 +100,9 @@ class WorkflowActivity
       message: "Run ##{run.id} #{from_state} -> #{to_state}.",
       metadata: {
         from_state: from_state,
-        to_state: to_state
+        to_state: to_state,
+        primary_outcome: terminal ? to_state : nil,
+        agent_outcome: terminal ? run.agent_outcome : nil
       }.merge(StateTransition.transition_metadata_for(run)).compact
     )
   end

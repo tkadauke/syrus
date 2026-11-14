@@ -38,6 +38,14 @@ RSpec.describe "GET /api/v1/app/admin/metrics_dashboard", type: :request do
       expect(response.parsed_body["cluster_counter_capture"]).to eq("partial")
     end
 
+    it "serves only the requested category's panels" do
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/metrics_dashboard", params: { category: "workers_fleet" }
+
+      expect(response.parsed_body.fetch("panels").pluck("category").uniq).to eq([ "workers_fleet" ])
+    end
+
     # Instance-wide operational numbers -- queue depth, failure counts, which
     # plugins are on -- are not scoped to the requesting user's own work.
     it "refuses a non-admin" do

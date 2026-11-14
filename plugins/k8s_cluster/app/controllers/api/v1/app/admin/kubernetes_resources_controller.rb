@@ -21,20 +21,22 @@ module Api
           end
 
           def pods
-            render_namespace_scoped(resource_service(::K8sCluster::Pods))
+            options = params[:view].present? ? { view: params[:view] } : {}
+            render_namespace_scoped(resource_service(::K8sCluster::Pods), **options)
           end
 
           def pod_logs
             return unless (namespace = require_namespace!)
 
-            render json: resource_service(::K8sCluster::Pods).logs(
-              params[:name],
+            options = {
               namespace: namespace,
               container: params[:container].presence,
               tail_lines: params[:tail_lines].presence&.to_i || DEFAULT_TAIL_LINES,
               previous: !!ActiveModel::Type::Boolean.new.cast(params[:previous]),
               timestamps: !!ActiveModel::Type::Boolean.new.cast(params[:timestamps])
-            )
+            }
+            options[:since] = params[:since] if params[:since].present?
+            render json: resource_service(::K8sCluster::Pods).logs(params[:name], **options)
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
           rescue ::K8sCluster::ResourceService::NotFound => e
@@ -78,7 +80,10 @@ module Api
           end
 
           def events
-            render json: resource_service(::K8sCluster::Events).list(namespace: params[:namespace])
+            options = { namespace: params[:namespace] }
+            options[:limit] = params[:limit] if params[:limit].present?
+            options[:since] = params[:since] if params[:since].present?
+            render json: resource_service(::K8sCluster::Events).list(**options)
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
           end
@@ -96,7 +101,9 @@ module Api
           end
 
           def overview
-            render json: resource_service(::K8sCluster::Overview).call
+            render json: resource_service(::K8sCluster::Overview).call(
+              summary: ActiveModel::Type::Boolean.new.cast(params[:summary]), namespace: params[:namespace]
+            )
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
           end
@@ -119,7 +126,7 @@ module Api
           # describe over list.
           def render_cluster_scoped(service)
             if params[:name].present?
-              render json: service.describe(params[:name])
+              render json: sanitize_description(service.describe(params[:name]))
             else
               render json: service.list
             end
@@ -134,13 +141,13 @@ module Api
           # matching `kubectl get <kind> -A`. Describing a single object
           # (`name` present) requires `namespace` too, since Kubernetes has
           # no cross-namespace "get by name" for these kinds.
-          def render_namespace_scoped(service)
+          def render_namespace_scoped(service, **list_options)
             if params[:name].present?
               return unless (namespace = require_namespace!)
 
-              render json: service.describe(params[:name], namespace: namespace)
+              render json: sanitize_description(service.describe(params[:name], namespace: namespace))
             else
-              render json: service.list(namespace: params[:namespace])
+              render json: service.list(namespace: params[:namespace], **list_options)
             end
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
@@ -153,6 +160,18 @@ module Api
 
             render_error("namespace_required", "namespace is required to describe a specific resource", status: :unprocessable_content)
             nil
+          end
+
+          def sanitize_description(payload)
+            payload.deep_dup.tap do |copy|
+              resource = copy.values.find { |value| value.is_a?(Hash) && value.key?("metadata") }
+              metadata = resource&.dig("metadata")
+              next unless metadata
+
+              metadata.delete("managedFields")
+              annotations = metadata["annotations"]
+              annotations&.delete("kubectl.kubernetes.io/last-applied-configuration")
+            end
           end
 
           def validate_resource_identifiers

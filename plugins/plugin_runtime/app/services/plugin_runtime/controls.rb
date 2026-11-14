@@ -52,9 +52,9 @@ module PluginRuntime
       client.remove_volume(name)
     end
 
-    def logs(name, tail: DEFAULT_LOG_TAIL)
+    def logs(name, tail: DEFAULT_LOG_TAIL, since: nil)
       entry = entry_for(name)
-      client.logs(entry.name, tail: tail.to_i.clamp(1, 5000))
+      client.logs(entry.name, tail: tail.to_i.clamp(1, 5000), since: since)
     end
 
     private

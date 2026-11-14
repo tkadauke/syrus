@@ -124,6 +124,9 @@
     "empty_open_action": "Quaestiones GitHub videre",
     "empty_open_description": "Nullae quaestiones apertae delegandae praesto sunt. Crea aut nota quaestionem cum {{label}}, aut utere opere directo ad primum opus.",
     "empty_closed_action": "Quaestiones apertas ostendere",
-    "empty_closed_description": "Nullae quaestiones clausae in hac conspectu repositorii praesto sunt."
+    "empty_closed_description": "Nullae quaestiones clausae in hac conspectu repositorii praesto sunt.",
+    "pagination_showing": "{{first}}–{{last}} ex {{total}} ostenduntur",
+    "pagination_previous": "Prior",
+    "pagination_next": "Proxima"
   }
 }

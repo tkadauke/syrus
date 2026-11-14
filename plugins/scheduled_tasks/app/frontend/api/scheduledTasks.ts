@@ -10,6 +10,19 @@ export type ScheduledTaskRepository = {
 export type ScheduledTaskRow = {
   id: number
   name: string
+  state: string
+  repository_id: number
+  repository_slug: string
+  repository_path: string
+  schedule_label: string | null
+  last_fired_at: string | null
+  system_key: string | null
+  scheduled_task_path: string
+}
+
+export type ScheduledTaskDetail = {
+  id: number
+  name: string
   kind: string
   state: string
   repository: ScheduledTaskRepository
@@ -23,9 +36,6 @@ export type ScheduledTaskRow = {
   coworker_id: number | null
   system_key: string | null
   scheduled_task_path: string
-}
-
-export type ScheduledTaskDetail = ScheduledTaskRow & {
   prompt: string
   skill_name: string | null
   skill_args: Record<string, string | boolean>
@@ -97,12 +107,11 @@ export type ScheduledTaskDetailPayload = {
   recent_jobs: ScheduledTaskJob[]
   options: ScheduledTaskOptions
   message?: string
-  fire_result?: {
-    fired: boolean
-    skipped: boolean
-    reason: string | null
-    job_id: number | null
-  }
+}
+
+export type ScheduledTaskMutationPayload = {
+  task: ScheduledTaskDetail
+  message: string
 }
 
 export type RepositoryScheduledTask = ScheduledTaskDetail & {
@@ -116,6 +125,11 @@ export type RepositoryScheduledTasksPayload = {
   new_scheduled_task_path: string
   options: ScheduledTaskOptions
   message?: string
+}
+
+export type RepositoryScheduledTaskMutationPayload = {
+  task: RepositoryScheduledTask
+  message: string
 }
 
 export type ScheduledTaskRepositoryOptionsPayload = {
@@ -170,13 +184,13 @@ export function fetchRepositoryScheduledTasks(repositoryId: string) {
 
 export function createScheduledTask(repositoryId: string, values: ScheduledTaskInput, fromTemplate?: string | null) {
   const query = fromTemplate ? `?${new URLSearchParams({ from_template: fromTemplate }).toString()}` : ""
-  return postJson<ScheduledTaskDetailPayload>(`/api/v1/app/repositories/${repositoryId}/scheduled_tasks${query}`, {
+  return postJson<ScheduledTaskMutationPayload>(`/api/v1/app/repositories/${repositoryId}/scheduled_tasks${query}`, {
     scheduled_task: values
   })
 }
 
 export function updateScheduledTask(id: number, values: ScheduledTaskInput) {
-  return patchJson<ScheduledTaskDetailPayload>(`/api/v1/app/scheduled_tasks/${id}`, {
+  return patchJson<ScheduledTaskMutationPayload>(`/api/v1/app/scheduled_tasks/${id}`, {
     scheduled_task: values
   })
 }
@@ -189,27 +203,27 @@ export function previewScheduledTaskSchedule({ scheduleInput, scheduleTimezone }
 }
 
 export function archiveScheduledTask(id: number) {
-  return deleteJson<ScheduledTasksIndexPayload>(`/api/v1/app/scheduled_tasks/${id}`)
+  return deleteJson<ScheduledTaskMutationPayload>(`/api/v1/app/scheduled_tasks/${id}`)
 }
 
 export function pauseScheduledTask(id: number) {
-  return postJson<ScheduledTaskDetailPayload>(`/api/v1/app/scheduled_tasks/${id}/pause`)
+  return postJson<ScheduledTaskMutationPayload>(`/api/v1/app/scheduled_tasks/${id}/pause`)
 }
 
 export function resumeScheduledTask(id: number) {
-  return postJson<ScheduledTaskDetailPayload>(`/api/v1/app/scheduled_tasks/${id}/resume`)
+  return postJson<ScheduledTaskMutationPayload>(`/api/v1/app/scheduled_tasks/${id}/resume`)
 }
 
 export function fireScheduledTask(id: number) {
-  return postJson<ScheduledTaskDetailPayload>(`/api/v1/app/scheduled_tasks/${id}/fire_now`)
+  return postJson<ScheduledTaskMutationPayload>(`/api/v1/app/scheduled_tasks/${id}/fire_now`)
 }
 
 export function updateRepositoryScheduledTask(repositoryId: number, id: number, enabled: boolean) {
-  return patchJson<RepositoryScheduledTasksPayload>(`/api/v1/app/repositories/${repositoryId}/scheduled_tasks/${id}`, {
+  return patchJson<RepositoryScheduledTaskMutationPayload>(`/api/v1/app/repositories/${repositoryId}/scheduled_tasks/${id}`, {
     enabled
   })
 }
 
 export function deleteRepositoryScheduledTask(repositoryId: number, id: number) {
-  return deleteJson<RepositoryScheduledTasksPayload>(`/api/v1/app/repositories/${repositoryId}/scheduled_tasks/${id}`)
+  return deleteJson<RepositoryScheduledTaskMutationPayload>(`/api/v1/app/repositories/${repositoryId}/scheduled_tasks/${id}`)
 }

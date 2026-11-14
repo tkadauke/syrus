@@ -6,12 +6,16 @@ import {
   fetchDeploy,
   fetchPreview,
   fetchPreviewLogs,
+  mergePreviewLogs,
+  previewLogCursor,
   startDeploy,
   startPreview,
   stopPreview,
   type DeployWorkflowRecord,
   type PreviewEnvironmentRecord,
-  type PreviewProjectRecord
+  type PreviewLogsPayload,
+  type PreviewProjectRecord,
+  type PreviewStatusPayload
 } from "../api/jobs"
 import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
@@ -125,7 +129,12 @@ export function PreviewPanel({
 
   const preview = useQuery({
     queryKey: previewQueryKey,
-    queryFn: () => fetchPreview(previewPath),
+    queryFn: async () => {
+      // The project list is static; only the first (server-rendered) copy is needed.
+      const data = await fetchPreview(previewPath, { includeProjects: false })
+      const known = queryClient.getQueryData<PreviewStatusPayload>(previewQueryKey)?.preview_projects ?? initialPreviewProjects
+      return { ...data, preview_projects: data.preview_projects ?? known }
+    },
     initialData: { preview: initialPreview, preview_projects: initialPreviewProjects },
     staleTime: 0,
     refetchInterval: (query) => {
@@ -363,11 +372,16 @@ function PreviewLogsModal({
   onClose: () => void
 }) {
   const { t } = useT("jobs")
+  const queryClient = useQueryClient()
   const closeRef = useRef<HTMLButtonElement>(null)
 
   const logs = useQuery({
     queryKey: [`${queryKeyPrefix}-preview-logs`, entityId],
-    queryFn: () => fetchPreviewLogs(previewLogsPath),
+    queryFn: async ({ queryKey }) => {
+      // Ask only for bytes appended since the last response, then fold them in.
+      const previous = queryClient.getQueryData<PreviewLogsPayload>(queryKey)
+      return mergePreviewLogs(previous, await fetchPreviewLogs(previewLogsPath, previewLogCursor(previous)))
+    },
     staleTime: 0,
     refetchInterval: running ? POLL_INTERVAL_MS : false
   })

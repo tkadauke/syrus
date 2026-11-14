@@ -107,12 +107,26 @@ function AdminOverviewPage({
   }
 
   const data = overview.data
+  const content = renderContent?.(data, prefix)
+  if (content) {
+    return (
+      <Page.Root aria-label={t(ariaKey)} gutter="responsive" size="default">
+        <Page.Header className="block border-b border-gray-200 pb-4 dark:border-gray-700">
+          <Page.HeadingGroup>
+            <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
+            <Page.Title className="mt-1">{t(headingKey)}</Page.Title>
+          </Page.HeadingGroup>
+        </Page.Header>
+        {content}
+      </Page.Root>
+    )
+  }
+
   const captureRate = data.agent_session_capture_rate.rate
   const overdueRecurring = data.recurring.overdue || []
   const recurringCount = data.recurring.count ?? overdueRecurring.length
   const dataRoot = data.data_root_disk_usage
   const workerHealthTone = aggregateWorkerHealthTone(data.workers, data.worker_health)
-  const content = renderContent?.(data, prefix)
   const stalledClassifier = data.stalled_classifier_jobs
 
   return (
@@ -512,7 +526,7 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
                     <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{event.severity}</span>
                   ) : null}
                 </div>
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-1 text-xs text-text-secondary">
                   <EventLinks event={event} prefix={prefix} />
                   {event.reason ? <span className="ml-2">{event.reason}</span> : null}
                 </div>
@@ -528,7 +542,7 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
           ))}
         </ul>
       ) : (
-        <div className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">{t("overview.no_chat_events")}</div>
+        <div className="px-4 py-6 text-sm text-text-secondary">{t("overview.no_chat_events")}</div>
       )}
     </section>
   )
@@ -589,9 +603,9 @@ function workersContext(
   workerHealth?: AdminOverviewPayload["worker_health"]
 ) {
   if (workers.unreachable) return t("overview.queue_unreachable")
-  const critical = workerHealth?.current.filter((worker) => worker.health.level === "critical").length ?? 0
+  const critical = workerHealthLevelCount(workerHealth, "critical")
   if (critical > 0) return t("overview.critical_workers", { count: critical })
-  const warning = workerHealth?.current.filter((worker) => worker.health.level === "warning" || worker.health.level === "unknown").length ?? 0
+  const warning = workerHealthLevelCount(workerHealth, "warning") + workerHealthLevelCount(workerHealth, "unknown")
   if (warning > 0) return t("overview.warning_workers", { count: warning })
   if (workers.stale && workers.stale > 0) return t("overview.stale_workers", { count: workers.stale })
   return t("overview.all_healthy")
@@ -609,9 +623,15 @@ function aggregateWorkerHealthTone(
 ): "idle" | "ok" | "warn" | "alarm" {
   if (workers.stale && workers.stale > 0) return "alarm"
   if (!workerHealth) return "idle"
-  if (workerHealth.current.some((worker) => worker.health.level === "critical")) return "alarm"
-  if (workerHealth.current.some((worker) => worker.health.level === "warning" || worker.health.level === "unknown")) return "warn"
+  if (workerHealthLevelCount(workerHealth, "critical") > 0) return "alarm"
+  if (workerHealthLevelCount(workerHealth, "warning") + workerHealthLevelCount(workerHealth, "unknown") > 0) return "warn"
   return "ok"
+}
+
+function workerHealthLevelCount(workerHealth: AdminOverviewPayload["worker_health"], level: string) {
+  if (!workerHealth) return 0
+  if ("levels" in workerHealth) return workerHealth.levels[level] ?? 0
+  return workerHealth.current.filter((worker) => worker.health.level === level).length
 }
 
 function dataRootTone(level?: string) {

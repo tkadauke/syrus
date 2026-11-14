@@ -204,9 +204,11 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:created)
     expect(response.parsed_body.dig("schedule", "after_run")).to eq("wake")
     task_id = response.parsed_body.dig("schedule", "id")
+    expect(ScheduledTasks::Task.find(task_id).coworker_id).to eq(coworker.id)
+
     get "/api/v1/app/scheduled_tasks"
     expect(response.parsed_body.fetch("active_tasks")).to include(
-      include("id" => task_id, "coworker_id" => coworker.id, "name" => "Morning briefing")
+      include("id" => task_id, "name" => "Morning briefing")
     )
   end
 

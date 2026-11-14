@@ -1432,6 +1432,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(payload[:open_jobs]).to be >= 1
     expect(payload[:running_workflows]).to eq(1)
     expect(payload[:queue_summary]).to include(:active, :pending, :failed)
+    expect(payload.dig(:overview, :worker_health)).to include(:current, :hosts)
     expect(payload.dig(:overview, :resource_admission)).to include(
       :active_consumers,
       :recent_top_consumers,

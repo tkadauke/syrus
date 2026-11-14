@@ -46,7 +46,11 @@ export type MysqlConnectionTestResult = {
 }
 
 export function fetchMysqlConnections() {
-  return getJson<{ mysql_connections: MysqlConnectionRow[]; credential_scope_options: CredentialScopeOptions }>("/api/v1/app/admin/mysql_connections")
+  return getJson<{ mysql_connections: MysqlConnectionRow[] }>("/api/v1/app/admin/mysql_connections")
+}
+
+export function fetchCredentialScopeOptions() {
+  return getJson<{ credential_scope_options: CredentialScopeOptions }>("/api/v1/app/admin/mysql_connections/credential_scope_options")
 }
 
 export function createMysqlConnection(values: MysqlConnectionInput) {

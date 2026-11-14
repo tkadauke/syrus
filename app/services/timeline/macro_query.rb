@@ -16,6 +16,7 @@ module Timeline
   # list; it's still reachable through the Job/Workflow admin views.
   class MacroQuery
     DEFAULT_WINDOW = 1.hour
+    MAX_SPANS = 1_000
     STALE_PENDING_THRESHOLD = 1.week
     JOB_TYPE_ALIASES = {
       "infra" => "system",
@@ -50,7 +51,8 @@ module Timeline
       {
         range: { from: from.iso8601, to: to.iso8601 },
         lanes: (active_lanes + idle_lanes_payload(active_hostnames)).sort_by { |lane| lane[:key].to_s },
-        pending: pending_payload
+        pending: pending_payload,
+        truncated: matching_span_count > MAX_SPANS
       }
     end
 
@@ -112,8 +114,7 @@ module Timeline
           queue_role: representative_span[:queue_role],
           hostname: representative_span[:hostname],
           pid: representative_span[:pid],
-          instance: instance_payload(instance_for_hostname(representative_span[:hostname])),
-          spans: lane_spans.sort_by { |span| span[:started_at] }.map { |span| span.except(:lane_key) }
+          spans: lane_spans.sort_by { |span| span[:started_at] }.map { |span| span.except(:lane_key, :worker_storage_key, :queue_role) }
         }
       end
     end
@@ -128,14 +129,22 @@ module Timeline
             queue_role: nil,
             hostname: hostname,
             pid: nil,
-            instance: instance_payload(instances.max_by(&:started_at)),
             spans: []
           }
         end
     end
 
     def spans
-      @spans ||= workflows.filter_map { |workflow| span_for(workflow) }
+      @spans ||= begin
+        matches = workflows.filter_map { |workflow| span_for(workflow) }
+        @matching_span_count = matches.length
+        matches.last(MAX_SPANS)
+      end
+    end
+
+    def matching_span_count
+      spans
+      @matching_span_count
     end
 
     def span_for(workflow)
@@ -274,24 +283,6 @@ module Timeline
         .where("finished_at IS NULL OR finished_at > ?", from)
       scope = scope.where(hostname: hostname_filter) if hostname_filter
       scope
-    end
-
-    def instance_for_hostname(hostname)
-      return nil if hostname.blank?
-
-      instance_versions.select { |instance| instance.hostname == hostname }.max_by(&:started_at)
-    end
-
-    def instance_payload(instance)
-      return nil unless instance
-
-      {
-        id: instance.id,
-        hostname: instance.hostname,
-        started_at: instance.started_at&.iso8601,
-        last_heartbeat_at: instance.last_heartbeat_at&.iso8601,
-        finished_at: instance.finished_at&.iso8601
-      }
     end
 
     def each_batch(scope, remaining)

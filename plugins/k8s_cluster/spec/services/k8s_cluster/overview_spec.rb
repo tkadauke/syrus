@@ -33,6 +33,20 @@ RSpec.describe K8sCluster::Overview do
     expect(payload[:pods][:total_cpu_millicores]).to eq(100)
   end
 
+  it "omits metric rows in summary mode and filters pod totals by namespace" do
+    stub_kube_get("#{base}/nodes", { "items" => [ { "metadata" => { "name" => "node-1" }, "usage" => { "cpu" => "250m", "memory" => "1Mi" } } ] })
+    stub_kube_get("#{base}/pods", { "items" => [
+      { "metadata" => { "name" => "web", "namespace" => "default" }, "containers" => [ { "usage" => { "cpu" => "100m", "memory" => "2Mi" } } ] },
+      { "metadata" => { "name" => "worker", "namespace" => "other" }, "containers" => [ { "usage" => { "cpu" => "900m", "memory" => "3Mi" } } ] }
+    ] })
+
+    payload = described_class.new(cluster).call(summary: true, namespace: "default")
+
+    expect(payload[:nodes]).not_to have_key(:items)
+    expect(payload[:pods]).not_to have_key(:items)
+    expect(payload[:pods][:total_cpu_millicores]).to eq(100)
+  end
+
   it "soft-fails when metrics-server is not installed (404 from the API server)" do
     stub_kube_error("#{base}/nodes", 404)
     stub_kube_error("#{base}/pods", 404)

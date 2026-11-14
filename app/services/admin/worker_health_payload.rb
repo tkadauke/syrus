@@ -12,7 +12,7 @@ module Admin
       "24h" => 24.hours
     }.freeze
 
-    def initialize(hostname: nil, since: nil, until_time: nil, sample_limit_per_host: SAMPLE_LIMIT_PER_HOST, minute_bucket_window_minutes: DEFAULT_MINUTE_BUCKET_WINDOW / 1.minute, include_raw_metrics: true, include_history: true)
+    def initialize(hostname: nil, since: nil, until_time: nil, sample_limit_per_host: SAMPLE_LIMIT_PER_HOST, minute_bucket_window_minutes: DEFAULT_MINUTE_BUCKET_WINDOW / 1.minute, include_raw_metrics: true, include_history: true, include_current: true)
       @hostname = hostname.presence
       @until_time = parse_time(until_time) || Time.current
       @since = parse_time(since) || (@until_time - DEFAULT_WINDOW)
@@ -20,10 +20,11 @@ module Admin
       @minute_bucket_window = minute_bucket_window_minutes.to_i.minutes.clamp(0.seconds, MAX_MINUTE_BUCKET_WINDOW)
       @include_raw_metrics = include_raw_metrics != false
       @include_history = include_history != false
+      @include_current = include_current != false
     end
 
     def as_json(*)
-      {
+      payload = {
         generated_at: Time.current.iso8601,
         range: {
           since: since.iso8601,
@@ -35,9 +36,10 @@ module Admin
           window_minutes: (minute_bucket_window / 1.minute).to_i,
           max_window_minutes: (MAX_MINUTE_BUCKET_WINDOW / 1.minute).to_i
         },
-        current: current_workers,
         hosts: include_history? ? host_history : []
       }
+      payload[:current] = current_workers if include_current?
+      payload
     end
 
     private
@@ -241,6 +243,10 @@ module Admin
 
     def include_history?
       @include_history
+    end
+
+    def include_current?
+      @include_current
     end
 
     def worker_health_scalar_columns

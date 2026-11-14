@@ -7383,7 +7383,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(detail).not_to include("coding_handoff")
   end
 
-  it "serializes an anchored pending action only with its message" do
+  # Regression: an action anchored to its tool call was dropped from
+  # `pending_actions` to avoid a duplicate card, but the composer carousel fed
+  # by that list is the only place with Confirm/Reject -- the tool card on the
+  # message is read-only -- so the operator had no way to confirm it.
+  it "keeps an anchored pending action in the composer list while it awaits a decision" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     job = Factories.job_record(repository: repository)
@@ -7398,9 +7402,30 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    expect(parse_body.fetch("pending_actions")).to be_empty
+    expect(parse_body.fetch("pending_actions").map { |item| item.fetch("id") }).to eq([ action.id ])
     anchored = parse_body.fetch("messages").find { |item| item.fetch("id") == message.id }
     expect(anchored.fetch("pending_action")).to include("id" => action.id, "state" => "pending")
+  end
+
+  it "serializes a settled anchored pending action only with its message" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository)
+    action = chat.pending_actions.create!(action: "cancel_job", requested_by: "agent", payload: { "job_id" => job.id })
+    message = chat.messages.create!(
+      role: "tool_use",
+      tool_name: "cancel_job",
+      pending_action: action,
+      content: { "text" => "Cancel it?" }
+    )
+    action.update!(chat_message_id: message.id)
+    action.update_columns(state: "rejected")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body.fetch("pending_actions")).to be_empty
+    anchored = parse_body.fetch("messages").find { |item| item.fetch("id") == message.id }
+    expect(anchored.fetch("pending_action")).to include("id" => action.id, "state" => "rejected")
   end
 
   it "labels an unanchored reconcile_job_state repair action and links its target Job instead of rendering a blank card" do
@@ -7729,7 +7754,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    expect(parse_body["pending_actions"]).to be_empty
+    # Still awaiting confirmation, so it stays in the composer carousel too.
+    expect(parse_body["pending_actions"].map { |item| item["id"] }).to eq([ action.id ])
     anchored = parse_body["messages"].find { |message| message["id"] == tool_use.id }
     expect(anchored["pending_action"]).to include(
       "id" => action.id,

@@ -33,6 +33,7 @@ module Steps
     OUTPUT_CONTEXT_AFTER_LINES = 24
     OUTPUT_FAILURE_SNIPPET_LIMIT = 6
     OUTPUT_FAILURE_HEAD_SNIPPETS = 2
+    DIAGNOSTIC_CAPTURE_MAX_BYTES = 1.megabyte
     # Lines that match FAILURE_OUTPUT_PATTERN while carrying no diagnostic
     # weight. They matter because only a handful of matches become excerpts:
     # a parallel rspec run prints one "N examples, 0 failures" per worker and
@@ -92,14 +93,19 @@ module Steps
 
       log_path = grader_log_path(name)
       absolute_log_path = workspace.path.join(log_path)
-      FileUtils.mkdir_p(absolute_log_path.dirname)
 
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       exit_code = nil
       timed_out = false
       runner_result = nil
 
-      sink, flush = buffered_log_sink
+      durable_sink, flush = buffered_log_sink
+      diagnostic_buffer = +""
+      sink = lambda do |chunk, **metadata|
+        diagnostic_buffer << chunk.to_s
+        diagnostic_buffer.replace(diagnostic_buffer.safe_byteslice(-DIAGNOSTIC_CAPTURE_MAX_BYTES, DIAGNOSTIC_CAPTURE_MAX_BYTES).to_s) if diagnostic_buffer.bytesize > DIAGNOSTIC_CAPTURE_MAX_BYTES
+        durable_sink.call(chunk, **metadata)
+      end
       span_plan = GraderCommandSpans::Plan.for(command)
       span_recorder = GraderCommandSpans::Recorder.new(
         run: run,
@@ -113,13 +119,15 @@ module Steps
       git_status_before = capture_git_status(name: name)
       git_metadata_before = capture_git_metadata_digest
 
-      File.open(absolute_log_path, "wb") do |file|
+      grade_log, diagnostic_warning = open_grade_log(absolute_log_path, log_path)
+      grade_log.binmode
+      begin
         runner_result = run_with_span_recording(
           runner_command: runner_command,
           display_command: command,
           timeout_minutes: timeout_minutes,
           span_recorder: span_recorder,
-          file: file,
+          file: grade_log,
           sink: sink
         )
 
@@ -127,8 +135,8 @@ module Steps
         exit_code = timed_out ? TIMEOUT_EXIT_CODE : runner_result.exit_status
         trailing_chunk = span_recorder.flush_visible
         if trailing_chunk.present?
-          file.write(trailing_chunk)
-          file.flush
+          grade_log.write(trailing_chunk)
+          grade_log.flush
           sink.call(trailing_chunk, kind: "grade_log")
         end
         span_recorder.finalize!(
@@ -140,10 +148,12 @@ module Steps
 
         if timed_out
           timeout_message = "\n[timed out after #{timeout_minutes} minutes]\n"
-          file.write(timeout_message)
+          grade_log.write(timeout_message)
           log(timeout_message, kind: "grade_log")
           log("[grader:#{name}] timed out after #{timeout_minutes} minutes")
         end
+      ensure
+        grade_log.close
       end
 
       flush.call
@@ -179,19 +189,30 @@ module Steps
         []
       end
 
-      append_grade_diagnostic(absolute_log_path, "\n[grader:#{name}] failed (exit #{exit_code})\n") unless passed
+      diagnostic_text = "\n[grader:#{name}] failed (exit #{exit_code})\n"
+      unless passed
+        diagnostic_buffer << diagnostic_text
+        append_warning = append_grade_diagnostic(absolute_log_path, log_path, diagnostic_text)
+        diagnostic_warning ||= append_warning
+      end
 
       # Snapshot the result onto Step#details after all failure
       # augmentation so fallback readers see the same actionable tail as
       # the workspace log file when the workspace has been pruned.
-      output_excerpt = grader_output_excerpt(absolute_log_path)
+      log_capture = capture_grade_log(
+        absolute_log_path,
+        log_path,
+        diagnostic_warning: diagnostic_warning,
+        fallback_output: diagnostic_buffer
+      )
+      output_excerpt = log_capture.fetch(:output)
       unexplained_missing_exit = !passed && runner_result && exit_code.nil? &&
         !runner_result.stopped? && !runner_result.operator_killed? && !runner_result.silent_timed_out?
       outcome = GraderOutcome.call(
         details: definition.merge(
           "exit_code" => exit_code,
           "timed_out" => timed_out,
-          "log_bytes" => absolute_log_path.size,
+          "log_bytes" => log_capture.fetch(:bytes),
           "output" => output_excerpt,
           "cancelled" => (runner_result&.stopped? || runner_result&.operator_killed?) ? true : nil
         ),
@@ -214,8 +235,9 @@ module Steps
         "duration_s" => duration_s.round(1),
         "timed_out" => timed_out,
         "log_path" => log_path.to_s,
-        "log_bytes" => absolute_log_path.size,
+        "log_bytes" => log_capture.fetch(:bytes),
         "output" => output_excerpt,
+        "diagnostic_warnings" => [ log_capture[:warning] ].compact,
         "coverage_output_results" => coverage_output_results
       ))
 
@@ -688,12 +710,28 @@ module Steps
     end
 
     def grader_log_path(name)
-      Pathname.new(".syrus/grade-output/iteration-#{run.iteration}/#{name}.log")
+      safe_name = GraderLogArchive.sanitize_name(name)
+      Pathname.new(".syrus/grade-output/iteration-#{run.iteration}/#{safe_name}.log")
     end
 
-    def append_grade_diagnostic(path, text)
-      File.open(path, "ab") { |file| file.write(text) }
+    def open_grade_log(path, relative_path)
+      flags = File::WRONLY | File::CREAT | File::TRUNC | nofollow_flag
+      [ open_workspace_grade_log(relative_path, flags, 0o600, create_directories: true), nil ]
+    rescue SystemCallError, IOError => e
+      warning = grade_log_warning(relative_path, diagnostic_status(e, path))
+      log("[grader diagnostic warning] #{warning.to_json}", kind: "system")
+      [ File.open(File::NULL, "wb"), warning ]
+    end
+
+    def append_grade_diagnostic(path, relative_path, text)
+      open_workspace_grade_log(relative_path, File::WRONLY | File::APPEND | nofollow_flag) { |file| file.write(text) }
       log(text, kind: "grade_log")
+      nil
+    rescue SystemCallError, IOError => e
+      warning = grade_log_warning(relative_path, diagnostic_status(e, path))
+      log("[grader diagnostic warning] #{warning.to_json}", kind: "system")
+      log(text, kind: "grade_log")
+      warning
     end
 
     def run_grader_augmentors!(name:, command:)
@@ -705,11 +743,113 @@ module Steps
       end
     end
 
-    def grader_output_excerpt(path)
-      return "" unless path.exist?
-      output = path.binread
+    def capture_grade_log(path, relative_path, diagnostic_warning: nil, fallback_output: nil)
+      warning = diagnostic_warning
+      file = open_workspace_grade_log(relative_path, File::RDONLY | nofollow_flag)
+      stat = file.stat
+      unless stat.file?
+        warning ||= grade_log_warning(relative_path, "not_regular_file")
+        return { output: durable_grade_log_excerpt(fallback_output), bytes: 0, warning: warning }
+      end
+
+      bytes = stat.size
+      if bytes > DIAGNOSTIC_CAPTURE_MAX_BYTES
+        warning ||= grade_log_warning(relative_path, "oversized", "capture_limit_bytes" => DIAGNOSTIC_CAPTURE_MAX_BYTES)
+        file.seek(-DIAGNOSTIC_CAPTURE_MAX_BYTES, IO::SEEK_END)
+      end
+      output = file.read(DIAGNOSTIC_CAPTURE_MAX_BYTES).to_s
+      { output: grader_output_excerpt(output), bytes: bytes, warning: warning }
+    rescue Errno::ENOENT
+      warning ||= grade_log_warning(relative_path, "missing")
+      { output: durable_grade_log_excerpt(fallback_output), bytes: 0, warning: warning }
+    rescue SystemCallError, IOError => e
+      warning ||= grade_log_warning(relative_path, diagnostic_status(e, path))
+      { output: durable_grade_log_excerpt(fallback_output), bytes: 0, warning: warning }
+    ensure
+      file&.close
+    end
+
+    # Opens a log relative to an already-open workspace directory. Each
+    # directory component is opened with O_NOFOLLOW and retained until the
+    # leaf is open, so replacing an ancestor pathname cannot redirect an
+    # operation outside the workspace between validation and use.
+    def open_workspace_grade_log(relative_path, flags, mode = nil, create_directories: false)
+      raise Errno::ENOTSUP unless File.const_defined?(:NOFOLLOW)
+      raise Errno::ENOTSUP unless File.directory?("/proc/self/fd")
+
+      components = Pathname.new(relative_path.to_s).each_filename.to_a
+      raise Errno::ELOOP if components.empty? || components.any? { |component| component == ".." }
+
+      directories = [ open_grade_log_directory(workspace.path) ]
+      components[0...-1].each do |component|
+        parent = directories.last
+        child_path = "/proc/self/fd/#{parent.fileno}/#{component}"
+        begin
+          directories << open_grade_log_directory(child_path)
+        rescue Errno::ENOENT
+          raise unless create_directories
+
+          Dir.mkdir(child_path, 0o700)
+          directories << open_grade_log_directory(child_path)
+        rescue Errno::ENOTDIR
+          raise Errno::ELOOP
+        end
+      end
+
+      leaf_path = "/proc/self/fd/#{directories.last.fileno}/#{components.last}"
+      opener = ->(&block) do
+        mode ? File.open(leaf_path, flags, mode, &block) : File.open(leaf_path, flags, &block)
+      end
+      return opener.call unless block_given?
+
+      opener.call { |file| yield file }
+    ensure
+      directories&.reverse_each(&:close)
+    end
+
+    def open_grade_log_directory(path)
+      directory = File.open(path, File::RDONLY | nofollow_flag)
+      return directory if directory.stat.directory?
+
+      directory.close
+      raise Errno::ELOOP
+    rescue Errno::ENOTDIR
+      raise Errno::ELOOP
+    end
+
+    def grader_output_excerpt(output)
       output = failure_focused_output_excerpt(output) if output.bytesize > OUTPUT_INLINE_BYTES
       output.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
+    end
+
+    def durable_grade_log_excerpt(fallback_output = nil)
+      output = JobLog.where(run_id: run.id, kind: "grade_log").order(:sequence, :id).pluck(:chunk).compact.join
+      output = fallback_output.to_s if output.blank?
+      start = [ output.bytesize - DIAGNOSTIC_CAPTURE_MAX_BYTES, 0 ].max
+      grader_output_excerpt(output.safe_byteslice(start, DIAGNOSTIC_CAPTURE_MAX_BYTES).to_s)
+    end
+
+    def grade_log_warning(relative_path, status, extra = {})
+      {
+        "code" => "grader_diagnostic_artifact_unavailable",
+        "artifact_type" => "grader_log",
+        "path" => relative_path.to_s,
+        "status" => status
+      }.merge(extra)
+    end
+
+    def diagnostic_status(error, path)
+      return "missing" if error.is_a?(Errno::ENOENT)
+      return "unsafe_symlink" if error.is_a?(Errno::ELOOP) || path.symlink?
+      return "unreadable" if error.is_a?(Errno::EACCES) || error.is_a?(Errno::EPERM)
+
+      "unavailable"
+    rescue SystemCallError
+      "unavailable"
+    end
+
+    def nofollow_flag
+      File.const_defined?(:NOFOLLOW) ? File::NOFOLLOW : 0
     end
 
     def failure_focused_output_excerpt(output)

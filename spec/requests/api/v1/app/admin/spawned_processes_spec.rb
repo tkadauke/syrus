@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
+  before { SmartFolder.ensure_spawned_process_builtins! }
+
   let(:admin) { Factories.user }
   let(:non_admin) do
     admin
@@ -462,5 +464,27 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
 
     expect(response).to have_http_status(:conflict)
     expect(parse_body.dig("error", "code")).to eq("already_finished")
+  end
+
+
+  it "does not write smart-folder builtins while serving the index" do
+    sign_in_as(admin)
+    expect(SmartFolder).not_to receive(:ensure_spawned_process_builtins!)
+
+    get "/api/v1/app/admin/processes", params: { smart_folder_id: "" }
+
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "returns not modified when the process inventory etag matches" do
+    sign_in_as(admin)
+    fixture
+    get "/api/v1/app/admin/processes", params: { smart_folder_id: "" }
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/admin/processes", params: { smart_folder_id: "" }, headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+    expect(response.body).to be_empty
   end
 end

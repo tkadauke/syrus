@@ -124,6 +124,9 @@
     "empty_open_action": "View GitHub issues",
     "empty_open_description": "No open issues are available to delegate. Create or label an issue with {{label}}, or use a direct job for first-run work.",
     "empty_closed_action": "Show open issues",
-    "empty_closed_description": "No closed issues are available in this repository view."
+    "empty_closed_description": "No closed issues are available in this repository view.",
+    "pagination_showing": "Showing {{first}}–{{last}} of {{total}}",
+    "pagination_previous": "Previous",
+    "pagination_next": "Next"
   }
 }

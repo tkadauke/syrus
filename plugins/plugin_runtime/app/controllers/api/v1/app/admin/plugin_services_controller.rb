@@ -8,7 +8,10 @@ module Api
           before_action :require_plugin_runtime, except: :index
 
           def index
-            render json: ::PluginRuntime::AdminPayload.new.as_json
+            payload = ::PluginRuntime::AdminPayload.new.as_json(view: params[:view])
+            return unless stale?(etag: payload)
+
+            render json: payload
           end
 
           def stop = act(:stop!)
@@ -16,8 +19,10 @@ module Api
           def restart = act(:restart!)
 
           def logs
-            text = controls.logs(params[:name], tail: params[:tail].presence || ::PluginRuntime::Controls::DEFAULT_LOG_TAIL)
-            render json: { service: params[:name], logs: text }
+            result = controls.logs(
+              params[:name], tail: params[:tail].presence || ::PluginRuntime::Controls::DEFAULT_LOG_TAIL, since: params[:since].presence
+            )
+            render json: { service: params[:name], logs: result.fetch(:logs), cursor: result.fetch(:cursor) }
           rescue ::PluginRuntime::Controls::Error, ::PluginRuntime::Client::Error => e
             render_control_error(e)
           end
@@ -35,7 +40,7 @@ module Api
             details = endpoint && entry.provider.service_details(endpoint: endpoint)
             return render_error("runtime_unavailable", "#{entry.name} is not answering", status: :service_unavailable) unless details
 
-            render json: { service: entry.name, details: details }
+            render json: { service: entry.name, details: paginate_details(details) }
           end
 
           def remove_volume
@@ -46,6 +51,24 @@ module Api
           end
 
           private
+
+          DETAILS_PER_PAGE = 100
+
+          def paginate_details(details)
+            result = details.deep_dup
+            rows = result.dig(:table, :rows) || result.dig("table", "rows")
+            return result unless rows
+
+            total = rows.length
+            total_pages = [ (total.to_f / DETAILS_PER_PAGE).ceil, 1 ].max
+            requested_page = Integer(params[:page], exception: false).to_i
+            page = requested_page.positive? ? [ requested_page, total_pages ].min : 1
+            table = result[:table] || result["table"]
+            table[:rows] = rows.slice((page - 1) * DETAILS_PER_PAGE, DETAILS_PER_PAGE) || [] if table.key?(:rows)
+            table["rows"] = rows.slice((page - 1) * DETAILS_PER_PAGE, DETAILS_PER_PAGE) || [] if table.key?("rows")
+            result[:pagination] = { page: page, per_page: DETAILS_PER_PAGE, total: total, total_pages: total_pages }
+            result
+          end
 
           def act(action)
             status = controls.public_send(action, params[:name])
