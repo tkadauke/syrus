@@ -1380,7 +1380,15 @@ export type JobProviderRoutingPayload = {
   scope: { scope_type: string; scope_id: number; job_id?: number }
   provider_routing_rules: ProviderRoutingRule[]
   inherited_provider_routing_context: ProviderRoutingInheritedContext[]
-  job: Pick<JobRecord, "job_provider_setting_options" | "provider_routing_options" | "provider_routing_rules" | "inherited_provider_routing_context" | "provider_routing_resolution" | "active_provider_routing_holds">
+  job: Pick<
+    JobRecord,
+    | "job_provider_setting_options"
+    | "provider_routing_options"
+    | "provider_routing_rules"
+    | "inherited_provider_routing_context"
+    | "provider_routing_resolution"
+    | "active_provider_routing_holds"
+  >
 }
 
 export type JobWorkflowDetailPayload = { workflow: JobWorkflow }
