@@ -31,6 +31,23 @@ RSpec.describe "Chat ingress idempotency", type: :request do
     expect(ChatTurnJob).to have_been_enqueued.once
   end
 
+  it "reports delivery only for the current user's receipt in an accessible chat" do
+    key = SecureRandom.uuid
+    post "/api/v1/app/chats/#{chat.id}/message", params: { client_idempotency_key: key, chat_message: { text: "Delivered once" } }
+
+    get "/api/v1/app/chats/#{chat.id}/message_delivery", params: { client_idempotency_key: key }
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to eq("delivered" => true, "v" => 1)
+
+    get "/api/v1/app/chats/#{chat.id}/message_delivery", params: { client_idempotency_key: SecureRandom.uuid }
+    expect(response.parsed_body).to eq("delivered" => false, "v" => 1)
+
+    other_user = Factories.user
+    other_chat = ChatSession.create!(user: other_user)
+    get "/api/v1/app/chats/#{other_chat.id}/message_delivery", params: { client_idempotency_key: key }
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "releases the key after an unsuccessful response so the send can be retried" do
     key = SecureRandom.uuid
     params = { client_idempotency_key: key, chat_message: { text: "Retry this" } }

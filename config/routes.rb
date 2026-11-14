@@ -310,6 +310,7 @@ Rails.application.routes.draw do
         post "chats/:id/share", to: "chats#share", constraints: { id: /\d+/ }
         delete "chats/:id/messages", to: "chats#clear_messages", constraints: { id: /\d+/ }
         post "chats/:id/message", to: "chats#message", constraints: { id: /\d+/ }
+        get "chats/:id/message_delivery", to: "chats#message_delivery", constraints: { id: /\d+/ }
         post "chats/:id/queued_messages", to: "chats#enqueue_message", constraints: { id: /\d+/ }
         post "chats/:id/scheduled_messages", to: "chats#create_scheduled_message", constraints: { id: /\d+/ }
         post "chats/:id/retry_turn", to: "chats#retry_turn", constraints: { id: /\d+/ }

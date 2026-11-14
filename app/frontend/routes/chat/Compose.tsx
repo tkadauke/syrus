@@ -37,6 +37,7 @@ import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import {
   branchChat,
+  chatMessageWasDelivered,
   addChatAgent,
   cancelChatShellCommand,
   clearChatHistory,
@@ -139,7 +140,14 @@ import {
 } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
-import { clearInFlightComposerDraft, getInFlightComposerDraft, setInFlightComposerDraft } from "./inFlightComposerDraftStore"
+import {
+  acknowledgeInFlightComposerDraft,
+  clearInFlightComposerDraft,
+  getInFlightComposerDraft,
+  inFlightComposerDraftWasAcknowledged,
+  setInFlightComposerDraft,
+  subscribeToInFlightComposerDraftAcknowledgments
+} from "./inFlightComposerDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { AcceptSuggestionIcon, PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
@@ -645,17 +653,58 @@ export function Compose({
       setPendingConfirmation(null)
       onNotice(null)
     },
-    onError: (error, draft) => {
+    onError: async (error, draft) => {
       submittedDraftRef.current = null
+      if (inFlightComposerDraftWasAcknowledged(draft)) {
+        clearInFlightComposerDraft(chatId, draft)
+        onNotice(null)
+        queueMicrotask(() => send.reset())
+        return
+      }
+      if (draft.clientIdempotencyKey) {
+        try {
+          if (await chatMessageWasDelivered(chatId, draft.clientIdempotencyKey)) {
+            acknowledgeInFlightComposerDraft(chatId, draft.clientIdempotencyKey)
+            clearInFlightComposerDraft(chatId, draft)
+            if (
+              currentDraftRef.current.composerText === draft.composerText &&
+              JSON.stringify(currentDraftRef.current.attachments) === JSON.stringify(draft.attachments)
+            )
+              clearComposerDraft()
+            onNotice(null)
+            queueMicrotask(() => send.reset())
+            return
+          }
+        } catch (_deliveryStatusError) {
+          // A failed status check leaves delivery ambiguous, so preserve the
+          // original draft and idempotency key for a safe retry.
+        }
+      }
       if (finishSubmittedDraft(draft, false)) onNotice(errorMessage(error, t("message_send_error")))
     }
   })
   const resetSend = send.reset
+  useEffect(
+    () =>
+      subscribeToInFlightComposerDraftAcknowledgments(chatId, (inFlight) => {
+        clearInFlightComposerDraft(chatId, inFlight)
+        if (
+          currentDraftRef.current.composerText === inFlight.composerText &&
+          JSON.stringify(currentDraftRef.current.attachments) === JSON.stringify(inFlight.attachments)
+        )
+          clearComposerDraft()
+        submittedDraftRef.current = null
+        resetSend()
+        onNotice(null)
+      }),
+    [chatId, onNotice, resetSend]
+  )
   useEffect(() => {
     const inFlight = getInFlightComposerDraft(chatId)
     if (!inFlight?.clientIdempotencyKey) return
     if (!payload.messages.some((message) => message.client_idempotency_key === inFlight.clientIdempotencyKey)) return
 
+    acknowledgeInFlightComposerDraft(chatId, inFlight.clientIdempotencyKey)
     clearInFlightComposerDraft(chatId, inFlight)
     if (
       currentDraftRef.current.composerText === inFlight.composerText &&
@@ -666,6 +715,37 @@ export function Compose({
     resetSend()
     onNotice(null)
   }, [chatId, payload.messages, onNotice, resetSend])
+  useEffect(() => {
+    if (!send.isError) return
+
+    const inFlight = getInFlightComposerDraft(chatId)
+    if (!inFlight?.clientIdempotencyKey) return
+
+    const clientIdempotencyKey = inFlight.clientIdempotencyKey
+    let cancelled = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    let attempts = 0
+    const reconcile = async () => {
+      attempts += 1
+      try {
+        if (await chatMessageWasDelivered(chatId, clientIdempotencyKey)) {
+          if (!cancelled) acknowledgeInFlightComposerDraft(chatId, clientIdempotencyKey)
+          return
+        }
+      } catch (_deliveryStatusError) {
+        // Keep retrying briefly: the status request can race the commit at the
+        // end of a successful long-running streamed response.
+      }
+
+      if (!cancelled && attempts < 5) timeout = setTimeout(reconcile, 500 * attempts)
+    }
+
+    void reconcile()
+    return () => {
+      cancelled = true
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [chatId, payload.messages, send.isError])
   const runShellCommand = useMutation({
     mutationFn: (input: { command: string; composerText: string }) => createChatShellCommand(chatId, input.command),
     onSuccess: (record, input) => {
