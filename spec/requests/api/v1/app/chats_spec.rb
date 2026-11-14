@@ -2695,9 +2695,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["documents_in_scope"]).to eq([])
     expect(body).not_to have_key("attachment_results")
     expect(body).not_to have_key("attachment_groups")
-    expect(body.dig("whiteboard", "loaded")).to eq(false)
-    expect(body.dig("whiteboard", "version")).to eq(0)
-    expect(body.dig("whiteboard", "elements")).to eq([])
+    expect(body).not_to have_key("whiteboard")
     expect(body["paths"]).not_to include(
       "app_messages_path", "app_message_path", "app_rename_path", "app_clear_path",
       "app_enqueue_message_path", "app_retry_turn_path", "app_scratchpad_reorder_path",
@@ -4824,7 +4822,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["scratchpad_items"]).to contain_exactly(include("content" => "Follow-up note"))
     expect(body["queued_messages"]).to contain_exactly(include("text" => "Queued follow-up"))
     expect(body["agent_questions"]).to contain_exactly(include("questions" => [ include("question" => "Ship it?") ]))
-    expect(body["whiteboard"]).to include("loaded" => false)
+    expect(body).not_to have_key("whiteboard")
     expect(body["preview_panels"]).to contain_exactly(include("title" => "Payload preview"))
 
     expect(queries.grep(/SELECT COUNT\(\*\) FROM ["`]?chat_proposals["`]?/i).size).to be <= 2
@@ -5521,10 +5519,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
           "id" => doc.id,
           "filename" => "diagram.png",
           "content_type" => "image/png",
-          "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
-          "image_url" => "/api/v1/app/repository_documents/#{doc.id}/file"
+          "image_url" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
+          "thumbnail_url" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/thumbnail"
         )
       )
+      expect(body.dig("pagination", "chat_images")).to include("offset" => 0, "limit" => 24, "has_more" => false, "next_offset" => nil)
     end
 
     it "serves chat image files through the chat-scoped media path" do
@@ -5543,7 +5542,76 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
     end
 
-    it "does not materialize legacy inline images while serving media" do
+    it "serves a resized thumbnail separately from the full-size image" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      png = Base64.strict_decode64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new(png), filename: "pixel.png", content_type: "image/png")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/thumbnail"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/png")
+      expect(response.body).to be_present
+    end
+
+    it "does not return the original file as a thumbnail for non-variable images" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new('<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960"></svg>'), filename: "diagram.svg", content_type: "image/svg+xml")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["chat_images"]).to eq([])
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/thumbnail"
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.body).not_to include("<svg")
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("<svg")
+    end
+
+    it "paginates chat images and typed artifacts independently" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      25.times do |index|
+        doc = Document.new(kind: "file", attachable: user, user: user, content_type: "image/png")
+        doc.file.attach(io: StringIO.new("pixels-#{index}"), filename: "image-#{index}.png", content_type: "image/png")
+        doc.save!
+        ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+      end
+      chat.set_artifact!("typed_artifacts", 25.times.map { |index| { "type" => "table_#{index}", "title" => "Table #{index}", "payload" => { "rows" => [ index ] } } })
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      first_page = parse_body
+      expect(first_page["chat_images"].length).to eq(24)
+      expect(first_page["typed_artifacts"].length).to eq(24)
+      expect(first_page.dig("pagination", "chat_images")).to include("has_more" => true, "next_offset" => 24)
+      expect(first_page.dig("pagination", "typed_artifacts")).to include("has_more" => true, "next_offset" => 24)
+      expect(first_page["typed_artifacts"]).to all(satisfy { |entry| !entry.key?("payload") })
+
+      get "/api/v1/app/chats/#{chat.id}/media", params: { chat_images_offset: 24, typed_artifacts_offset: 24 }
+
+      second_page = parse_body
+      expect(second_page["chat_images"].length).to eq(1)
+      expect(second_page["typed_artifacts"].length).to eq(1)
+      expect(second_page.dig("pagination", "chat_images", "has_more")).to be(false)
+      expect(second_page.dig("pagination", "typed_artifacts", "has_more")).to be(false)
+    end
+
+    it "does not materialize inline chat image attachments during the GET" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
       create_legacy_inline_attachment_message(
@@ -5556,7 +5624,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect {
         get "/api/v1/app/chats/#{chat.id}/media"
-      }.not_to change(Document, :count)
+      }.not_to change { [ Document.count, ChatAttachment.count ] }
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["chat_images"]).to eq([])
@@ -5660,6 +5728,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
           entry = parse_body["typed_artifacts"].find { |e| e["type"] == "rails_schema_erd" }
           expect(entry).to be_present
           expect(entry["renderer_type"]).to eq("erd_diagram")
+          expect(entry).not_to have_key("payload")
+
+          get "/api/v1/app/chats/#{chat.id}/media/typed_artifacts/rails_schema_erd"
+
+          expect(response).to have_http_status(:ok)
+          expect(parse_body.dig("typed_artifact", "payload", "tables")).to eq([ { "name" => "users", "columns" => [] } ])
         ensure
           Syrus::PluginRegistry.reset! unless registered_before
         end
@@ -5900,7 +5974,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(panel.reload.state).to eq("closed")
   end
 
-  it "lists preview panel versions newest-first with the current version id" do
+  it "lists only the current preview panel version with its id" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)
     panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>v1</p>" })
@@ -5912,7 +5986,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     panel_payload = parse_body["preview_panels"].first
     expect(panel_payload["current_version_id"]).to eq(second_version_id)
-    expect(panel_payload["versions"].map { |v| v["id"] }).to eq([ second_version_id, first_version_id ])
+    expect(panel_payload["versions"].map { |v| v["id"] }).to eq([ second_version_id ])
     expect(panel_payload["file_count"]).to eq(1)
     expect(panel_payload["entry_path"]).to eq("index.html")
     expect(panel_payload["entry_viewer_kind"]).to eq("html")

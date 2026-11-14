@@ -8,7 +8,7 @@ module Whiteboard
     belongs_to :chat_session
 
     # Replaces `ChatSession has_many :whiteboard_snapshots`.
-    def self.for(chat_session) = where(chat_session_id: chat_session.id)
+    def self.for(chat_session) = where(chat_session_id: chat_session.id).reorder(created_at: :desc, id: :desc)
 
     default_scope -> { order(created_at: :desc) }
 

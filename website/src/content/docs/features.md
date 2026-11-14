@@ -1146,7 +1146,11 @@ image thumbnail in the composer to mark it up with basic shapes, arrows,
 freehand strokes, text, and undo; Syrus flattens the result into a PNG
 attachment. Image attachments render as inline thumbnails in the transcript
 and open in a full-size preview. The chat workspace also includes a Media tab
-that gathers image attachments into a downloadable gallery and lists saved
+that gathers variant-capable image attachments into a paginated, downloadable
+gallery using small thumbnail variants until an image is opened. Formats that
+cannot produce an Active Storage variant, such as SVG, are omitted from the
+gallery rather than fetched at full size for its grid. Its artifact list is also
+paginated and loads each artifact's full contents only when opened. It lists saved
 whiteboard snapshots with element counts, relative timestamps, and a Load
 action that merges the snapshot back onto the current canvas after preserving
 existing work. When an agent saves the current canvas, or clears a non-empty
@@ -2760,6 +2764,10 @@ Republishing a mockup updates it in place, so the reference keeps working while
 an agent iterates. Closing the preview tab only dismisses it from chat; the
 published mockup remains viewable from the Mockups page. Mockups are visible to
 whoever can see the chat they came from.
+
+Preview and list payloads carry only the current revision's stored summary;
+the version picker loads older revisions when opened. Exporting the same
+revision again reuses its cached zip archive.
 
 Ships as a bundled plugin, enabled by default. Turning it off from
 Admin -> Plugins removes the page and the chat tools; mockups already published

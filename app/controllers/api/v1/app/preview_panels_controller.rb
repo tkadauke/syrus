@@ -14,7 +14,7 @@ module Api
           panel = find_panel
           return if performed?
 
-          render json: PreviewPanel::Payload.new(panel).as_json
+          render json: PreviewPanel::Payload.new(panel, include_versions: params[:include] == "versions").as_json
         end
 
         def update

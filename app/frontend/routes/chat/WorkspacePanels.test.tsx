@@ -2,14 +2,16 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
-import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
+import { ChatSettingsDialog, ChatWorkspacePanel, PreviewPanelFrame } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
 import {
   closeChatPreviewPanel,
   fetchChatMedia,
+  fetchChatMediaArtifact,
   fetchChatMessagePins,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
+  fetchPreviewPanelHistory,
   fetchCodingCommits,
   fetchCodingDiff,
   fetchCodingFileContent,
@@ -43,9 +45,11 @@ vi.mock("../../api/chats", async (importOriginal) => {
     ...actual,
     closeChatPreviewPanel: vi.fn(),
     fetchChatMedia: vi.fn(),
+    fetchChatMediaArtifact: vi.fn(),
     fetchChatMessagePins: vi.fn(),
     fetchChatPreviewPanelAccessToken: vi.fn(),
     fetchChatPreviewPanelFile: vi.fn(),
+    fetchPreviewPanelHistory: vi.fn(),
     fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
@@ -1064,6 +1068,25 @@ describe("MediaGallery artifacts", () => {
   })
 
   it("lists a submitted rails_schema_erd artifact and renders it via TypedArtifactPanel when viewed", async () => {
+    vi.mocked(fetchChatMediaArtifact).mockResolvedValue({
+      typed_artifact: {
+        type: "rails_schema_erd",
+        title: "Schema ERD",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "erd_diagram",
+        payload: {
+          tables: [
+            {
+              name: "users",
+              columns: [
+                { name: "id", type: "bigint" },
+                { name: "email", type: "string" }
+              ]
+            }
+          ]
+        }
+      }
+    })
     vi.mocked(fetchChatMedia).mockResolvedValue({
       snapshots: [],
       chat_images: [],
@@ -1072,18 +1095,7 @@ describe("MediaGallery artifacts", () => {
           type: "rails_schema_erd",
           title: "Schema ERD",
           created_at: "2026-08-06T10:00:00Z",
-          renderer_type: "erd_diagram",
-          payload: {
-            tables: [
-              {
-                name: "users",
-                columns: [
-                  { name: "id", type: "bigint" },
-                  { name: "email", type: "string" }
-                ]
-              }
-            ]
-          }
+          renderer_type: "erd_diagram"
         }
       ],
       whiteboard_has_unsaved_content: false
@@ -1106,6 +1118,19 @@ describe("MediaGallery artifacts", () => {
   })
 
   it("renders a submitted visual_review_screenshot artifact as an image via TypedArtifactPanel", async () => {
+    vi.mocked(fetchChatMediaArtifact).mockResolvedValue({
+      typed_artifact: {
+        type: "visual_review_screenshot",
+        title: "Homepage after fix",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "image_diff",
+        payload: {
+          image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
+          content_type: "image/png",
+          byte_size: 48213
+        }
+      }
+    })
     vi.mocked(fetchChatMedia).mockResolvedValue({
       snapshots: [],
       chat_images: [],
@@ -1114,12 +1139,7 @@ describe("MediaGallery artifacts", () => {
           type: "visual_review_screenshot",
           title: "Homepage after fix",
           created_at: "2026-08-06T10:00:00Z",
-          renderer_type: "image_diff",
-          payload: {
-            image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
-            content_type: "image/png",
-            byte_size: 48213
-          }
+          renderer_type: "image_diff"
         }
       ],
       whiteboard_has_unsaved_content: false
@@ -1557,6 +1577,34 @@ describe("ChatWorkspacePanel preview panels", () => {
     expect(iframe).not.toBeNull()
     expect(iframe?.getAttribute("src")).toBe("http://preview-panel-7.lvh.me/")
     expect(iframe?.getAttribute("sandbox")).toBe("allow-scripts")
+  })
+
+  it("loads version history only when the panel is opened", async () => {
+    vi.mocked(fetchPreviewPanelHistory).mockResolvedValue(payloadWithPanel().preview_panels[0])
+
+    renderWorkspacePanel(payloadWithPanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    await waitFor(() => expect(fetchPreviewPanelHistory).toHaveBeenCalledWith(7))
+  })
+
+  it("reloads version history when polling reports a new current version", async () => {
+    const initial = { ...payloadWithPanel().preview_panels[0], current_version_id: 9 }
+    const updated = { ...initial, current_version_id: 10 }
+    vi.mocked(fetchPreviewPanelHistory).mockResolvedValue({ ...updated, versions: [] })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = (panel: typeof initial) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PreviewPanelFrame onNotice={() => {}} panel={panel} queryKey={["chats", "1", ""]} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const rendered = render(view(initial))
+    await waitFor(() => expect(fetchPreviewPanelHistory).toHaveBeenCalledTimes(1))
+
+    rendered.rerender(view(updated))
+    await waitFor(() => expect(fetchPreviewPanelHistory).toHaveBeenCalledTimes(2))
   })
 
   it("renders an https panel URL verbatim in the iframe src", () => {

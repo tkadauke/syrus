@@ -22,6 +22,10 @@ than navigating away, so a filtered list stays put while you look through it.
 Filter chips: `title`, `created_at`, `updated_at`. The bar uses the same chip
 AST and `q` parameter as every other filtered list, and the applied filter is
 returned with the results so the bar renders what is actually in effect.
+The list response sends its filter schema only on page one; the frontend loads
+and caches the schema separately so later pages keep the same controls without
+resending it. Exact totals are deliberately omitted in favor of next/previous
+page availability.
 
 Visibility: a mockup is visible to whoever can see the preview panel behind it,
 which is the panel's own rule (you can see a panel if you can see its chat) —
@@ -51,6 +55,10 @@ Two core seams make that work:
   panel content addressed independently of the chat it was opened in, so a page
   outside chat can render one without inventing its own file serving. Scoped by
   `PreviewPanel.accessible_to`.
+
+The mockup detail response contains only the current panel version by default.
+Clients that render version history request it explicitly with
+`?versions=all`.
 
 ## Disabling
 

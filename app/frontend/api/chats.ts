@@ -397,14 +397,30 @@ export type ChatMediaImage = {
   title: string
   filename: string | null
   content_type: string
+  image_url: string
+  thumbnail_url?: string | null
+  // Legacy tool-result payloads can still carry this alias. The media API no
+  // longer emits it.
   file_path?: string | null
-  image_url?: string | null
 }
+
+export type ChatMediaPagination = {
+  offset: number
+  limit: number
+  has_more: boolean
+  next_offset: number | null
+}
+
+export type ChatMediaArtifactSummary = Omit<TypedArtifact, "payload"> & Partial<Pick<TypedArtifact, "payload">>
 
 export type ChatMediaPayload = {
   snapshots: ChatMediaSnapshot[]
   chat_images: ChatMediaImage[]
-  typed_artifacts: TypedArtifact[]
+  typed_artifacts: ChatMediaArtifactSummary[]
+  pagination?: {
+    chat_images: ChatMediaPagination
+    typed_artifacts: ChatMediaPagination
+  }
   whiteboard_has_unsaved_content: boolean
 }
 
@@ -774,6 +790,7 @@ export type ChatWhiteboardPayload = {
   scene_json: ChatWhiteboardScene
   version: number
 }
+export type ChatWhiteboardVersionPayload = { version: number }
 
 export type ChatWhiteboardScene = {
   elements: ChatWhiteboardElement[]
@@ -792,6 +809,7 @@ export type WhiteboardSnapshot = {
 
 export type WhiteboardSnapshotsPayload = {
   whiteboard_snapshots: WhiteboardSnapshot[]
+  pagination?: { page: number; per_page: number; total: number; total_pages: number; has_next_page: boolean; has_previous_page: boolean }
 }
 
 export type CreateChatInput = {
@@ -1067,7 +1085,7 @@ export type ChatPayload = {
   preview_panels: ChatPreviewPanel[]
   workspace_tabs: ChatWorkspaceTab[]
   documents_in_scope?: ChatDocumentScope[]
-  whiteboard: {
+  whiteboard?: {
     version: number
     elements: ChatWhiteboardElement[]
     appState: ChatWhiteboardAppState
@@ -1426,12 +1444,36 @@ export function fetchChatMessages(path: string, before: number) {
   return getJson<ChatMessagesPayload>(`${path}?before=${encodeURIComponent(String(before))}`)
 }
 
-export function fetchChatWhiteboard(path: string) {
-  return getJson<ChatWhiteboardPayload>(path)
+export async function fetchChatWhiteboard(path: string) {
+  const [basePath, search] = path.split("?", 2)
+  const filesPath = `${basePath}/files${search ? `?${search}` : ""}`
+  const [scene, filePayload] = await Promise.all([
+    getJson<Omit<ChatWhiteboardPayload, "scene_json"> & { scene_json: Omit<ChatWhiteboardScene, "files"> }>(path),
+    getJson<{ files: ChatWhiteboardFiles }>(filesPath)
+  ])
+  return { ...scene, scene_json: { ...scene.scene_json, files: filePayload.files } }
 }
 
-export function fetchWhiteboardSnapshots(chatSessionId: string | number) {
-  return getJson<WhiteboardSnapshotsPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots`)
+export function fetchChatWhiteboardVersion(path: string) {
+  const separator = path.includes("?") ? "&" : "?"
+  return getJson<ChatWhiteboardVersionPayload>(`${path}${separator}fields=version`)
+}
+
+export async function fetchWhiteboardSnapshots(chatSessionId: string | number) {
+  const path = `/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots`
+  const firstPage = await getJson<WhiteboardSnapshotsPayload>(path)
+  const totalPages = firstPage.pagination?.total_pages ?? 1
+  if (totalPages <= 1) return firstPage
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) => {
+      return getJson<WhiteboardSnapshotsPayload>(`${path}?page=${index + 2}`)
+    })
+  )
+  return {
+    ...firstPage,
+    whiteboard_snapshots: [firstPage, ...remainingPages].flatMap((page) => page.whiteboard_snapshots)
+  }
 }
 
 export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshotId: string | number) {
@@ -1440,8 +1482,18 @@ export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshot
   )
 }
 
-export function fetchChatMedia(chatId: string | number) {
-  return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media`)
+export function fetchChatMedia(chatId: string | number, offsets: { chatImages?: number; typedArtifacts?: number } = {}) {
+  const params = new URLSearchParams()
+  if (offsets.chatImages != null) params.set("chat_images_offset", String(offsets.chatImages))
+  if (offsets.typedArtifacts != null) params.set("typed_artifacts_offset", String(offsets.typedArtifacts))
+  const query = params.size > 0 ? `?${params.toString()}` : ""
+  return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media${query}`)
+}
+
+export function fetchChatMediaArtifact(chatId: string | number, artifactType: string) {
+  return getJson<{ typed_artifact: TypedArtifact }>(
+    `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media/typed_artifacts/${encodeURIComponent(artifactType)}`
+  )
 }
 
 export function postSnapshotPng(jobAttachmentsPath: string, blob: Blob, filename: string) {
@@ -1465,10 +1517,10 @@ export function createWhiteboardSnapshot(
 
 export async function patchChatWhiteboard(path: string, input: ChatWhiteboardScene & { expected_version: number }) {
   try {
-    return { status: 200, payload: await patchJson<ChatWhiteboardPayload>(path, input) }
+    return { status: 200 as const, payload: await patchJson<ChatWhiteboardVersionPayload>(path, input) }
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
-      return { status: 409, payload: await fetchChatWhiteboard(path) }
+      return { status: 409 as const, payload: error.payload as ChatWhiteboardPayload }
     }
 
     throw error
@@ -1769,6 +1821,10 @@ export function updateChatPreviewPanelVisibility(path: string, visibility: ChatP
 
 export function fetchChatPreviewPanelAccessToken(path: string) {
   return postJson<ChatPreviewPanelAccessToken>(path)
+}
+
+export function fetchPreviewPanelHistory(panelId: number) {
+  return getJson<PreviewPanelPayload>(`/api/v1/app/preview_panels/${panelId}?include=versions`)
 }
 
 export function chatPreviewPanelFileUrl(basePath: string, filePath: string, versionId?: number | null, raw = false) {

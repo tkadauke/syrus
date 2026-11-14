@@ -90,7 +90,7 @@ describe("WhiteboardTab bound arrow labels", () => {
     apiMock.patchChatWhiteboard.mockReset()
     apiMock.patchChatWhiteboard.mockResolvedValue({
       status: 200,
-      payload: { version: 2, scene_json: { elements: [arrow, label], appState: {}, files: {} } }
+      payload: { version: 2 }
     })
   })
 

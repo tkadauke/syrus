@@ -18,14 +18,16 @@ export class ApiError extends Error {
   readonly code?: string
   readonly retryAfter?: number
   readonly issues?: unknown
+  readonly payload?: unknown
 
-  constructor(message: string, options: { status: number; code?: string; retryAfter?: number; issues?: unknown }) {
+  constructor(message: string, options: { status: number; code?: string; retryAfter?: number; issues?: unknown; payload?: unknown }) {
     super(message)
     this.name = "ApiError"
     this.status = options.status
     this.code = options.code
     this.retryAfter = options.retryAfter
     this.issues = options.issues
+    this.payload = options.payload
   }
 }
 
@@ -143,7 +145,8 @@ async function performJsonRead<T>(path: string, options: { signal?: AbortSignal 
       status: response.status,
       code: payload.error?.code,
       retryAfter: payload.error?.retry_after,
-      issues: payload.error?.issues
+      issues: payload.error?.issues,
+      payload
     })
   }
 
@@ -196,7 +199,8 @@ export async function postForm<T>(path: string, body: FormData): Promise<T> {
         status: response.status,
         code: payload.error?.code,
         retryAfter: payload.error?.retry_after,
-        issues: payload.error?.issues
+        issues: payload.error?.issues,
+        payload
       })
     }
 
@@ -243,7 +247,8 @@ async function writeJson<T>(path: string, method: "POST" | "PATCH" | "DELETE", b
         status: response.status,
         code: payload.error?.code,
         retryAfter: payload.error?.retry_after,
-        issues: payload.error?.issues
+        issues: payload.error?.issues,
+        payload
       })
     }
 
