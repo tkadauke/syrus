@@ -257,8 +257,11 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
     }
   }
 
-  const pruned = pruneBenignDanglingToolGroups(items)
+  const { items: pruned, retainedPrefixCounts } = pruneBenignDanglingToolGroupsWithPrefixCounts(items)
   if (!cache) return pruned
+  for (const candidate of checkpoints) {
+    candidate.itemCount = retainedPrefixCounts[candidate.itemCount] ?? pruned.length
+  }
   const nextRevisions = new Map(pruned.map((item, index) => {
     const identity = renderIdentity(item)
     const retainedRevision = checkpoint && index < checkpoint.itemCount ? cache.previousRevisions.get(identity) : undefined
@@ -432,19 +435,24 @@ function collapseSettledToolGroup(group: ChatToolGroupItem) {
 }
 
 function pruneBenignDanglingToolGroups(items: ChatRenderItem[]): ChatRenderItem[] {
+  return pruneBenignDanglingToolGroupsWithPrefixCounts(items).items
+}
+
+function pruneBenignDanglingToolGroupsWithPrefixCounts(items: ChatRenderItem[]) {
   const result: ChatRenderItem[] = []
+  const retainedPrefixCounts = [0]
 
   for (const item of items) {
     if (item.type !== "tool_group") {
       result.push(item)
-      continue
+    } else {
+      const pruned = pruneBenignDanglingToolGroup(item)
+      if (pruned) result.push(pruned)
     }
-
-    const pruned = pruneBenignDanglingToolGroup(item)
-    if (pruned) result.push(pruned)
+    retainedPrefixCounts.push(result.length)
   }
 
-  return result
+  return { items: result, retainedPrefixCounts }
 }
 
 function pruneBenignDanglingToolGroup(group: ChatToolGroupItem): ChatToolGroupItem | null {
