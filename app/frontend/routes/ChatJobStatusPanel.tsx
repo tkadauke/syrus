@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState, type KeyboardEvent } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem, ChatJobStatusPendingProposal } from "../api/chats"
+import type {
+  ChatJobStatusAction,
+  ChatJobStatusBlocker,
+  ChatJobStatusEpicItem,
+  ChatJobStatusItem,
+  ChatJobStatusJobItem,
+  ChatJobStatusPendingProposal
+} from "../api/chats"
 import { confirmChatProposal, fetchChatJobStatus, rejectChatProposal } from "../api/chats"
 import { useT } from "../hooks/useT"
 import { CopyableSlug } from "../components/CopyableSlug"
@@ -202,6 +209,41 @@ function proposalsInConfirmationOrder(proposals: ChatJobStatusPendingProposal[])
   return ordered
 }
 
+function ExtensionAction({ action, chatId, includeRepository }: { action: ChatJobStatusAction; chatId: string | number; includeRepository: boolean }) {
+  const namespace = action.label_i18n_key.includes(":") ? action.label_i18n_key.split(":", 1)[0] : "chat"
+  const { i18n } = useT("chat")
+  const [namespaceReady, setNamespaceReady] = useState(() => i18n.hasResourceBundle(i18n.language, namespace))
+
+  useEffect(() => {
+    let active = true
+    setNamespaceReady(i18n.hasResourceBundle(i18n.language, namespace))
+    void i18n.loadNamespaces(namespace).then(() => {
+      if (active) setNamespaceReady(i18n.hasResourceBundle(i18n.language, namespace))
+    })
+    return () => {
+      active = false
+    }
+  }, [i18n, i18n.language, namespace])
+
+  if (!namespaceReady || !i18n.hasResourceBundle(i18n.language, namespace)) return null
+
+  const label = i18n.t(action.label_i18n_key)
+
+  return (
+    <Button
+      onClick={() =>
+        window.dispatchEvent(
+          new CustomEvent("syrus:tool-presentation", { detail: { chat_session_id: chatId, title: action.repository_label, path: action.path } })
+        )
+      }
+      size="sm"
+      variant="secondary"
+    >
+      {includeRepository ? `${label} · ${action.repository_label}` : label}
+    </Button>
+  )
+}
+
 function ProposedProposalsSection({
   chatId,
   proposals,
@@ -381,23 +423,9 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
     <div className="space-y-3">
       {pipelineActions.length ? (
         <div className="flex flex-wrap justify-end gap-2">
-          {pipelineActions.map((action) => {
-            const label = t(action.label_i18n_key)
-            return (
-              <Button
-                key={action.id}
-                onClick={() =>
-                  window.dispatchEvent(
-                    new CustomEvent("syrus:tool-presentation", { detail: { chat_session_id: chatId, title: action.repository_label, path: action.path } })
-                  )
-                }
-                size="sm"
-                variant="secondary"
-              >
-                {pipelineActions.length > 1 ? `${label} · ${action.repository_label}` : label}
-              </Button>
-            )
-          })}
+          {pipelineActions.map((action) => (
+            <ExtensionAction action={action} chatId={chatId} includeRepository={pipelineActions.length > 1} key={action.id} />
+          ))}
         </div>
       ) : null}
       <ProposedProposalsSection chatId={chatId} onSelectMessage={onSelectMessage} proposals={pendingProposals} />
