@@ -78,6 +78,42 @@ RSpec.describe "Mcp::Tools diff and tag tools", :full_chat_access do
     expect(body[:diff]).to eq("abcdef")
   end
 
+  it "skips a newer no-diff run and prefers the small step artifact" do
+    job = Factories.job(repository: repository)
+    workflow = job.latest_workflow
+    repair_step = workflow.steps.create!(kind: "implement", position: 1, iteration: 2)
+    repair = repair_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind,
+      state: "succeeded", created_at: 2.minutes.ago, base_sha: "base-1", head_sha: "head-1",
+      agent_diff: "cumulative-" * 10_000, step_agent_diff: "tiny repair")
+    newest_step = workflow.steps.create!(kind: "implement", position: 2, iteration: 3)
+    newest_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, created_at: 1.minute.ago)
+
+    body = payload(call_tool("get_job_diff", job_id: job.id))
+
+    expect(body).to include(
+      run_id: repair.id, step_kind: "implement", step_iteration: 2,
+      artifact_type: "step_agent_diff", byte_count: 11,
+      base_sha: "base-1", head_sha: "head-1", diff: "tiny repair"
+    )
+  end
+
+  it "selects an explicit landing-fix iteration and cumulative artifact without fallback" do
+    job = Factories.job(repository: repository)
+    workflow = job.latest_workflow
+    runs = 2.times.map do |index|
+      step = workflow.steps.create!(kind: "implement", position: index + 1, iteration: index + 2)
+      step.runs.create!(job: job, trigger_kind: workflow.trigger_kind,
+        agent_diff: "cumulative #{index}", step_agent_diff: "repair #{index}")
+    end
+
+    body = payload(call_tool("get_job_diff", job_id: job.id, run_id: runs.first.id, artifact: "agent_diff"))
+
+    expect(body).to include(
+      run_id: runs.first.id, step_iteration: 2, artifact_type: "agent_diff",
+      byte_count: "cumulative 0".bytesize, diff: "cumulative 0"
+    )
+  end
+
   it "distinguishes an out-of-range page from a job with no stored diff" do
     job = Factories.job(repository: repository)
     run = job.latest_workflow.runs.order(:id).last

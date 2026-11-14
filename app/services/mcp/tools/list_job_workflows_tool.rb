@@ -24,13 +24,6 @@ module Mcp::Tools
 
         Mcp::Tools.success(job_id: job.id, workflows: workflow_index_for(job))
       end
-
-      def workflow_index_for(job)
-        job.workflows
-          .includes(steps: :runs)
-          .reorder(created_at: :desc, id: :desc)
-          .map { |workflow| workflow_index_payload(workflow) }
-      end
     end
   end
 end
