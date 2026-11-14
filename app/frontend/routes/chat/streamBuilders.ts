@@ -53,10 +53,29 @@ export type ChatRenderCache = {
   results: Map<number, CachedToolResult>
   previousItems: ChatRenderItem[]
   previousRevisions: Map<string, string>
+  messageSequence: Array<{ id: number; revision: string }>
+  checkpoints: RenderCheckpoint[]
+  retiredToolUseIds: string
+  lastDerivation: { reusedMessageCount: number; rebuiltMessageCount: number; fullRebuild: boolean }
 }
 
 export function createChatRenderCache(): ChatRenderCache {
-  return { results: new Map(), previousItems: [], previousRevisions: new Map() }
+  return {
+    results: new Map(),
+    previousItems: [],
+    previousRevisions: new Map(),
+    messageSequence: [],
+    checkpoints: [],
+    retiredToolUseIds: "",
+    lastDerivation: { reusedMessageCount: 0, rebuiltMessageCount: 0, fullRebuild: true }
+  }
+}
+
+type RenderCheckpoint = {
+  messageCount: number
+  itemCount: number
+  settledContextCalls: NonNullable<ChatToolGroupCall["context_calls"]>
+  priorResults: Map<string, unknown>
 }
 
 const legacyMessageIdentities = new WeakMap<ChatMessageItem, number>()
@@ -64,7 +83,15 @@ let nextLegacyMessageIdentity = 1
 
 export function renderChatMessages(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
   const metadata = transcriptMetadata(messages)
-  return measureSync("chat.transcript.derive", () => renderChatMessagesUnmeasured(messages, cache), {
+  return measureSync("chat.transcript.derive", () => {
+    const result = renderChatMessagesUnmeasured(messages, cache)
+    if (cache) {
+      metadata.reused_prefix_message_count = cache.lastDerivation.reusedMessageCount
+      metadata.rebuilt_message_count = cache.lastDerivation.rebuiltMessageCount
+      metadata.full_rebuild = cache.lastDerivation.fullRebuild
+    }
+    return result
+  }, {
     metadata,
     thresholdMs: 8,
     sampleRate: 0.2,
@@ -73,23 +100,35 @@ export function renderChatMessages(messages: ChatMessageItem[], cache?: ChatRend
 }
 
 function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
-  const items: ChatRenderItem[] = []
   const retiredToolUseIds = new Set(
     messages
       .filter((message) => message.pending_action_retired)
       .map(toolUseIdFor)
       .filter((id): id is string => Boolean(id))
   )
+  const retiredFingerprint = [...retiredToolUseIds].sort().join("\0")
+  const sequence = messages.map((message) => ({ id: message.id, revision: sourceMessageRevision(message) }))
+  const changedIndex = cache ? earliestChangedMessage(cache.messageSequence, sequence) : 0
+  const structuralChange = cache ? structurallyChanged(cache.messageSequence, sequence) : true
+  const checkpoint = cache && !structuralChange && cache.retiredToolUseIds === retiredFingerprint
+    ? latestCheckpoint(cache.checkpoints, changedIndex)
+    : undefined
+  const startIndex = checkpoint?.messageCount ?? 0
+  const items: ChatRenderItem[] = checkpoint ? cache!.previousItems.slice(0, checkpoint.itemCount) : []
   const containerByParentKey = new Map<string, ChatRenderItem[]>([[ROOT_KEY, items]])
   const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([[ROOT_KEY, null]])
   const openCallsByToolUseId = new Map<string, OpenCall>()
-  const settledContextCalls: NonNullable<ChatToolGroupCall["context_calls"]> = []
-  const priorResults = new Map<string, unknown>()
+  const settledContextCalls: NonNullable<ChatToolGroupCall["context_calls"]> = checkpoint ? [...checkpoint.settledContextCalls] : []
+  const priorResults = checkpoint ? new Map(checkpoint.priorResults) : new Map<string, unknown>()
   const messageRevisions = new Map<number, string>()
   const callRevisionParts = new Map<number, string[]>()
+  const checkpoints: RenderCheckpoint[] = checkpoint
+    ? cache!.checkpoints.filter((candidate) => candidate.messageCount <= checkpoint.messageCount)
+    : []
 
-  for (const message of messages) {
-    const messageRevision = sourceMessageRevision(message)
+  for (let messageIndex = startIndex; messageIndex < messages.length; messageIndex += 1) {
+    const message = messages[messageIndex]
+    const messageRevision = sequence[messageIndex].revision
     messageRevisions.set(message.id, messageRevision)
     if (message.pending_action_retired || (message.role === "tool_result" && retiredToolUseIds.has(toolResultRefIdFor(message) || ""))) continue
     if (groupableToolUse(message)) {
@@ -196,6 +235,7 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
           priorResults.set(open.call.tool_name, normalizedToolCardParsedResult(parsedResult))
         }
         updateToolGroupState(open.group)
+        if (refId) openCallsByToolUseId.delete(refId)
       } else {
         resetLastGroup(message, lastGroupByParentKey)
         const item = renderMessage(message)
@@ -206,16 +246,60 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
       const item = renderMessage(message)
       if (item?.type === "message" && item.role === "assistant") collapseSettledToolGroups(items)
       if (item) items.push(item)
+      if (openCallsByToolUseId.size === 0) {
+        checkpoints.push({
+          messageCount: messageIndex + 1,
+          itemCount: items.length,
+          settledContextCalls: [...settledContextCalls],
+          priorResults: new Map(priorResults)
+        })
+      }
     }
   }
 
   const pruned = pruneBenignDanglingToolGroups(items)
   if (!cache) return pruned
-  const nextRevisions = new Map(pruned.map((item) => [renderIdentity(item), renderItemRevision(item, messageRevisions, callRevisionParts)]))
+  const nextRevisions = new Map(pruned.map((item, index) => {
+    const identity = renderIdentity(item)
+    const retainedRevision = checkpoint && index < checkpoint.itemCount ? cache.previousRevisions.get(identity) : undefined
+    return [identity, retainedRevision ?? renderItemRevision(item, messageRevisions, callRevisionParts)]
+  }))
   const reconciled = reconcileRenderItems(cache.previousItems, cache.previousRevisions, pruned, nextRevisions)
   cache.previousItems = reconciled
   cache.previousRevisions = nextRevisions
+  cache.messageSequence = sequence
+  cache.checkpoints = checkpoints
+  cache.retiredToolUseIds = retiredFingerprint
+  cache.lastDerivation = {
+    reusedMessageCount: startIndex,
+    rebuiltMessageCount: messages.length - startIndex,
+    fullRebuild: startIndex === 0
+  }
   return reconciled
+}
+
+function earliestChangedMessage(previous: Array<{ id: number; revision: string }>, next: Array<{ id: number; revision: string }>) {
+  const sharedLength = Math.min(previous.length, next.length)
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (previous[index].id !== next[index].id || previous[index].revision !== next[index].revision) return index
+  }
+  return sharedLength
+}
+
+function structurallyChanged(previous: Array<{ id: number; revision: string }>, next: Array<{ id: number; revision: string }>) {
+  if (next.length < previous.length) return true
+  const sharedLength = Math.min(previous.length, next.length)
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (previous[index].id !== next[index].id) return true
+  }
+  return false
+}
+
+function latestCheckpoint(checkpoints: RenderCheckpoint[], changedIndex: number) {
+  for (let index = checkpoints.length - 1; index >= 0; index -= 1) {
+    if (checkpoints[index].messageCount <= changedIndex) return checkpoints[index]
+  }
+  return undefined
 }
 
 function deriveToolResult(content: unknown, rawResult: unknown, structured: boolean): CachedToolResult {
@@ -297,7 +381,10 @@ function transcriptMetadata(messages: ChatMessageItem[]) {
     loaded_message_count: messages.length,
     total_character_count: totalCharacters,
     largest_message_size: largestMessage,
-    largest_result_size: largestResult
+    largest_result_size: largestResult,
+    reused_prefix_message_count: 0,
+    rebuilt_message_count: messages.length,
+    full_rebuild: true
   }
 }
 

@@ -91,7 +91,10 @@ describe("renderChatMessages tool grouping", () => {
 
     expect(marker).toHaveBeenCalledWith("chat.transcript.derive", expect.any(Function), {
       metadata: {
+        full_rebuild: true,
         loaded_message_count: 2,
+        rebuilt_message_count: 2,
+        reused_prefix_message_count: 0,
         total_character_count: result.length,
         largest_message_size: 0,
         largest_result_size: result.length
@@ -101,6 +104,83 @@ describe("renderChatMessages tool grouping", () => {
       maxPerSession: 20
     })
     marker.mockRestore()
+  })
+
+  it("rebuilds only an appended ordinary message after a long unchanged prefix", () => {
+    const cache = createChatRenderCache()
+    const messages = Array.from({ length: 200 }, (_, index) => ({
+      type: "message",
+      id: index + 1,
+      entity_revision: 1,
+      role: index % 2 === 0 ? "user" : "assistant",
+      text: `message ${index + 1}`,
+      bookmarkable: false
+    } as ChatMessageItem))
+    const first = renderChatMessages(messages, cache)
+    const appended = { ...messages[199], id: 201, role: "user" as const, text: "appended" }
+
+    const second = renderChatMessages([...messages, appended], cache)
+
+    expect(second.slice(0, 200)).toEqual(first)
+    expect(second.every((item, index) => index === 200 || item === first[index])).toBe(true)
+    expect(cache.lastDerivation).toEqual({ reusedMessageCount: 200, rebuiltMessageCount: 1, fullRebuild: false })
+  })
+
+  it("resumes before an unsettled tool call and retains the earlier prefix identity", () => {
+    const cache = createChatRenderCache()
+    const prefix = { type: "message", id: 1, entity_revision: 1, role: "assistant", text: "before", bookmarkable: false } as ChatMessageItem
+    const call = toolUse(2, { toolUseId: "tu_settle", toolName: "read_file", entity_revision: 1 })
+    const first = renderChatMessages([prefix, call], cache)
+
+    const second = renderChatMessages([prefix, call, toolResult(3, { toolUseId: "tu_settle", content: "done", entity_revision: 1 })], cache)
+
+    expect(second[0]).toBe(first[0])
+    expect(group(second[1]).calls[0]).toMatchObject({ result_settled: true, result_body: "done" })
+    expect(cache.lastDerivation).toEqual({ reusedMessageCount: 1, rebuiltMessageCount: 2, fullRebuild: false })
+  })
+
+  it("rebuilds an appended nested and interleaved tool suffix from a safe checkpoint", () => {
+    const cache = createChatRenderCache()
+    const prefix = { type: "message", id: 1, entity_revision: 1, role: "assistant", text: "before", bookmarkable: false } as ChatMessageItem
+    renderChatMessages([prefix], cache)
+    const nested = [
+      toolUse(2, { toolUseId: "tu_parent", toolName: "Task", entity_revision: 1 }),
+      toolUse(3, { toolUseId: "tu_child", toolName: "Read", parent_tool_use_id: "tu_parent", sidechain: true, entity_revision: 1 }),
+      toolResult(4, { toolUseId: "tu_child", content: "nested", parent_tool_use_id: "tu_parent", sidechain: true, entity_revision: 1 }),
+      toolResult(5, { toolUseId: "tu_parent", content: "parent", entity_revision: 1 })
+    ]
+
+    const items = renderChatMessages([prefix, ...nested], cache)
+
+    expect(group(items[1]).calls[0].result_body).toBe("parent")
+    expect(group(items[1]).calls[0].nested?.[0].calls[0].result_body).toBe("nested")
+    expect(cache.lastDerivation).toEqual({ reusedMessageCount: 1, rebuiltMessageCount: 4, fullRebuild: false })
+  })
+
+  it("falls back to a full derivation when messages are inserted or reordered", () => {
+    const cache = createChatRenderCache()
+    const one = { type: "message", id: 1, entity_revision: 1, role: "user", text: "one", bookmarkable: false } as ChatMessageItem
+    const two = { ...one, id: 2, text: "two" }
+    const inserted = { ...one, id: 3, text: "inserted" }
+    renderChatMessages([one, two], cache)
+
+    renderChatMessages([one, inserted, two], cache)
+    expect(cache.lastDerivation).toEqual({ reusedMessageCount: 0, rebuiltMessageCount: 3, fullRebuild: true })
+
+    renderChatMessages([two, one, inserted], cache)
+    expect(cache.lastDerivation).toEqual({ reusedMessageCount: 0, rebuiltMessageCount: 3, fullRebuild: true })
+  })
+
+  it("uses object identity revisions for legacy messages without entity revisions", () => {
+    const cache = createChatRenderCache()
+    const legacy = { type: "message", id: 1, role: "user", text: "legacy", bookmarkable: false } as ChatMessageItem
+    renderChatMessages([legacy], cache)
+
+    renderChatMessages([legacy, { ...legacy, id: 2 }], cache)
+    expect(cache.lastDerivation).toEqual({ reusedMessageCount: 1, rebuiltMessageCount: 1, fullRebuild: false })
+
+    renderChatMessages([{ ...legacy, text: "replacement" }, { ...legacy, id: 2 }], cache)
+    expect(cache.lastDerivation).toEqual({ reusedMessageCount: 0, rebuiltMessageCount: 2, fullRebuild: true })
   })
 
   it("invalidates a same-id message row whenever its entity revision changes", () => {
