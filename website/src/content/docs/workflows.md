@@ -365,6 +365,14 @@ The template creates a Workflow row, creates each Step row in order, and
 wires `next_step_id` from each Step to its successor. The dispatcher starts
 the first Run, then advances the chain as Steps succeed.
 
+`base_refresh_retry` normally restores a failed Workflow's published mutation
+checkpoint onto the Job's current effective base. It can also recover a
+terminal blocked Workflow when structured infrastructure-failure evidence,
+durable checkpoint provenance, quiescent Runs, and retired mutation ownership
+make that recovery unambiguous. The reconciler uses the same admission path for
+that strict blocked state, so repeated recovery passes converge on one
+replacement Workflow while preserving the blocked source as audit evidence.
+
 ## Fork Review Flow
 
 When a Job's `target_repository` differs from its working `repository` (cross-fork
