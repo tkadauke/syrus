@@ -78,6 +78,29 @@ RSpec.describe "Mcp::Tools diff and tag tools", :full_chat_access do
     expect(body[:diff]).to eq("abcdef")
   end
 
+  it "redacts complete diff artifacts before applying caller-controlled page boundaries" do
+    job = Factories.job(repository: repository)
+    run = job.latest_workflow.runs.order(:id).last
+    secret = "ghp_#{'a' * 24}"
+    run.update!(agent_diff: "cumulative #{secret}", step_agent_diff: "repair #{secret}")
+
+    %w[agent_diff step_agent_diff].each do |artifact|
+      first_page = payload(call_tool("get_job_diff", job_id: job.id, run_id: run.id,
+        artifact: artifact, per_bytes: 1))
+      reconstructed = (1..first_page[:total_pages]).filter_map do |page|
+        payload(call_tool("get_job_diff", job_id: job.id, run_id: run.id,
+          artifact: artifact, page: page, per_bytes: 1))[:diff]
+      end.join
+
+      expect(reconstructed).to include(ToolPayloadRedactor::REDACTED)
+      expect(reconstructed).not_to include(secret)
+      expect(first_page).to include(
+        byte_count: reconstructed.bytesize,
+        total_bytes: reconstructed.bytesize
+      )
+    end
+  end
+
   it "skips a newer no-diff run and prefers the small step artifact" do
     job = Factories.job(repository: repository)
     workflow = job.latest_workflow
