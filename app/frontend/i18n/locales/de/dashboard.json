@@ -1,5 +1,6 @@
 {
   "title": "Übersicht",
+  "proposed_by": "Vorgeschlagen von {{name}} {{handle}}",
   "legacy_epics_title": "Epics",
   "legacy_epics_banner": "Dies sind ältere, mehrstufige Epics, die vor dieser Umstellung angelegt wurden. Neue Anfragen erscheinen jetzt als einzelne Jobs im Haupt-Dashboard.",
   "loading": "Wird geladen...",

@@ -835,6 +835,51 @@ describe("dashboard table header drag reordering", () => {
     expect(screen.getByRole("columnheader", { name: /State/ })).not.toHaveAttribute("draggable")
   })
 
+  it("shows proposer attribution beside the owner on Job and Epic rows", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <>
+        <JobsDashboardTable
+          columns={["checkbox", "issue", "owner"]}
+          controls={jobControls}
+          items={[job({ proposer: { type: "coworker", id: 7, label: "Adrian", handle: "adrian" } })]}
+          landingQueueEntries={[]}
+          prefix=""
+          sortState={sortState()}
+          t={(key, values) => (key === "proposed_by" ? `Proposed by ${values?.name} ${values?.handle}` : key)}
+        />
+        <EpicsTable
+          columns={["checkbox", "epic", "owner"]}
+          items={[epic({ proposer: { type: "human", id: 9, label: "Ada", handle: "ada" } })]}
+          prefix=""
+          sortState={sortState()}
+        />
+      </>
+    )
+
+    expect(screen.getAllByText("Proposed by Adrian @adrian").length).toBeGreaterThan(0)
+    expect(screen.getByText("Proposed by Ada @ada")).toBeInTheDocument()
+  })
+
+  it("renders no proposer element when a row has no proposer", () => {
+    setDesktop(true)
+
+    renderWithProviders(
+      <JobsDashboardTable
+        columns={["checkbox", "issue", "owner"]}
+        controls={jobControls}
+        items={[job({ proposer: null })]}
+        landingQueueEntries={[]}
+        prefix=""
+        sortState={sortState()}
+        t={(key) => key}
+      />
+    )
+
+    expect(screen.queryByTestId("proposer-attribution")).not.toBeInTheDocument()
+  })
+
   it("reorders epic header and body cells together, keeping checkbox/epic pinned", () => {
     setDesktop(true)
     const onReorderColumns = vi.fn()

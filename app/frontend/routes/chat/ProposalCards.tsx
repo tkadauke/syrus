@@ -50,6 +50,7 @@ import { ToolApprovalDetails, type ToolApprovalActor } from "../../components/To
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { DocumentPreviewModal } from "../../components/DocumentPreviewModal"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
+import { ProposerAttribution } from "../../components/ProposerAttribution"
 import { StartEpicButton } from "../../components/StartEpicButton"
 import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
@@ -605,14 +606,7 @@ export function ProposalCard({
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
               <CopyableSlug className="text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
-              {proposal.proposer ? (
-                <span className="text-xs text-text-muted" data-testid="proposal-proposer">
-                  {t("proposal_authored_by", {
-                    name: proposal.proposer.label,
-                    handle: proposal.proposer.handle ? `@${proposal.proposer.handle}` : ""
-                  })}
-                </span>
-              ) : null}
+              <ProposerAttribution label={(values) => t("proposal_authored_by", values)} proposer={proposal.proposer} testId="proposal-proposer" />
               <ProposalDependencyStrip
                 className="min-w-0 flex-auto"
                 dependencies={proposal.dependencies}

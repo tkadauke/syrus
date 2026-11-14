@@ -101,6 +101,7 @@ module Filters
 
       # Owner
       "owner_user_id"                 => "Filters::Chips::Jobs::OwnerUserId",
+      "proposer"                      => "Filters::Chips::Proposer",
       "eligible_approver"             => "Filters::Chips::Jobs::EligibleApprover",
 
       # Booleans (predicates)
@@ -176,6 +177,7 @@ module Filters
         "child_progress_percent"  => "Filters::Chips::Epics::ChildProgressPercent",
         "has_epic_dependency"     => "Filters::Chips::Epics::HasEpicDependency",
         "owner_user_id"           => "Filters::Chips::Epics::OwnerUserId",
+        "proposer"                => "Filters::Chips::Proposer",
         "attention"               => "Filters::Chips::Epics::Attention"
       }
     ),

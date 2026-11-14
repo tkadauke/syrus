@@ -1,5 +1,6 @@
 {
   "title": "Dashboard",
+  "proposed_by": "Proposed by {{name}} {{handle}}",
   "legacy_epics_title": "Epics",
   "legacy_epics_banner": "These are older, multi-step features created before this update. New requests now appear as individual tasks on the main dashboard.",
   "loading": "Loading...",
