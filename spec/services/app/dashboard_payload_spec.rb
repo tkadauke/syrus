@@ -835,7 +835,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       )
       expect(filter_fields).to include(
         "kind", "job_type", "agent_provider", "closure_reason", "triaging_reason", "validity",
-        "pr_number", "issue_number", "branch_name"
+        "pr_number", "issue_number", "branch_name", "proposer"
       )
     end
 

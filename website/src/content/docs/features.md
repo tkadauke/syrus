@@ -1111,6 +1111,10 @@ interaction for `WF-N` and preview their type, state, and key ordered steps.
 Plugin slugs such as `DOC-N` use
 their plugin-provided preview cards. The older chat search page remains
 available for chat-specific repository, Epic, Job, and attachment filters.
+Dashboard Job and Epic lists show who proposed each item beside its owner when
+that provenance is available. The shared FilterBar can narrow either list to a
+human or plugin-provided mentionable, and saved SmartFolder views preserve that
+proposer filter.
 Operators can also share a chat with teammates on the same Syrus instance:
 the `/share` slash command copies a stable link to a read-only transcript
 view that requires normal Syrus sign-in and does not expose compose controls,

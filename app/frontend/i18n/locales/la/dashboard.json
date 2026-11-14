@@ -1,5 +1,6 @@
 {
   "title": "Tabula",
+  "proposed_by": "Propositum a {{name}} {{handle}}",
   "legacy_epics_title": "Epica",
   "legacy_epics_banner": "Haec sunt opera antiquiora, pluribus gradibus constantia, ante hanc mutationem creata. Nova rogata iam ut singula negotia in tabula principali apparent.",
   "loading": "Oneratur...",
