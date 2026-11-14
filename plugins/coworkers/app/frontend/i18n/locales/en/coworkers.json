@@ -174,7 +174,7 @@
       "workspace_files": "This coworker can read and edit workspace files.",
       "workspace_shell": "This coworker can run commands in its workspace.",
       "syrus_read_jobs": "This coworker can read Syrus Jobs.",
-      "syrus_manage_job_state": "This coworker can close or cancel Syrus Jobs after confirmation.",
+      "syrus_jobs": "This coworker can manage Syrus Job lifecycle actions after confirmation.",
       "syrus_propose_job": "This coworker can propose Syrus Jobs.",
       "syrus_spawn_chat": "This coworker can start ordinary Syrus engineering chats."
     },

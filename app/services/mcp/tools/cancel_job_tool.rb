@@ -20,6 +20,8 @@ module Mcp::Tools
       until confirmation. The call creates only pending action(s); confirmation
       cancels active Runs/Workflows and closes each Job, without creating a Job,
       Workflow, or WorkUnit or entering admission control/the worker queue.
+      A human-readable reason is required. For a single duplicate Job,
+      canonical_job_id records its replacement in the same repository.
     DESC
 
     input_schema(
@@ -29,20 +31,34 @@ module Mcp::Tools
           type: "array",
           items: { type: "integer" },
           description: "Multiple Syrus Job ids to cancel as one grouped pending action."
-        }
-      }
+        },
+        reason: { type: "string", minLength: 1, maxLength: 1_000, description: "Human-readable reason for cancellation." },
+        canonical_job_id: { type: "integer", description: "Optional canonical replacement Job for duplicate work." }
+      },
+      required: %w[reason]
     )
 
     class << self
-      def call(job_id: nil, job_ids: nil, server_context:)
+      def call(job_id: nil, job_ids: nil, reason:, canonical_job_id: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
+        return Mcp::Tools.invalid("reason is required") if reason.to_s.strip.blank?
+        return Mcp::Tools.invalid("reason is too long (maximum is 1000 characters)") if reason.to_s.length > 1_000
         ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
         return error if error
+        return Mcp::Tools.invalid("canonical_job_id is only supported for one Job") if bulk && canonical_job_id.present?
 
         jobs = ids.map { |id| find_job!(id) }
+        canonical_job = find_job!(canonical_job_id) if canonical_job_id.present?
+        if canonical_job && (canonical_job == jobs.first || canonical_job.repository_id != jobs.first.repository_id)
+          return Mcp::Tools.invalid("canonical_job_id must reference another accessible Job in the same repository")
+        end
         ineligible = jobs.filter_map do |job|
           eligibility = JobCancellationEligibility.call(job: job)
-          "#{job.slug}: #{eligibility.message}" unless eligibility.eligible?
+          if job.landed_sha.present? || job.deployment_stage_statuses.exists?
+            "#{job.slug}: landing or deployment evidence prevents cancellation"
+          elsif !eligibility.eligible?
+            "#{job.slug}: #{eligibility.message}"
+          end
         end
         if ineligible.any?
           return Mcp::Tools.invalid("Cannot cancel #{ineligible.size} of #{jobs.size} Jobs - #{ineligible.join('; ')}")
@@ -54,8 +70,10 @@ module Mcp::Tools
             server_context,
             chat_session,
             action: "cancel_job",
-            payload: { "job_id" => job.id },
-            requested_by: "agent"
+            payload: { "job_id" => job.id, "reason" => reason.to_s.strip, "canonical_job_id" => canonical_job&.id }.compact,
+            requested_by: "agent",
+            reason: reason.to_s.strip,
+            subject: McpToolContext.from_server_context(server_context).agent_actor
           )
 
           return Mcp::Tools.success(
@@ -69,7 +87,11 @@ module Mcp::Tools
         group = create_pending_action_group!(
           server_context: server_context,
           chat_session: chat_session,
-          member_attributes: jobs.map { |job| { action: "cancel_job", payload: { "job_id" => job.id }, requested_by: "agent" } }
+          member_attributes: jobs.map do |job|
+            { action: "cancel_job", payload: { "job_id" => job.id, "reason" => reason.to_s.strip },
+              requested_by: "agent", reason: reason.to_s.strip,
+              subject: McpToolContext.from_server_context(server_context).agent_actor }
+          end
         )
         bulk_action_response(group: group, message: "Cancel #{jobs.size} Jobs?")
       rescue ActiveRecord::RecordInvalid => e
