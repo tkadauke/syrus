@@ -20,7 +20,7 @@ class Coworkers::Create
     "coworker.spawn_chat" => "confirm",
     "schedule.manage_self" => "confirm",
     "syrus.read_jobs" => "auto",
-    "syrus.manage_job_state" => "confirm",
+    "syrus.jobs" => "confirm",
     "syrus.propose_job" => "auto"
   }.freeze
 
