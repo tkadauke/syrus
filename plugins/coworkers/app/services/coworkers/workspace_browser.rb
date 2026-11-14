@@ -29,8 +29,7 @@ class Coworkers::WorkspaceBrowser
   def home_branch = "coworkers/#{@coworker.handle}"
 
   def branch_counts
-    match = @coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
-    remote = Coworkers::RemoteWorkspace.new(owner: match[1], name: match[2], user: @coworker.owner_user)
+    remote = Coworkers::RemoteWorkspace.for_coworker(@coworker)
     remote.branch_counts(coworker: @coworker, guard: Coworkers::PushGuard.new(coworker: @coworker))
   rescue StandardError => error
     Rails.logger.warn("[Coworkers::WorkspaceBrowser] branch counts unavailable: #{GitRunner.redact(error.message)}")

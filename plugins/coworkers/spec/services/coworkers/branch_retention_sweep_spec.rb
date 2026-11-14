@@ -17,11 +17,20 @@ RSpec.describe Coworkers::BranchRetentionSweep do
     end
     allow(remote).to receive(:merged_run_refs).and_return(refs)
     allow(remote).to receive(:guarded_delete_if_matches!)
+    expect(Workflow).to receive(:where).once.and_call_original
 
     deleted = described_class.call(coworker:, remote:, now:, limit: 2)
 
     expect(deleted).to eq(2)
     expect(remote).to have_received(:guarded_delete_if_matches!).twice
+  end
+
+
+  it "rejects a malformed workspace remote with a domain error" do
+    coworker.update_column(:workspace_repo, "not-a-github-remote")
+
+    expect { described_class.new(coworker:) }
+      .to raise_error(Coworkers::RemoteWorkspace::InvalidRemote, "invalid coworker workspace repository")
   end
 
   it "keeps recent existing-workflow and unresolved conflict refs" do

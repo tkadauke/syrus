@@ -16,12 +16,14 @@ class Coworkers::BranchRetentionSweep
     protected_refs = Coworkers::WorkspaceConflict.unresolved
       .where(chat_session_id: @coworker.coworker_chats.select(:chat_session_id))
       .pluck(:source_branch, :recovery_ref).flatten.compact.to_set
+    entries = merged_refs
+    workflow_ids = entries.to_h { |entry| [ workflow_id(entry), true ] }.keys
+    existing_workflow_ids = Workflow.where(id: workflow_ids).pluck(:id).to_set
     deleted = 0
-    merged_refs.each do |entry|
+    entries.each do |entry|
       break if deleted >= @limit
       next if protected_refs.include?(entry[:branch]) || protected_refs.include?(entry[:sha])
-      workflow_id = entry[:branch].split("-").last.to_i
-      next unless entry[:committed_at] <= @now - GRACE_PERIOD || !Workflow.exists?(workflow_id)
+      next unless entry[:committed_at] <= @now - GRACE_PERIOD || !existing_workflow_ids.include?(workflow_id(entry))
 
       @remote.guarded_delete_if_matches!(entry[:branch], expected_sha: entry[:sha], guard: @guard)
       deleted += 1
@@ -38,8 +40,9 @@ class Coworkers::BranchRetentionSweep
       run_prefix: "coworkers/run/#{@coworker.id}-", guard: @guard)
   end
 
+  def workflow_id(entry) = entry[:branch].split("-").last.to_i
+
   def remote_for(coworker)
-    match = coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
-    Coworkers::RemoteWorkspace.new(owner: match[1], name: match[2], user: coworker.owner_user)
+    Coworkers::RemoteWorkspace.for_coworker(coworker)
   end
 end
