@@ -118,6 +118,7 @@ RSpec.describe Mcp::Sidecar do
         propose_epic_with_jobs
         list_proposals
         delete_proposal
+        list_pending_actions
         withdraw_pending_action
         set_bookmark
         list_jobs
@@ -141,7 +142,7 @@ RSpec.describe Mcp::Sidecar do
         mark_goal_completed
         mark_goal_blocked
       ])
-      expect(tool_names.size).to eq(29)
+      expect(tool_names.size).to eq(30)
       expect(tool_names).not_to include("complete_implement_step")
     end
 

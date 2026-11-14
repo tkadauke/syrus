@@ -55,7 +55,10 @@ for (const viewport of [
     const expandedCalls = bashSummary.locator("xpath=following-sibling::div[1]")
     await expect(expandedCalls).not.toContainText(MULTILINE_BASH_COMMAND)
     await expandedCalls.getByText("Raw details", { exact: false }).click()
-    await expect(expandedCalls).toContainText(MULTILINE_BASH_COMMAND)
+    const rawDetails = expandedCalls.locator("code")
+    await expect(rawDetails).toBeVisible()
+    const parsedDetails = JSON.parse(await rawDetails.innerText())
+    expect(parsedDetails.input.command).toBe(MULTILINE_BASH_COMMAND)
     await expectNoHorizontalOverflow(page, bashSummary)
   })
 }

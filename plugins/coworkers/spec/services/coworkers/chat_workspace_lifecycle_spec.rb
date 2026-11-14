@@ -279,7 +279,7 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     expect(conflict.recovery_ref).to match(/\A[0-9a-f]{40}\z/)
     expect(background_path.join("SOUL.md").read).to include("<<<<<<<", "role: foreground", "role: background")
     preserved = run_git("show", "#{conflict.recovery_ref}:SOUL.md", chdir: @remote)
-    expect(preserved).to include("<<<<<<<", "role: foreground", "role: background")
+    expect(preserved).to eq("role: background\n")
     expect(home_file("SOUL.md")).to eq("role: foreground\n")
   end
 
@@ -392,5 +392,134 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     expect(home_file("preserved.md")).to eq("do not lose this\n")
   ensure
     FileUtils.mv(unavailable_remote, @remote) if unavailable_remote&.exist? && !@remote.exist?
+  end
+
+  describe "agent-assisted conflict resolution" do
+    let(:table_base) { "## 2026-11-09 updates\n\n| Feature | Evidence |\n| --- | --- |\n| base | seeded |\n" }
+
+    before do
+      seed_session = chat
+      seeder = lifecycle(seed_session)
+      write(seeder.prepare!, "UNTESTED_FEATURES.md", table_base)
+      seeder.finalize!
+    end
+
+    after { Coworkers::ConflictResolver.agent = nil }
+
+    def table_row(label) = "| #{label} | #{label} evidence |\n"
+
+    def concurrent_table_edits
+      chat_side = chat
+      scheduled = chat
+      chat_lifecycle = lifecycle(chat_side)
+      scheduled_lifecycle = lifecycle(scheduled)
+      chat_path = chat_lifecycle.prepare!
+      scheduled_path = scheduled_lifecycle.prepare!
+      write(chat_path, "UNTESTED_FEATURES.md", "#{table_base}#{table_row('chat')}")
+      write(scheduled_path, "UNTESTED_FEATURES.md", "#{table_base}#{table_row('scheduled')}")
+      [ chat_lifecycle, scheduled_lifecycle, scheduled ]
+    end
+
+    it "invokes the agent for concurrent edits to one Markdown section and commits a marker-free merge of both" do
+      prompts = []
+      Coworkers::ConflictResolver.agent = lambda do |workspace_path:, prompt:|
+        prompts << prompt
+        file = Pathname(workspace_path).join("UNTESTED_FEATURES.md")
+        file.write("#{table_base}#{table_row('chat')}#{table_row('scheduled')}")
+        Struct.new(:timed_out, :is_error, :exit_status, :final_text) { def success? = true }.new(false, false, 0, "done")
+      end
+      chat_lifecycle, scheduled_lifecycle, = concurrent_table_edits
+
+      expect(chat_lifecycle.finalize!).to eq(:merged)
+      expect(prompts).to be_empty
+      expect(scheduled_lifecycle.finalize!).to eq(:merged)
+
+      expect(prompts.size).to eq(1)
+      expect(prompts.first).to include("UNTESTED_FEATURES.md", "chat evidence", "scheduled evidence", "SOUL.md", "role: tester")
+      content = home_file("UNTESTED_FEATURES.md")
+      expect(content).to include("| chat | chat evidence |", "| scheduled | scheduled evidence |")
+      expect(content).not_to match(/^(?:<<<<<<<|=======|>>>>>>>)/)
+      checkout = @root.join("inspect-merge")
+      run_git("clone", "--branch", "coworkers/maya", @remote.to_s, checkout.to_s)
+      expect(run_git("log", "-1", "--format=%P", chdir: checkout).split.size).to eq(2)
+    end
+
+    it "keeps the clean home HEAD, preserves recovery refs, and notifies once when the agent cannot resolve" do
+      attempts = 0
+      Coworkers::ConflictResolver.agent = lambda do |workspace_path:, prompt:|
+        attempts += 1
+        # Leaves the markers in place, as an unfinished resolution would.
+        Struct.new(:timed_out, :is_error, :exit_status, :final_text) { def success? = true }.new(false, false, 0, "done")
+      end
+      chat_lifecycle, scheduled_lifecycle, scheduled = concurrent_table_edits
+      chat_lifecycle.finalize!
+      home_before = run_git("rev-parse", "coworkers/maya", chdir: @remote).strip
+
+      expect(scheduled_lifecycle.finalize!).to eq(:conflict)
+
+      expect(attempts).to eq(Coworkers::ConflictResolver::MAX_ATTEMPTS)
+      expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(home_before)
+      expect(home_file("UNTESTED_FEATURES.md")).not_to include("<<<<<<<")
+      refs = run_git("for-each-ref", "--format=%(refname:short)", "refs/heads/coworker-recovery", chdir: @remote).lines.map(&:strip)
+      expect(refs.map { |ref| ref.split("/").last }).to contain_exactly("home", "source")
+      home_ref = refs.find { |ref| ref.end_with?("/home") }
+      expect(run_git("rev-parse", home_ref, chdir: @remote).strip).to eq(home_before)
+      expect(run_git("show", "#{refs.find { |ref| ref.end_with?('/source') }}:UNTESTED_FEATURES.md", chdir: @remote))
+        .to include("scheduled evidence")
+      expect(Coworkers::WorkspaceConflict.where(chat_session: scheduled, state: "failed").count).to eq(1)
+      expect(scheduled.messages.where(role: "system").count).to eq(1)
+
+      expect(lifecycle(scheduled).finalize!).to eq(:conflict)
+      expect(scheduled.messages.where(role: "system").count).to eq(1)
+    end
+
+    it "keeps the home HEAD when the agent leaves a structured file unparseable" do
+      Coworkers::ConflictResolver.agent = lambda do |workspace_path:, prompt:|
+        Pathname(workspace_path).join("UNTESTED_FEATURES.md").write("#{table_base}merged\n")
+        Pathname(workspace_path).join("broken.json").write("{")
+        Struct.new(:timed_out, :is_error, :exit_status, :final_text) { def success? = true }.new(false, false, 0, "done")
+      end
+      chat_lifecycle, scheduled_lifecycle, = concurrent_table_edits
+      chat_lifecycle.finalize!
+      home_before = run_git("rev-parse", "coworkers/maya", chdir: @remote).strip
+
+      expect(scheduled_lifecycle.finalize!).to eq(:conflict)
+      expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(home_before)
+    end
+
+    it "refuses to commit conflict markers left behind with a clean index" do
+      session = chat
+      service = lifecycle(session)
+      path = service.prepare!
+      write(path, "UNTESTED_FEATURES.md", "<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> origin/coworker-home\n")
+      home_before = run_git("rev-parse", "coworkers/maya", chdir: @remote).strip
+
+      expect(service.finalize!).to eq(:pending_resolution)
+
+      expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(home_before)
+      expect(Coworkers::WorkspaceConflict.active.find_by!(chat_session: session).files).to eq([ "UNTESTED_FEATURES.md" ])
+    end
+
+    it "validates an already-committed marker-bearing source before a fast-forward can reach home" do
+      Coworkers::ConflictResolver.agent = lambda do |workspace_path:, prompt:|
+        # Leave the committed markers untouched so validation must reject the
+        # attempted merge rather than advancing the persistent branch.
+        Struct.new(:timed_out, :is_error, :exit_status, :final_text) { def success? = true }.new(false, false, 0, "done")
+      end
+      session = chat
+      service = lifecycle(session)
+      path = service.prepare!
+      write(path, "UNTESTED_FEATURES.md", "<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> source\n")
+      run_git("add", "UNTESTED_FEATURES.md", chdir: path)
+      run_git("commit", "-m", "precommitted invalid tree", chdir: path)
+      home_before = run_git("rev-parse", "coworkers/maya", chdir: @remote).strip
+
+      expect(service.finalize!).to eq(:conflict)
+
+      expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(home_before)
+      expect(home_file("UNTESTED_FEATURES.md")).not_to include("<<<<<<<", "=======", ">>>>>>>")
+      expect(Coworkers::WorkspaceConflict.where(chat_session: session, state: "failed").count).to eq(1)
+      expect(session.messages.where(role: "system").count).to eq(1)
+    end
   end
 end
