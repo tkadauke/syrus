@@ -42,7 +42,7 @@ import type { ProviderAvailability } from "../../api/providerAvailability"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { recentChatsQueryKey, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
+import { recentChatsQueryKey, refreshRecentChats, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { useChatBookmarks } from "../chat/bookmarks"
 import { EpicProgressSegments } from "../dashboard/components"
 
@@ -355,7 +355,12 @@ export function RecentChatsSidebar({
     setDeletingChatIds((current) => new Set(current).add(chat.id))
     void deleteChat(chat.id)
       .then(() => {
-        removeChatFromRecentLists(chat.id)
+        if (sidebarSettings.show_archived) {
+          setLoadedSections({})
+          refreshRecentChats(queryClient)
+        } else {
+          removeChatFromRecentLists(chat.id)
+        }
         queryClient.removeQueries({ queryKey: ["chats", String(chat.id)] })
         onNotice(t("chat:chat_archived"))
         if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
