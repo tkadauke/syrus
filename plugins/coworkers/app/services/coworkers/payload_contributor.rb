@@ -26,7 +26,6 @@ module Coworkers
     end
 
     def self.chat_message_payload(messages:, payloads:)
-      presentations = message_presentations(messages: messages)
       bridge_chat_ids = payloads.filter_map do |payload|
         bridge = payload[:cross_chat_bridge]
         bridge[:counterpart_chat_session_id] if bridge&.fetch(:direction, nil) == "inbound"
@@ -35,7 +34,7 @@ module Coworkers
         .includes(coworker: { avatar_attachment: :blob }, chat_session: :user)
         .index_by { |link| [ link.chat_session.user_id, link.chat_session_id ] }
       payloads.zip(messages).map do |payload, message|
-        decorated = payload.merge(presentations.fetch(message.id, {}))
+        decorated = payload.dup
         bridge = payload[:cross_chat_bridge]
         link = bridge_coworkers[[ message.chat_session.user_id, bridge&.fetch(:counterpart_chat_session_id, nil) ]]
         if bridge&.fetch(:direction, nil) == "inbound" && link
