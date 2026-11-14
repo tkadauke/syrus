@@ -54,11 +54,12 @@ module Mcp::Tools
 
         page = normalize_page(page)
         per_bytes = normalize_per_bytes(per_bytes)
-        total_bytes = diff.bytesize
+        redacted_diff = ToolPayloadRedactor.redact_text(diff)
+        total_bytes = redacted_diff.bytesize
         total_pages = total_pages(total_bytes, per_bytes)
         offset = (page - 1) * per_bytes
         page_out_of_range = offset >= total_bytes
-        chunk = page_out_of_range ? "" : ToolPayloadRedactor.redact_text(Mcp::Tools.safe_byteslice(diff, offset, per_bytes))
+        chunk = page_out_of_range ? "" : Mcp::Tools.safe_byteslice(redacted_diff, offset, per_bytes)
         has_next_page = page < total_pages
 
         Mcp::Tools.success(
