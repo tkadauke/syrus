@@ -114,6 +114,15 @@ module WorkUnits
       active_job_ids([ job.id ]).include?(job.id)
     end
 
+    def self.retained_locks_for_job?(job)
+      member_unit_ids = WorkUnitMember.where(job_id: job.id).select(:work_unit_id)
+      scoped_unit_ids = WorkUnit.where(scope_type: "job", scope_id: job.id).select(:id)
+      WorkUnitLock.active
+        .where(work_unit_id: member_unit_ids)
+        .or(WorkUnitLock.active.where(work_unit_id: scoped_unit_ids))
+        .exists?
+    end
+
     def self.active_for_job_kind?(job, kinds)
       active_job_ids([ job.id ], kinds: kinds).include?(job.id)
     end

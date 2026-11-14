@@ -133,6 +133,22 @@ RSpec.describe BaseRefreshRetryEnqueuer do
     expect(source.artifact("base_refresh_retry_workflow_id")).to be_nil
   end
 
+  it "rejects a blocked source with a retained mutation lock on a terminal WorkUnit" do
+    source.update!(state: "blocked")
+    add_recoverable_blocked_failure
+    intent = WorkIntent.create!(kind: "initial", state: "failed", repository: repository,
+      scope_type: "job", scope_id: job.id, actor: user, source_type: "spec")
+    unit = WorkUnit.create!(work_intent: intent, kind: "initial", state: "failed", repository: repository,
+      scope_type: "job", scope_id: job.id, finished_at: 5.minutes.ago)
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit.work_unit_locks.create!(lock_key: "job:#{job.id}")
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("active WorkUnit ownership or retained mutation locks")
+    expect(source.artifact("base_refresh_retry_workflow_id")).to be_nil
+  end
+
   it "rejects a checkpoint whose durable ref no longer reaches the recorded commit" do
     source.update!(state: "blocked")
     add_recoverable_blocked_failure
@@ -154,6 +170,20 @@ RSpec.describe BaseRefreshRetryEnqueuer do
     result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
 
     expect(result.error).to include("no structured recoverable infrastructure failure evidence")
+  end
+
+  it "keeps failed-source eligibility compatible when durable refs are temporarily unavailable" do
+    allow(RepositoryContent).to receive(:for).and_return(
+      instance_double(RepositoryContent::Reader).tap do |reader|
+        allow(reader).to receive(:resolve).and_raise(RepositoryContent::Unavailable, "provider unavailable")
+      end
+    )
+
+    result = BaseRefreshRetryEligibility.call(job: job, source_workflow_id: source.id)
+
+    expect(result).to be_eligible
+    expect(result.workflow).to eq(source)
+    expect(result.checkpoint).to eq(run.run_checkpoint)
   end
 
   def add_recoverable_blocked_failure
