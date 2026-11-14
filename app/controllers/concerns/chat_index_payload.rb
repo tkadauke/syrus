@@ -595,20 +595,23 @@ module ChatIndexPayload
   def plugin_chat_list_groups
     @plugin_chat_list_groups ||= begin
       claimed_ids = Set.new
-      Syrus::PluginRegistry.providers_for(:chat_list_group).filter_map do |provider|
-        contribution = provider.chat_list_group(user: Current.user)
+      identity_groups = ChatIdentityContributions.group_ownership(user: Current.user)
+      legacy_groups = Syrus::PluginRegistry.providers_for(:chat_list_group).filter_map do |provider|
+        provider.chat_list_group(user: Current.user)&.deep_stringify_keys
+      end
+      (identity_groups + legacy_groups).filter_map do |contribution|
         next if contribution.blank?
 
-        key = contribution.fetch(:key).to_s
-        label = contribution.fetch(:label).to_s
-        ids = Array(contribution.fetch(:chat_session_ids)).filter_map { |id| Integer(id, exception: false) }.uniq
+        key = contribution.fetch("key").to_s
+        label = contribution.fetch("label").to_s
+        ids = Array(contribution.fetch("chat_session_ids")).filter_map { |id| Integer(id, exception: false) }.uniq
         next if key.blank? || label.blank? || ids.empty?
 
         ids.reject! { |id| claimed_ids.include?(id) }
         claimed_ids.merge(ids)
         next if ids.empty?
 
-        metadata = contribution[:metadata_by_chat_session_id].to_h.transform_keys(&:to_i).slice(*ids)
+        metadata = contribution["metadata_by_chat_session_id"].to_h.transform_keys(&:to_i).slice(*ids)
         { key: key, label: label, chat_session_ids: ids, metadata_by_chat_session_id: metadata }
       end
     end

@@ -89,7 +89,11 @@ module App
       preload_chat_shell_commands(records)
       preload_cross_chat_bridges(records)
       payloads = records.map { |message| message_json(message) }
-      ChatPayloadContributions.message_payload(messages: records, payloads: payloads)
+      payloads = ChatPayloadContributions.message_payload(messages: records, payloads: payloads)
+      presentations = ChatIdentityContributions.message_presentations(messages: records)
+      payloads.zip(records).map do |payload, message|
+        payload.merge(presentations.fetch(message.id, {}).symbolize_keys)
+      end
     end
 
     private
