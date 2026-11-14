@@ -1,6 +1,7 @@
 class Epic < ApplicationRecord
   include AASM
   include AutoApproveModes
+  include HasProposer
 
   # Raised by #start_implementing! when the Epic cannot move to
   # :in_progress (already running/finished, claimed by someone else,
