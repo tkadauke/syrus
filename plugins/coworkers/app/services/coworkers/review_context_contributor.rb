@@ -36,6 +36,10 @@ class Coworkers::ReviewContextContributor
 
   def self.tool_set(_target) = Coworkers::ReviewToolSet
   def self.tool_capability(_target) = :submit_coworker_review
+  def self.operator_links(target:, run:, user:)
+    reference = target.to_h.deep_stringify_keys["reference"]
+    Coworkers::Coworker.find_by(id: reference)&.review_evidence_links(run:, user:)
+  end
   def self.retention(_target) = { "policy" => "coworker_review_context", "tombstones" => true }
 
   def self.tombstone(context, reason:)

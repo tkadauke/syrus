@@ -64,4 +64,13 @@ RSpec.describe ReviewEvidence do
       evidence.record_context!("owner" => "example", "type" => "review_context", "manifest" => { "sha256" => "changed" })
     }.to raise_error(ActiveRecord::ReadOnlyRecord)
   end
+
+  it "does not replace an empty recorded envelope" do
+    evidence = described_class.create!(evidence_attributes)
+    evidence.record_context!({})
+
+    expect {
+      evidence.record_context!("owner" => "example", "type" => "review_context")
+    }.to raise_error(ActiveRecord::ReadOnlyRecord)
+  end
 end
