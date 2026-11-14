@@ -117,6 +117,28 @@ RSpec.describe RunJob, :ci_only do
       expect(run.step.reload).to be_running
       expect(run.workflow.reload).to be_running
     end
+
+    it "defers a queued run when another work unit owns its required lock" do
+      run = job.initial_run
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, run.workflow)
+      run_job.instance_variable_set(:@job, job)
+      owner = WorkUnit.new(id: 123)
+      conflict = WorkUnits::Launcher::LockConflict.new(
+        lock_key: "landing:repository:#{repository.id}",
+        work_unit: owner
+      )
+      allow_any_instance_of(WorkUnit).to receive(:mark_running!).and_raise(conflict)
+
+      expect(run_job).to receive(:defer_run).with(run.id, RunJob::WORK_UNIT_LOCK_RETRY_DELAY)
+
+      expect(run_job.send(:acquire_run_execution!)).to be(false)
+      expect(run.reload).to be_queued
+      expect(run.step.reload).to be_queued
+      expect(run.workflow.reload).to be_queued
+    end
   end
 
   describe "stale retry workflows" do
