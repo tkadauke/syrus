@@ -6,6 +6,8 @@ import type { ProviderAvailability } from "./providerAvailability"
 import type { RepositoryEpicDependencyPolicy } from "./repositories"
 import type { GoalProvenance } from "./chats"
 
+export type EpicProposer = { type: string; id: number; label: string; handle: string | null }
+
 export type EpicRepositoryOption = {
   id: number
   slug: string
@@ -40,6 +42,7 @@ export type EpicFormRecord = {
   epic_dependency_policy: EpicDependencyPolicy
   resolved_epic_dependency_policy: EpicDependencyPolicy | null
   goal_provenance?: GoalProvenance | null
+  proposer?: EpicProposer | null
   epic_path: string | null
 }
 
@@ -111,6 +114,7 @@ export type EpicDetailRecord = {
   epic_dependency_policy: EpicDependencyPolicy
   resolved_epic_dependency_policy: EpicDependencyPolicy
   goal_provenance?: GoalProvenance | null
+  proposer?: EpicProposer | null
 }
 
 export type EpicDetailSummary = {

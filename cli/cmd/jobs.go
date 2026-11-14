@@ -13,11 +13,12 @@ import (
 	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
-const defaultStatusWidth = 80
+const defaultStatusWidth = 100
 
 type statusOptions struct {
-	repo   string
-	closed bool
+	repo     string
+	closed   bool
+	proposer string
 }
 
 func NewJobsCommand() *cobra.Command {
@@ -34,6 +35,7 @@ func NewJobsCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&opts.repo, "repo", "", "Filter by repository owner/name")
 	cmd.Flags().BoolVar(&opts.closed, "closed", false, "Show closed jobs instead of open jobs")
+	cmd.Flags().StringVar(&opts.proposer, "proposer", "", "Filter by proposer handle")
 	return cmd
 }
 
@@ -51,6 +53,9 @@ func runStatus(ctx context.Context, out io.Writer, opts *statusOptions, color bo
 	}
 	if strings.TrimSpace(opts.repo) != "" {
 		filters.Set("repo", strings.TrimSpace(opts.repo))
+	}
+	if strings.TrimSpace(opts.proposer) != "" {
+		filters.Set("proposer", strings.TrimPrefix(strings.TrimSpace(opts.proposer), "@"))
 	}
 
 	list, err := client.ListJobs(ctx, filters)
@@ -71,16 +76,18 @@ func renderStatus(out io.Writer, jobs []api.JobItem, width int, color bool) {
 	repoWidth := 21
 	stateWidth := 12
 	prWidth := maxPRWidth(jobs)
-	titleWidth := width - idWidth - repoWidth - stateWidth - prWidth - 8
+	proposerWidth := 12
+	titleWidth := width - idWidth - repoWidth - stateWidth - proposerWidth - prWidth - 10
 	if titleWidth < 10 {
 		titleWidth = 10
 	}
 
-	fmt.Fprintf(out, "%-*s  %-*s  %-*s  %-*s  %s\n",
+	fmt.Fprintf(out, "%-*s  %-*s  %-*s  %-*s  %-*s  %s\n",
 		idWidth, "ID",
 		repoWidth, "REPO",
 		titleWidth, "TITLE",
 		stateWidth, "STATE",
+		proposerWidth, "PROPOSER",
 		"PR")
 
 	for _, job := range jobs {
@@ -88,13 +95,21 @@ func renderStatus(out io.Writer, jobs []api.JobItem, width int, color bool) {
 		if color {
 			state = colorState(state, job.State)
 		}
-		fmt.Fprintf(out, "%-*s  %-*s  %-*s  %s  %*s\n",
+		fmt.Fprintf(out, "%-*s  %-*s  %-*s  %s  %-*s  %*s\n",
 			idWidth, "JOB-"+strconv.FormatInt(job.ID, 10),
 			repoWidth, fit(job.RepositorySlug, repoWidth),
 			titleWidth, fit(job.Title, titleWidth),
 			state,
+			proposerWidth, fit(proposerHandle(job.Proposer), proposerWidth),
 			prWidth, prLabel(job.PRNumber))
 	}
+}
+
+func proposerHandle(proposer *api.Mentionable) string {
+	if proposer == nil || proposer.Handle == "" {
+		return "-"
+	}
+	return "@" + proposer.Handle
 }
 
 func maxPRWidth(jobs []api.JobItem) int {

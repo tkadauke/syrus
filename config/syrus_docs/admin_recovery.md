@@ -1,5 +1,10 @@
 # Admin Recovery
 
+Admin Job and Epic payloads expose `proposer` as either `null` or an object
+with `type`, `id`, `label`, and `handle`. Filter list endpoints with a bare
+handle such as `proposer=adrian`; an unknown handle returns an empty list. The
+CLI exposes the same filter through `--proposer` on Job and Epic lists.
+
 Syrus exposes narrow admin-only recovery actions for open Jobs stuck outside
 normal workflow state propagation:
 

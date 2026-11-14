@@ -25,7 +25,7 @@ module Api
         #
         # No filters → most-recently updated page.
         def index
-          scope = Epic.includes(:owner, :repository, :owner_user).order(updated_at: :desc)
+          scope = Epic.includes(:owner, :repository, :owner_user).preload(:proposer).order(updated_at: :desc)
           scope = scope.where(state: params[:state]) if params[:state].present?
           if params[:repo].present?
             owner, name = params[:repo].split("/", 2)
@@ -34,6 +34,7 @@ module Api
           if params[:user].present?
             scope = scope.joins(:user).where("users.email_address LIKE ?", "%#{params[:user]}%")
           end
+          scope = filter_by_proposer(scope) if params[:proposer].present?
           scope = apply_owner_filter(scope)
           if truthy?(params[:has_unfinished_children])
             scope = scope.where(id: unfinished_child_epic_ids)
@@ -97,6 +98,11 @@ module Api
 
         def page_param
           [ params[:page].to_i, 1 ].max
+        end
+
+        def filter_by_proposer(scope)
+          proposer = Mentionables::Resolver.find_by_handle(params[:proposer])
+          proposer ? scope.where(proposer_type: proposer.class.base_class.name, proposer_id: proposer.mentionable_id) : scope.none
         end
 
         def epic_params
@@ -164,6 +170,7 @@ module Api
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             goal_provenance: ::App::GoalProvenancePayload.for(epic),
+            proposer: ::App::ProposerPayload.for(epic),
             owner:                  owner_json(epic),
             repository:             epic.repository.slug,
             github_issue_url:   epic.github_issue_url,
@@ -190,6 +197,7 @@ module Api
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             goal_provenance: ::App::GoalProvenancePayload.for(epic),
+            proposer: ::App::ProposerPayload.for(epic),
             github_issue_url:    epic.github_issue_url,
             done_at:            epic.done_at,
             created_at:         epic.created_at,
