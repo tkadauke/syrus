@@ -111,10 +111,13 @@ module Steps
       end
 
       context = ReviewContextContributions.prepare(target:, run:, evidence: run.review_evidence, criteria: review_criteria)
+      run.review_evidence&.record_context!(context.except("restricted_text"))
       run.step.update!(details: run.step.details.to_h.merge("review_context_manifest" => context.fetch("manifest")))
       restricted_context = Prompts::RestrictedReviewContext.new(ReviewContextContributions.prompt(context))
       "#{prompt}\n\n#{restricted_context}"
     rescue ReviewContextContributions::Unavailable
+      raise if target.present?
+
       prompt
     end
 
@@ -132,7 +135,7 @@ module Steps
                       persistence_error: context&.persistence_error_details }
         )
       end
-      return if run.step.details.to_h["review_persistence_receipt"].present?
+      return if run.review_evidence&.persistence_envelope.present? || run.step.details.to_h["review_persistence_receipt"].present?
 
       raise MemoryPersistenceFailed.new(
         "reviewer post-verdict update was not persisted",

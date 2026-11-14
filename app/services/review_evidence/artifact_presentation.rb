@@ -25,9 +25,6 @@ module ReviewEvidence::ArtifactPresentation
       "review_evidence" => evidence_payload(evidence),
       "cost_usd" => evidence.run.cost_usd&.to_f
     ).compact
-    if user && evidence.reviewer&.respond_to?(:review_evidence_links)
-      presented["operator_links"] = evidence.reviewer.review_evidence_links(run: evidence.run, user:).presence
-    end
     presented["verdict"] = evidence.state if evidence.state.in?(%w[pending failed stale])
     presented
   end
@@ -46,6 +43,9 @@ module ReviewEvidence::ArtifactPresentation
       "state" => evidence.state,
       "provider" => evidence.provider,
       "model" => evidence.model,
+      "target" => evidence.target_snapshot,
+      "context" => evidence.context_envelope,
+      "persistence" => evidence.persistence_envelope,
       "reviewed_base_sha" => evidence.reviewed_base_sha,
       "reviewed_head_sha" => evidence.reviewed_head_sha,
       "canonical_diff_sha256" => evidence.canonical_diff_sha256,

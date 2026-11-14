@@ -49,4 +49,25 @@ RSpec.describe ReviewEvidence::ArtifactPresentation do
     expect(presented).to include("cost_usd" => 0.125)
     expect(presented).not_to have_key("operator_links")
   end
+
+  it "renders immutable target, context, and persistence snapshots without a live plugin record" do
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: step, review_kind: "contributed_review",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1",
+      target_envelope: { "type" => "removed_plugin", "reference" => "opaque-1" },
+      target_snapshot: { "display" => { "name" => "Historical reviewer" } },
+      context_envelope: { "owner" => "removed_plugin", "manifest" => { "sha256" => "safe" } },
+      persistence_envelope: { "owner" => "removed_plugin", "type" => "journal", "key" => "receipt-1", "version" => 1 }
+    )
+
+    payload = described_class.call([ { "review_evidence_id" => evidence.id, "verdict" => "approved" } ]).sole
+
+    expect(payload.fetch("review_evidence")).to include(
+      "target" => { "display" => { "name" => "Historical reviewer" } },
+      "context" => include("manifest" => { "sha256" => "safe" }),
+      "persistence" => include("key" => "receipt-1")
+    )
+  end
 end

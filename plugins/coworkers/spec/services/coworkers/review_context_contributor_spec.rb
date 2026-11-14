@@ -22,7 +22,8 @@ RSpec.describe Coworkers::ReviewContextContributor do
 
   it "adapts protected context without exposing the coworker record to core" do
     expect(described_class.prepare(target: { type: "coworker", reference: "7" }, run:, evidence: nil, criteria: []))
-      .to eq(manifest: context.manifest, restricted_text: "restricted exact text", persistence_token: "19")
+      .to eq(owner: "coworkers", type: "review_context", version: 1,
+        manifest: context.manifest, restricted_text: "restricted exact text", persistence_token: "19")
   end
 
   it "binds its contributed tools to the coworker-review workflow capability" do

@@ -37,7 +37,10 @@ module ReviewContextContributions
   end
 
   def normalize_context(value)
-    context = value.to_h.deep_stringify_keys.slice("manifest", "restricted_text", "persistence_token")
+    context = value.to_h.deep_stringify_keys.slice(
+      "owner", "type", "version", "manifest", "restricted_text", "persistence_token"
+    )
+    %w[owner type version].each { |key| raise ArgumentError, "review context #{key} is required" if context[key].blank? }
     raise ArgumentError, "review context manifest must be an object" unless context["manifest"].is_a?(Hash)
     raise ArgumentError, "review context restricted_text must be a string" unless context["restricted_text"].is_a?(String)
     raise ArgumentError, "review context restricted_text is too large" if context["restricted_text"].bytesize > MAX_RESTRICTED_TEXT_BYTES

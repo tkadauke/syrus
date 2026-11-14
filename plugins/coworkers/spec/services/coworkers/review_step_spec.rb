@@ -24,7 +24,10 @@ RSpec.describe Coworkers::ReviewStep do
     allow(ReviewEvidence::Capture).to receive(:call)
     # The Coworkers context contributor needs real coworker records; this spec
     # covers the step's own behavior.
-    allow(ReviewContextContributions).to receive(:prepare).and_raise(ReviewContextContributions::Unavailable)
+    allow(ReviewContextContributions).to receive(:prepare).and_return(
+      "owner" => "coworkers", "type" => "review_context", "version" => 1,
+      "manifest" => {}, "restricted_text" => "protected", "persistence_token" => "19"
+    )
     allow(Coworkers::ReviewProjects).to receive(:call).and_return(
       Coworkers::ReviewProjects::Result.new(projects: [
         Coworkers::ReviewProjects::Project.new(
@@ -41,8 +44,23 @@ RSpec.describe Coworkers::ReviewStep do
     expect { handler.call }.to raise_error(ReviewerTargets::TargetRequired)
   end
 
+  it "fails closed when the plugin context contribution disappears between iterations" do
+    allow(ReviewContextContributions).to receive(:prepare).and_raise(ReviewContextContributions::Unavailable)
+    allow(ReviewEvidence::Capture).to receive(:call) do
+      ReviewEvidence.create!(
+        run:, workflow:, step: review_step, review_kind: "coworker", provider: "codex", model: "test",
+        target_envelope: review_step.details.fetch("reviewer_target"), target_snapshot: { "display" => { "name" => "Maya" } },
+        reviewed_base_sha: "a" * 40, reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+        prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+      )
+    end
+
+    expect { handler.call }.to raise_error(ReviewContextContributions::Unavailable)
+  end
+
   it "uses dedicated criteria, submission tool, and iteration artifact" do
-    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil)
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", persistence_envelope: nil)
+    allow(evidence).to receive(:record_context!)
     allow(run).to receive(:review_evidence).and_return(evidence)
     allow(run).to receive(:reload).and_return(run)
     allow(ReviewEvidence::VerifySubmission).to receive(:call!).and_return(evidence)
@@ -80,7 +98,8 @@ RSpec.describe Coworkers::ReviewStep do
   end
 
   it "does not advance when submitted coworker evidence becomes stale" do
-    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil)
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", persistence_envelope: nil)
+    allow(evidence).to receive(:record_context!)
     allow(run).to receive(:review_evidence).and_return(evidence)
     allow(run).to receive(:reload).and_return(run)
     allow(handler).to receive(:run_agent) do
@@ -96,7 +115,8 @@ RSpec.describe Coworkers::ReviewStep do
   end
 
   it "requires the contributed post-verdict update before succeeding" do
-    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil)
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", persistence_envelope: nil)
+    allow(evidence).to receive(:record_context!)
     allow(run).to receive(:review_evidence).and_return(evidence)
     allow(run).to receive(:reload).and_return(run)
     allow(ReviewEvidence::VerifySubmission).to receive(:call!).and_return(evidence)
