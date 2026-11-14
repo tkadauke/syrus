@@ -1797,6 +1797,58 @@ describe("AppChromeV2 mobile header pinning", () => {
       restoreMatchMedia()
     }
   })
+
+  it("uses one mobile drawer scroll region and pins only New Chat", async () => {
+    const restoreMatchMedia = mockNarrowViewport()
+    window.syrusShell = {
+      getState: vi.fn().mockResolvedValue({
+        updateReadyVersion: "0.1.3",
+        claudeDetected: false,
+        skillInstalled: false,
+        skillOfferDismissed: false
+      }),
+      onStateChanged: vi.fn().mockReturnValue(() => {}),
+      relaunchToUpdate: vi.fn(),
+      installSkill: vi.fn().mockResolvedValue({ ok: true, message: "" }),
+      dismissSkillOffer: vi.fn()
+    }
+    vi.spyOn(maintenanceApi, "fetchMaintenanceSidebar").mockResolvedValue({ tasks: [maintenanceTask({ title: "Repair stale indexes" })] })
+
+    try {
+      renderAppChrome(<div>Jobs list</div>, {
+        bootstrap: bootstrapPayload({ team_user_count: 3 }),
+        initialEntries: ["/dashboard/jobs"]
+      })
+      fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }))
+
+      const drawer = document.querySelector(".fixed.inset-0.z-40") as HTMLElement
+      const scrollRegion = drawer.querySelector('[data-mobile-drawer-scroll-region="true"]') as HTMLElement
+      const pinnedActions = drawer.querySelector('[data-sidebar-pinned-actions="new-chat"]') as HTMLElement
+      const newChat = within(drawer).getByRole("button", { name: "New Chat" })
+      const newGroupChat = within(drawer).getByRole("button", { name: "New group chat" })
+      const search = within(drawer).getByRole("searchbox")
+      const maintenance = await within(drawer).findByText("Repair stale indexes")
+      const notices = await within(drawer).findByTestId("shell-notices")
+      const account = within(drawer).getByRole("navigation", { name: "Account" })
+
+      expect(scrollRegion).toHaveClass("h-full", "overflow-y-auto")
+      expect(scrollRegion.querySelectorAll(".overflow-y-auto")).toHaveLength(0)
+      expect(scrollRegion).toContainElement(within(drawer).getByRole("button", { name: "Close sidebar" }))
+      expect(scrollRegion).toContainElement(newGroupChat)
+      expect(scrollRegion).toContainElement(search)
+      expect(scrollRegion).toContainElement(maintenance)
+      expect(scrollRegion).toContainElement(notices)
+      expect(scrollRegion).toContainElement(account)
+      expect(pinnedActions).toHaveClass("sticky", "top-0")
+      expect(pinnedActions.parentElement).toBe(scrollRegion)
+      expect(pinnedActions).toContainElement(newChat)
+      expect(pinnedActions).not.toContainElement(newGroupChat)
+      expect(pinnedActions).not.toContainElement(search)
+      expect(pinnedActions).not.toContainElement(maintenance)
+    } finally {
+      restoreMatchMedia()
+    }
+  })
 })
 
 describe("AppChromeV2 bug report trigger placement", () => {

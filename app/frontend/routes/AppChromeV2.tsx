@@ -780,6 +780,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     onStartChat={startChat}
                     onStartGroupChat={startGroupChat}
                     prefix={prefix}
+                    mobileDrawer
                     showTeamProfile={(data?.team_user_count || 0) > 1}
                     startingChat={startingChat}
                     user={user}
@@ -1394,6 +1395,7 @@ function SidebarContent({
   onStartChat,
   onStartGroupChat,
   prefix,
+  mobileDrawer = false,
   searchShortcutsEnabled = true,
   showTeamProfile,
   startingChat,
@@ -1413,6 +1415,7 @@ function SidebarContent({
   onStartChat: (repositoryId?: number | null) => void
   onStartGroupChat: () => void
   prefix: string
+  mobileDrawer?: boolean
   searchShortcutsEnabled?: boolean
   showTeamProfile: boolean
   startingChat: boolean
@@ -1510,9 +1513,33 @@ function SidebarContent({
     setOrderedNavItems(reorderableNavItems)
   }
 
+  const secondaryActions = (
+    <>
+      {showTeamProfile ? (
+        <Button
+          aria-label={collapsed ? t("nav:new_group_chat") : undefined}
+          className={collapsed ? "h-9 w-9 px-0" : "w-full"}
+          disabled={!user}
+          onClick={onStartGroupChat}
+          size={collapsed ? "icon" : "sm"}
+          title={collapsed ? t("nav:new_group_chat") : undefined}
+          variant="secondary"
+        >
+          <TeamIcon />
+          {collapsed ? null : <span>{t("nav:new_group_chat")}</span>}
+        </Button>
+      ) : null}
+      <SidebarSearchForm collapsed={collapsed} onCloseDrawer={onCloseDrawer} prefix={prefix} searchShortcutsEnabled={searchShortcutsEnabled} />
+      {collapsed ? null : <SidebarMaintenanceTasks prefix={prefix} signedIn={Boolean(user)} />}
+    </>
+  )
+
   return (
     <div
-      className="flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
+      className={`flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 ${
+        mobileDrawer ? "overflow-y-auto overscroll-contain pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : ""
+      }`}
+      data-mobile-drawer-scroll-region={mobileDrawer ? "true" : undefined}
       data-testid={collapsed ? "sidebar-rail" : "sidebar-content"}
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
@@ -1548,26 +1575,20 @@ function SidebarContent({
           </div>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={`sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "flex flex-col items-center px-0" : "px-3"}`}>
+      {mobileDrawer ? (
+        <div className="sticky top-0 z-20 bg-white px-3 py-3 shadow-sm dark:bg-gray-950" data-sidebar-pinned-actions="new-chat">
           <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
-          {showTeamProfile ? (
-            <Button
-              aria-label={collapsed ? t("nav:new_group_chat") : undefined}
-              className={collapsed ? "h-9 w-9 px-0" : "w-full"}
-              disabled={!user}
-              onClick={onStartGroupChat}
-              size={collapsed ? "icon" : "sm"}
-              title={collapsed ? t("nav:new_group_chat") : undefined}
-              variant="secondary"
-            >
-              <TeamIcon />
-              {collapsed ? null : <span>{t("nav:new_group_chat")}</span>}
-            </Button>
-          ) : null}
-          <SidebarSearchForm collapsed={collapsed} onCloseDrawer={onCloseDrawer} prefix={prefix} searchShortcutsEnabled={searchShortcutsEnabled} />
-          {collapsed ? null : <SidebarMaintenanceTasks admin={Boolean(user?.admin)} prefix={prefix} />}
         </div>
+      ) : null}
+      <div className={mobileDrawer ? "flex-none" : "min-h-0 flex-1 overflow-y-auto"}>
+        {mobileDrawer ? (
+          <div className="space-y-3 px-3 pt-3">{secondaryActions}</div>
+        ) : (
+          <div className={`sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "flex flex-col items-center px-0" : "px-3"}`}>
+            <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
+            {secondaryActions}
+          </div>
+        )}
         <div className={`${collapsed ? "px-0" : "px-3"} pb-4`}>
           <nav aria-label={t("nav:primary_nav_aria")} className={`flex flex-col gap-1 text-sm ${collapsed ? "items-center" : ""}`}>
             {setupItem ? (
