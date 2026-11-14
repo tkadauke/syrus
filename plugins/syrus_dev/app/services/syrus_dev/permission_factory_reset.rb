@@ -72,6 +72,7 @@ module SyrusDev
 
     def preview_snapshot(lock: false)
       relations = affected_relations
+      factory_profiles = factory_profile_plans(lock: lock)
       fingerprint_relations = relations.merge(
         active_rules: scope.rules.active,
         pending_authorization_items: PendingActionItem.pending.where(
@@ -88,7 +89,9 @@ module SyrusDev
         "pending_requests" => relations.fetch(:requests).size,
         "resumptions" => relations.fetch(:resumptions).size,
         "profile_selections" => relations.fetch(:profiles).size,
-        "factory_rules_to_create" => factory_rules_to_create_count,
+        "factory_rules_to_create" => factory_profiles.sum do |entry|
+          entry.fetch(:current) ? 0 : entry.fetch(:replacements).size
+        end,
         "factory_presets_to_create" => DEFAULT_PRESETS.size
       }.freeze
       state = fingerprint_relations.to_h do |name, relation|
@@ -141,31 +144,33 @@ module SyrusDev
     end
 
     def apply_factory_profiles!
-      profile = Permissions::PermissionProfiles.fetch(DEFAULT_PROFILE)
-      scope.profile_users.find_each do |user|
-        management = Permissions::Management.new(user)
-        PROFILE_SUBJECTS.each do |subject|
-          next if profile_will_be_current?(management, subject)
+      factory_profile_plans(lock: true).each do |entry|
+        next if entry.fetch(:current)
 
-          plan = management.profile_plan(profile_key: DEFAULT_PROFILE, subject_selector_type: subject, lock: true)
-          management.apply_profile!(plan:, actor: initiated_by)
+        entry.fetch(:management).apply_profile!(plan: entry.fetch(:plan), actor: initiated_by)
+      end
+    end
+
+    def factory_profile_plans(lock: false)
+      scope.profile_users.flat_map do |user|
+        management = Permissions::Management.new(user)
+        PROFILE_SUBJECTS.map do |subject|
+          plan = management.profile_plan(
+            profile_key: DEFAULT_PROFILE,
+            subject_selector_type: subject,
+            lock: lock
+          )
+          {
+            management:,
+            plan:,
+            current: profile_will_be_current?(management, subject, plan:),
+            replacements: plan.fetch(:replacements)
+          }
         end
       end
     end
 
-    def factory_rules_to_create_count
-      scope.profile_users.sum do |user|
-        management = Permissions::Management.new(user)
-        PROFILE_SUBJECTS.sum do |subject|
-          next 0 if profile_will_be_current?(management, subject)
-
-          management.profile_plan(profile_key: DEFAULT_PROFILE, subject_selector_type: subject).fetch(:replacements).size
-        end
-      end
-    end
-
-    def profile_will_be_current?(management, subject)
-      plan = management.profile_plan(profile_key: DEFAULT_PROFILE, subject_selector_type: subject)
+    def profile_will_be_current?(management, subject, plan:)
       actual = management.rules.where(subject_selector_type: subject).map { |rule| profile_rule_signature(rule) }
       expected = plan.fetch(:replacements).map do |replacement|
         descriptor = replacement.fetch(:descriptor)
