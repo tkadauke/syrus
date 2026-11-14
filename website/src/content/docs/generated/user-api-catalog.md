@@ -82,6 +82,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/chats/:id/media/chat_images/:document_id/file` | `api/v1/app/chats#media_chat_image` |
 | core | GET | `/api/v1/app/chats/:id/mentionables` | `api/v1/app/chats#mentionables` |
 | core | POST | `/api/v1/app/chats/:id/message` | `api/v1/app/chats#message` |
+| core | GET | `/api/v1/app/chats/:id/message_delivery` | `api/v1/app/chats#message_delivery` |
 | core | DELETE | `/api/v1/app/chats/:id/messages` | `api/v1/app/chats#clear_messages` |
 | core | GET | `/api/v1/app/chats/:id/messages` | `api/v1/app/chats#messages` |
 | core | GET | `/api/v1/app/chats/:id/messages/:message_id/content` | `api/v1/app/chats#full_message_content` |
