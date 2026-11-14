@@ -108,3 +108,45 @@ it("clears built-in SmartFolder navigation when its preset is removed", async ()
   await waitFor(() => expect(screen.getByTestId("location")).not.toHaveTextContent("smart_folder_id"))
   expect(screen.getByTestId("location")).toHaveTextContent(/[?&]q=/)
 })
+
+it("switches between human and coworker proposers and clears the filter", async () => {
+  vi.spyOn(window, "fetch").mockResolvedValue(new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }))
+  const payload = {
+    subject: "job",
+    active_smart_folder_id: null,
+    active_smart_folder_filter: {},
+    filter: { and: [{ field: "proposer", op: "is", value: "ada" }] },
+    smart_folders: [],
+    controls: {
+      filter_schema: [
+        {
+          field: "proposer",
+          label: "Proposer",
+          bucket: "enum",
+          operators: ["is", "is_not", "is_set", "is_unset"],
+          values: [
+            { value: "ada", label: "Ada (@ada)" },
+            { value: "adrian", label: "Adrian (@adrian)" }
+          ]
+        }
+      ],
+      filter_suggestions: []
+    }
+  } as unknown as DashboardPayload
+
+  render(
+    <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+      <DashboardFilterBar payload={payload} pathname="/dashboard/jobs" search="" />
+      <LocationProbe />
+    </MemoryRouter>
+  )
+
+  expect(screen.getByRole("button", { name: "Proposer is Ada (@ada)" })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Proposer is Ada (@ada)" }))
+  fireEvent.change(screen.getByLabelText("Value"), { target: { value: "adrian" } })
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Proposer is Adrian (@adrian)" })).toBeInTheDocument())
+  fireEvent.click(screen.getByRole("button", { name: "Remove Proposer filter" }))
+
+  await waitFor(() => expect(screen.queryByRole("button", { name: /Proposer is/ })).not.toBeInTheDocument())
+})

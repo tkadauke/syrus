@@ -39,6 +39,16 @@ module Mentionables
         end.first
       end
 
+      def filter_candidates(user:)
+        humans = User.joins(:handle_record).includes(:handle_record)
+        plugin = ::Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
+          provider.respond_to?(:share_candidates) ? Array(provider.share_candidates(user: user)) : []
+        end
+
+        (humans.to_a + plugin).uniq { |mentionable| [ mentionable.kind, mentionable.mentionable_id ] }
+          .sort_by { |mentionable| [ mentionable.display_name.to_s.downcase, mentionable.handle.to_s.downcase ] }
+      end
+
       private
 
       def candidates_for(chat)

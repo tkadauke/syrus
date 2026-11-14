@@ -32,6 +32,7 @@ import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { ProviderAvailabilityWarning, ProviderMismatchPill } from "../../components/ProviderAvailabilityWarning"
+import { ProposerAttribution } from "../../components/ProposerAttribution"
 import { PILL_TONE_CLASSES, StatusPill, TonePill } from "../../components/StatusPill"
 import {
   bulkDashboardJobs,
@@ -1117,6 +1118,7 @@ function MobileJobRow({
           )}
           <RepositorySlugLink prefix={prefix} repository={job.repository} />
           <OwnerBadge badge={job.owner_badge} />
+          <ProposerAttribution label={(values) => t("proposed_by", values)} proposer={job.proposer} />
         </div>
         <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
           <DashboardJobNavigationLink
@@ -1276,7 +1278,10 @@ function JobCell({
   if (column === "owner")
     return (
       <DataTable.Cell>
-        <DashboardOwnerLabel job={job} prefix={prefix} />
+        <div className="space-y-1">
+          <DashboardOwnerLabel job={job} prefix={prefix} />
+          <ProposerAttribution label={(values) => t("proposed_by", values)} proposer={job.proposer} />
+        </div>
       </DataTable.Cell>
     )
   if (column === "latest") return <LatestWorkflowCell job={job} />
