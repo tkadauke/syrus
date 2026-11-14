@@ -1466,7 +1466,9 @@ export async function fetchWhiteboardSnapshots(chatSessionId: string | number) {
   if (totalPages <= 1) return firstPage
 
   const remainingPages = await Promise.all(
-    Array.from({ length: totalPages - 1 }, (_, index) => getJson<WhiteboardSnapshotsPayload>(`${path}?page=${index + 2}`))
+    Array.from({ length: totalPages - 1 }, (_, index) => {
+      return getJson<WhiteboardSnapshotsPayload>(`${path}?page=${index + 2}`)
+    })
   )
   return {
     ...firstPage,
