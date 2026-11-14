@@ -580,14 +580,14 @@ class McpToolRegistry
       entry(tool, surface: :coworker, tier: tier, **metadata)
     end
 
-    # Job lifecycle operations are one shared capability family. Coworkers get
-    # the same tools as ordinary chats unless a registration is intrinsically
-    # tied to another context (currently create_coding_job). The tools retain
-    # their established pending-action confirmation boundary.
+    # Coworkers receive only cancellation from the shared Job lifecycle
+    # capability: no approval, merge, retry, reopen, or other lifecycle
+    # authority. The tool keeps its mandatory pending-action confirmation.
+    COWORKER_JOB_LIFECYCLE_TOOLS = [ Mcp::Tools::CancelJobTool ].freeze
+
     def coworker_job_lifecycle_entries
       chat_entries.filter_map do |chat_entry|
-        next unless chat_entry.descriptor.capability == Permissions::JobLifecycle::JOBS
-        next if chat_entry.tool == Mcp::Tools::CreateCodingJobTool
+        next unless COWORKER_JOB_LIFECYCLE_TOOLS.include?(chat_entry.tool)
 
         coworker(
           chat_entry.tool,
