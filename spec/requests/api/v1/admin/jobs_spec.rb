@@ -713,6 +713,26 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
     let!(:job_125) { Factories.job(user: admin, repository: repo_a, issue_number: 125, pr_number: 146) }
     let!(:job_b)   { Factories.job(user: admin, repository: repo_b, issue_number: 124) }  # diff repo, same issue#
 
+    it "serializes and filters human and coworker proposers, including nil" do
+      human = Factories.user(email_address: "adrian@example.com")
+      coworker = Coworkers::Coworker.create!(owner_user: admin, name: "Maya", handle: "maya-proposer", workspace_repo: repo_a.remote_url)
+      issue_job = Factories.job(user: admin, repository: repo_a, issue_number: 126, proposer: nil)
+      job_124.update!(proposer: human)
+      job_125.update!(proposer: coworker)
+
+      get "/api/v1/admin/jobs", params: { repo: "acme/widgets" }, headers: auth(admin_token)
+      rows = parse_body.fetch("jobs").index_by { |row| row.fetch("id") }
+      expect(rows.fetch(job_124.id).fetch("proposer")).to eq("type" => "human", "id" => human.id, "label" => human.display_name, "handle" => "adrian")
+      expect(rows.fetch(job_125.id).fetch("proposer")).to eq("type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya-proposer")
+
+      get "/api/v1/admin/jobs", params: { proposer: "maya-proposer" }, headers: auth(admin_token)
+      expect(parse_body.fetch("jobs").map { |row| row.fetch("id") }).to eq([ job_125.id ])
+
+      get "/api/v1/admin/jobs", params: { proposer: "unknown-handle" }, headers: auth(admin_token)
+      expect(parse_body.fetch("jobs")).to eq([])
+      expect(rows.fetch(issue_job.id)["proposer"]).to be_nil
+    end
+
     it "filters by pr_number" do
       get "/api/v1/admin/jobs", params: { pr_number: 144 }, headers: auth(admin_token)
       expect(response).to be_successful

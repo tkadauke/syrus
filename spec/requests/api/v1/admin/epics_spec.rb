@@ -163,6 +163,20 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       expect(slugs).to eq([ "acme/widgets" ])
     end
 
+    it "serializes and filters by proposer handle" do
+      proposer = Factories.user(email_address: "adrian@example.com")
+      epic.update!(proposer: proposer)
+
+      get "/api/v1/admin/epics", params: { proposer: "adrian" }, headers: auth(admin_token)
+      expect(parse_body.fetch("epics").sole).to include(
+        "id" => epic.id,
+        "proposer" => { "type" => "human", "id" => proposer.id, "label" => proposer.display_name, "handle" => "adrian" }
+      )
+
+      get "/api/v1/admin/epics", params: { proposer: "missing" }, headers: auth(admin_token)
+      expect(parse_body.fetch("epics")).to eq([])
+    end
+
     it "filters by ?has_unfinished_children=true" do
       Factories.job_record(user: admin, repository: repo, epic: epic,
                            issue_number: 1, state: "queued")

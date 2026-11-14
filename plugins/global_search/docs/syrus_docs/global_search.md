@@ -17,6 +17,7 @@ source such as Tests or Design Docs. Repository results do not use the search
 index: an accessible repository matches only when the query is its exact full
 slug (for example, `tkadauke/syrus`) or exact repository name (`syrus`),
 case-insensitively.
+Job and Epic results also match their proposer's handle.
 
 Filtering is applied after the FTS query and preserves FTS relevance order.
 Combined results expose common filter chips (`repository_id`, `created_at`,

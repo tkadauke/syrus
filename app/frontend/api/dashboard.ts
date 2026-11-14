@@ -197,6 +197,7 @@ export type DashboardJobItem = {
   tags: DashboardTag[]
   source_chat: JobSourceChat | null
   goal_provenance?: GoalProvenance | null
+  proposer?: { type: string; id: number; label: string; handle: string | null } | null
   needs_attention: boolean
   needs_attention_reason: string | null
   delivery_status?: JobDeliveryStatus
@@ -244,6 +245,7 @@ export type DashboardEpicItem = {
   archived_at: string | null
   repository: DashboardRepository
   goal_provenance?: GoalProvenance | null
+  proposer?: { type: string; id: number; label: string; handle: string | null } | null
   paths: {
     epic_path: string
     edit_epic_path: string
