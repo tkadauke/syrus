@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_14_045837) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1606,12 +1606,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
     t.string "epic_dependency_policy", default: "linear", null: false
     t.integer "chat_goal_id"
     t.json "goal_prompt_snapshot"
+    t.string "proposer_type"
+    t.integer "proposer_id"
     t.index ["chat_goal_id", "created_at"], name: "index_epics_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_epics_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_epics_on_claimed_at"
     t.index ["number"], name: "index_epics_on_number", unique: true
     t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["owner_user_id"], name: "index_epics_on_owner_user_id"
+    t.index ["proposer_type", "proposer_id"], name: "index_epics_on_proposer"
     t.index ["repository_id"], name: "index_epics_on_repository_id"
     t.index ["slug"], name: "index_epics_on_slug", unique: true
     t.index ["user_id", "state"], name: "index_epics_on_user_id_and_state"
@@ -2093,6 +2096,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
     t.datetime "pr_feedback_poll_selected_at"
     t.integer "rollback_of_id"
     t.integer "rollback_epic_id"
+    t.string "proposer_type"
+    t.integer "proposer_id"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
@@ -2119,6 +2124,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
     t.index ["owner_user_id"], name: "index_jobs_on_owner_user_id"
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
     t.index ["pr_repository_id"], name: "index_jobs_on_pr_repository_id"
+    t.index ["proposer_type", "proposer_id"], name: "index_jobs_on_proposer"
     t.index ["repository_id", "external_pr_number"], name: "index_jobs_on_repository_id_and_external_pr_number_unique", unique: true
     t.index ["repository_id", "finished_at", "id", "landed_sha"], name: "idx_jobs_deployment_stage_poll"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
