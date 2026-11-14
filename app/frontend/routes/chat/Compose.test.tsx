@@ -173,13 +173,13 @@ describe("pending action carousel", () => {
 
     expect(screen.getByText("Deploy service")).toBeInTheDocument()
     expect(screen.queryByText("Authorize production access")).not.toBeInTheDocument()
-    expect(screen.getByText("1 of 2")).toBeInTheDocument()
+    expect(screen.getByText("Pending actions · 1 of 2")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
 
     expect(screen.getByText("Authorize production access")).toBeInTheDocument()
     expect(screen.queryByText("Deploy service")).not.toBeInTheDocument()
-    expect(screen.getByText("2 of 2")).toBeInTheDocument()
+    expect(screen.getByText("Pending actions · 2 of 2")).toBeInTheDocument()
 
     fireEvent.keyDown(screen.getByTestId("pending-action-carousel"), { key: "ArrowLeft" })
     expect(screen.getByText("Deploy service")).toBeInTheDocument()
@@ -215,14 +215,36 @@ describe("pending action carousel", () => {
     expect(screen.getByText("Third action")).toBeInTheDocument()
   })
 
-  it("omits the position header and outer box for a single item", () => {
+  it("uses a count instead of carousel navigation for a single item", () => {
     renderPendingActionCarousel([{ key: "action:1", type: "action", action: pendingAction(1, "Only action") }])
 
     expect(screen.getByText("Only action")).toBeInTheDocument()
+    expect(screen.getByText("1 pending action")).toBeInTheDocument()
     expect(screen.queryByText("1 of 1")).not.toBeInTheDocument()
-    expect(screen.getByTestId("pending-action-carousel").className).not.toContain("border")
     expect(screen.queryByRole("button", { name: "Previous pending action" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Next pending action" })).not.toBeInTheDocument()
+  })
+
+  it("collapses the selected card into a one-line summary and restores carousel navigation when expanded", () => {
+    renderPendingActionCarousel([
+      { key: "action:1", type: "action", action: pendingAction(1, "Deploy service") },
+      { key: "action:2", type: "action", action: pendingAction(2, "Restart worker") }
+    ])
+
+    const collapse = screen.getByRole("button", { name: "Collapse pending actions" })
+    expect(collapse).toHaveAttribute("aria-expanded", "true")
+    fireEvent.click(collapse)
+
+    expect(screen.queryByText("Deploy service")).not.toBeInTheDocument()
+    expect(screen.getByText("Pending actions · 1 of 2")).toHaveClass("truncate", "whitespace-nowrap")
+    expect(screen.queryByRole("button", { name: "Next pending action" })).not.toBeInTheDocument()
+
+    const expand = screen.getByRole("button", { name: "Expand pending actions" })
+    expect(expand).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(expand)
+
+    expect(screen.getByText("Deploy service")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Next pending action" })).toBeInTheDocument()
   })
 })
 
