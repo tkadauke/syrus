@@ -3328,7 +3328,14 @@ describe("JobDetailRoute", () => {
 
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/jobs/5?tab=summary"))
     expect(queryClient.getQueryData(["jobs", "5", "detail", ""])).toEqual(payload)
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(4))
+    const requestedUrls = fetchSpy.mock.calls.map(([input]) => requestUrl(input))
+    expect(requestedUrls).toEqual([
+      "/api/v1/app/jobs/JOB-5",
+      "/api/v1/app/jobs/5/tabs/summary",
+      "/api/v1/app/jobs/5/pending_feedback",
+      "/api/v1/app/jobs/5/provider_routing_rules"
+    ])
   })
 
   it("uses responsive page gutters while keeping the header and tab bar inset", async () => {
