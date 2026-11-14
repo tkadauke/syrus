@@ -2695,9 +2695,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["documents_in_scope"]).to eq([])
     expect(body).not_to have_key("attachment_results")
     expect(body).not_to have_key("attachment_groups")
-    expect(body.dig("whiteboard", "loaded")).to eq(false)
-    expect(body.dig("whiteboard", "version")).to eq(0)
-    expect(body.dig("whiteboard", "elements")).to eq([])
+    expect(body).not_to have_key("whiteboard")
     expect(body["paths"]).not_to include(
       "app_messages_path", "app_message_path", "app_rename_path", "app_clear_path",
       "app_enqueue_message_path", "app_retry_turn_path", "app_scratchpad_reorder_path",
@@ -4824,7 +4822,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["scratchpad_items"]).to contain_exactly(include("content" => "Follow-up note"))
     expect(body["queued_messages"]).to contain_exactly(include("text" => "Queued follow-up"))
     expect(body["agent_questions"]).to contain_exactly(include("questions" => [ include("question" => "Ship it?") ]))
-    expect(body["whiteboard"]).to include("loaded" => false)
+    expect(body).not_to have_key("whiteboard")
     expect(body["preview_panels"]).to contain_exactly(include("title" => "Payload preview"))
 
     expect(queries.grep(/SELECT COUNT\(\*\) FROM ["`]?chat_proposals["`]?/i).size).to be <= 2
