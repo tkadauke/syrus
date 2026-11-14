@@ -83,6 +83,7 @@ class RunJob < ApplicationJob
   RUNS_PAUSED_RETRY_DELAY = 30.seconds
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
   STEP_DEPENDENCY_RETRY_DELAY = 15.seconds
+  WORK_UNIT_LOCK_RETRY_DELAY = 15.seconds
   MACOS_WORKER_DRAIN_RETRY_DELAY = 30.seconds
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
 
@@ -653,6 +654,13 @@ class RunJob < ApplicationJob
     record_run_started_activity! if acquired
 
     acquired
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info(
+      "[RunJob] WorkUnit lock #{e.lock_key} is still owned by WorkUnit ##{e.work_unit.id}; " \
+      "deferring Run ##{@run.id} by #{WORK_UNIT_LOCK_RETRY_DELAY.inspect}"
+    )
+    defer_run(@run.id, WORK_UNIT_LOCK_RETRY_DELAY)
+    false
   end
 
   def fresh_running_run?
