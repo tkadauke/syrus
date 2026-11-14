@@ -1,6 +1,7 @@
 require "digest"
 
 class SmartFolder < ApplicationRecord
+  after_commit :invalidate_dashboard_chrome_cache
   # `visibility` controls where each built-in renders in the sidebar:
   #   :always       — pinned to the top of the sidebar regardless of count.
   #   :when_present — shown only when the count is non-zero (unless it's
@@ -270,6 +271,10 @@ class SmartFolder < ApplicationRecord
   COUNT_CAP = 1_000
 
   belongs_to :user, optional: true
+
+  def invalidate_dashboard_chrome_cache
+    user_id ? App::DashboardChromeCache.invalidate_user!(user_id) : App::DashboardChromeCache.invalidate_all!
+  end
 
   # MySQL 8 rejects defaults on JSON columns, so seed an empty filter
   # on initialize for new records — keeps `filter: {}` working as the
