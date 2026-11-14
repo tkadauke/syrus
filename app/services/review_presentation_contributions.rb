@@ -37,7 +37,8 @@ module ReviewPresentationContributions
       value = entry.to_h.deep_stringify_keys
       %w[key component].each { |key| raise ArgumentError, "#{collection} contribution #{key} is required" if value[key].blank? }
       raise ArgumentError, "#{collection} contribution aria_label_key is required" if value["aria_label_key"].blank?
-      value.slice("key", "component", "target_type", "artifact_type", "label_key", "description_key", "aria_label_key")
+      value.slice("key", "component", "target_type", "artifact_type", "trigger_kinds", "target_required",
+        "label_key", "description_key", "aria_label_key")
     end
   end
 end
