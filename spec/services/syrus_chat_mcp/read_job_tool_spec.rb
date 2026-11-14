@@ -13,6 +13,25 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     )
   end
 
+  it "returns state transition history without querying each transition user separately" do
+    job = Factories.job(repository: repository)
+    transition_users = Array.new(10) { Factories.user }
+    transition_users.each_with_index do |transition_user, index|
+      StateTransition.create!(
+        subject: job, from_state: "queued", to_state: "running", event_name: "start",
+        source: "operator", user: transition_user, metadata: { "sequence" => index }
+      )
+    end
+
+    response = nil
+    queries = capture_sql { response = call_tool(job_id: job.id) }
+    payload = response_payload(response)
+
+    expect(payload.dig(:job, :state_transitions).size).to be >= 10
+    user_queries = queries.grep(/SELECT [`"]?users[`"]?\.\* FROM [`"]?users[`"]? WHERE/i)
+    expect(user_queries.size).to be <= 2
+  end
+
   def call_tool(arguments)
     raw = server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "read_job", arguments: arguments } }.to_json)
     JSON.parse(raw, symbolize_names: true)
