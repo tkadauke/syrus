@@ -695,7 +695,21 @@ class ChatSession < ApplicationRecord
   # with 2+ participants require an explicit mention of an addressable agent
   # on every message.
   def should_trigger_agent?(message_or_mentions)
-    chat_participants.count <= 1 || agent_addressed?(message_or_mentions)
+    mentions = if message_or_mentions.is_a?(ChatMessage)
+      message_or_mentions.resolved_mentions
+    elsif message_or_mentions.is_a?(Array)
+      message_or_mentions
+    else
+      resolve_mentions(message_or_mentions)
+    end
+    decision = ChatIdentityContributions.trigger_decision(
+      chat_session: self,
+      message: message_or_mentions.is_a?(Array) ? nil : message_or_mentions,
+      mentions: mentions
+    )
+    return decision.fetch("trigger") if decision
+
+    chat_participants.count <= 1 || agent_addressed?(mentions)
   end
 
   def participants_payload
