@@ -396,10 +396,20 @@ module ChatSerialization
     nil
   end
 
+  # States in which a pending action still needs the operator: decide it, or
+  # (failed) dismiss it.
+  COMPOSER_PENDING_ACTION_STATES = %w[ queued pending confirming failed ].freeze
+
   def pending_actions_for_payload(chat_session)
     # Grouped members render only inside their PendingActionGroup card
     # (pending_action_groups_json below), never as their own standalone card.
-    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil, chat_message_id: nil)
+    #
+    # An action anchored to its tool call renders with that message, but the
+    # tool card there is a read-only summary: the composer carousel is the
+    # only place with Confirm and Reject. So an anchored action stays here
+    # while it needs a decision, and leaves once it settles.
+    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil)
+      .where("chat_pending_actions.chat_message_id IS NULL OR chat_pending_actions.state IN (?)", COMPOSER_PENDING_ACTION_STATES)
       .includes(:tool_call_message, :message, authorization_items: [ :prerequisites, :resulting_authority ])
     base_scope.where(dismissed_at: nil).order(:created_at, :id).select(&:visible_in_chat_payload?)
   end
