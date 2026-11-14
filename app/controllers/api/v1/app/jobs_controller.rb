@@ -68,6 +68,12 @@ module Api
           render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
         end
 
+        def tab
+          render json: ::App::JobDetailPayload.tab(job: find_job, user: Current.user, tab: params[:tab])
+        rescue ArgumentError
+          render_error("invalid_tab", "Unknown Job tab.", status: :not_found)
+        end
+
         def visual_evidence
           job = find_job
           evidence = WorkflowVisualEvidence.joins(:workflow)

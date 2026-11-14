@@ -121,11 +121,16 @@ module Api
         end
 
         def routing_rule_payload(scope)
-          {
+          payload = {
             scope: provider_routing_scope_json(scope),
             provider_routing_rules: provider_routing_rules_json(**scope),
             inherited_provider_routing_context: provider_routing_inherited_context_json(scope)
           }
+          if scope[:job_id]
+            job = find_job_by_ref(policy_scope(Job).includes(:repository), scope[:job_id])
+            payload[:job] = ::App::JobDetailPayload.provider_routing(job: job, user: Current.user)
+          end
+          payload
         end
       end
     end

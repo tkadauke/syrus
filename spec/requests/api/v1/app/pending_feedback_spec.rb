@@ -48,6 +48,15 @@ RSpec.describe "App API pending feedback", type: :request do
   end
 
   describe "GET /api/v1/app/jobs/:job_id/pending_feedback" do
+    it "filters non-pending comments in SQL" do
+      handled = make_pr_comment(actionable: true, handling_state: "handled", handled_at: Time.current)
+
+      get "/api/v1/app/jobs/#{job.id}/pending_feedback"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("comments").map { |comment| comment.fetch("id") }).not_to include(handled.id)
+      expect(job.pr_review_comments.pending_for_operator_review.to_sql).to include("handling_state")
+    end
     it "returns pending (unactioned, actionable, non-job-owner) comments" do
       comment = make_pr_comment(attributed_to: "external", actionable: true)
       make_pr_comment(attributed_to: "external", actionable: false)

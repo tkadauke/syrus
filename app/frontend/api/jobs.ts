@@ -1279,6 +1279,7 @@ export type JobDetailPayload = {
   dependency_target_options: JobOption[]
   epic_dependency_target_options: Array<{ label: string; value: number }>
   attachments: JobAttachment[]
+  attachments_count?: number
   pr_links: JobPrLink[]
   typed_artifacts: TypedArtifact[]
   review_contributions?: import("../pluginReviewContributions").ReviewContribution[]
@@ -1366,7 +1367,14 @@ export type JobDeploymentStage = {
   tag_sha: string | null
 }
 
-export type JobWorkflowsPayload = Pick<JobDetailPayload, "workflows" | "workflows_pagination">
+export type JobWorkflowsPayload = Pick<JobDetailPayload, "workflows" | "workflows_pagination" | "ui_workflow_actions">
+export type JobTabPayload = Partial<JobDetailPayload>
+
+export type PendingFeedbackPayload = {
+  job_id: number
+  feedback_policy: string
+  comments: PendingFeedbackComment[]
+}
 
 export type JobWorkflowDetailPayload = { workflow: JobWorkflow }
 
@@ -1710,6 +1718,18 @@ export type JobRunArtifactsPayload = {
 
 export function fetchJobDetail(id: string, search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<JobDetailPayload>(`/api/v1/app/jobs/${id}${search}`, options)
+}
+
+export function fetchJobTab(id: string, tab: string) {
+  return getJson<JobTabPayload>(`/api/v1/app/jobs/${id}/tabs/${tab}`)
+}
+
+export function fetchPendingFeedback(id: string) {
+  return getJson<PendingFeedbackPayload>(`/api/v1/app/jobs/${id}/pending_feedback`)
+}
+
+export function fetchJobProviderRouting(id: string) {
+  return getJson<{ job: Partial<JobRecord> }>(`/api/v1/app/jobs/${id}/provider_routing_rules`)
 }
 
 export function fetchJobUnlandPlan(path: string) {

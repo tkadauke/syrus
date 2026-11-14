@@ -33,6 +33,9 @@ import {
   fetchJobDetail,
   fetchJobUnlandPlan,
   fetchJobWorkflows,
+  fetchJobTab,
+  fetchPendingFeedback,
+  fetchJobProviderRouting,
   ignorePendingFeedback,
   openJobInCodingMode,
   replacePendingFeedback,
@@ -90,6 +93,7 @@ import {
   diffRefsFromLocation,
   jobDetailQueryKey,
   jobDetailSearch,
+  jobTabQueryKey,
   jobWorkflowsQueryKey,
   mergeJobWorkflowsPayload,
   tabFromLocation
@@ -155,6 +159,23 @@ export function JobDetailRoute() {
   })
   const pluginTabKeys = (detail.data?.ui_tabs ?? []).map((tab) => tab.key).filter((key): key is string => Boolean(key))
   const activeTab = tabFromLocation(location.pathname, location.search, pluginTabKeys)
+  const lazyTab = ["summary", "review", "attachments", "source"].includes(activeTab) ? activeTab : null
+  const tabDetail = useQuery({
+    queryKey: jobTabQueryKey(id, lazyTab ?? "none"),
+    queryFn: () => fetchJobTab(id, lazyTab as string),
+    enabled: id.length > 0 && lazyTab !== null && detail.isSuccess
+  })
+  const pendingFeedback = useQuery({
+    queryKey: ["jobs", id, "pending_feedback"],
+    queryFn: () => fetchPendingFeedback(id),
+    enabled: id.length > 0 && activeTab === "summary" && detail.isSuccess
+  })
+  const providerRouting = useQuery({
+    queryKey: ["jobs", id, "provider_routing"],
+    queryFn: () => fetchJobProviderRouting(id),
+    enabled: id.length > 0 && activeTab === "summary" && detail.isSuccess,
+    staleTime: 5 * 60 * 1000
+  })
   const workflows = useQuery({
     queryKey: workflowsQueryKey,
     queryFn: async () => {
@@ -166,7 +187,19 @@ export function JobDetailRoute() {
     placeholderData: keepPreviousData
   })
   const payload = detail.isSuccess
-    ? mergeJobWorkflowsPayload(detail.data, workflows.isPlaceholderData ? undefined : workflows.data, {
+    ? mergeJobWorkflowsPayload({
+        attachments: [],
+        typed_artifacts: [],
+        coverage: null,
+        summary: null,
+        test_plan: null,
+        report: null,
+        feedback_history: [],
+        ...detail.data,
+        job: { ...detail.data.job, ...(providerRouting.data?.job ?? {}) },
+        ...(tabDetail.data ?? {}),
+        pending_feedback: pendingFeedback.data?.comments ?? []
+      }, workflows.isPlaceholderData ? undefined : workflows.data, {
         workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
       })
     : null
@@ -529,7 +562,7 @@ export function JobDetailView({
       <Page.Nav>
         <TabNav
           active={activeTab}
-          attachmentsCount={(payload.attachments ?? []).length}
+          attachmentsCount={payload.attachments_count ?? (payload.attachments ?? []).length}
           investigation={payload.job.investigation}
           workflowsCount={payload.job.workflows_count}
           pluginTabs={payload.ui_tabs}
@@ -982,8 +1015,8 @@ function SummaryTab({
         <div className="min-w-0 space-y-4">
           <PreviewPanel
             canStart={payload.actions.can_start_preview}
-            initialPreview={payload.preview}
-            initialPreviewProjects={payload.preview_projects}
+            initialPreview={payload.preview ?? null}
+            initialPreviewProjects={payload.preview_projects ?? []}
             previewUnavailableReason={payload.preview_unavailable_reason}
             queryKeyPrefix="job"
             entityId={payload.job.id}
@@ -992,7 +1025,7 @@ function SummaryTab({
             queryKey={queryKey}
             repositoryId={payload.repository.id}
             canDeploy={payload.actions.can_deploy}
-            initialDeploy={payload.deploy}
+            initialDeploy={payload.deploy ?? null}
             deployPath={payload.paths.app_deploy_path}
           />
 

@@ -213,7 +213,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).order(:position).pluck(:id)).to eq([ disabled.id, enabled.id ])
   end
 
-  it "applies ordered user rules, repository overrides, and job overrides to the job detail routing resolution" do
+  it "applies ordered user rules, repository overrides, and job overrides to the job routing editor payload" do
     post "/api/v1/app/credentials/provider_routing_rules",
       params: { provider_routing_rule: { trigger: { type: "default" }, action: { strategy: "fallback_order", name: "My Claude default", candidates: [ { provider: "claude" } ] } } },
       as: :json
@@ -244,7 +244,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(response).to have_http_status(:no_content)
     job_rule = ProviderRoutingRule.find_by!(scope_type: "job", scope_id: job.id)
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/provider_routing_rules"
 
     expect(response).to have_http_status(:ok)
     body = parse_body

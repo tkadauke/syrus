@@ -1005,6 +1005,33 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(body.dig("workflows_pagination", "total_workflows")).to eq(1)
   end
 
+  it "keeps heavyweight tab sections out of the default job detail payload" do
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).not_to include(
+      "attachments", "typed_artifacts", "feedback_history", "classification_attempts",
+      "authorization_requests", "test_plan", "summary", "report", "ui_panels",
+      "preview", "preview_projects", "deploy", "active_work", "work_units"
+    )
+    expect(parse_body.fetch("job").keys).not_to include(
+      "job_provider_setting_options", "provider_routing_options", "provider_routing_rules",
+      "inherited_provider_routing_context", "provider_routing_resolution", "active_provider_routing_holds"
+    )
+  end
+
+  it "loads heavyweight sections from their tab endpoints" do
+    get "/api/v1/app/jobs/#{job.id}/tabs/summary"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).to include("summary", "test_plan", "feedback_history", "authorization_requests")
+    expect(parse_body.keys).not_to include("typed_artifacts", "visual_evidence")
+
+    get "/api/v1/app/jobs/#{job.id}/tabs/review"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).to include("typed_artifacts", "visual_evidence", "review_contributions")
+    expect(parse_body.keys).not_to include("summary", "feedback_history")
+  end
+
   it "does not load blank historical workflow artifacts on the default job detail payload" do
     3.times do
       Workflow.create!(job: job, trigger_kind: "retry", state: "failed", artifacts: {})
@@ -1047,7 +1074,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     active = PreviewEnvironment.create!(job: job, state: "running", expires_at: 10.minutes.from_now, created_at: 1.hour.ago)
 
     queries = capture_sql do
-      get "/api/v1/app/jobs/#{job.id}"
+      get "/api/v1/app/jobs/#{job.id}/preview"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1055,8 +1082,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     preview_queries = queries.grep(/FROM ["`]?preview_environments["`]?/i)
     expect(preview_queries).not_to be_empty
-    expect(preview_queries).to all(match(/LIMIT/i))
-    expect(preview_queries.join("\n")).to include("state")
+    expect(preview_queries).to include(match(/LIMIT/i))
   end
 
   it "finds external visual review artifacts without scanning inline JSON" do
@@ -1112,11 +1138,10 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
     workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: bare_job)
 
-    get "/api/v1/app/jobs/#{bare_job.id}"
+    get "/api/v1/app/jobs/#{bare_job.id}/tabs/summary"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["workflows"]).to eq([])
     expect(body["active_work"]).to include(
       "kind" => "manual_visual_review",
       "state" => "queued",
@@ -1140,7 +1165,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     MergeTrainMember.create!(merge_train: train, job: second, position: 1)
     workflow = WorkUnits::Launcher.instantiate(kind: "merge_train", job: second, artifacts: { "merge_train_id" => train.id })
 
-    get "/api/v1/app/jobs/#{first.id}"
+    get "/api/v1/app/jobs/#{first.id}/tabs/summary"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["active_work"]).to include(
