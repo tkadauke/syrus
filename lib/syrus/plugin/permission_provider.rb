@@ -10,6 +10,20 @@ module Syrus
       end
 
       module ClassMethods
+        def register_authorization_adapter(action, adapter)
+          action = action.to_s
+          unless action.match?(/\A[a-z][a-z0-9_.-]*\z/)
+            raise ArgumentError, "authorization adapter action must be namespaced"
+          end
+          raise ArgumentError, "authorization adapter #{action.inspect} is already registered" if registered_permission_authorization_adapters.key?(action)
+
+          required = %i[permission_descriptor subject_selector]
+          missing = required.reject { |method_name| adapter.respond_to?(method_name) }
+          raise ArgumentError, "authorization adapter is missing: #{missing.join(', ')}" if missing.any?
+
+          registered_permission_authorization_adapters[action] = adapter
+        end
+
         def register_resource_scope(type, **options)
           type = type.to_sym
           raise ArgumentError, "resource scope #{type.inspect} is already registered" if registered_permission_resource_scopes.key?(type)
@@ -109,6 +123,10 @@ module Syrus
           registered_permission_presets.dup.freeze
         end
 
+        def permission_authorization_adapters
+          registered_permission_authorization_adapters.dup.freeze
+        end
+
         def permission_preset(name)
           registered_permission_presets.fetch(name.to_s)
         end
@@ -133,6 +151,10 @@ module Syrus
 
         def registered_permission_presets
           @permission_presets ||= {}
+        end
+
+        def registered_permission_authorization_adapters
+          @permission_authorization_adapters ||= {}
         end
 
         def registered_retired_permission_identifiers
