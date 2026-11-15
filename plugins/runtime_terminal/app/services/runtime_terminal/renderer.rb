@@ -104,6 +104,16 @@ module RuntimeTerminal
 
     def clip_to_cell(glyph, cell_width, anchor_width:, line_top:)
       source_left = [ anchor_width, glyph.width ].min
+      # Pango line boxes vary by host. Normalize an oversized line to the
+      # fixed terminal row so its baseline and descenders keep their relative
+      # positions; bottom-cropping moves ordinary glyphs onto the last row and
+      # erases that distinction.
+      available_height = CELL_HEIGHT - line_top
+      # Keep one row of headroom even when Pango's line box is exactly as tall
+      # as the cell. Otherwise ink may occupy the bottom pixel, leaving no
+      # distinct row for descenders or box-drawing glyphs to reach.
+      normalized_height = available_height - 1
+      glyph = glyph.resize(1, vscale: normalized_height.to_f / glyph.height) if glyph.height >= available_height
       clipped_width = [ glyph.width - source_left, cell_width ].min
       clipped_height = [ glyph.height, CELL_HEIGHT - line_top ].min
       canvas = Vips::Image.black(cell_width, CELL_HEIGHT)
