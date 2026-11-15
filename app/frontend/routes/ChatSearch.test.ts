@@ -25,12 +25,7 @@ describe("chat search coworker filter links", () => {
   })
 
   it("removes the last plugin filter and its operator", () => {
-    const link = chatSearchFilterLink(
-      "/chats/search",
-      "?coworker_id=7&coworker_op=is_not",
-      { q: null },
-      ["coworker_id"]
-    )
+    const link = chatSearchFilterLink("/chats/search", "?coworker_id=7&coworker_op=is_not", { q: null }, ["coworker_id"])
 
     expect(link).toBe("/chats/search")
   })
@@ -40,12 +35,7 @@ describe("chat search coworker filter links", () => {
       { field: "q", op: "contains", value: "calendar" },
       { field: "team_id", op: "is_one_of", value: ["2", "3"] }
     ])
-    const link = chatSearchFilterLink(
-      "/chats/search",
-      "?q=old&coworker_id=7&coworker_op=is_not&team_id=1&team_op=is",
-      { q },
-      ["coworker_id", "team_id"]
-    )
+    const link = chatSearchFilterLink("/chats/search", "?q=old&coworker_id=7&coworker_op=is_not&team_id=1&team_op=is", { q }, ["coworker_id", "team_id"])
     const params = new URL(link, "https://example.test").searchParams
 
     expect(params.get("q")).toBe("calendar")
