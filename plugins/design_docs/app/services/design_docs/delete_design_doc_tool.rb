@@ -50,7 +50,6 @@ module DesignDocs
         )
 
         success(
-          pending_confirmation_id: pending_action.id,
           pending_action_id: pending_action.id,
           state: pending_action.state,
           message: "Archive #{design_doc.display_id}?",

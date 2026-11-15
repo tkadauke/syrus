@@ -57,7 +57,7 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
   end
 
   def pending_action_from(response)
-    chat_session.pending_actions.find(payload(response).fetch(:pending_confirmation_id))
+    chat_session.pending_actions.find(payload(response).fetch(:pending_action_id))
   end
 
   it "creates and confirms a reopen_job action" do
@@ -172,7 +172,7 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
       params: { name: "fire_scheduled_task_now", arguments: { scheduled_task_id: task.id } }
     }.to_json)
     response = JSON.parse(raw, symbolize_names: true)
-    action_id = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true).fetch(:pending_confirmation_id)
+    action_id = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true).fetch(:pending_action_id)
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(admin_session.pending_actions.find(action_id).confirm!).to be true
@@ -350,7 +350,7 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
     response = JSON.parse(raw, symbolize_names: true)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    action = admin_session.pending_actions.find(JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true).fetch(:pending_confirmation_id))
+    action = admin_session.pending_actions.find(JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true).fetch(:pending_action_id))
     expect(action).to have_attributes(action: "check_job_mergeability", payload: { "job_id" => other_job.id })
     expect { action.confirm!(user: admin) }.to have_enqueued_job(PollRebaseJob).with(other_job.id, bypass_cache: true)
   end

@@ -14,9 +14,8 @@ RSpec.describe Mcp::Tools::WithdrawPendingActionTool, :full_chat_access do
     )
   end
 
-  def call_tool(id, reason: nil)
-    arguments = { pending_action_id: id }
-    arguments[:reason] = reason if reason
+  def call_tool(id = nil, **arguments)
+    arguments[:pending_action_id] = id if id
     raw = server.handle_json({
       jsonrpc: "2.0",
       id: 1,
@@ -30,11 +29,43 @@ RSpec.describe Mcp::Tools::WithdrawPendingActionTool, :full_chat_access do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
-  def action(state: "pending", session: chat_session)
-    session.pending_actions.create!(action: "pause_landing_queue", payload: {}, state: state)
+  def action(state: "pending", session: chat_session, name: "pause_landing_queue", payload: {})
+    session.pending_actions.create!(action: name, payload: payload, state: state)
   end
 
   before { clear_enqueued_jobs }
+
+  it "withdraws the only pending action without a numeric handle" do
+    pending_action = action
+
+    expect(payload(call_tool)).to include(
+      action: "pause_landing_queue", resulting_state: "rejected", changed: true
+    )
+    expect(pending_action.reload).to be_rejected
+  end
+
+  it "selects a pending action by action and Job" do
+    action(name: "retry_job", payload: { "job_id" => 7 })
+    matching = action(name: "cancel_job", payload: { "job_id" => 8 })
+
+    expect(payload(call_tool(nil, action: "cancel_job", job_id: 8))).to include(
+      action: "cancel_job", resulting_state: "rejected"
+    )
+    expect(matching.reload).to be_rejected
+  end
+
+  it "describes semantic candidates when a selector is ambiguous" do
+    action(name: "retry_job", payload: { "job_id" => 7, "reason" => "Try implementation again" })
+    action(name: "cancel_job", payload: { "job_id" => 8, "reason" => "No longer needed" })
+
+    response = call_tool
+    text = response.fetch(:result).fetch(:content).first.fetch(:text)
+
+    expect(response[:result][:isError]).to be(true)
+    expect(text).to include("action: retry_job", "target: JOB-7", "reason: Try implementation again")
+    expect(text).to include("action: cancel_job", "target: JOB-8", "reason: No longer needed")
+    expect(text).not_to match(/pending action \d+/)
+  end
 
   it "rejects a pending action immediately, records the reason, and returns structured output" do
     pending_action = action

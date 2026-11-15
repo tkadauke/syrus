@@ -2525,7 +2525,6 @@ RSpec.describe ChatTurnJob, :ci_only do
       log_sink.call("Job rebase requires operator confirmation.", kind: "tool_result",
                     tool_name: "syrus-chat-sidecar.rebase_job",
                     tool_result_content: JSON.generate(
-                      pending_confirmation_id: pending_action.id,
                       pending_action_id: pending_action.id,
                       state: "pending",
                       message: "Job rebase requires operator confirmation."
@@ -2582,7 +2581,7 @@ RSpec.describe ChatTurnJob, :ci_only do
                       {
                         "type" => "text",
                         "text" => JSON.generate(
-                          pending_confirmation_id: retry_action.id,
+                          pending_action_id: retry_action.id,
                           state: "pending"
                         )
                       }

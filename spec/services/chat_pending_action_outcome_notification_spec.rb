@@ -10,10 +10,10 @@ RSpec.describe ChatPendingActionOutcomeNotification do
   end
 
   it "builds a confirmed message for a job-scoped action" do
-    action = build_action(action: "cancel_job", payload: { "job_id" => 42 })
+    action = chat_session.pending_actions.create!(action: "cancel_job", payload: { "job_id" => 42 })
 
     expect(described_class.new(action).acknowledgment(outcome: :confirmed)).to eq(
-      "Pending action confirmed: cancel_job (job_id: 42). The action has been applied."
+      "Pending action confirmed: cancel_job (job_id: 42, pending_action_id: #{action.id}). The action has been applied."
     )
   end
 

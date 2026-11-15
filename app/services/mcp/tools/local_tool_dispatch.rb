@@ -61,7 +61,6 @@ module Mcp::Tools
       end
 
       Mcp::Tools.success(
-        pending_confirmation_id: pending_action.id,
         pending_action_id: pending_action.id,
         state: pending_action.state,
         message: "#{tool_label(tool_name)} requires operator confirmation in Local Mode."

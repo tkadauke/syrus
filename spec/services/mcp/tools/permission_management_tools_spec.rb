@@ -19,6 +19,13 @@ RSpec.describe "permission management MCP tools" do
     JSON.parse(response.content.first[:text], symbolize_names: true)
   end
 
+  def request_authority(capability: descriptor.capability, operation: descriptor.operation, purpose: "Read records")
+    response = Mcp::Tools::RequestPermissionTool.call(
+      server_context: context, capability:, operation:, purpose:
+    )
+    ChatPendingAction.find(body(response).fetch(:pending_action_id))
+  end
+
   before do
     allow(Permissions::Catalog).to receive(:find!).and_return(descriptor)
   end
@@ -246,5 +253,68 @@ RSpec.describe "permission management MCP tools" do
 
     ChatPendingAction.find(body(response).fetch(:pending_action_id)).confirm!(user: user)
     expect(request.reload).to be_cancelled
+  end
+
+  it "cancels the only authorization request without exposing or accepting its numeric id" do
+    request = request_authority
+
+    response = Mcp::Tools::CancelAuthorizationRequestTool.call(server_context: context)
+    payload = body(response)
+
+    expect(payload).to include(message: "Cancel the authorization request for example.records@v1 / example.records/read@v1?")
+    expect(payload).not_to have_key(:authorization_request_id)
+    ChatPendingAction.find(payload.fetch(:pending_action_id)).confirm!(user: user)
+    expect(request.reload).to be_cancelled
+  end
+
+  it "selects an authorization request by capability and operation" do
+    other_descriptor = Permissions::CapabilityDescriptor.new(
+      capability: "example.files@v1", operation: "example.files/write@v1",
+      effects: [ :internal_write ], risk: :medium,
+      requestable_roles: [ AgentRole::CHAT_PLANNER ], defaults: { AgentRole::CHAT_PLANNER => :ask },
+      maximum_autonomy: :chat_session, authority_durations: %i[invocation chat_session],
+      resource_scope: { type: :none }, classifier: ->(_arguments) { {} },
+      fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }
+    )
+    allow(Permissions::Catalog).to receive(:find!) do |capability:, **|
+      capability == other_descriptor.capability ? other_descriptor : descriptor
+    end
+    request_authority
+    matching = request_authority(capability: other_descriptor.capability, operation: other_descriptor.operation)
+
+    response = Mcp::Tools::CancelAuthorizationRequestTool.call(
+      server_context: context, capability: other_descriptor.capability, operation: other_descriptor.operation
+    )
+    ChatPendingAction.find(body(response).fetch(:pending_action_id)).confirm!(user: user)
+
+    expect(matching.reload).to be_cancelled
+    expect(ChatPendingAction.where(request_kind: "authorization_request", state: "pending").count).to eq(1)
+  end
+
+  it "describes semantic candidates when authorization cancellation is ambiguous" do
+    other_descriptor = Permissions::CapabilityDescriptor.new(
+      capability: "example.files@v1", operation: "example.files/write@v1",
+      effects: [ :internal_write ], risk: :medium,
+      requestable_roles: [ AgentRole::CHAT_PLANNER ], defaults: { AgentRole::CHAT_PLANNER => :ask },
+      maximum_autonomy: :chat_session, authority_durations: %i[invocation chat_session],
+      resource_scope: { type: :none }, classifier: ->(_arguments) { {} },
+      fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }
+    )
+    allow(Permissions::Catalog).to receive(:find!) do |capability:, **|
+      capability == other_descriptor.capability ? other_descriptor : descriptor
+    end
+    request_authority
+    request_authority(capability: other_descriptor.capability, operation: other_descriptor.operation, purpose: "Write files")
+
+    response = Mcp::Tools::CancelAuthorizationRequestTool.call(server_context: context)
+    message = response.content.first[:text]
+
+    expect(response.error?).to be(true)
+    expect(message).to include(
+      "example.records@v1 / example.records/read@v1",
+      "example.files@v1 / example.files/write@v1",
+      "purpose:"
+    )
+    expect(message).not_to match(/authorization request \d+/)
   end
 end
