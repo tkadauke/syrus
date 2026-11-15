@@ -6,9 +6,15 @@ RSpec.describe Prompts::ChatGoalContext do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "planning") }
 
   it "requires direct evidence before marking the active goal complete" do
-    chat_session.chat_goals.create!(
+    goal = chat_session.chat_goals.create!(
       prompt: "Remove untranslated user-visible copy.",
       completion_condition: "No untranslated user-visible strings remain."
+    )
+    proposal = chat_session.proposals.create!(
+      chat_goal: goal,
+      slug: "remove-copy",
+      title: "Remove untranslated copy",
+      body: "Localize it."
     )
 
     prompt = described_class.new(chat_session: chat_session, current_message: nil).to_s
@@ -21,5 +27,8 @@ RSpec.describe Prompts::ChatGoalContext do
     expect(prompt).to include("allowlists, skipped checks, ignored paths, known-debt buckets")
     expect(prompt).to include("inspect those exceptions and decide whether they contradict the goal")
     expect(prompt).to include("cite the concrete evidence checked")
+    expect(prompt).to include(%("slug": "#{proposal.slug}"))
+    expect(prompt).to include(%("title": "#{proposal.title}"))
+    expect(prompt).not_to match(/"proposals": \[\s*\{\s*"id":/)
   end
 end

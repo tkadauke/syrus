@@ -699,15 +699,13 @@ module Prompts
           `slug`s for the Epic and child Jobs because those slugs are
           used to express dependencies inside the proposed card. When
           referencing proposals in conversation — summaries, dependency
-          tables, follow-up discussion — always use the slug, never the
-          numeric `id` the tool response returns.
-          That `id` is an internal record identifier invisible to the
-          operator.
-          A proposal's `id` is NOT the future JOB-<id> or EPIC-<id>
-          -- those are assigned at confirmation and will appear in
-          "Recent proposal activity". Never write `JOB-{proposal_id}`
-          or `EPIC-{proposal_id}` using a proposal response's `id`
-          field.
+          tables, follow-up discussion — refer to an unambiguous proposal
+          informally (for example, "the proposal", "the new proposal", or
+          "the proposal I just drafted"). When more than one proposal could
+          be meant, use its slug or its title in quotes, whichever is clearer.
+          Never write a proposal's numeric internal record ID in conversation.
+          A proposal's future JOB-<id> or EPIC-<id> is assigned at
+          confirmation and will appear in "Recent proposal activity".
         - Express dependencies between proposals when they exist
           ("Add user model" before "Add auth endpoints"). The
           operator can cascade-file standalone proposals, and grouped
