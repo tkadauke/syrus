@@ -27,6 +27,28 @@ module Mentionables
         end.first
       end
 
+      def find_by_handle(handle)
+        normalized = handle.to_s.delete_prefix("@").downcase
+        return if normalized.blank?
+
+        human = User.joins(:handle_record).find_by("LOWER(handles.handle) = ?", normalized)
+        return human if human
+
+        ::Syrus::PluginRegistry.providers_for(:mentionable).filter_map do |provider|
+          provider.find_mentionable_by_handle(handle: normalized) if provider.respond_to?(:find_mentionable_by_handle)
+        end.first
+      end
+
+      def filter_candidates(user:)
+        humans = User.joins(:handle_record).includes(:handle_record)
+        plugin = ::Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
+          provider.respond_to?(:share_candidates) ? Array(provider.share_candidates(user: user)) : []
+        end
+
+        (humans.to_a + plugin).uniq { |mentionable| [ mentionable.kind, mentionable.mentionable_id ] }
+          .sort_by { |mentionable| [ mentionable.display_name.to_s.downcase, mentionable.handle.to_s.downcase ] }
+      end
+
       private
 
       def candidates_for(chat)

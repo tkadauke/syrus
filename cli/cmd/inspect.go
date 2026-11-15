@@ -69,11 +69,12 @@ func newJobListCommand(search bool) *cobra.Command {
 	var limit int
 	var jsonOut bool
 	var repo string
+	var proposer string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List jobs",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runJobList(cmd, state, limit, "", jsonOut, repo)
+			return runJobList(cmd, state, limit, "", jsonOut, repo, proposer)
 		},
 	}
 	if search {
@@ -81,13 +82,14 @@ func newJobListCommand(search bool) *cobra.Command {
 		cmd.Short = "Search jobs by title"
 		cmd.Args = cobra.ExactArgs(1)
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
-			return runJobList(cmd, state, limit, args[0], jsonOut, repo)
+			return runJobList(cmd, state, limit, args[0], jsonOut, repo, proposer)
 		}
 	}
 	cmd.Flags().StringVar(&state, "state", "open", jobStateFilterHelp)
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print jobs as JSON")
 	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
+	cmd.Flags().StringVar(&proposer, "proposer", "", "proposer handle to filter by")
 	return cmd
 }
 
@@ -120,6 +122,7 @@ func newJobShowCommand() *cobra.Command {
 			}
 			fmt.Fprintf(out, "JOB-%d · %s\n", job.Job.ID, job.Job.Title)
 			fmt.Fprintf(out, "State: %s\nRepo: %s\n", job.Job.State, job.Repository.Slug)
+			fmt.Fprintf(out, "Proposer: %s\n", proposerHandle(job.Job.Proposer))
 			if job.Job.PRURL != "" {
 				fmt.Fprintf(out, "PR: %s\n", job.Job.PRURL)
 			}
@@ -314,6 +317,7 @@ func newEpicListCommand(search bool) *cobra.Command {
 	var limit int
 	var jsonOut bool
 	var repo string
+	var proposer string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List epics",
@@ -322,7 +326,7 @@ func newEpicListCommand(search bool) *cobra.Command {
 			if search {
 				query = args[0]
 			}
-			return runEpicList(cmd, limit, query, jsonOut, repo)
+			return runEpicList(cmd, limit, query, jsonOut, repo, proposer)
 		},
 	}
 	if search {
@@ -333,6 +337,7 @@ func newEpicListCommand(search bool) *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 20, "maximum rows to show")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print epics as JSON")
 	cmd.Flags().StringVar(&repo, "repo", "", "repository slug to scope to, owner/name (defaults to auto-detected repo)")
+	cmd.Flags().StringVar(&proposer, "proposer", "", "proposer handle to filter by")
 	return cmd
 }
 
@@ -451,7 +456,7 @@ func NewWhoamiCommand() *cobra.Command {
 	return cmd
 }
 
-func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonOut bool, repo string) error {
+func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonOut bool, repo string, proposer string) error {
 	if err := validateJobStateFilter(state); err != nil {
 		return err
 	}
@@ -471,6 +476,9 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonO
 	if query != "" {
 		filters.Set("q", query)
 	}
+	if proposer = strings.TrimPrefix(strings.TrimSpace(proposer), "@"); proposer != "" {
+		filters.Set("proposer", proposer)
+	}
 	list, err := client.ListJobs(cmd.Context(), filters)
 	if err != nil {
 		return err
@@ -482,14 +490,14 @@ func runJobList(cmd *cobra.Command, state string, limit int, query string, jsonO
 	}
 	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	color := supportsColor(cmd.OutOrStdout())
-	fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPR")
+	fmt.Fprintln(tw, "ID\tSTATE\tREPO\tTITLE\tPROPOSER\tPR")
 	for _, job := range jobs {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\n", job.ID, inspectColorState(job.State, color), job.RepositorySlug, truncate(job.Title, 80), prText(job))
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\n", job.ID, inspectColorState(job.State, color), job.RepositorySlug, truncate(job.Title, 80), proposerHandle(job.Proposer), prText(job))
 	}
 	return tw.Flush()
 }
 
-func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo string) error {
+func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo string, proposer string) error {
 	client, _, err := apiClient()
 	if err != nil {
 		return err
@@ -504,6 +512,9 @@ func runEpicList(cmd *cobra.Command, limit int, query string, jsonOut bool, repo
 	}
 	if query != "" {
 		filters.Set("q", query)
+	}
+	if proposer = strings.TrimPrefix(strings.TrimSpace(proposer), "@"); proposer != "" {
+		filters.Set("proposer", proposer)
 	}
 	list, err := client.ListEpics(cmd.Context(), filters)
 	if err != nil {

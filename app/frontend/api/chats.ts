@@ -3,6 +3,7 @@ import type { ProviderAvailability } from "./providerAvailability"
 import type { TypedArtifact } from "./artifacts"
 import type { RuleDraftPreview } from "./permissionRuleDrafts"
 import type { PermissionAuthorityReference, PermissionPresentation, SmartPermissionOption } from "./permissionRequests"
+import type { Proposer } from "./proposers"
 import { readInitialBootstrap } from "./bootstrap"
 
 export type ChatRepository = {
@@ -257,7 +258,7 @@ export type ChatProposal = {
   dependency_requirements?: ChatProposalDependencyRequirement[]
   depends_on_epic_ids?: number[]
   goal_provenance?: GoalProvenance | null
-  proposer?: ChatProposalProposer | null
+  proposer?: Proposer | null
   media_ids?: string[]
   materialized_label: string | null
   materialized_path: string | null
@@ -266,13 +267,6 @@ export type ChatProposal = {
   materialized_epic_state_path?: string | null
   active_children_count?: number
   children?: ChatProposalChild[]
-}
-
-export type ChatProposalProposer = {
-  type: string
-  id: number
-  label: string
-  handle?: string | null
 }
 
 export type ChatProposalDependency = {
@@ -309,7 +303,7 @@ export type ChatProposalChild = {
   priority?: string
   planned_execution?: PlannedExecution | null
   goal_provenance?: GoalProvenance | null
-  proposer?: ChatProposalProposer | null
+  proposer?: Proposer | null
   media_ids?: string[]
   dependency_details?: ChatProposalChildDependency[]
   app_update_path: string

@@ -43,6 +43,12 @@ end
 # inventory spec checks both registration coverage and that each listed spec
 # actually includes the endpoint contract below.
 SMART_FOLDER_FILTER_BAR_CONTRACT_INVENTORY = {
+  "job" => {
+    dashboard_jobs: "spec/requests/api/v1/app/dashboard_spec.rb"
+  },
+  "epic" => {
+    dashboard_epics: "spec/requests/api/v1/app/dashboard_spec.rb"
+  },
   "agent_session" => {
     operator: "plugins/agent_activity/spec/requests/api/v1/app/agent_activity_spec.rb",
     admin: "plugins/agent_activity/spec/requests/api/v1/app/admin/agent_activity_spec.rb"

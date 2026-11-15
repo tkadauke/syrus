@@ -36,6 +36,74 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
   end
 
   describe "GET /api/v1/app/dashboard" do
+    describe "SmartFolder/FilterBar conformance" do
+      describe "Jobs" do
+        let(:first_proposer) { Factories.user(email_address: "first-proposer@example.com") }
+        let(:second_proposer) { Factories.user(email_address: "second-proposer@example.com") }
+        let!(:first_record) { Factories.job_record(user: user, repository: repo, proposer: first_proposer) }
+        let!(:second_record) { Factories.job_record(user: user, repository: repo, proposer: second_proposer) }
+        let(:smart_folder_contract_subject) { "job" }
+        let(:smart_folder_contract_seed_filter) do
+          { "and" => [ { "field" => "proposer", "op" => "is", "value" => first_proposer.handle } ] }
+        end
+        let(:smart_folder_contract_replacement_filter) do
+          { "and" => [ { "field" => "proposer", "op" => "is", "value" => second_proposer.handle } ] }
+        end
+        let(:smart_folder_contract_folder) do
+          SmartFolder.create!(
+            user: user,
+            subject_type: smart_folder_contract_subject,
+            name: "First proposer's work",
+            kind: "user_defined",
+            filter: smart_folder_contract_seed_filter
+          )
+        end
+        let(:smart_folder_contract_seed_ids) { [ first_record.id ] }
+        let(:smart_folder_contract_replacement_ids) { [ second_record.id ] }
+        let(:smart_folder_contract_unfiltered_ids) { [ first_record.id, second_record.id ] }
+        let(:smart_folder_contract_request) do
+          ->(params) { get "/api/v1/app/dashboard", params: params.merge(subject: "job", view: "list") }
+        end
+        let(:smart_folder_contract_body) { parse_body }
+        let(:smart_folder_contract_result_ids) { smart_folder_contract_body.fetch("items").map { |row| row.fetch("id") } }
+
+        include_examples "a SmartFolder-backed FilterBar endpoint", contract_surface: :dashboard_jobs
+      end
+
+      describe "Epics" do
+        let(:first_proposer) { Factories.user(email_address: "first-epic-proposer@example.com") }
+        let(:second_proposer) { Factories.user(email_address: "second-epic-proposer@example.com") }
+        let!(:first_record) { Factories.epic(user: user, repository: repo, proposer: first_proposer) }
+        let!(:second_record) { Factories.epic(user: user, repository: repo, proposer: second_proposer) }
+        let(:smart_folder_contract_subject) { "epic" }
+        let(:smart_folder_contract_seed_filter) do
+          { "and" => [ { "field" => "proposer", "op" => "is", "value" => first_proposer.handle } ] }
+        end
+        let(:smart_folder_contract_replacement_filter) do
+          { "and" => [ { "field" => "proposer", "op" => "is", "value" => second_proposer.handle } ] }
+        end
+        let(:smart_folder_contract_folder) do
+          SmartFolder.create!(
+            user: user,
+            subject_type: smart_folder_contract_subject,
+            name: "First epic proposer's work",
+            kind: "user_defined",
+            filter: smart_folder_contract_seed_filter
+          )
+        end
+        let(:smart_folder_contract_seed_ids) { [ first_record.id ] }
+        let(:smart_folder_contract_replacement_ids) { [ second_record.id ] }
+        let(:smart_folder_contract_unfiltered_ids) { [ first_record.id, second_record.id ] }
+        let(:smart_folder_contract_request) do
+          ->(params) { get "/api/v1/app/dashboard", params: params.merge(subject: "epic", view: "list") }
+        end
+        let(:smart_folder_contract_body) { parse_body }
+        let(:smart_folder_contract_result_ids) { smart_folder_contract_body.fetch("items").map { |row| row.fetch("id") } }
+
+        include_examples "a SmartFolder-backed FilterBar endpoint", contract_surface: :dashboard_epics
+      end
+    end
+
     it "returns a subject-aware dashboard read payload for the current user" do
       user.update_dashboard_sort!(subject: "job", column: "title", direction: "asc")
       tag = Factories.tag(user: user, name: "aqueduct", color: "blue")

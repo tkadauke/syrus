@@ -30,6 +30,14 @@ RSpec.describe GlobalSearch::EpicIndex do
     expect(description_results.first[:snippet]).to include("<mark>deployment</mark>")
   end
 
+  it "finds an epic by proposer handle" do
+    proposer = Factories.user(email_address: "adrian@example.com")
+    epic = Factories.epic(user: user, repository: repo, proposer: proposer)
+    described_class.upsert(epic)
+
+    expect(described_class.search("adrian").map { |row| row[:epic_id] }).to eq([ epic.id ])
+  end
+
   it "replaces stale rows when the epic changes" do
     epic = Factories.epic(
       user: user,

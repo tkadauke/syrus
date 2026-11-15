@@ -4,6 +4,7 @@ import type { JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQ
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { ProviderAvailability, ProviderMismatch } from "./providerAvailability"
 import type { GoalProvenance } from "./chats"
+import type { Proposer } from "./proposers"
 
 import type { SetupStatusPayload } from "./setup"
 import type { UiSlotPanel } from "../pluginUiSlots"
@@ -197,6 +198,7 @@ export type DashboardJobItem = {
   tags: DashboardTag[]
   source_chat: JobSourceChat | null
   goal_provenance?: GoalProvenance | null
+  proposer?: Proposer | null
   needs_attention: boolean
   needs_attention_reason: string | null
   delivery_status?: JobDeliveryStatus
@@ -244,6 +246,7 @@ export type DashboardEpicItem = {
   archived_at: string | null
   repository: DashboardRepository
   goal_provenance?: GoalProvenance | null
+  proposer?: Proposer | null
   paths: {
     epic_path: string
     edit_epic_path: string

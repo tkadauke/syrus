@@ -27,9 +27,9 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus docs show DOC-ID` | Show a design doc | `--debug`, `--profile` | no |
 | `syrus epic` | Inspect and manage Syrus epics | `--debug`, `--profile` | no |
 | `syrus epic create` | Create an epic in the current repository | `--body`, `--body-file`, `--debug`, `--epic-dependency-policy`, `--file`, `--github-issue-url`, `--profile`, `--prompt`, `--repo`, `--start`, `--title`, `--yes` | no |
-| `syrus epic list` | List epics | `--debug`, `--json`, `--limit`, `--profile`, `--repo` | yes |
+| `syrus epic list` | List epics | `--debug`, `--json`, `--limit`, `--profile`, `--proposer`, `--repo` | yes |
 | `syrus epic open EPIC-ID` | Open an epic in the default browser | `--debug`, `--profile` | no |
-| `syrus epic search QUERY` | Search epics by title | `--debug`, `--json`, `--limit`, `--profile`, `--repo` | yes |
+| `syrus epic search QUERY` | Search epics by title | `--debug`, `--json`, `--limit`, `--profile`, `--proposer`, `--repo` | yes |
 | `syrus epic show EPIC-ID` | Show an epic | `--debug`, `--json`, `--profile` | yes |
 | `syrus inbox` | Review implemented and failed Syrus jobs | `--debug`, `--profile`, `--repo`, `--watch` | no |
 | `syrus insights` | Inspect operational insights | `--debug`, `--profile` | no |
@@ -44,7 +44,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus job create` | Create a direct Syrus job | `--agent`, `--body`, `--body-file`, `--debug`, `--depends-on`, `--epic`, `--file`, `--owner`, `--priority`, `--profile`, `--prompt`, `--repo`, `--title`, `--yes` | no |
 | `syrus job diagnose JOB-ID --run RUN-ID` | Diagnose an active run | `--debug`, `--profile`, `--run` | no |
 | `syrus job diff JOB-ID` | Show a job pull request diff | `--debug`, `--json`, `--profile` | yes |
-| `syrus job list` | List jobs | `--debug`, `--json`, `--limit`, `--profile`, `--repo`, `--state` | yes |
+| `syrus job list` | List jobs | `--debug`, `--json`, `--limit`, `--profile`, `--proposer`, `--repo`, `--state` | yes |
 | `syrus job log JOB-ID` | Show or stream a job transcript | `--debug`, `--json`, `--profile` | yes |
 | `syrus job move-to-backlog JOB-ID` | Move a job to the backlog | `--debug`, `--profile` | no |
 | `syrus job open JOB-ID` | Open a job in the browser | `--debug`, `--profile` | no |
@@ -58,7 +58,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus job resume JOB-ID --source-run RUN-ID` | Resume a job from a source run | `--debug`, `--profile`, `--source-run` | no |
 | `syrus job retry JOB-ID` | Retry a job | `--debug`, `--profile` | no |
 | `syrus job retry-step JOB-ID --workflow WORKFLOW-ID` | Retry a failed workflow step | `--debug`, `--profile`, `--workflow` | no |
-| `syrus job search QUERY` | Search jobs by title | `--debug`, `--json`, `--limit`, `--profile`, `--repo`, `--state` | yes |
+| `syrus job search QUERY` | Search jobs by title | `--debug`, `--json`, `--limit`, `--profile`, `--proposer`, `--repo`, `--state` | yes |
 | `syrus job show JOB-ID` | Show a job | `--debug`, `--json`, `--profile` | yes |
 | `syrus job start JOB-ID` | Start a direct job | `--debug`, `--profile` | no |
 | `syrus job stop-landing JOB-ID` | Stop an in-progress landing | `--debug`, `--profile` | no |
@@ -67,7 +67,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus job unapprove JOB-ID` | Remove your job approval | `--debug`, `--profile` | no |
 | `syrus job unpause JOB-ID` | Unpause a job | `--debug`, `--profile` | no |
 | `syrus job watch JOB-ID` | Watch a job | `--debug`, `--json`, `--profile` | yes |
-| `syrus jobs` | List Syrus jobs | `--closed`, `--debug`, `--profile`, `--repo` | no |
+| `syrus jobs` | List Syrus jobs | `--closed`, `--debug`, `--profile`, `--proposer`, `--repo` | no |
 | `syrus k8s` | Inspect registered Kubernetes clusters | `--debug`, `--profile` | no |
 | `syrus k8s clusters` | List registered Kubernetes clusters | `--debug`, `--profile` | no |
 | `syrus k8s deployments` | List deployments | `--cluster`, `--debug`, `--namespace`, `--profile` | no |

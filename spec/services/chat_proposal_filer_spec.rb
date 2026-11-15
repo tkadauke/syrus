@@ -28,6 +28,31 @@ RSpec.describe ChatProposalFiler do
   end
 
   describe "#file!" do
+    it "copies a User proposer to a direct Job and preserves it after the proposal is discarded" do
+      proposer = Factories.user(email_address: "job-proposer@example.com")
+      job_proposal = proposal(slug: "proposed-job", title: "Proposed Job", proposer: proposer)
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      job = job_proposal.reload.job
+      job_proposal.destroy!
+
+      expect(job.reload).to have_attributes(
+        proposer: proposer,
+        proposer_type: "User",
+        proposer_id: proposer.id
+      )
+    end
+
+    it "materializes a direct Job with no proposer when the proposal has none" do
+      job_proposal = proposal(slug: "syrus-proposed-job", title: "Syrus-proposed Job")
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      }.not_to raise_error
+
+      expect(job_proposal.reload.job.proposer).to be_nil
+    end
+
     it "uses an urgent proposal priority for the Job and its first enqueue" do
       urgent = proposal(slug: "urgent", title: "Urgent", priority: "urgent")
       prior_enqueue_count = ActiveJob::Base.queue_adapter.enqueued_jobs.length

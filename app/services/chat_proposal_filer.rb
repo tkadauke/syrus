@@ -175,6 +175,7 @@ class ChatProposalFiler
       planned_execution_target_label: proposal.planned_execution_target_label,
       planned_execution_capabilities: proposal.planned_execution_capabilities,
       planned_execution_source: proposal.planned_execution_source,
+      proposer: proposal.proposer,
       state: proposal.initial_job_state_for(user)
     )
     job.agent_provider = Job::ProviderSetting::Base.for(provider_setting).resolve(job)
@@ -201,6 +202,7 @@ class ChatProposalFiler
       description: proposal.body,
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
+      proposer: proposal.proposer,
       state: proposal.route_to_backlog? ? "backlog" : "ready"
     )
   end
