@@ -2917,7 +2917,6 @@
   "tool_card_project_value": "project: {{value}}",
   "tool_card_target_value": "target: {{value}}",
   "tool_card_source_value": "source: {{value}}",
-  "tool_card_proposal_number": "Proposal #{{id}}",
   "tool_card_no_description": "No description provided.",
   "tool_card_description_label": "{{title}} description",
   "tool_card_action_planned_execution": "Planned execution",
