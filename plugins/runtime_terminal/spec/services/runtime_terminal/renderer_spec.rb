@@ -112,6 +112,16 @@ RSpec.describe RuntimeTerminal::Renderer do
     expect(ink_bounds(rendered, col: 1).fetch(:y).last).to be > baseline
   end
 
+  it "preserves row headroom when Pango returns an exactly cell-height line box" do
+    renderer = described_class.allocate
+    glyph = Vips::Image.black(10, described_class::CELL_HEIGHT).new_from_image(255)
+
+    mask = renderer.send(:clip_to_cell, glyph, 10, anchor_width: 0, line_top: 0)
+
+    expect(mask.getpoint(5, described_class::CELL_HEIGHT - 1).first).to eq(0)
+    expect(mask.getpoint(5, described_class::CELL_HEIGHT - 2).first).to be_positive
+  end
+
   it "keeps styled, combining, box-drawing, wide, and cursor cells on the row metrics" do
     requires_bundled_fonts!
 
