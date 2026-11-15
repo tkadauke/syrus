@@ -88,6 +88,20 @@ RSpec.describe "bin/plugin-boundary-audit" do
     expect(stdout).to include("Result: PASS")
   end
 
+  it "keeps the required removability grader responsible for schema, boot, and frontend build proof" do
+    configuration = YAML.safe_load_file(Rails.root.join(".syrus.yml"), aliases: false)
+    grader = configuration.fetch("grade").find { |entry| entry["name"] == "coworkers-removability" }
+
+    expect(grader).to include("required" => true)
+    expect(grader.fetch("phases")).to contain_exactly("review", "landing", "ci", "unland")
+    expect(grader.fetch("run")).to include(
+      "plugin-boundary-audit coworkers",
+      "db:schema:load",
+      "Rails.application.eager_load!",
+      "npm run build"
+    )
+  end
+
   it "reports vocabulary ownership separately from physical removability", :requires_git_checkout do
     Dir.mktmpdir("plugin-boundary-audit") do |directory|
       synthetic_root = build_synthetic_repository(directory)
