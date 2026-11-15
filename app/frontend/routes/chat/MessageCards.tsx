@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { memo, Suspense, useRef, useState } from "react"
-import type { ComponentProps, CSSProperties, ReactNode } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
@@ -65,6 +65,7 @@ import { ToolErrorCard } from "./toolErrorCard"
 import { Avatar } from "../../components/Avatar"
 import { accentRamp } from "../../lib/appearance"
 import { useTimeZones } from "../../contexts/TimeZoneContext"
+import { renderPluginChatMessage } from "../../pluginChatMessageRenderers"
 
 // Message rendering extracted from Chat.tsx: a single chat message bubble and its
 // image/file attachments, the image lightbox, the bookmark control, and the tool-
@@ -116,41 +117,7 @@ export const ChatMessage = memo(function ChatMessage({
     if (workspaceHrefLooksLocal(href)) event.preventDefault()
   }
 
-  const coworkerMessage = coworkerMessageMetadata(item) || bridgedCoworkerMessageMetadata(item)
-  if (coworkerMessage?.direction === "incoming") {
-    return (
-      <CoworkerMessage
-        appearance={item.coworker_sender}
-        fallbackHandle={coworkerMessage.sender_handle}
-        item={item}
-        text={withoutCoworkerMessagePrefix(item.text, "from", coworkerMessage.sender_handle)}
-        entranceClass={entranceClass}
-        payload={payload}
-        queryKey={queryKey}
-        readOnly={readOnly}
-        onNotice={onNotice}
-        prefix={prefix}
-      />
-    )
-  }
-
-  if (coworkerMessage?.direction === "outgoing") {
-    return (
-      <CoworkerMessage
-        appearance={item.coworker_receiver}
-        fallbackHandle={coworkerMessage.receiver_handle}
-        item={item}
-        text={withoutCoworkerMessagePrefix(item.text, "to", coworkerMessage.receiver_handle)}
-        entranceClass={entranceClass}
-        payload={payload}
-        queryKey={queryKey}
-        readOnly={readOnly}
-        onNotice={onNotice}
-        prefix={prefix}
-        systemNote
-      />
-    )
-  }
+  if (item.plugin_message) return renderPluginChatMessage({ item, payload, presentation: item.plugin_message, prefix, queryKey, readOnly, entranceClass, onNotice })
 
   if (item.role === "user") {
     return (
@@ -240,101 +207,6 @@ export const ChatMessage = memo(function ChatMessage({
     </SharedMessageRenderer>
   )
 }, sameChatMessageProps)
-
-type CoworkerMessageMetadata = {
-  direction?: "incoming" | "outgoing"
-  sender_handle?: string
-  receiver_handle?: string
-}
-
-function coworkerMessageMetadata(item: ChatMessageItem): CoworkerMessageMetadata | null {
-  if (!isPlainObject(item.content) || item.content.source !== "coworker_message" || !isPlainObject(item.content.coworker_message)) return null
-  return item.content.coworker_message as CoworkerMessageMetadata
-}
-
-function bridgedCoworkerMessageMetadata(item: ChatMessageItem): CoworkerMessageMetadata | null {
-  if (item.cross_chat_bridge?.direction !== "inbound" || !item.coworker_sender) return null
-  return { direction: "incoming", sender_handle: item.coworker_sender.handle }
-}
-
-export function withoutCoworkerMessagePrefix(text: string, direction: "from" | "to", handle?: string) {
-  if (!handle) return text
-  const prefix = `Message ${direction} @${handle}`
-  return text === prefix ? "" : text.startsWith(`${prefix}\n\n`) ? text.slice(prefix.length + 2) : text
-}
-
-function CoworkerMessage({
-  appearance,
-  fallbackHandle,
-  item,
-  text,
-  entranceClass,
-  payload,
-  queryKey,
-  readOnly,
-  onNotice,
-  prefix,
-  systemNote = false
-}: {
-  appearance: ChatMessageItem["coworker_sender"]
-  fallbackHandle?: string
-  item: ChatMessageItem
-  text: string
-  entranceClass: string
-  payload: ChatPayload
-  queryKey: ChatQueryKey
-  readOnly: boolean
-  onNotice: (message: string | null) => void
-  prefix: string
-  systemNote?: boolean
-}) {
-  const { t } = useT("chat")
-  const messageMenu = useLongPressMenu(!readOnly && !!item.text)
-  const colors = appearance ? accentRamp(appearance.accent_hex) : null
-  const label = appearance?.name || (fallbackHandle ? `@${fallbackHandle}` : "—")
-  const accentStyle = colors
-    ? ({
-        backgroundColor: `color-mix(in srgb, var(--color-surface) 88%, ${colors.solid})`,
-        borderLeftColor: colors.solid
-      } as CSSProperties)
-    : undefined
-  return (
-    <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly} targetProps={messageMenu.targetProps}>
-      <span className="absolute -top-4" id={`message-${item.id}`} />
-      {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} menu={messageMenu} />}
-      <div
-        className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 text-text-primary ${colors ? "" : "border-border bg-surface-subtle"}`}
-        style={accentStyle}
-        data-testid={systemNote ? "coworker-outgoing-message" : "coworker-incoming-message"}
-      >
-        <div className="flex min-w-0 items-center gap-2 text-xs font-medium">
-          <Avatar avatarUrl={appearance?.avatar_url} avatarKey={appearance?.avatar_key} accentHex={appearance?.accent_hex} name={label} size="xs" />
-          <span className="truncate">{label}</span>
-          {systemNote && fallbackHandle ? (
-            <span className="truncate font-normal text-text-muted">{t("coworker_message_to", { handle: fallbackHandle })}</span>
-          ) : null}
-        </div>
-        {item.cross_chat_bridge?.direction === "inbound" ? (
-          <div className="flex items-center gap-2 text-xs font-normal text-text-muted" data-testid="cross-chat-bridge-chip">
-            <span aria-hidden="true">🔗</span>
-            <Link
-              className="truncate underline hover:no-underline"
-              to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}
-            >
-              {t("cross_chat_bridge_link", {
-                id: item.cross_chat_bridge.counterpart_chat_session_id,
-                title: item.cross_chat_bridge.counterpart_chat_title || t("new_title")
-              })}
-            </Link>
-          </div>
-        ) : null}
-        {text.trim() ? <ChatAssistantMarkdownSurface text={text} /> : null}
-        <MessageImageAttachments attachments={item.attachments} />
-        <MessageFileAttachments attachments={item.attachments} />
-      </div>
-    </SharedMessageRenderer>
-  )
-}
 
 type BackgroundRun = {
   state?: string
@@ -657,7 +529,7 @@ function BoundedChatMarkdown({ text, ...props }: ComponentProps<typeof Markdown>
   )
 }
 
-function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
+export function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
   const images = (attachments || []).filter((attachment): attachment is ChatMessageImageAttachment => isChatRasterImage(attachment.mime_type))
   const [lightboxImageIndex, setLightboxImageIndex] = useState<number | null>(null)
   const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
@@ -706,7 +578,7 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
 // Non-image attachments (e.g. PDFs) — images render as thumbnails, but a PDF (or
 // any other file) would otherwise show nothing, leaving a blank bubble when the
 // message has no text. Render each as a labeled chip so it's always visible.
-function MessageFileAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
+export function MessageFileAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
   const files = (attachments || []).filter((attachment) => !isChatRasterImage(attachment.mime_type))
   if (files.length === 0) return null
 
@@ -1012,7 +884,7 @@ export function shouldAnimateMessageEntrance(messageId: number | null | undefine
 // and the bookmark form. A single wrapper so the pin and bookmark controls
 // share one hover/visibility group instead of each managing its own
 // absolutely-positioned overlay (which would stack and overlap).
-function MessageActions({
+export function MessageActions({
   item,
   payload,
   queryKey,

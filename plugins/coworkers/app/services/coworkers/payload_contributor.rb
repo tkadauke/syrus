@@ -8,7 +8,7 @@ module Coworkers
       return payload unless link
 
       coworker = link.coworker
-      payload.merge(coworker_chat: true, agent_appearance: {
+      payload.merge(chat_capabilities: { mode_selection: false }, agent_appearance: {
         name: coworker.name, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
         avatar_url: coworker.avatar_url
       })
@@ -38,7 +38,7 @@ module Coworkers
         bridge = payload[:cross_chat_bridge]
         link = bridge_coworkers[[ message.chat_session.user_id, bridge&.fetch(:counterpart_chat_session_id, nil) ]]
         if bridge&.fetch(:direction, nil) == "inbound" && link
-          decorated[:coworker_sender] = appearance_json(link.coworker)
+          decorated[:plugin_message] = message_presentation(appearance: appearance_json(link.coworker), direction: "incoming", handle: link.coworker.handle)
         end
         decorated
       end
@@ -66,11 +66,13 @@ module Coworkers
         bridge_chat_id = content["origin_chat_session_id"] if content["requested_by"] == "cross_chat"
         bridge_link = bridge_coworkers[[ owner_id, bridge_chat_id ]]
         if bridge_link
-          decorated[:coworker_sender] = appearance_json(bridge_link.coworker)
+          decorated[:plugin_message] = message_presentation(appearance: appearance_json(bridge_link.coworker), direction: "incoming", handle: bridge_link.coworker.handle)
         elsif entry&.fetch("direction", nil) == "incoming" && (coworker = coworkers[[ owner_id, entry["sender_id"].to_i ]])
-          decorated[:coworker_sender] = appearance_json(coworker)
+          decorated[:plugin_message] = message_presentation(appearance: appearance_json(coworker), direction: "incoming", handle: entry["sender_handle"])
         elsif entry&.fetch("direction", nil) == "outgoing" && (coworker = coworkers[[ owner_id, entry["receiver_id"].to_i ]])
-          decorated[:coworker_receiver] = appearance_json(coworker)
+          decorated[:plugin_message] = message_presentation(appearance: appearance_json(coworker), direction: "outgoing", handle: entry["receiver_handle"])
+        elsif entry
+          decorated[:plugin_message] = message_presentation(appearance: nil, direction: entry["direction"], handle: entry["sender_handle"] || entry["receiver_handle"])
         end
         [ message.id, decorated ]
       end
@@ -88,6 +90,10 @@ module Coworkers
         id: coworker.id, name: coworker.name, handle: coworker.handle,
         accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url
       }
+    end
+
+    def self.message_presentation(appearance:, direction:, handle:)
+      { component: "coworkers/CoworkerMessage", data: { appearance: appearance, direction: direction, handle: handle } }
     end
   end
 end

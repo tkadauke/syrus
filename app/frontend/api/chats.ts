@@ -487,8 +487,7 @@ export type ChatMessageItem = {
   parent_tool_use_id?: string | null
   cross_chat_bridge?: ChatCrossChatBridge | null
   client_idempotency_key?: string
-  coworker_sender?: ChatCoworkerAppearance | null
-  coworker_receiver?: ChatCoworkerAppearance | null
+  plugin_message?: { component: string; data?: unknown } | null
 }
 
 export type TruncatedChatMessageContent = {
@@ -499,15 +498,6 @@ export type TruncatedChatMessageContent = {
 export type FullChatMessageContent = {
   content: unknown
   chat_shell_command_output: string | null
-}
-
-export type ChatCoworkerAppearance = {
-  id: number
-  name: string
-  handle: string
-  accent_hex: string
-  avatar_key: string | null
-  avatar_url: string | null
 }
 
 export type ChatMessageMention = {
@@ -1037,7 +1027,7 @@ export type CodingDiffPayload = {
 
 export type ChatPayload = {
   message?: string | null
-  coworker_chat?: boolean
+  chat_capabilities?: { mode_selection?: boolean }
   agent_appearance?: ChatAgentAppearance
   agent_roster?: ChatAgentRosterItem[]
   chat: ChatRecord

@@ -282,7 +282,7 @@ describe("Compose coworker mode", () => {
     })
     const payload = makePayload()
     payload.coding_mode_enabled = true
-    payload.coworker_chat = true
+    payload.chat_capabilities = { mode_selection: false }
     renderCompose(payload)
 
     expect(screen.queryByRole("button", { name: "Change mode" })).not.toBeInTheDocument()

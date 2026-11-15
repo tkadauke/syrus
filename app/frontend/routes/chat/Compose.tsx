@@ -2603,7 +2603,7 @@ export function Compose({
               />
             ) : null}
             <ChatProviderSelector payload={payload} selectedProvider={selectedChatProvider} onChange={setSelectedChatProvider} />
-            {!payload.coworker_chat ? <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} /> : null}
+            {payload.chat_capabilities?.mode_selection !== false ? <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} /> : null}
             <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
             <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
             <div className="ml-auto flex items-center gap-1">

@@ -23,9 +23,8 @@ RSpec.describe Coworkers::PayloadContributor do
 
     result = described_class.chat_message_payload(messages: [ message ], payloads: [ payload ]).sole
 
-    expect(result.fetch(:coworker_sender)).to include(
-      id: coworker.id, name: "Monica", handle: "monica", accent_hex: "#E5484D", avatar_key: "spark"
-    )
+    expect(result.dig(:plugin_message, :component)).to eq("coworkers/CoworkerMessage")
+    expect(result.dig(:plugin_message, :data, :appearance)).to include(id: coworker.id, name: "Monica", handle: "monica")
   end
 
   it "does not expose a coworker owned by someone else through bridge metadata" do
@@ -40,6 +39,6 @@ RSpec.describe Coworkers::PayloadContributor do
 
     result = described_class.chat_message_payload(messages: [ message ], payloads: [ payload ]).sole
 
-    expect(result).not_to have_key(:coworker_sender)
+    expect(result).not_to have_key(:plugin_message)
   end
 end
