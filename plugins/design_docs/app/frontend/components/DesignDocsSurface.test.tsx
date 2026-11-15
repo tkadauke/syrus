@@ -8,6 +8,22 @@ import { applyAppEvent } from "@app/lib/appEvents"
 import { DesignDocsSurface, wysiwygHtmlToMarkdown } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
 
+vi.mock("@app/api/repoPluginTabs", () => ({
+  fetchRepoPluginTabs: vi.fn().mockResolvedValue({
+    tabs: [
+      {
+        id: "design_docs.repository",
+        key: "design_docs.repository",
+        label: "Design Docs",
+        path: "/repositories/10/design_docs",
+        paths: ["/repositories/10/design_docs"],
+        order: 0
+      },
+      { id: "overview", key: "overview", label: "Overview", path: "/repositories/10", paths: ["/repositories/10"], order: 1 }
+    ]
+  })
+}))
+
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
 
 function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry {
@@ -501,13 +517,7 @@ function mockFetch(detail = docDetail) {
     if (url.pathname === "/api/v1/app/repositories/10/design_docs" && (!init || init.method === undefined)) {
       return jsonResponse({
         ...indexPayload(detail),
-        repository: { id: 10, slug: "acme/widgets", repository_path: "/repositories/10" },
-        tabs: [
-          { key: "overview", label: "Overview", path: "/repositories/10" },
-          { key: "documents", label: "Documents", path: "/repositories/10/documents" },
-          { key: "members", label: "Members", path: "/repositories/10/memberships" },
-          { key: "design_docs.repository", label: "Design Docs", path: "/repositories/10/plugin/design_docs" }
-        ]
+        repository: { id: 10, slug: "acme/widgets", repository_path: "/repositories/10" }
       })
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {

@@ -15,7 +15,6 @@ describe("RepositoryPipelineRoute", () => {
         repository: { id: 1, slug: "acme/widgets" },
         generated_at: "2026-10-31T12:00:00Z",
         evidence: { status: "partial", incomplete_count: 2 },
-        tabs: [{ key: "sdlc_pipeline.repository", label: "Pipeline", path: "/repositories/1/plugin/sdlc-pipeline" }],
         groups: [],
         stages: [
           {
@@ -71,7 +70,6 @@ describe("RepositoryPipelineRoute", () => {
         repository: { id: 1, slug: "acme/widgets" },
         generated_at: "2026-10-31T12:00:00Z",
         evidence: { status: "complete", incomplete_count: 0 },
-        tabs: [{ key: "sdlc_pipeline.repository", label: "Pipeline", path: "/repositories/1/plugin/sdlc-pipeline" }],
         groups: [
           {
             key: "epic:2",
@@ -135,7 +133,6 @@ describe("RepositoryPipelineRoute", () => {
       repository: { id: 1, slug: "acme/widgets" },
       generated_at: "2026-10-31T12:00:00Z",
       evidence: { status: "partial", incomplete_count: 1 },
-      tabs: [],
       groups: [],
       stages: [
         {
@@ -201,7 +198,6 @@ describe("RepositoryPipelineRoute", () => {
           repository: { id: 1, slug: "acme/widgets" },
           generated_at: "2026-10-31T12:00:00Z",
           evidence: { status: "complete", incomplete_count: 0 },
-          tabs: [],
           groups: [],
           stages: [],
           filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
@@ -245,7 +241,6 @@ describe("RepositoryPipelineRoute", () => {
           repository: { id: 1, slug: "acme/widgets" },
           generated_at: "2026-10-31T12:00:00Z",
           evidence: { status: "complete", incomplete_count: 0 },
-          tabs: [],
           groups: [],
           stages: [
             { key: "review", label: "Review", kind: "lifecycle", total: 0, attention_count: 0, aging_count: 0, oldest_age_seconds: null, highlighted_items: [] }
@@ -348,7 +343,6 @@ describe("RepositoryPipelineRoute", () => {
       repository: { id: 1, slug: "acme/widgets" },
       generated_at: "2026-10-31T12:00:00Z",
       evidence: { status: "complete", incomplete_count: 0 },
-      tabs: [],
       groups: [],
       stages: [
         { key: "review", label: "Review", kind: "lifecycle", total: 0, attention_count: 0, aging_count: 0, oldest_age_seconds: null, highlighted_items: [] }
