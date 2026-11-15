@@ -7,7 +7,6 @@ module Api
       # Repositories::PluginRepoTabsPayload. Core's own repository-scoped
       # controllers use this flat naming for the same reason.
       class RepositoryThroughputController < BaseController
-
         def show
           repository = ::Repository.accessible_to(Current.user).find(params[:repository_id])
 
