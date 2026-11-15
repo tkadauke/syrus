@@ -78,7 +78,6 @@ module Mcp::Tools
         )
 
         Mcp::Tools.success(
-          pending_confirmation_id: pending_action.id,
           pending_action_id: pending_action.id,
           state: pending_action.state,
           message: "Implementation handoff requires operator confirmation."
@@ -98,7 +97,6 @@ module Mcp::Tools
 
       def pending_action_response(pending_action)
         Mcp::Tools.success(
-          pending_confirmation_id: pending_action.id,
           pending_action_id: pending_action.id,
           state: pending_action.state,
           message: "Implementation handoff requires operator confirmation."

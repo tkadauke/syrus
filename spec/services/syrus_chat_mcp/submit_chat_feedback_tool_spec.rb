@@ -38,7 +38,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     }.not_to have_enqueued_job(RunJob)
 
     body = payload(@response)
-    pending_action = chat_session.pending_actions.find(body[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
 
     expect(@response.dig(:result, :isError)).to be_falsey
     expect(body).to include(state: "pending")
@@ -58,7 +58,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
       { job_id: job.id, feedback: "Please tighten the retry explanation." },
       current_message: user_message
     )
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect(pending_action.message).to eq(user_message)
     expect(previous_assistant_message.reload.pending_action).to be_nil
@@ -67,7 +67,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
   it "queues a chat_feedback workflow only after confirmation" do
     job = Factories.job_record(repository: repository, state: "implemented")
     response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect {
       pending_action.confirm!(user: user)
@@ -87,7 +87,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     visual_diff.start!
 
     response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect {
       pending_action.confirm!(user: user)
@@ -117,7 +117,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
   it "lets the operator reject the pending feedback without queueing work" do
     job = Factories.job_record(repository: repository, state: "implemented")
     response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect {
       pending_action.reject!
@@ -132,7 +132,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
 
     response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")
     body = payload(response)
-    pending_action = chat_session.pending_actions.find(body[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(body).to include(status: "queued", state: "queued")
@@ -146,7 +146,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
   it "promotes queued feedback when the running job becomes implemented" do
     job = Factories.job_record(repository: repository, state: "running")
     response = call_tool(job_id: job.id, feedback: "Please tighten the retry explanation.")
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
     allow(AppEvents).to receive(:broadcast)
 
     job.mark_implemented!
@@ -171,7 +171,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     other_job = Factories.job_record(repository: Factories.repository(user: user), state: "implemented")
 
     response = call_tool(job_id: other_job.id, feedback: "Adjust this.")
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(pending_action).to have_attributes(action: "submit_chat_feedback", payload: { "job_id" => other_job.id, "feedback" => "Adjust this.", "media" => [] })
@@ -202,7 +202,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     job = Factories.job_record(repository: repository, state: "approved", approved_at: Time.current)
 
     response = call_tool(job_id: job.id, feedback: "Adjust this before landing.")
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
     pending_action.confirm!(user: user)
 
     expect(job.reload).to be_implemented
@@ -223,7 +223,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     response = JSON.parse(raw, symbolize_names: true)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    pending_action = admin_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = admin_session.pending_actions.find(payload(response)[:pending_action_id])
     expect(pending_action).to have_attributes(action: "submit_chat_feedback", payload: { "job_id" => other_job.id, "feedback" => "Fix this.", "media" => [] })
   end
 
@@ -243,7 +243,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
       snapshot = whiteboard_snapshot
 
       response = call_tool(job_id: job.id, feedback: "See the attached whiteboard.", media: [ "snapshot:#{snapshot.id}" ])
-      pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
       expect(response.dig(:result, :isError)).to be_falsey
       expect(pending_action.payload).to eq(
@@ -257,7 +257,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
       job = Factories.job_record(repository: repository, state: "implemented")
       snapshot = whiteboard_snapshot
       response = call_tool(job_id: job.id, feedback: "See the attached whiteboard.", media: [ "snapshot:#{snapshot.id}" ])
-      pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
       pending_action.confirm!(user: user)
 

@@ -50,7 +50,6 @@ module Mcp::Tools
           )
 
           return Mcp::Tools.success(
-            pending_confirmation_id: pending_action.id,
             pending_action_id: pending_action.id,
             state: pending_action.state,
             status: "queued",
@@ -72,7 +71,6 @@ module Mcp::Tools
         )
 
         Mcp::Tools.success(
-          pending_confirmation_id: pending_action.id,
           pending_action_id: pending_action.id,
           state: pending_action.state,
           message: "Chat feedback requires operator confirmation."

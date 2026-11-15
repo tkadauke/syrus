@@ -33,7 +33,7 @@ RSpec.describe "coworker Job lifecycle tools" do
     )
 
     result = payload(response)
-    action = chat.pending_actions.find(result.fetch("pending_confirmation_id"))
+    action = chat.pending_actions.find(result.fetch("pending_action_id"))
     entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool == Mcp::Tools::CancelJobTool }
     expect(entry.descriptor).to have_attributes(
       capability: Permissions::JobLifecycle::JOBS,

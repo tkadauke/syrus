@@ -31,7 +31,7 @@ module Mcp::Tools
         request = result.request
         server_context[:current_message]&.update_columns(pending_action_id: request.id) if result.created?
         Mcp::Tools.success(
-          status: result.status.to_s, authorization_request_id: request&.id,
+          status: result.status.to_s, pending_action_id: request&.id,
           offered_durations: result.offered_durations, requested_duration: result.requested_duration,
           grants_authority: false, message: I18n.t("server.permissions.coworker_permission.#{message_key(result.status)}")
         )
