@@ -1,5 +1,4 @@
 import { getJson } from "./client"
-import type { RepositoryTab } from "./repositories"
 import type { FilterSchemaField } from "../components/FilterBar"
 
 export type TargetGraphProject = {
@@ -93,7 +92,6 @@ export type TargetGraphPayload = {
     scope: string
     ref: string
   }
-  tabs?: RepositoryTab[]
   workflow?: {
     id: number
     slug: string

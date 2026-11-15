@@ -8,10 +8,6 @@ import type { RepositoryDetailPayload } from "../api/repositories"
 
 const detailPayload = {
   repository: { id: 1, slug: "acme/widgets" },
-  tabs: [
-    { key: "overview", label: "Overview", path: "/repositories/1" },
-    { key: "cognitive_debt", label: "Cognitive Debt", path: "/repositories/1/cognitive_debt" }
-  ]
 } as RepositoryDetailPayload
 
 function cognitiveDebtPayload(overrides = {}) {
@@ -47,6 +43,12 @@ function renderRoute(debtResponse: Promise<Response> = Promise.resolve(jsonRespo
     return url.endsWith("/cognitive_debt") ? debtResponse : Promise.resolve(jsonResponse(detailPayload))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["repositories", "1", "plugin_tabs"], {
+    tabs: [
+      { id: "overview", key: "overview", label: "Overview", path: "/repositories/1", paths: ["/repositories/1"], order: 0 },
+      { id: "cognitive_debt", key: "cognitive_debt", label: "Cognitive Debt", path: "/repositories/1/cognitive_debt", paths: ["/repositories/1/cognitive_debt"], order: 2 }
+    ]
+  })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/app-shell/repositories/1/cognitive_debt"]}>

@@ -1161,7 +1161,6 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
       ariaLabel={t("aria_pipeline")}
       heading={pipeline.data ? <PageHeading mono>{pipeline.data.repository.slug}</PageHeading> : null}
       prefix={prefix}
-      tabs={pipeline.data?.tabs ?? []}
     >
       {loading}
       {error}

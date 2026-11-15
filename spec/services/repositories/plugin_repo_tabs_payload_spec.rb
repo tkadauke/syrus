@@ -32,6 +32,13 @@ RSpec.describe Repositories::PluginRepoTabsPayload do
     expect(tabs.map { |tab| tab[:id] }).to include("tab-plugin.example")
   end
 
+  it "includes the complete ordered core tab list before plugin tabs" do
+    tabs = described_class.tabs_for(repository: repository, user: owner)
+
+    expect(tabs.first(5).map { |tab| tab[:key] }).to eq(%w[overview health cognitive_debt target_graph documents])
+    expect(tabs.drop(5).map { |tab| tab[:key] }).to include("tab-plugin.example")
+  end
+
   it "includes the provider's tabs for a RepositoryMembership collaborator" do
     tabs = described_class.tabs_for(repository: repository, user: collaborator)
 

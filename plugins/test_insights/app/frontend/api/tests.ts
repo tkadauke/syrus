@@ -1,5 +1,4 @@
 import { getJson } from "@app/api/client"
-import type { RepositoryTab } from "@app/api/repositories"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type RepositoryTestIdentity = {
@@ -53,7 +52,6 @@ export type RepositoryTestsPayload = {
     slug: string
     github_url: string
   }
-  tabs: RepositoryTab[]
   filter?: Record<string, unknown> | null
   filter_schema?: FilterSchemaField[]
   tests: RepositoryTestIdentity[]
@@ -68,7 +66,6 @@ export type RepositoryTestHistoryPagination = {
 
 export type RepositoryTestDetailPayload = {
   repository: RepositoryTestsPayload["repository"]
-  tabs: RepositoryTab[]
   test: RepositoryTestIdentity
   history: RepositoryTestHistoryItem[]
   pagination: RepositoryTestHistoryPagination

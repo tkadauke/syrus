@@ -4,7 +4,10 @@ module Api
       class RepositoryPluginTabsController < BaseController
         def index
           repository = find_repository
-          render json: ::Repositories::PluginRepoTabsPayload.new(repository: repository, user: Current.user).as_json
+          payload = ::Repositories::PluginRepoTabsPayload.new(repository: repository, user: Current.user).as_json
+          response.headers["Cache-Control"] = "private, max-age=60"
+          fresh_when(etag: payload, public: false)
+          render json: payload unless performed?
         end
 
         private

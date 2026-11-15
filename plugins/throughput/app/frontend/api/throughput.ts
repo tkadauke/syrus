@@ -1,5 +1,4 @@
 import { getJson } from "@app/api/client"
-import type { RepositoryTab } from "@app/api/repositories"
 
 export type RepositoryThroughputConfidence = "none" | "low" | "medium" | "high"
 
@@ -140,7 +139,6 @@ export type RepositoryThroughputMetricsPayload = {
   generated_at: string
   windows: Partial<Record<RepositoryThroughputWindowKey, RepositoryThroughputWindow>>
   repository: { id: number; slug: string; github_url: string }
-  tabs: RepositoryTab[]
 }
 
 export function fetchRepositoryThroughputMetrics(id: number | string, window: RepositoryThroughputWindowKey) {

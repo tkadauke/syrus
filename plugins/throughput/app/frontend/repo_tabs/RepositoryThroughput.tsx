@@ -47,7 +47,6 @@ export function RepositoryThroughputRoute({ repositoryId, prefix }: { repository
         ) : null
       }
       prefix={prefix}
-      tabs={metrics.data?.tabs ?? []}
     >
       {metrics.isPending ? <Notice>{t("loading")}</Notice> : null}
       {metrics.isError ? <Notice tone="danger">{errorMessage(metrics.error, t("load_error"))}</Notice> : null}

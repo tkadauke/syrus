@@ -71,7 +71,6 @@ function RepositoryHealth({
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
     >
       {detail.isPending ? <PanelMessage>{t("repository.loading")}</PanelMessage> : null}
       {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("repository.error_load"))}</PanelMessage> : null}
