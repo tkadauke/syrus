@@ -464,20 +464,21 @@ describe("App shell and navigation", () => {
   })
 
   it("keeps Setup in the v2 sidebar and reveals navigation after onboarding chat starts", async () => {
+    const firstChatSetup = setupStatus({
+      state: "first_chat_started",
+      next_step: "start_first_chat",
+      next_step_path: "/onboarding",
+      first_successful_job_completed: false,
+      first_epic_landed: false,
+      onboarding_chat_started: true
+    })
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
     script.textContent = JSON.stringify(
       bootstrapPayload({
         setup: setupStatusPayload({ complete: false, chat_started: true, onboarding_chat_path: "/chats/5", next_step: "epic" }),
-        setup_status: setupStatus({
-          state: "first_chat_started",
-          next_step: "start_first_chat",
-          next_step_path: "/onboarding",
-          first_successful_job_completed: false,
-          first_epic_landed: false,
-          onboarding_chat_started: true
-        }),
+        setup_status: firstChatSetup,
         current_user: {
           ...bootstrapPayload().current_user,
           layout_version: "v2"
@@ -494,6 +495,9 @@ describe("App shell and navigation", () => {
       }
       if (String(input) === "/api/v1/app/sidebar_pages") {
         return Promise.resolve(new Response(JSON.stringify(sidebarPluginPagesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (String(input) === "/api/v1/app/setup") {
+        return Promise.resolve(new Response(JSON.stringify(firstChatSetup), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
