@@ -245,6 +245,7 @@ module Admin
         Filters
         InputSources
         Job
+        Mcp::Tools
         SourceControl
       ].include?(constant)
     end
