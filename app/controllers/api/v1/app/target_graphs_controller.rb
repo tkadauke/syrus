@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class TargetGraphsController < BaseController
-
         def repository
           repository = Repository.accessible_to(Current.user).find(params[:repository_id] || params[:id])
           payload = ::App::TargetGraphPayload.for_repository(repository: repository, user: Current.user, params: params)
