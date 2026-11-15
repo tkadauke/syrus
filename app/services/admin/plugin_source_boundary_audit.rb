@@ -32,6 +32,23 @@ module Admin
     SOURCE_EXTENSIONS = %w[.rb .rake .erb .ts .tsx .js .jsx].freeze
     COMMENT_ONLY = /\A\s*(#|\/\/)/
 
+    # Constants installed into core extension namespaces are callable adapter
+    # contracts rather than plugin namespaces. Their implementations may move
+    # with a bundled plugin while generic core dispatch is migrated separately.
+    SHARED_EXTENSION_CONSTANTS = %w[
+      Mcp::CoworkerToolCatalog
+      Mcp::Tools::CoworkerObservabilityAuthorization
+      Mcp::Tools::CoworkerRepositoryAccess
+      Mcp::Tools::DiscoverCoworkerCapabilitiesTool
+      Mcp::Tools::RequestPermissionRevocationTool
+      Mcp::Tools::SurrenderPermissionLeaseTool
+      Permissions::CoworkerActions
+      Permissions::CoworkerAuthorizationRequest
+      Permissions::CoworkerCapabilityDiscovery
+      Permissions::CoworkerDefaultPolicy
+      Permissions::CoworkerPermissionRequest
+    ].freeze
+
     # Narrow exceptions where core is intentionally probing an optional plugin
     # behind a constant-defined guard. These keep optionality because the files
     # still parse and boot when the plugin gem is physically absent.
@@ -208,7 +225,9 @@ module Admin
     end
 
     def owned_constants(dir, files)
-      (path_derived_constants(dir, files) + explicit_constants(files)).uniq
+      (path_derived_constants(dir, files) + explicit_constants(files)).uniq.reject do |constant|
+        shared_extension_namespace?(constant)
+      end
     end
 
     def path_derived_constants(dir, files)
@@ -238,6 +257,8 @@ module Admin
     end
 
     def shared_extension_namespace?(constant)
+      return true if SHARED_EXTENSION_CONSTANTS.include?(constant)
+
       %w[
         AgentProviders
         Api
