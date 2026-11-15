@@ -29,8 +29,8 @@ export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
     result_summary: resultPresentation?.summary,
     summary_metadata: resultPresentation?.metadata,
     payload: content || { content: message.content ?? message.text },
-    proposal_id: proposal?.id || null,
-    proposal_state_label: proposal?.state === "proposed" ? "pending" : proposal?.state || null
+    proposal_reference: proposal ? `"${proposal.title}" (${proposal.slug})` : null,
+    proposal_state_label: proposal?.state_label || null
   }
 }
 
