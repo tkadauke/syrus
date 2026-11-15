@@ -1,18 +1,29 @@
 import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { RepositoryThroughputRoute } from "./RepositoryThroughput"
 import type { RepositoryThroughputMetricsPayload } from "../api/throughput"
 
+vi.mock("@app/api/repoPluginTabs", () => ({
+  fetchRepoPluginTabs: vi.fn().mockResolvedValue({
+    tabs: [
+      { id: "overview", key: "overview", label: "Overview", path: "/repositories/1", paths: ["/repositories/1"], order: 0 },
+      {
+        id: "throughput.repository",
+        key: "throughput.repository",
+        label: "Throughput",
+        path: "/repositories/1/plugin/throughput",
+        paths: ["/repositories/1/plugin/throughput"],
+        order: 1
+      }
+    ]
+  })
+}))
+
 const THROUGHPUT_PATH = "/api/v1/app/repositories/1/throughput_metrics"
 const REPOSITORY = { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" }
-const TABS = [
-  { key: "overview", label: "Overview", path: "/repositories/1" },
-  { key: "throughput.repository", label: "Throughput", path: "/repositories/1/plugin/throughput" }
-]
-
 function throughputWindow(overrides = {}) {
   return {
     range: { start: "2026-07-31T08:00:00Z", end: "2026-07-31T12:00:00Z", hours: 4 },
@@ -129,7 +140,6 @@ function throughputPayload(windowKey: "1h" | "4h" = "4h"): RepositoryThroughputM
     repository_id: 1,
     generated_at: "2026-07-31T12:00:00Z",
     repository: REPOSITORY,
-    tabs: TABS,
     windows: {
       [windowKey]: {
         "1h": empty,
@@ -143,8 +153,10 @@ function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
-        <RepositoryThroughputRoute prefix="" repositoryId="1" />
+      <MemoryRouter initialEntries={["/repositories/1/plugin/throughput"]}>
+        <Routes>
+          <Route path="/repositories/:repositoryId/plugin/throughput" element={<RepositoryThroughputRoute prefix="" repositoryId="1" />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   )

@@ -7,6 +7,10 @@ import { jsonResponse } from "@app/testSupport"
 import type { GitHistoryCommit, GitHistoryPage } from "../api/gitHistory"
 import { GitHistory } from "./GitHistory"
 
+vi.mock("@app/api/repoPluginTabs", () => ({
+  fetchRepoPluginTabs: vi.fn().mockResolvedValue({ tabs: [] })
+}))
+
 // Stub the hover-triggered preview cards so the popup-card assertion below
 // doesn't need to also mock their own job/epic detail fetches.
 vi.mock("@app/components/JobPreviewCard", () => ({
