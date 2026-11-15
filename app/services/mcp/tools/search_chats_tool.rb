@@ -215,7 +215,7 @@ module Mcp::Tools
           message_id: row.fetch(:chat_message_id),
           chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
           badges: badges_by_chat_id.fetch(chat_session.id, []),
-          coworker_name: badges_by_chat_id.fetch(chat_session.id, []).find { |badge| badge[:kind].to_s == "coworker" }&.fetch(:name, nil),
+          coworker_name: badges_by_chat_id.fetch(chat_session.id, []).find { |badge| badge["kind"].to_s == "coworker" }&.fetch("name", nil),
           role: row.fetch(:role),
           snippet: row.fetch(:snippet),
           created_at: row.fetch(:created_at)
