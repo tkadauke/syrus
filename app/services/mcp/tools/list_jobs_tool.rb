@@ -30,7 +30,7 @@ module Mcp::Tools
         Mcp::Tools.success(
           jobs: scope
             .limit(normalize_limit(limit))
-            .preload(:repository)
+            .preload(:repository, :workflows)
             .map { |job| job_list_payload(job) }
         )
       end
