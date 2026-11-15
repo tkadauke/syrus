@@ -70,8 +70,8 @@ RSpec.describe Coworkers::ChatIdentityProvider do
       skip_turn_trigger: true
     )
 
-    expect(described_class.chat_message_presentations(messages: [ message ]))
-      .to include(message.id => include(coworker_sender: include(handle: "maya-identity")))
+    expect(described_class.chat_message_presentations(messages: [ message ]).dig(message.id, :plugin_message, :data, :appearance))
+      .to include(handle: "maya-identity")
   end
 
   it "computes coworker message presentations once during generic serialization" do
@@ -88,6 +88,6 @@ RSpec.describe Coworkers::ChatIdentityProvider do
 
     payload = App::ChatMessagePayload.messages([ message ], repository: nil).sole
 
-    expect(payload.fetch(:coworker_sender)).to include("handle" => "maya-identity")
+    expect(payload.dig(:plugin_message, "data", "appearance")).to include("handle" => "maya-identity")
   end
 end

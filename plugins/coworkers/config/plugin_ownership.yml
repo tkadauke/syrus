@@ -44,6 +44,7 @@ ownership:
     - write_coworker_file
   frontend_contributions:
     - coworkers/Coworkers
+    - coworkers/CoworkerMessage
     - coworkers review contributions
     - coworkers tool cards
   documentation_paths:

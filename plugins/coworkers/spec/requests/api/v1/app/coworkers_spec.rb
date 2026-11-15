@@ -123,11 +123,11 @@ RSpec.describe "API: coworkers", type: :request do
 
     expect(response).to have_http_status(:ok)
     messages = response.parsed_body.fetch("messages")
-    expect(messages.first.fetch("coworker_sender")).to include(
+    expect(messages.first.dig("plugin_message", "data", "appearance")).to include(
       "id" => sender.id, "name" => "Maya", "handle" => "maya-payload",
       "accent_hex" => sender.accent_hex, "avatar_key" => "comet", "avatar_url" => nil
     )
-    expect(messages.last.fetch("coworker_receiver")).to include("id" => receiver.id, "name" => "Rin", "handle" => "rin-payload")
+    expect(messages.last.dig("plugin_message", "data", "appearance")).to include("id" => receiver.id, "name" => "Rin", "handle" => "rin-payload")
     appearance_queries = queries.grep(/WHERE [\"`]?coworkers[\"`]?\.[\"`]?id[\"`]? IN/i)
     expect(appearance_queries.size).to eq(1)
   end
@@ -153,7 +153,7 @@ RSpec.describe "API: coworkers", type: :request do
 
     expect(response).to have_http_status(:ok)
     message = response.parsed_body.fetch("messages").sole
-    expect(message).not_to have_key("coworker_sender")
+    expect(message.dig("plugin_message", "data", "appearance")).to be_nil
     expect(message.fetch("text")).to start_with("Message from @saved-handle")
     expect(message.dig("content", "coworker_message", "sender_handle")).to eq("saved-handle")
     expect(response.body).not_to include("Private Agent", "private-agent")
