@@ -27,24 +27,10 @@ module Coworkers
           rostered ? Coworkers::TurnChatContext.new(self, rostered) : self
         end
 
-        ChatSession.define_method(:with_agent_operation_lock) do |message, &block|
-          agent = agent_turn_context(message).coworker
-          return block.call unless agent.respond_to?(:kind) && agent.kind == "coworker"
-
-          Coworkers::OperationLock.with(agent, wait: 30.minutes.to_i, &block)
-        end
-
         ChatSession.define_method(:workspace_file_read_policy) do |relative_path|
           next unless coworker_chat
 
           Coworkers::WorkspaceFileReadPolicy.for(relative_path)
-        end
-
-        ChatSession.define_method(:agent_turn_admission) do |message|
-          agent = agent_turn_context(message).coworker
-          next {} unless agent.respond_to?(:kind) && agent.kind == "coworker"
-
-          Coworkers::PrivilegedGrantGate.turn_admission(agent)
         end
 
         ChatSession.define_method(:coworker_grant_availability) do |capability|
@@ -77,7 +63,7 @@ module Coworkers
         end
 
         -> do
-          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy agent_turn_admission coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
+          %i[coworker coworker_roster_mention agent_turn_context workspace_file_read_policy coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end
