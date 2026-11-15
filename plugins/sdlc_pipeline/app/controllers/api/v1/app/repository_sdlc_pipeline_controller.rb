@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class RepositorySdlcPipelineController < BaseController
-
         def show
           repository = ::Repository.accessible_to(Current.user).find(params[:repository_id])
           ::SmartFolder.ensure_builtins_for_subject!(::SdlcPipeline::SmartFolders::SUBJECT)

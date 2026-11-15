@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class DesignDocsController < BaseController
-
         PER_PAGE = 25
 
         before_action :require_design_docs_enabled
