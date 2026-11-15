@@ -54,7 +54,6 @@ module Prompts
       {
         proposals: @goal.chat_session.proposals.where(chat_goal_id: @goal.id).order(created_at: :desc).limit(10).map do |proposal|
           {
-            id: proposal.id,
             slug: proposal.slug,
             kind: proposal.kind,
             state: proposal.state,
