@@ -73,9 +73,11 @@ specific resolved state or all outcomes, filter by Job, and cap the result
 count. Results contain only target identifiers, short operator-facing context,
 status and timestamps; raw tool arguments are not exposed.
 
-The agent can call `withdraw_pending_action` with an action ID and an
-optional concise reason when it recognizes that it proposed an action in
-error. The tool is scoped to the current chat and its owner, acts immediately
+The agent can call `withdraw_pending_action` by action name and optional Job
+target, or with no selector when the chat has exactly one withdrawable action.
+A numeric ID remains available only as an exact handle for ambiguous cases.
+The tool also accepts an optional concise reason. It is scoped to the current
+chat and its owner, acts immediately
 without creating a second confirmation, rejects pending actions, and cancels
 queued or otherwise cancellable actions. Repeating the call for an already
 rejected or cancelled action returns an unchanged, idempotent result. Grouped

@@ -80,9 +80,10 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
 
     response = call_tool("cancel_job", job_id: job.id)
     body = payload(response)
-    pending_action = chat_session.pending_actions.find(body[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
 
     expect(body).to include(message: "Cancel #{job.slug}? Cancellation requires operator confirmation.")
+    expect(body).not_to have_key(:pending_confirmation_id)
     expect(pending_action).to be_pending
     expect(pending_action).to have_attributes(action: "cancel_job", requested_by: "agent")
     expect(pending_action.payload).to eq("job_id" => job.id)
@@ -193,8 +194,11 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
       closure_reason: "no_changes",
       comment: "No unique patches remain against the stack parent."
     )
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    body = payload(response)
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
 
+    expect(body).to include(message: include(job.slug))
+    expect(body).not_to have_key(:pending_confirmation_id)
     expect(pending_action).to be_pending
     expect(pending_action).to have_attributes(action: "close_job_successfully", requested_by: "agent")
     expect(pending_action.payload).to eq(
@@ -693,7 +697,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     job = make_retryable_job
 
     response = call_tool("retry_job", job_id: job.id)
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect(pending_action).to be_pending
     expect(pending_action.action).to eq("retry_job")
@@ -909,7 +913,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     job = Factories.job(repository: repository, pr_number: 12)
 
     response = call_tool("rebase_job", job_id: job.id, reason: "Bring the branch current.")
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect(pending_action).to be_pending
     expect(pending_action.action).to eq("rebase_job")
@@ -920,7 +924,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     other_job = Factories.job(repository: Factories.repository(user: user))
 
     response = call_tool("cancel_job", job_id: other_job.id)
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => other_job.id })
@@ -1013,7 +1017,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
       response = admin_call("cancel_job", job_id: job.id)
 
       expect(response.dig(:result, :isError)).to be_falsey
-      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_action_id])
       expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => job.id })
     end
 
@@ -1023,7 +1027,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
       response = admin_call("close_job_successfully", job_id: job.id, closure_reason: "no_changes")
 
       expect(response.dig(:result, :isError)).to be_falsey
-      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_action_id])
       expect(pending_action).to have_attributes(
         action: "close_job_successfully",
         payload: { "job_id" => job.id, "closure_reason" => "no_changes" }
@@ -1036,7 +1040,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
       response = admin_call("retry_job", job_id: job.id)
 
       expect(response.dig(:result, :isError)).to be_falsey
-      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_action_id])
       expect(pending_action).to have_attributes(action: "retry_job", payload: { "job_id" => job.id })
     end
 
@@ -1048,7 +1052,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
       expect(response.dig(:result, :isError)).to be_falsey
       response_payload = payload(response)
       expect(response_payload).to include(job_id: job.id, previous_state: "running", new_state: "failed")
-      pending_action = admin_chat_session.pending_actions.find(response_payload[:pending_confirmation_id])
+      pending_action = admin_chat_session.pending_actions.find(response_payload[:pending_action_id])
       expect(pending_action).to have_attributes(
         action: "force_fail_job",
         payload: { "job_id" => job.id, "previous_state" => "running" },
@@ -1087,7 +1091,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
       response = admin_call("rebase_job", job_id: job.id, reason: "Refresh mergeability.")
 
       expect(response.dig(:result, :isError)).to be_falsey
-      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_action_id])
       expect(pending_action).to have_attributes(action: "rebase_job", payload: { "job_id" => job.id }, reason: "Refresh mergeability.")
     end
   end

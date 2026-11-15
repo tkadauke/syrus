@@ -14,8 +14,9 @@ RSpec.describe Mcp::Tools::WithdrawPendingActionTool, :full_chat_access do
     )
   end
 
-  def call_tool(id, reason: nil)
-    arguments = { pending_action_id: id }
+  def call_tool(id = nil, reason: nil, **selectors)
+    arguments = selectors
+    arguments[:pending_action_id] = id if id
     arguments[:reason] = reason if reason
     raw = server.handle_json({
       jsonrpc: "2.0",
@@ -58,6 +59,34 @@ RSpec.describe Mcp::Tools::WithdrawPendingActionTool, :full_chat_access do
       reason: "Proposed against the wrong target",
       rejected_at: be_present
     )
+  end
+
+  it "withdraws the only pending action without a selector" do
+    pending_action = action
+
+    expect(payload(call_tool)).to include(action: "pause_landing_queue", resulting_state: "rejected")
+    expect(pending_action.reload).to be_rejected
+  end
+
+  it "withdraws by action and Job target" do
+    matching = chat_session.pending_actions.create!(action: "retry_job", payload: { "job_id" => 42 })
+    other = chat_session.pending_actions.create!(action: "retry_job", payload: { "job_id" => 43 })
+
+    expect(payload(call_tool(action: "retry_job", job_id: 42))).to include(action: "retry_job", resulting_state: "rejected")
+    expect(matching.reload).to be_rejected
+    expect(other.reload).to be_pending
+  end
+
+  it "describes semantic candidates when a request is ambiguous" do
+    chat_session.pending_actions.create!(action: "retry_job", payload: { "job_id" => 42 }, reason: "CI failed")
+    chat_session.pending_actions.create!(action: "cancel_job", payload: { "job_id" => 43 }, reason: "Duplicate work")
+
+    response = call_tool
+    message = response.fetch(:result).fetch(:content).first.fetch(:text)
+
+    expect(response[:result][:isError]).to be(true)
+    expect(message).to include("retry_job for JOB-42 (reason: CI failed)", "cancel_job for JOB-43 (reason: Duplicate work)")
+    expect(message).not_to match(/pending action \d+/)
   end
 
   it "cancels queued actions but preserves failed execution outcomes" do

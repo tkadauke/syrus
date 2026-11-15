@@ -237,7 +237,6 @@ module Mcp::Tools
         action = result.request
         server_context[:current_message]&.update_columns(pending_action_id: action.id)
         Mcp::Tools.success(
-          pending_confirmation_id: action.id,
           pending_action_id: action.id,
           approval_policy: "queue",
           message: I18n.t("server.permissions.coworker_request_waiting")

@@ -64,18 +64,18 @@ module Mcp::Tools
 
       def serialize(action)
         payload = action.payload.to_h
+        reason = action.reason.presence || payload["reason"].presence || payload["message"].presence || action.purpose.presence
         row = {
-          pending_action_id: action.id,
           action: action.action.presence || action.action_type,
+          target_ids: payload.select { |key, _value| key.to_s.match?(ID_KEY) }.presence,
+          reason: (safe_summary(reason, 500) if reason),
           state: action.state,
           execution_status: action.execution_status,
           group_id: action.pending_action_group_id,
           created_at: action.created_at&.iso8601,
-          resolved_at: resolved_at(action)&.iso8601
+          resolved_at: resolved_at(action)&.iso8601,
+          pending_action_id: action.id
         }
-        row[:target_ids] = payload.select { |key, _value| key.to_s.match?(ID_KEY) } if payload.any?
-        reason = action.reason.presence || payload["reason"].presence || payload["message"].presence || action.purpose.presence
-        row[:reason] = safe_summary(reason, 500) if reason
         row[:error_summary] = safe_summary(action.execution_error, 300) if action.execution_error.present?
         row.compact
       end

@@ -80,7 +80,6 @@ module Mcp::Tools
           )
 
           return Mcp::Tools.success(
-            pending_confirmation_id: pending_action.id,
             pending_action_id: pending_action.id,
             state: pending_action.state,
             message: mode.to_s == "auto" ? "Job retry requires operator confirmation." : "#{mode.to_s.humanize} Job retry requires operator confirmation.",

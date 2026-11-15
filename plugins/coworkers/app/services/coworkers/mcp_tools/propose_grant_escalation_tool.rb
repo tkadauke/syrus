@@ -33,7 +33,7 @@ module Coworkers::McpTools
           server_context, chat, action: "escalate_coworker_grants", payload: payload, requested_by: "agent"
         )
         Mcp::Tools.success(
-          pending_confirmation_id: pending_action.id, pending_action_id: pending_action.id,
+          pending_action_id: pending_action.id,
           state: pending_action.state, message: "Change grants for @#{coworker.handle}?",
           grant_escalation: payload
         )

@@ -7,6 +7,17 @@ RSpec.describe Prompts::ChatSystem do
     output[/Pinned context:\n(?<body>(?:  - .*\n)+)/, :body].rstrip
   end
 
+  it "forbids quoting numeric pending-action ids and uses descriptive references" do
+    admin = Factories.user(admin: true)
+    chat = ChatSession.create!(user: admin)
+    out = described_class.new(repository: nil, chat_session: chat).to_s
+
+    expect(out).to include("The operator sees each pending action as a descriptive")
+    expect(out).to include("card, not as a number. Never write a numeric pending action id in a")
+    expect(out).to include("distinguish them by action and target, never by record id")
+    expect(out).not_to include("proposed action, pending\n          action id")
+  end
+
   it "interpolates the repository slug into the role framing" do
     out = described_class.new(repository: repo).to_s
 

@@ -34,6 +34,10 @@ RSpec.describe Mcp::Tools::ListPendingActionsTool, :full_chat_access do
       state: "pending"
     ))
     expect(result.to_s).not_to include("do not expose")
+    serialized = result.fetch(:actions).first.to_json
+    expect(serialized.index('"action"')).to be < serialized.index('"target_ids"')
+    expect(serialized.index('"target_ids"')).to be < serialized.index('"reason"')
+    expect(serialized.index('"reason"')).to be < serialized.index('"pending_action_id"')
   end
 
   it "filters resolved states and jobs, including grouped job_ids" do
