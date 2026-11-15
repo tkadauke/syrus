@@ -46,7 +46,7 @@ RSpec.describe "App API investigation report", type: :request do
       server_context: { run: run }
     )
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/tabs/summary"
 
     expect(response).to have_http_status(:ok)
     body = parse_body

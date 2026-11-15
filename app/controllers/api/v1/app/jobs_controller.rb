@@ -65,13 +65,13 @@ module Api
         end
 
         def show
-          render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
+          render json: ::App::JobDetailPayload.header(job: find_job, user: Current.user, params: params)
         end
 
         def tab
           render json: ::App::JobDetailPayload.tab(job: find_job, user: Current.user, tab: params[:tab])
         rescue ArgumentError
-          render_error("invalid_tab", "Unknown Job tab.", status: :not_found)
+          render_error("invalid_tab", t("api.jobs.errors.invalid_tab"), status: :not_found)
         end
 
         def visual_evidence
@@ -125,7 +125,7 @@ module Api
           etag = ::App::JobDetailPayload.workflows_etag(job: job, user: Current.user, params: params)
           return unless stale?(etag: etag, public: false)
 
-          render json: ::App::JobDetailPayload.workflows(job: job, user: Current.user, params: params)
+          render json: ::App::JobDetailPayload.workflow_summaries(job: job, user: Current.user, params: params)
         end
 
         def chat_feedback

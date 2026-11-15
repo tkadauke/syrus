@@ -1377,7 +1377,8 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       get "/api/v1/app/jobs/#{job.id}/workflows", as: :json
 
       entry = parse_body.fetch("workflows").find { |w| w["id"] == workflow.id }
-      expect(entry).to include("dismissable" => true, "blocked_reason_text" => "main branch broken", "app_dismiss_path" => dismiss_path(job, workflow))
+      expect(entry).to include("dismissable" => true, "blocked_reason_text" => "main branch broken")
+      expect(entry).not_to have_key("app_dismiss_path")
     end
   end
 end

@@ -386,6 +386,7 @@ en:
         diagnostic_queued: "Diagnostic queued - snapshot will appear shortly."
     jobs:
       errors:
+        invalid_tab: "Unknown Job tab."
         invalid_priority: "Invalid priority value."
         invalid_provider_setting: "Invalid provider setting."
         provider_not_configured: "That agent is not configured."

@@ -22,7 +22,15 @@ module App
       new(job: job, user: user, params: params, client: client).payload
     end
 
+    def self.header(job:, user:, params: {}, client: nil)
+      new(job: job, user: user, params: params, client: client).header_payload
+    end
+
     def self.workflows(job:, user:, params: {})
+      new(job: job, user: user, params: params).detailed_workflows_payload
+    end
+
+    def self.workflow_summaries(job:, user:, params: {})
       new(job: job, user: user, params: params).workflows_payload
     end
 
@@ -75,6 +83,20 @@ module App
     end
 
     def payload
+      @workflow_detail = true
+      header_payload.merge(
+        summary_tab_payload,
+        review_tab_payload,
+        pending_feedback: pending_feedback_json,
+        preview: preview_env_json,
+        preview_projects: preview_project_selection.to_a,
+        preview_unavailable_reason: preview_project_selection.unavailable_reason,
+        deploy: deploy_workflow_json,
+        ui_workflow_actions: ::App::UiSlotsPayload.panels_for(slot: "job.workflow.actions", context: { job: @job, user: Current.user })
+      )
+    end
+
+    def header_payload
       PerformanceLogging.phase("job_detail_payload", job_id: @job.id) do
         result = {
           job: PerformanceLogging.phase("job_detail.job", job_id: @job.id) { job_json },
@@ -138,6 +160,20 @@ module App
           ui_workflow_actions: ::App::UiSlotsPayload.panels_for(slot: "job.workflow.actions", context: { job: @job, user: Current.user })
         }
       end
+    end
+
+    def detailed_workflows_payload
+      @workflow_detail = true
+      {
+        job_id: @job.id,
+        current_intent: work_unit_debug_enabled? ? current_intent_json : nil,
+        work_units: work_unit_debug_enabled? ? work_units_json : [],
+        workflows: paginated_workflows.map { |workflow| workflow_json(workflow, navigation_page: workflows_page) },
+        workflows_pagination: workflows_pagination_json,
+        feature_flags: feature_flags_json,
+        actions: actions_json,
+        paths: paths_json
+      }
     end
 
     def timeline_payload
@@ -221,6 +257,33 @@ module App
         provider_routing_resolution: provider_routing_resolution_json,
         active_provider_routing_holds: active_provider_routing_holds_json
       }
+    end
+
+    def pending_feedback_json
+      scope = @job.pr_review_comments.order(:comment_created_at, :id)
+      scope = if @job.repository.feedback_policy_confirm?
+        scope.pending_for_operator_review
+      else
+        scope.retryable_handling_review
+      end
+
+      scope.map do |comment|
+        {
+          id: comment.id,
+          github_handle: comment.github_handle,
+          attributed_to: comment.attributed_to,
+          pr_type: comment.pr_type,
+          comment_kind: comment.comment_kind,
+          body: comment.body,
+          comment_created_at: iso8601(comment.comment_created_at),
+          handling_state: comment.handling_state || "pending",
+          handling_workflow_id: comment.handling_workflow_id,
+          handling_failed_at: iso8601(comment.handling_failed_at),
+          handling_failure_reason: comment.handling_failure_reason,
+          classification: comment.classification_audit,
+          retryable: comment.retryable_handling_without_workflow_load?
+        }
+      end
     end
 
     private
@@ -308,17 +371,6 @@ module App
         planned_execution: @job.planned_execution_json,
         planned_execution_override: planned_execution_override_json,
         placement_recommendation: placement_recommendation_json,
-        provider_routing_options: provider_routing_options_json(@user),
-        provider_routing_rules: provider_routing_rules_json(scope_type: "job", scope_id: @job.id),
-        inherited_provider_routing_context: provider_routing_inherited_context_json(
-          scope_type: "job",
-          scope_id: @job.id,
-          job_id: @job.id,
-          repository_id: @job.repository_id,
-          user_id: @job.effective_owner_id
-        ),
-        provider_routing_resolution: provider_routing_resolution_json,
-        active_provider_routing_holds: active_provider_routing_holds_json,
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,

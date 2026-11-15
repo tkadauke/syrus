@@ -199,6 +199,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs` | `api/v1/app/direct_jobs#create` |
 | core | GET | `/api/v1/app/jobs/:id` | `api/v1/app/jobs#show` |
 | core | GET | `/api/v1/app/jobs/:id/agent_conversation` | `api/v1/app/jobs#agent_conversation` |
+| core | GET | `/api/v1/app/jobs/:id/agent_conversation/nodes/:node_id` | `api/v1/app/jobs#agent_conversation_node` |
 | core | POST | `/api/v1/app/jobs/:id/chat_feedback` | `api/v1/app/jobs#chat_feedback` |
 | core | GET | `/api/v1/app/jobs/:id/diff` | `api/v1/app/jobs#diff` |
 | core | GET | `/api/v1/app/jobs/:id/source` | `api/v1/app/jobs#source` |
@@ -207,6 +208,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/:id/source_file_diff` | `api/v1/app/jobs#source_file_diff` |
 | core | GET | `/api/v1/app/jobs/:id/source_file_diff_download` | `api/v1/app/jobs#source_file_diff_download` |
 | core | GET | `/api/v1/app/jobs/:id/source_image` | `api/v1/app/jobs#source_image` |
+| core | GET | `/api/v1/app/jobs/:id/tabs/:tab` | `api/v1/app/jobs#tab` |
 | core | GET | `/api/v1/app/jobs/:id/timeline` | `api/v1/app/jobs#timeline` |
 | core | GET | `/api/v1/app/jobs/:id/transcript` | `api/v1/app/jobs#transcript` |
 | core | GET | `/api/v1/app/jobs/:id/unland` | `api/v1/app/jobs#unland_plan` |
@@ -461,6 +463,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PATCH | `/api/v1/app/user_time_zone` | `api/v1/app/user_time_zones#update` |
 | core | GET | `/api/v1/app/users/invitable` | `api/v1/app/users#invitable` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/coverage_hit_map` | `api/v1/app/workflows#coverage_hit_map` |
+| core | GET | `/api/v1/app/workflows/:workflow_id/detail` | `api/v1/app/workflows#detail` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/preview` | `api/v1/app/workflows#preview` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/target_graph` | `api/v1/app/target_graphs#workflow` |
 | core | GET | `/api/v1/app/workflows/:workflow_id/visual_artifact` | `api/v1/app/workflows#visual_artifact` |
