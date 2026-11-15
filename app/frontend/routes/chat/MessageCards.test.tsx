@@ -331,9 +331,21 @@ describe("coworker messages", () => {
   it("renders an incoming message with the sender appearance and hides its transport prefix", () => {
     const item = userMessage("Message from @dinesh\n\nI made it faster.", {
       content: incomingContent,
-      plugin_message: { component: "coworkers/CoworkerMessage", data: { direction: "incoming", handle: "dinesh", appearance: {
-        id: 8, name: "Dinesh", handle: "dinesh", accent_hex: "#0090FF", avatar_key: "comet", avatar_url: null
-      } } }
+      plugin_message: {
+        component: "coworkers/CoworkerMessage",
+        data: {
+          direction: "incoming",
+          handle: "dinesh",
+          appearance: {
+            id: 8,
+            name: "Dinesh",
+            handle: "dinesh",
+            accent_hex: "#0090FF",
+            avatar_key: "comet",
+            avatar_url: null
+          }
+        }
+      }
     })
 
     renderChatMessageItem(item)
@@ -360,9 +372,21 @@ describe("coworker messages", () => {
         counterpart_chat_session_id: 696,
         counterpart_chat_title: "Monica"
       },
-      plugin_message: { component: "coworkers/CoworkerMessage", data: { direction: "incoming", handle: "monica", appearance: {
-        id: 8, name: "Monica", handle: "monica", accent_hex: "#E5484D", avatar_key: "spark", avatar_url: null
-      } } }
+      plugin_message: {
+        component: "coworkers/CoworkerMessage",
+        data: {
+          direction: "incoming",
+          handle: "monica",
+          appearance: {
+            id: 8,
+            name: "Monica",
+            handle: "monica",
+            accent_hex: "#E5484D",
+            avatar_key: "spark",
+            avatar_url: null
+          }
+        }
+      }
     })
 
     renderChatMessageItem(item)
@@ -384,9 +408,21 @@ describe("coworker messages", () => {
           source: "coworker_message",
           coworker_message: { direction: "outgoing", receiver_id: 9, receiver_handle: "gilfoyle" }
         },
-        plugin_message: { component: "coworkers/CoworkerMessage", data: { direction: "outgoing", handle: "gilfoyle", appearance: {
-          id: 9, name: "Gilfoyle", handle: "gilfoyle", accent_hex: "#8B5CF6", avatar_key: "prism", avatar_url: null
-        } } }
+        plugin_message: {
+          component: "coworkers/CoworkerMessage",
+          data: {
+            direction: "outgoing",
+            handle: "gilfoyle",
+            appearance: {
+              id: 9,
+              name: "Gilfoyle",
+              handle: "gilfoyle",
+              accent_hex: "#8B5CF6",
+              avatar_key: "prism",
+              avatar_url: null
+            }
+          }
+        }
       }
     )
 

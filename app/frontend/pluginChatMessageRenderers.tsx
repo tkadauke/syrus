@@ -15,12 +15,17 @@ export type PluginChatMessageProps = {
 }
 
 type PluginModule = { default?: ComponentType<PluginChatMessageProps> }
-const modules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/chat_message_renderers/*.tsx", "!../../plugins/*/app/frontend/chat_message_renderers/*.test.tsx"], { eager: true })
+const modules = import.meta.glob<PluginModule>(
+  ["../../plugins/*/app/frontend/chat_message_renderers/*.tsx", "!../../plugins/*/app/frontend/chat_message_renderers/*.test.tsx"],
+  { eager: true }
+)
 const pattern = /^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/chat_message_renderers\/([^/.]+)\.tsx$/
-const components = Object.fromEntries(Object.entries(modules).flatMap(([path, module]) => {
-  const match = path.match(pattern)
-  return match && module.default ? [[`${match[1]}/${match[2]}`, module.default]] : []
-})) as Record<string, ComponentType<PluginChatMessageProps>>
+const components = Object.fromEntries(
+  Object.entries(modules).flatMap(([path, module]) => {
+    const match = path.match(pattern)
+    return match && module.default ? [[`${match[1]}/${match[2]}`, module.default]] : []
+  })
+) as Record<string, ComponentType<PluginChatMessageProps>>
 
 export function pluginChatMessageComponentFor(key: string | null | undefined) {
   return key ? components[key] || null : null

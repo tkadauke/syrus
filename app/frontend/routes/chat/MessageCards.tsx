@@ -117,7 +117,8 @@ export const ChatMessage = memo(function ChatMessage({
     if (workspaceHrefLooksLocal(href)) event.preventDefault()
   }
 
-  if (item.plugin_message) return renderPluginChatMessage({ item, payload, presentation: item.plugin_message, prefix, queryKey, readOnly, entranceClass, onNotice })
+  if (item.plugin_message)
+    return renderPluginChatMessage({ item, payload, presentation: item.plugin_message, prefix, queryKey, readOnly, entranceClass, onNotice })
 
   if (item.role === "user") {
     return (
@@ -1271,9 +1272,6 @@ export const ToolGroup = memo(function ToolGroup(props: ToolGroupProps) {
     </Suspense>
   )
 }, sameToolGroupProps)
-
-
-
 
 function LazyToolContent({ path }: { path: string }) {
   const { t } = useT("chat")
