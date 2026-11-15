@@ -72,7 +72,6 @@ const ISSUE_FILTER_SCHEMA = [
 function issuesPayload(overrides: Partial<RepositoryIssuesPayload> = {}): RepositoryIssuesPayload {
   return {
     repository: repository(),
-    tabs: tabs(),
     folder: "inbox",
     query: null,
     filter: { and: [] },
@@ -103,6 +102,9 @@ function encodeFilterTree(tree: Record<string, unknown>): string {
 
 function renderRoute(initialEntry = "/repositories/1/plugin/issues") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["repositories", "1", "plugin_tabs"], {
+    tabs: tabs().map((tab, order) => ({ ...tab, id: tab.key, paths: [tab.path], order }))
+  })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>

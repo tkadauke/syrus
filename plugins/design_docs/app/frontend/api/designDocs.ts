@@ -1,7 +1,6 @@
 import { getJson, patchJson, postJson } from "@app/api/client"
 import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
 import type { FilterSchemaField } from "@app/components/filterBar/types"
-import type { RepositoryTab } from "@app/api/repositories"
 
 export type DesignDocUser = {
   id: number
@@ -185,7 +184,6 @@ export type DesignDocsIndexPayload = {
 
 export type RepositoryDesignDocsPayload = DesignDocsIndexPayload & {
   repository: DesignDocRepository
-  tabs: RepositoryTab[]
 }
 
 export type DesignDocDetailPayload = {
