@@ -129,6 +129,7 @@ RSpec.describe Permissions::CoworkerDefaultPolicy do
   describe Permissions::CoworkerActions do
     it "derives grant defaults from the descriptor table" do
       expect(described_class.grant_default_policy("code.read")).to eq("auto")
+      expect(described_class.grant_default_policy("syrus.jobs")).to eq("confirm")
       expect(described_class.grant_default_policy("syrus.propose_job")).to eq("auto")
       expect(described_class.grant_default_policy("ops.read_logs")).to eq("confirm")
       expect(described_class.grant_default_policy("chats.read_shared")).to eq("confirm")
