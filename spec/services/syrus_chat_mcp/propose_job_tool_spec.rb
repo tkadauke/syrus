@@ -57,8 +57,9 @@ RSpec.describe Mcp::Tools::ProposeJobTool, :full_chat_access do
     )
 
     expect(response_payload(urgent_response)).to include(priority: "urgent")
-    expect(ChatProposal.find(response_payload(urgent_response).fetch(:id))).to have_attributes(priority: "urgent")
-    expect(ChatProposal.find(response_payload(default_response).fetch(:id))).to have_attributes(priority: "medium")
+    expect(response_payload(urgent_response)).not_to have_key(:id)
+    expect(ChatProposal.find_by!(slug: response_payload(urgent_response).fetch(:slug))).to have_attributes(priority: "urgent")
+    expect(ChatProposal.find_by!(slug: response_payload(default_response).fetch(:slug))).to have_attributes(priority: "medium")
   end
 
   it "rejects an unknown priority before creating a proposal" do
@@ -88,7 +89,7 @@ RSpec.describe Mcp::Tools::ProposeJobTool, :full_chat_access do
     )
 
     expect(response[:result][:isError]).to be_falsey
-    proposal = ChatProposal.find(response_payload(response).fetch(:id))
+    proposal = ChatProposal.find_by!(slug: response_payload(response).fetch(:slug))
     expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
     expect(proposal.dependency_requirements).to contain_exactly(
       include("job_id" => prerequisite.id, "satisfaction_mode" => "deployment_stage", "required_deployment_stage_name" => "staging")
@@ -306,7 +307,8 @@ RSpec.describe Mcp::Tools::ProposeJobTool, :full_chat_access do
 
     proposal = chat_session.proposals.find_by!(title: "Install carved labels")
     expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)).to include(id: proposal.id, kind: "job")
+    expect(response_payload(response)).to include(slug: proposal.slug, kind: "job")
+    expect(response_payload(response)).not_to have_key(:id)
     expect(response_payload(response)[:target_epic]).to include(id: epic.id, label: epic.slug)
     expect(proposal).to have_attributes(
       kind: "job",
@@ -928,6 +930,8 @@ RSpec.describe Mcp::Tools::ProposeJobTool, :full_chat_access do
     it "explains the Epic chain requirement when epic_id targets a non-empty Epic" do
       expect(tool_description).to match(/one stacked branch, not parallel branches/)
       expect(tool_description).to include("propose_epic_with_jobs")
+      expect(tool_description).not_to include("`id` in the response")
+      expect(tool_description).to include("future Job ID is assigned only when the operator confirms")
 
       depends_on_job_ids_desc = schema.fetch(:properties).fetch(:depends_on_job_ids).fetch(:description)
       expect(depends_on_job_ids_desc).to include("non-empty Epic")

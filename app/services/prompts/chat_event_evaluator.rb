@@ -88,16 +88,20 @@ module Prompts
     end
 
     def event_json
-      JSON.pretty_generate(
+      payload = {
         id: @scoped_event.id,
         source_kind: @scoped_event.source_kind,
         payload: @scoped_event.payload,
         repository_id: @scoped_event.repository_id,
         job_id: @scoped_event.job_id,
         epic_id: @scoped_event.epic_id,
-        proposal_id: @scoped_event.proposal_id,
         created_at: @scoped_event.created_at&.iso8601
-      )
+      }
+      if @scoped_event.proposal_id.present?
+        proposal = @chat_session.proposals.find_by(id: @scoped_event.proposal_id)
+        payload[:proposal] = { slug: proposal.slug, title: proposal.title } if proposal
+      end
+      JSON.pretty_generate(payload)
     end
   end
 end
