@@ -20,6 +20,10 @@ module Mcp::Tools
       asks for a workflow capability that is not available. Syrus will mark the
       Run, Step, and Workflow blocked instead of failed, will not retry the
       step automatically, and will surface the reason for operator attention.
+      Timeouts, network/proxy failures, worker resource pressure, dependency
+      preparation failures caused by those conditions, and slow or
+      inconclusive graders are transient failures, not blockers; Syrus will
+      fail and retry those reports through the normal failure machinery.
     DESC
 
     input_schema(
@@ -59,14 +63,21 @@ module Mcp::Tools
           "reported_at" => Time.current.iso8601
         }.compact_blank
 
+        Mcp::Tools.write_log(run, "[mcp] report_cannot_proceed: #{normalized_reason}\n#{normalized_details}")
+        classification = report_classification(run)
+        payload.merge!(
+          "failure_classification" => classification.classification,
+          "retryable" => classification.retryable,
+          "disposition" => classification.retryable ? "failed" : "blocked"
+        )
+
         run.workflow.set_artifact!("cannot_proceed", payload)
         warning = record_warning!(run, payload, normalized_prompt)
-        run.job.set_needs_attention!(reason: "agent_cannot_proceed")
-        Mcp::Tools.write_log(run, "[mcp] report_cannot_proceed: #{normalized_reason}")
+        run.job.set_needs_attention!(reason: "agent_cannot_proceed") unless classification.retryable
 
         MCP::Tool::Response.new([ {
           type: "text",
-          text: "Recorded cannot-proceed reason. Stop work now; Syrus will mark this step blocked when your turn ends. Warning ##{warning.id} is visible on the Job."
+          text: response_text(classification, warning)
         } ])
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::ReportCannotProceedTool] #{e.class}: #{e.message}")
@@ -74,6 +85,26 @@ module Mcp::Tools
       end
 
       private
+
+      def report_classification(run)
+        current = RunFailureClassifier.classify(run)
+        return current unless current.classification == RunFailureClassifier::UNCLASSIFIED
+
+        recent = run.step.runs.where.not(id: run.id).joins(:run_failure_classification)
+          .order(created_at: :desc).first&.run_failure_classification
+        return recent if recent&.retryable
+
+        current
+      end
+
+      def response_text(classification, warning)
+        outcome = if classification.retryable
+          "Syrus classified the report as a retryable #{classification.classification} failure and will use the normal failure/retry path."
+        else
+          "Syrus will mark this step blocked when your turn ends."
+        end
+        "Recorded cannot-proceed reason. Stop work now; #{outcome} Warning ##{warning.id} is visible on the Job."
+      end
 
       def record_warning!(run, payload, suggested_prompt)
         WorkflowWarnings.record!(

@@ -103,7 +103,17 @@ cannot be fixed inside the current workflow step, it calls the workflow MCP
 tool `report_cannot_proceed(reason:, details:, suggested_prompt:)`. Typical
 examples are a required binary missing from the worker image, or task
 instructions that require a service-side capability the workflow surface does
-not expose. The tool records `Workflow#artifacts["cannot_proceed"]`, creates a
+not expose.
+
+Timeouts, read/connect/network/proxy failures, worker resource exhaustion,
+dependency preparation failures caused by those conditions, and graders that
+are merely slow or report no failing example are not permanent blockers. Syrus
+classifies those reports with the existing run-failure classifier and resolves
+the Step and Workflow as retryable failures, preserving the warning evidence
+while allowing normal retry and backoff.
+
+For a verified permanent blocker, the tool records
+`Workflow#artifacts["cannot_proceed"]`, creates a
 high-severity `WorkflowWarning` with `kind: "agent_cannot_proceed"` and a
 pre-filled "File a fix Job" prompt, and sets the parent Job's
 `needs_attention_reason` to `agent_cannot_proceed`.

@@ -143,6 +143,36 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     expect(s_summarize.reload).to be_cancelled
   end
 
+  it "fails a transient cannot-proceed report through the normal retryable failure path" do
+    transient_handler = Class.new(Steps::Base) do
+      def call
+        workflow.set_artifact!("cannot_proceed", {
+          "reason" => "dependency preparation hit a read timeout",
+          "details" => "proxy connection reset",
+          "run_id" => run.id,
+          "step_id" => step.id,
+          "disposition" => "failed",
+          "failure_classification" => "timeout",
+          "retryable" => true
+        })
+        raise Steps::Base::CannotProceed, "dependency preparation hit a read timeout"
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(transient_handler)
+    run = StepDispatcher.start_workflow(workflow)
+
+    described_class.perform_now(run.id)
+
+    expect(run.reload).to be_failed
+    expect(run.run_failure_classification).to have_attributes(classification: "timeout", retryable: true)
+    expect(s_implement.reload).to be_queued
+    expect(s_implement.runs.count).to eq(2)
+    expect(s_implement.latest_run).to be_queued
+    expect(workflow.reload).to be_running
+    expect(job.reload).to be_running
+    expect(job.needs_attention_reason).not_to eq("agent_cannot_proceed")
+  end
+
   it "keeps a post-implementation review CannotProceed advisory" do
     review_step = Step.create!(workflow: workflow, kind: "post_implementation_review", position: 3)
     s_pr_open.update!(next_step: review_step)
