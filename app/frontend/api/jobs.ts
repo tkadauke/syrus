@@ -1409,6 +1409,12 @@ export type JobTimelinePayload = {
     ref_label: string | null
     workflow_path: string | null
   }>
+  pagination: {
+    page: number
+    per: number
+    total: number
+    total_pages: number
+  }
 }
 
 // Non-admin-safe per-Workflow execution waterfall (see App::JobWaterfallPayload)
@@ -1812,8 +1818,9 @@ export function fetchJobDependencyOptions(path: string, query = "", limit = 25) 
   return getJson<JobDependencyOptionsPayload>(`${url.pathname}${url.search}`)
 }
 
-export function fetchJobTimeline(id: string) {
-  return getJson<JobTimelinePayload>(`/api/v1/app/jobs/${id}/timeline`)
+export function fetchJobTimeline(id: string, page = 1) {
+  const params = page > 1 ? `?page=${page}` : ""
+  return getJson<JobTimelinePayload>(`/api/v1/app/jobs/${id}/timeline${params}`)
 }
 
 export function fetchJobWaterfall(id: string, workflowId: number) {

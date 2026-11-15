@@ -147,7 +147,12 @@ module App
         per = @params[:per].present? ? @params[:per].to_i : TIMELINE_PER_PAGE
         per = per.clamp(1, TIMELINE_MAX_PER_PAGE)
         total = events.size
-        events = events.slice((page - 1) * per, per) || []
+        # Page from the newest end so the initial request always includes the
+        # latest operator-relevant history, while retaining chronological
+        # order within each page.
+        offset = [ total - (page * per), 0 ].max
+        length = [ total - ((page - 1) * per), per ].min
+        events = length.positive? ? events.slice(offset, length) : []
         preload_timeline_workflows(events)
         {
           job_id: @job.id,

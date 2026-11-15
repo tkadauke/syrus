@@ -6,7 +6,7 @@ import { CloseIcon } from "../../components/CloseIcon"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StatusPill } from "../../components/StatusPill"
-import { Button } from "../../components/Button"
+import { Button, buttonClasses } from "../../components/Button"
 import { Input } from "../../components/Input"
 import { Notice, Pill, Section, surfaceClasses, Text, Timeline, type NoticeTone } from "../../components/ui"
 import { errorMessage } from "../../lib/errorMessage"
@@ -564,9 +564,10 @@ export function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailP
 export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: boolean; jobId: number; prefix: string; runsCount: number }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
+  const [page, setPage] = useState(1)
   const timeline = useQuery({
-    queryKey: ["jobs", String(jobId), "timeline"],
-    queryFn: () => fetchJobTimeline(String(jobId)),
+    queryKey: ["jobs", String(jobId), "timeline", page],
+    queryFn: () => fetchJobTimeline(String(jobId), page),
     enabled: canView && expanded
   })
 
@@ -605,8 +606,9 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
             </Text>
           ) : null}
           {timeline.data && timeline.data.events.length > 0 ? (
-            <Timeline.Root className="mt-3">
-              {timeline.data.events.map((event, index) => (
+            <>
+              <Timeline.Root className="mt-3">
+                {timeline.data.events.map((event, index) => (
                 <Timeline.ActivityRow
                   key={`${event.at}-${event.title}-${index}`}
                   meta={
@@ -638,8 +640,36 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
                   }
                   details={event.detail ? <Text muted>{event.detail}</Text> : null}
                 />
-              ))}
-            </Timeline.Root>
+                ))}
+              </Timeline.Root>
+              {timeline.data.pagination.total_pages > 1 ? (
+                <div className="mt-4 flex items-center justify-between text-sm text-text-secondary">
+                  <span>
+                    {t("pagination_showing", {
+                      first: Math.max(timeline.data.pagination.total - (timeline.data.pagination.page * timeline.data.pagination.per) + 1, 1),
+                      last: timeline.data.pagination.total - ((timeline.data.pagination.page - 1) * timeline.data.pagination.per),
+                      total: timeline.data.pagination.total
+                    })}
+                  </span>
+                  <div className="flex gap-2">
+                    {page > 1 ? (
+                      <Button onClick={() => setPage((value) => value - 1)} size="sm" variant="secondary">
+                        {t("pagination_previous")}
+                      </Button>
+                    ) : (
+                      <span className={buttonClasses("secondary", "sm", "pointer-events-none text-text-muted opacity-60")}>{t("pagination_previous")}</span>
+                    )}
+                    {page < timeline.data.pagination.total_pages ? (
+                      <Button onClick={() => setPage((value) => value + 1)} size="sm" variant="secondary">
+                        {t("pagination_next")}
+                      </Button>
+                    ) : (
+                      <span className={buttonClasses("secondary", "sm", "pointer-events-none text-text-muted opacity-60")}>{t("pagination_next")}</span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : null}
         </div>
       ) : null}
@@ -760,10 +790,10 @@ export function PendingJobTitle({ pending, title }: { pending: boolean; title: s
   if (!pending) return <>{title}</>
 
   return (
-    <span className="inline-flex min-w-0 items-center gap-2 italic text-gray-500 dark:text-gray-400">
+    <span className="inline-flex min-w-0 items-center gap-2 italic text-text-secondary">
       <span
         aria-hidden="true"
-        className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500 dark:border-gray-700 dark:border-t-gray-300"
+        className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-text-secondary"
       />
       <span>{t("generating_title")}</span>
     </span>
