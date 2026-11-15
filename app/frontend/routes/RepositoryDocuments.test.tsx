@@ -6,11 +6,14 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import * as useConfirmModule from "../hooks/useConfirm"
 
+vi.mock("../api/repoPluginTabs", () => ({
+  fetchRepoPluginTabs: vi.fn().mockResolvedValue({ tabs: [] })
+}))
+
 function documentsPayload(overrides: Record<string, unknown> = {}) {
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
     can_write: true,
-    tabs: [],
     documents: [
       {
         id: 20,
