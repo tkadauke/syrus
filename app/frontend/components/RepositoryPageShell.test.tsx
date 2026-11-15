@@ -12,12 +12,16 @@ const TABS = [
   { key: "documents", label: "Documents", path: "/repositories/1/documents" }
 ]
 
-function renderShell(children = <div>Tab content</div>, includeTip = true) {
+function renderShell(
+  children = <div>Tab content</div>,
+  includeTip = true,
+  routePath = "/repositories/:repositoryId"
+) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={["/repositories/1"]}>
         <Routes>
-          <Route path="/repositories/:repositoryId" element={
+          <Route path={routePath} element={
             <RepositoryPageShell
               activeTab="overview"
               ariaLabel="Repository"
@@ -85,6 +89,17 @@ describe("RepositoryPageShell", () => {
     expect(documentsLink).toHaveAttribute("href", "/repositories/1/documents")
     expect(overviewLink.className).toContain("border-brand")
     expect(documentsLink.className).not.toContain("border-brand")
+  })
+
+  it.each([
+    ["the core overview route", "/repositories/:id"],
+    ["core tab routes", "/repositories/:repositoryId"],
+    ["plugin sidebar routes", "/repositories/:repository_id"]
+  ])("loads tabs for %s", async (_label, routePath) => {
+    renderShell(<div>Tab content</div>, true, routePath)
+
+    expect(await screen.findByRole("link", { name: "Overview" })).toBeInTheDocument()
+    expect(repoPluginTabsApi.fetchRepoPluginTabs).toHaveBeenCalledWith("1")
   })
 
   it("omits the tip banner when none is provided", () => {
