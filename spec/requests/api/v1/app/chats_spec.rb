@@ -760,45 +760,45 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "groups plugin chats in one batched lookup without exposing inaccessible or shared chats" do
     sign_in_as(user)
     user.update!(recent_chats_group_size: 5)
-    newest = ChatSession.create!(user: user, title: "Newest coworker", last_message_at: 1.minute.ago)
-    older = ChatSession.create!(user: user, title: "Older coworker", last_message_at: 2.minutes.ago)
+    newest = ChatSession.create!(user: user, title: "Newest agent", last_message_at: 1.minute.ago)
+    older = ChatSession.create!(user: user, title: "Older agent", last_message_at: 2.minutes.ago)
     ordinary = ChatSession.create!(user: user, title: "Ordinary", last_message_at: 3.minutes.ago)
     other_user = Factories.user
-    inaccessible = ChatSession.create!(user: other_user, title: "Private coworker", last_message_at: Time.current)
-    shared = ChatSession.create!(user: other_user, title: "Shared coworker", last_message_at: 4.minutes.ago)
+    inaccessible = ChatSession.create!(user: other_user, title: "Private agent", last_message_at: Time.current)
+    shared = ChatSession.create!(user: other_user, title: "Shared agent", last_message_at: 4.minutes.ago)
     ChatShare.create!(chat_session: shared, target: user, shared_by_user: other_user)
 
     calls = []
     provider = Class.new do
-      include Syrus::Plugin::ChatListGroup
+      include Syrus::Plugin::ChatIdentityProvider
 
-      define_singleton_method(:chat_list_group) do |user:|
+      define_singleton_method(:chat_group_ownership) do |user:|
         calls << user.id
         {
-          key: "test-coworkers",
-          label: "Coworkers",
+          key: "test-agents",
+          label: "Test agents",
           chat_session_ids: [ older.id, newest.id, inaccessible.id, shared.id ]
         }
       end
     end
-    Syrus::PluginRegistry.register(:chat_list_group, provider)
+    Syrus::PluginRegistry.register(:chat_identity_provider, provider)
 
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
     groups = parse_body.fetch("groups")
     expect(calls).to eq([ user.id ])
-    expect(groups.find { |group| group.fetch("key") == "test-coworkers" }).to include(
-      "label" => "Coworkers",
+    expect(groups.find { |group| group.fetch("key") == "test-agents" }).to include(
+      "label" => "Test agents",
       "group_by" => "plugin",
-      "group_value" => "test-coworkers"
+      "group_value" => "test-agents"
     )
-    expect(groups.find { |group| group.fetch("key") == "test-coworkers" }.fetch("chats").pluck("id")).to eq([ newest.id, older.id ])
+    expect(groups.find { |group| group.fetch("key") == "test-agents" }.fetch("chats").pluck("id")).to eq([ newest.id, older.id ])
     expect(groups.find { |group| group.fetch("key") == "shared-with-me" }.fetch("chats").pluck("id")).to eq([ shared.id ])
-    expect(groups.reject { |group| %w[test-coworkers shared-with-me].include?(group.fetch("key")) }.flat_map { |group| group.fetch("chats") }.pluck("id")).to eq([ ordinary.id ])
+    expect(groups.reject { |group| %w[test-agents shared-with-me].include?(group.fetch("key")) }.flat_map { |group| group.fetch("chats") }.pluck("id")).to eq([ ordinary.id ])
 
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_list_group).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_identity_provider).and_return([])
     get "/api/v1/app/chats"
 
     restored_ids = parse_body.fetch("groups").reject { |group| group.fetch("key") == "shared-with-me" }.flat_map { |group| group.fetch("chats") }.pluck("id")
@@ -809,24 +809,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     sign_in_as(user)
     user.update!(recent_chats_group_size: 5)
     chats = 7.times.map do |index|
-      ChatSession.create!(user: user, title: "Coworker #{index}", last_message_at: (index + 1).minutes.ago)
+      ChatSession.create!(user: user, title: "Agent #{index}", last_message_at: (index + 1).minutes.ago)
     end
     provider = Class.new do
-      include Syrus::Plugin::ChatListGroup
-      define_singleton_method(:chat_list_group) do |user:|
-        { key: "test-coworkers", label: "Coworkers", chat_session_ids: user.chat_sessions.where(id: chats).pluck(:id) }
+      include Syrus::Plugin::ChatIdentityProvider
+      define_singleton_method(:chat_group_ownership) do |user:|
+        { key: "test-agents", label: "Test agents", chat_session_ids: user.chat_sessions.where(id: chats).pluck(:id) }
       end
     end
-    Syrus::PluginRegistry.register(:chat_list_group, provider)
+    Syrus::PluginRegistry.register(:chat_identity_provider, provider)
 
     get "/api/v1/app/chats"
-    group = parse_body.fetch("groups").find { |candidate| candidate.fetch("key") == "test-coworkers" }
+    group = parse_body.fetch("groups").find { |candidate| candidate.fetch("key") == "test-agents" }
     expect(group.fetch("chats").pluck("id")).to eq(chats.first(5).map(&:id))
     expect(group.fetch("has_more")).to be(true)
 
     get "/api/v1/app/chats/more", params: {
       group_by: "plugin",
-      group_key: "test-coworkers",
+      group_key: "test-agents",
       before_id: group.fetch("chats").last.fetch("id"),
       per_group: 5
     }
@@ -1382,24 +1382,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(snippet).not_to include("[{", '"type"', "thinking", "needlereasoning", "\\n")
     end
 
-    it "adds plugin badges with one batched decorator call for the page" do
+    it "adds plugin badges with one batched identity-provider call for the page" do
       chat = ChatSession.create!(user: user, repository: repository, title: "Decorated")
       create_indexed_message(chat, text: "badgeneedle")
-      decorator = Class.new do
-        include Syrus::Plugin::ChatResultDecorator
-        define_singleton_method(:chat_result_badges) do |chat_sessions:|
+      provider = Class.new do
+        include Syrus::Plugin::ChatIdentityProvider
+        define_singleton_method(:chat_status_contributions) do |chat_sessions:, user:|
           ChatSession.where(id: chat_sessions.map(&:id)).pluck(:id).to_h do |id|
-            [ id, [ { kind: "coworker", id: 7, name: "Ada" } ] ]
+            [ id, { badges: [ { kind: "agent", id: 7, name: "Ada" } ] } ]
           end
         end
       end
-      allow(decorator).to receive(:chat_result_badges).and_call_original
-      Syrus::PluginRegistry.register(:chat_result_decorator, decorator)
+      allow(provider).to receive(:chat_status_contributions).and_call_original
+      Syrus::PluginRegistry.register(:chat_identity_provider, provider)
 
       get "/api/v1/app/chats/search", params: { q: "badgeneedle" }
 
-      expect(parse_body.fetch("results").first.fetch("badges")).to eq([ { "kind" => "coworker", "id" => 7, "name" => "Ada" } ])
-      expect(decorator).to have_received(:chat_result_badges).once
+      expect(parse_body.fetch("results").first.fetch("badges")).to eq([ { "kind" => "agent", "id" => 7, "name" => "Ada" } ])
+      expect(provider).to have_received(:chat_status_contributions).once
     end
 
     it "omits hidden chats from search results" do

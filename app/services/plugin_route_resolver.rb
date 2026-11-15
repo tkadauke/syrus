@@ -65,6 +65,7 @@ class PluginRouteResolver
     end
 
     def build_plugin_routes
+      health = Syrus::PluginRegistry.health
       Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
         Array(manifest.metadata.with_indifferent_access[:routes]).filter_map do |raw_route|
           attributes = raw_route.to_h.with_indifferent_access
@@ -76,7 +77,7 @@ class PluginRouteResolver
             controller: attributes[:controller].to_s,
             params: {},
             plugin_name: manifest.name,
-            enabled: manifest.enabled?
+            enabled: manifest.enabled? && health.healthy?(manifest.name)
           )
         end
       end

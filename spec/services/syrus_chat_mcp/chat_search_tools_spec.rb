@@ -83,22 +83,22 @@ RSpec.describe "Mcp::Tools chat search tools", :full_chat_access do
       )
     end
 
-    it "includes badges from one batched decorator call" do
+    it "includes badges from one batched identity-provider call" do
       indexed_message = message(chat_session, text: "badgeneedle")
       ChatMessageSearchIndex.insert(indexed_message)
-      decorator = Class.new do
-        include Syrus::Plugin::ChatResultDecorator
-        define_singleton_method(:chat_result_badges) do |chat_sessions:|
-          { chat_sessions.first.id => [ { kind: "coworker", id: 7, name: "Ada" } ] }
+      provider = Class.new do
+        include Syrus::Plugin::ChatIdentityProvider
+        define_singleton_method(:chat_status_contributions) do |chat_sessions:, user:|
+          { chat_sessions.first.id => { badges: [ { kind: "agent", id: 7, name: "Ada" } ] } }
         end
       end
-      allow(decorator).to receive(:chat_result_badges).and_call_original
-      Syrus::PluginRegistry.register(:chat_result_decorator, decorator)
+      allow(provider).to receive(:chat_status_contributions).and_call_original
+      Syrus::PluginRegistry.register(:chat_identity_provider, provider)
 
       result = response_payload(call_tool("search_chats", query: "badgeneedle")).fetch(:results).first
 
-      expect(result[:badges]).to eq([ { kind: "coworker", id: 7, name: "Ada" } ])
-      expect(decorator).to have_received(:chat_result_badges).once
+      expect(result[:badges]).to eq([ { kind: "agent", id: 7, name: "Ada" } ])
+      expect(provider).to have_received(:chat_status_contributions).once
     end
 
     it "returns matches from chats where the current user is a participant but not the owner" do

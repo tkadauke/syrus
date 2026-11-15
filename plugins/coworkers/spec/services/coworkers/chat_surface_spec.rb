@@ -388,7 +388,6 @@ RSpec.describe "Coworker chat surface" do
     allow_tool(Mcp::Tools::SearchChatsTool)
     indexed = chat.messages.create!(role: "user", content: { "text" => "calendar needle" })
     ChatMessageSearchIndex.insert(indexed)
-    Syrus::PluginRegistry.register(:chat_result_decorator, Coworkers::ChatResultDecorator)
     context = { chat_session: chat }
 
     response = Mcp::Tools::SearchChatsTool.call(server_context: context, query: "calendar", coworker_id: coworker.id)

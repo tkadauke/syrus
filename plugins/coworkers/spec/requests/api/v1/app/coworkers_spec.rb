@@ -875,6 +875,9 @@ RSpec.describe "API: coworkers", type: :request do
   end
 
   it "removes the routes and sidebar contribution when the plugin is disabled" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-disabled-chat", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Historical agent chat", last_message_at: Time.current)
+    Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
     PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
     sign_in_as(owner)
 
@@ -882,6 +885,27 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:not_found)
     expect(Coworkers::SidebarPages.sidebar_pages).to be_present
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(Coworkers::SidebarPages)
+    expect(Syrus::PluginRegistry.providers_for(:chat_identity_provider)).not_to include(Coworkers::ChatIdentityProvider)
+
+    get "/api/v1/app/chats"
+    expect(response.parsed_body.fetch("groups").flat_map { |group| group.fetch("chats") }.pluck("id")).to include(chat.id)
+    expect(response.parsed_body.fetch("agent_appearances")).to be_empty
+
+    get "/api/v1/app/chats/#{chat.id}/mentionables"
+    expect(response.parsed_body.fetch("mentionables").pluck("kind")).not_to include("coworker")
+  end
+
+  it "removes chat identity surfaces while the plugin is unhealthy" do
+    sign_in_as(owner)
+    health = Syrus::PluginRegistry.health
+    allow(Syrus::PluginRegistry).to receive(:health_for).and_return(health)
+    allow(Syrus::PluginRegistry).to receive(:health).and_return(health)
+    allow(health).to receive(:healthy?).and_call_original
+    allow(health).to receive(:healthy?).with("coworkers").and_return(false)
+
+    expect(Syrus::PluginRegistry.providers_for(:chat_identity_provider)).not_to include(Coworkers::ChatIdentityProvider)
+    get "/api/v1/app/coworkers"
+    expect(response).to have_http_status(:not_found)
   end
 
   it "shows owner-scoped provisioning status and audits manual acknowledgement" do

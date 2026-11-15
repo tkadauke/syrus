@@ -49,8 +49,6 @@ module Syrus
       job_origin
       job_visibility_restriction
       mentionable
-      chat_list_group
-      chat_result_decorator
       chat_identity_provider
       repository_filter
       preview_panel_viewer
@@ -128,8 +126,6 @@ module Syrus
       job_origin:              -> { Syrus::Plugin::JobOrigin },
       job_visibility_restriction: -> { Syrus::Plugin::JobVisibilityRestriction },
       mentionable:              -> { Syrus::Plugin::Mentionable },
-      chat_list_group:           -> { Syrus::Plugin::ChatListGroup },
-      chat_result_decorator:      -> { Syrus::Plugin::ChatResultDecorator },
       chat_identity_provider:     -> { Syrus::Plugin::ChatIdentityProvider },
       repository_filter:       -> { Syrus::Plugin::RepositoryFilter },
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
