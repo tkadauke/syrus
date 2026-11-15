@@ -117,9 +117,11 @@ RSpec.describe RuntimeTerminal::Renderer do
     glyph = Vips::Image.black(10, described_class::CELL_HEIGHT).new_from_image(255)
 
     mask = renderer.send(:clip_to_cell, glyph, 10, anchor_width: 0, line_top: 0)
+    edge_mask = renderer.send(:clip_to_cell, glyph, 10, anchor_width: 0, line_top: 0, reaches_row_edge: true)
 
     expect(mask.getpoint(5, described_class::CELL_HEIGHT - 1).first).to eq(0)
     expect(mask.getpoint(5, described_class::CELL_HEIGHT - 2).first).to be_positive
+    expect(edge_mask.getpoint(5, described_class::CELL_HEIGHT - 1).first).to be_positive
   end
 
   it "keeps styled, combining, box-drawing, wide, and cursor cells on the row metrics" do
