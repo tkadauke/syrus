@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class GitHistoryController < BaseController
-        include RepositoryTabsSerialization
 
         def index
           repository = find_repository
@@ -16,7 +15,7 @@ module Api
           )
 
           render json: {
-            **(params[:cursor].present? ? {} : { repository: repository_json(repository), tabs: repository_tabs_json(repository) }),
+            **(params[:cursor].present? ? {} : { repository: repository_json(repository) }),
             available: result.available,
             commits: result.commits,
             next_cursor: result.next_cursor,

@@ -294,15 +294,6 @@ export function closedProviderCircuit(provider: string) {
   }
 }
 
-export function repositoryTabsPayload(repositoryId: number) {
-  return [
-    { key: "overview", label: "Overview", path: `/repositories/${repositoryId}` },
-    { key: "github_issues", label: "GitHub Issues", path: `/repositories/${repositoryId}?tab=github_issues` },
-    { key: "documents", label: "Documents", path: `/repositories/${repositoryId}/documents` },
-    { key: "scheduled_tasks", label: "Scheduled Tasks", path: `/repositories/${repositoryId}/scheduled_tasks` }
-  ]
-}
-
 export function repositoryDetailPayload() {
   return {
     message: null,
@@ -337,7 +328,6 @@ export function repositoryDetailPayload() {
         observed_at: "2026-05-30T12:00:00Z"
       }
     },
-    tabs: repositoryTabsPayload(3),
     counts: {
       running: 1,
       queued: 1,
@@ -411,7 +401,6 @@ export function repositoryIssuesPayload(overrides: { message?: string; delegated
     message: overrides.message || null,
     error_message: null,
     repository: detail.repository,
-    tabs: detail.tabs,
     state: "open",
     issue_count: 1,
     issues: [

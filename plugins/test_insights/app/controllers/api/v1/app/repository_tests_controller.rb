@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class RepositoryTestsController < BaseController
-        include RepositoryTabsSerialization
         include Paginatable
 
         DEFAULT_INTERESTING_LIMIT = TestInsights::TestIdentity::INTERESTING_LIMIT
@@ -31,7 +30,6 @@ module Api
 
           render json: {
             repository: repository_json(repository),
-            tabs: repository_tabs_json(repository),
             filter: filter.to_h,
             **(params[:include_schema] == "0" ? {} : { filter_schema: TestInsights::TestsFilter.schema }),
             tests: tests
@@ -58,7 +56,6 @@ module Api
 
           render json: {
             repository: repository_json(repository),
-            tabs: repository_tabs_json(repository),
             test: test_identity_json(test_identity),
             history: history_cases.map { |test_case| test_case_json(test_case) }.compact,
             pagination: {

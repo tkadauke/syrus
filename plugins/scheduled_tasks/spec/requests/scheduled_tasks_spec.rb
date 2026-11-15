@@ -280,8 +280,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
-    expect(body["tabs"].map { |t| t["key"] }).to include("overview", "github_source.issues", "documents", "scheduled_tasks.repository")
-    expect(body["tabs"].map { |t| t["key"] }).not_to include("context")
+    expect(body).not_to have_key("tabs")
     expect(body["tasks"]).to contain_exactly(
       include("id" => active.id, "name" => "Active", "active" => true, "prompt" => "Write missing tests."),
       include("id" => paused.id, "name" => "Paused", "active" => false)

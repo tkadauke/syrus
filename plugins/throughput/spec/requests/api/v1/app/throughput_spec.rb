@@ -17,7 +17,7 @@ RSpec.describe "API: repository throughput metrics", type: :request do
     expect(response.parsed_body["version"]).to eq(Throughput::MetricContract::VERSION)
     expect(response.parsed_body["cache_status"]).to eq("computed")
     expect(response.parsed_body["repository"]).to include("id" => repository.id, "slug" => repository.slug)
-    expect(response.parsed_body["tabs"].map { |tab| tab["key"] }).to include("throughput.repository")
+    expect(response.parsed_body).not_to have_key("tabs")
     expect(response.parsed_body.fetch("windows").keys).to eq([ "4h" ])
     expect(response.parsed_body.dig("windows", "4h", "output")).not_to have_key("by_job")
     expect(response.headers["ETag"]).to be_present

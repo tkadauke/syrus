@@ -144,12 +144,11 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(body["meta"]).to include("total" => 0, "page" => 1, "per_page" => 20, "total_pages" => 1)
     end
 
-    it "returns tabs including the plugin insights tab" do
+    it "does not embed the repository tab catalog" do
       get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
 
       expect(response).to have_http_status(:ok)
-      tab_keys = parse_body["tabs"].map { |t| t["key"] }
-      expect(tab_keys).to include("overview", "github_source.issues", "documents", "scheduled_tasks.repository", "agent_insights.repository")
+      expect(parse_body).not_to have_key("tabs")
     end
 
     it "returns suggestions ordered by severity then confidence" do
