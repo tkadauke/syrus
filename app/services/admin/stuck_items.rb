@@ -181,6 +181,8 @@ module Admin
         "Stale terminal ownership: #{issue.explanation} Use retire_terminal_work_unit after reviewing the affected lock keys."
       when "runaway_protection_active"
         "Runaway protection: #{issue.explanation} Click Retry on the Job to clear the protection and resume."
+      when "stale_agent_blocked_workflow"
+        "Blocked workflow needs operator attention: #{issue.explanation}"
       else
         [ issue.explanation, repair_plan&.reason ].compact.join(" ")
       end.squish

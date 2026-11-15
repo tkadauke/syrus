@@ -47,6 +47,18 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     end
   end
 
+  it "flags an agent-blocked workflow only after the stale threshold" do
+    workflow.update!(state: "blocked", finished_at: 25.hours.ago)
+    workflow.set_artifact!("cannot_proceed", { "reason" => "required binary is missing" })
+
+    stale = reconcile(workflow_id: workflow.id)
+    expect(stale.issues.map(&:kind)).to include("stale_agent_blocked_workflow")
+
+    workflow.update!(finished_at: 23.hours.ago)
+    fresh = reconcile(workflow_id: workflow.id)
+    expect(fresh.issues.map(&:kind)).not_to include("stale_agent_blocked_workflow")
+  end
+
   # A reconcile pass must never ask the database to sort rows that carry a
   # large text or JSON column. Steps carry a JSON details column that grader
   # steps fill with command output, Workflows a 16MB artifacts column, Runs two

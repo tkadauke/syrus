@@ -479,7 +479,11 @@ class RunJob < ApplicationJob
         PostImplementationReviewFailure.record!(run: @run, exception: e, workspace: handler_workspace)
         return
       end
-      block_after_cannot_proceed!(e.reason)
+      if @workflow.artifact("cannot_proceed").to_h["disposition"] == "failed"
+        fail_after_transient_cannot_proceed!(e.reason)
+      else
+        block_after_cannot_proceed!(e.reason)
+      end
       return
     rescue Steps::Base::StepSkipped => e
       skip_after_step_skipped!(e)
@@ -761,6 +765,19 @@ class RunJob < ApplicationJob
       @workflow.block!
       @workflow.save!
     end
+  end
+
+  def fail_after_transient_cannot_proceed!(reason)
+    artifact = @workflow.artifact("cannot_proceed").to_h
+    classification = artifact["failure_classification"].presence || "provider_transient"
+    log("FAIL: cannot-proceed report classified as retryable #{classification}: #{reason}", kind: "system")
+    handle_failure(
+      Steps::Base::StepFailed.new(
+        reason,
+        problem_code: classification,
+        evidence: { source: "report_cannot_proceed", details: artifact["details"] }.compact
+      )
+    )
   end
 
   def expected_handler_terminal_return?

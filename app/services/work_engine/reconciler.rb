@@ -2,6 +2,7 @@ require "set"
 
 module WorkEngine
   class Reconciler
+    STALE_AGENT_BLOCKED_WORKFLOW_THRESHOLD = ENV.fetch("SYRUS_STALE_AGENT_BLOCKED_WORKFLOW_HOURS", "24").to_f.hours
     # Solid Queue 1.7.2 records the exact semaphore row acquired by a job and
     # requires that identity again when releasing it. Inline reconciles use an
     # ActiveJob instance rather than a persisted SolidQueue::Job, so adapt the
@@ -1072,6 +1073,22 @@ module WorkEngine
 
     def classify_workflows
       workflows.filter_map do |workflow|
+        if workflow.blocked? && workflow.artifact("cannot_proceed").present? &&
+            older_than?(workflow.finished_at || workflow.updated_at, STALE_AGENT_BLOCKED_WORKFLOW_THRESHOLD)
+          next issue(
+            kind: :stale_agent_blocked_workflow,
+            severity: :error,
+            affected_ids: ids_for(workflow),
+            safe_to_auto_repair: false,
+            recommended_repair_action: "retry_agent_blocked_workflow_or_file_fix",
+            evidence: workflow_evidence(workflow).merge(
+              cannot_proceed: workflow.artifact("cannot_proceed"),
+              stale_threshold_seconds: STALE_AGENT_BLOCKED_WORKFLOW_THRESHOLD.to_i
+            ),
+            explanation: "Workflow ##{workflow.id} has remained blocked after an agent cannot-proceed report beyond the configured threshold; retry it after correcting the blocker or file the suggested fix Job."
+          )
+        end
+
         if workflow.queued? && older_than?(workflow.created_at, ORPHAN_RUN_GRACE_PERIOD) && queued_without_first_run?(workflow)
           if landing_start_blocked_workflow?(workflow)
             reason = start_block_reason(workflow)
