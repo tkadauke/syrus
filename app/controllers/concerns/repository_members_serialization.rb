@@ -3,7 +3,7 @@
 # RepositoryMembershipsController and RepositoryTeamGrantsController
 # return this same shape so either mutation can update the page's single
 # query cache entry. Rendered embedded in the repository edit form, not
-# as its own tab -- see RepositoryTabsSerialization.
+# as its own tab.
 module RepositoryMembersSerialization
   extend ActiveSupport::Concern
 
