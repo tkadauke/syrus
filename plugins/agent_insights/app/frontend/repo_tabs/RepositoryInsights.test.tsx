@@ -8,6 +8,10 @@ import { RepositoryInsightsRoute } from "./RepositoryInsights"
 import * as useConfirmModule from "@app/hooks/useConfirm"
 import i18n from "@app/i18n"
 
+vi.mock("@app/api/repoPluginTabs", () => ({
+  fetchRepoPluginTabs: vi.fn().mockResolvedValue({ tabs: [] })
+}))
+
 function makeSuggestion(overrides: Record<string, unknown> = {}) {
   const id = Number(overrides.id || 1)
   return {
@@ -70,7 +74,6 @@ function payload(
 ) {
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/plugin/insights", can_write: canWrite },
-    tabs: [],
     suggestions,
     meta,
     filter: { and: [] },
