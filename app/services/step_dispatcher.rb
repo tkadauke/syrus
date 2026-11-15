@@ -1380,6 +1380,11 @@ class StepDispatcher
     return false unless loop_node&.fetch("type", nil) == "loop"
 
     expected_review_kind = loop_step_kinds(loop_node).last
+    snapshot = Array(@workflow.artifact("review_gate_contributions")).find do |candidate|
+      candidate["step_kind"] == expected_review_kind
+    end
+    return false unless snapshot&.fetch("required", true) == true
+
     next_step = @from_step.next_step
     return true unless next_step
 

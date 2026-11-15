@@ -83,7 +83,7 @@ module Workflows
         },
         handler_provider: "Steps::VisualReview", prompt_provider: "Prompts::VisualReview",
         tool_provider: %w[submit_visual_review], verdict_artifact: "visual_review_iterations",
-        failure_policy: { "deterministic" => "fail", "transient" => "retry" }
+        failure_policy: { "deterministic" => "fail", "transient" => "retry" }, required: false
       }
     ].freeze
 
