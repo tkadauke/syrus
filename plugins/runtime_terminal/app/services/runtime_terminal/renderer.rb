@@ -79,7 +79,13 @@ module RuntimeTerminal
       markup = styled_markup("#{anchor_text}#{text}", styles)
       glyph = Vips::Image.text(markup, font: "#{family} #{FONT_SIZE}", fontfile: path, rgba: false)
       anchor_width = metrics_anchor_width(anchor_text, styles, family, path)
-      mask = clip_to_cell(glyph, cell_width, anchor_width: anchor_width, line_top: wide ? CJK_LINE_TOP : 0)
+      mask = clip_to_cell(
+        glyph,
+        cell_width,
+        anchor_width: anchor_width,
+        line_top: wide ? CJK_LINE_TOP : 0,
+        reaches_row_edge: text.match?(/[\u2500-\u257f]/)
+      )
       preserve_box_drawing_connector(mask) if BOX_DRAWING_DOWNWARD_CONNECTORS.include?(text)
       mask
     end
@@ -102,7 +108,7 @@ module RuntimeTerminal
       "<span fallback='false'>#{markup}</span>"
     end
 
-    def clip_to_cell(glyph, cell_width, anchor_width:, line_top:)
+    def clip_to_cell(glyph, cell_width, anchor_width:, line_top:, reaches_row_edge: false)
       source_left = [ anchor_width, glyph.width ].min
       # Pango line boxes vary by host. Normalize an oversized line to the
       # fixed terminal row so its baseline and descenders keep their relative
@@ -112,7 +118,7 @@ module RuntimeTerminal
       # Keep one row of headroom even when Pango's line box is exactly as tall
       # as the cell. Otherwise ink may occupy the bottom pixel, leaving no
       # distinct row for descenders or box-drawing glyphs to reach.
-      normalized_height = available_height - 1
+      normalized_height = available_height - (reaches_row_edge ? 0 : 1)
       glyph = glyph.resize(1, vscale: normalized_height.to_f / glyph.height) if glyph.height >= available_height
       clipped_width = [ glyph.width - source_left, cell_width ].min
       clipped_height = [ glyph.height, CELL_HEIGHT - line_top ].min
