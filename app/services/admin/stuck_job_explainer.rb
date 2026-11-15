@@ -527,6 +527,7 @@ module Admin
             "The agent reported a permanent blocker; retry the blocked step after correcting it, or file the warning's suggested fix Job.",
             work_unit_id: blocked_unit[:id],
             workflow_id: workflow&.id,
+            mode: "implementation",
             blocked_reason: blocked_unit[:blocked_reason],
             cannot_proceed_reason: workflow&.artifact("cannot_proceed").to_h["reason"],
             suggested_prompt: warning&.suggested_prompt

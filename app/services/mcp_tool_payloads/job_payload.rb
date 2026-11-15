@@ -13,7 +13,7 @@ module McpToolPayloads
         internal_pr_number: job.pr_number,
         external_pr_number: job.external_pr_number,
         branch_name: job.branch_name,
-        state: job.state,
+        **job_state_payload(job),
         closure_reason: job.closure_reason,
         canonical_job_id: job.canonical_job_id,
         agent_provider: job.workflow_agent_provider,
@@ -46,7 +46,7 @@ module McpToolPayloads
         issue_number: job.issue_number,
         pr_number: job.pr_number || job.external_pr_number,
         branch_name: job.branch_name,
-        state: job.state,
+        **job_state_payload(job),
         closure_reason: job.closure_reason,
         agent_provider: job.workflow_agent_provider,
         job_provider_setting: job.job_provider_setting,
@@ -55,6 +55,22 @@ module McpToolPayloads
         goal_provenance: App::GoalProvenancePayload.for(job),
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601
+      }
+    end
+
+    def job_state_payload(job)
+      workflow = job.latest_workflow
+      cannot_proceed = workflow&.artifact("cannot_proceed")
+      unless job.needs_attention_reason == "agent_cannot_proceed" && workflow&.blocked? && cannot_proceed.is_a?(Hash)
+        return { state: job.state }
+      end
+
+      {
+        state: "blocked",
+        underlying_state: job.state,
+        state_label: "blocked: agent cannot proceed",
+        needs_attention_reason: job.needs_attention_reason,
+        cannot_proceed_reason: cannot_proceed["reason"]
       }
     end
 
