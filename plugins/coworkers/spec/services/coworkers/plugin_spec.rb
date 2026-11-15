@@ -48,6 +48,11 @@ RSpec.describe "Coworkers plugin" do
       "coworkers_chat_agents"
     )
     expect(report.tables).not_to include("review_evidences", "runs", "scheduled_tasks")
+    expect(report.inline_fields).to contain_exactly(
+      have_attributes(table: "scheduled_tasks", column: "coworker_id"),
+      have_attributes(table: "scheduled_tasks", column: "after_run"),
+      have_attributes(table: "runs", column: "coworker_wake_enqueued_at")
+    )
   end
 
   it "is experimental and disabled by default" do
