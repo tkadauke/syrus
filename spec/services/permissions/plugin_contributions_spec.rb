@@ -7,6 +7,7 @@ RSpec.describe Permissions::PluginContributions do
       class << self
         attr_accessor :descriptor
         def permission_capability_descriptors = [ descriptor ]
+        def permission_authorization_adapters = { "active_example.records" => Object.new }
       end
     end.tap { |provider| provider.descriptor = descriptor }
   end
@@ -33,6 +34,7 @@ RSpec.describe Permissions::PluginContributions do
     expect(payload.fetch("active_example")).to include(
       installed: true,
       tools: [ "read_example" ],
+      authorization_actions: [ "active_example.records" ],
       capabilities: [ include(identifier: descriptor.capability, name: descriptor.presentation.capability_name) ]
     )
     expect(payload.fetch("available_example")).to include(installed: false, tools: [ "read_example" ])
@@ -44,7 +46,7 @@ RSpec.describe Permissions::PluginContributions do
     )
 
     expect(described_class.as_json).to contain_exactly(
-      include(name: "presentation_only", installed: true, capabilities: [], tools: [])
+      include(name: "presentation_only", installed: true, capabilities: [], tools: [], authorization_actions: [])
     )
   end
 end

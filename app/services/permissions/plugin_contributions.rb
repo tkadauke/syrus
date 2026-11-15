@@ -27,7 +27,8 @@ module Permissions
         capabilities: descriptors.uniq { |descriptor| descriptor.capability }.map do |descriptor|
           { identifier: descriptor.capability, name: descriptor.presentation.capability_name }
         end.sort_by { |capability| capability[:name].downcase },
-        tools: definitions.filter_map { |definition| value(definition, :name)&.to_s.presence }.uniq.sort
+        tools: definitions.filter_map { |definition| value(definition, :name)&.to_s.presence }.uniq.sort,
+        authorization_actions: authorization_actions(manifest)
       }
     end
     private_class_method :contributions_for
@@ -53,6 +54,16 @@ module Permissions
       end
     end
     private_class_method :tool_definitions
+
+    def self.authorization_actions(manifest)
+      providers(manifest, :permission_provider).flat_map do |provider|
+        provider.respond_to?(:permission_authorization_adapters) ? provider.permission_authorization_adapters.keys : []
+      rescue StandardError => error
+        log_inventory_error(manifest, :permission_provider, error)
+        []
+      end.map(&:to_s).uniq.sort
+    end
+    private_class_method :authorization_actions
 
     def self.providers(manifest, extension_point)
       Array(manifest.provides[extension_point] || manifest.provides[extension_point.to_s])
