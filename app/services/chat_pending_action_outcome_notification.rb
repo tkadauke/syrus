@@ -7,7 +7,7 @@ class ChatPendingActionOutcomeNotification
 
   def acknowledgment(outcome:)
     kind = pending_action.action.presence || pending_action.action_type
-    detail = [ ("pending_action_id: #{pending_action.id}" if pending_action.id), action_detail, reason_detail ].compact.join(", ")
+    detail = [ action_detail, reason_detail, ("pending_action_id: #{pending_action.id}" if pending_action.id) ].compact.join(", ")
 
     case outcome.to_sym
     when :confirmed
@@ -47,7 +47,7 @@ class ChatPendingActionOutcomeNotification
     kind = pending_action.action.presence || pending_action.action_type
     PendingActions.for(kind).new(pending_action).action_detail
   rescue PendingActions::UnknownAction
-    "id: #{pending_action.id}"
+    "target unavailable"
   end
 
   def reason_detail

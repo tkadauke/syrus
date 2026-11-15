@@ -28,7 +28,7 @@ module Mcp::Tools
           payload: { "job_id" => job.id, "source_workflow_id" => eligibility.workflow.id, "reason" => reason.to_s.strip },
           requested_by: "agent"
         )
-        Mcp::Tools.success(pending_confirmation_id: pending.id, pending_action_id: pending.id,
+        Mcp::Tools.success(pending_action_id: pending.id,
           state: pending.state, message: "Base refresh retry requires operator confirmation.")
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)

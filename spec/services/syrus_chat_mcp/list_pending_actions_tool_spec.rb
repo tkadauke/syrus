@@ -34,6 +34,9 @@ RSpec.describe Mcp::Tools::ListPendingActionsTool, :full_chat_access do
       state: "pending"
     ))
     expect(result.to_s).not_to include("do not expose")
+    expect(result.fetch(:actions).first.keys).to eq(
+      %i[action target_ids reason state created_at pending_action_id]
+    )
   end
 
   it "filters resolved states and jobs, including grouped job_ids" do

@@ -22,7 +22,7 @@ RSpec.describe Mcp::Tools::RunVisualDiffTool do
 
     expect { @response = call_tool(job_id: job.id) }.not_to have_enqueued_job(RunJob)
 
-    action = chat_session.pending_actions.find(payload(@response)[:pending_confirmation_id])
+    action = chat_session.pending_actions.find(payload(@response)[:pending_action_id])
     expect(action).to have_attributes(action: "run_visual_diff", state: "pending", requested_by: "agent")
     expect(action.payload).to eq("job_id" => job.id)
     expect(payload(@response)[:message]).to include("before/after visual comparison")
@@ -42,7 +42,7 @@ RSpec.describe Mcp::Tools::RunVisualDiffTool do
 
   it "creates no workflow when the operator rejects the request" do
     job = Factories.job_record(repository: repository, state: "implemented")
-    action = chat_session.pending_actions.find(payload(call_tool(job_id: job.id))[:pending_confirmation_id])
+    action = chat_session.pending_actions.find(payload(call_tool(job_id: job.id))[:pending_action_id])
 
     action.reject!(user: user)
 
@@ -52,7 +52,7 @@ RSpec.describe Mcp::Tools::RunVisualDiffTool do
 
   it "creates no workflow when the pending request is withdrawn" do
     job = Factories.job_record(repository: repository, state: "implemented")
-    action = chat_session.pending_actions.find(payload(call_tool(job_id: job.id))[:pending_confirmation_id])
+    action = chat_session.pending_actions.find(payload(call_tool(job_id: job.id))[:pending_action_id])
 
     result = PendingActions::Withdrawal.new(action, user: user).call
 

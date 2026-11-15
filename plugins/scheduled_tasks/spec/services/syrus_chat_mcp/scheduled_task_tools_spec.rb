@@ -31,7 +31,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload(response)).to include(
-      pending_confirmation_id: be_present,
+      pending_action_id: be_present,
       label: "Weekly review",
       prompt: "Review **open work**.",
       schedule_input: "0 9 * * 1",
