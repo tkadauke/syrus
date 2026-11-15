@@ -1096,7 +1096,9 @@ function ChangedFilePath({ file, path }: { file: ReviewableDiffFile; path: strin
   return (
     <span className="flex min-w-0 flex-1 items-center gap-1" data-testid="changed-file-move-path">
       <span className="truncate text-text-muted">{file.previous_path}</span>
-      <span aria-hidden="true" className="shrink-0 text-text-muted">→</span>
+      <span aria-hidden="true" className="shrink-0 text-text-muted">
+        →
+      </span>
       <span className="truncate font-semibold">{path}</span>
       <span className="shrink-0 rounded bg-success-surface px-1.5 py-0.5 font-sans text-2xs font-semibold text-success-text">
         {t(isEditedMove(file) ? "diff_review.moved_and_edited" : "diff_review.moved")}
@@ -3075,9 +3077,13 @@ function DiffFileHeader({
         >
           {moved ? (
             <span className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] gap-x-1" data-testid="diff-file-move-paths">
-              <span aria-hidden="true" className="text-text-muted">−</span>
+              <span aria-hidden="true" className="text-text-muted">
+                −
+              </span>
               <span className="truncate text-text-muted">{file.previous_path}</span>
-              <span aria-hidden="true" className="text-text-muted">↳</span>
+              <span aria-hidden="true" className="text-text-muted">
+                ↳
+              </span>
               <span className="truncate font-semibold text-text-primary">{file.path}</span>
             </span>
           ) : (
