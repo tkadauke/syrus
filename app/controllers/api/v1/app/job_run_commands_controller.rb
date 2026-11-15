@@ -339,9 +339,7 @@ module Api
               pr_number: job.pr_number,
               external_pr_number: job.external_pr_number,
               pr_mergeable: job.pr_mergeable,
-              pr_mergeable_checked_at: job.pr_mergeable_checked_at&.iso8601,
-              runs_count: job.runs.count,
-              workflows_count: job.workflows.count
+              pr_mergeable_checked_at: job.pr_mergeable_checked_at&.iso8601
             },
             paths: {
               job_path: tab ? job_path(job, tab: tab) : job_path(job)
@@ -370,9 +368,7 @@ module Api
             state: workflow.state,
             trigger_kind: workflow.trigger_kind,
             agent_provider: workflow.agent_provider,
-            cleaned_up_at: workflow.cleaned_up_at&.iso8601,
-            steps_count: workflow.steps.count,
-            runs_count: Run.where(step_id: workflow.steps.select(:id)).count
+            cleaned_up_at: workflow.cleaned_up_at&.iso8601
           }
         end
       end

@@ -1848,6 +1848,7 @@ export type AgentConversationNode = {
   agentic: boolean
   summary: string | null
   detail: Record<string, unknown>
+  detail_path?: string
 }
 
 export type AgentConversationEdge = {
@@ -1877,6 +1878,10 @@ export type AgentConversationGraph = {
 export function fetchJobAgentConversation(id: string | number, workflowId?: string | number | null) {
   const params = workflowId ? `?workflow_id=${encodeURIComponent(String(workflowId))}` : ""
   return getJson<AgentConversationGraph>(`/api/v1/app/jobs/${id}/agent_conversation${params}`)
+}
+
+export function fetchJobAgentConversationNode(path: string) {
+  return getJson<{ node: AgentConversationNode }>(path)
 }
 
 // Full current file text at a given ref, for on-demand diff-context expansion
@@ -2076,7 +2081,7 @@ export function applyPendingFeedback(jobId: number, commentId: number) {
 }
 
 export function ignorePendingFeedback(jobId: number, commentId: number) {
-  return postJson<JobDetailPayload>(`/api/v1/app/jobs/${jobId}/pending_feedback/${commentId}/ignore`)
+  return postJson<JobCommandPayload>(`/api/v1/app/jobs/${jobId}/pending_feedback/${commentId}/ignore`)
 }
 
 export function replacePendingFeedback(jobId: number, commentId: number, body: string) {
@@ -2088,11 +2093,11 @@ export function retryPendingFeedback(jobId: number, commentId: number) {
 }
 
 export function updateJobPriority(path: string, priority: string) {
-  return patchJson<JobDetailPayload>(path, { priority })
+  return patchJson<JobCommandPayload>(path, { priority })
 }
 
 export function updateJobProviderSetting(path: string, values: { jobProviderSetting: string; model?: string | null; effortLevel?: string | null }) {
-  return patchJson<JobDetailPayload>(path, {
+  return patchJson<JobCommandPayload>(path, {
     job_provider_setting: values.jobProviderSetting,
     model: values.model || "",
     effort_level: values.effortLevel || ""

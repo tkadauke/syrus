@@ -63,6 +63,18 @@ RSpec.describe "App API job execution waterfall", type: :request do
     expect(step_payload).to have_key("worker_storage_key")
   end
 
+  it "returns 304 for an unchanged terminal workflow" do
+    sign_in_as(user)
+    workflow = build_workflow_with_step
+    workflow.update!(state: "succeeded", finished_at: Time.current)
+
+    get "/api/v1/app/jobs/#{job.id}/waterfall", params: { workflow_id: workflow.id }
+    etag = response.headers.fetch("ETag")
+    get "/api/v1/app/jobs/#{job.id}/waterfall", params: { workflow_id: workflow.id }, headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+  end
+
   it "rejects a workflow_id that belongs to a different Job" do
     sign_in_as(user)
     other_job = Factories.job_record(user: user, repository: repo, state: "running", issue_number: 43)

@@ -73,7 +73,8 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(direct.workflows.last.work_unit).to be_present
     expect(parse_body).to include("message" => "Initial workflow enqueued.")
-    expect(parse_body.dig("job", "runs_count")).to eq(1)
+    expect(parse_body.fetch("job")).not_to include("runs_count", "workflows_count")
+    expect(parse_body).not_to have_key("actions")
     expect(parse_body.dig("paths", "job_path")).to eq(job_path(direct, tab: "workflows"))
   end
 
@@ -151,7 +152,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(direct).to be_queued
     expect(parse_body).to include("message" => "Job released from backlog.")
-    expect(parse_body.dig("job", "runs_count")).to eq(1)
+    expect(parse_body.fetch("job")).not_to include("runs_count", "workflows_count")
     expect(parse_body.dig("paths", "job_path")).to eq(job_path(direct, tab: "workflows"))
   end
 
@@ -639,10 +640,9 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("job", "id")).to eq(new_job.id)
     expect(parse_body.dig("old_job", "id")).to eq(original_id)
     expect(parse_body["redirect_to"]).to eq(job_path(new_job))
-    # job/actions in this response both describe the replacement job, not
-    # the one the request was made against — the frontend must key its
+    # The response names the replacement job, so the frontend must key its
     # cache merge off this id rather than assuming it matches the request.
-    expect(parse_body.dig("actions")).to be_present
+    expect(parse_body).not_to have_key("actions")
   end
 
   it "restarts a direct job preserving kind, title, body, and agent_provider" do
@@ -844,11 +844,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body).to include("message" => "Job approved.")
     expect(parse_body.dig("job", "approved_by_user_id")).to eq(user.id)
     expect(job.job_approvals.where(user: user).count).to eq(1)
-    # can_approve/can_unapprove must flip in the same response as the state
-    # change so the frontend can update the button and the badge together,
-    # instead of the Approve button lingering until the next full refetch.
-    expect(parse_body.dig("actions", "can_approve")).to be(false)
-    expect(parse_body.dig("actions", "can_unapprove")).to be(true)
+    expect(parse_body).not_to have_key("actions")
 
     post app_job_path(job, "unapprove"), as: :json
 
@@ -859,8 +855,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(job.approval_withdrawn_at).to be_present
     expect(job.job_approvals.where(user: user).count).to eq(1)
     expect(parse_body).to include("message" => "Job unapproved.")
-    expect(parse_body.dig("actions", "can_approve")).to be(true)
-    expect(parse_body.dig("actions", "can_unapprove")).to be(false)
+    expect(parse_body).not_to have_key("actions")
 
     post app_job_path(job, "approve"), as: :json
 
@@ -922,7 +917,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(visual_diff.artifact("cancelled_reason")).to eq("visual_diff_obsolete")
     expect(visual_unit.reload).to be_cancelled
     expect(visual_unit.preemption_reason).to eq("visual_diff_obsolete")
-    expect(parse_body.dig("actions", "can_approve")).to be(false)
+    expect(parse_body).not_to have_key("actions")
   end
 
   it "approves an implemented job while a stack rebase is running" do
@@ -1382,7 +1377,7 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       get "/api/v1/app/jobs/#{job.id}/workflows", as: :json
 
       entry = parse_body.fetch("workflows").find { |w| w["id"] == workflow.id }
-      expect(entry).to include("dismissable" => true, "blocked_reason_text" => "main branch broken", "app_dismiss_path" => dismiss_path(job, workflow))
+        expect(entry).to include("dismissable" => true, "blocked_reason_text" => "main branch broken")
     end
   end
 end

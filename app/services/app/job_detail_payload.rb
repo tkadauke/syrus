@@ -2,6 +2,8 @@ module App
   class JobDetailPayload
     include Rails.application.routes.url_helpers
     WORKFLOWS_PER_PAGE = App::WorkflowNavigation::PER_PAGE
+    TIMELINE_PER_PAGE = 50
+    TIMELINE_MAX_PER_PAGE = 100
 
     include WorkflowSerializers
     include DependencySerializers
@@ -33,8 +35,8 @@ module App
       new(job: job, user: user, params: params).workflows_etag
     end
 
-    def self.timeline(job:)
-      new(job: job, user: job.user).timeline_payload
+    def self.timeline(job:, page: nil, per: nil)
+      new(job: job, user: job.user, params: { page: page, per: per }).timeline_payload
     end
 
     def self.workflow_preview(workflow:, user:)
@@ -141,10 +143,16 @@ module App
     def timeline_payload
       PerformanceLogging.phase("job_timeline_payload", job_id: @job.id) do
         events = PerformanceLogging.phase("job_timeline.events.query", job_id: @job.id) { Jobs::Timeline.for(@job) }
+        page = [ @params[:page].to_i, 1 ].max
+        per = @params[:per].present? ? @params[:per].to_i : TIMELINE_PER_PAGE
+        per = per.clamp(1, TIMELINE_MAX_PER_PAGE)
+        total = events.size
+        events = events.slice((page - 1) * per, per) || []
         preload_timeline_workflows(events)
         {
           job_id: @job.id,
-          events: PerformanceLogging.phase("job_timeline.events.serialize", job_id: @job.id, event_count: events.size) { events.map { |event| timeline_event_json(event) } }
+          events: PerformanceLogging.phase("job_timeline.events.serialize", job_id: @job.id, event_count: events.size) { events.map { |event| timeline_event_json(event) } },
+          pagination: { page: page, per: per, total: total, total_pages: (total.to_f / per).ceil }
         }
       end
     end

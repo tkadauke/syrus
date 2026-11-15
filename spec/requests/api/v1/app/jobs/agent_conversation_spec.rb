@@ -49,6 +49,25 @@ RSpec.describe "App API job agent_conversation", type: :request do
       expect(body["nodes"].map { |node| node["id"] }).not_to include("agent_session-#{newer_run.id}")
     end
 
+    it "loads deterministic node detail separately and caches a terminal graph" do
+      workflow = Workflow.create!(job: job, user: owner, trigger_kind: "initial", agent_provider: "claude", state: "succeeded", finished_at: Time.current)
+      step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "succeeded", details: { "name" => "rspec", "output" => "42 examples" })
+      sign_in_as(owner)
+
+      get "/api/v1/app/jobs/#{job.id}/agent_conversation"
+
+      expect(response).to have_http_status(:ok)
+      node = parse_body.fetch("nodes").sole
+      expect(node).to include("detail" => {}, "detail_path" => "/api/v1/app/jobs/#{job.id}/agent_conversation/nodes/deterministic_check-#{step.id}")
+      etag = response.headers.fetch("ETag")
+
+      get node.fetch("detail_path")
+      expect(parse_body.dig("node", "detail", "output")).to eq("42 examples")
+
+      get "/api/v1/app/jobs/#{job.id}/agent_conversation", headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "is authorized the same way as the job detail endpoint (404 for a user with no repository access)" do
       sign_in_as(outsider)
 
