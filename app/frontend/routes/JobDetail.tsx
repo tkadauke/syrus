@@ -1298,7 +1298,8 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
 
   const mutation = useMutation({
     mutationFn: (priority: string) => updateJobPriority(priorityPath, priority),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      queryClient.setQueryData<JobDetailPayload>(queryKey, (old) => old && ({ ...old, job: { ...old.job, ...response.job }, actions: response.actions ?? old.actions }))
       void queryClient.invalidateQueries({ queryKey })
       invalidateJobSurfaces(queryClient, queryKey[1])
       setError(null)
@@ -1491,7 +1492,8 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
 
   const mutation = useMutation({
     mutationFn: () => updateJobProviderSetting(providerPath, draft),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      queryClient.setQueryData<JobDetailPayload>(queryKey, (old) => old && ({ ...old, job: { ...old.job, ...response.job }, actions: response.actions ?? old.actions }))
       void queryClient.invalidateQueries({ queryKey })
       invalidateJobSurfaces(queryClient, queryKey[1])
       setError(null)

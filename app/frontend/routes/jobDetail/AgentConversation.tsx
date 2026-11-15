@@ -8,7 +8,7 @@ import { CloseIcon } from "../../components/CloseIcon"
 import { GearIcon } from "../../components/GearIcon"
 import { Select } from "../../components/Select"
 import type { AgentConversationNode, AgentConversationWorkflow } from "../../api/jobs"
-import { fetchJobAgentConversation, fetchJobRunArtifacts } from "../../api/jobs"
+import { fetchJobAgentConversation, fetchJobAgentConversationNode, fetchJobRunArtifacts } from "../../api/jobs"
 import { workflowSlug } from "../../lib/slugs"
 import { renderLightMarkdown } from "../../lib/Markdown"
 import { PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
@@ -347,8 +347,15 @@ function TranscriptSidebar({ jobId, node, onClose }: { jobId: number; node: Agen
 function DeterministicCheckCard({ node }: { node: AgentConversationNode }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
-  const output = deterministicRawOutput(node)
-  const command = deterministicCommandLine(node)
+  const detail = useQuery({
+    queryKey: ["jobs", String(node.workflow_id), "agent_conversation_node", node.id],
+    queryFn: () => fetchJobAgentConversationNode(node.detail_path!),
+    enabled: expanded && Boolean(node.detail_path),
+    staleTime: Infinity
+  })
+  const detailedNode = detail.data?.node ?? node
+  const output = deterministicRawOutput(detailedNode)
+  const command = deterministicCommandLine(detailedNode)
   const iconTone =
     node.state === "failed"
       ? "text-red-600 dark:text-red-400"

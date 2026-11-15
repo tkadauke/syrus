@@ -179,6 +179,8 @@ RSpec.describe "App API pending feedback", type: :request do
       expect(comment.actioned_at).to be_present
       expect(comment.ignored_at).to be_present
       expect(ChatFeedbackSubmission).not_to have_received(:call)
+      expect(parse_body.keys).to contain_exactly("v", "job", "actions")
+      expect(parse_body.fetch("job")).to eq("id" => job.id)
     end
 
     it "returns 404 for already-actioned comments" do

@@ -26,13 +26,21 @@ module App
   class AgentConversationPayload
     EXTERNAL_TRIGGER_KINDS = %w[ pr_comment chat_feedback ci_failure ].freeze
 
-    def self.build(job:, workflow_id: nil)
-      new(job: job, workflow_id: workflow_id).payload
+    def self.build(job:, workflow_id: nil, include_node_details: true)
+      new(job: job, workflow_id: workflow_id, include_node_details: include_node_details).payload
     end
 
-    def initialize(job:, workflow_id: nil)
+    def self.node(job:, node_id:)
+      workflow_id = node_id.to_s.start_with?("deterministic_check-") ? Step.find_by(id: node_id.to_s.delete_prefix("deterministic_check-"))&.workflow_id : nil
+      workflow_id ||= Run.find_by(id: node_id.to_s.delete_prefix("agent_session-"))&.workflow_id if node_id.to_s.start_with?("agent_session-")
+      payload = new(job: job, workflow_id: workflow_id, include_node_details: true).payload
+      payload[:nodes].find { |node| node[:id] == node_id }
+    end
+
+    def initialize(job:, workflow_id: nil, include_node_details: false)
       @job = job
       @workflow_id = workflow_id.presence&.to_i
+      @include_node_details = include_node_details
     end
 
     def payload
@@ -108,7 +116,7 @@ module App
       previous_exit_ids = []
 
       workflows.each do |workflow|
-        workflow_graph = WorkflowGraphBuilder.new(workflow: workflow, runs_by_step_id: runs_by_step_id)
+        workflow_graph = WorkflowGraphBuilder.new(workflow: workflow, runs_by_step_id: runs_by_step_id, include_node_details: @include_node_details)
 
         trigger_node = external_trigger_node(workflow)
         if trigger_node
@@ -309,10 +317,11 @@ module App
 
       attr_reader :nodes, :edges
 
-      def initialize(workflow:, runs_by_step_id:)
+      def initialize(workflow:, runs_by_step_id:, include_node_details: false)
         @workflow = workflow
         @steps = workflow.steps.sort_by(&:position)
         @runs_by_step_id = runs_by_step_id
+        @include_node_details = include_node_details
         @steps_by_id = @steps.index_by(&:id)
         @previous_step_by_id = @steps.index_by(&:next_step_id)
         @chains = {}
@@ -478,7 +487,8 @@ module App
           finished_at: step.finished_at&.iso8601,
           agentic: false,
           summary: presenter.summary,
-          detail: presenter.detail
+          detail: @include_node_details ? presenter.detail : {},
+          detail_path: "/api/v1/app/jobs/#{@workflow.job_id}/agent_conversation/nodes/#{id}"
         }
         id
       end

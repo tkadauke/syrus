@@ -45,7 +45,11 @@ module Api
           return unless comment
 
           comment.mark_ignored!
-          render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user)
+          job.reload
+          render json: {
+            job: { id: job.id },
+            actions: ::App::JobDetailPayload.actions_payload(job: job, user: Current.user)[:actions]
+          }
         end
 
         def replace

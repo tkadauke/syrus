@@ -531,7 +531,6 @@ module Api
           {
             message: message,
             job: job_json(job),
-            actions: ::App::JobDetailPayload.actions_payload(job: job, user: Current.user)[:actions],
             paths: {
               job_path: tab ? job_path(job, tab: tab) : job_path(job)
             }
@@ -548,9 +547,7 @@ module Api
               provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
             approved_at: job.approved_at&.iso8601,
             approved_via: job.approved_via,
-            approved_by_user_id: job.approved_by_user_id,
-            runs_count: job.runs.count,
-            workflows_count: job.workflows.count
+            approved_by_user_id: job.approved_by_user_id
           }
         end
 

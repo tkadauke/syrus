@@ -471,6 +471,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(parse_body.dig("job", "job_provider_setting")).to eq("codex")
     expect(parse_body.dig("job", "model")).to eq("gpt-5.2-codex")
     expect(parse_body.dig("job", "effort_level")).to eq("high")
+    expect(parse_body.keys).to contain_exactly("v", "job", "actions")
   end
 
   it "repins and wakes unstarted workflows paused on the previous provider" do
@@ -1823,6 +1824,17 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       "ref_label" => "WF-#{job.latest_workflow.id}",
       "workflow_path" => "/jobs/#{job.id}?tab=workflows#workflow-#{job.latest_workflow.id}"
     )
+    expect(body.fetch("pagination")).to include("page" => 1, "per" => 50, "total" => body.fetch("events").length)
+  end
+
+  it "paginates timeline events with a bounded page size" do
+    user.update!(global_role: "admin")
+
+    get "/api/v1/app/jobs/#{job.id}/timeline", params: { page: 2, per: 1_000 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("events").length).to be <= 100
+    expect(parse_body.fetch("pagination")).to include("page" => 2, "per" => 100)
   end
 
   it "blocks timeline payloads for non-admin users" do
