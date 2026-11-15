@@ -84,6 +84,12 @@ rejected or cancelled action returns an unchanged, idempotent result. Grouped
 members must be rejected together from their group confirmation card so a
 single withdrawal cannot leave a partially active group.
 
+Permission requests follow the same conversational rule: agents refer to the
+requested capability and operation, not the authorization request's internal
+number. `cancel_authorization_request` accepts a capability and optional
+operation, defaults to the sole cancellable request in the chat, and retains a
+numeric exact handle only for otherwise ambiguous internal tool use.
+
 Nine chat-sidecar tools wire into this infrastructure: `reopen_job`,
 `retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,
 `admin_kill_process`, `approve_job`, `unapprove_job`, and `archive_epic`.

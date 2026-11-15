@@ -138,7 +138,7 @@ module Mcp::Tools
         })
         server_context[:current_message]&.update_columns(pending_action_id: request.id)
         Mcp::Tools.success(
-          authorization_request_id: request.id, pending_action_id: request.id,
+          pending_action_id: request.id,
           authorization_status: "waiting", requested_durations: request.authorization_items.first.requested_durations,
           tool_set_bundle: descriptor.tool_set_bundle,
           message: I18n.t("server.permissions.coworker_request_waiting")
@@ -249,7 +249,7 @@ module Mcp::Tools
         return unless result
 
         Mcp::Tools.success(
-          authorization_request_id: result.request&.id,
+          pending_action_id: result.request&.id,
           authorization_status: result.status,
           gated_operation_skipped: !result.created?,
           message: I18n.t("server.permissions.scheduled_authorization.#{result.created? ? 'waiting' : 'skipped'}")

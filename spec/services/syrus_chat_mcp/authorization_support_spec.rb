@@ -234,6 +234,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       )
       payload = JSON.parse(response.content.first[:text])
       request = ChatPendingAction.find(payload.fetch("pending_action_id"))
+      expect(payload).not_to have_key("authorization_request_id")
 
       expect(payload).to include(
         "message" => "Waiting for the owner to decide the required permissions.",
@@ -328,7 +329,8 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         actor_tool, { chat_session: }, { body: "hello", token: "secret" }
       )
       payload = JSON.parse(response.content.first[:text])
-      request = ChatPendingAction.find(payload.fetch("authorization_request_id"))
+      request = ChatPendingAction.find(payload.fetch("pending_action_id"))
+      expect(payload).not_to have_key("authorization_request_id")
 
       expect(request).to have_attributes(
         subject: user, origin: chat_session, runtime_role: AgentRole::CHAT_PLANNER,
@@ -473,7 +475,8 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
     payload = JSON.parse(response.content.first.fetch(:text), symbolize_names: true)
 
     expect(payload).to include(authorization_status: "created", gated_operation_skipped: false)
+    expect(payload).not_to have_key(:authorization_request_id)
     expect(scheduled_tool.invoked).to be_nil
-    expect(job.reload.related_authorization_requests.pluck(:id)).to contain_exactly(payload.fetch(:authorization_request_id))
+    expect(job.reload.related_authorization_requests.pluck(:id)).to contain_exactly(payload.fetch(:pending_action_id))
   end
 end

@@ -13,8 +13,9 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: nil, chat_session: chat).to_s
 
     expect(out).to include("The operator sees each pending action as a descriptive")
-    expect(out).to include("card, not as a number. Never write a numeric pending action id in a")
-    expect(out).to include("distinguish them by action and target, never by record id")
+    expect(out).to include("Never write a numeric pending action id or")
+    expect(out).to include("authorization request id in a reply")
+    expect(out).to match(/distinguish them by action and\s+target, never by record id/)
     expect(out).not_to include("proposed action, pending\n          action id")
   end
 
