@@ -1932,6 +1932,8 @@ describe("ReviewableDiff", () => {
     expect(screen.getByText("Moved")).toBeInTheDocument()
     expect(screen.getByText(explanation)).toBeInTheDocument()
     expect(screen.queryByText("No content changes.")).not.toBeInTheDocument()
+    expect(screen.queryByText("+0")).not.toBeInTheDocument()
+    expect(screen.queryByText("-0")).not.toBeInTheDocument()
   })
 
   it("keeps both long move paths truncatable at narrow widths", () => {

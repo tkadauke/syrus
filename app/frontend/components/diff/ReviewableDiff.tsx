@@ -3047,7 +3047,7 @@ function DiffFileHeader({
   const densityClasses = diffDensityClasses(reviewSettings)
   const hasHeaderActions = Boolean((onRenderModeChange && renderMode) || onLoadWholeFile || showFilesPopupTrigger)
   const moved = isMovedFile(file)
-  const pureMove = isPureMove(file)
+  const showChangeCounts = !moved || isEditedMove(file)
   const className = `${stickyClass}flex w-full flex-wrap items-center border-b border-gray-100 bg-gray-50 text-left font-mono text-gray-600 md:flex-nowrap dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400 ${densityClasses.fileHeader} ${selected ? "text-brand dark:text-brand-emphasis" : ""}`
 
   return (
@@ -3091,8 +3091,8 @@ function DiffFileHeader({
             {t(isEditedMove(file) ? "diff_review.moved_and_edited" : "diff_review.moved")}
           </span>
         ) : null}
-        {!pureMove && typeof file.additions === "number" ? <span className="shrink-0">+{file.additions}</span> : null}
-        {!pureMove && typeof file.deletions === "number" ? <span className="shrink-0">-{file.deletions}</span> : null}
+        {showChangeCounts && typeof file.additions === "number" ? <span className="shrink-0">+{file.additions}</span> : null}
+        {showChangeCounts && typeof file.deletions === "number" ? <span className="shrink-0">-{file.deletions}</span> : null}
       </div>
       {hasHeaderActions ? (
         <div className="flex w-full items-center justify-end [gap:inherit] md:w-auto" data-testid="diff-file-header-actions">
