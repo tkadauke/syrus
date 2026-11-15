@@ -30,7 +30,8 @@ export function RepositoryPageShell({
   prefix: string
   tipBanner?: ReactNode
 }) {
-  const { repositoryId = "" } = useParams()
+  const params = useParams()
+  const repositoryId = params.repositoryId || params.repository_id || ""
   const tabs = useQuery({
     queryKey: ["repositories", repositoryId, "plugin_tabs"],
     queryFn: () => fetchRepoPluginTabs(repositoryId),
