@@ -90,4 +90,28 @@ RSpec.describe Mcp::Tools::ReportCannotProceedTool do
     )
     expect(job.reload.needs_attention_reason).to be_nil
   end
+
+  it "does not reuse a previous retryable classification for a permanent blocker" do
+    previous_run = run.step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: run.trigger_kind,
+      state: "failed"
+    )
+    RunFailureClassification.create!(
+      run: previous_run,
+      classification: "timeout",
+      retryable: true,
+      classified_at: Time.current
+    )
+
+    call(reason: "A required binary is missing from the worker image")
+
+    expect(workflow.reload.artifact("cannot_proceed")).to include(
+      "disposition" => "blocked",
+      "failure_classification" => "application_error",
+      "retryable" => false
+    )
+    expect(job.reload.needs_attention_reason).to eq("agent_cannot_proceed")
+  end
 end
