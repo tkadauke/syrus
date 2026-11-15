@@ -7,7 +7,7 @@ import { RepositoryCognitiveDebtRoute } from "./RepositoryCognitiveDebt"
 import type { RepositoryDetailPayload } from "../api/repositories"
 
 const detailPayload = {
-  repository: { id: 1, slug: "acme/widgets" },
+  repository: { id: 1, slug: "acme/widgets" }
 } as RepositoryDetailPayload
 
 function cognitiveDebtPayload(overrides = {}) {
@@ -46,7 +46,14 @@ function renderRoute(debtResponse: Promise<Response> = Promise.resolve(jsonRespo
   client.setQueryData(["repositories", "1", "plugin_tabs"], {
     tabs: [
       { id: "overview", key: "overview", label: "Overview", path: "/repositories/1", paths: ["/repositories/1"], order: 0 },
-      { id: "cognitive_debt", key: "cognitive_debt", label: "Cognitive Debt", path: "/repositories/1/cognitive_debt", paths: ["/repositories/1/cognitive_debt"], order: 2 }
+      {
+        id: "cognitive_debt",
+        key: "cognitive_debt",
+        label: "Cognitive Debt",
+        path: "/repositories/1/cognitive_debt",
+        paths: ["/repositories/1/cognitive_debt"],
+        order: 2
+      }
     ]
   })
   return render(

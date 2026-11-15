@@ -12,30 +12,31 @@ const TABS = [
   { key: "documents", label: "Documents", path: "/repositories/1/documents" }
 ]
 
-function renderShell(
-  children = <div>Tab content</div>,
-  includeTip = true,
-  routePath = "/repositories/:repositoryId"
-) {
+function renderShell(children = <div>Tab content</div>, includeTip = true, routePath = "/repositories/:repositoryId") {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={["/repositories/1"]}>
         <Routes>
-          <Route path={routePath} element={
-            <RepositoryPageShell
-              activeTab="overview"
-              ariaLabel="Repository"
-              heading={<h1>acme/widgets</h1>}
-              prefix=""
-              tipBanner={includeTip ? (
-                <div role="region" aria-label="Recommended actions">
-                  Tip
-                </div>
-              ) : undefined}
-            >
-              {children}
-            </RepositoryPageShell>
-          } />
+          <Route
+            path={routePath}
+            element={
+              <RepositoryPageShell
+                activeTab="overview"
+                ariaLabel="Repository"
+                heading={<h1>acme/widgets</h1>}
+                prefix=""
+                tipBanner={
+                  includeTip ? (
+                    <div role="region" aria-label="Recommended actions">
+                      Tip
+                    </div>
+                  ) : undefined
+                }
+              >
+                {children}
+              </RepositoryPageShell>
+            }
+          />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
