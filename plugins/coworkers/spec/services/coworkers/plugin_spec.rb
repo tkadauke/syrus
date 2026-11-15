@@ -19,6 +19,37 @@ RSpec.describe "Coworkers plugin" do
     expect(Rails.root.glob("plugins/coworkers/app/services/pending_actions/coworker_*.rb")).not_to be_empty
   end
 
+  it "owns every migration whose behavior depends on coworker data" do
+    core_migrations = Rails.root.glob("db/migrate/*.rb").select do |path|
+      path.basename.to_s.match?(/coworker/i) || path.read.match?(/coworker/i)
+    end
+
+    expect(core_migrations).to be_empty
+    expect(Rails.root.glob("plugins/coworkers/db/migrate/*.rb").map { |path| path.basename.to_s }).to include(
+      "20261031162746_add_coworker_wake_fields.rb",
+      "20261101193036_reset_coworker_legacy_authority.rb",
+      "20261104120818_migrate_coworker_grants_to_permission_rules.rb",
+      "20261104140858_add_unsaved_workspace_to_coworker_chats.rb",
+      "20261106105035_create_coworker_review_contexts.rb"
+    )
+  end
+
+  it "reports only plugin-owned tables for an explicit purge" do
+    report = Syrus::PluginPurge.new("coworkers").report
+
+    expect(report.tables).to contain_exactly(
+      "coworker_chats",
+      "coworker_grants",
+      "coworker_provisioning_attempts",
+      "coworker_review_contexts",
+      "coworker_workspace_conflicts",
+      "coworker_workspace_repositories",
+      "coworkers",
+      "coworkers_chat_agents"
+    )
+    expect(report.tables).not_to include("review_evidences", "runs", "scheduled_tasks")
+  end
+
   it "is experimental and disabled by default" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "coworkers" }
 
