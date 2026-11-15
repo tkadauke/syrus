@@ -41,7 +41,9 @@ RSpec.describe Mcp::Tools::DeleteProposalTool, :full_chat_access do
     expect(middle.reload).to be_withdrawn
     expect(leaf.reload).to be_withdrawn
     expect(unrelated.reload).to be_pending
-    expect(response_payload(response)[:cascade].map { |proposal| proposal[:slug] }).to eq(%w[middle leaf])
+    cascade = response_payload(response)[:cascade]
+    expect(cascade.map { |proposal| proposal[:slug] }).to eq(%w[middle leaf])
+    expect(cascade).to all(satisfy { |proposal| !proposal.key?(:id) })
   end
 
   it "discards child proposals when deleting an epic bundle" do
