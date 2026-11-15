@@ -338,6 +338,7 @@ function estimateFileSectionHeight(
   const header = showHeader ? fileHeaderHeightEstimate(density, mobile && headerActions) : 0
   if (collapsed) return header
   if (file.generated && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
+  if (isPureMove(file)) return header + DEFAULT_FILE_ROW_HEIGHT_PX
   if (file.patch == null) return header + DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX
   const rowCount = countDiffRows(file.patch)
   if (rowCount > largeFileRowThreshold && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
@@ -945,13 +946,12 @@ function ChangedFilesList({
             className={`flex w-full items-center text-left hover:bg-brand/10 ${DIFF_DENSITY_CLASSES[density].changedFilesRow} ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
             key={file.path}
             onClick={() => onSelectFile(file.path)}
-            title={`${file.path} (+${file.additions ?? 0} -${file.deletions ?? 0})`}
+            title={changedFileTitle(file)}
             type="button"
           >
-            <span className="min-w-0 flex-1 truncate">{file.path}</span>
+            <ChangedFilePath file={file} path={file.path} />
             <GeneratedFileBadge file={file} />
-            {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
-            {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
+            <ChangedFileCounts file={file} />
             {commentCounts?.[file.path] ? (
               <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
                 {commentCounts[file.path]}
@@ -1037,13 +1037,12 @@ function ChangedFileTreeRow({
         className={`flex w-full items-center text-left hover:bg-brand/10 ${DIFF_DENSITY_CLASSES[density].changedFilesRow} ${selectedPath === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
         onClick={() => onSelectFile(file.path)}
         style={{ paddingLeft: `${0.75 + Math.min(file.path.split("/").length - 1, 6) * 0.75}rem` }}
-        title={`${file.path} (+${file.additions ?? 0} -${file.deletions ?? 0})`}
+        title={changedFileTitle(file)}
         type="button"
       >
-        <span className="min-w-0 flex-1 truncate">{node.name}</span>
+        <ChangedFilePath file={file} path={node.name} />
         <GeneratedFileBadge file={file} />
-        {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
-        {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
+        <ChangedFileCounts file={file} />
         {commentCounts?.[file.path] ? (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-2xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
             {commentCounts[file.path]}
@@ -1088,6 +1087,37 @@ function ChangedFileTreeRow({
         : null}
     </>
   )
+}
+
+function ChangedFilePath({ file, path }: { file: ReviewableDiffFile; path: string }) {
+  const { t } = useT("common")
+  if (!isMovedFile(file)) return <span className="min-w-0 flex-1 truncate">{path}</span>
+
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-1" data-testid="changed-file-move-path">
+      <span className="truncate text-text-muted">{file.previous_path}</span>
+      <span aria-hidden="true" className="shrink-0 text-text-muted">→</span>
+      <span className="truncate font-semibold">{path}</span>
+      <span className="shrink-0 rounded bg-success-surface px-1.5 py-0.5 font-sans text-2xs font-semibold text-success-text">
+        {t(isEditedMove(file) ? "diff_review.moved_and_edited" : "diff_review.moved")}
+      </span>
+    </span>
+  )
+}
+
+function ChangedFileCounts({ file }: { file: ReviewableDiffFile }) {
+  if (isPureMove(file)) return null
+  return (
+    <>
+      {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
+      {typeof file.deletions === "number" ? <span className="text-red-600 dark:text-red-400">-{file.deletions}</span> : null}
+    </>
+  )
+}
+
+function changedFileTitle(file: ReviewableDiffFile) {
+  const relationship = isMovedFile(file) ? `${file.previous_path} → ${file.path}` : file.path
+  return isPureMove(file) ? relationship : `${relationship} (+${file.additions ?? 0} -${file.deletions ?? 0})`
 }
 
 function buildChangedFileTree(files: ReviewableDiffFile[]) {
@@ -1510,6 +1540,12 @@ function DiffFileSection({
         />
       ) : renderKind && !supportsCode && renderImageDiff ? (
         renderImageDiff(file)
+      ) : isPureMove(file) ? (
+        <div className="border-t border-border px-4 py-3 font-sans text-sm font-medium text-text-secondary" data-testid="pure-move-message">
+          {t("diff_review.no_content_changes")}
+        </div>
+      ) : file.patch_status === "binary" ? (
+        <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{t("diff_review.binary_diff_unavailable")}</div>
       ) : shouldAutoLoadPatch ? (
         patchLoadState === "idle" || patchLoadState === "loading" ? (
           <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{t("diff_review.loading_full_diff")}</div>
@@ -1523,6 +1559,8 @@ function DiffFileSection({
         )
       ) : file.patch_status === "oversized" && onLoadFileDiff ? (
         <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
+      ) : file.patch_status === "oversized" ? (
+        <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{t("diff_review.oversized_diff_unavailable")}</div>
       ) : (
         <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{unavailableState}</div>
       )}
@@ -3008,6 +3046,8 @@ function DiffFileHeader({
   const stickyClass = collapsed ? "" : "sticky top-0 z-10 max-lg:top-[var(--mobile-chrome-visible-top-inset,0px)] "
   const densityClasses = diffDensityClasses(reviewSettings)
   const hasHeaderActions = Boolean((onRenderModeChange && renderMode) || onLoadWholeFile || showFilesPopupTrigger)
+  const moved = isMovedFile(file)
+  const pureMove = isPureMove(file)
   const className = `${stickyClass}flex w-full flex-wrap items-center border-b border-gray-100 bg-gray-50 text-left font-mono text-gray-600 md:flex-nowrap dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400 ${densityClasses.fileHeader} ${selected ? "text-brand dark:text-brand-emphasis" : ""}`
 
   return (
@@ -3028,17 +3068,31 @@ function DiffFileHeader({
         ) : null}
         <button
           aria-label={t("diff_review.copy_file_path_to_clipboard", { path: file.path })}
-          className={`group flex min-w-0 flex-1 items-center rounded text-left hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand ${densityClasses.filePathCopy}`}
+          className={`group flex min-w-0 flex-1 ${moved ? "items-start" : "items-center"} rounded text-left hover:bg-surface-raised hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand ${densityClasses.filePathCopy}`}
           onClick={() => copy(file.path)}
           title={copied ? t("copy.copied") : t("diff_review.copy_file_path", { path: file.path })}
           type="button"
         >
-          <span className="min-w-0 flex-1 truncate">{file.path}</span>
+          {moved ? (
+            <span className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] gap-x-1" data-testid="diff-file-move-paths">
+              <span aria-hidden="true" className="text-text-muted">−</span>
+              <span className="truncate text-text-muted">{file.previous_path}</span>
+              <span aria-hidden="true" className="text-text-muted">↳</span>
+              <span className="truncate font-semibold text-text-primary">{file.path}</span>
+            </span>
+          ) : (
+            <span className="min-w-0 flex-1 truncate">{file.path}</span>
+          )}
           <CopyIcon className={`h-3.5 w-3.5 shrink-0 ${copied ? "text-success-text" : "text-text-secondary group-hover:text-text-primary"}`} />
         </button>
         <GeneratedFileBadge file={file} />
-        {typeof file.additions === "number" ? <span className="shrink-0">+{file.additions}</span> : null}
-        {typeof file.deletions === "number" ? <span className="shrink-0">-{file.deletions}</span> : null}
+        {moved ? (
+          <span className="shrink-0 rounded bg-success-surface px-1.5 py-0.5 font-sans text-2xs font-semibold text-success-text">
+            {t(isEditedMove(file) ? "diff_review.moved_and_edited" : "diff_review.moved")}
+          </span>
+        ) : null}
+        {!pureMove && typeof file.additions === "number" ? <span className="shrink-0">+{file.additions}</span> : null}
+        {!pureMove && typeof file.deletions === "number" ? <span className="shrink-0">-{file.deletions}</span> : null}
       </div>
       {hasHeaderActions ? (
         <div className="flex w-full items-center justify-end [gap:inherit] md:w-auto" data-testid="diff-file-header-actions">
@@ -3084,6 +3138,18 @@ function DiffFileHeader({
       ) : null}
     </div>
   )
+}
+
+function isMovedFile(file: ReviewableDiffFile) {
+  return file.status === "renamed" && Boolean(file.previous_path)
+}
+
+function isPureMove(file: ReviewableDiffFile) {
+  return isMovedFile(file) && file.patch_status == null && !isEditedMove(file)
+}
+
+function isEditedMove(file: ReviewableDiffFile) {
+  return isMovedFile(file) && ((file.additions ?? 0) > 0 || (file.deletions ?? 0) > 0)
 }
 
 function filesForMode(files: ReviewableDiffFile[], mode: "single-file" | "continuous", selectedPath: string | null | undefined) {
