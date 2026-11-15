@@ -613,6 +613,12 @@ directly or transitively.
 A plugin may also declare `config/plugin_ownership.yml`. The manifest records
 its configuration keys, step kinds, target types, routes, tables, problem
 codes, tools, frontend contributions, documentation, and owned vocabulary.
+Plugin-owned data stored on a shared table uses `inline_fields`. Each table may
+declare `drop_columns` and, when entire rows belong to the plugin,
+`delete_rows_where_present`. The latter accepts a column name and deletes rows
+where that column is non-null before any declared columns or plugin tables are
+dropped. Purge ignores shared-table data unless the manifest opts into these
+operations explicitly.
 `compatibility_quarantine` is a per-core-file baseline of occurrences of that
 vocabulary. New files, increased counts, and decreases after extraction are
 reported as trends in shadow mode. They do not affect
