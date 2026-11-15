@@ -55,12 +55,80 @@ module Workflows
           candidate.details = details
           candidate.cancellation_reason ||= "implementation_head_changed"
           candidate.save!
-          candidate.runs.active.each { |run| run.cancel! if run.may_cancel? }
+          candidate.runs.active.each { |run| cancel_run_without_cascade!(run) }
         end
       end
     end
 
+    def self.cancel_run_without_cascade!(run)
+      return unless run&.may_cancel?
+
+      # Run's ordinary cancelled callback models an operator stop and cancels
+      # the owning Step and Workflow. Barrier invalidation is expected graph
+      # maintenance, so persist the terminal Run without that callback.
+      run.update_columns(state: "cancelled", finished_at: Time.current, updated_at: Time.current)
+    end
+
+    # A repair belongs to one review loop, but invalidates the evidence from
+    # every required loop. Recreate any sibling loop whose old generation was
+    # cancelled so the barrier can converge instead of waiting forever for
+    # evidence that can no longer be produced.
+    def self.refresh_required_reviews!(workflow, repair_step)
+      sha = reviewed_head_sha(workflow)
+      return [] if sha.blank?
+
+      created = []
+      workflow.with_lock do
+        Step.transaction do
+          invalidate_stale_evidence!(workflow)
+          repair_step.reload
+          continuation = repair_step.next_step
+          snapshots = required_snapshots(workflow)
+
+          snapshots.each do |snapshot|
+            kind = snapshot.fetch("step_kind")
+            fresh = workflow.steps.where(state: Step::ACTIVE_STATES).order(position: :desc, id: :desc).detect do |candidate|
+              effective_review_kind(candidate) == kind &&
+                candidate.details.to_h["reviewed_head_sha"].in?([ nil, sha ])
+            end
+            if fresh
+              fresh.update!(details: fresh.details.to_h.merge("reviewed_head_sha" => sha, "required" => true))
+              next
+            end
+
+            previous = workflow.steps.order(position: :desc, id: :desc).detect do |candidate|
+              effective_review_kind(candidate) == kind && candidate.loop_id.present?
+            end
+            next unless previous
+
+            workflow.steps.where("position >= ?", repair_step.position + 1).update_all("position = position + 1")
+            step = Step.create!(
+              workflow: workflow,
+              kind: kind,
+              position: repair_step.position + 1,
+              iteration: previous.iteration + 1,
+              loop_id: previous.loop_id,
+              next_step: continuation,
+              depends_on_ids: [ repair_step.id ],
+              placement_policy: Step::Kind.fetch(kind).placement_policy_for(workflow.job.repository),
+              details: {
+                "reviewed_head_sha" => sha,
+                "required" => true,
+                "review_barrier_rematerialized" => true
+              }
+            )
+            repair_step.update!(next_step: step)
+            continuation = step
+            created << step
+          end
+        end
+      end
+      created
+    end
+
     def self.effective_review_kind(step)
+      return if step.nil?
+
       step.details.to_h["panel_review_kind"].presence ||
         (step.kind if Step::Kind.review_gate_for(step.kind))
     end

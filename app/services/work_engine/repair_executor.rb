@@ -867,6 +867,25 @@ module WorkEngine
         end
       end
 
+      class CancelUnsafeReviewBarrierRun < Base
+        def perform
+          run = target_run
+          return skipped("Run no longer exists") unless run
+          return skipped("Run is #{run.state}, not queued") unless run.queued?
+          return skipped("Required review barrier is now satisfied") if Workflows::ImmutableReviewHeadBarrier.satisfied_for?(run.step)
+
+          Workflows::ImmutableReviewHeadBarrier.cancel_run_without_cascade!(run)
+          run.workflow.set_artifact!("review_head_barrier_block", {
+            "code" => "required_review_head_unresolved",
+            "step_id" => run.step_id,
+            "run_id" => run.id,
+            "recovered_by" => "work_engine_reconciler",
+            "recorded_at" => now.iso8601
+          })
+          success("cancelled unsafe queued #{run_label(run)} before required review completion")
+        end
+      end
+
       class ReopenCancelledRetryUntilBarrier < Base
         CANCELLATION_DETAIL_KEYS = Step::CANCELLATION_DETAIL_KEYS
 

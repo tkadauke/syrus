@@ -262,6 +262,7 @@ module WorkEngine
       issues.concat(classify_paused_queues)
       issues.concat(classify_running_runs)
       issues.concat(classify_active_steps_with_terminal_runs)
+      issues.concat(classify_unsafe_review_barrier_runs)
       issues.concat(classify_succeeded_review_steps_without_required_repair)
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
@@ -973,6 +974,36 @@ module WorkEngine
             next_iteration: step.iteration + 1
           ),
           explanation: "Review Step ##{step.id} recorded #{verdict.inspect}, but the required repair iteration was never materialized."
+        )
+      end
+    end
+
+    def classify_unsafe_review_barrier_runs
+      runs.select { |run| run.queued? || run.running? }.filter_map do |run|
+        step = run.step
+        next unless step&.workflow&.running?
+        next if Workflows::ImmutableReviewHeadBarrier.satisfied_for?(step)
+
+        started = run.running?
+        explanation = if started
+          "Run ##{run.id} started before every required review approved the current HEAD; external effects require operator review."
+        else
+          "Run ##{run.id} is queued before every required review approved the current HEAD and must be cancelled before execution."
+        end
+        issue(
+          kind: started ? :running_run_before_required_review_barrier : :queued_run_before_required_review_barrier,
+          severity: started ? :critical : :error,
+          affected_ids: ids_for(run),
+          safe_to_auto_repair: !started,
+          recommended_repair_action: started ? "operator_review_external_mutation" : "cancel_unsafe_review_barrier_run",
+          evidence: workflow_evidence(step.workflow).merge(
+            run_id: run.id,
+            run_state: run.state,
+            step_id: step.id,
+            step_kind: step.kind,
+            barrier_code: "required_review_head_unresolved"
+          ),
+          explanation: explanation
         )
       end
     end
