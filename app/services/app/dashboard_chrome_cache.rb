@@ -8,15 +8,22 @@ module App
       end
 
       def invalidate_all!
-        Rails.cache.write(GLOBAL_REVISION_KEY, SecureRandom.uuid)
+        write_revision(GLOBAL_REVISION_KEY)
       end
 
       def invalidate_user!(user_or_id)
         user_id = user_or_id.respond_to?(:id) ? user_or_id.id : user_or_id
-        Rails.cache.write(user_revision_key(user_id), SecureRandom.uuid) if user_id
+        write_revision(user_revision_key(user_id)) if user_id
       end
 
       private
+
+      def write_revision(key)
+        Rails.cache.write(key, SecureRandom.uuid)
+      rescue StandardError => error
+        Rails.logger.warn("Dashboard chrome cache invalidation skipped: #{error.class}: #{error.message}")
+        false
+      end
 
       def user_revision_key(user_id)
         "dashboard_chrome:revision:user:#{user_id}"

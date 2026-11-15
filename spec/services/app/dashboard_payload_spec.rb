@@ -2348,13 +2348,13 @@ RSpec.describe App::DashboardPayload, :ci_only do
     it "resolves plugin panels for the jobs dashboard notice slot" do
       panel = { id: "test.notice", component: "test/Notice", order: 10 }
 
-      expect(App::UiSlotsPayload).to receive(:panels_for) do |slot:, context:|
+      expect(App::UiSlotsPayload).to receive(:panels_for).twice do |slot:, context:, cacheable:|
         expect(slot).to eq("dashboard.jobs.notice")
         expect(context[:user]).to eq(user)
         expect(context[:subject]).to eq("job")
         expect(context[:active_smart_folder]).to eq(inbox_folder)
         expect(context[:active_repositories_scope]).to respond_to(:where)
-        [ panel ]
+        cacheable ? [ panel ] : []
       end
 
       result = call(subject: "job", smart_folder_id: inbox_folder.id)
@@ -2385,7 +2385,9 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
     it "keeps resolved plugin panels in chrome rather than rows" do
       panel = { id: "test.notice", component: "test/Notice", order: 10 }
-      allow(App::UiSlotsPayload).to receive(:panels_for).and_return([ panel ])
+      allow(App::UiSlotsPayload).to receive(:panels_for) do |cacheable:, **|
+        cacheable ? [ panel ] : []
+      end
 
       rows = call(subject: "job", section: "rows", smart_folder_id: inbox_folder.id)
       chrome = call(subject: "job", section: "chrome", smart_folder_id: inbox_folder.id)
