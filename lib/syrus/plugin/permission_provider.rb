@@ -12,7 +12,7 @@ module Syrus
       module ClassMethods
         def register_authorization_adapter(action, adapter)
           action = action.to_s
-          unless action.match?(/\A[a-z][a-z0-9_.-]*\z/)
+          unless action.match?(/\A[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*\z/)
             raise ArgumentError, "authorization adapter action must be namespaced"
           end
           raise ArgumentError, "authorization adapter #{action.inspect} is already registered" if registered_permission_authorization_adapters.key?(action)
