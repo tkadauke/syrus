@@ -201,10 +201,11 @@ module ScheduledTasks
 
     def record_system_result!(date:, result:, reason: nil)
       with_lock do
-        entry = {
+        previous = Array(system_result_history).find { |item| item["date"] == date.iso8601 }
+        entry = previous.to_h.slice("alerted_at").merge(
           "date" => date.iso8601, "result" => result.to_s, "reason" => reason,
           "recorded_at" => Time.current.iso8601
-        }
+        )
         history = Array(system_result_history).reject { |item| item["date"] == entry["date"] }
         attributes = {
           system_result_history: (history << entry).last(31),
@@ -239,7 +240,7 @@ module ScheduledTasks
 
     def record_failure!
       increment!(:consecutive_failure_count)
-      return if archived?
+      return if archived? || system_schedule?
       if consecutive_failure_count >= AppSetting.max_job_failures
         pause!(reason: "auto")
       end
@@ -259,6 +260,7 @@ module ScheduledTasks
 
       reason = fire_failure_reason(error)
       record_system_result!(date: date, result: "failed", reason: reason)
+      system_schedule_definition.failure_recorded(task: self, date:, reason:)
     end
 
     private

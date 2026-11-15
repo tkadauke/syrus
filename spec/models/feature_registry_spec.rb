@@ -5,6 +5,23 @@ RSpec.describe FeatureRegistry do
     expect(described_class.declarations).to equal(described_class.declarations)
   end
 
+  it "reloads declarations when content changes without an mtime change" do
+    path = Rails.root.join("tmp/features-#{SecureRandom.hex(4)}.yml")
+    unchanged_mtime = Time.utc(2026, 1, 1)
+    path.write("features:\n  - slug: cached_feature\n    category: First\n    name: Feature\n")
+    File.utime(unchanged_mtime, unchanged_mtime, path)
+
+    first = described_class.declarations(config_path: path)
+    path.write("features:\n  - slug: cached_feature\n    category: Other\n    name: Feature\n")
+    File.utime(unchanged_mtime, unchanged_mtime, path)
+    second = described_class.declarations(config_path: path)
+
+    expect(second).not_to equal(first)
+    expect(second.first.category).to eq("Other")
+  ensure
+    path&.delete if path&.exist?
+  end
+
   it "returns typed boolean declarations for config/features.yml" do
     declarations = described_class.declarations
 

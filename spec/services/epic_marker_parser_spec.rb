@@ -45,6 +45,13 @@ RSpec.describe EpicMarkerParser do
     })
   end
 
+  it "parses an explicit Linear issue child reference" do
+    expect(marker(epic_marker("linear:issue:abc-123"))).to eq({
+      kind: :child_of_epic,
+      linear_issue_id: "abc-123"
+    })
+  end
+
   it "finds explicit markers anywhere in the body" do
     expect(marker("Intro text\n\n#{epic_marker("Platform intake")}\n- Depends-on: #1")).to eq({
       kind: :epic_declaration,

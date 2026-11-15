@@ -12,6 +12,7 @@ class WorkflowActivityEvent < ApplicationRecord
     grader_loop_decision
     landing_queue_changed
     landing_workflow_dispatched
+    epic_marker_ignored
   ].freeze
   SEVERITIES = %w[info warn error].freeze
 

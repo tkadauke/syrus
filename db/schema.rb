@@ -1606,10 +1606,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_192220) do
     t.string "epic_dependency_policy", default: "linear", null: false
     t.integer "chat_goal_id"
     t.json "goal_prompt_snapshot"
+    t.string "origin", default: "operator", null: false
     t.index ["chat_goal_id", "created_at"], name: "index_epics_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_epics_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_epics_on_claimed_at"
     t.index ["number"], name: "index_epics_on_number", unique: true
+    t.index ["origin"], name: "index_epics_on_origin"
     t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["owner_user_id"], name: "index_epics_on_owner_user_id"
     t.index ["repository_id"], name: "index_epics_on_repository_id"

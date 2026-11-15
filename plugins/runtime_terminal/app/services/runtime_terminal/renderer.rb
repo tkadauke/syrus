@@ -13,6 +13,7 @@ module RuntimeTerminal
     # Cropping the measured anchor away avoids centering individual ink bounds.
     METRICS_ANCHOR = "██"
     CJK_METRICS_ANCHOR = "界界"
+    BOX_DRAWING_DOWNWARD_CONNECTORS = "│┃┆┇┊┋┌┍┎┏┐┑┒┓├┝┞┟┠┣┤┥┦┧┨┫┬┭┮┯┰┱┲┳┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋║╔╗╠╣╦╬".freeze
     CJK_LINE_TOP = 2
     FONT_PATH = File.expand_path("../../../assets/DejaVuSansMono.ttf", __dir__)
     CJK_FONT_PATH = File.expand_path("../../../assets/XiaolaiCjkSubset.ttf", __dir__)
@@ -78,7 +79,9 @@ module RuntimeTerminal
       markup = styled_markup("#{anchor_text}#{text}", styles)
       glyph = Vips::Image.text(markup, font: "#{family} #{FONT_SIZE}", fontfile: path, rgba: false)
       anchor_width = metrics_anchor_width(anchor_text, styles, family, path)
-      clip_to_cell(glyph, cell_width, anchor_width: anchor_width, line_top: wide ? CJK_LINE_TOP : 0)
+      mask = clip_to_cell(glyph, cell_width, anchor_width: anchor_width, line_top: wide ? CJK_LINE_TOP : 0)
+      preserve_box_drawing_connector(mask) if BOX_DRAWING_DOWNWARD_CONNECTORS.include?(text)
+      mask
     end
 
     def metrics_anchor_width(anchor_text, styles, family, path)
@@ -101,18 +104,22 @@ module RuntimeTerminal
 
     def clip_to_cell(glyph, cell_width, anchor_width:, line_top:)
       source_left = [ anchor_width, glyph.width ].min
-      # Pango line boxes vary by host. Normalize an oversized line to the
-      # fixed terminal row so its baseline and descenders keep their relative
-      # positions; bottom-cropping moves ordinary glyphs onto the last row and
-      # erases that distinction.
-      available_height = CELL_HEIGHT - line_top
-      glyph = glyph.resize(1, vscale: available_height.to_f / glyph.height) if glyph.height > available_height
       clipped_width = [ glyph.width - source_left, cell_width ].min
-      clipped_height = [ glyph.height, available_height ].min
+      clipped_height = [ glyph.height, CELL_HEIGHT - line_top ].min
       canvas = Vips::Image.black(cell_width, CELL_HEIGHT)
       return canvas unless clipped_width.positive? && clipped_height.positive?
 
       canvas.insert(glyph.crop(source_left, 0, clipped_width, clipped_height), 0, line_top)
+    end
+
+    # Pango versions disagree by a pixel when a normalized box-drawing glyph
+    # lands on an integer boundary. Preserve its downward connector explicitly
+    # so it still crosses the text baseline instead of becoming a detached
+    # corner on hosts that round the final source row upward.
+    def preserve_box_drawing_connector(mask)
+      shifted = Vips::Image.black(mask.width, mask.height)
+        .insert(mask.crop(0, 0, mask.width, mask.height - 1), 0, 1)
+      mask.maxpair(shifted)
     end
 
     def color(value, fallback)

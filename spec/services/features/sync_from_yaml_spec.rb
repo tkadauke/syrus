@@ -117,6 +117,7 @@ RSpec.describe Features::SyncFromYaml do
     YAML
     described_class.call(config_path: path)
     Feature.find_by!(slug: "example_feature").update!(enabled: false)
+    original_mtime = path.mtime
 
     path.write(<<~YAML)
       features:
@@ -126,7 +127,9 @@ RSpec.describe Features::SyncFromYaml do
           description: Updated description.
           default: false
     YAML
-    File.utime(path.atime, path.mtime + 1, path)
+    # Some deployment filesystems expose timestamps too coarsely to distinguish
+    # immediate config rewrites, so cache invalidation cannot rely on mtime.
+    File.utime(original_mtime, original_mtime, path)
 
     described_class.call(config_path: path)
 

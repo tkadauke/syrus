@@ -113,7 +113,7 @@ RSpec.describe InputSources::Linear do
 
     it "does not create a duplicate Job when already ingested" do
       allow_any_instance_of(LinearClient).to receive(:issues).and_return([ linear_issue ])
-      source.poll!
+      WorkflowActivity.synchronously { source.poll! }
       expect { source.poll! }.not_to change(Job, :count)
     end
 
@@ -229,6 +229,31 @@ RSpec.describe InputSources::Linear do
       expect(epic.title).to eq("Big feature rollout")
       expect(epic.repository).to eq(repository)
       expect(epic.github_issue_url).to eq("linear:issue:#{epic_issue['id']}")
+      expect(epic.origin).to eq("linear_issue")
+    end
+
+    it "attaches a child marker using the explicit Linear issue reference" do
+      epic_issue = linear_issue(id: "epic-parent", identifier: "LIN-10", description: epic_marker("Rollout"))
+      child_issue = linear_issue(id: "child", identifier: "LIN-11", description: epic_marker("linear:issue:epic-parent"))
+      allow_any_instance_of(LinearClient).to receive(:issues).and_return([ epic_issue, child_issue ])
+
+      source.poll!
+
+      epic = Epic.find_by!(github_issue_url: "linear:issue:epic-parent")
+      expect(Job.find_by!(external_ref: "child").epic).to eq(epic)
+    end
+
+    it "ignores a Linear marker targeting an operator-created Epic and records why" do
+      epic = Factories.epic(user: user, repository: repository, github_issue_url: "linear:issue:manual")
+      child_issue = linear_issue(id: "child", description: epic_marker("linear:issue:manual"))
+      allow_any_instance_of(LinearClient).to receive(:issues).and_return([ child_issue ])
+
+      WorkflowActivity.synchronously { source.poll! }
+
+      job = Job.find_by!(external_ref: "child")
+      expect(job.epic).to be_nil
+      expect(WorkflowActivityEvent.where(job: job).sole.message).to include("Epic marker ignored", "not created from a linear issue")
+      expect(epic.reload.origin).to eq("operator")
     end
 
     it "does not route natural-language Epic lines" do

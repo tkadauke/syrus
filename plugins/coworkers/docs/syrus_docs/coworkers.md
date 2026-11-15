@@ -144,9 +144,11 @@ journaling schedule remains visibly paused on the coworker page.
 
 Journaling does not invoke an agent on dormant days. It records the day as
 `skipped: dormant`, advances the last-journaled date, and creates no Job, chat
-card, wake turn, or unread state. Active and missed days are processed oldest
-first with a seven-day catch-up bound. A missed fire window is retried after a
-15-minute cooldown instead of waiting for the next day's window. Fire errors
+card, wake turn, or unread state. Active and missed days are processed within a
+seven-day catch-up bound. Older dates are recorded as
+`skipped: out_of_catch_up_window` so gaps stay visible. A failed nightly fire
+is retried at most once per hour and stops after three attempts until the next
+daily window. System schedules stay scheduled rather than being auto-paused. Fire errors
 are retained with their exception reason, and journaling is called out as
 overdue only when it is more than one day behind. The periodically sampled
 

@@ -3,6 +3,7 @@ class EpicMarkerParser
   COMMENT_CLOSE = "-->"
   MARKER_NAME = "syrus-epic"
   REFERENCE_PATTERN = /\A(?:(?<owner>[A-Za-z0-9][A-Za-z0-9._-]*)\/(?<repo>[A-Za-z0-9][A-Za-z0-9._-]*))?\#?(?<number>\d+)\z/
+  LINEAR_REFERENCE_PATTERN = /\Alinear:issue:(?<issue_id>[A-Za-z0-9_-]+)\z/i
   MAX_MARKER_VALUE_BYTES = 2.kilobytes
 
   def self.parse(text:, default_repository:)
@@ -19,6 +20,9 @@ class EpicMarkerParser
     return nil unless value
 
     return nil if value.blank?
+
+    linear_reference = value.match(LINEAR_REFERENCE_PATTERN)
+    return { kind: :child_of_epic, linear_issue_id: linear_reference[:issue_id] } if linear_reference
 
     reference = value.match(REFERENCE_PATTERN)
     return child_of_epic(reference) if reference
