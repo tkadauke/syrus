@@ -380,7 +380,7 @@ describe("ReviewWorkspace", () => {
     expect(within(viewer).getByText(/The provider flagged/)).toBeInTheDocument()
     expect(within(viewer).queryByRole("button", { name: "app/models/user.rb new lines 1-1" })).not.toBeInTheDocument()
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
-    expect(within(sidebar).getByText("Inspect this branch")).toBeInTheDocument()
+    expect(await within(sidebar).findByText("Inspect this branch")).toBeInTheDocument()
     expect(within(sidebar).getByText("setQueryData").tagName).toBe("CODE")
     expect(within(sidebar).getByText("ordering").tagName).toBe("STRONG")
     expect(within(sidebar).queryByText(/`setQueryData`/)).not.toBeInTheDocument()
