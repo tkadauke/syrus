@@ -613,6 +613,12 @@ directly or transitively.
 A plugin may also declare `config/plugin_ownership.yml`. The manifest records
 its configuration keys, step kinds, target types, routes, tables, problem
 codes, tools, frontend contributions, documentation, and owned vocabulary.
+Plugin-owned data stored on a shared table uses `inline_fields`. Each table may
+declare `drop_columns` and, when entire rows belong to the plugin,
+`delete_rows_where_present`. The latter accepts a column name and deletes rows
+where that column is non-null before any declared columns or plugin tables are
+dropped. Purge ignores shared-table data unless the manifest opts into these
+operations explicitly.
 `compatibility_quarantine` is a per-core-file baseline of occurrences of that
 vocabulary. New files, increased counts, and decreases after extraction are
 reported as trends in shadow mode. They do not affect
@@ -1078,6 +1084,15 @@ second copy of authorization policy. Duplicate operation keys within a provider
 and duplicate resource-type ownership across enabled providers fail closed.
 Disabled providers contribute neither capabilities nor scopes to
 `Permissions::Catalog`; enabling a plugin registers metadata, never authority.
+When a plugin-owned pending-action kind needs domain-specific descriptor or
+subject resolution during approval replay, the same provider calls
+`register_authorization_adapter(action, adapter)`. Action ownership is unique
+across enabled providers, and the adapter implements `permission_descriptor`
+and `subject_selector`. Core retains request, lease, single-use invocation,
+replay, and audit ownership. Disabled or unhealthy providers are absent from
+resolution, so stored actions fail closed instead of loading plugin domain
+classes. The permission contribution diagnostic inventories registered action
+keys alongside capabilities and tools.
 Permission providers should run the public RSpec conformance kit from their
 own specs:
 
@@ -1731,6 +1746,26 @@ Core calls that same provider's finalizer before ending the turn and promoting
 a queued message, so two turns from one chat cannot overtake persistence.
 Finalizers should surface recoverable conflicts in the chat and return; an
 unexpected finalization failure is logged and posted as a system message.
+
+## `chat_turn_lifecycle`
+
+Plugins whose agents need custom turn admission, serialization, or invocation
+context can own those decisions without adding plugin vocabulary or model
+checks to `ChatTurnJob`. Providers implement:
+
+```ruby
+.applies_to?(chat_session:, user_message:) # => true / false
+.new(chat_session:, user_message:)
+#admission                              # => {} or queue/outcome/message keys
+#context                                # => chat-like invocation context
+#synchronize { ... }                    # runs the turn under plugin locking
+#isolated_workspace?                    # skips host repository credentials
+```
+
+The first applicable provider owns the turn. Core still owns the generic chat
+invocation loop, message serialization, workspace transport, and lifecycle
+event ordering. An admission outcome must include its user-facing `message`;
+that copy belongs to the provider that made the decision.
 
 ## `chat_payload_contributor`
 

@@ -3,6 +3,66 @@ require "rails_helper"
 RSpec.describe "Coworkers plugin" do
   let(:owner) { User.create!(email_address: "owner@example.com", password: "password123") }
 
+  it "declares presentation copy for every permission descriptor" do
+    body = Rails.root.join("plugins/coworkers/app/services/permissions/coworker_actions.rb").read
+    declarations = body.scan(/CapabilityDescriptor\.new\((.*?)\n\s*\)/m)
+
+    expect(declarations).not_to be_empty
+    expect(declarations.flatten).to all(include("presentation:"))
+  end
+
+  it "owns its permission, MCP, and pending-action adapters outside core" do
+    core_paths = %w[
+      app/services/permissions/coworker_*.rb
+      app/services/mcp/coworker_*.rb
+      app/services/mcp/tools/coworker_*.rb
+      app/services/mcp/tools/discover_coworker_*.rb
+      app/services/mcp/tools/request_permission_revocation_tool.rb
+      app/services/mcp/tools/surrender_permission_lease_tool.rb
+      app/services/pending_actions/coworker_*.rb
+    ].flat_map { |pattern| Rails.root.glob(pattern) }
+
+    expect(core_paths).to be_empty
+    expect(Rails.root.glob("plugins/coworkers/app/services/permissions/coworker_*.rb")).not_to be_empty
+    expect(Rails.root.glob("plugins/coworkers/app/services/pending_actions/coworker_*.rb")).not_to be_empty
+  end
+
+  it "owns every migration whose behavior depends on coworker data" do
+    core_migrations = Rails.root.glob("db/migrate/*.rb").select do |path|
+      path.basename.to_s.match?(/coworker/i) || path.read.match?(/coworker/i)
+    end
+
+    expect(core_migrations).to be_empty
+    expect(Rails.root.glob("plugins/coworkers/db/migrate/*.rb").map { |path| path.basename.to_s }).to include(
+      "20261031162746_add_coworker_wake_fields.rb",
+      "20261101193036_reset_coworker_legacy_authority.rb",
+      "20261104120818_migrate_coworker_grants_to_permission_rules.rb",
+      "20261104140858_add_unsaved_workspace_to_coworker_chats.rb",
+      "20261106105035_create_coworker_review_contexts.rb"
+    )
+  end
+
+  it "reports only plugin-owned tables for an explicit purge" do
+    report = Syrus::PluginPurge.new("coworkers").report
+
+    expect(report.tables).to contain_exactly(
+      "coworker_chats",
+      "coworker_grants",
+      "coworker_provisioning_attempts",
+      "coworker_review_contexts",
+      "coworker_workspace_conflicts",
+      "coworker_workspace_repositories",
+      "coworkers",
+      "coworkers_chat_agents"
+    )
+    expect(report.tables).not_to include("review_evidences", "runs", "scheduled_tasks")
+    expect(report.inline_fields).to contain_exactly(
+      have_attributes(table: "scheduled_tasks", column: "coworker_id"),
+      have_attributes(table: "scheduled_tasks", column: "after_run"),
+      have_attributes(table: "runs", column: "coworker_wake_enqueued_at")
+    )
+  end
+
   it "is experimental and disabled by default" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "coworkers" }
 

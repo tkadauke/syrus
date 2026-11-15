@@ -23,6 +23,15 @@ ownership:
     - coworker_workspace_repositories
     - coworkers
     - coworkers_chat_agents
+  inline_fields:
+    scheduled_tasks:
+      delete_rows_where_present: coworker_id
+      drop_columns:
+        - coworker_id
+        - after_run
+    runs:
+      drop_columns:
+        - coworker_wake_enqueued_at
   problem_codes:
     - coworker_memory_persistence_failed
     - coworker_review_target_required
@@ -112,15 +121,11 @@ compatibility_quarantine:
   app/services/chat_session/cross_chat_turn_orientation.rb: 12
   app/services/chat_workspace.rb: 20
   app/services/execution/chat_workload_policy.rb: 5
-  app/services/mcp/coworker_tool_catalog.rb: 11
   app/services/mcp/sidecar.rb: 13
   app/services/mcp/tools.rb: 4
   app/services/mcp/tools/admin_read_operational_logs_tool.rb: 1
   app/services/mcp/tools/attach_repository_tool.rb: 5
   app/services/mcp/tools/authorization_support.rb: 33
-  app/services/mcp/tools/coworker_observability_authorization.rb: 5
-  app/services/mcp/tools/coworker_repository_access.rb: 3
-  app/services/mcp/tools/discover_coworker_capabilities_tool.rb: 6
   app/services/mcp/tools/get_job_diff_tool.rb: 3
   app/services/mcp/tools/list_repository_files_tool.rb: 1
   app/services/mcp/tools/operational_diagnostics_tools.rb: 10
@@ -132,30 +137,16 @@ compatibility_quarantine:
   app/services/mcp/tools/read_pr_tool.rb: 4
   app/services/mcp/tools/read_repository_file_tool.rb: 1
   app/services/mcp/tools/read_worker_health_tool.rb: 1
-  app/services/mcp/tools/request_permission_revocation_tool.rb: 3
   app/services/mcp/tools/request_permission_tool.rb: 5
   app/services/mcp/tools/search_chats_tool.rb: 13
   app/services/mcp/tools/search_repository_code_tool.rb: 1
   app/services/mcp/tools/submit_coworker_review_tool.rb: 7
-  app/services/mcp/tools/surrender_permission_lease_tool.rb: 3
   app/services/mcp_tool_context.rb: 24
   app/services/mcp_tool_policy.rb: 3
   app/services/mcp_tool_registry.rb: 71
   app/services/pending_actions/authorized_tool_call.rb: 2
-  app/services/pending_actions/coworker_permission_request.rb: 6
-  app/services/pending_actions/coworker_permission_revocation.rb: 15
-  app/services/pending_actions/coworker_tool_call.rb: 17
   app/services/permissions/authorization_decision.rb: 1
   app/services/permissions/capability_descriptor_adapter.rb: 6
-  app/services/permissions/coworker_actions.rb: 11
-  app/services/permissions/coworker_audit.rb: 21
-  app/services/permissions/coworker_authorization_decision.rb: 16
-  app/services/permissions/coworker_authorization_request.rb: 1
-  app/services/permissions/coworker_capability_discovery.rb: 18
-  app/services/permissions/coworker_default_policy.rb: 8
-  app/services/permissions/coworker_lease_surrender.rb: 17
-  app/services/permissions/coworker_permission_request.rb: 29
-  app/services/permissions/coworker_permission_revocation_request.rb: 29
   app/services/permissions/execution_actions.rb: 1
   app/services/permissions/ingestion_actions.rb: 1
   app/services/permissions/permission_profile.rb: 2
