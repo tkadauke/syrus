@@ -180,6 +180,7 @@
       "workspace_files": "Hic collega fasciculos spatii laboris legere et mutare potest.",
       "workspace_shell": "Hic collega mandata in spatio laboris exsequi potest.",
       "syrus_read_jobs": "Hic collega Opera Syri legere potest.",
+      "syrus_jobs": "Hic collega cursum Operum Syri post confirmationem administrare potest.",
       "syrus_propose_job": "Hic collega Opera Syro proponere potest.",
       "syrus_spawn_chat": "Hic collega colloquia Syrus technica ordinaria incipere potest."
     },

@@ -682,24 +682,25 @@ describe("App settings routes", () => {
   })
 
   it("uploads a personal document from the documents settings route", async () => {
+    const uploadedDocument = {
+      id: 8,
+      kind: "google_doc",
+      google_doc_url: "https://docs.google.com/document/d/user/edit",
+      filename: null,
+      content_type: null,
+      byte_size: null,
+      created_at: "2026-05-30T12:00:00Z"
+    }
+    let documents: Array<Record<string, unknown>> = []
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/credentials/documents" && init?.method === "POST") {
+        documents = [uploadedDocument]
         return Promise.resolve(
           new Response(
             JSON.stringify(
               personalDocumentsPayload({
-                documents: [
-                  {
-                    id: 8,
-                    kind: "google_doc",
-                    google_doc_url: "https://docs.google.com/document/d/user/edit",
-                    filename: null,
-                    content_type: null,
-                    byte_size: null,
-                    created_at: "2026-05-30T12:00:00Z"
-                  }
-                ],
+                documents,
                 message: "Document added."
               })
             ),
@@ -708,7 +709,9 @@ describe("App settings routes", () => {
         )
       }
 
-      return Promise.resolve(new Response(JSON.stringify(personalDocumentsPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(
+        new Response(JSON.stringify(personalDocumentsPayload({ documents })), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
     })
 
     render(

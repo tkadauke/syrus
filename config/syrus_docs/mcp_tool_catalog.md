@@ -208,6 +208,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `admin_read_operational_logs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
 | `ask_user_question` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - |
 | `attach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
+| `cancel_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - |
 | `detach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
 | `diagnose_run_queue` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
 | `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |

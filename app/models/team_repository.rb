@@ -1,4 +1,5 @@
 class TeamRepository < ApplicationRecord
+  after_commit -> { App::DashboardChromeCache.invalidate_all! }
   # Ordered low to high -- mirrors RepositoryMembership::ROLES/ROLE_RANK.
   ROLES = RepositoryMembership::ROLES
   ROLE_RANK = RepositoryMembership::ROLE_RANK

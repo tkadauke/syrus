@@ -38,6 +38,7 @@ import { ApiError } from "../../api/client"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import {
   branchChat,
+  chatMessageWasDelivered,
   addChatAgent,
   cancelChatShellCommand,
   clearChatHistory,
@@ -89,6 +90,7 @@ import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { Avatar } from "../../components/Avatar"
 import { CloseIcon } from "../../components/CloseIcon"
+import { ChevronIcon } from "../../components/ChevronIcon"
 import { Input } from "../../components/Input"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
@@ -140,7 +142,14 @@ import {
 } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
-import { clearInFlightComposerDraft, getInFlightComposerDraft, setInFlightComposerDraft } from "./inFlightComposerDraftStore"
+import {
+  acknowledgeInFlightComposerDraft,
+  clearInFlightComposerDraft,
+  getInFlightComposerDraft,
+  inFlightComposerDraftWasAcknowledged,
+  setInFlightComposerDraft,
+  subscribeToInFlightComposerDraftAcknowledgments
+} from "./inFlightComposerDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { AcceptSuggestionIcon, PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
@@ -195,6 +204,7 @@ export function PendingActionCarousel({
 }) {
   const { t } = useT("chat")
   const [selectedKey, setSelectedKey] = useState<string | null>(() => items[0]?.key ?? null)
+  const [collapsed, setCollapsed] = useState(false)
   const previousKeysRef = useRef(items.map((item) => item.key))
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const carouselRef = useRef<HTMLElement | null>(null)
@@ -226,7 +236,7 @@ export function PendingActionCarousel({
   return (
     <section
       aria-label={t("pending_action_carousel_label")}
-      className={single ? "motion-safe:transition-opacity" : "rounded-lg border border-border bg-surface p-2 shadow-lg motion-safe:transition-opacity"}
+      className="rounded-lg border border-border bg-surface p-2 shadow-lg motion-safe:transition-opacity"
       data-testid="pending-action-carousel"
       onBlurCapture={(event) => {
         focusWithinRef.current = event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
@@ -235,7 +245,7 @@ export function PendingActionCarousel({
         focusWithinRef.current = true
       }}
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
+        if (collapsed || event.target !== event.currentTarget) return
         if (event.key === "ArrowLeft") {
           event.preventDefault()
           navigate(-1)
@@ -252,7 +262,7 @@ export function PendingActionCarousel({
         const start = touchStartRef.current
         const touch = event.changedTouches[0]
         touchStartRef.current = null
-        if (!start || !touch || items.length < 2) return
+        if (collapsed || !start || !touch || items.length < 2) return
         const deltaX = touch.clientX - start.x
         const deltaY = touch.clientY - start.y
         if (Math.abs(deltaX) < ACTION_CAROUSEL_SWIPE_THRESHOLD || Math.abs(deltaX) <= Math.abs(deltaY) * 1.25) return
@@ -262,13 +272,15 @@ export function PendingActionCarousel({
       tabIndex={0}
       ref={carouselRef}
     >
-      {single ? null : (
-        <div className="mb-2 flex items-center justify-between gap-2 px-1">
-          <span aria-live="polite" className="text-xs font-medium text-text-muted">
-            {t("pending_action_carousel_position", { current: selectedIndex + 1, total: items.length })}
-          </span>
-          {items.length > 1 ? (
-            <div className="flex shrink-0 gap-1">
+      <div className={`${collapsed ? "" : "mb-2"} flex min-w-0 items-center justify-between gap-2 px-1`}>
+        <span aria-live="polite" className="min-w-0 truncate whitespace-nowrap text-xs font-medium text-text-muted">
+          {single
+            ? t("pending_action_count", { count: items.length })
+            : `${t("pending_action_carousel_label")} · ${t("pending_action_carousel_position", { current: selectedIndex + 1, total: items.length })}`}
+        </span>
+        <div className="flex shrink-0 gap-1">
+          {!collapsed && items.length > 1 ? (
+            <>
               <button
                 aria-label={t("pending_action_carousel_previous")}
                 className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
@@ -285,17 +297,29 @@ export function PendingActionCarousel({
               >
                 <span aria-hidden="true">→</span>
               </button>
-            </div>
+            </>
           ) : null}
+          <button
+            aria-expanded={!collapsed}
+            aria-label={t(collapsed ? "pending_action_expand" : "pending_action_collapse")}
+            className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            onClick={() => setCollapsed((value) => !value)}
+            title={t(collapsed ? "pending_action_expand" : "pending_action_collapse")}
+            type="button"
+          >
+            <ChevronIcon className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : "rotate-90"}`} />
+          </button>
+        </div>
+      </div>
+      {collapsed ? null : (
+        <div key={selectedItem.key} className="motion-safe:animate-chat-message-in">
+          {selectedItem.type === "action" ? (
+            <PendingActionCard pendingAction={selectedItem.action} queryKey={queryKey} onNotice={onNotice} />
+          ) : (
+            <PendingActionGroupCard pendingActionGroup={selectedItem.group} queryKey={queryKey} onNotice={onNotice} />
+          )}
         </div>
       )}
-      <div key={selectedItem.key} className="motion-safe:animate-chat-message-in">
-        {selectedItem.type === "action" ? (
-          <PendingActionCard pendingAction={selectedItem.action} queryKey={queryKey} onNotice={onNotice} />
-        ) : (
-          <PendingActionGroupCard pendingActionGroup={selectedItem.group} queryKey={queryKey} onNotice={onNotice} />
-        )}
-      </div>
     </section>
   )
 }
@@ -646,17 +670,58 @@ export function Compose({
       setPendingConfirmation(null)
       onNotice(null)
     },
-    onError: (error, draft) => {
+    onError: async (error, draft) => {
       submittedDraftRef.current = null
+      if (inFlightComposerDraftWasAcknowledged(draft)) {
+        clearInFlightComposerDraft(chatId, draft)
+        onNotice(null)
+        queueMicrotask(() => send.reset())
+        return
+      }
+      if (draft.clientIdempotencyKey) {
+        try {
+          if (await chatMessageWasDelivered(chatId, draft.clientIdempotencyKey)) {
+            acknowledgeInFlightComposerDraft(chatId, draft.clientIdempotencyKey)
+            clearInFlightComposerDraft(chatId, draft)
+            if (
+              currentDraftRef.current.composerText === draft.composerText &&
+              JSON.stringify(currentDraftRef.current.attachments) === JSON.stringify(draft.attachments)
+            )
+              clearComposerDraft()
+            onNotice(null)
+            queueMicrotask(() => send.reset())
+            return
+          }
+        } catch (_deliveryStatusError) {
+          // A failed status check leaves delivery ambiguous, so preserve the
+          // original draft and idempotency key for a safe retry.
+        }
+      }
       if (finishSubmittedDraft(draft, false)) onNotice(errorMessage(error, t("message_send_error")))
     }
   })
   const resetSend = send.reset
+  useEffect(
+    () =>
+      subscribeToInFlightComposerDraftAcknowledgments(chatId, (inFlight) => {
+        clearInFlightComposerDraft(chatId, inFlight)
+        if (
+          currentDraftRef.current.composerText === inFlight.composerText &&
+          JSON.stringify(currentDraftRef.current.attachments) === JSON.stringify(inFlight.attachments)
+        )
+          clearComposerDraft()
+        submittedDraftRef.current = null
+        resetSend()
+        onNotice(null)
+      }),
+    [chatId, onNotice, resetSend]
+  )
   useEffect(() => {
     const inFlight = getInFlightComposerDraft(chatId)
     if (!inFlight?.clientIdempotencyKey) return
     if (!payload.messages.some((message) => message.client_idempotency_key === inFlight.clientIdempotencyKey)) return
 
+    acknowledgeInFlightComposerDraft(chatId, inFlight.clientIdempotencyKey)
     clearInFlightComposerDraft(chatId, inFlight)
     if (
       currentDraftRef.current.composerText === inFlight.composerText &&
@@ -667,6 +732,37 @@ export function Compose({
     resetSend()
     onNotice(null)
   }, [chatId, payload.messages, onNotice, resetSend])
+  useEffect(() => {
+    if (!send.isError) return
+
+    const inFlight = getInFlightComposerDraft(chatId)
+    if (!inFlight?.clientIdempotencyKey) return
+
+    const clientIdempotencyKey = inFlight.clientIdempotencyKey
+    let cancelled = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    let attempts = 0
+    const reconcile = async () => {
+      attempts += 1
+      try {
+        if (await chatMessageWasDelivered(chatId, clientIdempotencyKey)) {
+          if (!cancelled) acknowledgeInFlightComposerDraft(chatId, clientIdempotencyKey)
+          return
+        }
+      } catch (_deliveryStatusError) {
+        // Keep retrying briefly: the status request can race the commit at the
+        // end of a successful long-running streamed response.
+      }
+
+      if (!cancelled && attempts < 5) timeout = setTimeout(reconcile, 500 * attempts)
+    }
+
+    void reconcile()
+    return () => {
+      cancelled = true
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [chatId, payload.messages, send.isError])
   const runShellCommand = useMutation({
     mutationFn: (input: { command: string; composerText: string }) => createChatShellCommand(chatId, input.command),
     onSuccess: (record, input) => {

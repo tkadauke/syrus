@@ -35,8 +35,9 @@ module WorkEngine
 
       def ensure!
         return unless Rails.env.test?
+        return if all_tables_exist?
 
-        load_queue_schema! unless all_tables_exist?
+        load_queue_schema!
         reset_columns!
       end
 

@@ -1451,6 +1451,81 @@ describe("chat compose drafts", () => {
     expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
   }, 30000)
 
+  it("retains delivery acknowledgment when a completed proposal turn displaces the submitted message before a late HTTP error", async () => {
+    let resolveMessage: ((response: Response) => void) | null = null
+    let clientIdempotencyKey = ""
+    const messageRequest = new Promise<Response>((resolve) => {
+      resolveMessage = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        clientIdempotencyKey = JSON.parse(String(init.body)).client_idempotency_key
+        return messageRequest
+      }
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Propose the durable fix." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    fireEvent.change(textarea, { target: { value: "Keep this newer follow-up." } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["new pixels"], "follow-up.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove follow-up.png" })
+
+    const subscription = actionCableSubscriptions.find((candidate) => candidate.params.channel === "ChatChannel")
+    act(() => {
+      subscription?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 10,
+          messages: [
+            {
+              type: "message",
+              id: 10,
+              role: "user",
+              content: { text: "Propose the durable fix." },
+              text: "Propose the durable fix.",
+              bookmarkable: true,
+              client_idempotency_key: clientIdempotencyKey
+            }
+          ]
+        }
+      })
+      subscription?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 10,
+          messages: [messageWithProposal(12, proposal({ title: "Durable delivery acknowledgment" }))]
+        }
+      })
+    })
+
+    await screen.findByText("Discuss proposal 12.")
+    expect(screen.queryByText("Propose the durable fix.")).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveMessage?.(jsonResponse({ error: "gateway timeout" }, 504))
+      await messageRequest
+    })
+
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue("Keep this newer follow-up.")
+    expect(screen.getByRole("button", { name: "Remove follow-up.png" })).toBeInTheDocument()
+    expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
+  }, 30000)
+
   it("keeps a failed send draft for its chat after the composer unmounts", async () => {
     const attachment = { id: 1, name: "failure.png", mimeType: "image/png", url: "/failure.png", size: 7 }
     setDraftAttachments("8", [attachment])
@@ -1512,10 +1587,117 @@ describe("chat compose drafts", () => {
 
     await waitFor(() => expect(textarea).toHaveValue("Committed despite the network."))
     expect(screen.getByText("Message failed.")).toBeInTheDocument()
+    fireEvent.change(textarea, { target: { value: "Keep this newer follow-up." } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["new pixels"], "after-error.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove after-error.png" })
 
     act(() => {
+      const subscription = actionCableSubscriptions.find((candidate) => candidate.params.channel === "ChatChannel")
+      subscription?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 10,
+          messages: [
+            {
+              type: "message",
+              id: 10,
+              role: "user",
+              content: { text: "Committed despite the network." },
+              text: "Committed despite the network.",
+              bookmarkable: true,
+              client_idempotency_key: clientIdempotencyKey
+            }
+          ]
+        }
+      })
+      subscription?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 10,
+          messages: [messageWithProposal(12, proposal({ title: "Delivered after the request failed" }))]
+        }
+      })
+    })
+
+    await screen.findByText("Discuss proposal 12.")
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue("Keep this newer follow-up.")
+    expect(screen.getByRole("button", { name: "Remove after-error.png" })).toBeInTheDocument()
+    expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
+    expect(screen.queryByText("Message could not be sent.")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
+  }, 30000)
+
+  it("confirms persisted delivery after an HTTP error when realtime acknowledgment was missed", async () => {
+    let rejectMessage: ((reason?: unknown) => void) | null = null
+    let clientIdempotencyKey = ""
+    const messageRequest = new Promise<Response>((_resolve, reject) => {
+      rejectMessage = reject
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        clientIdempotencyKey = JSON.parse(String(init.body)).client_idempotency_key
+        return messageRequest
+      }
+      if (path === `/api/v1/app/chats/8/message_delivery?client_idempotency_key=${clientIdempotencyKey}`)
+        return Promise.resolve(jsonResponse({ delivered: true }))
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Persisted before the connection failed." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    await act(async () => rejectMessage?.(new Error("connection lost")))
+
+    await waitFor(() =>
+      expect(vi.mocked(window.fetch).mock.calls.some(([input]) => String(input).includes("/message_delivery?client_idempotency_key="))).toBe(true)
+    )
+    expect(textarea).toHaveValue("")
+    expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+  }, 30000)
+
+  it("clears a late failed send after an already displaced message becomes durable", async () => {
+    let rejectMessage: ((reason?: unknown) => void) | null = null
+    let clientIdempotencyKey = ""
+    let deliveryChecks = 0
+    let deliveryRecorded = false
+    const messageRequest = new Promise<Response>((_resolve, reject) => {
+      rejectMessage = reject
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        clientIdempotencyKey = JSON.parse(String(init.body)).client_idempotency_key
+        return messageRequest
+      }
+      if (path === `/api/v1/app/chats/8/message_delivery?client_idempotency_key=${clientIdempotencyKey}`) {
+        deliveryChecks += 1
+        return Promise.resolve(jsonResponse({ delivered: deliveryRecorded }))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [chatMessage(1, "assistant", "Earlier context", new Date())] })))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Create the long proposal." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    act(() => {
       actionCableSubscriptions
-        .find((subscription) => subscription.params.channel === "ChatChannel")
+        .find((candidate) => candidate.params.channel === "ChatChannel")
         ?.mixin.received({
           type: "updated",
           resource: "chat",
@@ -1523,25 +1705,39 @@ describe("chat compose drafts", () => {
           payload: {
             action: "replace_tail",
             replace_from_id: 10,
-            messages: [
-              {
-                type: "message",
-                id: 10,
-                role: "user",
-                content: { text: "Committed despite the network." },
-                text: "Committed despite the network.",
-                bookmarkable: true,
-                client_idempotency_key: clientIdempotencyKey
-              }
-            ]
+            messages: [messageWithProposal(12, proposal({ title: "Proposal after a long turn" }))]
           }
         })
     })
 
-    await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue(""))
-    expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
-    expect(screen.queryByText("Message could not be sent.")).not.toBeInTheDocument()
-    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+    await screen.findByText("Discuss proposal 12.")
+    fireEvent.change(textarea, { target: { value: "Keep this newer follow-up." } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["new pixels"], "after-proposal.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove after-proposal.png" })
+    await waitFor(() => expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up."))
+
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await act(async () => rejectMessage?.(new Error("stream closed late")))
+      await screen.findByText("Message failed.")
+      await waitFor(() => expect(deliveryChecks).toBeGreaterThan(0))
+
+      const checksBeforeDeliveryWasRecorded = deliveryChecks
+      deliveryRecorded = true
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(deliveryChecks).toBeGreaterThan(checksBeforeDeliveryWasRecorded)
+      expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
+      expect(textarea).toHaveValue("Keep this newer follow-up.")
+      expect(screen.getByRole("button", { name: "Remove after-proposal.png" })).toBeInTheDocument()
+      expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
+    } finally {
+      vi.useRealTimers()
+    }
   }, 30000)
 
   it("does not discard newer typing when an earlier send succeeds", async () => {

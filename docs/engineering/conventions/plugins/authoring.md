@@ -2423,6 +2423,11 @@ Visibility is per record, like `repo_page_tab` and unlike `admin_page`: the
 provider is called with the host page's context and returns `[]` to render
 nothing.
 
+Dashboard panels are cached with the stable dashboard chrome by default. Set
+`cacheable: false` on a panel whose props contain counts or other rapidly
+changing values; those panels are rebuilt on every chrome request. Other slots
+currently ignore this hint.
+
 Most slots render panels inline in the order returned by
 `App::UiSlotsPayload`. `job.detail.tab` renders each panel as a tab, so those
 panels also need `key` and either `label` or `label_key`. `job.workflow.actions`

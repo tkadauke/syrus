@@ -434,6 +434,7 @@ class McpToolRegistry
         coworker_action(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
+        *coworker_job_lifecycle_entries,
         # Proposal tools only create the owner's real confirmation cards. A
         # generic coworker gate here would ask once before asking again on the
         # proposal itself.
@@ -579,6 +580,34 @@ class McpToolRegistry
       entry(tool, surface: :coworker, tier: tier, **metadata)
     end
 
+    # Coworkers receive only cancellation from the shared Job lifecycle
+    # capability: no approval, merge, retry, reopen, or other lifecycle
+    # authority. The tool keeps its mandatory pending-action confirmation.
+    COWORKER_JOB_LIFECYCLE_TOOLS = [ Mcp::Tools::CancelJobTool ].freeze
+
+    def coworker_job_lifecycle_entries
+      chat_entries.filter_map do |chat_entry|
+        next unless COWORKER_JOB_LIFECYCLE_TOOLS.include?(chat_entry.tool)
+
+        coworker(
+          chat_entry.tool,
+          tier: chat_entry.tier || :essential,
+          feature_flag: chat_entry.feature_flag,
+          capability: Permissions::JobLifecycle::JOBS.delete_suffix("@v1"),
+          mutation: chat_entry.mutation,
+          approval_effect: pending_action_tool?(chat_entry.tool),
+          descriptor: chat_entry.descriptor
+        )
+      end
+    end
+
+    def pending_action_tool?(tool)
+      PendingActions.for(tool_name_for(tool))
+      true
+    rescue PendingActions::UnknownAction
+      false
+    end
+
     # Compatibility is declared beside the registrations it covers so adding
     # a new tool through the normal builders fails descriptor validation.
     def legacy_chat(tool, **metadata) = chat(tool, **metadata, compatibility_descriptor: true)
@@ -588,7 +617,8 @@ class McpToolRegistry
 
     def lifecycle_chat(tool, **metadata)
       roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
-      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: roles)
+      shared_roles = (Array(roles) + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq
+      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: shared_roles)
       chat(tool, **metadata, descriptor:)
     end
 

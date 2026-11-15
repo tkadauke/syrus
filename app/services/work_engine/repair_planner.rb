@@ -1474,6 +1474,23 @@ module WorkEngine
         end
       end
 
+      class CheckpointBackedBlockedWorkflow < Base
+        def plan
+          automatic_plan(
+            "refresh_base_from_blocked_checkpoint",
+            primary_workflow,
+            "The blocked Workflow is quiescent and its published checkpoint is verified, so recover it through the normal refresh-base admission path.",
+            execution_steps: [ "BaseRefreshRetryEnqueuer.call" ],
+            preconditions: {
+              workflow_state: "blocked",
+              checkpoint_id: issue.evidence["checkpoint_id"],
+              no_active_runs: true,
+              no_active_work_unit_or_locks: true
+            }
+          )
+        end
+      end
+
       class WorkflowWorkspacePruneRisk < Base
         def plan
           waiting_plan(
