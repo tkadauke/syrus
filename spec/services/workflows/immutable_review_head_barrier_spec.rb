@@ -54,6 +54,16 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
     expect(described_class.satisfied_for?(tail)).to be(true)
   end
 
+  it "blocks dispatcher Run creation until every required collect approves the current HEAD" do
+    collect(kind: "adversarial_review", position: 1, sha: "head-b")
+    tail = Step.create!(workflow: workflow, kind: "format", position: 3)
+
+    expect(StepDispatcher.create_run_and_enqueue(tail, workflow)).to be_nil
+
+    collect(kind: "security_review", position: 2, sha: "head-b")
+    expect(StepDispatcher.create_run_and_enqueue(tail.reload, workflow)).to be_present
+  end
+
   it "keeps failed fresh evidence closed and excludes explicitly optional gates" do
     collect(kind: "adversarial_review", position: 1, sha: "head-b", verdict: "needs_work")
     collect(kind: "security_review", position: 2, sha: "head-b")
@@ -87,5 +97,59 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
       "superseded_by_head_sha" => "head-b"
     )
     expect(workflow.reload).not_to be_failed
+  end
+
+  it "idempotently rematerializes every missing required review for a repaired HEAD" do
+    adversarial = collect(kind: "adversarial_review", position: 1, sha: "head-a")
+    security = collect(kind: "security_review", position: 2, sha: "head-a", state: "running")
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 3, state: "succeeded",
+      loop_id: adversarial.loop_id || "adversarial-loop")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-c")
+    tail = Step.create!(workflow: workflow, kind: "format", position: 4)
+    repair.update!(next_step: tail)
+    adversarial.update!(loop_id: "adversarial-loop")
+    security.update!(loop_id: "security-loop")
+
+    described_class.invalidate_stale_evidence!(workflow)
+    first = described_class.refresh_required_reviews!(workflow, repair)
+    second = described_class.refresh_required_reviews!(workflow, repair)
+
+    expect(first.map(&:kind)).to contain_exactly("adversarial_review", "security_review")
+    expect(second).to be_empty
+    expect(workflow.steps.select { |step| step.details.to_h["review_barrier_rematerialized"] }.map(&:kind))
+      .to contain_exactly("adversarial_review", "security_review")
+    expect(described_class.satisfied_for?(tail)).to be(false)
+  end
+
+  it "keeps the tail closed after a fresh required failure and releases it exactly once after all approve" do
+    collect(kind: "adversarial_review", position: 1, sha: "head-b")
+    collect(kind: "security_review", position: 2, sha: "head-b", verdict: "needs_work")
+    tail = Step.create!(workflow: workflow, kind: "pr_open", position: 4)
+
+    expect(StepDispatcher.create_run_and_enqueue(tail, workflow)).to be_nil
+    expect(tail.runs.count).to eq(0)
+
+    collect(kind: "security_review", position: 3, sha: "head-b")
+    first = StepDispatcher.create_run_and_enqueue(tail.reload, workflow)
+    second = StepDispatcher.create_run_and_enqueue(tail.reload, workflow)
+
+    expect(first).to be_present
+    expect(second).to be_nil
+    expect(tail.runs.count).to eq(1)
+  end
+
+  it "cancels stale Runs without triggering operator-stop workflow cancellation" do
+    step = Step.create!(workflow: workflow, kind: "security_review", position: 1, state: "running",
+      details: { "panel_member" => true, "reviewed_head_sha" => "head-a" })
+    run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+
+    described_class.invalidate_stale_evidence!(workflow)
+
+    expect(run.reload).to be_cancelled
+    expect(workflow.reload).not_to be_cancelled
+  end
+
+  it "treats a missing post-repair validation step as exhausted instead of dereferencing nil" do
+    expect(described_class.effective_review_kind(nil)).to be_nil
   end
 end

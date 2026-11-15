@@ -39,6 +39,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     queued_workflow_with_failed_step
     queued_workflow_without_first_run
     requested_intent_without_active_unit
+    required_review_barrier_recovers_unsafe_tail
     retryable_merge_train_build_rebuilds
     running_step_with_terminal_run
     running_workflow_with_failed_step
@@ -111,6 +112,19 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result).to be_success
     expect(Job.find(result.job_ids.first)).to be_implemented
     expect(reconciler_scopes).to all(include(job_id: result.job_ids.first))
+  end
+
+  it "cancels an unsafe persisted tail while a required review barrier is unresolved" do
+    result = run_scenario("required_review_barrier_recovers_unsafe_tail")
+
+    expect(result).to be_success
+    workflow = Job.find(result.job_ids.first).latest_workflow
+    unsafe_run = workflow.steps.find_by!(kind: "pr_open").runs.last
+    expect(unsafe_run).to be_cancelled
+    expect(workflow.artifact("review_head_barrier_block")).to include(
+      "code" => "required_review_head_unresolved",
+      "recovered_by" => "work_engine_reconciler"
+    )
   end
 
   it "reconciles a queued Job with a published PR without launching replacement work" do

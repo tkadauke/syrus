@@ -445,8 +445,7 @@ class RunJob < ApplicationJob
 
     unless Workflows::ImmutableReviewHeadBarrier.satisfied_for?(@step)
       log("required review barrier unresolved for current implementation HEAD; cancelling unsafe queued Run", kind: "system")
-      @run.cancel! if @run.may_cancel?
-      @run.save!
+      Workflows::ImmutableReviewHeadBarrier.cancel_run_without_cascade!(@run)
       @workflow.set_artifact!("review_head_barrier_block", {
         "code" => "required_review_head_unresolved",
         "step_id" => @step.id,

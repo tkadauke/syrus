@@ -299,6 +299,14 @@ rewriting the original record.
 
 ## Step Kinds
 
+Required adversarial, security, coworker, and contributed review panels form a
+single immutable-HEAD gate. A panel fanout is only setup: formatting, graders,
+summaries, PR publication, and later review work do not start until every
+required panel aggregate approves the same implementation commit. When a
+review triggers a repair, Syrus retires the old commit's review work and runs
+the complete required review set again against the repaired commit. Optional
+panels do not block this gate.
+
 | Step | Agentic | Purpose |
 | --- | --- | --- |
 | `prepare` | No | If the repository is a fork, sync its default branch with upstream (merge, then push); then run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
