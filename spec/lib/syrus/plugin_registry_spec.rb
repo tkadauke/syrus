@@ -124,7 +124,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
 
     it "includes the chat turn finalization hook" do
-      expect(described_class::EXTENSION_POINTS).to include(:chat_turn_finalizer)
+      expect(described_class::EXTENSION_POINTS).to include(:chat_turn_lifecycle, :chat_turn_finalizer)
     end
 
     it "includes :source_control_provider" do

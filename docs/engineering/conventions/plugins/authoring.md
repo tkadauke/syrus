@@ -1741,6 +1741,26 @@ a queued message, so two turns from one chat cannot overtake persistence.
 Finalizers should surface recoverable conflicts in the chat and return; an
 unexpected finalization failure is logged and posted as a system message.
 
+## `chat_turn_lifecycle`
+
+Plugins whose agents need custom turn admission, serialization, or invocation
+context can own those decisions without adding plugin vocabulary or model
+checks to `ChatTurnJob`. Providers implement:
+
+```ruby
+.applies_to?(chat_session:, user_message:) # => true / false
+.new(chat_session:, user_message:)
+#admission                              # => {} or queue/outcome/message keys
+#context                                # => chat-like invocation context
+#synchronize { ... }                    # runs the turn under plugin locking
+#isolated_workspace?                    # skips host repository credentials
+```
+
+The first applicable provider owns the turn. Core still owns the generic chat
+invocation loop, message serialization, workspace transport, and lifecycle
+event ordering. An admission outcome must include its user-facing `message`;
+that copy belongs to the provider that made the decision.
+
 ## `chat_payload_contributor`
 
 The chat payload is one JSON document the chat page reads, and three of its
