@@ -1,7 +1,6 @@
-export type ProposerAttributionValue = {
-  label: string
-  handle?: string | null
-}
+import type { Proposer } from "../api/proposers"
+
+export type ProposerAttributionValue = Pick<Proposer, "label" | "handle">
 
 export function ProposerAttribution({
   label,

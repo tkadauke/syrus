@@ -168,7 +168,7 @@ it("switches between human and coworker proposers and clears the filter", async 
       filter_suggestions: []
     }
   } as unknown as DashboardPayload
-  const initialSearch = `?q=${encodeFilter(payload.filter)}`
+  const initialSearch = `?q=${encodeFilter(payload.filter ?? { and: [] })}`
 
   render(
     <MemoryRouter initialEntries={[`/dashboard/jobs${initialSearch}`]}>

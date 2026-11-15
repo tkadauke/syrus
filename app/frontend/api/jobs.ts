@@ -13,9 +13,8 @@ import type {
 import type { AdmissionBreakdown, StartBlockedDetails } from "../types/startBlocked"
 import type { TypedArtifact } from "./artifacts"
 import type { GoalProvenance } from "./chats"
+import type { Proposer } from "./proposers"
 import { checkApiVersion } from "./version"
-
-export type Proposer = { type: string; id: number; label: string; handle: string | null }
 
 export type JobRepository = {
   id: number
