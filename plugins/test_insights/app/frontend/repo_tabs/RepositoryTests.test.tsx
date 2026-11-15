@@ -53,7 +53,6 @@ const FILTER_SCHEMA = [
 function listPayload(): RepositoryTestsPayload {
   return {
     repository: REPOSITORY,
-    tabs: [],
     filter: { and: [] },
     filter_schema: FILTER_SCHEMA,
     tests: []
@@ -89,7 +88,6 @@ function detailPayload(): RepositoryTestDetailPayload {
 
   return {
     repository: REPOSITORY,
-    tabs: [],
     test,
     history,
     pagination: { page: 1, per_page: history.length, total: history.length, total_pages: 1 },
@@ -107,7 +105,7 @@ function mockFetch() {
 }
 
 function buildTestsPayload(): RepositoryTestsPayload {
-  return { repository: REPOSITORY, tabs: TABS, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: [] }
+  return { repository: REPOSITORY, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: [] }
 }
 
 function buildDetailPayload(page: number): RepositoryTestDetailPayload {
@@ -136,7 +134,6 @@ function buildDetailPayload(page: number): RepositoryTestDetailPayload {
 
   return {
     repository: REPOSITORY,
-    tabs: TABS,
     test,
     history,
     pagination: { page, per_page: 1, total: 2, total_pages: 2 },
@@ -146,11 +143,14 @@ function buildDetailPayload(page: number): RepositoryTestDetailPayload {
 
 function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["repositories", "1", "plugin_tabs"], {
+    tabs: TABS.map((tab, order) => ({ ...tab, id: tab.key, paths: [tab.path], order }))
+  })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ "/tests-panel" ]}>
+      <MemoryRouter initialEntries={[ "/repositories/1/plugin/tests" ]}>
         <Routes>
-          <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId="42" />} path="/tests-panel" />
+          <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId="42" />} path="/repositories/:repositoryId/plugin/tests" />
           <Route element={<div>Run detail page</div>} path="/jobs/:id" />
         </Routes>
       </MemoryRouter>
@@ -165,11 +165,14 @@ describe("RepositoryTestsRoute tab bar", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(buildTestsPayload()))
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(["repositories", "1", "plugin_tabs"], {
+      tabs: TABS.map((tab, order) => ({ ...tab, id: tab.key, paths: [tab.path], order }))
+    })
     render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[ "/tests-panel" ]}>
+        <MemoryRouter initialEntries={[ "/repositories/1/plugin/tests" ]}>
           <Routes>
-            <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/tests-panel" />
+            <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/repositories/:repositoryId/plugin/tests" />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
@@ -242,7 +245,7 @@ const ALL_TESTS: RepositoryTestsPayload["tests"] = [
 ]
 
 function multiTestPayload(): RepositoryTestsPayload {
-  return { repository: REPOSITORY, tabs: TABS, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: ALL_TESTS }
+  return { repository: REPOSITORY, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: ALL_TESTS }
 }
 
 function decodeFilterTree(q: string): { and?: Array<{ field: string; op: string; value?: unknown }> } {

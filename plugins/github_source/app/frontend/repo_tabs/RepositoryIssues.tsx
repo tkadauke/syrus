@@ -575,7 +575,6 @@ export default function RepositoryIssuesTab() {
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
     >
       {issues.isPending ? <PanelMessage>{t("repository.loading_issues")}</PanelMessage> : null}
       {!issues.isPending && (issues.isError || !payload) ? <PanelMessage tone="error">{t("repository.load_error")}</PanelMessage> : null}

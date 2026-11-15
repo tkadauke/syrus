@@ -52,7 +52,6 @@ export function RepositoryDocumentsRoute() {
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
     >
       {documents.isPending ? <PanelMessage>{t("repository_documents.loading")}</PanelMessage> : null}
       {documents.isError ? <RepositoryDocumentsError error={documents.error} /> : null}

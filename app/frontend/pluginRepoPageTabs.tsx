@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { useLocation, useParams } from "react-router-dom"
 import { fetchRepoPluginTabs } from "./api/repoPluginTabs"
+import { REPOSITORY_TABS_STALE_TIME } from "./components/RepositoryPageShell"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 import { loadPluginModule } from "./i18n"
@@ -56,7 +57,7 @@ export function PluginRepoPageTabRoute() {
     queryKey: ["repositories", repositoryId, "plugin_tabs"],
     queryFn: () => fetchRepoPluginTabs(repositoryId),
     enabled: repositoryId.length > 0,
-    staleTime: 30_000
+    staleTime: REPOSITORY_TABS_STALE_TIME
   })
 
   if (tabs.isPending) {

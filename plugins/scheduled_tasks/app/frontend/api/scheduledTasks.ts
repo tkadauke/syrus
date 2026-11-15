@@ -1,5 +1,4 @@
 import { deleteJson, getJson, patchJson, postJson } from "@app/api/client"
-import type { RepositoryTab } from "@app/api/repositories"
 
 export type ScheduledTaskRepository = {
   id: number
@@ -120,7 +119,6 @@ export type RepositoryScheduledTask = ScheduledTaskDetail & {
 
 export type RepositoryScheduledTasksPayload = {
   repository: ScheduledTaskRepository
-  tabs: RepositoryTab[]
   tasks: RepositoryScheduledTask[]
   new_scheduled_task_path: string
   options: ScheduledTaskOptions

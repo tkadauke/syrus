@@ -287,7 +287,6 @@ export type RepositoryDetailPayload = {
   message?: string | null
   repository: RepositoryDetailRecord
   syrus_yml?: RepositorySyrusYmlSummary
-  tabs: RepositoryTab[]
   counts: {
     running: number
     queued: number
