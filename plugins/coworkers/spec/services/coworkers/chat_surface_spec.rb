@@ -386,9 +386,9 @@ RSpec.describe "Coworker chat surface" do
     SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
     allow_tool(Mcp::Tools::SearchChatsTool)
+    Syrus::PluginRegistry.register(:chat_identity_provider, Coworkers::ChatIdentityProvider)
     indexed = chat.messages.create!(role: "user", content: { "text" => "calendar needle" })
     ChatMessageSearchIndex.insert(indexed)
-    Syrus::PluginRegistry.register(:chat_result_decorator, Coworkers::ChatResultDecorator)
     context = { chat_session: chat }
 
     response = Mcp::Tools::SearchChatsTool.call(server_context: context, query: "calendar", coworker_id: coworker.id)

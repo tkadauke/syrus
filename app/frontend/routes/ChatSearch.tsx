@@ -15,15 +15,15 @@ type FilterOptionsPayload = {
   options?: FilterOption[]
 }
 
-const filterFields = ["q", "repository_id", "epic_id", "job_id", "coworker_id"]
-const coworkerOperators = ["is", "is_not", "is_one_of", "is_none_of"]
+const filterFields = ["q", "repository_id", "epic_id", "job_id"]
+const pluginOperators = ["is", "is_not", "is_one_of", "is_none_of"]
 
 export function ChatSearchRoute() {
   const { t } = useT("chat")
   const location = useLocation()
   const search = location.search || ""
   const searchParams = new URLSearchParams(search)
-  const hasCriteria = filterFields.some((field) => Boolean(searchParams.get(field)?.trim()))
+  const hasCriteria = Array.from(searchParams).some(([field, value]) => field !== "page" && !field.endsWith("_op") && Boolean(value.trim()))
   const results = useQuery({
     queryKey: ["chat-search", search],
     queryFn: ({ signal }) => fetchChatSearch(search, { signal }),
@@ -34,8 +34,13 @@ export function ChatSearchRoute() {
     queryKey: ["chat-search", "filter-options"],
     queryFn: ({ signal }) => loadFilterOptions(signal)
   })
-  const filter = useMemo(() => filterFromSearch(search), [search])
+  const pluginFields = useMemo(() => filterOptions.data?.pluginFields?.map((field) => field.field) || [], [filterOptions.data?.pluginFields])
+  const filter = useMemo(() => filterFromSearch(search, pluginFields), [search, pluginFields])
   const filterSchema = useMemo(() => chatSearchFilterSchema(filterOptions.data, t), [filterOptions.data, t])
+  const buildFilterLink = useMemo<FilterLinkBuilder>(
+    () => (path, currentSearch, updates) => chatSearchFilterLink(path, currentSearch, updates, pluginFields),
+    [pluginFields]
+  )
 
   return (
     <Page.Root aria-label={t("aria_chat_search")} gutter="responsive" size="wide">
@@ -46,7 +51,7 @@ export function ChatSearchRoute() {
       <Page.Nav>
         <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
           <FilterBar
-            buildLink={chatSearchFilterLink}
+            buildLink={buildFilterLink}
             filter={filter}
             filterSchema={filterSchema}
             legacyFilterKeys={["repository_id", "epic_id", "job_id"]}
@@ -236,36 +241,31 @@ function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOpt
     { field: "epic_id", label: t("search.filter_epic"), bucket: "select", operators: ["is"], values: options?.epic_id || [] },
     { field: "job_id", label: t("search.filter_job"), bucket: "select", operators: ["is"], values: options?.job_id || [] }
   ]
-  const coworker = options?.pluginFields?.find((field) => field.field === "coworker_id")
-  if (coworker) fields.push({ ...coworker, bucket: "select" })
+  fields.push(...(options?.pluginFields || []).map((field) => ({ ...field, bucket: "select" as const })))
   return fields
 }
 
-export function filterFromSearch(search: string) {
+export function filterFromSearch(search: string, pluginFields: string[] = []) {
   const params = new URLSearchParams(search)
-  const and: FilterChip[] = filterFields
-    .filter((field) => field !== "coworker_id")
-    .flatMap((field) => {
-      const value = params.get(field)?.trim()
-      return value ? [{ field, op: field === "q" ? "contains" : "is", value }] : []
-    })
-  const coworkerValues = params
-    .get("coworker_id")
-    ?.split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-  const coworkerOp = params.get("coworker_op") || "is"
-  if (coworkerValues?.length && coworkerOperators.includes(coworkerOp)) {
-    and.push({
-      field: "coworker_id",
-      op: coworkerOp,
-      value: coworkerOp === "is_one_of" || coworkerOp === "is_none_of" ? coworkerValues : coworkerValues[0]
-    })
-  }
+  const contributedFields =
+    pluginFields.length > 0 ? pluginFields : Array.from(params.keys()).filter((field) => field.endsWith("_id") && !filterFields.includes(field))
+  const and: FilterChip[] = filterFields.flatMap((field) => {
+    const value = params.get(field)?.trim()
+    return value ? [{ field, op: field === "q" ? "contains" : "is", value }] : []
+  })
+  contributedFields.forEach((field) => {
+    const values = params
+      .get(field)
+      ?.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+    const op = params.get(operatorParam(field)) || "is"
+    if (values?.length && pluginOperators.includes(op)) and.push({ field, op, value: op === "is_one_of" || op === "is_none_of" ? values : values[0] })
+  })
   return { and }
 }
 
-export const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) => {
+export function chatSearchFilterLink(path: string, search: string, updates: Parameters<FilterLinkBuilder>[2], pluginFields: string[] = []) {
   const params = new URLSearchParams(search)
   const encodedFilter = updates.q
 
@@ -277,24 +277,31 @@ export const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) =
   }
 
   if (typeof encodedFilter === "string" && encodedFilter.length > 0) {
-    for (const field of filterFields) params.delete(field)
-    params.delete("coworker_op")
+    const availableFields = [...filterFields, ...pluginFields, ...decodeFilterChips(encodedFilter).map((chip) => chip.field)]
+    for (const field of availableFields) {
+      params.delete(field)
+      params.delete(operatorParam(field))
+    }
     for (const chip of decodeFilterChips(encodedFilter)) {
-      if (!filterFields.includes(chip.field)) continue
-
       const values = Array.isArray(chip.value) ? chip.value.map(String).filter(Boolean) : [String(chip.value || "")].filter(Boolean)
       if (values.length === 0) continue
       params.set(chip.field, values.join(","))
-      if (chip.field === "coworker_id" && coworkerOperators.includes(chip.op)) params.set("coworker_op", chip.op)
+      if (pluginOperators.includes(chip.op) && !filterFields.includes(chip.field)) params.set(operatorParam(chip.field), chip.op)
     }
   } else if (encodedFilter == null) {
-    for (const field of filterFields) params.delete(field)
-    params.delete("coworker_op")
+    for (const field of [...filterFields, ...pluginFields]) {
+      params.delete(field)
+      params.delete(operatorParam(field))
+    }
   }
 
   params.delete("page")
   const query = params.toString()
   return query ? `${path}?${query}` : path
+}
+
+function operatorParam(field: string) {
+  return `${field.replace(/_id$/, "")}_op`
 }
 
 function decodeFilterChips(encoded: string): Array<{ field: string; op: string; value: unknown }> {

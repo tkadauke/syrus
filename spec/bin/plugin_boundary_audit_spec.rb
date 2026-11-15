@@ -67,6 +67,27 @@ RSpec.describe "bin/plugin-boundary-audit" do
     expect(stdout).to include("Result: PASS")
   end
 
+  it "physically subtracts the optional chat identity plugin", :requires_git_checkout do
+    command = [
+      "test ! -d plugins/coworkers",
+      "! grep -q 'plugins/coworkers' Gemfile",
+      "test -f app/services/chat_identity_contributions.rb"
+    ].join(" && ")
+
+    stdout, stderr, status = Open3.capture3(
+      { "BUNDLE_PATH" => "#{root}/vendor/bundle", "BUNDLE_APP_CONFIG" => "#{root}/.bundle" },
+      "bin/plugin-boundary-audit",
+      "coworkers",
+      "--command",
+      command,
+      chdir: root
+    )
+
+    expect(status).to be_success, "stdout=#{stdout}\nstderr=#{stderr}"
+    expect(stdout).to include("Removed plugins: coworkers")
+    expect(stdout).to include("Result: PASS")
+  end
+
   it "reports vocabulary ownership separately from physical removability", :requires_git_checkout do
     Dir.mktmpdir("plugin-boundary-audit") do |directory|
       synthetic_root = build_synthetic_repository(directory)

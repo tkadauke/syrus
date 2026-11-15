@@ -1061,7 +1061,7 @@ export function PendingActionCard({
   const dismissPath = "app_cancel_path" in pendingAction ? pendingAction.app_cancel_path : null
   const canDismiss = Boolean(terminalLabel && dismissPath)
   const isEmergencyLand = actionKey === "emergency_land"
-  const toolReview = actionKey && ["coworker_tool_call", "authorized_tool_call"].includes(actionKey) ? pendingAction.review : null
+  const toolReview = actionKey ? pendingAction.review : null
   const authorizationSummary = pendingAction.request_kind === "authorization_request" ? pendingAction.authorization_presentation : undefined
   const authorizationContext = (
     [

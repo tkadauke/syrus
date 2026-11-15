@@ -8,7 +8,7 @@ module Coworkers
       return payload unless link
 
       coworker = link.coworker
-      payload.merge(coworker_chat: true, agent_appearance: {
+      payload.merge(chat_capabilities: { mode_selection: false }, agent_appearance: {
         name: coworker.name, accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key,
         avatar_url: coworker.avatar_url
       })
@@ -25,34 +25,37 @@ module Coworkers
       end
     end
 
-    def self.chat_message_payload(messages:, payloads:)
+    def self.message_presentations(messages:)
       metadata = messages.map { |message| coworker_message_metadata(message) }
       ids = metadata.compact.flat_map { |entry| [ entry["sender_id"], entry["receiver_id"] ] }.compact.map(&:to_i).uniq
       owner_ids = messages.map(&:chat_session).map(&:user_id).uniq
       coworkers = Coworkers::Coworker.where(id: ids, owner_user_id: owner_ids)
         .includes(avatar_attachment: :blob)
         .index_by { |coworker| [ coworker.owner_user_id, coworker.id ] }
-      bridge_chat_ids = payloads.filter_map do |payload|
-        bridge = payload[:cross_chat_bridge]
-        bridge[:counterpart_chat_session_id] if bridge&.fetch(:direction, nil) == "inbound"
+      bridge_chat_ids = messages.filter_map do |message|
+        content = message.content
+        content["origin_chat_session_id"] if content.is_a?(Hash) && content["requested_by"] == "cross_chat"
       end.uniq
       bridge_coworkers = Coworkers::Chat.where(chat_session_id: bridge_chat_ids)
         .includes(coworker: { avatar_attachment: :blob }, chat_session: :user)
         .index_by { |link| [ link.chat_session.user_id, link.chat_session_id ] }
 
-      payloads.zip(messages, metadata).map do |payload, message, entry|
-        decorated = payload.dup
+      messages.zip(metadata).to_h do |message, entry|
+        decorated = {}
         owner_id = message.chat_session.user_id
-        bridge = payload[:cross_chat_bridge]
-        bridge_link = bridge_coworkers[[ owner_id, bridge&.fetch(:counterpart_chat_session_id, nil) ]]
-        if bridge&.fetch(:direction, nil) == "inbound" && bridge_link
-          decorated[:coworker_sender] = appearance_json(bridge_link.coworker)
+        content = message.content.is_a?(Hash) ? message.content : {}
+        bridge_chat_id = content["origin_chat_session_id"] if content["requested_by"] == "cross_chat"
+        bridge_link = bridge_coworkers[[ owner_id, bridge_chat_id ]]
+        if bridge_link
+          decorated[:plugin_message] = message_presentation(appearance: appearance_json(bridge_link.coworker), direction: "incoming", handle: bridge_link.coworker.handle)
         elsif entry&.fetch("direction", nil) == "incoming" && (coworker = coworkers[[ owner_id, entry["sender_id"].to_i ]])
-          decorated[:coworker_sender] = appearance_json(coworker)
+          decorated[:plugin_message] = message_presentation(appearance: appearance_json(coworker), direction: "incoming", handle: entry["sender_handle"])
         elsif entry&.fetch("direction", nil) == "outgoing" && (coworker = coworkers[[ owner_id, entry["receiver_id"].to_i ]])
-          decorated[:coworker_receiver] = appearance_json(coworker)
+          decorated[:plugin_message] = message_presentation(appearance: appearance_json(coworker), direction: "outgoing", handle: entry["receiver_handle"])
+        elsif entry
+          decorated[:plugin_message] = message_presentation(appearance: nil, direction: entry["direction"], handle: entry["sender_handle"] || entry["receiver_handle"])
         end
-        decorated
+        [ message.id, decorated ]
       end
     end
 
@@ -68,6 +71,10 @@ module Coworkers
         id: coworker.id, name: coworker.name, handle: coworker.handle,
         accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url
       }
+    end
+
+    def self.message_presentation(appearance:, direction:, handle:)
+      { component: "coworkers/CoworkerMessage", data: { appearance: appearance, direction: direction, handle: handle } }
     end
   end
 end

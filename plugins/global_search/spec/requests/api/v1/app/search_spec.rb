@@ -566,23 +566,23 @@ RSpec.describe "App API unified search", type: :request do
     expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
   end
 
-  it "decorates a page of chat results in one batched call" do
+  it "adds identity-provider status to a page of chat results in one batched call" do
     chat = ChatSession.create!(user: user, repository: repository, title: "Decorated chat")
     message = ChatMessage.create!(chat_session: chat, role: "user", content: { "text" => "badgeneedle" })
     ChatMessageSearchIndex.insert(message)
-    decorator = Class.new do
-      include Syrus::Plugin::ChatResultDecorator
-      define_singleton_method(:chat_result_badges) do |chat_sessions:|
-        { chat_sessions.first.id => [ { kind: "coworker", id: 7, name: "Ada" } ] }
+    provider = Class.new do
+      include Syrus::Plugin::ChatIdentityProvider
+      define_singleton_method(:chat_status_contributions) do |chat_sessions:, user:|
+        { chat_sessions.first.id => { badges: [ { kind: "agent", id: 7, name: "Ada" } ] } }
       end
     end
-    allow(decorator).to receive(:chat_result_badges).and_call_original
-    Syrus::PluginRegistry.register(:chat_result_decorator, decorator)
+    allow(provider).to receive(:chat_status_contributions).and_call_original
+    Syrus::PluginRegistry.register(:chat_identity_provider, provider)
 
     get "/api/v1/app/search", params: { query: "badgeneedle", types: [ "chat" ] }
 
-    expect(results).to contain_exactly(include("id" => message.id, "badges" => [ { "kind" => "coworker", "id" => 7, "name" => "Ada" } ]))
-    expect(decorator).to have_received(:chat_result_badges).once
+    expect(results).to contain_exactly(include("id" => message.id, "badges" => [ { "kind" => "agent", "id" => 7, "name" => "Ada" } ]))
+    expect(provider).to have_received(:chat_status_contributions).once
   end
 
   it "offers plugin chat chips only for chat-only searches and removes them on teardown" do

@@ -123,11 +123,11 @@ RSpec.describe "API: coworkers", type: :request do
 
     expect(response).to have_http_status(:ok)
     messages = response.parsed_body.fetch("messages")
-    expect(messages.first.fetch("coworker_sender")).to include(
+    expect(messages.first.dig("plugin_message", "data", "appearance")).to include(
       "id" => sender.id, "name" => "Maya", "handle" => "maya-payload",
       "accent_hex" => sender.accent_hex, "avatar_key" => "comet", "avatar_url" => nil
     )
-    expect(messages.last.fetch("coworker_receiver")).to include("id" => receiver.id, "name" => "Rin", "handle" => "rin-payload")
+    expect(messages.last.dig("plugin_message", "data", "appearance")).to include("id" => receiver.id, "name" => "Rin", "handle" => "rin-payload")
     appearance_queries = queries.grep(/WHERE [\"`]?coworkers[\"`]?\.[\"`]?id[\"`]? IN/i)
     expect(appearance_queries.size).to eq(1)
   end
@@ -153,7 +153,7 @@ RSpec.describe "API: coworkers", type: :request do
 
     expect(response).to have_http_status(:ok)
     message = response.parsed_body.fetch("messages").sole
-    expect(message).not_to have_key("coworker_sender")
+    expect(message.dig("plugin_message", "data", "appearance")).to be_nil
     expect(message.fetch("text")).to start_with("Message from @saved-handle")
     expect(message.dig("content", "coworker_message", "sender_handle")).to eq("saved-handle")
     expect(response.body).not_to include("Private Agent", "private-agent")
@@ -861,7 +861,23 @@ RSpec.describe "API: coworkers", type: :request do
     end
   end
 
+  it "stops applying plugin chat filters after rendering an operator error" do
+    sign_in_as(owner)
+    allow(ChatIdentityContributions).to receive(:search_ownership).and_return([
+      { "key" => "first", "filter_field" => "coworker_id" },
+      { "key" => "second", "filter_field" => "coworker_id" }
+    ])
+
+    get "/api/v1/app/chats/search", params: { coworker_id: "syrus", coworker_op: "unsupported" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.fetch("error")).to include("code" => "bad_request")
+  end
+
   it "removes the routes and sidebar contribution when the plugin is disabled" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-disabled-chat", workspace_repo: "https://github.com/acme/workspace.git")
+    chat = ChatSession.create!(user: owner, title: "Historical agent chat", last_message_at: Time.current)
+    Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
     PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
     sign_in_as(owner)
 
@@ -869,6 +885,27 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:not_found)
     expect(Coworkers::SidebarPages.sidebar_pages).to be_present
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(Coworkers::SidebarPages)
+    expect(Syrus::PluginRegistry.providers_for(:chat_identity_provider)).not_to include(Coworkers::ChatIdentityProvider)
+
+    get "/api/v1/app/chats"
+    expect(response.parsed_body.fetch("groups").flat_map { |group| group.fetch("chats") }.pluck("id")).to include(chat.id)
+    expect(response.parsed_body.fetch("agent_appearances")).to be_empty
+
+    get "/api/v1/app/chats/#{chat.id}/mentionables"
+    expect(response.parsed_body.fetch("mentionables").pluck("kind")).not_to include("coworker")
+  end
+
+  it "removes chat identity surfaces while the plugin is unhealthy" do
+    sign_in_as(owner)
+    health = Syrus::PluginRegistry.health
+    allow(Syrus::PluginRegistry).to receive(:health_for).and_return(health)
+    allow(Syrus::PluginRegistry).to receive(:health).and_return(health)
+    allow(health).to receive(:healthy?).and_call_original
+    allow(health).to receive(:healthy?).with("coworkers").and_return(false)
+
+    expect(Syrus::PluginRegistry.providers_for(:chat_identity_provider)).not_to include(Coworkers::ChatIdentityProvider)
+    get "/api/v1/app/coworkers"
+    expect(response).to have_http_status(:not_found)
   end
 
   it "shows owner-scoped provisioning status and audits manual acknowledgement" do

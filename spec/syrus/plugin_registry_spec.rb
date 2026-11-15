@@ -114,4 +114,19 @@ RSpec.describe Syrus::PluginRegistry do
       )
     end
   end
+
+  describe "chat identity provider validation" do
+    it "requires manifest providers to include the identity interface" do
+      expect {
+        described_class.register(
+          name: "bad_chat_identity",
+          version: "1.0.0",
+          provides: { chat_identity_provider: Class.new }
+        )
+      }.to raise_error(
+        Syrus::PluginRegistry::RegistrationError,
+        /must include Syrus::Plugin::ChatIdentityProvider/
+      )
+    end
+  end
 end

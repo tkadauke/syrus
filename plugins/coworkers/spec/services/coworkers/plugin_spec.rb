@@ -138,17 +138,6 @@ RSpec.describe "Coworkers plugin" do
     expect(ChatSession.new).not_to respond_to(:coworker)
   end
 
-  it "decorates linked chats in one query and leaves Syrus chats unbadged" do
-    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "git@example.com:workspaces.git")
-    coworker_chat = ChatSession.create!(user: owner, title: "Maya")
-    syrus_chat = ChatSession.create!(user: owner, title: "Syrus")
-    Coworkers::Chat.create!(coworker: coworker, chat_session: coworker_chat, role: "main")
-
-    expect(Coworkers::ChatResultDecorator.chat_result_badges(chat_sessions: [ coworker_chat, syrus_chat ])).to eq(
-      coworker_chat.id => [ { kind: "coworker", id: coworker.id, name: "Maya" } ]
-    )
-  end
-
   it "registers a reversible coworker chat filter with owner-scoped options" do
     mine = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "git@example.com:workspaces.git")
     other_user = Factories.user(email_address: "other-coworkers@example.com")

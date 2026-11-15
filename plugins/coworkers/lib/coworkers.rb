@@ -20,17 +20,16 @@ module Coworkers
     depends_on [ "scheduled_tasks" ]
     optionally_depends_on [ "credential_store", "calendar" ]
     provides mentionable: "Coworkers::MentionableProvider",
+             chat_identity_provider: "Coworkers::ChatIdentityProvider",
              callbacks: "Coworkers::Callbacks",
              mcp_run_context_contributor: "Coworkers::RunContextContributor",
              workflow_kinds: "Coworkers::WorkflowKinds",
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
              repository_filter: "Coworkers::RepositoryFilter",
-             chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_prompt_injector: "Coworkers::PromptSection",
              chat_turn_orientation: "Coworkers::MessageReply",
              chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
              sidebar_page: "Coworkers::SidebarPages",
-             chat_list_group: "Coworkers::ChatListGroup",
              chat_payload_contributor: "Coworkers::PayloadContributor",
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
              chat_mcp_tool_set: "Coworkers::ChatToolSet",

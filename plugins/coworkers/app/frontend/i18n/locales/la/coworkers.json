@@ -242,6 +242,7 @@
     "description": "Recensores nominati concessionibus repositorii et memoria protecta utuntur.",
     "aria_label": "Summarium directionis recensionis collegae"
   },
+  "chat": { "message_to": "ad @{{handle}}", "bridge_link": "Colloquium #{{id}}: {{title}}", "new_title": "Colloquium novum" },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",

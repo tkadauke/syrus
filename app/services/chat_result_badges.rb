@@ -4,11 +4,8 @@ class ChatResultBadges
     badges = sessions.to_h { |session| [ session.id, [] ] }
     return badges if sessions.empty?
 
-    Syrus::PluginRegistry.providers_for(:chat_result_decorator).each do |provider|
-      provider.chat_result_badges(chat_sessions: sessions).each do |chat_session_id, contributed_badges|
-        id = chat_session_id.to_i
-        badges[id].concat(Array(contributed_badges)) if badges.key?(id)
-      end
+    ChatIdentityContributions.status_contributions(chat_sessions: sessions, user: Current.user).each do |chat_session_id, contribution|
+      badges.fetch(chat_session_id).concat(Array(contribution["badges"]))
     end
 
     badges

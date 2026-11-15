@@ -55,6 +55,21 @@ RSpec.describe PluginRouteResolver do
       expect(described_class.match?(request, controller_prefix: "api/v1/app/")).to be false
     end
 
+    it "does not match routes from unhealthy plugins" do
+      register_plugin("unhealthy_widgets", [
+        { verb: "GET", path: "/api/v1/app/unhealthy_widgets", controller: "api/v1/app/unhealthy_widgets#index" }
+      ])
+      request = instance_double(ActionDispatch::Request, request_method: "GET", path: "/api/v1/app/unhealthy_widgets")
+      health = Syrus::PluginRegistry.health
+      allow(Syrus::PluginRegistry).to receive(:health).and_return(health)
+      allow(health).to receive(:healthy?).and_call_original
+      allow(health).to receive(:healthy?).with("unhealthy_widgets").and_return(false)
+      Syrus::PluginRegistry.bump_generation!
+
+      expect(described_class.match?(request, controller_prefix: "api/v1/app/")).to be false
+      expect(described_class.declared_api_route?(request, controller_prefix: "api/v1/app/")).to be true
+    end
+
     it "recognizes declared disabled API routes for wildcard routing" do
       register_plugin("disabled_widgets", [
         { verb: "GET", path: "/api/v1/app/disabled_widgets", controller: "api/v1/app/disabled_widgets#index" }
