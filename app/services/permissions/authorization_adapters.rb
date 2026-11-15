@@ -19,6 +19,11 @@ module Permissions
         next [] unless provider.respond_to?(:permission_authorization_adapters)
 
         provider.permission_authorization_adapters.to_a
+      rescue StandardError => error
+        Rails.logger.warn(
+          "[Permissions::AuthorizationAdapters] provider inventory unavailable: #{error.class}: #{error.message}"
+        )
+        []
       end
     end
     private_class_method :adapters

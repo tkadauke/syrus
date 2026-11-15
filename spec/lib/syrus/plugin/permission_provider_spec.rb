@@ -59,6 +59,8 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
       .to raise_error(ArgumentError, /already registered/)
     expect { provider.register_authorization_adapter("Not Namespaced", adapter) }
       .to raise_error(ArgumentError, /must be namespaced/)
+    expect { provider.register_authorization_adapter("records", adapter) }
+      .to raise_error(ArgumentError, /must be namespaced/)
     expect { provider.register_authorization_adapter("example.incomplete", Object.new) }
       .to raise_error(ArgumentError, /permission_descriptor, subject_selector/)
   end
