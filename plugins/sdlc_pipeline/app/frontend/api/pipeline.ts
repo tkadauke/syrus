@@ -1,5 +1,4 @@
 import { getJson } from "@app/api/client"
-import type { RepositoryTab } from "@app/api/repositories"
 import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
@@ -48,7 +47,6 @@ export type PipelineStage = {
 export type PipelinePayload = {
   repository: { id: number; slug: string }
   generated_at: string
-  tabs: RepositoryTab[]
   stages: PipelineStage[]
   groups: PipelineGroup[]
   evidence: { status: "complete" | "partial"; incomplete_count: number }

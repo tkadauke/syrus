@@ -2,6 +2,7 @@ import { getJson } from "./client"
 
 export type RepoPluginTab = {
   id: string
+  key: string
   label: string
   label_key?: string | null
   path: string

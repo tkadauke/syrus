@@ -24,10 +24,6 @@ function payload(overrides: Partial<TargetGraphPayload> = {}): TargetGraphPayloa
   return {
     repository: { id: 1, slug: "acme/widgets", default_branch: "main" },
     source: { scope: "repository", ref: "main" },
-    tabs: [
-      { key: "overview", label: "Overview", path: "/repositories/1" },
-      { key: "target_graph", label: "Target Graph", path: "/repositories/1/target_graph" }
-    ],
     projects: [{ id: "repo", label: "Repository", target_count: 3 }],
     targets: [
       target("//:app"),

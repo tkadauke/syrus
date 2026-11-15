@@ -117,7 +117,6 @@ function RepositoryDetail({
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
       tipBanner={payload ? <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : undefined}
     >
       {detail.isPending ? <PanelMessage>{t("repository.loading")}</PanelMessage> : null}

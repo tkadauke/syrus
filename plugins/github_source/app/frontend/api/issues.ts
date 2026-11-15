@@ -1,5 +1,5 @@
 import { getJson, postJson } from "@app/api/client"
-import type { RepositoryDetailRecord, RepositoryTab } from "@app/api/repositories"
+import type { RepositoryDetailRecord } from "@app/api/repositories"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type IssueFolder = "all" | "inbox" | "delegated" | "open" | "closed"
@@ -10,7 +10,6 @@ export type RepositoryIssuesPayload = {
   message?: string | null
   error_message?: string | null
   repository: RepositoryDetailRecord
-  tabs: RepositoryTab[]
   folder: IssueFolder
   query: string | null
   filter: Record<string, unknown>

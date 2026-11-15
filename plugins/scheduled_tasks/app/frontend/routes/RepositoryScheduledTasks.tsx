@@ -54,7 +54,6 @@ export function RepositoryScheduledTasksRoute() {
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
     >
       {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
       {tasks.isError ? <RepositoryScheduledTasksError error={tasks.error} /> : null}

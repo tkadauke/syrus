@@ -61,7 +61,6 @@ function RepositoryCognitiveDebt({
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
     >
       {detail.isPending ? <PanelMessage>{t("repository.loading")}</PanelMessage> : null}
       {detail.isError ? (

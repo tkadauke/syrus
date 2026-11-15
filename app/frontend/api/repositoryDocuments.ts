@@ -1,5 +1,4 @@
 import { deleteJson, getJson, postForm } from "./client"
-import type { RepositoryTab } from "./repositories"
 
 export type RepositoryDocumentsRepository = {
   id: number
@@ -23,7 +22,6 @@ export type RepositoryDocument = {
 export type RepositoryDocumentsPayload = {
   repository: RepositoryDocumentsRepository
   can_write: boolean
-  tabs: RepositoryTab[]
   documents: RepositoryDocument[]
   pagination: { page: number; per_page: number; total: number; total_pages: number }
   message?: string

@@ -1,5 +1,4 @@
 import { getJson, patchJson, postJson } from "@app/api/client"
-import type { RepositoryTab } from "@app/api/repositories"
 import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
@@ -82,7 +81,6 @@ export type InsightSuggestionsPayload = {
     insights_path: string
     can_write: boolean
   }
-  tabs: RepositoryTab[]
   suggestions: InsightSuggestion[]
   meta: PaginationMeta
   filter: Record<string, unknown>

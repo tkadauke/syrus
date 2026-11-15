@@ -60,7 +60,6 @@ export function RepositoryTargetGraphRoute() {
         ) : null
       }
       prefix={prefix}
-      tabs={query.data?.tabs ?? []}
     >
       {query.isPending ? <PanelMessage>{t("target_graph.loading")}</PanelMessage> : null}
       {query.isError ? <PanelMessage tone="error">{errorMessage(query.error, t("target_graph.error_load"))}</PanelMessage> : null}
