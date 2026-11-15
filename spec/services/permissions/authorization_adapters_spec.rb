@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe Permissions::AuthorizationAdapters do
+  it "keeps the core decision engine independent of plugin decision classes" do
+    expect(Permissions::AuthorizationDecision.superclass).to eq(Object)
+  end
+
   let(:adapter) do
     Class.new do
       def self.permission_descriptor(request) = request
