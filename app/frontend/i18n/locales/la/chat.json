@@ -2921,7 +2921,6 @@
   "tool_card_project_value": "project: {{value}}",
   "tool_card_target_value": "target: {{value}}",
   "tool_card_source_value": "source: {{value}}",
-  "tool_card_proposal_number": "Propositum #{{id}}",
   "tool_card_no_description": "Nulla descriptio praebita.",
   "tool_card_description_label": "Descriptio {{title}}",
   "tool_card_action_planned_execution": "Executio destinata",

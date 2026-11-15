@@ -6,9 +6,33 @@ import {
   crossChatBridgeSystemMessage,
   goalContinuationFromContent,
   skillInvocationFromContent,
+  structuredTool,
   systemMessage,
   wakeupAutomationFromContent
 } from "./systemMessages"
+
+describe("structuredTool", () => {
+  it("identifies an associated proposal by title and slug without exposing its numeric id", () => {
+    const tool = structuredTool({
+      type: "message",
+      id: 7,
+      role: "tool_result",
+      text: "",
+      bookmarkable: false,
+      proposal: {
+        id: 4711,
+        title: "Stop numeric proposal references",
+        slug: "stop-numeric-proposal-references",
+        state: "proposed",
+        state_label: "Pending"
+      } as ChatMessageItem["proposal"]
+    })
+
+    expect(tool.proposal_reference).toBe('"Stop numeric proposal references" (stop-numeric-proposal-references)')
+    expect(tool.proposal_reference).not.toContain("4711")
+    expect(tool.proposal_state_label).toBe("Pending")
+  })
+})
 
 function systemText(text: string): ChatMessageItem {
   return {

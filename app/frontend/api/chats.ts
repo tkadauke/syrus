@@ -463,7 +463,7 @@ export type ChatStructuredTool = {
   result_summary?: string
   summary_metadata?: ChatToolSummaryMetadata
   payload: unknown
-  proposal_id: number | null
+  proposal_reference: string | null
   proposal_state_label: string | null
 }
 
