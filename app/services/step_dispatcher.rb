@@ -1231,8 +1231,11 @@ class StepDispatcher
 
   def advance!
     if @from_step&.succeeded? && Workflows::ImmutableReviewHeadBarrier::MUTATION_KINDS.include?(@from_step.kind)
-      Workflows::ImmutableReviewHeadBarrier.invalidate_stale_evidence!(@workflow)
-      return hard_fail_workflow!("required_review_budget_exhausted_after_head_change") if exhausted_review_repair_without_validation?
+      if exhausted_review_repair_without_validation?
+        Workflows::ImmutableReviewHeadBarrier.invalidate_stale_evidence!(@workflow)
+        return hard_fail_workflow!("required_review_budget_exhausted_after_head_change")
+      end
+      Workflows::ImmutableReviewHeadBarrier.refresh_required_reviews!(@workflow, @from_step)
     end
     LandingRepairOutcome.verify_latest_no_change!(@from_step) if successful_landing_grader_collect?
     clear_recovered_grader_loop_attention!
@@ -1377,7 +1380,10 @@ class StepDispatcher
     return false unless loop_node&.fetch("type", nil) == "loop"
 
     expected_review_kind = loop_step_kinds(loop_node).last
-    Workflows::ImmutableReviewHeadBarrier.effective_review_kind(@from_step.next_step) != expected_review_kind
+    next_step = @from_step.next_step
+    return true unless next_step
+
+    Workflows::ImmutableReviewHeadBarrier.effective_review_kind(next_step) != expected_review_kind
   rescue ArgumentError
     false
   end

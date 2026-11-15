@@ -47,6 +47,55 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     end
   end
 
+  it "cancels a persisted queued downstream Run while a required review barrier is unresolved" do
+    workflow.steps.delete_all
+    workflow.update!(state: "running", started_at: 2.minutes.ago)
+    workflow.set_artifact!("review_gate_contributions", [ {
+      "step_kind" => "adversarial_review",
+      "verdict_artifact" => "adversarial_review_iterations",
+      "exit_verdicts" => %w[approved skipped],
+      "required" => true
+    } ])
+    implement = workflow.steps.create!(kind: "implement", position: 0, state: "succeeded")
+    implement.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-b")
+    workflow.steps.create!(kind: "adversarial_review", position: 1, state: "running",
+      details: { "reviewed_head_sha" => "head-b", "required" => true })
+    tail = workflow.steps.create!(kind: "pr_open", position: 2)
+    unsafe_run = tail.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "queued")
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :queued_run_before_required_review_barrier)).to be_present
+    expect(unsafe_run.reload).to be_cancelled
+    expect(workflow.reload.artifact("review_head_barrier_block")).to include(
+      "code" => "required_review_head_unresolved",
+      "recovered_by" => "work_engine_reconciler"
+    )
+  end
+
+  it "fails closed with typed evidence when unsafe downstream work already started" do
+    workflow.steps.delete_all
+    workflow.update!(state: "running", started_at: 2.minutes.ago)
+    workflow.set_artifact!("review_gate_contributions", [ {
+      "step_kind" => "security_review",
+      "verdict_artifact" => "security_review_iterations",
+      "required" => true
+    } ])
+    implement = workflow.steps.create!(kind: "implement", position: 0, state: "succeeded")
+    implement.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-b")
+    tail = workflow.steps.create!(kind: "pr_open", position: 1, state: "running")
+    unsafe_run = tail.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running",
+      started_at: 1.minute.ago)
+
+    result = reconcile(workflow_id: workflow.id)
+    issue = kind(result, :running_run_before_required_review_barrier)
+
+    expect(issue).to be_present
+    expect(issue.safe_to_auto_repair).to be(false)
+    expect(issue.evidence).to include("barrier_code" => "required_review_head_unresolved")
+    expect(unsafe_run.reload).to be_running
+  end
+
   # A reconcile pass must never ask the database to sort rows that carry a
   # large text or JSON column. Steps carry a JSON details column that grader
   # steps fill with command output, Workflows a 16MB artifacts column, Runs two
