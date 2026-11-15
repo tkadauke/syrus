@@ -308,6 +308,7 @@ module Steps
       members = Array(decision["members"])
       undersized = members.size < decision["min_members"].to_i
       raise StepFailed, "review panel has unavailable members and policy is fail" if decision["disposition"] == "fail"
+      step.update!(details: step.details.to_h.merge("required" => review_config&.required == true))
       return false if members.one? && !undersized
 
       panel_id = decision.fetch("panel_id")
@@ -333,7 +334,8 @@ module Steps
             "panel_review_kind" => review_step_kind, "panel_id" => panel_id,
             "consensus" => decision.fetch("consensus"), "min_members" => decision.fetch("min_members"),
             "dropped_members" => decision.fetch("dropped_members"),
-            "required" => review_config&.required == true
+            "required" => review_config&.required == true,
+            "reviewed_head_sha" => step.details.to_h["reviewed_head_sha"]
           }
         )
         chain = [ step, *member_steps, collect ]

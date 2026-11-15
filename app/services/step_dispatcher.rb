@@ -630,6 +630,9 @@ class StepDispatcher
 
         return nil if step.terminal?
         return nil if step.runs.active.exists?
+        return nil unless Workflows::ImmutableReviewHeadBarrier.satisfied_for?(step)
+
+        Workflows::ImmutableReviewHeadBarrier.stamp!(step, workflow)
 
         if check_phase_admission && landing_queue_pause_deferred?(step, workflow)
           return nil
@@ -1227,6 +1230,10 @@ class StepDispatcher
   end
 
   def advance!
+    if @from_step&.succeeded? && Workflows::ImmutableReviewHeadBarrier::MUTATION_KINDS.include?(@from_step.kind)
+      Workflows::ImmutableReviewHeadBarrier.invalidate_stale_evidence!(@workflow)
+      return hard_fail_workflow!("required_review_budget_exhausted_after_head_change") if exhausted_review_repair_without_validation?
+    end
     LandingRepairOutcome.verify_latest_no_change!(@from_step) if successful_landing_grader_collect?
     clear_recovered_grader_loop_attention!
     return if handle_successful_review_loop_iteration
@@ -1363,6 +1370,18 @@ class StepDispatcher
 
   private
 
+  def exhausted_review_repair_without_validation?
+    return false unless @from_step.loop_id.present?
+
+    loop_node = loop_node_for(@from_step)
+    return false unless loop_node&.fetch("type", nil) == "loop"
+
+    expected_review_kind = loop_step_kinds(loop_node).last
+    Workflows::ImmutableReviewHeadBarrier.effective_review_kind(@from_step.next_step) != expected_review_kind
+  rescue ArgumentError
+    false
+  end
+
   def clear_recovered_grader_loop_attention!
     return unless @from_step&.kind == "grader_collect"
     return unless @from_step.succeeded?
@@ -1393,6 +1412,8 @@ class StepDispatcher
     gate = Step::Kind.review_gate_for(effective_review_kind)
     return false unless gate
 
+    stamp_review_artifact!(gate.fetch(:artifact_key))
+
     loop_node = loop_node_for(@from_step)
     return false unless loop_node&.fetch("type") == "loop"
     return false unless loop_step_kinds(loop_node).last == effective_review_kind
@@ -1413,6 +1434,20 @@ class StepDispatcher
   def review_loop_exit?(artifact_key, exit_verdicts)
     verdict = @workflow.artifacts&.dig(artifact_key)&.last&.fetch("verdict", nil)
     exit_verdicts.include?(verdict)
+  end
+
+  def stamp_review_artifact!(artifact_key)
+    sha = @from_step.details.to_h["reviewed_head_sha"]
+    return if sha.blank?
+
+    entries = Array(@workflow.artifact(artifact_key))
+    index = entries.rindex do |entry|
+      entry["iteration"].to_i == @from_step.iteration && entry["reviewed_head_sha"].blank?
+    end
+    return unless index
+
+    entries[index] = entries[index].merge("reviewed_head_sha" => sha)
+    @workflow.set_artifact!(artifact_key, entries)
   end
 
   # The step right after this loop is only skippable when it's another
@@ -2159,6 +2194,7 @@ class StepDispatcher
   def ready?(step)
     return false if waiting_for_grader_batch?(step)
     return false if blocked_by_uncleared_retry_until_barrier?(step)
+    return false unless Workflows::ImmutableReviewHeadBarrier.satisfied_for?(step)
 
     step.dependencies_settled?(settled_step: @from_step)
   rescue StandardError => e
