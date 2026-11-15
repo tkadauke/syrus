@@ -136,7 +136,7 @@ RSpec.describe "App API target graph inspection", type: :request do
       body = parse_body
       expect(body["repository"]).to include("id" => repository.id, "slug" => "acme/widgets", "default_branch" => "main")
       expect(body["source"]).to eq("scope" => "repository", "ref" => "main")
-      expect(body["tabs"]).to include(include("key" => "target_graph", "path" => "/repositories/#{repository.id}/target_graph"))
+      expect(body).not_to have_key("tabs")
       expect(body["projects"]).to contain_exactly(include("id" => "repo", "target_count" => 4, "capabilities" => { "os" => [ "linux" ] }))
       expect(body["page"]).to include("offset" => 1, "limit" => 2, "total" => 4, "next_offset" => 3)
       expect(body["targets"].map { |target| target["label"] }).to eq([ "//:assets", "//:grade/tests" ])

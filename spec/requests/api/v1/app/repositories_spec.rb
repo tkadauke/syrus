@@ -796,14 +796,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body.dig("health_history", "main_branch_repair_blocks_work")).to eq(true)
     expect(body.dig("health_history", "main_branch_repair_auto_approve")).to eq(false)
     expect(body.dig("health_history", "treat_grader_timeouts_as_failures")).to eq(false)
-    expect(body["tabs"]).to include(
-      { "key" => "overview", "label" => "Overview", "path" => repository_path(repository) },
-      { "key" => "documents", "label" => "Documents", "path" => repository_documents_path(repository) },
-      { "badge" => nil, "key" => "scheduled_tasks.repository", "label" => "Scheduled Tasks", "path" => repository_scheduled_tasks_path(repository) }
-    )
-    # Member management moved under repository edit; the standalone
-    # Members tab is gone from every repository page's tab bar.
-    expect(body["tabs"].map { |tab| tab["key"] }).not_to include("members")
+    expect(body).not_to have_key("tabs")
     expect(body["counts"]).to include("running" => 1, "queued" => 1, "failed_7d" => 2)
     expect(body["provider_retry_status"]).to include("agent_provider_label" => "Codex")
     expect(body.dig("provider_retry_status", "provider_circuit")).to include("provider" => "codex", "open" => false)
@@ -858,12 +851,12 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       grader_health: "broken"
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["tabs"]).to include(
-      { "key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/health", "badge" => "!" }
+      include("key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/health", "badge" => "!")
     )
   end
 
@@ -876,12 +869,12 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       grader_health: "healthy"
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["tabs"]).to include(
-      { "key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/health" }
+      include("key" => "health", "label" => "Health", "path" => "/repositories/#{repository.id}/health")
     )
   end
 
@@ -1127,7 +1120,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       repository = Factories.repository(user: user, owner: "acme", name: "widgets")
       sign_in_as(user)
 
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["tabs"]).to include(
@@ -1142,7 +1135,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       repository.repository_memberships.create!(user: collaborator, role: "read")
       sign_in_as(collaborator)
 
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["tabs"]).to include(
