@@ -73,6 +73,28 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     expect(payload[:transcript][:tail]).to include("tail")
   end
 
+  it "presents an agent-blocked Job with its cannot-proceed reason" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "blocked",
+      artifacts: { "cannot_proceed" => { "reason" => "required binary is missing" } }
+    )
+    job.set_needs_attention!(reason: "agent_cannot_proceed")
+
+    payload = response_payload(call_tool(job_id: job.id))
+
+    expect(payload[:job]).to include(
+      state: "blocked",
+      underlying_state: "running",
+      state_label: "blocked: agent cannot proceed",
+      needs_attention_reason: "agent_cannot_proceed",
+      cannot_proceed_reason: "required binary is missing"
+    )
+    expect(payload[:latest_workflow]).to include(id: workflow.id, state: "blocked")
+  end
+
   it "does not preload every job log row through the workflow graph" do
     job = Factories.job(repository: repository)
     run = job.initial_run

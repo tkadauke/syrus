@@ -40,6 +40,27 @@ RSpec.describe Mcp::Tools::ListJobsTool do
     expect(jobs.find { |job| job[:id] == other_repo_job.id }).to include(repository_slug: other_repository.slug)
   end
 
+  it "presents an agent-blocked Job with its cannot-proceed reason" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "blocked",
+      artifacts: { "cannot_proceed" => { "reason" => "required capability is unavailable" } }
+    )
+    job.set_needs_attention!(reason: "agent_cannot_proceed")
+
+    result = response_payload(call_tool).fetch(:jobs).find { |candidate| candidate[:id] == job.id }
+
+    expect(result).to include(
+      state: "blocked",
+      underlying_state: "running",
+      state_label: "blocked: agent cannot proceed",
+      needs_attention_reason: "agent_cannot_proceed",
+      cannot_proceed_reason: "required capability is unavailable"
+    )
+  end
+
   it "filters closed jobs and caps the requested limit" do
     2.times do |i|
       job = Factories.job(repository: repository, issue_number: 200 + i)
