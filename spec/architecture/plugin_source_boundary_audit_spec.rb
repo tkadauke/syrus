@@ -41,11 +41,13 @@ RSpec.describe "Plugin source boundaries" do
     expect(cycles).to eq([])
   end
 
-  it "does not assign the shared MCP tool namespace to a plugin that extends it" do
+  it "does not assign shared MCP and permission adapter contracts to a plugin that implements them" do
     coworkers = audit.bundled_manifests.find { |manifest| manifest.name == "coworkers" }
 
     expect(coworkers.constants).not_to include("Mcp::Tools")
-    expect(coworkers.constants).to include("Mcp::Tools::DiscoverCoworkerCapabilitiesTool")
+    expect(coworkers.constants).not_to include("Mcp::Tools::DiscoverCoworkerCapabilitiesTool")
+    expect(coworkers.constants).not_to include("Permissions::CoworkerPermissionRequest")
+    expect(coworkers.constants).to include("PendingActions::CoworkerToolCall")
   end
 
   # The two whole-tree scans below are the slowest examples in the suite --
