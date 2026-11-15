@@ -519,6 +519,19 @@ module Admin
         )
       end
       if (blocked_unit = blocked_work_unit(payload))
+        if blocked_unit[:blocked_reason] == "agent_cannot_proceed"
+          workflow = job.latest_workflow
+          warning = workflow&.workflow_warnings&.pending&.where(kind: "agent_cannot_proceed")&.order(created_at: :desc)&.first
+          return action(
+            "retry_job",
+            "The agent reported a permanent blocker; retry the blocked step after correcting it, or file the warning's suggested fix Job.",
+            work_unit_id: blocked_unit[:id],
+            workflow_id: workflow&.id,
+            blocked_reason: blocked_unit[:blocked_reason],
+            cannot_proceed_reason: workflow&.artifact("cannot_proceed").to_h["reason"],
+            suggested_prompt: warning&.suggested_prompt
+          )
+        end
         return action(
           "wait",
           "WorkUnit #{blocked_unit[:id]} is blocked by #{blocked_unit[:blocked_reason]}.",
