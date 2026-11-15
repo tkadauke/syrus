@@ -25,10 +25,13 @@ ownership:
     - coworkers_chat_agents
   inline_fields:
     scheduled_tasks:
-      - coworker_id
-      - after_run
+      delete_rows_where_present: coworker_id
+      drop_columns:
+        - coworker_id
+        - after_run
     runs:
-      - coworker_wake_enqueued_at
+      drop_columns:
+        - coworker_wake_enqueued_at
   problem_codes:
     - coworker_memory_persistence_failed
     - coworker_review_target_required

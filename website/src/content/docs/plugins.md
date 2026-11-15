@@ -313,6 +313,12 @@ Syrus checks the last two by actually removing a plugin: `bin/plugin-boundary-au
 on it, and runs a command of your choosing — a boot check by default, or the
 full test suite — against what is left.
 
+Data removal is a separate, explicit operation after uninstall. Operators can
+preview it with `bin/rails 'plugin:data[name]'` and confirm it with
+`bin/rails 'plugin:purge[name]'`. Purge removes declared plugin tables,
+plugin-owned rows and fields stored on shared tables, and contributed external
+resources; disabling or uninstalling alone retains all of them.
+
 Bundled plugins can also declare `config/plugin_ownership.yml`, covering their
 configuration keys, workflow vocabulary, routes, data, tools, frontend
 contributions, documentation, and domain terms. A checked-in compatibility
