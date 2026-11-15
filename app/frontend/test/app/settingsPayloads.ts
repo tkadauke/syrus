@@ -219,8 +219,20 @@ export function personalDocumentsPayload(
     message?: string
   } = {}
 ) {
+  const documents = (overrides.documents || []).map((document) => ({
+    origin: { kind: "personal", chat: null },
+    ...document
+  }))
   return {
-    documents: overrides.documents || [],
+    documents,
+    pagination: {
+      page: 1,
+      per_page: 25,
+      total: documents.length,
+      total_pages: documents.length > 0 ? 1 : 0,
+      first_item: documents.length > 0 ? 1 : 0,
+      last_item: documents.length
+    },
     message: overrides.message
   }
 }
