@@ -306,7 +306,6 @@ module App
         ),
         provider_routing_resolution: provider_routing_resolution_json,
         active_provider_routing_holds: active_provider_routing_holds_json,
-        coworker_review_configuration: coworker_review_configuration_json,
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,
