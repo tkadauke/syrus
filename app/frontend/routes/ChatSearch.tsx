@@ -247,14 +247,18 @@ function chatSearchFilterSchema(options: Awaited<ReturnType<typeof loadFilterOpt
 
 export function filterFromSearch(search: string, pluginFields: string[] = []) {
   const params = new URLSearchParams(search)
-  const contributedFields = pluginFields.length > 0 ? pluginFields : Array.from(params.keys()).filter((field) => field.endsWith("_id") && !filterFields.includes(field))
-  const and: FilterChip[] = filterFields
-    .flatMap((field) => {
-      const value = params.get(field)?.trim()
-      return value ? [{ field, op: field === "q" ? "contains" : "is", value }] : []
-    })
+  const contributedFields =
+    pluginFields.length > 0 ? pluginFields : Array.from(params.keys()).filter((field) => field.endsWith("_id") && !filterFields.includes(field))
+  const and: FilterChip[] = filterFields.flatMap((field) => {
+    const value = params.get(field)?.trim()
+    return value ? [{ field, op: field === "q" ? "contains" : "is", value }] : []
+  })
   contributedFields.forEach((field) => {
-    const values = params.get(field)?.split(",").map((value) => value.trim()).filter(Boolean)
+    const values = params
+      .get(field)
+      ?.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
     const op = params.get(operatorParam(field)) || "is"
     if (values?.length && pluginOperators.includes(op)) and.push({ field, op, value: op === "is_one_of" || op === "is_none_of" ? values : values[0] })
   })
@@ -274,7 +278,10 @@ export function chatSearchFilterLink(path: string, search: string, updates: Para
 
   if (typeof encodedFilter === "string" && encodedFilter.length > 0) {
     const availableFields = [...filterFields, ...pluginFields, ...decodeFilterChips(encodedFilter).map((chip) => chip.field)]
-    for (const field of availableFields) { params.delete(field); params.delete(operatorParam(field)) }
+    for (const field of availableFields) {
+      params.delete(field)
+      params.delete(operatorParam(field))
+    }
     for (const chip of decodeFilterChips(encodedFilter)) {
       const values = Array.isArray(chip.value) ? chip.value.map(String).filter(Boolean) : [String(chip.value || "")].filter(Boolean)
       if (values.length === 0) continue
@@ -282,7 +289,10 @@ export function chatSearchFilterLink(path: string, search: string, updates: Para
       if (pluginOperators.includes(chip.op) && !filterFields.includes(chip.field)) params.set(operatorParam(chip.field), chip.op)
     }
   } else if (encodedFilter == null) {
-    for (const field of [...filterFields, ...pluginFields]) { params.delete(field); params.delete(operatorParam(field)) }
+    for (const field of [...filterFields, ...pluginFields]) {
+      params.delete(field)
+      params.delete(operatorParam(field))
+    }
   }
 
   params.delete("page")

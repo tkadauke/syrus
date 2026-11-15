@@ -33,13 +33,19 @@ export default function CoworkerMessage({ item, payload, presentation, prefix, q
   const messageMenu = useLongPressMenu(!readOnly && !!item.text)
   const colors = appearance ? accentRamp(appearance.accent_hex) : null
   const label = appearance?.name || (data.handle ? `@${data.handle}` : "—")
-  const accentStyle = colors ? ({ backgroundColor: `color-mix(in srgb, var(--color-surface) 88%, ${colors.solid})`, borderLeftColor: colors.solid } as CSSProperties) : undefined
+  const accentStyle = colors
+    ? ({ backgroundColor: `color-mix(in srgb, var(--color-surface) 88%, ${colors.solid})`, borderLeftColor: colors.solid } as CSSProperties)
+    : undefined
 
   return (
     <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly} targetProps={messageMenu.targetProps}>
       <span className="absolute -top-4" id={`message-${item.id}`} />
       {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} menu={messageMenu} />}
-      <div className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 text-text-primary ${colors ? "" : "border-border bg-surface-subtle"}`} style={accentStyle} data-testid={outgoing ? "coworker-outgoing-message" : "coworker-incoming-message"}>
+      <div
+        className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 text-text-primary ${colors ? "" : "border-border bg-surface-subtle"}`}
+        style={accentStyle}
+        data-testid={outgoing ? "coworker-outgoing-message" : "coworker-incoming-message"}
+      >
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium">
           <Avatar avatarUrl={appearance?.avatar_url} avatarKey={appearance?.avatar_key} accentHex={appearance?.accent_hex} name={label} size="xs" />
           <span className="truncate">{label}</span>
@@ -48,8 +54,14 @@ export default function CoworkerMessage({ item, payload, presentation, prefix, q
         {item.cross_chat_bridge?.direction === "inbound" ? (
           <div className="flex items-center gap-2 text-xs font-normal text-text-muted" data-testid="cross-chat-bridge-chip">
             <span aria-hidden="true">🔗</span>
-            <Link className="truncate underline hover:no-underline" to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}>
-              {t("chat.bridge_link", { id: item.cross_chat_bridge.counterpart_chat_session_id, title: item.cross_chat_bridge.counterpart_chat_title || t("chat.new_title") })}
+            <Link
+              className="truncate underline hover:no-underline"
+              to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}
+            >
+              {t("chat.bridge_link", {
+                id: item.cross_chat_bridge.counterpart_chat_session_id,
+                title: item.cross_chat_bridge.counterpart_chat_title || t("chat.new_title")
+              })}
             </Link>
           </div>
         ) : null}
