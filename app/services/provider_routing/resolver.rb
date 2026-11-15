@@ -6,7 +6,6 @@ module ProviderRouting
   # then a hardcoded fallback. Returns a list so callers can fail over.
   class Resolver
     PanelResolutionRequired = Class.new(StandardError)
-    CoworkerReviewTargetRequired = Class.new(ReviewerTargets::ResolutionError)
 
     Candidate = Data.define(:provider, :model, :effort_level, :reviewer_target) do
       def initialize(provider:, model:, effort_level:, reviewer_target: nil)
@@ -145,7 +144,7 @@ module ProviderRouting
         user_scoped_resolution ||
         hardcoded_fallback_resolution
       if reviewer_target_required? && (resolution.held? || resolution.matched_rule.nil? || resolution.candidates.any? { |candidate| candidate.reviewer_target.blank? })
-        raise CoworkerReviewTargetRequired, "coworker_review requires a matching valid coworker routing rule"
+        raise ReviewerTargets::TargetRequired, "#{invocation_kind} requires a matching valid reviewer routing rule"
       end
       resolution
     end

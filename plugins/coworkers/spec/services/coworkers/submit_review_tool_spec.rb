@@ -1,5 +1,5 @@
 require "rails_helper"
-RSpec.describe Mcp::Tools::SubmitCoworkerReviewTool do
+RSpec.describe Coworkers::SubmitReviewTool do
   it "persists a coworker verdict" do
     job = Factories.job
     step = Step.create!(workflow: job.latest_workflow, kind: "coworker_review", position: 99)

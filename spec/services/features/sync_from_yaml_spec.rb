@@ -126,6 +126,7 @@ RSpec.describe Features::SyncFromYaml do
           description: Updated description.
           default: false
     YAML
+    File.utime(path.atime, path.mtime + 1, path)
 
     described_class.call(config_path: path)
 

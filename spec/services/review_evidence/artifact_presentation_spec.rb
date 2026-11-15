@@ -49,4 +49,89 @@ RSpec.describe ReviewEvidence::ArtifactPresentation do
     expect(presented).to include("cost_usd" => 0.125)
     expect(presented).not_to have_key("operator_links")
   end
+
+  it "presents operator links contributed for an opaque target" do
+    user = Factories.user
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: step, review_kind: "contributed_review",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1",
+      target_envelope: { "type" => "example", "reference" => "opaque-1" }
+    )
+    links = { "journal" => "/journal/1", "restricted_context" => "/context/1" }
+    allow(ReviewContextContributions).to receive(:operator_links).and_return(links)
+
+    presented = described_class.call(
+      [ { "review_evidence_id" => evidence.id, "verdict" => "approved" } ], user:
+    ).sole
+
+    expect(ReviewContextContributions).to have_received(:operator_links).with(
+      target: evidence.target_envelope, run:, user:
+    )
+    expect(presented).to include("operator_links" => links)
+  end
+
+  it "renders opaque evidence without links when its plugin is unavailable" do
+    user = Factories.user
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: step, review_kind: "contributed_review",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1",
+      target_envelope: { "type" => "removed_plugin", "reference" => "opaque-1" }
+    )
+    allow(ReviewContextContributions).to receive(:operator_links)
+      .and_raise(ReviewContextContributions::Unavailable)
+
+    presented = described_class.call(
+      [ { "review_evidence_id" => evidence.id, "verdict" => "approved" } ], user:
+    ).sole
+
+    expect(presented).not_to have_key("operator_links")
+    expect(presented.fetch("review_evidence")).to include("id" => evidence.id)
+  end
+
+  it "keeps operator links for legacy polymorphic reviewers" do
+    user = Factories.user
+    reviewer = Factories.user
+    reviewer.define_singleton_method(:review_evidence_links) do |run:, user:|
+      { "journal" => "/journal/legacy" }
+    end
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: step, reviewer: reviewer,
+      review_kind: "coworker", provider: "codex", model: "gpt-test",
+      reviewed_base_sha: "a" * 40, reviewed_head_sha: "b" * 40,
+      canonical_diff_sha256: "c" * 64, prompt_version: "1",
+      checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+
+    presented = described_class.call(
+      [ { "review_evidence_id" => evidence.id, "verdict" => "approved" } ],
+      evidence_by_id: { evidence.id => evidence }, user:
+    ).sole
+
+    expect(presented).to include("operator_links" => { "journal" => "/journal/legacy" })
+  end
+
+  it "renders immutable target, context, and persistence snapshots without a live plugin record" do
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: step, review_kind: "contributed_review",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1",
+      target_envelope: { "type" => "removed_plugin", "reference" => "opaque-1" },
+      target_snapshot: { "display" => { "name" => "Historical reviewer" } },
+      context_envelope: { "owner" => "removed_plugin", "manifest" => { "sha256" => "safe" } },
+      persistence_envelope: { "owner" => "removed_plugin", "type" => "journal", "key" => "receipt-1", "version" => 1 }
+    )
+
+    payload = described_class.call([ { "review_evidence_id" => evidence.id, "verdict" => "approved" } ]).sole
+
+    expect(payload.fetch("review_evidence")).to include(
+      "target" => { "display" => { "name" => "Historical reviewer" } },
+      "context" => include("manifest" => { "sha256" => "safe" }),
+      "persistence" => include("key" => "receipt-1")
+    )
+  end
 end

@@ -15,7 +15,7 @@ RSpec.describe Workflows::ReviewGateRegistry do
       def self.review_gates
         [ {
           key: "synthetic", step_kind: "synthetic_review", slot: "after_agent",
-          after: %w[security], before: %w[coworker],
+          after: %w[security], before: %w[visual],
           enabled_resolver: ->(job:, trigger_kind:, syrus_yml:, **) {
             gate_enabled != false && job.present? && trigger_kind.present? && [ nil, :project_overlay ].include?(syrus_yml)
           },
@@ -37,8 +37,6 @@ RSpec.describe Workflows::ReviewGateRegistry do
     allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
     allow(RepoSecurityReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
     allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
-    allow(RepoCoworkerReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0))
-    allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false, rounds: 0))
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0))
     grade_plan = double(any_configured?: false, format_configured?: false, generate_configured?: false, graders_configured?: false)
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(grade_plan)
@@ -48,7 +46,7 @@ RSpec.describe Workflows::ReviewGateRegistry do
   it "orders a synthetic plugin gate through stable before/after constraints" do
     keys = described_class.ordered(:after_agent).map(&:key)
 
-    expect(keys).to eq(%w[adversarial security synthetic coworker visual])
+    expect(keys).to eq(%w[adversarial security synthetic visual])
   end
 
   it "resolves project-overlay enablement, loop budget, repair, and evidence metadata" do

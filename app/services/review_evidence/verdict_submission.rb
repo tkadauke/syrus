@@ -70,6 +70,7 @@ module ReviewEvidence::VerdictSubmission
                        "panel_id" => run.step.details["panel_id"])
         end
         iterations << entry.compact
+        evidence&.record_persistence!(receipt) if receipt
         run.step.update!(details: run.step.details.to_h.merge("review_persistence_receipt" => receipt)) if receipt
         run.workflow.set_artifact!(artifact_key, iterations)
         ReviewFindingEvents.record(

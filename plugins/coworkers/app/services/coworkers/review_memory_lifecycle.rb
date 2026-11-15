@@ -17,7 +17,7 @@ class Coworkers::ReviewMemoryLifecycle
       memory_text = selected.map { |entry| "[memory #{entry.fetch(:id)} revision #{entry.fetch(:revision)}]\n#{entry.fetch(:content)}" }.join("\n\n")
       criteria_text = Array(criteria).map { |criterion| "- #{criterion}" }.join("\n")
       protected_prompt = [ "# Protected coworker reviewer context", identity,
-        "## Review instructions\n#{Prompts::CoworkerReview.protected_instructions}",
+        "## Review instructions\n#{Coworkers::ReviewPrompt.protected_instructions}",
         criteria_text.present? && "## Applicable repository criteria\n#{criteria_text}",
         memory_text.present? && "## Selected repository memories\n#{memory_text}" ].compact.join("\n\n")
       exact = { "protected_prompt" => protected_prompt }

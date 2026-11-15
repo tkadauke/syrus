@@ -13,11 +13,11 @@ RSpec.describe Workflows do
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
     allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
 
-    coworker_review_plan = RepoCoworkerReviewPlan::Result.new(
+    coworker_review_plan = Coworkers::ReviewPlan::Result.new(
       enabled: false, rounds: 0, source: "none", note: "disabled", criteria: [], required: false
     )
-    allow(RepoCoworkerReviewPlan).to receive(:for_job).and_return(coworker_review_plan)
-    allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_return(coworker_review_plan)
+    allow(Coworkers::ReviewPlan).to receive(:for_job).and_return(coworker_review_plan)
+    allow(Coworkers::ReviewPlan).to receive(:from_syrus_yml).and_return(coworker_review_plan)
   end
 
   describe ".for(trigger_kind:)" do
@@ -260,7 +260,7 @@ RSpec.describe Workflows do
       )
       allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_call_original
       allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_call_original
-      allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_call_original
+      allow(Coworkers::ReviewPlan).to receive(:from_syrus_yml).and_call_original
       visual = RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual)
 
@@ -285,7 +285,7 @@ RSpec.describe Workflows do
         allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
           RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
         )
-        allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_call_original
+        allow(Coworkers::ReviewPlan).to receive(:from_syrus_yml).and_call_original
 
         workflow = Workflows::Initial.instantiate(job: job)
 
@@ -302,7 +302,7 @@ RSpec.describe Workflows do
       allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
         RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
       )
-      allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_call_original
+      allow(Coworkers::ReviewPlan).to receive(:from_syrus_yml).and_call_original
 
       workflow = Workflows::Initial.instantiate(job: job)
 

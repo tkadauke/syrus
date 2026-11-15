@@ -44,6 +44,7 @@ ownership:
     - write_coworker_file
   frontend_contributions:
     - coworkers/Coworkers
+    - coworkers review contributions
     - coworkers tool cards
   documentation_paths:
     - plugins/coworkers/docs
@@ -65,7 +66,6 @@ compatibility_quarantine:
   app/frontend/components/PermissionRequestCard.test.tsx: 4
   app/frontend/components/PermissionRuleEditor.tsx: 1
   app/frontend/components/ProviderRoutingRulesEditor.test.tsx: 13
-  app/frontend/components/ProviderRoutingRulesEditor.tsx: 6
   app/frontend/components/SmartPermissionActions.test.tsx: 7
   app/frontend/components/SmartPermissionActions.tsx: 2
   app/frontend/components/StartBlockedReasonPill.tsx: 2
@@ -100,7 +100,6 @@ compatibility_quarantine:
   app/models/concerns/mentionable.rb: 1
   app/models/problem/kind.rb: 2
   app/models/provider_routing_rule.rb: 2
-  app/models/review_evidence.rb: 1
   app/models/step/kind.rb: 7
   app/models/work_unit.rb: 1
   app/services/admin/capability_surface_registry.rb: 12
@@ -109,7 +108,6 @@ compatibility_quarantine:
   app/services/agent_role.rb: 9
   app/services/app/agent_conversation_payload.rb: 2
   app/services/app/chat_message_payload.rb: 1
-  app/services/app/coworker_review_projects.rb: 2
   app/services/app/job_detail_payload.rb: 4
   app/services/app/job_detail_payload/workflow_serializers.rb: 3
   app/services/app/target_graph_payload.rb: 2
@@ -176,10 +174,8 @@ compatibility_quarantine:
   app/services/prompts/coworker_review.rb: 5
   app/services/provider_routing/resolver.rb: 4
   app/services/plugin_repository_configuration.rb: 2
-  app/services/repo_coworker_review_plan.rb: 5
   app/services/steps/adversarial_review.rb: 2
   app/services/steps/base.rb: 2
-  app/services/steps/coworker_review.rb: 17
   app/services/syrus_mcp/core_tool_set.rb: 1
   app/services/syrus_yml.rb: 23
   app/services/target_graph/compiler.rb: 12
@@ -196,7 +192,6 @@ compatibility_quarantine:
   config/locales/en.yml: 12
   config/locales/la.yml: 5
   config/syrus_docs/chat.md: 8
-  config/syrus_docs/coworker_review.md: 19
   config/syrus_docs/mcp_tool_catalog.md: 100
   config/syrus_docs/observability.md: 2
   config/syrus_docs/permission_authority.md: 24
