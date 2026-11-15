@@ -169,7 +169,7 @@ RSpec.describe "queue partitioning" do
   end
 
   it "does not leave job classes on queues no worker consumes" do
-    job_files = Dir.glob(ROOT.join("app/jobs/**/*.rb").to_s)
+    job_files = Dir.glob(ROOT.join("{app,plugins/*/app}/jobs/**/*.rb").to_s)
     declarations = job_files.flat_map do |path|
       File.readlines(path).filter_map do |line|
         match = line.match(/\bqueue_as\s+:(\w+)/)

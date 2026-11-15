@@ -46,30 +46,32 @@ class ChatTurnJob < ApplicationJob
     return if chat.deleted?
 
     user_message = chat.messages.find(user_message_id)
-    admission = chat.respond_to?(:agent_turn_admission) ? chat.agent_turn_admission(user_message).to_h : {}
+    lifecycle = ChatTurnLifecycles.for(chat_session: chat, user_message: user_message)
+    admission = lifecycle.admission.to_h
     if admission[:queue].present?
       self.class.set(queue: admission.fetch(:queue)).perform_later(chat_session_id, user_message_id)
       return
     end
-    if chat.respond_to?(:with_agent_operation_lock) && !Thread.current[:syrus_coworker_operation_locked]
-      return chat.with_agent_operation_lock(user_message) do
-        Thread.current[:syrus_coworker_operation_locked] = true
+    unless Thread.current[:syrus_chat_turn_lifecycle_locked]
+      return lifecycle.synchronize do
+        Thread.current[:syrus_chat_turn_lifecycle_locked] = true
         perform(chat_session_id, user_message_id)
       ensure
-        Thread.current[:syrus_coworker_operation_locked] = nil
+        Thread.current[:syrus_chat_turn_lifecycle_locked] = nil
       end
     end
     return unless chat.begin_turn_for!(user_message)
 
     @chat = chat
     @user_message = user_message
-    @agent_chat = @chat.respond_to?(:agent_turn_context) ? @chat.agent_turn_context(@user_message) : @chat
+    @turn_lifecycle = lifecycle
+    @agent_chat = lifecycle.context
     @turn_started_at = Time.current
     @stop_request_cutoff_at = @user_message.created_at || @turn_started_at
     @cancelled = false
     if admission[:outcome].present?
       create_message!("system", {
-        text: I18n.t("coworkers.confinement_unavailable", locale: @chat.user.locale),
+        text: admission.fetch(:message),
         agent_outcome: admission.fetch(:outcome)
       })
       touch_chat!
@@ -295,7 +297,7 @@ class ChatTurnJob < ApplicationJob
   end
 
   def cli_invocation_env(provider)
-    return {} if coworker_chat?
+    return {} if isolated_plugin_workspace?
 
     {
       "SYRUS_CLI_URL" => app_api_url,
@@ -822,7 +824,7 @@ class ChatTurnJob < ApplicationJob
 
   def with_git_askpass_env
     env = { "GIT_TERMINAL_PROMPT" => "0" }
-    return yield env if coworker_chat?
+    return yield env if isolated_plugin_workspace?
 
     repository = @chat.repository
     return yield env unless repository
@@ -840,9 +842,7 @@ class ChatTurnJob < ApplicationJob
     end
   end
 
-  def coworker_chat?
-    active_chat.respond_to?(:coworker) && active_chat.coworker.respond_to?(:kind) && active_chat.coworker.kind == "coworker"
-  end
+  def isolated_plugin_workspace? = @turn_lifecycle&.isolated_workspace? == true
 
   def active_chat = @agent_chat || @chat
   def ephemeral_agent_turn? = active_chat.respond_to?(:ephemeral_agent_turn?) && active_chat.ephemeral_agent_turn?

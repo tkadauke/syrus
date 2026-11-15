@@ -29,6 +29,7 @@ module Coworkers
              chat_prompt_injector: "Coworkers::PromptSection",
              chat_turn_orientation: "Coworkers::MessageReply",
              chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
+             chat_turn_lifecycle: "Coworkers::ChatTurnLifecycle",
              sidebar_page: "Coworkers::SidebarPages",
              chat_payload_contributor: "Coworkers::PayloadContributor",
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
