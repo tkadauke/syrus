@@ -36,6 +36,7 @@ class ChatTurnJob < ApplicationJob
   SIDECAR_ENV_FORWARD = AgentProviders::Base::SIDECAR_ENV_FORWARD
 
   def perform(chat_session_id, user_message_id)
+    turn_started = false
     chat = ChatSession.includes(
       :user,
       :attached_repositories,
@@ -61,6 +62,7 @@ class ChatTurnJob < ApplicationJob
       end
     end
     return unless chat.begin_turn_for!(user_message)
+    turn_started = true
 
     @chat = chat
     @user_message = user_message
@@ -167,7 +169,7 @@ class ChatTurnJob < ApplicationJob
     touch_chat! if @chat
     raise
   ensure
-    finalize_turn!
+    finalize_turn! if turn_started
     Thread.current[:syrus_current_chat_session] = nil
   end
 

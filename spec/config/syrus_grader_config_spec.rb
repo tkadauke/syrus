@@ -18,6 +18,7 @@ RSpec.describe "Syrus grader configuration" do
       feature-slugs
       plugin-model-namespaces
       plugin-boundaries
+      coworkers-removability
       eager-load
       production-build-boot
       frontend-typecheck

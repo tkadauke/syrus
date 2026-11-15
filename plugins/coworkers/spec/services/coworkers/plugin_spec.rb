@@ -3,6 +3,14 @@ require "rails_helper"
 RSpec.describe "Coworkers plugin" do
   let(:owner) { User.create!(email_address: "owner@example.com", password: "password123") }
 
+  it "declares presentation copy for every permission descriptor" do
+    body = Rails.root.join("plugins/coworkers/app/services/permissions/coworker_actions.rb").read
+    declarations = body.scan(/CapabilityDescriptor\.new\((.*?)\n\s*\)/m)
+
+    expect(declarations).not_to be_empty
+    expect(declarations.flatten).to all(include("presentation:"))
+  end
+
   it "owns its permission, MCP, and pending-action adapters outside core" do
     core_paths = %w[
       app/services/permissions/coworker_*.rb
