@@ -311,11 +311,11 @@ explicit planned execution capabilities, and a coworker cannot target a
 repository its owner cannot write. An invalid target is returned as an
 authorization or validation error.
 
-The shared `syrus.jobs` capability exposes `cancel_job` and
-`submit_chat_feedback` to coworker chats; approval, merge, retry, reopen and
-other lifecycle operations stay unavailable. Cancellation keeps its canonical
-policy and always creates a pending action for the owner to confirm. A
-cancellation reason is required, and duplicate cancellations may link a
+Coworkers receive the ordinary chat-agent Job lifecycle tools, including
+`cancel_job` and `submit_chat_feedback`. Canonical `syrus.jobs` policy decides
+whether each invocation runs, asks for confirmation, or is denied; sharing the
+tool registration does not bypass its Job-state or authorization checks.
+Cancellation requires a reason, and duplicate cancellations may link a
 canonical replacement Job in the same repository. The state history records
 the coworker, chat, prior and resulting states, reason, time, and replacement.
 Jobs with landing or deployment evidence are refused.
