@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class RepositorySdlcPipelineController < BaseController
-        include RepositoryTabsSerialization
 
         def show
           repository = ::Repository.accessible_to(Current.user).find(params[:repository_id])
@@ -43,7 +42,6 @@ module Api
           static_payload = poll_only ? {} : {
             **(history ? { history: history } : {}),
             repository: { id: repository.id, slug: repository.slug },
-            tabs: repository_tabs_json(repository),
             active_smart_folder_id: active_folder&.id,
             filter_schema: ::Filters::Schema.for(subject: ::SdlcPipeline::SmartFolders::SUBJECT, user: Current.user),
             smart_folders: ::Admin::SmartFolderNavigation.new(

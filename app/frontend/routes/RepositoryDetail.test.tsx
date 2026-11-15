@@ -57,7 +57,6 @@ function repositoryDetailPayload() {
       delivery_tracks_count: 0,
       merge_train_failure_policy: null
     },
-    tabs: [],
     cognitive_debt: cognitiveDebtPayload(),
     counts: { running: 0, queued: 0, failed_7d: 0 },
     provider_retry_status: {
@@ -251,7 +250,6 @@ function repositoryIssuesPayload(overrides = {}) {
     message: null,
     error_message: null,
     repository: repositoryDetailPayload().repository,
-    tabs: [],
     state: "open",
     issue_count: 1,
     issues: [
@@ -562,10 +560,7 @@ describe("RepositoryDetailRoute recommendations", () => {
   })
 
   it("renders one concise recommendation banner above repository tabs", async () => {
-    const view = renderRoute({
-      tabs: [{ key: "overview", label: "Overview", path: "/repositories/1" }],
-      recommended_actions: [recommendation()]
-    })
+    const view = renderRoute({ recommended_actions: [recommendation()] })
 
     expect(await screen.findByRole("region", { name: "Recommended actions" })).toBeInTheDocument()
     expect(screen.getByText("Add visual review")).toBeInTheDocument()

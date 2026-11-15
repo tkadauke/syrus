@@ -1,5 +1,3 @@
-import { repositoryTabsPayload } from "./repositoryPayloads"
-
 export function scheduledTaskOptions() {
   return {
     kinds: ["cron", "one_shot"],
@@ -65,7 +63,6 @@ export function repositoryScheduledTasksPayload(overrides: { state?: string; act
   const detail = scheduledTaskDetailPayload({ state: overrides.state || "scheduled" }).task
   return {
     repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
-    tabs: repositoryTabsPayload(3),
     tasks: [
       {
         ...detail,
@@ -233,7 +230,6 @@ export function repositoryDocumentsPayload(
 ) {
   return {
     repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
-    tabs: repositoryTabsPayload(3),
     documents: overrides.documents || [],
     accepted_file_content_types: ["text/markdown", "application/pdf", "image/png"],
     message: overrides.message

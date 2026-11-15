@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class ScheduledTasksController < BaseController
-        include RepositoryTabsSerialization
         def index
           render json: scheduled_tasks_index_payload
         end
@@ -220,7 +219,6 @@ module Api
 
           {
             repository: repository_json(repository),
-            tabs: repository_tabs_json(repository),
             tasks: tasks.map { |task| repository_task_json(task) },
             new_scheduled_task_path: "/repositories/#{repository.id}/scheduled_tasks/new",
             options: scheduled_task_options
