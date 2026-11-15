@@ -12,7 +12,7 @@ module Permissions
     def permission_descriptor
       return authorization_adapter.permission_descriptor(request) if authorization_adapter
 
-      actor_permission_descriptor
+      super
     end
 
     def subject_selector
