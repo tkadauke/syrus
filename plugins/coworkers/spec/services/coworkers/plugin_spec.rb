@@ -3,6 +3,22 @@ require "rails_helper"
 RSpec.describe "Coworkers plugin" do
   let(:owner) { User.create!(email_address: "owner@example.com", password: "password123") }
 
+  it "owns its permission, MCP, and pending-action adapters outside core" do
+    core_paths = %w[
+      app/services/permissions/coworker_*.rb
+      app/services/mcp/coworker_*.rb
+      app/services/mcp/tools/coworker_*.rb
+      app/services/mcp/tools/discover_coworker_*.rb
+      app/services/mcp/tools/request_permission_revocation_tool.rb
+      app/services/mcp/tools/surrender_permission_lease_tool.rb
+      app/services/pending_actions/coworker_*.rb
+    ].flat_map { |pattern| Rails.root.glob(pattern) }
+
+    expect(core_paths).to be_empty
+    expect(Rails.root.glob("plugins/coworkers/app/services/permissions/coworker_*.rb")).not_to be_empty
+    expect(Rails.root.glob("plugins/coworkers/app/services/pending_actions/coworker_*.rb")).not_to be_empty
+  end
+
   it "is experimental and disabled by default" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "coworkers" }
 
