@@ -10936,6 +10936,55 @@ describe("App", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/timeline", expect.objectContaining({ credentials: "same-origin" }))
   })
 
+  it("pages through older timeline events without hiding the newest page", async () => {
+    const payload = jobDetailPayload({ actions: { can_view_timeline: true } })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/timeline") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ...jobTimelinePayload(),
+              events: [{ ...jobTimelinePayload().events[0], title: "Newest event" }],
+              pagination: { page: 1, per: 50, total: 51, total_pages: 2 }
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+      if (path === "/api/v1/app/jobs/42/timeline?page=2") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              ...jobTimelinePayload(),
+              events: [{ ...jobTimelinePayload().events[0], title: "Oldest event" }],
+              pagination: { page: 2, per: 50, total: 51, total_pages: 2 }
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      }
+      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Timeline (1 run)" }))
+    expect(await screen.findByText("Newest event")).toBeInTheDocument()
+    expect(screen.getByText("Showing 2-51 of 51")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }))
+    expect(await screen.findByText("Oldest event")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/timeline?page=2", expect.objectContaining({ credentials: "same-origin" }))
+    expect(screen.getByRole("button", { name: "Previous" })).toBeInTheDocument()
+  })
+
   it("renders workflow pagination on the Job detail workflows tab", async () => {
     const payload = jobDetailPayload({
       job: { workflows_count: 12 },
@@ -19448,7 +19497,8 @@ function jobTimelinePayload() {
         ref_label: "WF-5",
         workflow_path: "/jobs/42?tab=workflows#workflow-5"
       }
-    ]
+    ],
+    pagination: { page: 1, per: 50, total: 1, total_pages: 1 }
   }
 }
 

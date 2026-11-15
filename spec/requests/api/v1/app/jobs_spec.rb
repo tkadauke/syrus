@@ -1829,11 +1829,23 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
   it "paginates timeline events with a bounded page size" do
     user.update!(global_role: "admin")
+    events = 101.times.map do |index|
+      Jobs::Timeline::Event.new(
+        at: Time.zone.at(index), kind: :info, source: "job", transition_source: nil,
+        title: "Event #{index + 1}", detail: nil, ref: {}
+      )
+    end
+    allow(Jobs::Timeline).to receive(:for).with(job).and_return(events)
+
+    get "/api/v1/app/jobs/#{job.id}/timeline", params: { per: 50 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("events").map { |event| event.fetch("title") }).to eq((52..101).map { |number| "Event #{number}" })
+    expect(parse_body.fetch("pagination")).to include("page" => 1, "per" => 50, "total" => 101, "total_pages" => 3)
 
     get "/api/v1/app/jobs/#{job.id}/timeline", params: { page: 2, per: 1_000 }
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("events").length).to be <= 100
+    expect(parse_body.fetch("events").map { |event| event.fetch("title") }).to eq([ "Event 1" ])
     expect(parse_body.fetch("pagination")).to include("page" => 2, "per" => 100)
   end
 

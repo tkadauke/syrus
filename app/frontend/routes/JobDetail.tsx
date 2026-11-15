@@ -1685,7 +1685,11 @@ function PendingFeedbackPanel({ jobId, comments = [] }: { jobId: number; comment
 
   const ignore = useMutation({
     mutationFn: (commentId: number) => ignorePendingFeedback(jobId, commentId),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      queryClient.setQueriesData<JobDetailPayload>({ queryKey: ["jobs", String(jobId), "detail"] }, (old) =>
+        old ? { ...old, job: { ...old.job, ...response.job }, actions: response.actions ?? old.actions } : old
+      )
+      void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "detail"] })
       void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
