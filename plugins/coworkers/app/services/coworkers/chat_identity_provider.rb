@@ -65,7 +65,11 @@ module Coworkers
         links = Coworkers::Chat.where(chat_session_id: chat_sessions.map(&:id))
           .includes(coworker: { avatar_attachment: :blob })
         links.to_h do |link|
-          [ link.chat_session_id, { identity: identity(link.coworker, role: link.role) } ]
+          coworker = link.coworker
+          [ link.chat_session_id, {
+            identity: identity(coworker, role: link.role),
+            badges: [ { kind: "coworker", id: coworker.id, name: coworker.name } ]
+          } ]
         end
       end
 

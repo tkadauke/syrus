@@ -376,9 +376,7 @@ module ChatIndexPayload
   end
 
   def chat_repository_preloads
-    preloads = [ :chat_participants, { repository_attachments: :attachable } ]
-    preloads << { coworker_chat: :coworker } if ChatSession.reflect_on_association(:coworker_chat)
-    preloads
+    [ :chat_participants, { repository_attachments: :attachable } ]
   end
 
   def chat_index_initial_group_rows
@@ -595,11 +593,7 @@ module ChatIndexPayload
   def plugin_chat_list_groups
     @plugin_chat_list_groups ||= begin
       claimed_ids = Set.new
-      identity_groups = ChatIdentityContributions.group_ownership(user: Current.user)
-      legacy_groups = Syrus::PluginRegistry.providers_for(:chat_list_group).filter_map do |provider|
-        provider.chat_list_group(user: Current.user)&.deep_stringify_keys
-      end
-      (identity_groups + legacy_groups).filter_map do |contribution|
+      ChatIdentityContributions.group_ownership(user: Current.user).filter_map do |contribution|
         next if contribution.blank?
 
         key = contribution.fetch("key").to_s

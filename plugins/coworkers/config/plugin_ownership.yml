@@ -57,10 +57,8 @@ compatibility_quarantine:
   app/controllers/api/v1/app/chat_shares_controller.rb: 4
   app/controllers/api/v1/app/chats_controller.rb: 2
   app/controllers/api/v1/app/permission_requests_controller.rb: 5
-  app/controllers/concerns/chat_index_payload.rb: 5
-  app/controllers/concerns/chat_search.rb: 1
   app/controllers/concerns/chat_serialization.rb: 1
-  app/frontend/api/chats.ts: 13
+  app/frontend/api/chats.ts: 7
   app/frontend/api/jobs.ts: 2
   app/frontend/api/permissionRequests.ts: 1
   app/frontend/components/AppearancePickers.test.tsx: 2
@@ -78,15 +76,12 @@ compatibility_quarantine:
   app/frontend/routes/App.test.tsx: 1
   app/frontend/routes/Chat.tsx: 7
   app/frontend/routes/ChatSearch.test.ts: 4
-  app/frontend/routes/ChatSearch.tsx: 25
   app/frontend/routes/JobDetail.tsx: 10
   app/frontend/routes/appChromeV2/RecentChatsSidebar.test.tsx: 4
-  app/frontend/routes/chat/Compose.test.tsx: 6
-  app/frontend/routes/chat/Compose.tsx: 3
+  app/frontend/routes/chat/Compose.test.tsx: 5
+  app/frontend/routes/chat/Compose.tsx: 2
   app/frontend/routes/chat/MessageCards.test.tsx: 26
-  app/frontend/routes/chat/MessageCards.tsx: 32
   app/frontend/routes/chat/ProposalCards.test.tsx: 9
-  app/frontend/routes/chat/ProposalCards.tsx: 7
   app/frontend/routes/chat/systemMessages.test.ts: 2
   app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.test.tsx: 2
   app/frontend/routes/chat/tool_cards/propose_job.test.tsx: 2
@@ -201,7 +196,6 @@ compatibility_quarantine:
   config/syrus_docs/syrus_yml.md: 7
   config/syrus_docs/workflow_steps.md: 6
   lib/deploy/verifications.rb: 9
-  lib/syrus/plugin/chat_list_group.rb: 2
   lib/syrus/plugin/chat_mcp_tool_set.rb: 7
   lib/syrus/plugin/gated_tool_set.rb: 12
   website/src/content/docs/features.md: 126

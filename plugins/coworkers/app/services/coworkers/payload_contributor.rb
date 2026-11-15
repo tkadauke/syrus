@@ -25,25 +25,6 @@ module Coworkers
       end
     end
 
-    def self.chat_message_payload(messages:, payloads:)
-      bridge_chat_ids = payloads.filter_map do |payload|
-        bridge = payload[:cross_chat_bridge]
-        bridge[:counterpart_chat_session_id] if bridge&.fetch(:direction, nil) == "inbound"
-      end.uniq
-      bridge_coworkers = Coworkers::Chat.where(chat_session_id: bridge_chat_ids)
-        .includes(coworker: { avatar_attachment: :blob }, chat_session: :user)
-        .index_by { |link| [ link.chat_session.user_id, link.chat_session_id ] }
-      payloads.zip(messages).map do |payload, message|
-        decorated = payload.dup
-        bridge = payload[:cross_chat_bridge]
-        link = bridge_coworkers[[ message.chat_session.user_id, bridge&.fetch(:counterpart_chat_session_id, nil) ]]
-        if bridge&.fetch(:direction, nil) == "inbound" && link
-          decorated[:plugin_message] = message_presentation(appearance: appearance_json(link.coworker), direction: "incoming", handle: link.coworker.handle)
-        end
-        decorated
-      end
-    end
-
     def self.message_presentations(messages:)
       metadata = messages.map { |message| coworker_message_metadata(message) }
       ids = metadata.compact.flat_map { |entry| [ entry["sender_id"], entry["receiver_id"] ] }.compact.map(&:to_i).uniq

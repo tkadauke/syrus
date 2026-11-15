@@ -102,7 +102,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         :chat_provider,
         :coverage_analyzer,
         :mentionable,
-        :chat_result_decorator,
+        :chat_identity_provider,
         :repository_filter
       )
     end

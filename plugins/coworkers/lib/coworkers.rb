@@ -26,7 +26,6 @@ module Coworkers
              workflow_kinds: "Coworkers::WorkflowKinds",
              job_visibility_restriction: "Coworkers::JobVisibilityRestriction",
              repository_filter: "Coworkers::RepositoryFilter",
-             chat_result_decorator: "Coworkers::ChatResultDecorator",
              chat_prompt_injector: "Coworkers::PromptSection",
              chat_turn_orientation: "Coworkers::MessageReply",
              chat_workspace_lifecycle: "Coworkers::ChatWorkspaceLifecycle",
