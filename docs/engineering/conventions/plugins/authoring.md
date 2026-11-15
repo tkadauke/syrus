@@ -1078,6 +1078,15 @@ second copy of authorization policy. Duplicate operation keys within a provider
 and duplicate resource-type ownership across enabled providers fail closed.
 Disabled providers contribute neither capabilities nor scopes to
 `Permissions::Catalog`; enabling a plugin registers metadata, never authority.
+When a plugin-owned pending-action kind needs domain-specific descriptor or
+subject resolution during approval replay, the same provider calls
+`register_authorization_adapter(action, adapter)`. Action ownership is unique
+across enabled providers, and the adapter implements `permission_descriptor`
+and `subject_selector`. Core retains request, lease, single-use invocation,
+replay, and audit ownership. Disabled or unhealthy providers are absent from
+resolution, so stored actions fail closed instead of loading plugin domain
+classes. The permission contribution diagnostic inventories registered action
+keys alongside capabilities and tools.
 Permission providers should run the public RSpec conformance kit from their
 own specs:
 
