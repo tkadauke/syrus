@@ -1036,7 +1036,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
     expect(parse_body.fetch("job").keys).not_to include(
       "job_provider_setting_options", "provider_routing_options", "provider_routing_rules",
-      "inherited_provider_routing_context", "provider_routing_resolution", "active_provider_routing_holds"
+      "inherited_provider_routing_context", "provider_routing_resolution", "active_provider_routing_holds",
+      "coworker_review_configuration"
     )
   end
 
