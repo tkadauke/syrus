@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class RepositoriesController < BaseController
-        include RepositoryTabsSerialization
         include RepositorySummarySerialization
         include ProviderRoutingRuleSerialization
 
@@ -448,7 +447,6 @@ module Api
             payload = {
               message: message,
               repository: PerformanceLogging.phase("repository_detail.repository", repository_id: repository.id) { repository_detail_json(repository, effective_provider: effective_provider) },
-              tabs: PerformanceLogging.phase("repository_detail.tabs", repository_id: repository.id) { repository_tabs_json(repository) },
               ui_panels: PerformanceLogging.phase("repository_detail.ui_panels", repository_id: repository.id) do
                 ::App::UiSlotsPayload.panels_for(slot: "repository.detail", context: { repository: repository, user: Current.user })
               end,

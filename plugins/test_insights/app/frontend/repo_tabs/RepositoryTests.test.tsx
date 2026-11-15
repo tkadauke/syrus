@@ -406,7 +406,7 @@ function renderTestList(initialEntry = "/tests-panel") {
       return true
     })
 
-    return Promise.resolve(jsonResponse({ repository: REPOSITORY, tabs: TABS, filter: tree, filter_schema: FILTER_SCHEMA, tests }))
+    return Promise.resolve(jsonResponse({ repository: REPOSITORY, filter: tree, filter_schema: FILTER_SCHEMA, tests }))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(

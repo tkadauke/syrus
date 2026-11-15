@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class RepositoryDocumentsController < BaseController
-        include RepositoryTabsSerialization
         PER_PAGE = 25
         def index
           repository = find_repository
@@ -51,7 +50,6 @@ module Api
           {
             repository: repository_json(repository),
             can_write: RepositoryPolicy.new(Current.user, repository).write?,
-            tabs: repository_tabs_json(repository),
             documents: scope.offset((page - 1) * PER_PAGE).limit(PER_PAGE).map { |document| document_json(document) },
             pagination: { page: page, per_page: PER_PAGE, total: total, total_pages: (total.to_f / PER_PAGE).ceil }
           }

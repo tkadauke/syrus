@@ -2,7 +2,6 @@ module Api
   module V1
     module App
       class InsightSuggestionsController < BaseController
-        include RepositoryTabsSerialization
         include ChatSessionLifecycle
         include ChatLockErrors
         include Paginatable
@@ -48,7 +47,6 @@ module Api
 
           render json: {
             repository: repository_summary_json(repository),
-            tabs: repository_tabs_json(repository),
             suggestions: suggestions.map { |s| suggestion_json(s, include_details: false) },
             filter: filter.to_h,
             filter_schema: AgentInsights::Filter.schema,
