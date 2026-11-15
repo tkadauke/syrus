@@ -34,6 +34,17 @@ RSpec.describe Permissions::AuthorizationAdapters do
       .to raise_error(described_class::DuplicateAction, /more than one provider/)
   end
 
+  it "ignores a provider whose adapter inventory is unavailable" do
+    unavailable_provider = Class.new do
+      def self.permission_authorization_adapters = raise("unavailable")
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider)
+      .and_return([ unavailable_provider, provider ])
+
+    expect(Rails.logger).to receive(:warn).with(/provider inventory unavailable: RuntimeError: unavailable/)
+    expect(described_class.resolve("synthetic.records")).to equal(adapter)
+  end
+
   it "lets the generic decision resolve plugin-owned descriptor and subject policy" do
     request = instance_double(ChatPendingAction, action: "synthetic.records", subject_id: 42)
     decision = Permissions::AuthorizationDecision.new(request:, item: double, user: double)
@@ -41,5 +52,26 @@ RSpec.describe Permissions::AuthorizationAdapters do
 
     expect(decision.send(:permission_descriptor)).to equal(request)
     expect(decision.send(:subject_selector)).to eq([ "agent", request.subject_id.to_s ])
+  end
+
+  it "preserves coworker descriptor resolution when no plugin adapter matches" do
+    tool = Class.new
+    descriptor = Object.new
+    request = instance_double(
+      ChatPendingAction,
+      action: "coworker_tool_call", runtime_role: AgentRole::COWORKER_CHAT,
+      payload: { "tool_name" => "read_custom_data" }, chat_session: double
+    )
+    catalog_entry = Mcp::CoworkerToolCatalog::Descriptor.new(
+      tool_name: "read_custom_data", capability: "custom.read", ungated: false,
+      tier: :essential, tool:, provider: nil
+    )
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
+    allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(catalog_entry)
+    allow(McpToolRegistry).to receive(:entries).with(surface: :coworker)
+      .and_return([ Struct.new(:tool, :descriptor).new(tool, descriptor) ])
+
+    decision = Permissions::AuthorizationDecision.new(request:, item: double, user: double)
+    expect(decision.send(:permission_descriptor)).to equal(descriptor)
   end
 end
