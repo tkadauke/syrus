@@ -44,7 +44,7 @@ import type { ProviderAvailability } from "../../api/providerAvailability"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { recentChatsQueryKey, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
+import { recentChatsQueryKey, removeRecentChatFromCache, setOpenRecentChatId, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { useChatBookmarks } from "../chat/bookmarks"
 import { EpicProgressSegments } from "../dashboard/components"
 
@@ -213,17 +213,23 @@ export function RecentChatsSidebar({
   const sidebarRootRef = useRef<HTMLDivElement>(null)
   const scrollRafRef = useRef<number | null>(null)
   const activeChatId = activeChatIdFromPath(location.pathname)
-  const sidebarQueryKey = useMemo(
-    () => (sidebarSettings.unread_only ? [...recentChatsQueryKey(sidebarSettings), activeChatId] : recentChatsQueryKey(sidebarSettings)),
-    [activeChatId, sidebarSettings]
-  )
+  // The route's chat id is deliberately not part of the query key or the
+  // settings key: navigating between chats must not select a new cache entry,
+  // refetch, or reset loaded sections. Fetches read the latest id from a ref.
+  const activeChatIdRef = useRef(activeChatId)
+  activeChatIdRef.current = activeChatId
+  useEffect(() => {
+    setOpenRecentChatId(activeChatId)
+    return () => setOpenRecentChatId(null)
+  }, [activeChatId])
+  const sidebarQueryKey = useMemo(() => recentChatsQueryKey(sidebarSettings), [sidebarSettings])
   const chats = useQuery({
     queryKey: sidebarQueryKey,
-    queryFn: () => fetchChats(sidebarSettings, activeChatId),
+    queryFn: () => fetchChats(sidebarSettings, activeChatIdRef.current),
     enabled: userPresent,
     staleTime: 30_000
   })
-  const settingsKey = useMemo(() => JSON.stringify([sidebarSettings, sidebarSettings.unread_only ? activeChatId : null]), [activeChatId, sidebarSettings])
+  const settingsKey = useMemo(() => JSON.stringify(sidebarSettings), [sidebarSettings])
   const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
   const canLoadMoreGroups = Boolean(chats.data?.groups_has_more && chats.data.groups_next_offset != null)
   const availableChatTypes = useMemo(() => chats.data?.available_chat_types ?? [], [chats.data?.available_chat_types])
@@ -253,6 +259,31 @@ export function RecentChatsSidebar({
   useEffect(() => {
     setFailedGroupOffset(null)
   }, [chats.dataUpdatedAt])
+
+  // In unread-only mode the previously open chat leaves the list once it is
+  // read, patched locally rather than by refetching.
+  const previousActiveChatIdRef = useRef<number | null>(activeChatId)
+  useEffect(() => {
+    const previous = previousActiveChatIdRef.current
+    previousActiveChatIdRef.current = activeChatId
+    if (previous == null || previous === activeChatId || !sidebarSettings.unread_only) return
+
+    const cached = queryClient.getQueryData<ChatsIndexPayload>(sidebarQueryKey)
+    const stillUnread = cached?.groups.some((group) => group.chats.some((chat) => chat.id === previous && chat.unread))
+    if (stillUnread) return
+
+    queryClient.setQueryData<ChatsIndexPayload>(
+      sidebarQueryKey,
+      (current) => current && { ...current, groups: current.groups.map((group) => ({ ...group, chats: group.chats.filter((chat) => chat.id !== previous) })) }
+    )
+    setLoadedSections((current) => {
+      const next: Record<string, { chats: ChatNavRecord[]; has_more: boolean }> = {}
+      Object.entries(current).forEach(([key, value]) => {
+        next[key] = { ...value, chats: value.chats.filter((chat) => chat.id !== previous) }
+      })
+      return next
+    })
+  }, [activeChatId, queryClient, sidebarQueryKey, sidebarSettings.unread_only])
 
   const loadMoreGroups = useCallback(
     (force = false) => {
@@ -560,7 +591,13 @@ export function RecentChatsSidebar({
                       }}
                       onDragOver={(e) => e.preventDefault()}
                     >
-                      <Link aria-label={title} className={recentChatLinkClass(active)} onClick={onCloseDrawer} title={title} to={withRoutePrefix(chat.chat_path, prefix)}>
+                      <Link
+                        aria-label={title}
+                        className={recentChatLinkClass(active)}
+                        onClick={onCloseDrawer}
+                        title={title}
+                        to={withRoutePrefix(chat.chat_path, prefix)}
+                      >
                         {unread ? (
                           <span
                             aria-label={t("chat:unread_indicator")}
