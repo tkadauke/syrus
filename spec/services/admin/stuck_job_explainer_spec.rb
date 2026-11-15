@@ -180,6 +180,28 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:human_summary)).to include("active work unit WU-#{unit.id} is blocked")
   end
 
+  it "recommends an actionable retry for an agent-blocked WorkUnit with no next check" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "blocked",
+      artifacts: { "cannot_proceed" => { "reason" => "required binary is missing" } }
+    )
+    unit = attach_work_unit(workflow, state: "blocked", blocked_reason: "agent_cannot_proceed")
+
+    payload = described_class.call(job.reload, github_client: no_github_client)
+
+    expect(payload.dig(:recommended_action)).to include(
+      action: "retry_job",
+      work_unit_id: unit.id,
+      workflow_id: workflow.id,
+      blocked_reason: "agent_cannot_proceed",
+      cannot_proceed_reason: "required binary is missing"
+    )
+    expect(payload.dig(:recommended_action, :next_check_at)).to be_nil
+  end
+
   it "points grader failures at Run logs instead of stack state" do
     job = Factories.job_record(
       user: user,
