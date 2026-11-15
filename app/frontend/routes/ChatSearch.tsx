@@ -34,9 +34,13 @@ export function ChatSearchRoute() {
     queryKey: ["chat-search", "filter-options"],
     queryFn: ({ signal }) => loadFilterOptions(signal)
   })
-  const pluginFields = filterOptions.data?.pluginFields?.map((field) => field.field) || []
-  const filter = useMemo(() => filterFromSearch(search, pluginFields), [search, pluginFields.join(",")])
+  const pluginFields = useMemo(() => filterOptions.data?.pluginFields?.map((field) => field.field) || [], [filterOptions.data?.pluginFields])
+  const filter = useMemo(() => filterFromSearch(search, pluginFields), [search, pluginFields])
   const filterSchema = useMemo(() => chatSearchFilterSchema(filterOptions.data, t), [filterOptions.data, t])
+  const buildFilterLink = useMemo<FilterLinkBuilder>(
+    () => (path, currentSearch, updates) => chatSearchFilterLink(path, currentSearch, updates, pluginFields),
+    [pluginFields]
+  )
 
   return (
     <Page.Root aria-label={t("aria_chat_search")} gutter="responsive" size="wide">
@@ -47,7 +51,7 @@ export function ChatSearchRoute() {
       <Page.Nav>
         <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
           <FilterBar
-            buildLink={chatSearchFilterLink}
+            buildLink={buildFilterLink}
             filter={filter}
             filterSchema={filterSchema}
             legacyFilterKeys={["repository_id", "epic_id", "job_id"]}
@@ -257,7 +261,7 @@ export function filterFromSearch(search: string, pluginFields: string[] = []) {
   return { and }
 }
 
-export const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) => {
+export function chatSearchFilterLink(path: string, search: string, updates: Parameters<FilterLinkBuilder>[2], pluginFields: string[] = []) {
   const params = new URLSearchParams(search)
   const encodedFilter = updates.q
 
@@ -269,7 +273,7 @@ export const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) =
   }
 
   if (typeof encodedFilter === "string" && encodedFilter.length > 0) {
-    const availableFields = [...filterFields, ...decodeFilterChips(encodedFilter).map((chip) => chip.field)]
+    const availableFields = [...filterFields, ...pluginFields, ...decodeFilterChips(encodedFilter).map((chip) => chip.field)]
     for (const field of availableFields) { params.delete(field); params.delete(operatorParam(field)) }
     for (const chip of decodeFilterChips(encodedFilter)) {
       const values = Array.isArray(chip.value) ? chip.value.map(String).filter(Boolean) : [String(chip.value || "")].filter(Boolean)
@@ -278,8 +282,7 @@ export const chatSearchFilterLink: FilterLinkBuilder = (path, search, updates) =
       if (pluginOperators.includes(chip.op) && !filterFields.includes(chip.field)) params.set(operatorParam(chip.field), chip.op)
     }
   } else if (encodedFilter == null) {
-    for (const field of filterFields) params.delete(field)
-    Array.from(params.keys()).filter((field) => field.endsWith("_op")).forEach((field) => params.delete(field))
+    for (const field of [...filterFields, ...pluginFields]) { params.delete(field); params.delete(operatorParam(field)) }
   }
 
   params.delete("page")
