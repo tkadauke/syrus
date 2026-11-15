@@ -1579,9 +1579,9 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
         {resultSummary ? (
           <span className="min-w-0 flex-1 break-words font-mono text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{resultSummary}</span>
         ) : null}
-        {tool?.proposal_id ? (
-          <span className="text-gray-600 dark:text-gray-400">
-            Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}
+        {tool?.proposal_reference ? (
+          <span className="min-w-0 truncate text-gray-600 dark:text-gray-400">
+            {tool.proposal_reference} {tool.proposal_state_label ? `(${tool.proposal_state_label})` : ""}
           </span>
         ) : null}
       </summary>

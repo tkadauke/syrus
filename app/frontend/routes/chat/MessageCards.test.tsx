@@ -2568,7 +2568,7 @@ describe("tool result rendering", () => {
         result_kind: "record",
         result_summary: "1 Job",
         payload: { job: { id: 4072, issue_title: "Collapsed tools" } },
-        proposal_id: null,
+        proposal_reference: null,
         proposal_state_label: null
       }
     })
@@ -2583,6 +2583,29 @@ describe("tool result rendering", () => {
     openRawDetails()
 
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent?.includes("Collapsed tools") === true)).toBeInTheDocument()
+  })
+
+  it("shows proposal title and slug instead of its internal numeric id", () => {
+    renderChatMessageItem({
+      type: "message",
+      id: 13,
+      role: "tool_result",
+      text: "fallback raw payload",
+      bookmarkable: false,
+      tool: {
+        name: "propose_job",
+        raw_name: "syrus-chat-sidecar.propose_job",
+        display_label: "Propose job",
+        argument_summary: "",
+        raw_payload: {},
+        payload: {},
+        proposal_reference: '"Visible proposal" (visible-proposal)',
+        proposal_state_label: "Pending"
+      }
+    })
+
+    expect(screen.getByText(/"Visible proposal" \(visible-proposal\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/Proposal #/)).not.toBeInTheDocument()
   })
 
   it("lets standalone structured tool error summaries shrink and wrap on mobile", () => {
@@ -2601,7 +2624,7 @@ describe("tool result rendering", () => {
         result_kind: "error",
         result_summary: "Git status unavailable: Local Mode daemon is not connected",
         payload: { error: "Local Mode daemon is not connected" },
-        proposal_id: null,
+        proposal_reference: null,
         proposal_state_label: null
       }
     })
