@@ -46,11 +46,7 @@ export function RepositoryPageShell({
       </Page.Header>
       {tipBanner ? <TipBanner>{tipBanner}</TipBanner> : null}
       <Page.Nav>
-        <RepositoryTabs
-          active={activeTab}
-          prefix={prefix}
-          tabs={(tabs.data?.tabs ?? []).map((tab) => ({ ...tab, badge: tab.badge ?? undefined }))}
-        />
+        <RepositoryTabs active={activeTab} prefix={prefix} tabs={(tabs.data?.tabs ?? []).map((tab) => ({ ...tab, badge: tab.badge ?? undefined }))} />
       </Page.Nav>
       {children}
     </Page.Root>
