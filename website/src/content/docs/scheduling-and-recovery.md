@@ -92,6 +92,12 @@ Syrus prefers the smallest safe retry:
   reported it cannot proceed: the blocked attempt is retired first, so the Job
   does not have to be cancelled.
 
+Cannot-proceed is reserved for permanent environmental or workflow-capability
+gaps. Timeout, network/proxy, worker-capacity, dependency-preparation, and
+inconclusive-grader reports are treated as retryable failures instead. A Job
+with a genuinely blocked attempt is shown as blocked with the reported reason;
+retrying it retires that attempt and releases its Job lock.
+
 The operator-confirmed `retry_job` tool makes these choices explicit. Its
 `auto` mode preserves the compatible smart-retry behavior and never chooses a
 base refresh. `failed_step` keeps the failed workflow's immutable source,
