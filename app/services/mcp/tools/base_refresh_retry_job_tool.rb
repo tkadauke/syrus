@@ -29,7 +29,7 @@ module Mcp::Tools
           requested_by: "agent"
         )
         Mcp::Tools.success(pending_action_id: pending.id,
-          state: pending.state, message: "Base refresh retry requires operator confirmation.")
+          state: pending.state, message: "Retry #{job.slug} from #{eligibility.workflow.slug} on its refreshed base?")
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end

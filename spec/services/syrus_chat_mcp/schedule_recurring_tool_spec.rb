@@ -39,7 +39,9 @@ RSpec.describe ScheduledTasks::McpTools::ScheduleRecurringTool do
 
     expect(response[:result][:isError]).to be_falsey
     payload = response_payload(response)
-    action = ChatPendingAction.find(payload.fetch(:pending_confirmation_id))
+    expect(payload).not_to have_key(:pending_confirmation_id)
+    expect(payload.fetch(:message)).to include("Schedule Daily review")
+    action = ChatPendingAction.find(payload.fetch(:pending_action_id))
     expect(action).to have_attributes(
       chat_session: chat_session,
       repository: repository,

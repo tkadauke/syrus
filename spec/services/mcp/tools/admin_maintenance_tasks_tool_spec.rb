@@ -73,7 +73,7 @@ RSpec.describe Mcp::Tools::AdminMaintenanceTasksTool, :full_chat_access do
       expect {
         response = call_tool(action: action.to_s, task_id: task.id)
         body = payload_for(response)
-        pending_action = ChatPendingAction.find(body.fetch(:pending_confirmation_id))
+        pending_action = ChatPendingAction.find(body.fetch(:pending_action_id))
 
         expect(response.dig(:result, :isError)).to be_falsey
         expect(body).to include(state: "pending", message: a_string_matching(/\?/))

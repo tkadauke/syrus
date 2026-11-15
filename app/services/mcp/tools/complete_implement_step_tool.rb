@@ -80,7 +80,7 @@ module Mcp::Tools
         Mcp::Tools.success(
           pending_action_id: pending_action.id,
           state: pending_action.state,
-          message: "Implementation handoff requires operator confirmation."
+          message: "Hand off the implementation for #{job.slug}?"
         )
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)
@@ -96,10 +96,11 @@ module Mcp::Tools
       end
 
       def pending_action_response(pending_action)
+        job_id = pending_action.payload.to_h["job_id"]
         Mcp::Tools.success(
           pending_action_id: pending_action.id,
           state: pending_action.state,
-          message: "Implementation handoff requires operator confirmation."
+          message: "Hand off the implementation for JOB-#{job_id}?"
         )
       end
     end

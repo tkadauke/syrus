@@ -31,12 +31,15 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload(response)).to include(
-      pending_confirmation_id: be_present,
+      pending_action_id: be_present,
+      state: "pending",
       label: "Weekly review",
       prompt: "Review **open work**.",
       schedule_input: "0 9 * * 1",
       cron_expression: "0 9 * * 1"
     )
+    expect(payload(response).fetch(:message)).to include("Schedule Weekly review")
+    expect(payload(response)).not_to have_key(:pending_confirmation_id)
   end
 
   def call_tool(name, arguments = {})

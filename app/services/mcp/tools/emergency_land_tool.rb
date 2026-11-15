@@ -126,10 +126,12 @@ module Mcp::Tools
       end
 
       def pending_action_response(pending_action)
+        payload = pending_action.payload.to_h
+        target = payload["job_id"].present? ? "JOB-#{payload['job_id']}" : payload["branch_name"].presence || "the current branch"
         Mcp::Tools.success(
           pending_action_id: pending_action.id,
           state: pending_action.state,
-          message: "Emergency land requires operator confirmation."
+          message: "Emergency-land #{target}?"
         )
       end
     end

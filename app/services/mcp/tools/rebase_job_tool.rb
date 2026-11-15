@@ -60,7 +60,7 @@ module Mcp::Tools
           pending_action_id: pending_action.id,
           state: pending_action.state,
           reason: pending_action.reason,
-          message: "Job rebase requires operator confirmation and may cancel an active workflow on the same branch."
+          message: "Rebase #{job.slug}? This may cancel an active workflow on the same branch."
           )
         end
 

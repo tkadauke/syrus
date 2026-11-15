@@ -149,12 +149,14 @@ RSpec.describe "DesignDocs MCP tool sets" do
       group = PendingActionGroup.find(body.fetch(:pending_action_group_id))
 
       expect(body).to include(
+        pending_action_id: be_present,
         requested_refs: [ second.display_id, first.display_id ],
         eligible_count: 2,
         skipped_count: 0,
         state: "pending",
         confirmation_required: true
       )
+      expect(body).not_to have_key(:pending_confirmation_id)
       expect(body.fetch(:targets)).to eq([
         { doc_ref: second.display_id, title: "Second" },
         { doc_ref: first.display_id, title: "First" }

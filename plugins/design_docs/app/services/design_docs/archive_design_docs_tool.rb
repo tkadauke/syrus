@@ -98,7 +98,6 @@ module DesignDocs
         {
           pending_action_group_id: group&.id,
           pending_action_id: anchor&.id,
-          pending_confirmation_id: anchor&.id,
           requested_refs: requested_refs,
           eligible_count: eligible.size,
           skipped_count: archived.size,

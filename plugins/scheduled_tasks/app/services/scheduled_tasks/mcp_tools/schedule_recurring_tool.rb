@@ -15,7 +15,8 @@ module ScheduledTasks
         chat and must not be used for conversational reminders. Use
         `schedule_wakeup` when the operator wants a future turn in this chat.
         The recurring task is not created immediately; Syrus returns a
-        pending_confirmation_id and waits for the operator to confirm it.
+        pending_action_id and waits for the operator to confirm the descriptive
+        action card.
       DESC
 
       input_schema(
@@ -79,7 +80,9 @@ module ScheduledTasks
           )
 
           Mcp::Tools.success(
-            pending_confirmation_id: action.id,
+            pending_action_id: action.id,
+            state: action.state,
+            message: "Schedule #{label} to run #{preview.schedule_explanation}?",
             label: label,
             prompt: prompt,
             schedule_input: schedule_input,

@@ -87,7 +87,7 @@ RSpec.describe "SyrusChatMcp CI repair tools", :full_chat_access do
       }
     )
     payload = payload_for(response)
-    action = ChatPendingAction.find(payload.fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload.fetch(:pending_action_id))
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload.fetch(:message)).to include("Failing checks: rspec (https://github.com/acme/widgets/runs/1)")
@@ -105,7 +105,7 @@ RSpec.describe "SyrusChatMcp CI repair tools", :full_chat_access do
 
   it "confirms rerun_ci_repair by starting a ci_failure workflow with audit snapshots" do
     response = call_tool("rerun_ci_repair", { job_id: job.id, reason: "JOB-765 stayed red." })
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_action_id))
 
     expect {
       expect(action.confirm!).to be true
@@ -126,7 +126,7 @@ RSpec.describe "SyrusChatMcp CI repair tools", :full_chat_access do
       { job_id: job.id, workflow_id: workflow.id, reason: "The repair produced no branch or check progress." }
     )
     payload = payload_for(response)
-    action = ChatPendingAction.find(payload.fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload.fetch(:pending_action_id))
 
     expect(payload.fetch(:message)).to include("Current checks: failing")
     expect(payload.fetch(:message)).to include("rspec (https://github.com/acme/widgets/runs/1)")

@@ -109,7 +109,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     plan = instance_double(Unlanding::Create::Plan, to_h: { subject: job.slug, commits: [ "abc" ], graders: [ "smoke" ], warnings: [] })
     allow(Unlanding::Create).to receive(:plan!).and_return(plan)
     body = payload(call_tool("unland_job", job_id: job.id))
-    pending = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
+    pending = chat_session.pending_actions.find(body.fetch(:pending_action_id))
 
     disable_unlanding!
     expect(RepositoryBareClone).not_to receive(:new)
@@ -128,7 +128,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     allow(Unlanding::Create).to receive(:call!)
 
     body = payload(call_tool("unland_job", job_id: job.id))
-    pending = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
+    pending = chat_session.pending_actions.find(body.fetch(:pending_action_id))
 
     expect(body).to include(subject: job.slug, commits: [ "abc" ], graders: [ "smoke" ])
     expect(pending).to have_attributes(action: "unland_job", state: "pending")
@@ -143,7 +143,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     allow(Unlanding::Create).to receive(:call!)
 
     body = payload(call_tool("unland_epic", epic_id: epic.id))
-    pending = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
+    pending = chat_session.pending_actions.find(body.fetch(:pending_action_id))
 
     expect(body).to include(subject: epic.slug, affected: [ epic.slug ], commits: [ "abc" ], graders: [ "smoke" ])
     expect(pending).to have_attributes(action: "unland_epic", state: "pending")
@@ -715,7 +715,7 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
       remote_ref: RunCheckpoint.remote_ref_for(run), status: "published", published_at: Time.current)
 
     response = call_tool("base_refresh_retry_job", job_id: job.id, source_workflow_id: workflow.id, reason: "Base repaired")
-    pending = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect(pending).to be_pending
     expect(pending).to have_attributes(action: "base_refresh_retry_job", requested_by: "agent")

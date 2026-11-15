@@ -76,7 +76,7 @@ module Mcp::Tools
             state: pending_action.state,
             job_id: job.id,
             closure_reason: closure_reason.to_s,
-            message: "Successful Job close requires operator confirmation."
+            message: "Close #{job.slug} successfully as #{closure_reason}?"
           )
         end
 
