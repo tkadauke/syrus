@@ -609,45 +609,45 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
             <>
               <Timeline.Root className="mt-3">
                 {timeline.data.events.map((event, index) => (
-                <Timeline.ActivityRow
-                  key={`${event.at}-${event.title}-${index}`}
-                  meta={
-                    <>
-                      {event.source}
-                      {event.ref_label ? (
-                        <>
-                          {" · "}
-                          {event.workflow_path ? (
-                            <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>
-                              {event.ref_label}
-                            </Link>
-                          ) : (
-                            event.ref_label
-                          )}
-                        </>
-                      ) : null}
-                    </>
-                  }
-                  timestamp={<RelativeTimestamp value={event.at} />}
-                  title={
-                    event.workflow_path ? (
-                      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>
-                        {event.title}
-                      </Link>
-                    ) : (
-                      event.title
-                    )
-                  }
-                  details={event.detail ? <Text muted>{event.detail}</Text> : null}
-                />
+                  <Timeline.ActivityRow
+                    key={`${event.at}-${event.title}-${index}`}
+                    meta={
+                      <>
+                        {event.source}
+                        {event.ref_label ? (
+                          <>
+                            {" · "}
+                            {event.workflow_path ? (
+                              <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>
+                                {event.ref_label}
+                              </Link>
+                            ) : (
+                              event.ref_label
+                            )}
+                          </>
+                        ) : null}
+                      </>
+                    }
+                    timestamp={<RelativeTimestamp value={event.at} />}
+                    title={
+                      event.workflow_path ? (
+                        <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>
+                          {event.title}
+                        </Link>
+                      ) : (
+                        event.title
+                      )
+                    }
+                    details={event.detail ? <Text muted>{event.detail}</Text> : null}
+                  />
                 ))}
               </Timeline.Root>
               {timeline.data.pagination.total_pages > 1 ? (
                 <div className="mt-4 flex items-center justify-between text-sm text-text-secondary">
                   <span>
                     {t("pagination_showing", {
-                      first: Math.max(timeline.data.pagination.total - (timeline.data.pagination.page * timeline.data.pagination.per) + 1, 1),
-                      last: timeline.data.pagination.total - ((timeline.data.pagination.page - 1) * timeline.data.pagination.per),
+                      first: Math.max(timeline.data.pagination.total - timeline.data.pagination.page * timeline.data.pagination.per + 1, 1),
+                      last: timeline.data.pagination.total - (timeline.data.pagination.page - 1) * timeline.data.pagination.per,
                       total: timeline.data.pagination.total
                     })}
                   </span>
@@ -791,10 +791,7 @@ export function PendingJobTitle({ pending, title }: { pending: boolean; title: s
 
   return (
     <span className="inline-flex min-w-0 items-center gap-2 italic text-text-secondary">
-      <span
-        aria-hidden="true"
-        className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-text-secondary"
-      />
+      <span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-text-secondary" />
       <span>{t("generating_title")}</span>
     </span>
   )
