@@ -18,6 +18,7 @@ import {
   fetchJobGradeLog,
   fetchJobRunArtifacts,
   fetchJobSourceFileContent,
+  fetchWorkflowDetail,
   type JobAdversarialReviewIteration,
   type JobCoworkerReviewIteration,
   type JobSecurityReviewIteration,
@@ -87,6 +88,7 @@ import {
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
 import { workflowBranchDivergence } from "./branchDivergence"
 import { mergeTranscriptLogs } from "./transcript"
+import { jobWorkflowDetailQueryKey } from "./queryKeys"
 
 // Workflow / step / run execution-graph rendering extracted from JobDetail.tsx.
 //
@@ -498,9 +500,18 @@ function WorkflowCard({
   prefix: string
 }) {
   const { t } = useT("jobs")
-  const stepItems = workflowStepItems(workflow.steps)
-  const branchDivergence = workflowBranchDivergence(workflow)
-  const detectedPlugins = workflowDetectedPlugins(workflow)
+  const alreadyDetailed = workflow.steps.every((step) => Object.prototype.hasOwnProperty.call(step, "runs"))
+  const [open, setOpen] = useState(alreadyDetailed)
+  const detailQuery = useQuery({
+    queryKey: jobWorkflowDetailQueryKey(payload.job.id, workflow.id),
+    queryFn: ({ signal }) => fetchWorkflowDetail(payload.job.id, workflow.id, signal),
+    enabled: open && !alreadyDetailed
+  })
+  const detail = alreadyDetailed ? workflow : detailQuery.data
+  const displayedWorkflow = detail || workflow
+  const stepItems = workflowStepItems(displayedWorkflow.steps)
+  const branchDivergence = workflowBranchDivergence(displayedWorkflow)
+  const detectedPlugins = workflowDetectedPlugins(displayedWorkflow)
 
   return (
     <Section.Root id={`workflow-${workflow.id}`}>
@@ -539,8 +550,15 @@ function WorkflowCard({
               {t("push_commits")}
             </CommandButton>
           ) : null}
+          {!alreadyDetailed ? (
+            <Button aria-expanded={open} onClick={() => setOpen((value) => !value)} variant="secondary">
+              {open ? t("common:show_less") : t("common:show_more")}
+            </Button>
+          ) : null}
         </div>
       </div>
+      {open && detailQuery.isLoading ? <PanelMessage>{t("loading")}</PanelMessage> : null}
+      {open && detailQuery.error ? <PanelMessage tone="error">{errorMessage(detailQuery.error, t("load_error"))}</PanelMessage> : null}
       {workflow.dismissable && workflow.app_dismiss_path ? (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid={`workflow-dismiss-${workflow.id}`}>
           {workflow.blocked_reason_text ? <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{workflow.blocked_reason_text}</p> : null}
@@ -557,44 +575,46 @@ function WorkflowCard({
           </CommandButton>
         </div>
       ) : null}
-      {branchDivergence ? (
-        <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={workflow} />
+      {open && branchDivergence ? (
+        <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={displayedWorkflow} />
       ) : null}
-      {workflow.steps_truncated ? (
+      {open && displayedWorkflow.steps_truncated ? (
         <Notice className="mt-4 px-3 py-2 text-xs" tone="warning">
           {t("workflow_steps_truncated", {
-            displayed: workflow.steps_displayed || workflow.steps.length,
-            total: workflow.steps_total || workflow.steps.length
+            displayed: displayedWorkflow.steps_displayed || displayedWorkflow.steps.length,
+            total: displayedWorkflow.steps_total || displayedWorkflow.steps.length
           })}
         </Notice>
       ) : null}
-      <Surface className="mt-4 overflow-hidden" padding="none">
-        {stepItems.map((item, index) =>
-          item.type === "loop" ? (
-            <LoopGroup
-              command={command}
-              item={item}
-              key={item.loopId}
-              numberLabel={index + 1}
-              payload={payload}
-              prefix={prefix}
-              workflowArtifacts={workflow.artifacts}
-              workflowId={workflow.id}
-            />
-          ) : (
-            <DisplayStepCard
-              command={command}
-              item={item}
-              key={displayStepItemKey(item)}
-              numberLabel={index + 1}
-              payload={payload}
-              prefix={prefix}
-              workflowArtifacts={workflow.artifacts}
-              workflowId={workflow.id}
-            />
-          )
-        )}
-      </Surface>
+      {open && detail ? (
+        <Surface className="mt-4 overflow-hidden" padding="none">
+          {stepItems.map((item, index) =>
+            item.type === "loop" ? (
+              <LoopGroup
+                command={command}
+                item={item}
+                key={item.loopId}
+                numberLabel={index + 1}
+                payload={payload}
+                prefix={prefix}
+                workflowArtifacts={displayedWorkflow.artifacts}
+                workflowId={workflow.id}
+              />
+            ) : (
+              <DisplayStepCard
+                command={command}
+                item={item}
+                key={displayStepItemKey(item)}
+                numberLabel={index + 1}
+                payload={payload}
+                prefix={prefix}
+                workflowArtifacts={displayedWorkflow.artifacts}
+                workflowId={workflow.id}
+              />
+            )
+          )}
+        </Surface>
+      ) : null}
     </Section.Root>
   )
 }

@@ -45,7 +45,11 @@ module Api
           return unless comment
 
           comment.mark_ignored!
-          render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user)
+          job.reload
+          render json: {
+            job: { id: job.id },
+            actions: ::App::JobDetailPayload.actions_payload(job: job, user: Current.user)[:actions]
+          }
         end
 
         def replace
@@ -128,11 +132,10 @@ module Api
         end
 
         def pending_comments(job)
-          job.pr_review_comments
-             .actionable_comments
-             .where.not(attributed_to: "job_owner")
-             .order(:comment_created_at, :id)
-             .select(&:pending_for_operator?)
+          scope = job.repository.feedback_policy_confirm? ?
+            job.pr_review_comments.pending_for_operator_review :
+            job.pr_review_comments.retryable_handling_review
+          scope.order(:comment_created_at, :id)
         end
 
         def comment_json(comment)

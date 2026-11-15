@@ -48,6 +48,15 @@ RSpec.describe "App API pending feedback", type: :request do
   end
 
   describe "GET /api/v1/app/jobs/:job_id/pending_feedback" do
+    it "filters non-pending comments in SQL" do
+      handled = make_pr_comment(actionable: true, handling_state: "handled", handled_at: Time.current)
+
+      get "/api/v1/app/jobs/#{job.id}/pending_feedback"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("comments").map { |comment| comment.fetch("id") }).not_to include(handled.id)
+      expect(job.pr_review_comments.pending_for_operator_review.to_sql).to include("handling_state")
+    end
     it "returns pending (unactioned, actionable, non-job-owner) comments" do
       comment = make_pr_comment(attributed_to: "external", actionable: true)
       make_pr_comment(attributed_to: "external", actionable: false)
@@ -65,15 +74,22 @@ RSpec.describe "App API pending feedback", type: :request do
       expect(body["feedback_policy"]).to eq("confirm")
     end
 
-    it "returns empty when policy is auto" do
+    it "returns failed retryable handling when policy is auto" do
       repo.update!(feedback_policy: "auto")
       make_pr_comment
+      failed_workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "failed", agent_provider: "claude")
+      retryable = make_pr_comment(
+        handling_state: "failed",
+        handling_workflow: failed_workflow,
+        handling_failed_at: Time.current,
+        handling_failure_reason: "rate_limit"
+      )
 
       get "/api/v1/app/jobs/#{job.id}/pending_feedback"
 
       expect(response).to have_http_status(:ok)
-      # No error, but the list can be empty (the confirm filter is controller-side)
-      expect(parse_body["comments"]).to be_a(Array)
+      expect(parse_body.fetch("comments").map { |comment| comment.fetch("id") }).to eq([ retryable.id ])
+      expect(parse_body.dig("comments", 0, "retryable")).to be(true)
     end
 
     it "401s when signed out" do
@@ -163,6 +179,8 @@ RSpec.describe "App API pending feedback", type: :request do
       expect(comment.actioned_at).to be_present
       expect(comment.ignored_at).to be_present
       expect(ChatFeedbackSubmission).not_to have_received(:call)
+      expect(parse_body.keys).to contain_exactly("v", "job", "actions")
+      expect(parse_body.fetch("job")).to eq("id" => job.id)
     end
 
     it "returns 404 for already-actioned comments" do

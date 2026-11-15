@@ -352,6 +352,7 @@ de:
         diagnostic_queued: "Diagnose eingereiht - der Snapshot erscheint in Kürze."
     jobs:
       errors:
+        invalid_tab: "Unbekannter Job-Tab."
         invalid_priority: "Ungültige Priorität."
         invalid_provider_setting: "Ungültige Anbietereinstellung."
         provider_not_configured: "Dieser Agent ist nicht konfiguriert."

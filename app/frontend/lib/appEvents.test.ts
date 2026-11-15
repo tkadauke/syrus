@@ -73,6 +73,17 @@ describe("queryKeysFor", () => {
       })
     ).toContainEqual(["jobs", "42", "workflows"])
   })
+
+  it("targets heavyweight job sections by the changed fields", () => {
+    const feedback = queryKeysFor({ ...event("job", 42), changed: ["feedback.updated"] })
+    expect(feedback).toContainEqual(["jobs", "42", "pending_feedback"])
+    expect(feedback).toContainEqual(["jobs", "42", "tab", "summary"])
+    expect(feedback).not.toContainEqual(["jobs", "42", "tab", "review"])
+
+    const artifact = queryKeysFor({ ...event("job", 42), changed: ["artifact.updated"] })
+    expect(artifact).toContainEqual(["jobs", "42", "tab", "review"])
+    expect(artifact).not.toContainEqual(["jobs", "42", "tab", "summary"])
+  })
 })
 
 describe("applyAppEvent", () => {
@@ -1628,6 +1639,32 @@ describe("applyAppEvent revisioned event patches", () => {
       entity_revision: 8
     })
     expect(workflows?.workflows[0].steps[0].runs[0]).toMatchObject({
+      state: "succeeded",
+      finished_at: "2026-09-23T00:01:00.000Z",
+      entity_revision: 8
+    })
+  })
+
+  it("ignores run patches for collapsed workflow summaries and patches expanded workflow detail", () => {
+    const queryClient = new QueryClient()
+    const collapsed = jobWorkflowPayload()
+    delete (collapsed.workflows[0].steps[0] as Partial<(typeof collapsed.workflows)[number]["steps"][number]>).runs
+    queryClient.setQueryData(["jobs", "42", "workflows", ""], collapsed)
+    queryClient.setQueryData(["jobs", "42", "workflow_detail", "100"], jobWorkflowPayload().workflows[0])
+
+    expect(() =>
+      applyAppEvent(queryClient, {
+        ...event("run", 300),
+        job_id: 42,
+        revision: 8,
+        payload: { fields: { state: "succeeded", finished_at: "2026-09-23T00:01:00.000Z" } }
+      })
+    ).not.toThrow()
+
+    const summary = queryClient.getQueryData<ReturnType<typeof jobWorkflowPayload>>(["jobs", "42", "workflows", ""])
+    const detail = queryClient.getQueryData<ReturnType<typeof jobWorkflowPayload>["workflows"][number]>(["jobs", "42", "workflow_detail", "100"])
+    expect(summary?.workflows[0].steps[0]).not.toHaveProperty("runs")
+    expect(detail?.steps[0].runs[0]).toMatchObject({
       state: "succeeded",
       finished_at: "2026-09-23T00:01:00.000Z",
       entity_revision: 8

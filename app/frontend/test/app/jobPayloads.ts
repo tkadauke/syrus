@@ -286,7 +286,8 @@ export function jobTimelinePayload() {
         ref_label: "WF-5",
         workflow_path: "/jobs/42?tab=workflows#workflow-5"
       }
-    ]
+    ],
+    pagination: { page: 1, per: 50, total: 1, total_pages: 1 }
   }
 }
 

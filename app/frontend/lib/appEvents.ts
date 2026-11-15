@@ -197,10 +197,17 @@ function patchJobResourceQueries(queryClient: QueryClient, event: AppEvent, fiel
   queryClient.setQueriesData<JobDetailPayload | JobWorkflowsPayload>({ predicate: (query) => jobWorkflowPayloadQuery(query.queryKey, jobId) }, (current) =>
     current ? patchJobWorkflowPayload(current, event, patch) : current
   )
+  queryClient.setQueriesData<JobWorkflow>({ predicate: (query) => jobWorkflowDetailQuery(query.queryKey, jobId) }, (current) =>
+    current ? patchWorkflow(current, event, String(event.id), patch) : current
+  )
 }
 
 function jobWorkflowPayloadQuery(queryKey: QueryKey, jobId: string) {
   return queryKey.length >= 3 && queryKey[0] === "jobs" && queryKey[1] === jobId && (queryKey[2] === "detail" || queryKey[2] === "workflows")
+}
+
+function jobWorkflowDetailQuery(queryKey: QueryKey, jobId: string) {
+  return queryKey.length === 4 && queryKey[0] === "jobs" && queryKey[1] === jobId && queryKey[2] === "workflow_detail"
 }
 
 function patchJobWorkflowPayload<T extends JobDetailPayload | JobWorkflowsPayload>(payload: T, event: AppEvent, fields: Record<string, unknown>): T {
@@ -208,7 +215,8 @@ function patchJobWorkflowPayload<T extends JobDetailPayload | JobWorkflowsPayloa
   let patched = workflows !== payload.workflows
   const next = { ...payload, workflows }
   if ("work_units" in payload && Array.isArray(payload.work_units)) {
-    next.work_units = payload.work_units.map((workUnit) => {
+    const nextDetail = next as JobDetailPayload
+    nextDetail.work_units = payload.work_units.map((workUnit) => {
       if (!workUnit.workflow) return workUnit
 
       const [workflow] = patchWorkflows([workUnit.workflow], event, fields)
@@ -249,6 +257,8 @@ function patchStep(step: JobStep, event: AppEvent, id: string, fields: Record<st
   if (event.resource === "step") {
     return String(step.id) === id && freshEnoughForCachePatch(event, step.entity_revision) ? { ...step, ...fields } : step
   }
+
+  if (!Object.prototype.hasOwnProperty.call(step, "runs")) return step
 
   let patched = false
   const runs = step.runs.map((run) => {
@@ -659,7 +669,17 @@ function jobQueryKeysFor(event: AppEvent): QueryKey[] {
   const id = String(event.id)
   const previewKey: QueryKey = ["jobs", id]
   const detailKey: QueryKey = workflowOnlyJobEvent(event) ? ["jobs", id, "workflows"] : ["jobs", id, "detail"]
-  return [["dashboard"], ["jobs"], previewKey, detailKey, ["job_run_artifacts", id]]
+  return [["dashboard"], ["jobs"], previewKey, detailKey, ...jobSectionQueryKeys(event, id), ["job_run_artifacts", id]]
+}
+
+function jobSectionQueryKeys(event: AppEvent, id: string): QueryKey[] {
+  const changed = event.changed || []
+  const keys: QueryKey[] = []
+  if (changed.some((field) => /feedback|comment/.test(field))) keys.push(["jobs", id, "pending_feedback"], ["jobs", id, "tab", "summary"])
+  if (changed.some((field) => /artifact|coverage|visual_evidence|review/.test(field))) keys.push(["jobs", id, "tab", "review"])
+  if (changed.some((field) => /attachment/.test(field))) keys.push(["jobs", id, "tab", "attachments"])
+  if (changed.some((field) => /authorization|classification|summary|test_plan|report|work_unit/.test(field))) keys.push(["jobs", id, "tab", "summary"])
+  return keys
 }
 
 function workflowOnlyJobEvent(event: AppEvent) {

@@ -12,10 +12,14 @@ import type { JobDetailPayload, JobWorkflowsPayload } from "../../api/jobs"
 // (e.g. "tests" or "coverage") is a plugin-contributed tab whose validity
 // comes from the current payload's ui_tabs, not from a hardcoded list here.
 export const CORE_JOB_TABS = ["summary", "review", "workflows", "conversation", "timeline", "target_graph", "attachments", "source"] as const
-export type CoreJobTab = typeof CORE_JOB_TABS[number]
+export type CoreJobTab = (typeof CORE_JOB_TABS)[number]
 export type JobTab = CoreJobTab | (string & {})
 export type JobDetailQueryKey = readonly ["jobs", string, "detail", string]
 export type JobWorkflowsQueryKey = readonly ["jobs", string, "workflows", string]
+export type JobWorkflowDetailQueryKey = readonly ["jobs", string, "workflow_detail", string]
+export type JobTabQueryKey = readonly ["jobs", string, "tab", string]
+export type JobPendingFeedbackQueryKey = readonly ["jobs", string, "pending_feedback"]
+export type JobProviderRoutingQueryKey = readonly ["jobs", string, "provider_routing"]
 
 export function jobDetailQueryKey(id: string | number, search: string): JobDetailQueryKey {
   return ["jobs", String(id), "detail", search] as const
@@ -25,28 +29,41 @@ export function jobWorkflowsQueryKey(id: string | number, search: string): JobWo
   return ["jobs", String(id), "workflows", search] as const
 }
 
+export function jobWorkflowDetailQueryKey(jobId: string | number, workflowId: string | number): JobWorkflowDetailQueryKey {
+  return ["jobs", String(jobId), "workflow_detail", String(workflowId)] as const
+}
+
+export function jobTabQueryKey(jobId: string | number, tab: string): JobTabQueryKey {
+  return ["jobs", String(jobId), "tab", tab] as const
+}
+
+export function jobPendingFeedbackQueryKey(jobId: string | number): JobPendingFeedbackQueryKey {
+  return ["jobs", String(jobId), "pending_feedback"] as const
+}
+
+export function jobProviderRoutingQueryKey(jobId: string | number): JobProviderRoutingQueryKey {
+  return ["jobs", String(jobId), "provider_routing"] as const
+}
+
 export function mergeJobWorkflowsPayload(
   payload: JobDetailPayload,
   workflows?: JobWorkflowsPayload,
   { workflowsCommandsAreFresher = true }: { workflowsCommandsAreFresher?: boolean } = {}
 ): JobDetailPayload {
   if (!workflows) return payload
-  if (workflows.job_id !== undefined && workflows.job_id !== payload.job.id) return payload
-
-  const actions = { ...(workflowsCommandsAreFresher ? workflows.actions : payload.actions) }
+  const legacyWorkflowActions = (workflows as Partial<JobDetailPayload>).actions
+  const actions = { ...(workflowsCommandsAreFresher && legacyWorkflowActions ? legacyWorkflowActions : payload.actions) }
   if (payload.job.state === "approved" || payload.job.summary_state === "approved") {
     actions.can_approve = false
   }
 
   return {
     ...payload,
-    current_intent: workflows.current_intent ?? null,
-    work_units: workflows.work_units || [],
     workflows: workflows.workflows,
     workflows_pagination: workflows.workflows_pagination,
-    feature_flags: workflows.feature_flags,
+    ui_workflow_actions: workflows.ui_workflow_actions,
     actions,
-    paths: workflowsCommandsAreFresher ? workflows.paths : payload.paths
+    paths: payload.paths
   }
 }
 

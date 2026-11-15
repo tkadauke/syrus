@@ -1,4 +1,4 @@
-import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
+import { deleteJson, getJson, getJsonWithEtag, patchJson, postForm, postJson } from "./client"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
 import type { PermissionRequest } from "./permissionRequests"
@@ -941,6 +941,7 @@ export type JobRun = {
   last_heartbeat_at: string | null
   finished_at: string | null
   created_at: string | null
+  queued_at?: string | null
   updated_at: string | null
   cost_usd: number | null
   input_tokens: number | null
@@ -984,6 +985,7 @@ export type JobRun = {
   app_diagnose_path: string
   app_resume_path: string
   app_grade_log_path: string | null
+  grade_log_available?: boolean
   test_failure_summary?: RunTestFailureSummary | null
 }
 
@@ -1281,6 +1283,7 @@ export type JobDetailPayload = {
   dependency_target_options: JobOption[]
   epic_dependency_target_options: Array<{ label: string; value: number }>
   attachments: JobAttachment[]
+  attachments_count?: number
   pr_links: JobPrLink[]
   typed_artifacts: TypedArtifact[]
   review_contributions?: import("../pluginReviewContributions").ReviewContribution[]
@@ -1368,12 +1371,30 @@ export type JobDeploymentStage = {
   tag_sha: string | null
 }
 
-export type JobWorkflowsPayload = Pick<
-  JobDetailPayload,
-  "current_intent" | "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths"
-> & {
-  job_id?: number
+export type JobWorkflowsPayload = Pick<JobDetailPayload, "workflows" | "workflows_pagination" | "ui_workflow_actions">
+export type JobTabPayload = Partial<JobDetailPayload>
+
+export type PendingFeedbackPayload = {
+  job_id: number
+  feedback_policy: string
+  comments: PendingFeedbackComment[]
 }
+export type JobProviderRoutingPayload = {
+  scope: { scope_type: string; scope_id: number; job_id?: number }
+  provider_routing_rules: ProviderRoutingRule[]
+  inherited_provider_routing_context: ProviderRoutingInheritedContext[]
+  job: Pick<
+    JobRecord,
+    | "job_provider_setting_options"
+    | "provider_routing_options"
+    | "provider_routing_rules"
+    | "inherited_provider_routing_context"
+    | "provider_routing_resolution"
+    | "active_provider_routing_holds"
+  >
+}
+
+export type JobWorkflowDetailPayload = { workflow: JobWorkflow }
 
 export type JobTimelinePayload = {
   job_id: number
@@ -1388,6 +1409,12 @@ export type JobTimelinePayload = {
     ref_label: string | null
     workflow_path: string | null
   }>
+  pagination: {
+    page: number
+    per: number
+    total: number
+    total_pages: number
+  }
 }
 
 // Non-admin-safe per-Workflow execution waterfall (see App::JobWaterfallPayload)
@@ -1717,6 +1744,18 @@ export function fetchJobDetail(id: string, search = "", options: { signal?: Abor
   return getJson<JobDetailPayload>(`/api/v1/app/jobs/${id}${search}`, options)
 }
 
+export function fetchJobTab(id: string, tab: string) {
+  return getJson<JobTabPayload>(`/api/v1/app/jobs/${id}/tabs/${tab}`)
+}
+
+export function fetchPendingFeedback(id: string) {
+  return getJson<PendingFeedbackPayload>(`/api/v1/app/jobs/${id}/pending_feedback`)
+}
+
+export function fetchJobProviderRouting(id: string) {
+  return getJson<JobProviderRoutingPayload>(`/api/v1/app/jobs/${id}/provider_routing_rules`)
+}
+
 export function fetchJobUnlandPlan(path: string) {
   return getJson<JobUnlandPlan>(path)
 }
@@ -1725,8 +1764,51 @@ export function startJobUnland(path: string) {
   return postJson<JobUnlandResult>(path, {})
 }
 
-export function fetchJobWorkflows(id: string, search = "") {
-  return getJson<JobWorkflowsPayload>(`/api/v1/app/jobs/${id}/workflows${search}`)
+export async function fetchJobWorkflows(id: string, search = "") {
+  const payload = await getJsonWithEtag<JobWorkflowsPayload>(`/api/v1/app/jobs/${id}/workflows${search}`)
+  return { ...payload, workflows: payload.workflows.map((workflow) => deriveWorkflowPaths(workflow, id)) }
+}
+
+export async function fetchWorkflowDetail(jobId: number, workflowId: number, signal?: AbortSignal) {
+  const payload = await getJson<JobWorkflowDetailPayload>(`/api/v1/app/workflows/${workflowId}/detail`, { signal })
+  return deriveWorkflowPaths(payload.workflow, String(jobId))
+}
+
+function deriveWorkflowPaths(workflow: JobWorkflow, jobId: string): JobWorkflow {
+  const workflowBase = `/api/v1/app/jobs/${jobId}/workflows/${workflow.id}`
+  return {
+    ...workflow,
+    app_retry_step_path: `${workflowBase}/retry_step`,
+    app_push_commits_path: `${workflowBase}/push_commits`,
+    app_force_push_branch_path: `${workflowBase}/force_push_branch`,
+    app_discard_branch_output_path: `${workflowBase}/discard_branch_output`,
+    app_dismiss_path: `${workflowBase}/dismiss`,
+    steps: workflow.steps.map((step) =>
+      Object.prototype.hasOwnProperty.call(step, "runs")
+        ? {
+            ...step,
+            runs: step.runs.map((run) => ({
+              ...run,
+              app_artifacts_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/artifacts`,
+              app_stop_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/stop`,
+              app_diagnose_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/diagnose`,
+              app_resume_path: `/api/v1/app/jobs/${jobId}/resume`,
+              app_grade_log_path: deriveGradeLogPath(run, step, workflow.id, jobId)
+            }))
+          }
+        : step
+    )
+  }
+}
+
+function deriveGradeLogPath(run: JobRun, step: JobStep, workflowId: number, jobId: string) {
+  if (!run.grade_log_available || (step.kind !== "grade" && step.kind !== "grader")) return null
+
+  const details = step.details && typeof step.details === "object" ? (step.details as Record<string, unknown>) : null
+  if (typeof details?.name !== "string" || !details.name) return null
+
+  const query = new URLSearchParams({ name: details.name, workflow_id: String(workflowId) })
+  return `/api/v1/app/jobs/${jobId}/runs/${run.id}/grade_log?${query}`
 }
 
 export function fetchJobDependencyOptions(path: string, query = "", limit = 25) {
@@ -1736,8 +1818,9 @@ export function fetchJobDependencyOptions(path: string, query = "", limit = 25) 
   return getJson<JobDependencyOptionsPayload>(`${url.pathname}${url.search}`)
 }
 
-export function fetchJobTimeline(id: string) {
-  return getJson<JobTimelinePayload>(`/api/v1/app/jobs/${id}/timeline`)
+export function fetchJobTimeline(id: string, page = 1) {
+  const params = page > 1 ? `?page=${page}` : ""
+  return getJson<JobTimelinePayload>(`/api/v1/app/jobs/${id}/timeline${params}`)
 }
 
 export function fetchJobWaterfall(id: string, workflowId: number) {
@@ -1772,6 +1855,7 @@ export type AgentConversationNode = {
   agentic: boolean
   summary: string | null
   detail: Record<string, unknown>
+  detail_path?: string
 }
 
 export type AgentConversationEdge = {
@@ -1801,6 +1885,10 @@ export type AgentConversationGraph = {
 export function fetchJobAgentConversation(id: string | number, workflowId?: string | number | null) {
   const params = workflowId ? `?workflow_id=${encodeURIComponent(String(workflowId))}` : ""
   return getJson<AgentConversationGraph>(`/api/v1/app/jobs/${id}/agent_conversation${params}`)
+}
+
+export function fetchJobAgentConversationNode(path: string) {
+  return getJson<{ node: AgentConversationNode }>(path)
 }
 
 // Full current file text at a given ref, for on-demand diff-context expansion
@@ -2000,7 +2088,7 @@ export function applyPendingFeedback(jobId: number, commentId: number) {
 }
 
 export function ignorePendingFeedback(jobId: number, commentId: number) {
-  return postJson<JobDetailPayload>(`/api/v1/app/jobs/${jobId}/pending_feedback/${commentId}/ignore`)
+  return postJson<JobCommandPayload>(`/api/v1/app/jobs/${jobId}/pending_feedback/${commentId}/ignore`)
 }
 
 export function replacePendingFeedback(jobId: number, commentId: number, body: string) {
@@ -2012,11 +2100,11 @@ export function retryPendingFeedback(jobId: number, commentId: number) {
 }
 
 export function updateJobPriority(path: string, priority: string) {
-  return patchJson<JobDetailPayload>(path, { priority })
+  return patchJson<JobCommandPayload>(path, { priority })
 }
 
 export function updateJobProviderSetting(path: string, values: { jobProviderSetting: string; model?: string | null; effortLevel?: string | null }) {
-  return patchJson<JobDetailPayload>(path, {
+  return patchJson<JobCommandPayload>(path, {
     job_provider_setting: values.jobProviderSetting,
     model: values.model || "",
     effort_level: values.effortLevel || ""

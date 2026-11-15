@@ -2,6 +2,8 @@ module App
   class JobDetailPayload
     include Rails.application.routes.url_helpers
     WORKFLOWS_PER_PAGE = App::WorkflowNavigation::PER_PAGE
+    TIMELINE_PER_PAGE = 50
+    TIMELINE_MAX_PER_PAGE = 100
 
     include WorkflowSerializers
     include DependencySerializers
@@ -9,11 +11,26 @@ module App
     include AgentProviderCatalogOptions
     include ProviderRoutingRuleSerialization
 
+    TAB_PAYLOAD_BUILDERS = {
+      "summary" => :summary_tab_payload,
+      "review" => :review_tab_payload,
+      "attachments" => :attachments_tab_payload,
+      "source" => :source_tab_payload
+    }.freeze
+
     def self.build(job:, user:, params: {}, client: nil)
       new(job: job, user: user, params: params, client: client).payload
     end
 
+    def self.header(job:, user:, params: {}, client: nil)
+      new(job: job, user: user, params: params, client: client).header_payload
+    end
+
     def self.workflows(job:, user:, params: {})
+      new(job: job, user: user, params: params).detailed_workflows_payload
+    end
+
+    def self.workflow_summaries(job:, user:, params: {})
       new(job: job, user: user, params: params).workflows_payload
     end
 
@@ -26,12 +43,16 @@ module App
       new(job: job, user: user, params: params).workflows_etag
     end
 
-    def self.timeline(job:)
-      new(job: job, user: job.user).timeline_payload
+    def self.timeline(job:, page: nil, per: nil)
+      new(job: job, user: job.user, params: { page: page, per: per }).timeline_payload
     end
 
     def self.workflow_preview(workflow:, user:)
       new(job: workflow.job, user: user).workflow_preview_payload(workflow)
+    end
+
+    def self.workflow_detail(workflow:, user:)
+      new(job: workflow.job, user: user).workflow_detail_payload(workflow)
     end
 
     def self.build_dependency_options(job:, user:, params: {})
@@ -46,6 +67,14 @@ module App
       new(job: job, user: user, client: client).actions_payload
     end
 
+    def self.tab(job:, user:, tab:)
+      new(job: job, user: user).tab_payload(tab)
+    end
+
+    def self.provider_routing(job:, user:)
+      new(job: job, user: user).provider_routing_payload
+    end
+
     def initialize(job:, user:, params: {}, client: nil)
       @job = job
       @user = user
@@ -54,6 +83,20 @@ module App
     end
 
     def payload
+      @workflow_detail = true
+      header_payload.merge(
+        summary_tab_payload,
+        review_tab_payload,
+        pending_feedback: pending_feedback_json,
+        preview: preview_env_json,
+        preview_projects: preview_project_selection.to_a,
+        preview_unavailable_reason: preview_project_selection.unavailable_reason,
+        deploy: deploy_workflow_json,
+        ui_workflow_actions: ::App::UiSlotsPayload.panels_for(slot: "job.workflow.actions", context: { job: @job, user: Current.user })
+      )
+    end
+
+    def header_payload
       PerformanceLogging.phase("job_detail_payload", job_id: @job.id) do
         result = {
           job: PerformanceLogging.phase("job_detail.job", job_id: @job.id) { job_json },
@@ -69,30 +112,10 @@ module App
           unsatisfied_dependencies: PerformanceLogging.phase("job_detail.unsatisfied_dependencies", job_id: @job.id) { unsatisfied_job_detail_dependencies.map { |dependency| dependency_json(dependency) } },
           dependency_target_options: [],
           epic_dependency_target_options: [],
-          attachments: PerformanceLogging.phase("job_detail.attachments", job_id: @job.id) { @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) } },
+          attachments_count: PerformanceLogging.phase("job_detail.attachments_count", job_id: @job.id) { @job.job_attachments.count },
           pr_links: PerformanceLogging.phase("job_detail.pr_links", job_id: @job.id) { pr_links_json },
-          typed_artifacts: PerformanceLogging.phase("job_detail.typed_artifacts", job_id: @job.id) { typed_artifacts_json },
-          review_contributions: ReviewPresentationContributions.frontend_payload,
-          visual_evidence: PerformanceLogging.phase("job_detail.visual_evidence", job_id: @job.id) { visual_evidence_json },
-          coverage: PerformanceLogging.phase("job_detail.coverage", job_id: @job.id) { latest_coverage_json },
-          summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },
-          test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
-          report: @job.investigation? ? PerformanceLogging.phase("job_detail.report", job_id: @job.id) { report_json } : nil,
-          ui_panels: ::App::UiSlotsPayload.panels_for(slot: "job.detail", context: { job: @job, user: Current.user }),
           ui_tabs: ::App::UiSlotsPayload.panels_for(slot: "job.detail.tab", context: { job: @job, user: Current.user }),
-          ui_workflow_actions: ::App::UiSlotsPayload.panels_for(slot: "job.workflow.actions", context: { job: @job, user: Current.user }),
-          feedback_history: PerformanceLogging.phase("job_detail.feedback_history", job_id: @job.id) { feedback_history_json },
-          classification_attempts: PerformanceLogging.phase("job_detail.classification_attempts", job_id: @job.id) { classification_attempts_json },
-          pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
-          authorization_requests: PerformanceLogging.phase("job_detail.authorization_requests", job_id: @job.id) { authorization_requests_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
-          preview: PerformanceLogging.phase("job_detail.preview", job_id: @job.id) { preview_env_json },
-          preview_projects: PerformanceLogging.phase("job_detail.preview_projects", job_id: @job.id) { preview_project_selection.to_a },
-          preview_unavailable_reason: preview_project_selection.unavailable_reason,
-          deploy: PerformanceLogging.phase("job_detail.deploy", job_id: @job.id) { deploy_workflow_json },
-          current_intent: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.current_intent", job_id: @job.id) { current_intent_json } : nil,
-          active_work: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.active_work", job_id: @job.id) { active_work_json } : nil,
-          work_units: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.work_units", job_id: @job.id) { work_units_json } : [],
           workflows: [],
           workflows_pagination: PerformanceLogging.phase("job_detail.workflows_pagination", job_id: @job.id) { workflows_pagination_json },
           feature_flags: feature_flags_json,
@@ -132,25 +155,45 @@ module App
     def workflows_payload
       PerformanceLogging.phase("job_workflows_payload", job_id: @job.id, page: workflows_page) do
         {
-          job_id: @job.id,
-          current_intent: work_unit_debug_enabled? ? PerformanceLogging.phase("job_workflows.current_intent", job_id: @job.id, page: workflows_page) { current_intent_json } : nil,
-          work_units: work_unit_debug_enabled? ? PerformanceLogging.phase("job_workflows.work_units", job_id: @job.id, page: workflows_page) { work_units_json } : [],
           workflows: PerformanceLogging.phase("job_workflows.workflows", job_id: @job.id, page: workflows_page) { workflows_json },
           workflows_pagination: workflows_pagination_json,
-          feature_flags: feature_flags_json,
-          actions: PerformanceLogging.phase("job_workflows.actions", job_id: @job.id) { actions_json },
-          paths: paths_json
+          ui_workflow_actions: ::App::UiSlotsPayload.panels_for(slot: "job.workflow.actions", context: { job: @job, user: Current.user })
         }
       end
+    end
+
+    def detailed_workflows_payload
+      @workflow_detail = true
+      {
+        job_id: @job.id,
+        current_intent: work_unit_debug_enabled? ? current_intent_json : nil,
+        work_units: work_unit_debug_enabled? ? work_units_json : [],
+        workflows: hydrate_queue_wait(workflows_json),
+        workflows_pagination: workflows_pagination_json,
+        feature_flags: feature_flags_json,
+        actions: actions_json,
+        paths: paths_json
+      }
     end
 
     def timeline_payload
       PerformanceLogging.phase("job_timeline_payload", job_id: @job.id) do
         events = PerformanceLogging.phase("job_timeline.events.query", job_id: @job.id) { Jobs::Timeline.for(@job) }
+        page = [ @params[:page].to_i, 1 ].max
+        per = @params[:per].present? ? @params[:per].to_i : TIMELINE_PER_PAGE
+        per = per.clamp(1, TIMELINE_MAX_PER_PAGE)
+        total = events.size
+        # Page from the newest end so the initial request always includes the
+        # latest operator-relevant history, while retaining chronological
+        # order within each page.
+        offset = [ total - (page * per), 0 ].max
+        length = [ total - ((page - 1) * per), per ].min
+        events = length.positive? ? events.slice(offset, length) : []
         preload_timeline_workflows(events)
         {
           job_id: @job.id,
-          events: PerformanceLogging.phase("job_timeline.events.serialize", job_id: @job.id, event_count: events.size) { events.map { |event| timeline_event_json(event) } }
+          events: PerformanceLogging.phase("job_timeline.events.serialize", job_id: @job.id, event_count: events.size) { events.map { |event| timeline_event_json(event) } },
+          pagination: { page: page, per: per, total: total, total_pages: (total.to_f / per).ceil }
         }
       end
     end
@@ -168,7 +211,86 @@ module App
       PerformanceLogging.phase("job_actions_payload", job_id: @job.id) { { actions: actions_json } }
     end
 
+    def tab_payload(tab)
+      builder = TAB_PAYLOAD_BUILDERS.fetch(tab.to_s) { raise ArgumentError, "unsupported job tab" }
+      public_send(builder)
+    end
+
+    def summary_tab_payload
+      {
+        attachments: attachments_json,
+        coverage: latest_coverage_json,
+        summary: summary_json,
+        test_plan: test_plan_json,
+        report: @job.investigation? ? report_json : nil,
+        ui_panels: ::App::UiSlotsPayload.panels_for(slot: "job.detail", context: { job: @job, user: Current.user }),
+        feedback_history: feedback_history_json,
+        classification_attempts: classification_attempts_json,
+        authorization_requests: authorization_requests_json,
+        current_intent: work_unit_debug_enabled? ? current_intent_json : nil,
+        active_work: work_unit_debug_enabled? ? active_work_json : nil,
+        work_units: work_unit_debug_enabled? ? work_units_json : []
+      }
+    end
+
+    def review_tab_payload
+      {
+        typed_artifacts: typed_artifacts_json,
+        review_contributions: ReviewPresentationContributions.frontend_payload,
+        visual_evidence: visual_evidence_json,
+        coverage: latest_coverage_json
+      }
+    end
+
+    def attachments_tab_payload = { attachments: attachments_json }
+    def source_tab_payload = { coverage: latest_coverage_json }
+
+    def provider_routing_payload
+      {
+        job_provider_setting_options: job_provider_setting_options,
+        provider_routing_options: provider_routing_options_json(@user),
+        provider_routing_rules: provider_routing_rules_json(scope_type: "job", scope_id: @job.id),
+        inherited_provider_routing_context: provider_routing_inherited_context_json(
+          scope_type: "job", scope_id: @job.id, job_id: @job.id,
+          repository_id: @job.repository_id, user_id: @job.effective_owner_id
+        ),
+        provider_routing_resolution: provider_routing_resolution_json,
+        active_provider_routing_holds: active_provider_routing_holds_json
+      }
+    end
+
+    def pending_feedback_json
+      scope = @job.pr_review_comments.order(:comment_created_at, :id)
+      scope = if @job.repository.feedback_policy_confirm?
+        scope.pending_for_operator_review
+      else
+        scope.retryable_handling_review
+      end
+
+      scope.map do |comment|
+        {
+          id: comment.id,
+          github_handle: comment.github_handle,
+          attributed_to: comment.attributed_to,
+          pr_type: comment.pr_type,
+          comment_kind: comment.comment_kind,
+          body: comment.body,
+          comment_created_at: iso8601(comment.comment_created_at),
+          handling_state: comment.handling_state || "pending",
+          handling_workflow_id: comment.handling_workflow_id,
+          handling_failed_at: iso8601(comment.handling_failed_at),
+          handling_failure_reason: comment.handling_failure_reason,
+          classification: comment.classification_audit,
+          retryable: comment.retryable_handling_without_workflow_load?
+        }
+      end
+    end
+
     private
+
+    def attachments_json
+      @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) }
+    end
 
     def feature_flags_json
       {
@@ -244,23 +366,11 @@ module App
         agent_provider: workflow_agent_provider,
         agent_provider_label: App::Presentation.agent_provider_label(workflow_agent_provider),
         job_provider_setting: @job.job_provider_setting,
-        job_provider_setting_options: job_provider_setting_options,
         model: @job.model,
         effort_level: @job.effort_level,
         planned_execution: @job.planned_execution_json,
         planned_execution_override: planned_execution_override_json,
         placement_recommendation: placement_recommendation_json,
-        provider_routing_options: provider_routing_options_json(@user),
-        provider_routing_rules: provider_routing_rules_json(scope_type: "job", scope_id: @job.id),
-        inherited_provider_routing_context: provider_routing_inherited_context_json(
-          scope_type: "job",
-          scope_id: @job.id,
-          job_id: @job.id,
-          repository_id: @job.repository_id,
-          user_id: @job.effective_owner_id
-        ),
-        provider_routing_resolution: provider_routing_resolution_json,
-        active_provider_routing_holds: active_provider_routing_holds_json,
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,
@@ -1017,33 +1127,6 @@ module App
       return @discussion_chat if defined?(@discussion_chat)
 
       @discussion_chat = @job.discussion_chat
-    end
-
-    def pending_feedback_json
-      scope = @job.pr_review_comments.order(:comment_created_at, :id)
-      scope = if @job.repository.feedback_policy_confirm?
-        scope.pending_for_operator_review
-      else
-        scope.retryable_handling_review
-      end
-
-      scope.map do |comment|
-        {
-          id: comment.id,
-          github_handle: comment.github_handle,
-          attributed_to: comment.attributed_to,
-          pr_type: comment.pr_type,
-          comment_kind: comment.comment_kind,
-          body: comment.body,
-          comment_created_at: iso8601(comment.comment_created_at),
-          handling_state: comment.handling_state || "pending",
-          handling_workflow_id: comment.handling_workflow_id,
-          handling_failed_at: iso8601(comment.handling_failed_at),
-          handling_failure_reason: comment.handling_failure_reason,
-          classification: comment.classification_audit,
-          retryable: comment.retryable_handling_without_workflow_load?
-        }
-      end
     end
 
     def feedback_history_json

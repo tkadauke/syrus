@@ -33,6 +33,9 @@ import {
   fetchJobDetail,
   fetchJobUnlandPlan,
   fetchJobWorkflows,
+  fetchJobTab,
+  fetchPendingFeedback,
+  fetchJobProviderRouting,
   ignorePendingFeedback,
   openJobInCodingMode,
   replacePendingFeedback,
@@ -90,6 +93,9 @@ import {
   diffRefsFromLocation,
   jobDetailQueryKey,
   jobDetailSearch,
+  jobPendingFeedbackQueryKey,
+  jobProviderRoutingQueryKey,
+  jobTabQueryKey,
   jobWorkflowsQueryKey,
   mergeJobWorkflowsPayload,
   tabFromLocation
@@ -155,6 +161,24 @@ export function JobDetailRoute() {
   })
   const pluginTabKeys = (detail.data?.ui_tabs ?? []).map((tab) => tab.key).filter((key): key is string => Boolean(key))
   const activeTab = tabFromLocation(location.pathname, location.search, pluginTabKeys)
+  const lazyTab = ["summary", "review", "attachments", "source"].includes(activeTab) ? activeTab : null
+  const hasCanonicalId = detail.isSuccess && String(detail.data.job.id) === id
+  const tabDetail = useQuery({
+    queryKey: jobTabQueryKey(id, lazyTab ?? "none"),
+    queryFn: () => fetchJobTab(id, lazyTab as string),
+    enabled: id.length > 0 && lazyTab !== null && hasCanonicalId
+  })
+  const pendingFeedback = useQuery({
+    queryKey: jobPendingFeedbackQueryKey(id),
+    queryFn: () => fetchPendingFeedback(id),
+    enabled: id.length > 0 && activeTab === "summary" && hasCanonicalId
+  })
+  const providerRouting = useQuery({
+    queryKey: jobProviderRoutingQueryKey(id),
+    queryFn: () => fetchJobProviderRouting(id),
+    enabled: id.length > 0 && activeTab === "summary" && hasCanonicalId,
+    staleTime: 5 * 60 * 1000
+  })
   const workflows = useQuery({
     queryKey: workflowsQueryKey,
     queryFn: async () => {
@@ -162,13 +186,29 @@ export function JobDetailRoute() {
       if (detail.data) normalizeJobDetailPayload(mergeJobWorkflowsPayload(detail.data, payload), "job_workflows")
       return payload
     },
-    enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && detail.isSuccess,
+    enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && hasCanonicalId,
     placeholderData: keepPreviousData
   })
   const payload = detail.isSuccess
-    ? mergeJobWorkflowsPayload(detail.data, workflows.isPlaceholderData ? undefined : workflows.data, {
-        workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
-      })
+    ? mergeJobWorkflowsPayload(
+        {
+          ...detail.data,
+          attachments: [],
+          typed_artifacts: [],
+          coverage: null,
+          summary: null,
+          test_plan: null,
+          report: null,
+          feedback_history: [],
+          job: { ...detail.data.job, ...(providerRouting.data?.job ?? {}) },
+          ...(tabDetail.data ?? {}),
+          pending_feedback: pendingFeedback.data?.comments ?? []
+        },
+        workflows.isPlaceholderData ? undefined : workflows.data,
+        {
+          workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
+        }
+      )
     : null
   const job = detail.data?.job
   const pageTitle = job ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id)) : id ? `JOB-${id}` : undefined
@@ -529,7 +569,7 @@ export function JobDetailView({
       <Page.Nav>
         <TabNav
           active={activeTab}
-          attachmentsCount={(payload.attachments ?? []).length}
+          attachmentsCount={payload.attachments_count ?? (payload.attachments ?? []).length}
           investigation={payload.job.investigation}
           workflowsCount={payload.job.workflows_count}
           pluginTabs={payload.ui_tabs}
@@ -967,7 +1007,7 @@ function SummaryTab({
 
           <PluginUiSlot panels={payload.ui_panels} props={{ job: payload.job }} />
 
-          <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
+          <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} />
 
           <AuthorizationRequestsPanel jobId={payload.job.id} requests={payload.authorization_requests ?? []} />
 
@@ -982,8 +1022,8 @@ function SummaryTab({
         <div className="min-w-0 space-y-4">
           <PreviewPanel
             canStart={payload.actions.can_start_preview}
-            initialPreview={payload.preview}
-            initialPreviewProjects={payload.preview_projects}
+            initialPreview={payload.preview ?? null}
+            initialPreviewProjects={payload.preview_projects ?? []}
             previewUnavailableReason={payload.preview_unavailable_reason}
             queryKeyPrefix="job"
             entityId={payload.job.id}
@@ -992,7 +1032,7 @@ function SummaryTab({
             queryKey={queryKey}
             repositoryId={payload.repository.id}
             canDeploy={payload.actions.can_deploy}
-            initialDeploy={payload.deploy}
+            initialDeploy={payload.deploy ?? null}
             deployPath={payload.paths.app_deploy_path}
           />
 
@@ -1090,7 +1130,7 @@ function SummaryTab({
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </Section.Root>
 
-          <JobRoutingPanel payload={payload} queryKey={queryKey} />
+          <JobRoutingPanel payload={payload} />
 
           <ApprovalStatusPanel payload={payload} prefix={prefix} />
           {deliveryPanelRelevant(payload) ? <DeliveryPanel payload={payload} /> : null}
@@ -1258,7 +1298,11 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
 
   const mutation = useMutation({
     mutationFn: (priority: string) => updateJobPriority(priorityPath, priority),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      queryClient.setQueryData<JobDetailPayload>(
+        queryKey,
+        (old) => old && { ...old, job: { ...old.job, ...response.job }, actions: response.actions ?? old.actions }
+      )
       void queryClient.invalidateQueries({ queryKey })
       invalidateJobSurfaces(queryClient, queryKey[1])
       setError(null)
@@ -1319,7 +1363,7 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
   )
 }
 
-function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey }) {
+function JobRoutingPanel({ payload }: { payload: JobDetailPayload }) {
   const { t } = useT("jobs")
   const resolution = payload.job.provider_routing_resolution
   const candidates = resolution?.final_action?.candidates || []
@@ -1397,7 +1441,7 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
         description={t("routing_job_panel_description")}
         inheritedContext={payload.job.inherited_provider_routing_context}
         options={payload.job.provider_routing_options}
-        queryKey={queryKey}
+        queryKey={jobProviderRoutingQueryKey(payload.job.id)}
         rules={payload.job.provider_routing_rules}
         title={t("routing_job_panel_title")}
       />
@@ -1451,7 +1495,11 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
 
   const mutation = useMutation({
     mutationFn: () => updateJobProviderSetting(providerPath, draft),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      queryClient.setQueryData<JobDetailPayload>(
+        queryKey,
+        (old) => old && { ...old, job: { ...old.job, ...response.job }, actions: response.actions ?? old.actions }
+      )
       void queryClient.invalidateQueries({ queryKey })
       invalidateJobSurfaces(queryClient, queryKey[1])
       setError(null)
@@ -1625,25 +1673,30 @@ function AuthorizationRequestsPanel({ requests, jobId }: { requests: NonNullable
   )
 }
 
-function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: number; comments?: PendingFeedbackComment[]; queryKey: JobDetailQueryKey }) {
+function PendingFeedbackPanel({ jobId, comments = [] }: { jobId: number; comments?: PendingFeedbackComment[] }) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [replaceId, setReplaceId] = useState<number | null>(null)
   const [replaceBody, setReplaceBody] = useState("")
   const [notice, setNotice] = useState<string | null>(null)
+  const pendingFeedbackKey = jobPendingFeedbackQueryKey(jobId)
 
   const apply = useMutation({
     mutationFn: (commentId: number) => applyPendingFeedback(jobId, commentId),
     onSuccess: (data) => {
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
 
   const ignore = useMutation({
     mutationFn: (commentId: number) => ignorePendingFeedback(jobId, commentId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
+    onSuccess: (response) => {
+      queryClient.setQueriesData<JobDetailPayload>({ queryKey: ["jobs", String(jobId), "detail"] }, (old) =>
+        old ? { ...old, job: { ...old.job, ...response.job }, actions: response.actions ?? old.actions } : old
+      )
+      void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "detail"] })
+      void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
 
@@ -1653,7 +1706,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
       setReplaceId(null)
       setReplaceBody("")
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
 
@@ -1661,7 +1714,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
     mutationFn: (commentId: number) => retryPendingFeedback(jobId, commentId),
     onSuccess: (data) => {
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
 

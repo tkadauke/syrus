@@ -24,7 +24,12 @@ export type CommandInput =
 
 type CancelledCommand = { cancelled: true }
 
-export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workflowsQueryKey: JobWorkflowsQueryKey | undefined, onNotice: (message: string | null, tone?: NoticeToastTone) => void) {
+export function useJobCommand(
+  jobId: number,
+  queryKey: JobDetailQueryKey,
+  workflowsQueryKey: JobWorkflowsQueryKey | undefined,
+  onNotice: (message: string | null, tone?: NoticeToastTone) => void
+) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -41,21 +46,25 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
       if ("cancelled" in payload) return
       if (payload.redirect_to) navigate(payload.redirect_to)
       onNotice(payload.message || null)
-      // Apply the state/actions the command response already carries
-      // synchronously, so job state and the buttons that depend on it
-      // (e.g. "Approve") update together instead of the button lingering
-      // for one more round trip until the invalidated query below refetches.
+      // Apply whatever compact fields the command response carries. Lifecycle
+      // commands intentionally omit actions and let the invalidation below
+      // refresh policy-dependent controls; smaller mutations may still return
+      // actions when the caller can patch them cheaply.
       // Guard on the response's job id: `restart` returns the newly created
       // replacement Job, not the one this hook/queryKey is bound to, so a
       // payload naming a different job must never be merged into this
       // Job's cache entry.
       const respondsForThisJob = payload.job === undefined || payload.job.id === jobId
       if (respondsForThisJob && (payload.job || payload.actions)) {
-        queryClient.setQueryData<JobDetailPayload>(queryKey, (old) => old && {
-          ...old,
-          job: payload.job ? { ...old.job, ...payload.job } : old.job,
-          actions: payload.actions ?? old.actions
-        })
+        queryClient.setQueryData<JobDetailPayload>(
+          queryKey,
+          (old) =>
+            old && {
+              ...old,
+              job: payload.job ? { ...old.job, ...payload.job } : old.job,
+              actions: payload.actions ?? old.actions
+            }
+        )
       }
       scheduleJobDetailInvalidation(queryClient, queryKey)
       if (workflowsQueryKey) scheduleJobDetailInvalidation(queryClient, workflowsQueryKey)
@@ -85,7 +94,17 @@ function commandPendingFor(command: JobCommand, input: CommandInput): boolean {
   return inFlight === undefined || inFlight.path === input.path
 }
 
-export function CommandButton({ children, command, input, tone = "primary" }: { children: ReactNode; command: JobCommand; input: CommandInput; tone?: ButtonTone }) {
+export function CommandButton({
+  children,
+  command,
+  input,
+  tone = "primary"
+}: {
+  children: ReactNode
+  command: JobCommand
+  input: CommandInput
+  tone?: ButtonTone
+}) {
   return (
     <button className={buttonClass(tone)} disabled={commandPendingFor(command, input)} onClick={() => command.mutate(input)} type="button">
       {children}

@@ -128,12 +128,12 @@ export function useEntitySelector<T extends Record<string, unknown>, Selected>(
   selector: (entity: EntityRecord<T> | undefined) => Selected,
   equal: (left: Selected, right: Selected) => boolean = Object.is
 ) {
-  let selected = selector(id == null ? undefined : readEntity(kind, id) as EntityRecord<T> | undefined)
+  let selected = selector(id == null ? undefined : (readEntity(kind, id) as EntityRecord<T> | undefined))
 
   return useSyncExternalStore(
     subscribeEntityStore,
     () => {
-      const next = selector(id == null ? undefined : readEntity(kind, id) as EntityRecord<T> | undefined)
+      const next = selector(id == null ? undefined : (readEntity(kind, id) as EntityRecord<T> | undefined))
       if (equal(selected, next)) return selected
       selected = next
       return next
@@ -144,9 +144,24 @@ export function useEntitySelector<T extends Record<string, unknown>, Selected>(
 
 export function normalizeJobDetailPayload(payload: JobDetailPayload, source = "job_detail") {
   const snapshot = payload as Partial<JobDetailPayload>
-  if (snapshot.repository) upsertEntity({ kind: "repositories", id: snapshot.repository.id, fields: snapshot.repository as unknown as Record<string, unknown>, completeness: "detail", source })
-  if (snapshot.epic) upsertEntity({ kind: "epics", id: snapshot.epic.id, fields: snapshot.epic as unknown as Record<string, unknown>, completeness: "summary", source })
-  if (snapshot.origin_chat) upsertEntity({ kind: "chat_sessions", id: snapshot.origin_chat.chat_session_id, fields: snapshot.origin_chat as unknown as Record<string, unknown>, completeness: "summary", source })
+  if (snapshot.repository)
+    upsertEntity({
+      kind: "repositories",
+      id: snapshot.repository.id,
+      fields: snapshot.repository as unknown as Record<string, unknown>,
+      completeness: "detail",
+      source
+    })
+  if (snapshot.epic)
+    upsertEntity({ kind: "epics", id: snapshot.epic.id, fields: snapshot.epic as unknown as Record<string, unknown>, completeness: "summary", source })
+  if (snapshot.origin_chat)
+    upsertEntity({
+      kind: "chat_sessions",
+      id: snapshot.origin_chat.chat_session_id,
+      fields: snapshot.origin_chat as unknown as Record<string, unknown>,
+      completeness: "summary",
+      source
+    })
   if (snapshot.job) normalizeJobRecord(snapshot.job, { completeness: "detail", source, extraFields: { deployment_stages: snapshot.deployment_stages } })
 
   snapshot.workflows?.forEach((workflow) => normalizeWorkflow(workflow, source))
@@ -160,23 +175,37 @@ export function normalizeJobDetailPayload(payload: JobDetailPayload, source = "j
 export function normalizeChatPayload(payload: ChatPayload, source = "chat_detail") {
   upsertEntity({ kind: "chat_sessions", id: payload.chat.id, fields: payload.chat as unknown as Record<string, unknown>, completeness: "detail", source })
   if (payload.chat.repository) {
-    upsertEntity({ kind: "repositories", id: payload.chat.repository.id, fields: payload.chat.repository as unknown as Record<string, unknown>, completeness: "partial", source })
+    upsertEntity({
+      kind: "repositories",
+      id: payload.chat.repository.id,
+      fields: payload.chat.repository as unknown as Record<string, unknown>,
+      completeness: "partial",
+      source
+    })
   }
-  payload.recent_chats.forEach((chat) => upsertEntity({ kind: "chat_sessions", id: chat.id, fields: chat as unknown as Record<string, unknown>, completeness: "summary", source }))
+  payload.recent_chats.forEach((chat) =>
+    upsertEntity({ kind: "chat_sessions", id: chat.id, fields: chat as unknown as Record<string, unknown>, completeness: "summary", source })
+  )
   payload.messages.forEach((message) => normalizeChatMessage(message, source))
   if (payload.attached_coding_job) {
-    normalizeJobRecord({
-      id: payload.attached_coding_job.id,
-      issue_title: payload.attached_coding_job.title,
-      state: payload.attached_coding_job.state,
-      branch_name: payload.attached_coding_job.branch_name,
-      updated_at: null
-    } as Partial<JobRecord> & { id: number }, { completeness: "partial", source, extraFields: { app_path: payload.attached_coding_job.app_path } })
+    normalizeJobRecord(
+      {
+        id: payload.attached_coding_job.id,
+        issue_title: payload.attached_coding_job.title,
+        state: payload.attached_coding_job.state,
+        branch_name: payload.attached_coding_job.branch_name,
+        updated_at: null
+      } as Partial<JobRecord> & { id: number },
+      { completeness: "partial", source, extraFields: { app_path: payload.attached_coding_job.app_path } }
+    )
   }
   return payload
 }
 
-export function normalizeJobRecord(record: JobRecord | (Partial<JobRecord> & { id: number }), options: { completeness?: EntityCompleteness; source?: string; extraFields?: Record<string, unknown> } = {}) {
+export function normalizeJobRecord(
+  record: JobRecord | (Partial<JobRecord> & { id: number }),
+  options: { completeness?: EntityCompleteness; source?: string; extraFields?: Record<string, unknown> } = {}
+) {
   return upsertEntity({
     kind: "jobs",
     id: record.id,
@@ -193,6 +222,8 @@ function normalizeWorkflow(workflow: JobWorkflow, source: string) {
 
 function normalizeStep(step: JobStep, source: string) {
   upsertEntity({ kind: "steps", id: step.id, fields: step as unknown as Record<string, unknown>, completeness: "detail", source })
+  if (!Object.prototype.hasOwnProperty.call(step, "runs")) return
+
   step.runs.forEach((run) => normalizeRun(run, source))
 }
 
@@ -203,12 +234,15 @@ function normalizeRun(run: JobRun, source: string) {
 export function normalizeChatMessage(message: ChatMessageItem, source: string) {
   upsertEntity({ kind: "chat_messages", id: message.id, fields: message as unknown as Record<string, unknown>, completeness: "detail", source })
   if (message.proposal?.materialized?.kind === "job") {
-    normalizeJobRecord({
-      id: message.proposal.materialized.job_id,
-      issue_title: message.proposal.materialized.job_title,
-      state: message.proposal.materialized.job_state ?? undefined,
-      updated_at: null
-    } as Partial<JobRecord> & { id: number }, { completeness: "partial", source })
+    normalizeJobRecord(
+      {
+        id: message.proposal.materialized.job_id,
+        issue_title: message.proposal.materialized.job_title,
+        state: message.proposal.materialized.job_state ?? undefined,
+        updated_at: null
+      } as Partial<JobRecord> & { id: number },
+      { completeness: "partial", source }
+    )
   }
 }
 
@@ -229,7 +263,7 @@ function fillUnknownFields<T extends Record<string, unknown>>(current: T, incomi
 }
 
 function knownFieldNames(fields: Record<string, unknown>) {
-  return Object.entries(fields).flatMap(([key, value]) => value === undefined ? [] : [key])
+  return Object.entries(fields).flatMap(([key, value]) => (value === undefined ? [] : [key]))
 }
 
 function revisionFromFields(fields: Record<string, unknown>): EntityRevision {

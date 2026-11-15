@@ -65,7 +65,13 @@ module Api
         end
 
         def show
-          render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
+          render json: ::App::JobDetailPayload.header(job: find_job, user: Current.user, params: params)
+        end
+
+        def tab
+          render json: ::App::JobDetailPayload.tab(job: find_job, user: Current.user, tab: params[:tab])
+        rescue ArgumentError
+          render_error("invalid_tab", t("api.jobs.errors.invalid_tab"), status: :not_found)
         end
 
         def visual_evidence
@@ -119,7 +125,7 @@ module Api
           etag = ::App::JobDetailPayload.workflows_etag(job: job, user: Current.user, params: params)
           return unless stale?(etag: etag, public: false)
 
-          render json: ::App::JobDetailPayload.workflows(job: job, user: Current.user, params: params)
+          render json: ::App::JobDetailPayload.workflow_summaries(job: job, user: Current.user, params: params)
         end
 
         def chat_feedback
@@ -162,7 +168,7 @@ module Api
           end
 
           job.update!(priority: priority)
-          render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user, params: params)
+          render_job_mutation(job.reload, priority: job.priority)
         end
 
         def update_provider_setting
@@ -183,7 +189,14 @@ module Api
           model = setting == "default" ? nil : params[:model].to_s.strip.presence
           effort_level = setting == "default" ? nil : params[:effort_level].to_s.strip.presence
           job.switch_job_provider_setting!(setting, model: model, effort_level: effort_level)
-          render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user, params: params)
+          job.reload
+          render_job_mutation(
+            job,
+            agent_provider: job.workflow_agent_provider,
+            job_provider_setting: job.job_provider_setting,
+            model: job.model,
+            effort_level: job.effort_level
+          )
         end
 
         def source
@@ -302,7 +315,7 @@ module Api
             return
           end
 
-          render json: ::App::JobDetailPayload.timeline(job: find_job)
+          render json: ::App::JobDetailPayload.timeline(job: find_job, page: params[:page], per: params[:per])
         end
 
         # Non-admin-safe per-Workflow execution waterfall (Step/Run timing)
@@ -316,6 +329,9 @@ module Api
             render_error("not_found", t("api.jobs.errors.workflow_not_found"), status: :not_found)
             return
           end
+
+          validator = [ workflow.updated_at, workflow.steps.maximum(:updated_at), Run.where(step_id: workflow.steps.select(:id)).maximum(:updated_at) ]
+          return unless stale?(etag: [ "job-waterfall", workflow.id, validator, Current.user&.admin? ], public: false) if workflow.finished_at.present?
 
           render json: ::App::JobWaterfallPayload.build(workflow: workflow, admin: Current.user&.admin? || false)
         end
@@ -441,7 +457,23 @@ module Api
         end
 
         def agent_conversation
-          render json: ::App::AgentConversationPayload.build(job: find_job, workflow_id: params[:workflow_id])
+          job = find_job
+          workflow = job.workflows.find_by(id: params[:workflow_id]) if params[:workflow_id].present?
+          workflow ||= job.workflows.reorder(id: :desc).first
+          return unless stale?(etag: [ "agent-conversation", job.id, workflow&.id, workflow&.updated_at ], public: false) if workflow&.finished_at.present?
+
+          render json: ::App::AgentConversationPayload.build(job: job, workflow_id: workflow&.id, include_node_details: false)
+        end
+
+        def agent_conversation_node
+          job = find_job
+          node = ::App::AgentConversationPayload.node(job: job, node_id: params[:node_id])
+          unless node
+            render_error("not_found", t("api.jobs.errors.agent_conversation_node_not_found", default: "Conversation node not found."), status: :not_found)
+            return
+          end
+
+          render json: { node: node }
         end
 
         def override_landing_blocker
@@ -474,10 +506,20 @@ module Api
           )
           LandingQueueProcessorJob.perform_later
 
-          render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user, params: params)
+          render_job_mutation(job.reload,
+            landing_blocker_override_key: job.landing_blocker_override_key,
+            landing_blocker_override_reason: job.landing_blocker_override_reason,
+            landing_blocker_override_requested_at: job.landing_blocker_override_requested_at&.iso8601)
         end
 
         private
+
+        def render_job_mutation(job, **changed_fields)
+          render json: {
+            job: { id: job.id }.merge(changed_fields),
+            actions: ::App::JobDetailPayload.actions_payload(job: job, user: Current.user)[:actions]
+          }
+        end
 
         def bounded_legacy_transcript(run)
           limit = [[params.fetch(:limit, LEGACY_TRANSCRIPT_MAX_LINES).to_i, 1].max, LEGACY_TRANSCRIPT_MAX_LINES].min

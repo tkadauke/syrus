@@ -17,7 +17,7 @@ RSpec.describe "App API job priority", type: :request do
       expect(job.reload.priority).to eq("high")
       body = parse_body
       expect(body["job"]["priority"]).to eq("high")
-      expect(body.dig("paths", "app_priority_path")).to eq("/api/v1/app/jobs/#{job.id}/priority")
+      expect(body["actions"]).to be_a(Hash)
     end
 
     it "accepts the urgent priority value" do

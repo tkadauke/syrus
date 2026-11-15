@@ -15,7 +15,7 @@ module App
   # internals) gated on @user.admin?, so a cached admin payload must never be
   # handed to a non-admin request or vice versa.
   class JobWorkflowsSnapshotCache
-    CACHE_NAMESPACE = "job_workflows_snapshot/v2".freeze
+    CACHE_NAMESPACE = "job_workflows_snapshot/v3".freeze
     CACHE_TTL = 1.hour
 
     def self.declare_metrics!
@@ -33,19 +33,20 @@ module App
     end
     declare_metrics!
 
-    def self.fetch(job:, page:, admin:, evidence_access: false, &block)
-      new(job: job, page: page, admin: admin, evidence_access:).fetch(&block)
+    def self.fetch(job:, page:, admin:, evidence_access: false, variant: :summary, &block)
+      new(job: job, page: page, admin: admin, evidence_access:, variant:).fetch(&block)
     end
 
     def self.fingerprint(job:, page:, admin:, evidence_access: false)
       new(job: job, page: page, admin: admin, evidence_access:).fingerprint
     end
 
-    def initialize(job:, page:, admin:, evidence_access: false)
+    def initialize(job:, page:, admin:, evidence_access: false, variant: :summary)
       @job = job
       @page = page
       @admin = admin
       @evidence_access = evidence_access
+      @variant = variant
     end
 
     def fingerprint
@@ -65,7 +66,8 @@ module App
         review_evidence_stats,
         @page,
         @admin,
-        @evidence_access
+        @evidence_access,
+        @variant
       ].join(":")
     end
 

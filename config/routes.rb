@@ -59,6 +59,7 @@ Rails.application.routes.draw do
         get "slug_refs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }
         get "slugs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }
         get "workflows/:workflow_id/preview", to: "workflows#preview"
+        get "workflows/:workflow_id/detail", to: "workflows#detail", constraints: { workflow_id: /\d+/ }
         get "sidebar_pages", to: "sidebar_pages#index"
         patch "sidebar_nav_order", to: "sidebar_nav_order#update"
         post "filters/usage", to: "filters#usage"
@@ -135,6 +136,7 @@ Rails.application.routes.draw do
         get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/agent_conversation", to: "jobs#agent_conversation", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/agent_conversation/nodes/:node_id", to: "jobs#agent_conversation_node", constraints: { id: /[a-zA-Z0-9_-]+/, node_id: /[a-z_]+-\d+/ }
         get "jobs/:id/visual_evidence/:evidence_id", to: "jobs#visual_evidence", constraints: { id: /[a-zA-Z0-9_-]+/, evidence_id: /[a-f0-9-]+/i }
         get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /(?:\d+|latest)/ }
         get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
@@ -200,6 +202,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/deploy", to: "job_deploy#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:id/chat_feedback", to: "jobs#chat_feedback", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/pending_feedback", to: "pending_feedback#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/tabs/:tab", to: "jobs#tab", constraints: { id: /[a-zA-Z0-9_-]+/, tab: /summary|review|attachments|source/ }
         post "jobs/:job_id/pending_feedback/:id/apply", to: "pending_feedback#apply", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/pending_feedback/:id/ignore", to: "pending_feedback#ignore", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/pending_feedback/:id/replace", to: "pending_feedback#replace", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }

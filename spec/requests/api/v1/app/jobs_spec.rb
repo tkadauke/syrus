@@ -45,6 +45,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
   end
 
   def serialized_workflows(body)
+    return [ body.fetch("workflow") ] if body.key?("workflow")
+
     workflows = body.fetch("workflows", []) + body.fetch("work_units", []).filter_map { |unit| unit["workflow"] }
     workflows.uniq { |workflow| workflow.fetch("id") }
       .sort_by { |workflow| [ Time.zone.parse(workflow.fetch("created_at")).to_f, workflow.fetch("id") ] }
@@ -80,7 +82,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
     evidence.image.attach(io: StringIO.new("png-data"), filename: "dashboard.png", content_type: "image/png")
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/tabs/review"
 
     expect(response).to have_http_status(:ok)
     gallery = parse_body.fetch("visual_evidence")
@@ -490,6 +492,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(parse_body.dig("job", "job_provider_setting")).to eq("codex")
     expect(parse_body.dig("job", "model")).to eq("gpt-5.2-codex")
     expect(parse_body.dig("job", "effort_level")).to eq("high")
+    expect(parse_body.keys).to contain_exactly("v", "job", "actions")
   end
 
   it "repins and wakes unstarted workflows paused on the previous provider" do
@@ -813,6 +816,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(sql).not_to include(match(/SELECT\s+["`]provider_sessions["`]\.\*/i))
     expect(sql).not_to include(match(/transcript_jsonl/i))
     body = parse_body
+    get "/api/v1/app/jobs/#{job.id}/tabs/summary"
+    body.merge!(parse_body)
     expect(body.dig("job", "id")).to eq(job.id)
     expect(body.dig("job", "slug")).to eq(job.slug)
     expect(body.dig("job", "issue_title")).to eq("Repair aqueduct")
@@ -863,13 +868,13 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(body.dig("paths", "app_timeline_path")).to eq("/api/v1/app/jobs/#{job.id}/timeline")
     expect(body["workflows"]).to eq([])
 
-    get "/api/v1/app/jobs/#{job.id}/workflows"
+    get "/api/v1/app/workflows/#{run.workflow.id}/detail"
     expect(response).to have_http_status(:ok)
     body = parse_body
 
     workflow = serialized_workflows(body).first
     expect(workflow).to include("trigger_kind" => "initial")
-    expect(workflow["app_retry_step_path"]).to eq("/api/v1/app/jobs/#{job.id}/workflows/#{workflow['id']}/retry_step")
+    expect(workflow).not_to have_key("app_retry_step_path")
     first_step = workflow["steps"].first
     expect(first_step["display_name"]).to be_present
     expect(first_step["display_status"]).to eq("running")
@@ -881,10 +886,9 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       "job_log_count" => 2,
       "rate_limited" => true,
       "can_stop" => true,
-      "can_diagnose" => true,
-      "app_artifacts_path" => "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts",
-      "app_stop_path" => "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/stop"
+      "can_diagnose" => true
     )
+    expect(first_run).not_to include("app_artifacts_path", "app_stop_path")
     expect(first_run["agent_session"]).to include(
       "session_id" => "session-1",
       "provider" => "codex",
@@ -951,11 +955,11 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     end
 
     metrics = capture_performance_budget do
-      get "/api/v1/app/jobs/#{detail_job.id}/workflows"
+      get "/api/v1/app/workflows/#{latest_workflow.id}/detail"
     end
 
     expect(response).to have_http_status(:ok)
-    run_payload = parse_body.dig("workflows", 0, "steps", 0, "runs", 0)
+    run_payload = parse_body.dig("workflow", "steps", 0, "runs", 0)
     expect(run_payload).to include(
       "id" => latest_run.id,
       "command_spans_total" => 9,
@@ -1020,8 +1024,36 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["workflows"]).to eq([])
-    expect(body["work_units"]).to eq([])
+    expect(body).not_to have_key("work_units")
     expect(body.dig("workflows_pagination", "total_workflows")).to eq(1)
+  end
+
+  it "keeps heavyweight tab sections out of the default job detail payload" do
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).not_to include(
+      "attachments", "typed_artifacts", "feedback_history", "classification_attempts",
+      "authorization_requests", "test_plan", "summary", "report", "ui_panels",
+      "preview", "preview_projects", "deploy", "active_work", "work_units"
+    )
+    expect(parse_body.fetch("job").keys).not_to include(
+      "job_provider_setting_options", "provider_routing_options", "provider_routing_rules",
+      "inherited_provider_routing_context", "provider_routing_resolution", "active_provider_routing_holds",
+      "coworker_review_configuration"
+    )
+  end
+
+  it "loads heavyweight sections from their tab endpoints" do
+    get "/api/v1/app/jobs/#{job.id}/tabs/summary"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).to include("summary", "test_plan", "feedback_history", "authorization_requests")
+    expect(parse_body.keys).not_to include("typed_artifacts", "visual_evidence")
+
+    get "/api/v1/app/jobs/#{job.id}/tabs/review"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).to include("typed_artifacts", "visual_evidence", "review_contributions")
+    expect(parse_body.keys).not_to include("summary", "feedback_history")
   end
 
   it "does not load blank historical workflow artifacts on the default job detail payload" do
@@ -1066,7 +1098,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     active = PreviewEnvironment.create!(job: job, state: "running", expires_at: 10.minutes.from_now, created_at: 1.hour.ago)
 
     queries = capture_sql do
-      get "/api/v1/app/jobs/#{job.id}"
+      get "/api/v1/app/jobs/#{job.id}/preview"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1074,8 +1106,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     preview_queries = queries.grep(/FROM ["`]?preview_environments["`]?/i)
     expect(preview_queries).not_to be_empty
-    expect(preview_queries).to all(match(/LIMIT/i))
-    expect(preview_queries.join("\n")).to include("state")
+    expect(preview_queries).to include(match(/LIMIT/i))
   end
 
   it "finds external visual review artifacts without scanning inline JSON" do
@@ -1131,11 +1162,10 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
     workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: bare_job)
 
-    get "/api/v1/app/jobs/#{bare_job.id}"
+    get "/api/v1/app/jobs/#{bare_job.id}/tabs/summary"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["workflows"]).to eq([])
     expect(body["active_work"]).to include(
       "kind" => "manual_visual_review",
       "state" => "queued",
@@ -1159,7 +1189,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     MergeTrainMember.create!(merge_train: train, job: second, position: 1)
     workflow = WorkUnits::Launcher.instantiate(kind: "merge_train", job: second, artifacts: { "merge_train_id" => train.id })
 
-    get "/api/v1/app/jobs/#{first.id}"
+    get "/api/v1/app/jobs/#{first.id}/tabs/summary"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["active_work"]).to include(
@@ -1173,7 +1203,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
   end
 
-  it "returns a workflow-only job detail payload for live workflow refreshes" do
+  it "returns only collapsed workflow summaries and pagination for live refreshes" do
     run = job.initial_run
     if (unit = run.workflow.work_unit)
       unit.work_unit_members.find_or_create_by!(job: job) { |member| member.role = "primary" }
@@ -1185,19 +1215,13 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.keys).to contain_exactly("v", "job_id", "current_intent", "workflows", "workflows_pagination", "work_units", "feature_flags", "actions", "paths")
-    workflows = body["workflows"] + body["work_units"].filter_map { |unit| unit["workflow"] }
-    first_run = workflows.flat_map { |workflow| workflow["steps"] }.flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
-    expect(first_run).to include(
-      "job_log_count" => 2,
-      "rate_limited" => true
-    )
-    expect(body["current_intent"]).to be_nil
-    expect(body["work_units"]).to eq([])
-    expect(body.dig("feature_flags", "work_unit_debug")).to be false
+    expect(body.keys).to contain_exactly("v", "workflows", "workflows_pagination", "ui_workflow_actions")
+    summary = body.fetch("workflows").first
+    expect(summary).not_to include("app_retry_step_path", "app_push_commits_path")
+    expect(summary.fetch("steps").first).not_to include("runs", "details", "warnings")
   end
 
-  it "returns WorkUnit diagnostics on live workflow refreshes only when enabled" do
+  it "keeps WorkUnit diagnostics out of the workflow list when debug mode is enabled" do
     AppSetting.current.update!(show_work_unit_debug: true)
     run = job.initial_run
     unit = run.workflow.work_unit
@@ -1211,14 +1235,43 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["current_intent"]).to include("id" => unit.work_intent_id, "kind" => "initial")
-    expect(body["work_units"]).to include(include(
-      "id" => unit.id,
-      "workflow_id" => run.workflow.id,
-      "workflow_slug" => run.workflow.slug,
-      "workflow" => nil
-    ))
-    expect(body.dig("feature_flags", "work_unit_debug")).to be true
+    expect(body.keys).to contain_exactly("v", "workflows", "workflows_pagination", "ui_workflow_actions")
+  end
+
+  it "loads full step and run detail only from the expanded workflow endpoint" do
+    run = job.initial_run
+    span = run.command_spans.create!(
+      job: job,
+      workflow: run.workflow,
+      step: run.step,
+      sequence: 1,
+      name: "bundle",
+      command_excerpt: "bundle exec rspec",
+      started_at: Time.current
+    )
+
+    get "/api/v1/app/workflows/#{run.workflow.id}/detail"
+
+    expect(response).to have_http_status(:ok)
+    workflow = parse_body.fetch("workflow")
+    serialized_run = workflow.fetch("steps").flat_map { |step| step.fetch("runs") }.find { |candidate| candidate.fetch("id") == run.id }
+    expect(serialized_run).to include("queued_at" => run.created_at.iso8601)
+    expect(serialized_run).not_to include("app_artifacts_path", "app_stop_path", "queue_wait")
+    serialized_span = serialized_run.fetch("command_spans").find { |candidate| candidate.fetch("id") == span.id }
+    expect(serialized_span).not_to include("job_id", "workflow_id", "step_id", "run_id", "sample_count", "samples_missing", "retention_limited", "summary", "pressure")
+  end
+
+  it "keeps workflow-list ETags stable while a run remains queued" do
+    job.initial_run.update!(state: "queued")
+
+    get "/api/v1/app/jobs/#{job.id}/workflows"
+    etag = response.headers.fetch("ETag")
+
+    travel 2.seconds do
+      get "/api/v1/app/jobs/#{job.id}/workflows", headers: { "If-None-Match" => etag }
+    end
+
+    expect(response).to have_http_status(:not_modified)
   end
 
   it "does not show repository-scoped requested intents as current work for unrelated jobs" do
@@ -1239,7 +1292,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       actor: user
     )
 
-    get "/api/v1/app/jobs/#{bare_job.id}/workflows"
+    get "/api/v1/app/jobs/#{bare_job.id}/tabs/summary"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -1271,7 +1324,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
     unit.work_unit_members.create!(job: member, role: "member")
 
-    get "/api/v1/app/jobs/#{member.id}/workflows"
+    get "/api/v1/app/jobs/#{member.id}/tabs/summary"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -1751,7 +1804,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       classified_at: Time.current
     )
 
-    get "/api/v1/app/jobs/#{job.id}/workflows"
+    get "/api/v1/app/workflows/#{run.workflow.id}/detail"
 
     first_run = serialized_steps(parse_body).flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
     expect(first_run["run_diagnostic"]).to include(
@@ -1794,6 +1847,29 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       "ref_label" => "WF-#{job.latest_workflow.id}",
       "workflow_path" => "/jobs/#{job.id}?tab=workflows#workflow-#{job.latest_workflow.id}"
     )
+    expect(body.fetch("pagination")).to include("page" => 1, "per" => 50, "total" => body.fetch("events").length)
+  end
+
+  it "paginates timeline events with a bounded page size" do
+    user.update!(global_role: "admin")
+    events = 101.times.map do |index|
+      Jobs::Timeline::Event.new(
+        at: Time.zone.at(index), kind: :info, source: "job", transition_source: nil,
+        title: "Event #{index + 1}", detail: nil, ref: {}
+      )
+    end
+    allow(Jobs::Timeline).to receive(:for).with(job).and_return(events)
+
+    get "/api/v1/app/jobs/#{job.id}/timeline", params: { per: 50 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("events").map { |event| event.fetch("title") }).to eq((52..101).map { |number| "Event #{number}" })
+    expect(parse_body.fetch("pagination")).to include("page" => 1, "per" => 50, "total" => 101, "total_pages" => 3)
+
+    get "/api/v1/app/jobs/#{job.id}/timeline", params: { page: 2, per: 1_000 }
+
+    expect(parse_body.fetch("events").map { |event| event.fetch("title") }).to eq([ "Event 1" ])
+    expect(parse_body.fetch("pagination")).to include("page" => 2, "per" => 100)
   end
 
   it "blocks timeline payloads for non-admin users" do
@@ -1832,12 +1908,13 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       grade_step.update!(state: "failed")
       write_grade_log(grade_run, "tests", "rspec output\n")
 
-      get "/api/v1/app/jobs/#{job.id}/workflows"
+      get "/api/v1/app/workflows/#{workflow.id}/detail"
 
       step_payload = serialized_steps(parse_body).find { |payload| payload["id"] == grade_step.id }
       expect(step_payload).to include("display_name" => "Tests", "display_status" => "failed")
       run_payload = step_payload["runs"].find { |payload| payload["id"] == grade_run.id }
-      expect(run_payload["app_grade_log_path"]).to include("/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", "name=tests")
+      expect(run_payload["grade_log_available"]).to eq(true)
+      expect(run_payload).not_to have_key("app_grade_log_path")
       expect(run_payload).not_to have_key("grade_log_path")
 
       get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
@@ -1870,7 +1947,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       )
       collect.update!(depends_on_ids: [ grade_step.id ])
 
-      get "/api/v1/app/jobs/#{job.id}/workflows"
+      get "/api/v1/app/workflows/#{workflow.id}/detail"
 
       steps = serialized_steps(parse_body)
       grader_payload = steps.find { |payload| payload["id"] == grade_step.id }
@@ -1902,7 +1979,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       )
       collect.update!(depends_on_ids: [ grade_step.id ])
 
-      get "/api/v1/app/jobs/#{job.id}/workflows"
+      get "/api/v1/app/workflows/#{workflow.id}/detail"
 
       steps = serialized_steps(parse_body)
       grader_payload = steps.find { |payload| payload["id"] == grade_step.id }
@@ -1925,7 +2002,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       )
       workflow.set_artifact!("known_flaky_grader_failure", { "grader_names" => [ "tests" ] })
 
-      get "/api/v1/app/jobs/#{job.id}/workflows"
+      get "/api/v1/app/workflows/#{workflow.id}/detail"
 
       grader_payload = serialized_steps(parse_body).find { |payload| payload["id"] == grade_step.id }
       expect(grader_payload).to include("state" => "failed", "display_status" => "warning")
@@ -1987,7 +2064,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       collect = workflow.steps.find_by!(kind: "grader_collect")
       collect_run = Run.create!(job: job, step: collect, trigger_kind: "initial", iteration: collect.iteration, state: "succeeded")
 
-      get "/api/v1/app/jobs/#{job.id}/workflows"
+      get "/api/v1/app/workflows/#{workflow.id}/detail"
 
       step_payload = serialized_steps(parse_body).find { |payload| payload["id"] == collect.id }
       run_payload = step_payload["runs"].find { |payload| payload["id"] == collect_run.id }

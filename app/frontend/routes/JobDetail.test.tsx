@@ -264,6 +264,32 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Repository overrides")).toBeInTheDocument()
   })
 
+  it("invalidates the provider-routing section after editing a job rule", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(new Response(null, { status: 204 }))
+    const rendered = renderJobDetail(
+      jobPayload({
+        job: {
+          ...baseJob(),
+          provider_routing_rules: [
+            {
+              id: 11,
+              scope_type: "job",
+              scope_id: 1,
+              position: 1,
+              task_key: "default",
+              trigger: { type: "default" },
+              action: { strategy: "fallback_order", name: "Use Codex here", candidates: [{ provider: "codex" }] },
+              candidates: [{ provider: "codex" }]
+            }
+          ]
+        }
+      })
+    )
+    const invalidate = vi.spyOn(rendered.queryClient, "invalidateQueries")
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable Use Codex here" }))
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "1", "provider_routing"] }))
+  })
+
   it("renders a hold routing decision without misrepresenting it as a provider route", () => {
     renderJobDetail(
       jobPayload({
@@ -1150,6 +1176,33 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Last attempt failed: rate_limit")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Retry addressing PR feedback" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument()
+  })
+
+  it("invalidates the pending-feedback section after ignoring a comment", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ job: { id: 1 } }))
+    const rendered = renderJobDetail(
+      jobPayload({
+        pending_feedback: [
+          {
+            id: 17,
+            github_handle: "reviewer",
+            attributed_to: "external",
+            pr_type: "direct",
+            comment_kind: "issue",
+            body: "Please add the missing regression.",
+            comment_created_at: "2026-07-30T10:00:00Z",
+            handling_state: "pending",
+            handling_workflow_id: null,
+            handling_failed_at: null,
+            handling_failure_reason: null,
+            retryable: false
+          }
+        ]
+      })
+    )
+    const invalidate = vi.spyOn(rendered.queryClient, "invalidateQueries")
+    fireEvent.click(screen.getByRole("button", { name: "Ignore" }))
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "1", "pending_feedback"] }))
   })
 
   it("links the originating message when origin_chat is present", () => {
@@ -3275,7 +3328,14 @@ describe("JobDetailRoute", () => {
 
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/jobs/5?tab=summary"))
     expect(queryClient.getQueryData(["jobs", "5", "detail", ""])).toEqual(payload)
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(4))
+    const requestedUrls = fetchSpy.mock.calls.map(([input]) => requestUrl(input))
+    expect(requestedUrls).toEqual([
+      "/api/v1/app/jobs/JOB-5",
+      "/api/v1/app/jobs/5/tabs/summary",
+      "/api/v1/app/jobs/5/pending_feedback",
+      "/api/v1/app/jobs/5/provider_routing_rules"
+    ])
   })
 
   it("uses responsive page gutters while keeping the header and tab bar inset", async () => {
@@ -5542,7 +5602,7 @@ function renderJobDetail(
     />
   )
 
-  return render(
+  const rendered = render(
     <QueryClientProvider client={queryClient}>
       <ShortcutsProvider>
         <MemoryRouter initialEntries={[options.initialEntry ?? "/app-shell/jobs/1"]}>
@@ -5558,6 +5618,7 @@ function renderJobDetail(
       </ShortcutsProvider>
     </QueryClientProvider>
   )
+  return { ...rendered, queryClient }
 }
 
 function seedJobPanelQueries(queryClient: QueryClient, payload: JobDetailPayload) {
