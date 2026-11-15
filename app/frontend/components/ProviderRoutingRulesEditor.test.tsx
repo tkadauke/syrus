@@ -375,7 +375,7 @@ describe("ProviderRoutingRulesEditor", () => {
     }
     renderPanel({ rules: [visualReviewRule] })
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Edit Visual review" }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
 
     expect(within(dialog).queryByLabelText("Coworker reviewer target")).not.toBeInTheDocument()

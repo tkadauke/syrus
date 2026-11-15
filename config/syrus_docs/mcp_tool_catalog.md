@@ -258,7 +258,6 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `stop_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `submit_adversarial_review` | workflow | - | write | no | `workflow:adversarial_reviewer`, `workflow:manual` | - | `submit_adversarial_review` | - |
 | `submit_artifact` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_artifact` | - |
-| `submit_coworker_review` | workflow | - | write | no | `workflow:coworker_reviewer`, `workflow:manual` | - | `submit_coworker_review` | - |
 | `submit_job_metadata` | workflow | - | write | no | `workflow:summary_test_plan`, `workflow:manual` | `refresh_job_metadata` | `submit_job_metadata` | - |
 | `submit_report` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | `submit_report` | `submit_report` | - |
 | `submit_security_review` | workflow | - | write | no | `workflow:security_reviewer`, `workflow:manual` | - | `submit_security_review` | - |
