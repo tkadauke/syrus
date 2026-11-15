@@ -1211,7 +1211,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "digging trench")
     run.job_logs.create!(sequence: 1, kind: "rate_limited", chunk: "[rate-limited] core quota exhausted")
 
-    get "/api/v1/app/workflows/#{run.workflow.id}/detail"
+    get "/api/v1/app/jobs/#{job.id}/workflows"
 
     expect(response).to have_http_status(:ok)
     body = parse_body

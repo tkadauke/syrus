@@ -168,7 +168,7 @@ module App
         job_id: @job.id,
         current_intent: work_unit_debug_enabled? ? current_intent_json : nil,
         work_units: work_unit_debug_enabled? ? work_units_json : [],
-        workflows: paginated_workflows.map { |workflow| workflow_json(workflow, navigation_page: workflows_page) },
+        workflows: hydrate_queue_wait(workflows_json),
         workflows_pagination: workflows_pagination_json,
         feature_flags: feature_flags_json,
         actions: actions_json,

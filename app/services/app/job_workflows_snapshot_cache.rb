@@ -33,19 +33,20 @@ module App
     end
     declare_metrics!
 
-    def self.fetch(job:, page:, admin:, evidence_access: false, &block)
-      new(job: job, page: page, admin: admin, evidence_access:).fetch(&block)
+    def self.fetch(job:, page:, admin:, evidence_access: false, variant: :summary, &block)
+      new(job: job, page: page, admin: admin, evidence_access:, variant:).fetch(&block)
     end
 
     def self.fingerprint(job:, page:, admin:, evidence_access: false)
       new(job: job, page: page, admin: admin, evidence_access:).fingerprint
     end
 
-    def initialize(job:, page:, admin:, evidence_access: false)
+    def initialize(job:, page:, admin:, evidence_access: false, variant: :summary)
       @job = job
       @page = page
       @admin = admin
       @evidence_access = evidence_access
+      @variant = variant
     end
 
     def fingerprint
@@ -65,7 +66,8 @@ module App
         review_evidence_stats,
         @page,
         @admin,
-        @evidence_access
+        @evidence_access,
+        @variant
       ].join(":")
     end
 

@@ -23,8 +23,8 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
       .to_h { |labels, value| [ labels[:outcome], value ] }
   end
 
-  def fetch(admin: false, evidence_access: false, page: 1, &block)
-    described_class.fetch(job: job, page: page, admin: admin, evidence_access: evidence_access, &block)
+  def fetch(admin: false, evidence_access: false, page: 1, variant: :summary, &block)
+    described_class.fetch(job: job, page: page, admin: admin, evidence_access: evidence_access, variant: variant, &block)
   end
 
   it "computes and caches the block result on a miss, recording a computed outcome" do
@@ -46,6 +46,14 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
     expect(result).to eq([ "built" ])
     expect(calls).to eq(0)
     expect(outcomes["cache_hit"]).to eq(1)
+  end
+
+  it "keeps summary and detail payload variants in separate cache entries" do
+    fetch(variant: :summary) { [ "summary" ] }
+
+    result = fetch(variant: :detail) { [ "detail" ] }
+
+    expect(result).to eq([ "detail" ])
   end
 
   it "recomputes when a nested Step's entity_revision changes, even though the Job's own revision did not" do

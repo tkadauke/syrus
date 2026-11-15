@@ -34,7 +34,7 @@ module App
 
       def workflows_json
         workflows = App::JobWorkflowsSnapshotCache.fetch(
-          job: @job, page: workflows_page, admin: @user.admin?, evidence_access: review_evidence_access?
+          job: @job, page: workflows_page, admin: @user.admin?, evidence_access: review_evidence_access?, variant: @workflow_detail ? :detail : :summary
         ) do
           PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
             paginated_workflows.map do |workflow|
@@ -882,6 +882,27 @@ module App
         safe["coverage"] = coverage_artifact_json(artifacts["coverage"]) if artifacts["coverage"].is_a?(Hash)
         safe["typed_artifacts"] = TypedArtifactRenderer.enrich(artifacts["typed_artifacts"]) if artifacts["typed_artifacts"].is_a?(Array)
         safe
+      end
+
+      def hydrate_queue_wait(workflows)
+        queued_ids = workflows.flat_map do |workflow|
+          workflow.fetch(:steps).flat_map do |step|
+            step.fetch(:runs).filter_map { |run| run[:id] if run[:state] == "queued" }
+          end
+        end
+        return workflows if queued_ids.empty?
+
+        runs_by_id = Run.includes(step: :workflow).where(id: queued_ids).index_by(&:id)
+        workflows.deep_dup.each do |workflow|
+          workflow.fetch(:steps).each do |step|
+            step.fetch(:runs).each do |run|
+              next unless run[:state] == "queued"
+
+              queued_run = runs_by_id[run[:id]]
+              run[:queue_wait] = RunQueueDiagnosis.call(queued_run) if queued_run
+            end
+          end
+        end
       end
 
       def review_evidence_by_id
