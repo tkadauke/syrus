@@ -196,6 +196,7 @@ RSpec.describe Admin::StuckJobExplainer do
       action: "retry_job",
       work_unit_id: unit.id,
       workflow_id: workflow.id,
+      mode: "implementation",
       blocked_reason: "agent_cannot_proceed",
       cannot_proceed_reason: "required binary is missing"
     )

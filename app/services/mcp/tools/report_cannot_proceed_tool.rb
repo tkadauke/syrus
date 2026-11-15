@@ -87,14 +87,7 @@ module Mcp::Tools
       private
 
       def report_classification(run)
-        current = RunFailureClassifier.classify(run)
-        return current unless current.classification == RunFailureClassifier::UNCLASSIFIED
-
-        recent = run.step.runs.where.not(id: run.id).joins(:run_failure_classification)
-          .order(created_at: :desc).first&.run_failure_classification
-        return recent if recent&.retryable
-
-        current
+        RunFailureClassifier.classify(run)
       end
 
       def response_text(classification, warning)
