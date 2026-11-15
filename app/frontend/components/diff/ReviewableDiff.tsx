@@ -1040,7 +1040,7 @@ function ChangedFileTreeRow({
         title={changedFileTitle(file)}
         type="button"
       >
-        <ChangedFilePath file={file} path={node.name} />
+        <ChangedFilePath file={file} path={isMovedFile(file) ? file.path : node.name} />
         <GeneratedFileBadge file={file} />
         <ChangedFileCounts file={file} />
         {commentCounts?.[file.path] ? (
@@ -1106,7 +1106,7 @@ function ChangedFilePath({ file, path }: { file: ReviewableDiffFile; path: strin
 }
 
 function ChangedFileCounts({ file }: { file: ReviewableDiffFile }) {
-  if (isPureMove(file)) return null
+  if (isMovedFile(file) && !isEditedMove(file)) return null
   return (
     <>
       {typeof file.additions === "number" ? <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span> : null}
@@ -1117,7 +1117,7 @@ function ChangedFileCounts({ file }: { file: ReviewableDiffFile }) {
 
 function changedFileTitle(file: ReviewableDiffFile) {
   const relationship = isMovedFile(file) ? `${file.previous_path} → ${file.path}` : file.path
-  return isPureMove(file) ? relationship : `${relationship} (+${file.additions ?? 0} -${file.deletions ?? 0})`
+  return isMovedFile(file) && !isEditedMove(file) ? relationship : `${relationship} (+${file.additions ?? 0} -${file.deletions ?? 0})`
 }
 
 function buildChangedFileTree(files: ReviewableDiffFile[]) {

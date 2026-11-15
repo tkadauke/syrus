@@ -1448,6 +1448,54 @@ describe("ReviewableDiff", () => {
     expect(screen.getByTitle("app/models/coworker.rb → plugins/coworkers/app/models/coworker.rb")).toBeInTheDocument()
   })
 
+  it("keeps both full rename paths visible in nested changed-files navigation", () => {
+    const movedFile = {
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      path: "plugins/coworkers/app/models/coworker.rb",
+      previous_path: "app/models/coworker.rb",
+      status: "renamed"
+    }
+    render(
+      <ReviewableDiff
+        changedFilesPopup
+        files={[movedFile]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, file_list_layout: "nested" }}
+        showFileHeaders
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse changed files" }))
+
+    const movedPath = screen.getByTestId("changed-file-move-path")
+    expect(movedPath).toHaveTextContent("app/models/coworker.rb→plugins/coworkers/app/models/coworker.rbMoved")
+    expect(screen.getByTitle("app/models/coworker.rb → plugins/coworkers/app/models/coworker.rb")).toBeInTheDocument()
+  })
+
+  it.each(["binary", "oversized"] as const)("hides zero counts for an unedited %s rename in changed-files navigation", (patchStatus) => {
+    const movedFile = {
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      patch_status: patchStatus,
+      path: `new/file.${patchStatus}`,
+      previous_path: `old/file.${patchStatus}`,
+      status: "renamed"
+    }
+    render(<ReviewableDiff changedFilesPopup files={[movedFile]} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse changed files" }))
+
+    const dialog = screen.getByRole("dialog")
+    const movedPath = screen.getByTestId("changed-file-move-path")
+    expect(movedPath).toHaveTextContent(`old/file.${patchStatus}→new/file.${patchStatus}Moved`)
+    expect(within(dialog).queryByText("+0")).not.toBeInTheDocument()
+    expect(within(dialog).queryByText("-0")).not.toBeInTheDocument()
+    expect(within(dialog).getByTitle(`old/file.${patchStatus} → new/file.${patchStatus}`)).toBeInTheDocument()
+  })
+
   it("closes the changed-files popup when clicking outside the file list", () => {
     render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
 
