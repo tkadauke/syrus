@@ -160,8 +160,8 @@ module Admin
     def docs_dir_for(manifest, spec)
       candidates = [
         spec&.full_gem_path && Pathname(spec.full_gem_path).join("docs/syrus_docs"),
-        Rails.root.join("plugins", manifest.name, "docs/syrus_docs"),
-        Rails.root.join("plugins", manifest.name.tr("-", "_"), "docs/syrus_docs")
+        Syrus::PluginRoots.default.resolve(manifest.name)&.join("docs/syrus_docs"),
+        Syrus::PluginRoots.default.resolve(manifest.name.tr("-", "_"))&.join("docs/syrus_docs")
       ].compact
       candidates.find(&:directory?) || candidates.first
     end

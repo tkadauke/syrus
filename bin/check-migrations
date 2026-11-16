@@ -29,12 +29,14 @@
 
 require "pathname"
 require "open3"
+require_relative "../lib/syrus/plugin_roots"
 
 ROOT = Pathname.new(ENV.fetch("SYRUS_MIGRATION_LINT_ROOT", File.expand_path("..", __dir__)))
+PLUGIN_ROOTS = Syrus::PluginRoots.new(application_root: ROOT)
 MIGRATION_GLOBS = [
   ROOT.join("db/migrate/*.rb"),
   ROOT.join("db/*_migrate/*.rb"),
-  ROOT.join("plugins/*/db/migrate/*.rb")
+  *PLUGIN_ROOTS.plugin_directories.map { |directory| directory.join("db/migrate/*.rb") }
 ].freeze
 MIGRATION_PATH_PATTERN = %r{\A(?:db/(?:migrate|[^/]+_migrate)|plugins/[^/]+/db/migrate)/.*\.rb\z}
 NO_FK_POLICY_VERSION = "20260820010000"

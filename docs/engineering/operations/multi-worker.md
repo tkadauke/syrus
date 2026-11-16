@@ -1,5 +1,15 @@
 # Multi-worker operations
 
+## External plugins
+
+Set `SYRUS_PLUGIN_PATH` to the single shared directory containing externally
+installed plugin directories. Mount the same contents read-only in every web,
+worker, preview, setup, and other process that boots Rails. Plugin names must
+be unique across that directory and the built-in plugin root; a built-in
+plugin wins a collision and the external copy is skipped. For Kubernetes/k3s,
+this variable is the deployment contract; provisioning and installation of a
+shared plugin volume are intentionally deployment-specific.
+
 ## Spreading workers across nodes (queue partitioning)
 
 The search index is SQLite FTS5 on a single-node RWO volume, so the queues that

@@ -443,7 +443,7 @@ module Admin
 
     def pending_action_paths
       Rails.root.glob("app/services/pending_actions/*.rb")
-        .concat(Rails.root.glob("plugins/*/app/services/pending_actions/*.rb"))
+        .concat(Syrus::PluginRoots.default.plugin_directories.flat_map { |dir| dir.glob("app/services/pending_actions/*.rb") })
         .reject { |path| path.basename.to_s == "base.rb" }
         .sort
     end
