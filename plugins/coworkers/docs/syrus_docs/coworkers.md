@@ -456,6 +456,12 @@ workflow checkout that Syrus commits and merges. If the final result explicitly
 claims a workspace or memory path that is absent from the persisted run tree,
 Syrus reports a persistence warning and fails the run instead of posting a false
 success. Runs that claim no paths and runs that make no changes are unaffected.
+Before a subsequent chat turn starts, Syrus fast-forwards a clean chat checkout
+from the coworker's home branch so persisted background changes are visible to
+the coworker. It never overwrites uncommitted work or an active conflict-recovery
+operation. When a safe fast-forward is not possible, the chat keeps its
+recoverable checkout and displays a workspace synchronization warning rather
+than treating the background work as lost.
 
 When enabled, the plugin adds a Coworkers page and a badge counting pending
 approvals across the signed-in owner's coworkers. Syrus is

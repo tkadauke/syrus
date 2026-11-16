@@ -183,7 +183,9 @@ class Coworkers::ChatWorkspaceLifecycle
 
     unmerged = unmerged_files(path)
     return "unmerged files are present (#{unmerged.join(', ')})" if unmerged.any?
-    return "another Git conflict recovery operation is in progress" if git_operation_in_progress?(path, "MERGE_HEAD")
+    return "another Git conflict recovery operation is in progress" if git_operation_in_progress?(
+      path, "MERGE_HEAD", "REVERT_HEAD", "CHERRY_PICK_HEAD"
+    )
     "the chat checkout has uncommitted work" if git_run("status", "--porcelain", chdir: path.to_s).present?
   end
 

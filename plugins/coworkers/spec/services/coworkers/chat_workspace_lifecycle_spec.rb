@@ -426,6 +426,28 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     expect(session.messages.last.content.dig("coworker_workspace_sync_warning", "detail")).to include("rebase")
   end
 
+  [ "CHERRY_PICK_HEAD", "REVERT_HEAD" ].each do |operation_head|
+    it "does not refresh a clean checkout while #{operation_head} recovery is active" do
+      session = chat
+      path = lifecycle(session).prepare!
+      head = run_git("rev-parse", "HEAD", chdir: path).strip
+      git_path = run_git("rev-parse", "--git-path", operation_head, chdir: path).strip
+      operation_path = Pathname(git_path).absolute? ? Pathname(git_path) : path.join(git_path)
+      operation_path.write("#{head}\n")
+      advance_home("memory/scheduled.md", "background memory\n")
+
+      expect(run_git("status", "--porcelain", chdir: path)).to be_blank
+
+      lifecycle(session).prepare!
+
+      expect(path.join("memory/scheduled.md")).not_to exist
+      expect(operation_path).to exist
+      expect(run_git("rev-parse", "HEAD", chdir: path).strip).to eq(head)
+      expect(session.messages.last.content.dig("coworker_workspace_sync_warning", "detail"))
+        .to include("conflict recovery operation")
+    end
+  end
+
   it "does not refresh a checkout with unmerged files" do
     session = chat
     path = lifecycle(session).prepare!

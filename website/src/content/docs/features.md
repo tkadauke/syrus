@@ -2272,6 +2272,12 @@ successful validation and persistence stay silent, while failed validation,
 exhausted retries, or the one-hour deadline produce one warning without
 discarding either side. Worker-local checkouts are disposable and are
 re-cloned from the durable remote when lost.
+At the start of each turn, a clean chat checkout fast-forwards from the
+coworker's home branch, making changes persisted by scheduled background work
+visible before the coworker responds. Syrus leaves uncommitted work and active
+Git recovery state untouched. If the checkout cannot be synchronized safely,
+the chat shows a synchronization warning and preserves the recoverable local
+state instead of misreporting the background work as missing.
 Renaming a coworker moves its home branch while no turn is running. Deleting
 one archives that branch under `coworkers/archived/` and releases the handle
 for reuse. Scheduled background work normally posts the agent's final Markdown result,
