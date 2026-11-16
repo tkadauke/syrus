@@ -2,6 +2,12 @@ module SyrusDev
   class WorkflowToolSet
     include Syrus::Plugin::McpToolSet
 
+    OPERATIONS = {
+      "read_performance_diagnostics" => "syrus_dev.performance/read@v1",
+      "read_syrus_logs" => "syrus_dev.logs/search@v1",
+      "read_workspace_reuse_outcomes" => "syrus_dev.workspace_reuse/read@v1"
+    }.freeze
+
     def self.available_for?(repository)
       McpToolPolicy.syrus_repository?(repository)
     end
@@ -15,7 +21,8 @@ module SyrusDev
         {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h
+          input_schema: klass.input_schema_value.to_h,
+          capability_descriptor: PermissionProvider.capability_descriptor(OPERATIONS.fetch(klass.tool_name))
         }
       end
     end
