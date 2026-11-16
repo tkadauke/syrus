@@ -131,10 +131,6 @@ module Api
           User.find_by(id: owner_user_id)
         end
 
-        def truthy?(value)
-          %w[ true 1 yes ].include?(value.to_s.downcase)
-        end
-
         def apply_owner_filter(scope)
           case params[:owner].to_s
           when "mine"
