@@ -137,14 +137,14 @@ module Permissions
     # A coworker names the narrowest duration it needs; the card never offers
     # more than that, whatever the descriptor would otherwise allow.
     def duration_above_request?(duration)
-      return false unless request.action == CoworkerPermissionRequest::ACTION
+      return false unless request.action == PermissionRequest::ACTION
 
       requested = request.payload.to_h["requested_duration"]
       DURATION_RANK.fetch(duration) > DURATION_RANK.fetch(requested, 0)
     end
 
     def permitted?(duration, preview)
-      return true unless duration == "permanent" && request.action == CoworkerPermissionRequest::ACTION
+      return true unless duration == "permanent" && request.action == PermissionRequest::ACTION
       return true unless request.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
       preview.draft.dig(:subject, :type) == "agent"

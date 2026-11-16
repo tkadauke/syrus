@@ -20,7 +20,7 @@ module Permissions
       raise ArgumentError, "decision must be approved or denied" unless decision.in?(%w[approved denied])
 
       raise ArgumentError, "a rule can only accompany an approval" if smart && decision != "approved"
-      permission_request = request.action == CoworkerPermissionRequest::ACTION
+      permission_request = request.action == PermissionRequest::ACTION
       if permission_request && decision == "approved" && smart.nil?
         raise ArgumentError, I18n.t("api.permission_requests.smart_decision.duration_required")
       end
@@ -71,7 +71,7 @@ module Permissions
     attr_reader :request, :item, :user
 
     def audit(event, **details)
-      return unless request.action == CoworkerPermissionRequest::ACTION && coworker_request? && request.subject
+      return unless request.action == PermissionRequest::ACTION && coworker_request? && request.subject
 
       CoworkerAudit.record!(event, owner: user, coworker: request.subject, authorization_request_id: request.id,
         capability: item.capability, operation: item.operation, **details)
