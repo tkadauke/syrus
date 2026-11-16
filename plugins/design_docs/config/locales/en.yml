@@ -1,4 +1,5 @@
 en:
   design_docs:
     errors:
+      pending_suggestion_overlap: "overlaps pending suggestion #%{suggestion_id}; accept or reject it first"
       visible_body_blank: "visible body can't be blank"

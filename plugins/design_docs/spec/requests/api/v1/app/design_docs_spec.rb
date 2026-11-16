@@ -1471,8 +1471,40 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     }.not_to change(DesignDocSuggestion, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("pending_suggestion_overlap")
     expect(parse_body.dig("error", "message")).to include("overlaps pending suggestion ##{existing.id}")
     expect(doc.reload.markdown).to eq(original_markdown)
+  end
+
+  it "allows pending suggestions whose ranges only touch at a boundary" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+    )
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: { start_offset: 10, end_offset: 16, original_markdown: " gamma", proposed_markdown: " delta" }
+      }
+    }.to change(DesignDocSuggestion, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+  end
+
+  it "provides the pending-overlap error message in every backend locale" do
+    translations = {
+      en: "overlaps pending suggestion #42; accept or reject it first",
+      de: "überschneidet sich mit dem ausstehenden Vorschlag #42; nimm ihn zuerst an oder lehne ihn ab",
+      la: "cum propositione pendente #42 congruit; eam prius accipe aut reice"
+    }
+
+    translations.each do |locale, message|
+      expect(I18n.t("design_docs.errors.pending_suggestion_overlap", locale: locale, suggestion_id: 42)).to eq(message)
+    end
   end
 
   it "prevents admin non-owners from accepting suggestions into canonical markdown" do
@@ -1666,7 +1698,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(reprojected).to eq("Flow\n\nDet")
   end
 
-  it "returns a conflict instead of a 500 when a defensive marker invariant still fails during acceptance" do
+  it "accepts despite an unrelated orphan marker and removes the fragment" do
     doc = create_design_doc(markdown: "Hello world")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
     suggestion = ::DesignDocs::CreateSuggestion.call(
@@ -1674,20 +1706,16 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       user: collaborator,
       attributes: { start_offset: 6, end_offset: 11, original_markdown: "world", proposed_markdown: "Syrus" }
     ).suggestion
-    # Corrupt the document with an unrelated dangling marker that none of
-    # ReviewSuggestion's own reconciliation logic knows about, to exercise
-    # the controller's defensive rescue rather than the reconciliation fix
-    # itself.
     doc.update!(markdown: doc.markdown + DesignDocs::AnchorMarkers.range_start_marker("preexisting-corruption"))
     sign_in_as(owner)
 
     expect {
       post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
-    }.not_to change(DesignDocVersion, :count)
+    }.to change(DesignDocVersion, :count).by(1)
 
-    expect(response).to have_http_status(:conflict)
-    expect(parse_body.dig("error", "code")).to eq("conflict")
-    expect(suggestion.reload.state).to eq("pending")
+    expect(response).to have_http_status(:ok)
+    expect(suggestion.reload.state).to eq("accepted")
+    expect(doc.reload.markdown).not_to include("preexisting-corruption")
   end
 
   it "accepts DOC-25-style chunked suggestions without leaving reviewed range markers in canonical markdown" do
