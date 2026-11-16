@@ -265,6 +265,13 @@ en:
 
   # API messages
   api:
+    plugin_cli_commands:
+      errors:
+        plugin_unknown: "That plugin is not installed."
+        plugin_disabled: "That plugin is disabled."
+        command_unknown: "That plugin command is not available."
+        argument_invalid: "The command arguments or flags are invalid."
+        handler_failed: "The plugin command failed."
     approval_delegations:
       provider_unavailable: "The approval provider is not installed or enabled."
       unknown_capability: "Unknown permission capability."

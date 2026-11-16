@@ -220,6 +220,47 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
   end
 
+  describe "CLI command declarations" do
+    let(:valid_command) do
+      {
+        path: "docs list", summary: "List documents", handler: "Example::ListDocuments",
+        arguments: [{ name: "owner", type: "string", required: true }],
+        flags: [{ name: "state", type: "enum", values: %w[draft archived] }]
+      }
+    end
+
+    it "normalizes a valid declaration" do
+      described_class.register(name: "example", version: "1", cli_commands: [valid_command])
+
+      expect(described_class.all_plugins.find { |plugin| plugin.name == "example" }.cli_commands).to eq([
+        {
+          "path" => "docs list", "summary" => "List documents", "handler" => "Example::ListDocuments",
+          "arguments" => [{ "name" => "owner", "type" => "string", "required" => true }],
+          "flags" => [{ "name" => "state", "type" => "enum", "required" => false, "values" => %w[draft archived] }]
+        }
+      ])
+    end
+
+    it "rejects a missing handler" do
+      expect {
+        described_class.register(name: "example", version: "1", cli_commands: [valid_command.except(:handler)])
+      }.to raise_error(described_class::RegistrationError, /requires a handler/)
+    end
+
+    it "rejects duplicate command paths" do
+      expect {
+        described_class.register(name: "example", version: "1", cli_commands: [valid_command, valid_command])
+      }.to raise_error(described_class::RegistrationError, /duplicate CLI command path/)
+    end
+
+    it "rejects an unknown flag type" do
+      invalid = valid_command.merge(flags: [{ name: "state", type: "mystery" }])
+      expect {
+        described_class.register(name: "example", version: "1", cli_commands: [invalid])
+      }.to raise_error(described_class::RegistrationError, /Unknown CLI flag type/)
+    end
+  end
+
   describe "Syrus::Plugin::RepositoryFilter" do
     it "requires providers to implement .apply" do
       provider = Class.new { include Syrus::Plugin::RepositoryFilter }

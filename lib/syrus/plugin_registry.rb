@@ -173,7 +173,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, cli_commands: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -193,6 +193,7 @@ module Syrus
           credential_types: credential_types,
           credential_type_names: credential_type_names
         )
+        cli_commands = normalize_cli_commands!(cli_commands, plugin_name: name)
 
         @mutex.synchronize do
           # Registration runs on every `to_prepare`, so re-registering a name
@@ -234,7 +235,8 @@ module Syrus
             credential_types: credential_types,
             prepare_priority: prepare_priority,
             hosts:           Array(hosts),
-            events:          events
+            events:          events,
+            cli_commands:    cli_commands
           )
         end
 
@@ -793,6 +795,48 @@ module Syrus
 
         if author.to_s.strip.casecmp("syrus").zero?
           raise RegistrationError, "\"Syrus\" is not a valid plugin author"
+        end
+      end
+
+      CLI_VALUE_TYPES = %w[string boolean integer enum repeatable_string].freeze
+
+      def normalize_cli_commands!(commands, plugin_name:)
+        normalized = Array(commands).map do |command|
+          attrs = command.to_h.stringify_keys
+          path = attrs["path"].to_s.split.join(" ")
+          raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command requires a path" if path.blank?
+          raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command #{path.inspect} requires a handler" if attrs["handler"].blank?
+          raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command #{path.inspect} requires a summary" if attrs["summary"].blank?
+
+          {
+            "path" => path,
+            "summary" => attrs.fetch("summary").to_s,
+            "arguments" => normalize_cli_parameters!(attrs["arguments"], command_path: path, kind: "argument"),
+            "flags" => normalize_cli_parameters!(attrs["flags"], command_path: path, kind: "flag"),
+            "handler" => attrs.fetch("handler").to_s
+          }.freeze
+        end
+        duplicates = normalized.map { |command| command.fetch("path") }.tally.select { |_path, count| count > 1 }.keys
+        raise RegistrationError, "Plugin #{plugin_name.inspect} declares duplicate CLI command path(s): #{duplicates.inspect}" if duplicates.any?
+        normalized.freeze
+      end
+
+      def normalize_cli_parameters!(parameters, command_path:, kind:)
+        Array(parameters).map do |parameter|
+          attrs = parameter.to_h.stringify_keys
+          name = attrs["name"].to_s
+          type = attrs.fetch("type", "string").to_s
+          raise RegistrationError, "CLI #{kind} names cannot be blank for #{command_path.inspect}" if name.blank?
+          unless CLI_VALUE_TYPES.include?(type)
+            raise RegistrationError, "Unknown CLI #{kind} type #{type.inspect} for #{command_path.inspect}. Valid: #{CLI_VALUE_TYPES.inspect}"
+          end
+          raise RegistrationError, "CLI enum #{name.inspect} requires values" if type == "enum" && Array(attrs["values"]).empty?
+
+          { "name" => name, "type" => type, "required" => attrs["required"] == true,
+            "default" => attrs["default"], "values" => Array(attrs["values"]).map(&:to_s).presence }.compact.freeze
+        end.tap do |entries|
+          duplicates = entries.map { |entry| entry.fetch("name") }.tally.select { |_name, count| count > 1 }.keys
+          raise RegistrationError, "Duplicate CLI #{kind} name(s) for #{command_path.inspect}: #{duplicates.inspect}" if duplicates.any?
         end
       end
 

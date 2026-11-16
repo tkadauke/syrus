@@ -25,6 +25,8 @@ Rails.application.routes.draw do
     namespace :v1 do
       namespace :app do
         get "bootstrap", to: "bootstrap#show"
+        get "plugin_cli_commands", to: "plugin_cli_commands#index"
+        post "plugin_cli_commands/execute", to: "plugin_cli_commands#create"
         get "me", to: "me#show"
         get "setup", to: "setup#show"
         patch "theme", to: "theme#update"

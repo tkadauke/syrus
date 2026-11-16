@@ -231,6 +231,13 @@ la:
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
   api:
+    plugin_cli_commands:
+      errors:
+        plugin_unknown: "Illud additamentum non installatum est."
+        plugin_disabled: "Illud additamentum inactivum est."
+        command_unknown: "Illud mandatum additamenti non praesto est."
+        argument_invalid: "Argumenta vel optiones mandati invalida sunt."
+        handler_failed: "Mandatum additamenti defecit."
     approval_delegations:
       provider_unavailable: "Provisor approbationis non est installatus vel activatus."
       unknown_capability: "Facultas permissionis ignota."
