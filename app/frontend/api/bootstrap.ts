@@ -1,7 +1,8 @@
-import { getJson } from "./client"
+import { getJson, getRecentApiRequests } from "./client"
 import type { ColorTheme } from "./themes"
 import type { ChatModelOption, ChatProviderOption, ChatSpeechToTextCapability } from "./chats"
 import { checkApiVersion } from "./version"
+import { markStartupMilestone, reportStartupFailure } from "../lib/startupDiagnostics"
 
 export type SystemAlertAction =
   | {
@@ -117,8 +118,16 @@ export type SlugReferenceType = {
   mobile_interaction_hints: Record<string, string>
 }
 
-export function fetchBootstrap() {
-  return getJson<BootstrapPayload>("/api/v1/app/bootstrap")
+export async function fetchBootstrap() {
+  markStartupMilestone("bootstrap_fetch_started")
+  try {
+    const payload = await getJson<BootstrapPayload>("/api/v1/app/bootstrap")
+    markStartupMilestone("bootstrap_fetch_succeeded")
+    return payload
+  } catch (error) {
+    reportStartupFailure("bootstrap_fetch", error, { request_correlation: getRecentApiRequests().slice(-1)[0] ?? null })
+    throw error
+  }
 }
 
 export function readInitialBootstrap() {
