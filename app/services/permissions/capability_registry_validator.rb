@@ -86,7 +86,8 @@ module Permissions
     end
 
     def findings
-      missing_descriptor_findings + bundle_findings + tool_mapping_findings + descriptor_conflict_findings + identifier_findings
+      missing_descriptor_findings + redundant_compatibility_metadata_findings + bundle_findings +
+        tool_mapping_findings + descriptor_conflict_findings + identifier_findings
     end
 
     def coverage
@@ -130,6 +131,21 @@ module Permissions
         finding(:missing_descriptor, registration,
           I18n.t("server.permissions.capability_registry.missing_descriptor_detail"))
       end
+    end
+
+    def redundant_compatibility_metadata_findings
+      registrations.select(&:compatibility_descriptor)
+        .group_by { |registration| [ registration.source, registration.surface ] }
+        .filter_map do |(source, surface), group|
+          next unless group.all? { |registration| registration.explicit_descriptor && registration.descriptor }
+
+          Finding.new(
+            code: :redundant_compatibility_metadata,
+            message: I18n.t("server.permissions.capability_registry.redundant_compatibility_metadata",
+              source:, surface:),
+            registrations: group
+          )
+        end
     end
 
     def tool_mapping_findings
