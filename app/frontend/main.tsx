@@ -9,7 +9,7 @@ import i18n from "./i18n"
 import { I18nStartupGate } from "./i18n/I18nStartupGate"
 import { initErrorRingBuffer } from "./lib/errorRingBuffer"
 import { startBrowserPerformanceObservers } from "./lib/performanceTrace"
-import { markStartupMilestone } from "./lib/startupDiagnostics"
+import { markStartupMilestone, reportStartupFailure } from "./lib/startupDiagnostics"
 import { installStaleChunkRecovery } from "./lib/staleChunkRecovery"
 import { configureExcalidrawAssets } from "./lib/excalidrawAssets"
 import { StartupRenderMarker } from "./lib/StartupRenderMarker"
@@ -25,20 +25,26 @@ const root = document.getElementById("syrus-spa-root")
 const queryClient = createQueryClient()
 
 if (root) {
-  createRoot(root).render(
-    <StrictMode>
-      <I18nextProvider i18n={i18n}>
-        <I18nStartupGate>
-          <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
-              <AppErrorBoundary>
-                <StartupRenderMarker />
-                <App />
-              </AppErrorBoundary>
-            </BrowserRouter>
-          </QueryClientProvider>
-        </I18nStartupGate>
-      </I18nextProvider>
-    </StrictMode>
-  )
+  try {
+    createRoot(root).render(
+      <StrictMode>
+        <I18nextProvider i18n={i18n}>
+          <I18nStartupGate>
+            <QueryClientProvider client={queryClient}>
+              <BrowserRouter>
+                <AppErrorBoundary>
+                  <StartupRenderMarker />
+                  <App />
+                </AppErrorBoundary>
+              </BrowserRouter>
+            </QueryClientProvider>
+          </I18nStartupGate>
+        </I18nextProvider>
+      </StrictMode>
+    )
+  } catch (error) {
+    reportStartupFailure("root_mount", error)
+  }
+} else {
+  reportStartupFailure("root_mount", new Error("SPA root element is missing"))
 }

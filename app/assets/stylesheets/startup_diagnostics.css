@@ -45,6 +45,14 @@
   margin: 0.5rem 0 0;
 }
 
+.syrus-startup-status__correlation {
+  color: #6b7280;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  margin: 0.75rem 0 0;
+  overflow-wrap: anywhere;
+}
+
 .syrus-startup-status__retry {
   appearance: none;
   background: #b6492e;
@@ -70,19 +78,21 @@
   outline-offset: 2px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .syrus-startup-status__panel {
-    color: #f9fafb;
-  }
+.dark .syrus-startup-status__panel {
+  color: #f9fafb;
+}
 
-  .syrus-startup-status__message {
-    color: #d1d5db;
-  }
+.dark .syrus-startup-status__message {
+  color: #d1d5db;
+}
 
-  .syrus-startup-status__spinner {
-    border-color: #374151;
-    border-top-color: #f0a078;
-  }
+.dark .syrus-startup-status__correlation {
+  color: #9ca3af;
+}
+
+.dark .syrus-startup-status__spinner {
+  border-color: #374151;
+  border-top-color: #f0a078;
 }
 
 @keyframes syrus-startup-spin {
