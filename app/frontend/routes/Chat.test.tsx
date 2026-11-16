@@ -226,6 +226,10 @@ describe("chat context find", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "preview" } })
 
     expect(screen.getByText("1/1")).toBeInTheDocument()
+    expect(screen.getByText("preview", { selector: "mark[data-search-highlight]" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }))
+    expect(screen.queryByText("preview", { selector: "mark[data-search-highlight]" })).not.toBeInTheDocument()
   })
 
   it("keeps the selected match when chat messages update without changing find match ids", async () => {
