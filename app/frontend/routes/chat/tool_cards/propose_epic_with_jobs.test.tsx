@@ -109,6 +109,8 @@ describe("propose_epic_with_jobs tool card", () => {
     expect(screen.getByRole("button", { name: "Copy core-schedule-cards to clipboard" })).toBeInTheDocument()
     expect(screen.getAllByText("confirmed").length).toBeGreaterThan(0)
     expect(screen.getByText("proposed")).toBeInTheDocument()
+    expect(screen.queryByText("Proposal #10")).not.toBeInTheDocument()
+    expect(screen.queryByText("Proposal #11")).not.toBeInTheDocument()
   })
 
   it("accepts normalized Codex and Claude MCP envelopes", () => {
