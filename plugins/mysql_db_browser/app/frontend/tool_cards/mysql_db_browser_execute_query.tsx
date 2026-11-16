@@ -8,7 +8,8 @@ import { CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from
 import { formatMs, MysqlErrorNotice, parseMysqlError, TableShell, TruncatedNotice, type MysqlError } from "../mysqlToolCard"
 
 const INITIAL_VISIBLE_ROWS = 25
-const RESULT_CELL_CLASS = "group/result-cell grid min-w-0 grid-cols-[minmax(5rem,0.35fr)_minmax(0,1fr)] gap-2 border-b border-border align-top px-2 py-1 text-text-secondary sm:table-cell sm:w-48"
+const RESULT_CELL_CLASS =
+  "group/result-cell grid min-w-0 grid-cols-[minmax(5rem,0.35fr)_minmax(0,1fr)] gap-2 border-b border-border align-top px-2 py-1 text-text-secondary sm:table-cell sm:w-48"
 const STICKY_RESULT_CELL_CLASS = "sm:sticky sm:left-0 sm:z-[1] sm:bg-white sm:dark:bg-gray-950"
 const RESULT_CELL_PREVIEW_CLASS = [
   "!rounded-none !border-0 !bg-transparent",

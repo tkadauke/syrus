@@ -239,7 +239,9 @@ export function TextPreview({
             ? "max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-muted [overflow-wrap:anywhere]"
             : "max-w-full overflow-x-auto whitespace-pre font-mono text-xs text-text-muted",
           className
-        ].filter(Boolean).join(" ")}
+        ]
+          .filter(Boolean)
+          .join(" ")}
         code={truncated.preview}
         data-testid="text-preview-content"
         lang={lang}
