@@ -8,8 +8,15 @@ import { CardShell, displayValue, EmptyState, numberValue, Row, StatePill } from
 import { formatMs, MysqlErrorNotice, parseMysqlError, TableShell, TruncatedNotice, type MysqlError } from "../mysqlToolCard"
 
 const INITIAL_VISIBLE_ROWS = 25
-const RESULT_CELL_CLASS = "grid min-w-0 grid-cols-[minmax(5rem,0.35fr)_minmax(0,1fr)] gap-2 align-top px-2 py-1 text-text-secondary sm:table-cell sm:w-48"
+const RESULT_CELL_CLASS =
+  "group/result-cell grid min-w-0 grid-cols-[minmax(5rem,0.35fr)_minmax(0,1fr)] gap-2 border-b border-border align-top px-2 py-1 text-text-secondary sm:table-cell sm:w-48"
 const STICKY_RESULT_CELL_CLASS = "sm:sticky sm:left-0 sm:z-[1] sm:bg-white sm:dark:bg-gray-950"
+const RESULT_CELL_PREVIEW_CLASS = [
+  "!rounded-none !border-0 !bg-transparent",
+  "[&>div>pre]:!p-0 [&>div>pre]:leading-5",
+  "[&>div>div]:opacity-0 [&>div>div]:transition-opacity",
+  "group-hover/result-cell:[&>div>div]:opacity-100 group-focus-within/result-cell:[&>div>div]:opacity-100"
+].join(" ")
 
 // Plugin-owned tool card for mysql_db_browser_execute_query (the tool-card work).
 // Three distinct outcomes share this one payload shape (see
@@ -128,7 +135,7 @@ function QueryMetadata({ context, outcome }: { context: ToolCardContext; outcome
 }
 
 function CellPreview({ column, value }: { column: string; value: unknown }) {
-  return <TextPreview maxLines={2} text={redactedCellText(column, value)} />
+  return <TextPreview className={RESULT_CELL_PREVIEW_CLASS} maxLines={2} text={redactedCellText(column, value)} />
 }
 
 function QueryRows({ outcome }: { outcome: Extract<QueryOutcome, { kind: "select" }> }) {

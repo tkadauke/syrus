@@ -45,6 +45,7 @@ export type MarkdownPreviewProps = {
 }
 
 export type TextPreviewProps = {
+  className?: string
   text: string
   emptyLabel?: string
   modalText?: string
@@ -205,6 +206,7 @@ export function MarkdownPreview({
 // Tool-card raw-text primitive: preserve command output and logs on the card,
 // while keeping the complete, copy-friendly text available in a dialog.
 export function TextPreview({
+  className,
   text,
   emptyLabel,
   modalText,
@@ -232,11 +234,14 @@ export function TextPreview({
     <div className="min-w-0 max-w-full overflow-hidden">
       {title ? <div className="mb-1 break-words text-xs font-semibold text-text-primary">{title}</div> : null}
       <CodeSurface
-        className={
+        className={[
           wrap
             ? "max-w-full whitespace-pre-wrap break-words font-mono text-xs text-text-muted [overflow-wrap:anywhere]"
-            : "max-w-full overflow-x-auto whitespace-pre font-mono text-xs text-text-muted"
-        }
+            : "max-w-full overflow-x-auto whitespace-pre font-mono text-xs text-text-muted",
+          className
+        ]
+          .filter(Boolean)
+          .join(" ")}
         code={truncated.preview}
         data-testid="text-preview-content"
         lang={lang}

@@ -6,14 +6,14 @@ class PollingPersistenceRetry
     ActiveRecord::Deadlocked
   ].freeze
 
-  def self.call(job:, boundary:)
+  def self.call(job:, boundary:, context: {})
     retries = 0
 
     begin
       yield(retries)
     rescue *RETRYABLE_ERRORS => error
       exhausted = retries >= MAX_RETRIES
-      log(error:, job:, boundary:, retry_number: retries + 1, exhausted: exhausted)
+      log(error:, job:, boundary:, context:, retry_number: retries + 1, exhausted: exhausted)
       raise if exhausted
 
       sleep(BACKOFF_SECONDS.fetch(retries))
@@ -22,21 +22,21 @@ class PollingPersistenceRetry
     end
   end
 
-  def self.log(error:, job:, boundary:, retry_number:, exhausted:)
-    Rails.logger.warn(
-      {
-        event: "github_polling_persistence_contention",
-        boundary: boundary,
-        job_id: job.id,
-        job_slug: job.slug,
-        repository_id: job.repository_id,
-        retry_number: retry_number,
-        max_retries: MAX_RETRIES,
-        exhausted: exhausted,
-        error_class: error.class.name,
-        error_message: error.message
-      }.to_json
-    )
+  def self.log(error:, job:, boundary:, context:, retry_number:, exhausted:)
+    payload = {
+      event: "github_polling_persistence_contention",
+      boundary: boundary,
+      job_id: job.id,
+      job_slug: job.slug,
+      repository_id: job.repository_id,
+      retry_number: retry_number,
+      max_retries: MAX_RETRIES,
+      exhausted: exhausted,
+      error_class: error.class.name,
+      error_message: error.message
+    }.merge(context)
+    payload[:error_backtrace] = error.backtrace if exhausted
+    Rails.logger.warn(payload.to_json)
   end
   private_class_method :log
 end

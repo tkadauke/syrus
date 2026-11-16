@@ -29,4 +29,11 @@ RSpec.describe "CLAUDE.md startup context size" do
   it "routes engineering knowledge through the agent-neutral index" do
     expect(File.read(claude_md_path)).to include("(docs/engineering/README.md)")
   end
+
+  it "records the immutable-HEAD contract for required reviews" do
+    guidance = File.read(claude_md_path).gsub(/\s+/, " ")
+
+    expect(guidance).to include("Required review gates are evidence about one exact implementation HEAD")
+    expect(guidance).to include("Optional reviews do not participate in this immutable-HEAD barrier")
+  end
 end

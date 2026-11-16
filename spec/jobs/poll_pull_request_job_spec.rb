@@ -353,6 +353,78 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.last_seen_comment_at.utc).to be_within(1.second).of(t1)
     end
 
+    it "retries the contended comment transaction without replaying GitHub reads or the CI reaction" do
+      stub_issue_comments([
+        { id: 1, body: "Please fix this", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+      allow(PollingPersistenceRetry).to receive(:sleep)
+      lock_attempts = 0
+      allow_any_instance_of(Job).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        next original.call(*args, &block) unless original.receiver.id == job.id
+
+        lock_attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "lock wait timed out" if lock_attempts == 1
+
+        original.call(*args, &block)
+      end
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+        .and change { Notification.count }.by(0)
+
+      expect(lock_attempts).to eq(2)
+      expect(a_request(:get, pr_url)).to have_been_made.once
+      expect(a_request(:get, issue_comments_url).with(query: hash_including({}))).to have_been_made.once
+      expect(a_request(:get, review_comments_url).with(query: hash_including({}))).to have_been_made.once
+      expect(a_request(:get, %r{/commits/.*/check-runs})).to have_been_made.once
+    end
+
+    it "schedules a contextual catch-up when comment transaction retries are exhausted" do
+      stub_issue_comments([
+        { id: 1, body: "Please fix this", user: { login: "reviewer" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+      allow(PollingPersistenceRetry).to receive(:sleep)
+      messages = []
+      allow(Rails.logger).to receive(:warn) { |message| messages << message }
+      allow_any_instance_of(Job).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        next original.call(*args, &block) unless original.receiver.id == job.id
+
+        raise ActiveRecord::LockWaitTimeout, "lock wait timed out"
+      end
+
+      workflow_count = job.workflows.where(trigger_kind: "pr_comment").count
+      notification_count = Notification.count
+      expect {
+        described_class.perform_now(job.id)
+      }.to have_enqueued_job(described_class).with(job.id)
+
+      expect(job.workflows.where(trigger_kind: "pr_comment").count).to eq(workflow_count)
+      expect(Notification.count).to eq(notification_count)
+
+      exhaustion = messages.map { |message| JSON.parse(message) }.find { |payload| payload["exhausted"] == true }
+      expect(exhaustion).to include(
+        "boundary" => "pr_comment_transaction",
+        "job_id" => job.id,
+        "repository_id" => repository.id,
+        "pr_repository_id" => repository.id,
+        "pr_number" => 7
+      )
+      expect(messages.map { |message| JSON.parse(message) }).to include(
+        include(
+          "event" => "github_polling_persistence_catch_up_scheduled",
+          "job_id" => job.id,
+          "repository_id" => repository.id,
+          "pr_number" => 7
+        )
+      )
+      expect(a_request(:get, pr_url)).to have_been_made.once
+      expect(a_request(:get, issue_comments_url).with(query: hash_including({}))).to have_been_made.once
+      expect(a_request(:get, review_comments_url).with(query: hash_including({}))).to have_been_made.once
+    end
+
     it "does not enqueue a duplicate pr_comment workflow when a conflicting WorkUnit slips past the active-unit precheck" do
       # `pending_followup?`'s active-unit check is a plain
       # unlocked SELECT with the same TOCTOU gap as the watermark race

@@ -85,6 +85,13 @@ workflow checkout. Commands run through `Execution::Router`: enabled
 execution and confinement in that provider contract rather than branching in
 grader or chat call sites.
 
+Required review gates are evidence about one exact implementation HEAD. If a
+repair advances HEAD, the old evidence is superseded and every required review
+must approve the new commit before downstream work may run. Missing review
+steps are rematerialized, while dispatch and reconciliation fail closed by
+cancelling unsafe queued downstream work. Optional reviews do not participate
+in this immutable-HEAD barrier.
+
 `Job#kind` is registered through `Job::Kind`: built-ins include `issue`
 (labeled work item), `cron` (scheduled fire), `direct` (operator prompt),
 `main_grader` and `deploy` (infrastructure), and `external_pr` (an ingested
