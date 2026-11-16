@@ -228,6 +228,13 @@ la:
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
   api:
+    plugin_cli_commands:
+      forbidden: "Tibi hoc imperium exsequi non licet."
+      unknown_plugin: "Applicamentum petitum non institutum est."
+      plugin_disabled: "Applicamentum petitum inhabilitatum aut vitiosum est."
+      unknown_command: "Imperium applicamenti petitum non exstat."
+      invalid_arguments: "Argumenta imperii invalida: %{error}"
+      handler_error: "Imperium applicamenti defecit."
     approval_delegations:
       provider_unavailable: "Provisor approbationis non est installatus vel activatus."
       unknown_capability: "Facultas permissionis ignota."

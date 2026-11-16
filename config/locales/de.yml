@@ -228,6 +228,13 @@ de:
       invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
 
   api:
+    plugin_cli_commands:
+      forbidden: "Du bist nicht berechtigt, diesen Befehl auszuführen."
+      unknown_plugin: "Das angeforderte Plugin ist nicht installiert."
+      plugin_disabled: "Das angeforderte Plugin ist deaktiviert oder fehlerhaft."
+      unknown_command: "Der angeforderte Plugin-Befehl existiert nicht."
+      invalid_arguments: "Ungültige Befehlsargumente: %{error}"
+      handler_error: "Der Plugin-Befehl ist fehlgeschlagen."
     approval_delegations:
       provider_unavailable: "Der Genehmigungsanbieter ist nicht installiert oder aktiviert."
       unknown_capability: "Unbekannte Berechtigungs-Capability."

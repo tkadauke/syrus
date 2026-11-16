@@ -262,6 +262,13 @@ en:
 
   # API messages
   api:
+    plugin_cli_commands:
+      forbidden: "You are not authorized to run this command."
+      unknown_plugin: "The requested plugin is not installed."
+      plugin_disabled: "The requested plugin is disabled or unhealthy."
+      unknown_command: "The requested plugin command does not exist."
+      invalid_arguments: "Invalid command arguments: %{error}"
+      handler_error: "The plugin command failed."
     approval_delegations:
       provider_unavailable: "The approval provider is not installed or enabled."
       unknown_capability: "Unknown permission capability."

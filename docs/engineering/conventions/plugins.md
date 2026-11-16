@@ -38,6 +38,50 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
   When adding a new agent provider or MCP tool set, implement it as a plugin
   gem that calls `Syrus::PluginRegistry.register` in its engine initializer;
   don't add the class directly to `app/services/agent_providers/`.
+- **Server-side CLI commands** — A plugin may declare commands in its manifest
+  without compiling code into the Go CLI:
+
+  ```ruby
+  cli_command "docs list",
+    summary: "List design documents",
+    handler: "DesignDocs::Cli::List",
+    arguments: [
+      { name: "query", type: "string", required: true }
+    ],
+    flags: [
+      { name: "limit", type: "integer", default: 20 },
+      { name: "state", type: "enum", values: %w[draft published] },
+      { name: "tag", type: "repeatable_string" },
+      { name: "all", type: "boolean", default: false }
+    ]
+  ```
+
+  Paths may be nested and use lowercase letters, digits, hyphens, and
+  underscores. Every command needs a one-line summary and a string handler
+  class name. Arguments and flags support `string`, `boolean`, `integer`,
+  `enum` (with `values`), and `repeatable_string`, plus `required` and
+  `default`. Names must be unique within their argument or flag list, and
+  command paths must be unique within the plugin. Invalid declarations make
+  the plugin unhealthy and withhold its commands without preventing boot.
+
+  Handlers subclass `Syrus::Plugin::CliCommandHandler` and implement
+  `call(args:, flags:, user:)`. The hashes contain validated, coerced values;
+  `user` is the authenticated API user. The handler must authorize its work
+  through the same Pundit policies as any controller request. It must not
+  prompt or stream. Return exactly one result object:
+
+  ```ruby
+  Result.table(columns: %w[id title], rows: rows)
+  Result.text("No documents found")
+  Result.json({ documents: documents })
+  ```
+
+  `GET /api/v1/app/plugin_cli_commands` returns the stable, privately ETagged
+  catalog for enabled, healthy plugins. `POST
+  /api/v1/app/plugin_cli_commands/execute` accepts `plugin`, `path`, `args`,
+  and `flags`. Handlers are resolved lazily when the command runs. These
+  endpoints use the existing app API session or bearer-token authentication;
+  errors include stable machine-readable codes and translated messages.
 - **Core specs must not enumerate plugin-provided things.** A bundled plugin is
   deletable — `bin/plugin-boundary-audit <name>` proves it by physically
   removing the plugin and running the suite in the copy — so a core spec that

@@ -98,6 +98,7 @@ module Syrus
         @credential_types = []
         @frontend = {}
         @events = {}
+        @cli_commands = []
         @effects = []
         @boot_blocks = []
         @suggestion = nil
@@ -162,6 +163,16 @@ module Syrus
           attrs = entry.to_h.transform_keys(&:to_sym)
           link(attrs.fetch(:label), attrs.fetch(:href), description: attrs[:description], kind: attrs.fetch(:kind, :surface), enabled_only: attrs.fetch(:enabled_only, true))
         end
+      end
+
+      def cli_command(path, summary:, handler:, arguments: [], flags: [])
+        @cli_commands << { path: path, summary: summary, handler: handler, arguments: arguments, flags: flags }
+      end
+
+      def cli_commands(entries = nil)
+        return @cli_commands if entries.nil?
+
+        @cli_commands.concat(Array(entries))
       end
 
       # Declares credential type names that credential-management plugins may
@@ -324,7 +335,8 @@ module Syrus
           links: (links if links.any?),
           metrics: (metric_declarations if metric_declarations.any?),
           credential_types: (@credential_types if @credential_types.any?),
-          frontend: (frontend if frontend.any?)
+          frontend: (frontend if frontend.any?),
+          cli_commands: (@cli_commands if @cli_commands.any?)
         }.merge(
           SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact
         ).merge(
