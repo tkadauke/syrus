@@ -112,7 +112,7 @@ module Steps
         step: step,
         workflow: workflow,
         plan: span_plan,
-        sequence_offset: run.command_spans.maximum(:sequence).to_i
+        idempotency_scope: "grader:#{step.id}"
       )
       runner_command = span_recorder.wrap(span_plan.shell_command)
 
