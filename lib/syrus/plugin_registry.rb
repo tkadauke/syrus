@@ -202,15 +202,6 @@ module Syrus
           # collide with its own prior registration on the first reload.
           @plugins.reject! { |manifest| manifest.name == name }
 
-          existing_command_owners = @plugins.each_with_object({}) do |manifest, owners|
-            manifest.cli_commands.each { |command| owners[command.fetch("path")] = manifest.name }
-          end
-          cli_commands.each do |command|
-            owner = existing_command_owners[command.fetch("path")]
-            registration_errors += [ "CLI command path #{command.fetch('path').inspect} is already declared by #{owner.inspect}" ] if owner
-          end
-          registration_errors = registration_errors.freeze
-
           validate_plugin_event_name_uniqueness!(events, plugin_name: name)
           validate_mcp_tool_name_uniqueness!(provides)
           validate_workspace_tab_id_uniqueness!(provides)

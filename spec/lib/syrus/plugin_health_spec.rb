@@ -1,11 +1,11 @@
 require "rails_helper"
 
 RSpec.describe Syrus::PluginHealth do
-  def manifest(name, depends_on: [], conflicts_with: [], optionally_depends_on: [])
+  def manifest(name, depends_on: [], conflicts_with: [], optionally_depends_on: [], cli_commands: [])
     Syrus::Plugin::Manifest.new(
       name: name, version: "1.0.0", provides: {}, metadata: {},
       depends_on: depends_on, conflicts_with: conflicts_with,
-      optionally_depends_on: optionally_depends_on
+      optionally_depends_on: optionally_depends_on, cli_commands: cli_commands
     )
   end
 
@@ -76,6 +76,24 @@ RSpec.describe Syrus::PluginHealth do
     subject = health(manifests, enabled: [ "memory_a" ])
 
     expect(subject.status("memory_a").state).to eq(:ok)
+  end
+
+  it "degrades every enabled plugin that declares the same CLI command path" do
+    command = { "path" => "docs list" }
+    subject = health([ manifest("documents_a", cli_commands: [ command ]),
+                       manifest("documents_b", cli_commands: [ command ]) ])
+
+    expect(subject.status("documents_a").reasons).to include(/also declared by enabled plugin documents_b/)
+    expect(subject.status("documents_b").reasons).to include(/also declared by enabled plugin documents_a/)
+  end
+
+  it "ignores CLI command path collisions with disabled plugins" do
+    command = { "path" => "docs list" }
+    manifests = [ manifest("documents_a", cli_commands: [ command ]),
+                  manifest("documents_b", cli_commands: [ command ]) ]
+
+    expect(health(manifests, enabled: [ "documents_a" ]).status("documents_a").state).to eq(:ok)
+    expect(health(manifests, enabled: [ "documents_b" ]).status("documents_b").state).to eq(:ok)
   end
 
   it "marks every member of a dependency cycle" do

@@ -102,7 +102,31 @@ module Syrus
         reasons << "conflicts with #{other}, which is enabled"
       end
 
+      cli_command_collisions_for(manifest).each do |path, owners|
+        state = :degraded if state == :ok
+        owner_label = "enabled #{'plugin'.pluralize(owners.size)} #{owners.to_sentence}"
+        reasons << "CLI command path #{path.inspect} is also declared by #{owner_label}"
+      end
+
       Status.new(name: manifest.name, state: state, reasons: reasons)
+    end
+
+    def cli_command_collisions_for(manifest)
+      Array(manifest.cli_commands).filter_map do |command|
+        path = command.fetch("path")
+        owners = enabled_cli_command_owners.fetch(path, []) - [ manifest.name ]
+        [ path, owners ] if owners.any?
+      end
+    end
+
+    def enabled_cli_command_owners
+      @enabled_cli_command_owners ||= @manifests.each_with_object(Hash.new { |hash, path| hash[path] = [] }) do |manifest, owners|
+        next unless @enabled_names.include?(manifest.name)
+
+        Array(manifest.cli_commands).each do |command|
+          owners[command.fetch("path")] << manifest.name
+        end
+      end
     end
 
     def walk_for_cycles(name, path, found)

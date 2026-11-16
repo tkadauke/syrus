@@ -117,6 +117,21 @@ RSpec.describe "Plugin CLI commands", :reset_plugin_registry, type: :request do
     expect(response.parsed_body.dig("error", "message")).to include("args and flags must be objects")
   end
 
+  it "rejects arrays of pairs for arguments and flags instead of coercing them to objects" do
+    [
+      { args: [ [ "name", "Ada" ] ], flags: {} },
+      { args: { name: "Ada" }, flags: [ [ "public", true ] ] }
+    ].each do |values|
+      post "/api/v1/app/cli/commands/execute", headers: headers, as: :json, params: {
+        plugin: "cli_fixture", path: "fixture show", **values
+      }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig("error", "code")).to eq("invalid_arguments")
+      expect(response.parsed_body.dig("error", "message")).to include("args and flags must be objects")
+    end
+  end
+
   it "preserves handler authorization as a forbidden response" do
     member_headers = { "Authorization" => "Bearer #{member.generate_api_token!}" }
     post "/api/v1/app/cli/commands/execute", headers: member_headers, params: {

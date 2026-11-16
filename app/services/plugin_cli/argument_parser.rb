@@ -61,7 +61,10 @@ module PluginCli
     private
 
     def parameter_hash(value)
-      value.respond_to?(:to_unsafe_h) ? value.to_unsafe_h : value.to_h
+      return value.to_unsafe_h if value.is_a?(ActionController::Parameters)
+      return value if value.is_a?(Hash)
+
+      invalid!("args and flags must be objects")
     end
 
     def argument_definitions = @command.fetch("arguments")

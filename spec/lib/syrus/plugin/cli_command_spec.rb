@@ -31,6 +31,25 @@ RSpec.describe Syrus::Plugin::CliCommand, :reset_plugin_registry do
     expect(Syrus::PluginRegistry.health.status("command_fixture").reasons).to include(/duplicate CLI command path/)
   end
 
+  it "derives cross-plugin path collisions from current enablement" do
+    command = { path: "docs list", summary: "List documents", handler: "Docs::ListCommand" }
+    %w[command_fixture_a command_fixture_b].each do |name|
+      Syrus::PluginRegistry.register(name: name, version: "1.0.0", cli_commands: [ command ])
+    end
+
+    expect(Syrus::PluginRegistry.health.status("command_fixture_a").state).to eq(:degraded)
+    expect(Syrus::PluginRegistry.health.status("command_fixture_b").state).to eq(:degraded)
+
+    PluginRecord.find_by!(name: "command_fixture_a").update!(enabled: false)
+
+    expect(Syrus::PluginRegistry.health.status("command_fixture_b").state).to eq(:ok)
+
+    PluginRecord.find_by!(name: "command_fixture_a").update!(enabled: true)
+
+    expect(Syrus::PluginRegistry.health.status("command_fixture_a").state).to eq(:degraded)
+    expect(Syrus::PluginRegistry.health.status("command_fixture_b").state).to eq(:degraded)
+  end
+
   it "reports a bad flag type through plugin health" do
     register([ {
       path: "docs list", summary: "List documents", handler: "Docs::ListCommand",
