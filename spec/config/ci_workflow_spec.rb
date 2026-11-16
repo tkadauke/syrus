@@ -20,7 +20,11 @@ RSpec.describe "CI workflow" do
     )
   end
 
-  it "leaves enough time for the complete React coverage suite" do
-    expect(workflow.dig("jobs", "react", "timeout-minutes")).to be >= 30
+  it "runs the complete React coverage suite within hosted-runner resources" do
+    react_job = workflow.dig("jobs", "react")
+    test_step = react_job.fetch("steps").find { |step| step["run"] == "bin/test-react" }
+
+    expect(react_job.fetch("timeout-minutes")).to be >= 45
+    expect(test_step.dig("env", "VITEST_MAX_WORKERS")).to eq(1)
   end
 end
