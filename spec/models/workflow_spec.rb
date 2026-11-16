@@ -9,6 +9,32 @@ RSpec.describe Workflow, :ci_only do
     described_class.new({ job: job, trigger_kind: "initial" }.merge(overrides))
   end
 
+  # Regression: the check selected every looped Step with ORDER BY position.
+  # With loop_id in the WHERE no index serves that order, so MySQL filesorted
+  # whole steps rows and the reconciler raised `Out of sort memory` each pass.
+  describe "#uncleared_retry_until_barrier?" do
+    it "judges each loop by its latest barrier without sorting whole step rows" do
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      workflow.steps.create!(kind: "grader_collect", position: 1, state: "failed", loop_id: "loop-a", iteration: 1)
+      workflow.steps.create!(kind: "grader_collect", position: 3, state: "succeeded", loop_id: "loop-a", iteration: 2)
+      workflow.steps.create!(kind: "grader_collect", position: 5, state: "failed", loop_id: "loop-b", iteration: 1)
+
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+      begin
+        @result = workflow.reload.uncleared_retry_until_barrier?
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(@result).to be(true)
+      expect(statements.select { |sql| sql.match?(/select\s+[`"]?steps[`"]?\.\*/i) && sql.match?(/\border by\b/i) }).to be_empty
+
+      workflow.steps.find_by!(loop_id: "loop-b").update!(state: "succeeded")
+      expect(workflow.reload.uncleared_retry_until_barrier?).to be(false)
+    end
+  end
+
   def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running")
     primary = member_jobs.first
     intent = WorkIntent.create!(

@@ -455,9 +455,10 @@ class Workflow < ApplicationRecord
   end
 
   def uncleared_retry_until_barrier?
-    steps
-      .where.not(loop_id: [ nil, "" ])
-      .reorder(position: :desc, id: :desc)
+    # Sorted in Ruby: with loop_id in the WHERE no index serves the position
+    # order, and MySQL filesorts whole steps rows (Workflows::StepPreloader).
+    Workflows::StepPreloader
+      .sorted(steps.where.not(loop_id: [ nil, "" ]), descending: true)
       .each_with_object({}) do |step, latest_by_loop|
         next unless retry_until_barrier_step?(step)
         next if step.retry_until_barrier_superseded?
