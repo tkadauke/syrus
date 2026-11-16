@@ -48,7 +48,7 @@ module Syrus
     end
 
     def external?(directory)
-      valid_external_root.present? && contained_by?(directory, valid_external_root)
+      !valid_external_root.nil? && contained_by?(directory, valid_external_root)
     end
 
     def duplicate_names
