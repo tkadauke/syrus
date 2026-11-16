@@ -7,16 +7,16 @@ RSpec.describe GraderCommandSpans::Recorder do
   let(:run) { step.runs.first || step.runs.create!(job: job, trigger_kind: workflow.trigger_kind) }
   let(:plan) { GraderCommandSpans::Plan.for("printf ready") }
 
-  it "offsets persisted sequence numbers so one run can record multiple command groups" do
+  it "allocates the first sequence through the shared Run namespace" do
     described_class.new(
       run: run,
       step: step,
       workflow: workflow,
       plan: plan,
-      sequence_offset: 3
+      idempotency_scope: "grader:#{step.id}"
     )
 
-    expect(run.reload.command_spans.sole.sequence).to eq(4)
+    expect(run.reload.command_spans.sole.sequence).to eq(1)
   end
 
   it "uses the next free sequence when another writer claimed the expected sequence" do
@@ -35,7 +35,8 @@ RSpec.describe GraderCommandSpans::Recorder do
       run: run,
       step: step,
       workflow: workflow,
-      plan: plan
+      plan: plan,
+      idempotency_scope: "grader:#{step.id}"
     )
 
     expect(run.reload.command_spans.ordered.pluck(:name, :sequence)).to eq([
@@ -44,27 +45,29 @@ RSpec.describe GraderCommandSpans::Recorder do
     ])
   end
 
-  it "keeps command-span telemetry best-effort when the database reports a unique collision" do
-    original_create = CommandSpan.method(:create!)
-    first_attempt = true
-
-    allow(CommandSpan).to receive(:create!) do |attributes|
-      if first_attempt
-        first_attempt = false
-        raise ActiveRecord::RecordNotUnique.new("duplicate command span sequence")
-      end
-
-      original_create.call(attributes)
-    end
+  it "keeps command-span telemetry best-effort when allocation exhausts" do
+    run.update!(state: "succeeded", finished_at: Time.current)
+    messages = []
+    allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
+    allow(CommandSpan).to receive(:record!).and_raise(ActiveRecord::LockWaitTimeout, "timeout")
 
     expect {
       described_class.new(
         run: run,
         step: step,
         workflow: workflow,
-        plan: plan
+        plan: plan,
+        idempotency_scope: "grader:#{step.id}"
       )
     }.not_to raise_error
-    expect(run.reload.command_spans.ordered.pluck(:sequence)).to eq([ 1 ])
+    expect(run.reload.command_spans).to be_empty
+    expect(messages).to include(hash_including(
+      "event" => "command_span_allocation_exhausted",
+      "run_id" => run.id,
+      "attempts" => CommandSpan::MAX_ALLOCATION_ATTEMPTS,
+      "error_class" => "ActiveRecord::LockWaitTimeout"
+    ))
+
+    expect(run.reload).to be_succeeded
   end
 end

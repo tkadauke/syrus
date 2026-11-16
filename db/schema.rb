@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_14_192220) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1076,7 +1076,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_192220) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.json "resource_attribution"
+    t.string "idempotency_key"
     t.index ["hostname", "started_at"], name: "index_command_spans_on_hostname_and_started_at"
+    t.index ["run_id", "idempotency_key"], name: "idx_command_spans_run_idempotency", unique: true
     t.index ["run_id", "sequence"], name: "index_command_spans_on_run_id_and_sequence", unique: true
     t.index ["spawned_process_id"], name: "index_command_spans_on_spawned_process_id"
     t.index ["workflow_id", "step_id"], name: "index_command_spans_on_workflow_id_and_step_id"
