@@ -47,5 +47,6 @@ RSpec.describe PollingPersistenceRetry do
       "exhausted" => true,
       "error_class" => "ActiveRecord::LockWaitTimeout"
     )
+    expect(payload["error_backtrace"]).to include(a_string_including(__FILE__))
   end
 end
