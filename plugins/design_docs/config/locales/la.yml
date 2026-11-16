@@ -1,4 +1,5 @@
 la:
   design_docs:
     errors:
+      suggestion_overlap: "cum propositione pendente #%{suggestion_id} congruit; eam prius accipe aut reice"
       visible_body_blank: "corpus visibile vacuum esse non potest"

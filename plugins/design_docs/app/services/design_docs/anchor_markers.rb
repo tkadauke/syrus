@@ -104,9 +104,9 @@ module DesignDocs
 
     def marker_counts(markdown)
       counts = Hash.new { |hash, marker_id| hash[marker_id] = { point: 0, range_start: 0, range_end: 0 } }
-      markdown.to_s.scan(POINT_PATTERN) { |marker_id| counts[marker_id][:point] += 1 }
-      markdown.to_s.scan(RANGE_START_PATTERN) { |marker_id| counts[marker_id][:range_start] += 1 }
-      markdown.to_s.scan(RANGE_END_PATTERN) { |marker_id| counts[marker_id][:range_end] += 1 }
+      markdown.to_s.scan(POINT_PATTERN) { |(marker_id)| counts[marker_id][:point] += 1 }
+      markdown.to_s.scan(RANGE_START_PATTERN) { |(marker_id)| counts[marker_id][:range_start] += 1 }
+      markdown.to_s.scan(RANGE_END_PATTERN) { |(marker_id)| counts[marker_id][:range_end] += 1 }
       counts
     end
 

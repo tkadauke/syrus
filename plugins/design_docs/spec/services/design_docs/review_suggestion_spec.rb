@@ -324,68 +324,81 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     expect(suggestion.anchor.reload).to have_attributes(status: "stale", stale_as_of_version: result.version)
   end
 
-  it "raises when marker normalization sees duplicate marker ids" do
-    suggestion = DesignDocs::CreateSuggestion.call(
-      design_doc: doc,
-      user: collaborator,
-      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "beta2" },
-      actor_kind: "user"
-    ).suggestion
-    marker = DesignDocs::AnchorMarkers.range_start_marker(suggestion.anchor.marker_id)
-    doc.update!(markdown: doc.markdown + marker)
+  it "accepts a valid suggestion while making colliding unrelated pending ranges stale" do
+    first = create_manual_suggestion(start_offset: 0, end_offset: 10, marker_id: "collision-one")
+    second = create_manual_suggestion(start_offset: 6, end_offset: 16, marker_id: "collision-two")
+    valid = create_manual_suggestion(start_offset: 17, end_offset: 22, marker_id: "valid-third", proposed_markdown: "omega")
 
-    expect {
-      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
-    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /Duplicate/)
+    result = described_class.accept(suggestion: valid, user: owner)
+
+    expect(result.applied).to be(true)
+    expect(valid.reload.state).to eq("accepted")
+    expect([ first.reload.state, second.reload.state ]).to eq(%w[stale stale])
+    expect(first.conflict_reason).to include("overlaps ##{second.id}")
+    expect(second.conflict_reason).to include("overlaps ##{first.id}")
+    expect(first.anchor.reload.status).to eq("stale")
+    expect(second.anchor.reload.status).to eq("stale")
+    expect(doc.reload.markdown).not_to match(/collision-one|collision-two|valid-third/)
+    expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Alpha beta gamma omega")
   end
 
-  it "raises when marker normalization sees an orphan range marker" do
-    doc.update!(markdown: doc.markdown + DesignDocs::AnchorMarkers.range_start_marker("orphan"))
+  it "repairs duplicate and orphan markers for unrelated suggestions while accepting another suggestion" do
+    broken = create_manual_suggestion(start_offset: 11, end_offset: 16, marker_id: "duplicated-unrelated")
+    valid = create_manual_suggestion(start_offset: 6, end_offset: 10, marker_id: "valid-review", proposed_markdown: "bravo")
+    doc.update!(markdown: doc.markdown + DesignDocs::AnchorMarkers.range_start_marker(broken.anchor.marker_id) + DesignDocs::AnchorMarkers.range_start_marker("orphan"))
 
-    expect {
-      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
-    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /orphan range marker/)
+    expect { described_class.accept(suggestion: valid, user: owner) }.not_to raise_error
+
+    expect(broken.reload.state).to eq("stale")
+    expect(broken.conflict_reason).to eq("Anchor marker was duplicated.")
+    expect(doc.reload.markdown).not_to match(/duplicated-unrelated|orphan|valid-review/)
   end
 
-  it "raises when active pending suggestion ranges overlap" do
-    first = DesignDocs::CreateSuggestion.call(
-      design_doc: doc,
-      user: collaborator,
-      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "beta2" },
-      actor_kind: "user"
-    ).suggestion
-    second_anchor = doc.anchors.create!(
-      marker_id: "manual-overlap",
-      anchor_key: "manual-overlap",
+  it "repairs malformed markers for unrelated suggestions while rejecting another suggestion" do
+    broken = create_manual_suggestion(start_offset: 11, end_offset: 16, marker_id: "orphaned-unrelated")
+    valid = create_manual_suggestion(start_offset: 6, end_offset: 10, marker_id: "valid-reject")
+    end_marker = DesignDocs::AnchorMarkers.range_end_marker(broken.anchor.marker_id)
+    doc.update!(markdown: doc.markdown.sub(end_marker, ""))
+
+    expect { described_class.reject(suggestion: valid, user: owner) }.not_to raise_error
+
+    expect(valid.reload.state).to eq("rejected")
+    expect(broken.reload.state).to eq("stale")
+    expect(broken.conflict_reason).to eq("Anchor marker had an orphan range marker.")
+    expect(doc.reload.markdown).not_to match(/orphaned-unrelated|valid-reject/)
+  end
+
+  def create_manual_suggestion(start_offset:, end_offset:, marker_id:, proposed_markdown: "replacement")
+    visible = DesignDocs::AnchorMarkers.strip(doc.reload.markdown)
+    selected = visible[start_offset...end_offset]
+    anchor = doc.anchors.create!(
+      marker_id: marker_id,
+      anchor_key: marker_id,
       anchor_kind: "range",
       design_doc_version: doc.current_version,
-      start_offset: 8,
-      end_offset: 16,
-      last_known_start_offset: 8,
-      last_known_end_offset: 16,
-      selected_markdown: "ta gamma",
-      selected_text: "ta gamma",
+      start_offset: start_offset,
+      end_offset: end_offset,
+      last_known_start_offset: start_offset,
+      last_known_end_offset: end_offset,
+      selected_markdown: selected,
+      selected_text: selected,
       status: "active"
     )
     inserted = DesignDocs::AnchorMarkers.insert(
       markdown: doc.markdown,
-      marker_id: second_anchor.marker_id,
-      start_offset: 8,
-      end_offset: 16,
+      marker_id: marker_id,
+      start_offset: start_offset,
+      end_offset: end_offset,
       anchor_kind: "range"
     )
     doc.update!(markdown: inserted.markdown)
     doc.suggestions.create!(
-      anchor: second_anchor,
+      anchor: anchor,
       suggested_by_kind: "user",
       suggested_by_user: collaborator,
-      original_markdown: "ta gamma",
-      suggested_markdown: "replacement",
-      proposed_markdown: "replacement"
+      original_markdown: selected,
+      suggested_markdown: proposed_markdown,
+      proposed_markdown: proposed_markdown
     )
-
-    expect {
-      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
-    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /##{first.id} and ##{DesignDocSuggestion.last.id} overlap/)
   end
 end
