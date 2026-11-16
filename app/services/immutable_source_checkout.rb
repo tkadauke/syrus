@@ -412,7 +412,7 @@ class ImmutableSourceCheckout
       step: @step,
       workflow: @workflow,
       plan: span_plan,
-      sequence_offset: current_run.command_spans.maximum(:sequence).to_i
+      idempotency_scope: "prepare:#{@step.id}:#{Digest::SHA256.hexdigest(command)}"
     ) if current_run
     runner_command = span_recorder ? span_recorder.wrap(span_plan.shell_command) : command
 
