@@ -28,6 +28,27 @@ RSpec.describe DesignDocs::CreateSuggestion do
     )
   end
 
+  it "locks the document before validating pending suggestion overlaps" do
+    events = []
+    allow(doc).to receive(:lock!).and_wrap_original do |method, *args|
+      events << :lock
+      method.call(*args)
+    end
+    allow(doc).to receive(:suggestions).and_wrap_original do |method, *args|
+      events << :suggestions
+      method.call(*args)
+    end
+
+    described_class.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "gamma" }
+    )
+
+    expect(events.first).to eq(:lock)
+    expect(events).to include(:suggestions)
+  end
+
   it "broadcasts both creation and the early-return update branches for autosaves" do
     attributes = {
       autosave: true,

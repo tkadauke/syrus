@@ -73,6 +73,8 @@ module DesignDocs
         invalid("design doc not found in this agent context: #{doc_ref}. Use DOC-<id> references from list_design_docs.")
       rescue ActiveRecord::RecordInvalid => e
         invalid(e.record.errors.full_messages.to_sentence)
+      rescue DesignDocs::CreateSuggestion::PendingOverlap => e
+        invalid(e.message)
       rescue Pundit::NotAuthorizedError
         invalid("not allowed to suggest changes to #{doc_ref}")
       rescue StandardError => e

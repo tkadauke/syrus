@@ -72,12 +72,10 @@ accepted range's replacement can delete just one side of that anchor's
 start/end marker pair, leaving the other side dangling in the Markdown.
 Before deciding whether to re-project or mark such a candidate stale,
 `DesignDocs::ReviewSuggestion` clears any leftover marker fragment for it
-first, so neither path can leave an orphan marker behind for
-`NormalizeAnchorMarkers.assert_marker_pairs!` to trip over later. As a
-defensive backstop, `POST /api/v1/app/design_docs/:id/suggestions/:id/accept`
-also rescues `DesignDocs::NormalizeAnchorMarkers::InvariantError` and
-responds `409` with `error.code == "conflict"` instead of a 500 for any
-remaining invariant failure.
+first. During either acceptance or rejection, unrelated duplicate, mixed,
+or orphan marker sets and overlapping pending ranges are repaired rather than
+blocking the review: their anchors and pending suggestions become `stale`
+with a conflict reason, and all remaining marker fragments are removed.
 
 The current-document editor and Threads rail only render anchors with
 `status: "active"` (`buildAnchorHighlights`'s highlight filter and
@@ -179,8 +177,10 @@ item. The default Terracotta theme uses terracotta for warning and green for
 success. Suggestion previews are display-only. Rich Text conversion keeps the
 original anchored text in the draft, and canonical Markdown is not changed
 until the owner accepts a suggestion. New pending suggestions cannot overlap an
-existing pending suggestion, and selections that cut through partial Markdown
-block syntax are rejected with a validation error.
+existing active pending suggestion. The API and `suggest_design_doc_change`
+name the conflicting suggestion and ask the caller to accept or reject it
+first; ranges that only share a boundary remain valid. Selections that cut
+through partial Markdown block syntax are rejected with a validation error.
 
 ### Threads rail anchor alignment
 

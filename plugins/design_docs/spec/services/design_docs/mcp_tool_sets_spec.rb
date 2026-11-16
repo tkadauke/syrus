@@ -863,6 +863,31 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
   end
 
+  it "returns an expected validation error when an agent suggestion overlaps a pending suggestion" do
+    doc = create_design_doc(markdown: "Hello world")
+    server = chat_server
+    DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 11, original_markdown: "world", proposed_markdown: "Syrus" }
+    )
+
+    response = call_tool(
+      server,
+      "suggest_design_doc_change",
+      doc_ref: doc.display_id,
+      start_offset: 6,
+      end_offset: 11,
+      base_version_number: doc.reload.current_version.version_number,
+      original_markdown: "world",
+      proposed_markdown: "product"
+    )
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response_text(response)).to match(/\AError: Suggestion overlaps pending suggestion #\d+; accept or reject it first\.\z/)
+    expect(response_text(response)).not_to include("Could not suggest design doc change")
+  end
+
   it "resolves a unique original_markdown match without caller-supplied offsets" do
     doc = create_design_doc(markdown: "Alpha beta gamma")
     server = chat_server

@@ -92,7 +92,11 @@ The Design Docs plugin gives chat agents a grouped archive tool for
 multi-document cleanup. A single request can preview up to 100 `DOC-N`
 targets, report documents that are already archived, and present one operator
 confirmation with per-document results; the existing single-document archive
-tool remains available for one-off requests.
+tool remains available for one-off requests. Pending suggestions may not have
+overlapping active ranges; the API and chat tool identify the existing
+suggestion that must be accepted or rejected first. Reviewing an unrelated
+suggestion repairs damaged marker sets and marks their suggestions stale
+instead of allowing that damage to block the review.
 
 Whiteboard's high-level arrow tool creates connectors anchored to the visible
 edges of rectangles, stickies, ellipses, and diamonds. Optional arrow labels
