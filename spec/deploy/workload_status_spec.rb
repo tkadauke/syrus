@@ -108,4 +108,12 @@ RSpec.describe Deploy::WorkloadStatus do
         .not_to be_converged
     end
   end
+
+  describe "an unrecognized workload kind" do
+    it "uses the deployment replica fields for backward compatibility" do
+      document = DeploySpec.deployment("syrus-web").merge("kind" => "CustomDeployment")
+
+      expect(status("customdeployment/syrus-web", document)).to be_converged
+    end
+  end
 end
