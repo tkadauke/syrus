@@ -21,12 +21,7 @@ function contributionId(pluginName: string, key: string) {
   return `${pluginName}/${key}`
 }
 
-export function registerPluginContribution<T>(
-  kind: PluginContributionKind,
-  pluginName: string,
-  key: string,
-  value: T | (() => Promise<T>)
-) {
+export function registerPluginContribution<T>(kind: PluginContributionKind, pluginName: string, key: string, value: T | (() => Promise<T>)) {
   let contributionsForKind = contributions.get(kind)
   if (!contributionsForKind) {
     contributionsForKind = new Map()

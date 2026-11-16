@@ -6,10 +6,7 @@ type PluginModule = {
 
 type PluginModuleLoader = () => Promise<PluginModule>
 
-const routeModules = import.meta.glob<PluginModule>([
-  "../../plugins/*/app/frontend/routes/*.tsx",
-  "!../../plugins/*/app/frontend/routes/*.test.tsx"
-])
+const routeModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/routes/*.tsx", "!../../plugins/*/app/frontend/routes/*.test.tsx"])
 const workspaceTabModules = import.meta.glob<PluginModule>([
   "../../plugins/*/app/frontend/workspaceTabs/*.tsx",
   "!../../plugins/*/app/frontend/workspaceTabs/*.test.tsx"
