@@ -62,6 +62,7 @@ class GraderOutcome
       return result(PASSED, "grader_passed", evidence) if state.to_s == "succeeded"
       return result(CANCELLED, "grader_cancelled", evidence) if state.to_s == "cancelled" || cancelled?(details)
       return result(INFRASTRUCTURE_FAILED, "worker_died", evidence) if INFRASTRUCTURE_RUN_OUTCOMES.include?(run_outcome.to_s)
+      return result(INCONCLUSIVE, "silent_timed_out", evidence) if silent_timed_out?(details)
       return result(INCONCLUSIVE, "timed_out", evidence) if timed_out?(details)
 
       output = details["output"].to_s
@@ -90,7 +91,13 @@ class GraderOutcome
     def result(outcome, reason, evidence) = Result.new(outcome, reason, evidence)
 
     def timed_out?(details)
-      details["timed_out"] == true || details["timed_out"].to_s == "true" || GraderFailureSignal.timeout_like_entry?(details)
+      return true if details["timed_out"] == true || details["timed_out"].to_s == "true"
+
+      !details.key?("timed_out") && details["exit_code"].to_i == GraderFailureSignal::TIMEOUT_EXIT_CODE
+    end
+
+    def silent_timed_out?(details)
+      details["silent_timed_out"] == true || details["silent_timed_out"].to_s == "true"
     end
 
     def cancelled?(details)
@@ -111,6 +118,10 @@ class GraderOutcome
         "worker" => details["worker"] || details["worker_id"],
         "exit_code" => details["exit_code"],
         "timed_out" => details["timed_out"],
+        "silent_timed_out" => details["silent_timed_out"],
+        "configured_timeout_s" => details["configured_timeout_s"],
+        "duration_s" => details["duration_s"],
+        "process_outcome" => details["process_outcome"],
         "cancelled" => details["cancelled"],
         "run_outcome" => run_outcome,
         "log_path" => details["log_path"],

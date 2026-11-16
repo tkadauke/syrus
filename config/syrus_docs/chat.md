@@ -238,6 +238,16 @@ searches across all repositories visible to the current chat user by Job title
 and stored body text, accepts an optional exact `state` filter, defaults to 20
 results, and caps `limit` at 100 to match sibling list tools.
 
+Job inspection stays progressive for Jobs with long histories. `read_job`,
+`list_job_workflows`, and `explain_stuck_job` return bounded Workflow and Run
+summaries; use `read_run_transcript` for paginated transcript chunks. Transcript
+metadata reports both cumulative `agent_diff_bytes` and per-Step
+`step_agent_diff_bytes`, plus the Run's base and head SHAs. `get_job_diff`
+selects the newest Run with a stored diff and prefers its per-Step diff. Pass
+`run_id` to inspect a particular iteration and set `artifact` to
+`step_agent_diff` or `agent_diff` when the caller needs that exact artifact;
+diff text remains paginated and redacted.
+
 Mention gating: `ChatSession#should_trigger_agent?` is computed live
 from `chat_participants.count`, not a stored setting — chats with 0-1 human
 participants trigger the agent on every message; chats with 2+ require a
@@ -255,13 +265,11 @@ Coworkers that are neither the chat's implicit coworker nor on its roster are
 not resolved, rendered, notified, or run. All turns in one chat share the same
 serialized chat-turn concurrency lane.
 
-Delete and clear-history mutate the shared conversation and are therefore
-owner-only, as is the session-level sidebar pin. Hide/unhide is instead a
-per-participant preference stored on `ChatParticipant#hidden_at`: hiding a
-group chat removes it only from that participant's sidebar, search, slug
-resolution, and chat MCP listings, without changing what other participants
-see. The Hidden chats settings list and restore action use the same
-participant-local state.
+Archive and clear-history mutate the shared conversation and are therefore
+owner-only, as is the session-level sidebar pin. Archiving soft-deletes the
+chat, removes its active workspace, and stops in-flight work. Archived chats
+are omitted from the sidebar by default; enable **Show archived chats** in the
+recent-chat sidebar settings to include labeled, non-navigable archive rows.
 
 The recent-chat sidebar also summarizes Jobs created from confirmed proposals
 in a chat and Jobs for which that chat is the earliest active discussion

@@ -15,7 +15,19 @@ class RunDiff < ApplicationRecord
     column = column.to_s
     raise ArgumentError, "unknown diff column #{column}" unless %w[agent_diff step_agent_diff].include?(column)
 
-    "(SELECT LENGTH(run_diffs.#{column}) FROM run_diffs WHERE run_diffs.run_id = #{runs_table}.id)"
+    "(SELECT #{direct_byte_length_sql(column)} FROM run_diffs WHERE run_diffs.run_id = #{runs_table}.id)"
+  end
+
+  def self.direct_byte_length_sql(column)
+    column = column.to_s
+    raise ArgumentError, "unknown diff column #{column}" unless %w[agent_diff step_agent_diff].include?(column)
+
+    qualified = "run_diffs.#{column}"
+    if connection.adapter_name.match?(/sqlite/i)
+      "LENGTH(CAST(#{qualified} AS BLOB))"
+    else
+      "LENGTH(#{qualified})"
+    end
   end
 
   def self.step_diff_matches_diff_sql(runs_table: "runs")

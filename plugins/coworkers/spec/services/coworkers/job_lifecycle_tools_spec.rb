@@ -13,12 +13,12 @@ RSpec.describe "coworker Job lifecycle tools" do
 
   def payload(response) = JSON.parse(response.content.first.fetch(:text))
 
-  it "registers only cancellation from the shared Job lifecycle capability for coworkers" do
+  it "registers only cancellation and feedback from the shared Job lifecycle capability for coworkers" do
     coworker_tools = McpToolRegistry.entries(surface: :coworker).select do |entry|
       entry.descriptor.capability == Permissions::JobLifecycle::JOBS
     end.map(&:tool_name)
 
-    expect(coworker_tools).to eq([ "cancel_job" ])
+    expect(coworker_tools).to contain_exactly("cancel_job", "submit_chat_feedback")
   end
 
   it "uses the shared lifecycle descriptor and mandatory cancellation pending action" do

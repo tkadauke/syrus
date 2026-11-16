@@ -272,4 +272,39 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     expect(payload[:workflows_index].map { |workflow| workflow[:id] }).to eq([ newer.id, older.id ])
     expect(payload[:workflows_index].first).to include(summary: "Addressed feedback.", started_at: nil)
   end
+
+  it "keeps a 200-run workflow index bounded and avoids whole-row association sorts" do
+    job = build_large_inspection_job(user: user, repository: repository)
+    workflow = job.latest_workflow
+    expected_step_count = workflow.steps.count
+    expected_run_count = Run.joins(:step).where(steps: { workflow_id: workflow.id }).count
+
+    queries = capture_sql do
+      expect(wide_row_sort_statements { @large_response = call_tool(job_id: job.id) }).to be_empty
+    end
+    payload = response_payload(@large_response)
+
+    expect(payload[:workflows_index].first).to include(step_count: expected_step_count, run_count: expected_run_count)
+    expect(queries.size).to be < 40
+  end
+
+  it "returns the underlying database error when Job inspection SQL fails" do
+    job = Factories.job(repository: repository)
+    allow(described_class).to receive(:workflow_index_for).and_raise(
+      ActiveRecord::StatementInvalid, "Out of sort memory, consider increasing server sort buffer size"
+    )
+
+    response = call_tool(job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response_payload(response)).to eq(
+      error: {
+        code: "database_error", message: "Job inspection could not query the database.", retryable: true,
+        diagnostics: {
+          exception: "ActiveRecord::StatementInvalid",
+          database_message: "Out of sort memory, consider increasing server sort buffer size"
+        }
+      }
+    )
+  end
 end

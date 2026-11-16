@@ -514,7 +514,7 @@ describe("App settings routes", () => {
     expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
     expect(within(settingsNav).getByRole("link", { name: "Themes" })).toHaveAttribute("href", "/app-shell/settings/themes")
-    expect(within(settingsNav).getByRole("link", { name: "Hidden chats" })).toHaveAttribute("href", "/app-shell/settings/hidden_chats")
+    expect(within(settingsNav).queryByRole("link", { name: "Hidden chats" })).not.toBeInTheDocument()
     expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
     expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
     expect(screen.queryByRole("link", { name: "Invitations" })).not.toBeInTheDocument()

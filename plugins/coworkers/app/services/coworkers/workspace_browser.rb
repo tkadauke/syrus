@@ -19,13 +19,22 @@ class Coworkers::WorkspaceBrowser
       partial: partial,
       selected_file: selected,
       commits: commits(home),
-      conflicts: active_conflicts(home)
+      conflicts: active_conflicts(home),
+      branch_counts: branch_counts
     }
   end
 
   private
 
   def home_branch = "coworkers/#{@coworker.handle}"
+
+  def branch_counts
+    remote = Coworkers::RemoteWorkspace.for_coworker(@coworker)
+    remote.branch_counts(coworker: @coworker, guard: Coworkers::PushGuard.new(coworker: @coworker))
+  rescue StandardError => error
+    Rails.logger.warn("[Coworkers::WorkspaceBrowser] branch counts unavailable: #{GitRunner.redact(error.message)}")
+    { home: nil, chat: nil, run: nil }
+  end
 
   def workspace_entries(revision)
     entries = @reader.tree(revision).sort_by(&:path)

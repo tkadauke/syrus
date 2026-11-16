@@ -528,6 +528,21 @@ module WorkEngine
         end
       end
 
+      class QueuedRunBeforeRequiredReviewBarrier < Base
+        def plan
+          automatic_plan(
+            "cancel_unsafe_review_barrier_run",
+            primary_run,
+            "The Run has not started and its required immutable-HEAD review barrier is unresolved.",
+            execution_steps: [ "Persist non-cascading Run cancellation", "Workflow#set_artifact!" ],
+            preconditions: {
+              run_state: "queued",
+              required_review_head_unresolved: true
+            }
+          )
+        end
+      end
+
       class CancelledRetryUntilBarrierBlockingTail < Base
         def plan
           automatic_plan(

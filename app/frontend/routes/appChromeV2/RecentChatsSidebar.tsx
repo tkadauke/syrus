@@ -14,7 +14,6 @@ import {
   fetchChatGroupsPage,
   fetchChats,
   fetchMoreChatsForGroup,
-  hideChat,
   markChatRead,
   markChatUnread,
   renameChat,
@@ -28,7 +27,6 @@ import {
   type ChatSidebarPerGroup,
   type ChatSidebarSettings,
   type ChatSidebarSortBy,
-  type ChatSidebarStatus,
   type ChatType,
   type ChatsIndexPayload
 } from "../../api/chats"
@@ -44,17 +42,12 @@ import type { ProviderAvailability } from "../../api/providerAvailability"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { recentChatsQueryKey, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
+import { recentChatsQueryKey, refreshRecentChats, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { useChatBookmarks } from "../chat/bookmarks"
 import { EpicProgressSegments } from "../dashboard/components"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
 const DEFAULT_SIDEBAR_SETTINGS = DEFAULT_CHAT_SIDEBAR_SETTINGS
-const STATUS_OPTIONS: Array<{ value: ChatSidebarStatus; label: string }> = [
-  { value: "active", label: "recent_chats_options.status.active" },
-  { value: "hidden", label: "recent_chats_options.status.hidden" },
-  { value: "all", label: "recent_chats_options.status.all" }
-]
 const GROUP_BY_OPTIONS: Array<{ value: ChatSidebarGroupBy; label: string }> = [
   { value: "date", label: "recent_chats_options.group_by.date" },
   { value: "repository", label: "recent_chats_options.group_by.repository" },
@@ -133,7 +126,6 @@ function normalizeSidebarSettings(
   const agentAvailabilityKnown = availableAgents !== undefined
   const chatTypeFeatureVisible = chatTypeAvailabilityKnown ? availableTypes.length > 1 : true
   const agentFeatureVisible = agentAvailabilityKnown ? agents.length > 1 : true
-  const status = STATUS_OPTIONS.some((option) => option.value === settings.status) ? (settings.status as ChatSidebarStatus) : DEFAULT_SIDEBAR_SETTINGS.status
   const groupByCandidate = GROUP_BY_OPTIONS.some((option) => option.value === settings.group_by)
     ? (settings.group_by as ChatSidebarGroupBy)
     : DEFAULT_SIDEBAR_SETTINGS.group_by
@@ -154,7 +146,7 @@ function normalizeSidebarSettings(
     : DEFAULT_SIDEBAR_SETTINGS.per_group
 
   return {
-    status,
+    show_archived: settings.show_archived === true,
     group_by: groupBy,
     chat_types: chatTypes,
     sort_by: sortBy,
@@ -203,7 +195,6 @@ export function RecentChatsSidebar({
   const [failedGroupOffset, setFailedGroupOffset] = useState<number | null>(null)
   const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
-  const [hidingChatIds, setHidingChatIds] = useState<Set<number>>(() => new Set())
   const [deletingChatIds, setDeletingChatIds] = useState<Set<number>>(() => new Set())
   const [sidebarSettings, setSidebarSettings] = useState<ChatSidebarSettings>(readSidebarSettings)
   const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
@@ -358,43 +349,24 @@ export function RecentChatsSidebar({
       })
   }
 
-  function hideRecentChat(chat: ChatNavRecord) {
-    if (hidingChatIds.has(chat.id)) return
-
-    setHidingChatIds((current) => new Set(current).add(chat.id))
-    void hideChat(chat.id)
-      .then(({ chat: updatedChat }) => {
-        removeRecentChatFromCache(queryClient, updatedChat.id)
-        removeChatFromLoadedSections(updatedChat.id)
-        void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
-        if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
-      })
-      .catch(() => {
-        onNotice(t("chat:unable_to_hide"))
-      })
-      .finally(() => {
-        setHidingChatIds((current) => {
-          const next = new Set(current)
-          next.delete(chat.id)
-          return next
-        })
-      })
-  }
-
   function deleteRecentChat(chat: ChatNavRecord) {
     if (deletingChatIds.has(chat.id)) return
 
     setDeletingChatIds((current) => new Set(current).add(chat.id))
     void deleteChat(chat.id)
       .then(() => {
-        removeChatFromRecentLists(chat.id)
+        if (sidebarSettings.show_archived) {
+          setLoadedSections({})
+          refreshRecentChats(queryClient)
+        } else {
+          removeChatFromRecentLists(chat.id)
+        }
         queryClient.removeQueries({ queryKey: ["chats", String(chat.id)] })
-        void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
-        onNotice(t("chat:chat_deleted"))
+        onNotice(t("chat:chat_archived"))
         if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
       })
       .catch((error) => {
-        onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_delete"))
+        onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_archive"))
       })
       .finally(() => {
         setDeletingChatIds((current) => {
@@ -560,7 +532,20 @@ export function RecentChatsSidebar({
                       }}
                       onDragOver={(e) => e.preventDefault()}
                     >
-                      <Link aria-label={title} className={recentChatLinkClass(active)} onClick={onCloseDrawer} title={title} to={withRoutePrefix(chat.chat_path, prefix)}>
+                      <Link
+                        aria-disabled={Boolean(chat.archived_at)}
+                        aria-label={title}
+                        className={`${recentChatLinkClass(active)} ${chat.archived_at ? "cursor-default opacity-60" : ""}`}
+                        onClick={(event) => {
+                          if (chat.archived_at) {
+                            event.preventDefault()
+                            return
+                          }
+                          onCloseDrawer()
+                        }}
+                        title={title}
+                        to={withRoutePrefix(chat.chat_path, prefix)}
+                      >
                         {unread ? (
                           <span
                             aria-label={t("chat:unread_indicator")}
@@ -586,10 +571,13 @@ export function RecentChatsSidebar({
                         ) : null}
                         {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
                         <ProviderAvailabilityWarning
-                          availability={chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)}
+                          availability={
+                            chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)
+                          }
                           className="mt-0.5"
                         />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>{title}</span>
+                        {chat.archived_at ? <span className="shrink-0 text-xs text-text-muted">{t("chat:archived")}</span> : null}
                         <span
                           className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                           data-testid="recent-chat-marker-slot"
@@ -625,23 +613,23 @@ export function RecentChatsSidebar({
                           </IndicatorPopover>
                         </span>
                       </Link>
-                      <RecentChatActionsMenu
-                        chat={chat}
-                        deleteDisabled={deletingChatIds.has(chat.id)}
-                        disabled={hidingChatIds.has(chat.id)}
-                        onDelete={() => deleteRecentChat(chat)}
-                        onHide={() => hideRecentChat(chat)}
-                        onNotice={onNotice}
-                        onTogglePin={() => togglePin(chat)}
-                        open={openActionChatId === chat.id}
-                        search={location.search}
-                        setOpen={(nextOpen) => {
-                          setOpenActionChatId((current) => {
-                            const open = typeof nextOpen === "function" ? nextOpen(current === chat.id) : nextOpen
-                            return open ? chat.id : current === chat.id ? null : current
-                          })
-                        }}
-                      />
+                      {chat.archived_at ? null : (
+                        <RecentChatActionsMenu
+                          chat={chat}
+                          deleteDisabled={deletingChatIds.has(chat.id)}
+                          onDelete={() => deleteRecentChat(chat)}
+                          onNotice={onNotice}
+                          onTogglePin={() => togglePin(chat)}
+                          open={openActionChatId === chat.id}
+                          search={location.search}
+                          setOpen={(nextOpen) => {
+                            setOpenActionChatId((current) => {
+                              const open = typeof nextOpen === "function" ? nextOpen(current === chat.id) : nextOpen
+                              return open ? chat.id : current === chat.id ? null : current
+                            })
+                          }}
+                        />
+                      )}
                     </div>
                   )
                 })}
@@ -699,7 +687,7 @@ function RecentChatsSettingsMenu({
 }) {
   const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
-  const [submenu, setSubmenu] = useState<"root" | "status" | "chat_type" | "group_by" | "sort_by" | "per_group">("root")
+  const [submenu, setSubmenu] = useState<"root" | "chat_type" | "group_by" | "sort_by" | "per_group">("root")
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { floatingStyles, refs: floatingRefs } = useFloating({
     middleware: [offset(8), flip({ fallbackPlacements: ["right-end", "left-start", "left-end"] }), shift({ padding: 8 })],
@@ -711,7 +699,6 @@ function RecentChatsSettingsMenu({
     setSubmenu("root")
   }, [floatingRefs.floating])
   const referenceRef = useMergeRefs([menuRef, floatingRefs.setReference])
-  const statusLabel = optionLabel(STATUS_OPTIONS, settings.status, t)
   const visibleGroupByOptions = useMemo(
     () =>
       GROUP_BY_OPTIONS.filter((option) => {
@@ -728,7 +715,6 @@ function RecentChatsSettingsMenu({
       ? t("recent_chats_options.all")
       : settings.chat_types.map((value) => optionLabel(CHAT_TYPE_OPTIONS, value, t)).join(", ")
   const sortByLabel = optionLabel(SORT_BY_OPTIONS, settings.sort_by, t)
-  const localizedStatusOptions = localizeOptions(STATUS_OPTIONS, t)
   const localizedGroupByOptions = localizeOptions(visibleGroupByOptions, t)
   const localizedChatTypeOptions = localizeOptions(visibleChatTypeOptions, t)
   const localizedSortByOptions = localizeOptions(SORT_BY_OPTIONS, t)
@@ -784,7 +770,18 @@ function RecentChatsSettingsMenu({
             <div className={isDesktop ? undefined : "mx-auto w-full max-w-md"}>
               {submenu === "root" ? (
                 <>
-                  <SettingsParentRow current={statusLabel} label={t("recent_chats_options.status_label")} onClick={() => setSubmenu("status")} />
+                  <button
+                    aria-checked={settings.show_archived}
+                    className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
+                    onClick={() => apply({ show_archived: !settings.show_archived })}
+                    role="switch"
+                    type="button"
+                  >
+                    <span>{t("recent_chats_show_archived")}</span>
+                    <span className={`h-5 w-9 rounded-full p-0.5 ${settings.show_archived ? "bg-brand" : "bg-border"}`}>
+                      <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.show_archived ? "translate-x-4" : ""}`} />
+                    </span>
+                  </button>
                   {chatTypeFeatureVisible ? (
                     <SettingsParentRow current={chatTypeLabel} label={t("recent_chats_options.chat_type_label")} onClick={() => setSubmenu("chat_type")} />
                   ) : null}
@@ -822,15 +819,6 @@ function RecentChatsSettingsMenu({
                     onClick={() => setSubmenu("per_group")}
                   />
                 </>
-              ) : null}
-              {submenu === "status" ? (
-                <SettingsOptionList
-                  label={t("recent_chats_options.status_label")}
-                  onBack={() => setSubmenu("root")}
-                  onSelect={(value) => apply({ status: value as ChatSidebarStatus })}
-                  options={localizedStatusOptions}
-                  value={settings.status}
-                />
               ) : null}
               {submenu === "group_by" ? (
                 <SettingsOptionList
@@ -1396,9 +1384,7 @@ function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingMod
 function RecentChatActionsMenu({
   chat,
   deleteDisabled = false,
-  disabled,
   onDelete,
-  onHide,
   onNotice,
   onTogglePin,
   open,
@@ -1407,9 +1393,7 @@ function RecentChatActionsMenu({
 }: {
   chat: ChatNavRecord
   deleteDisabled?: boolean
-  disabled: boolean
   onDelete: () => void
-  onHide: () => void
   onNotice: (message: string | null) => void
   onTogglePin: () => void
   open: boolean
@@ -1582,18 +1566,6 @@ function RecentChatActionsMenu({
               <CopyableSlug slug={`CHAT-${chat.id}`} />
             </div>
             <div className={SIDEBAR_DIVIDER_CLASS} />
-            <button
-              className={SIDEBAR_DANGER_BUTTON_CLASS}
-              disabled={disabled}
-              onClick={() => {
-                setOpen(false)
-                onHide()
-              }}
-              type="button"
-            >
-              <HideIcon />
-              <span>{t("chat:hide")}</span>
-            </button>
             {currentUserIsOwner ? (
               <button
                 className={SIDEBAR_DANGER_BUTTON_CLASS}
@@ -1604,8 +1576,8 @@ function RecentChatActionsMenu({
                 }}
                 type="button"
               >
-                <CloseIcon className="h-4 w-4 shrink-0" />
-                <span>{t("chat:delete")}</span>
+                <HideIcon />
+                <span>{t("chat:archive")}</span>
               </button>
             ) : null}
           </div>
@@ -1664,12 +1636,12 @@ function RecentChatActionsMenu({
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
               <Surface aria-modal="true" className="w-full max-w-sm shadow-xl" role="dialog">
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-base font-semibold text-text-primary">{t("chat:delete_chat_title")}</h2>
+                  <h2 className="text-base font-semibold text-text-primary">{t("chat:archive_chat_title")}</h2>
                   <button aria-label={t("chat:cancel")} className={SIDEBAR_DIALOG_CLOSE_CLASS} onClick={() => setDeleteConfirmOpen(false)} type="button">
                     <CloseIcon className="h-4 w-4" />
                   </button>
                 </div>
-                <p className="mt-3 text-sm text-text-secondary">{t("chat:delete_confirm_body")}</p>
+                <p className="mt-3 text-sm text-text-secondary">{t("chat:archive_confirm_body")}</p>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button onClick={() => setDeleteConfirmOpen(false)} variant="secondary">
                     {t("chat:cancel")}
@@ -1682,7 +1654,7 @@ function RecentChatActionsMenu({
                     }}
                     variant="danger"
                   >
-                    {t("chat:delete_confirm")}
+                    {t("chat:archive_confirm")}
                   </Button>
                 </div>
               </Surface>

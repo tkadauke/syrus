@@ -7,7 +7,7 @@ module Mcp::Tools
 
     tool_name "read_run_transcript"
 
-    description "Read paginated transcript chunks for a Run visible to this chat session's user. The agent diff is not included (only its size as agent_diff_bytes); read it with get_job_diff."
+    description "Read paginated transcript chunks for a Run visible to this chat session's user. Diff text is not included; read it with get_job_diff."
 
     input_schema(
       properties: {
@@ -28,13 +28,20 @@ module Mcp::Tools
         per = normalize_per(per)
         logs = run.job_logs.order(:sequence)
         total_chunks = logs.count
+        diff_sizes = RunDiff.where(run_id: run.id).pick(
+          Arel.sql("COALESCE(#{RunDiff.direct_byte_length_sql(:agent_diff)}, 0)"),
+          Arel.sql("COALESCE(#{RunDiff.direct_byte_length_sql(:step_agent_diff)}, 0)")
+        ) || [ 0, 0 ]
 
         Mcp::Tools.success(
           run_id: run.id,
           run_state: run.state,
           agent_outcome: run.agent_outcome,
           agent_summary: run.agent_summary,
-          agent_diff_bytes: run.agent_diff&.bytesize || 0,
+          agent_diff_bytes: diff_sizes.first,
+          step_agent_diff_bytes: diff_sizes.second,
+          base_sha: run.base_sha,
+          head_sha: run.head_sha,
           total_chunks: total_chunks,
           page: page,
           per: per,

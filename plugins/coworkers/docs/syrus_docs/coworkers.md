@@ -242,6 +242,15 @@ burst cannot bypass either limit. The spawned chat inherits the coworker's
 identity, grants, tool surface, model configuration, and per-chat workspace
 branch through its normal `Coworkers::Chat` side-chat link.
 
+Background-run branches are recovery refs only while their work is unmerged.
+They are removed after a successful home-branch merge; a bounded daily sweep
+removes older merged refs left by transient failures. Conflict and recovery
+refs remain until their conflict is resolved. The Workspace tab reports home,
+chat, and run branch counts so unexpected growth is visible.
+Chat branches remain while their chat exists and are compare-and-deleted when
+the chat or coworker is deleted. A branch with unsaved work or an unresolved
+conflict is retained as the durable recovery copy.
+
 `spawn_syrus_chat(repository_id, prompt, title?)` is the distinct path for
 engineering and planning work. The `syrus.spawn_chat` grant is off until the
 owner enables it, defaults to confirmation, and is scoped to selected
@@ -300,14 +309,19 @@ explicit planned execution capabilities, and a coworker cannot target a
 repository its owner cannot write. A missing grant keeps the tools absent;
 an invalid target is returned as an authorization or validation error.
 
-The shared `syrus.jobs` capability exposes only `cancel_job` to coworker
-chats; approval, merge, retry, reopen and other lifecycle operations stay
-unavailable. Cancellation keeps its canonical policy and always creates a
-pending action for the owner to confirm. A cancellation reason is required,
-and duplicate cancellations may link a canonical replacement Job in the same
-repository. The state history records the coworker, chat, prior and resulting
-states, reason, time, and replacement. Jobs with landing or deployment
-evidence are refused.
+The shared `syrus.jobs` capability exposes only `cancel_job` and
+`submit_chat_feedback` to coworker chats; approval, merge, retry, reopen, and
+other lifecycle operations stay unavailable. Canonical policy and Job-state
+checks still apply. Cancellation requires a reason, and duplicate cancellations may link a
+canonical replacement Job in the same repository. The state history records
+the coworker, chat, prior and resulting states, reason, time, and replacement.
+Jobs with landing or deployment evidence are refused.
+
+Feedback submission uses the same permission policy, Job-state checks, and
+operator confirmation as a normal chat submission. Confirmed feedback records
+the coworker, originating chat, and provider separately in Job history before
+starting the normal feedback workflow. Workflow review verdict tools remain
+limited to their corresponding review steps.
 
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner

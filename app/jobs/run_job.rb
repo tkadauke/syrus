@@ -444,6 +444,18 @@ class RunJob < ApplicationJob
       return
     end
 
+    unless Workflows::ImmutableReviewHeadBarrier.satisfied_for?(@step)
+      log("required review barrier unresolved for current implementation HEAD; cancelling unsafe queued Run", kind: "system")
+      Workflows::ImmutableReviewHeadBarrier.cancel_run_without_cascade!(@run)
+      @workflow.set_artifact!("review_head_barrier_block", {
+        "code" => "required_review_head_unresolved",
+        "step_id" => @step.id,
+        "run_id" => @run.id,
+        "recorded_at" => Time.current.iso8601
+      })
+      return
+    end
+
     authorization_continuation = pending_authorization_continuation?
     return if !authorization_continuation && handle_running_reentry
     return if defer_until_step_dependencies_settle

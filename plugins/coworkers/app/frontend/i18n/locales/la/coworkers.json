@@ -39,6 +39,7 @@
     "run_source": "Cursus {{id}}",
     "unattributed_source": "Origo non praesto",
     "conflict": "Ramus colloquii nondum coniunctus {{branch}}:",
+    "branch_counts": "Rami: {{home}} domus · {{chat}} colloquium · {{run}} cursus",
     "test_push": "Accessum mittendi proba",
     "push_ok": "Accessus mittendi probatus",
     "unsaved_title": "Mutationes spatii nondum servatae",

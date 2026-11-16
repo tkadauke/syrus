@@ -1037,6 +1037,11 @@ paginated chat transcripts, inspect Solid Queue health, update or remove the
 chat's pinned context for future turns, and create proposal cards for the
 operator to confirm. Chat search also remains available to scheduled coworkers
 running on compute workers without the home node's local full-text index.
+For long Job histories, inspection tools return bounded summaries and paginate
+Run transcripts separately. Diff inspection selects the newest Run that has a
+stored diff, prefers the per-Step change, and can target an exact Run and its
+per-Step or cumulative branch artifact when an operator needs a specific
+repair iteration.
 Removing pinned context shows the previous note as a
 linked Markdown preview, with a full-content view for longer notes and clear
 pending or error states. New chats use a short interpreted title from the
@@ -1055,23 +1060,21 @@ counts. Healthy and PR-ready Epic groups stay collapsed by default, while
 groups with failed or attention-marked Jobs open to show the affected Jobs.
 Large standalone Job lists scroll inside the popover instead of growing with
 the page.
-The sidebar settings also offer an unread-only toggle. The currently open chat
-stays in the filtered list after being marked read, then disappears after you
-navigate away.
+The sidebar settings also offer unread-only and show-archived toggles. The
+currently open chat stays in the unread-filtered list after being marked read,
+then disappears after you navigate away.
 Chat owners can pin or unpin a chat from the sidebar actions menu or through
 the chat agent, and rename it through the same menu (or the `/rename` slash
-command). Any participant can hide a chat from their sidebar and chat search,
-then restore it from the Hidden chats section in user settings. Hiding is personal:
-in a group chat it changes only the current participant's sidebar, search, and
-agent chat listings. The sidebar actions menu also lets the owner delete a chat
-after a confirmation dialog, and only the owner may clear its shared history:
-deletion marks the
-conversation as deleted (recording who deleted it and when) and removes it
-from the sidebar, chat search, and the chat agent's own tools, while leaving
+command). The sidebar actions menu also lets the owner archive a chat after a
+confirmation dialog, and only the owner may clear its shared history.
+Archiving soft-deletes the conversation (recording who archived it and when)
+and removes it from chat search and the chat agent's own tools. Archived chats
+can be included as labeled, non-navigable rows with the sidebar's **Show
+archived chats** setting. Archiving leaves
 the underlying conversation, messages, attachments, proposals, and whiteboard
 in place for audit. The chat's search-index entries and its workspace on disk
 are still cleaned up. If an agent turn or workspace preparation is running,
-deletion requests that it stop and waits for termination before cleaning up
+archiving requests that it stop and waits for termination before cleaning up
 local artifacts. Major operational
 events, including Job notifications, Epic completion, main-branch health changes,
 and new Agent Insight suggestions, are first stored as scoped chat event records.
@@ -2299,6 +2302,14 @@ Large code searches and file listings report incomplete coverage, its cause,
 and the number of paths covered instead of presenting an empty partial result
 as a definitive no-match. The agent and operator-facing tool card both advise
 narrowing the path or retrying.
+
+Coworkers can submit targeted feedback to an implemented Job they can see by
+using the same `submit_chat_feedback` operation as an ordinary chat agent. The
+shared Job permission policy and operator confirmation still apply. After
+confirmation, Job history identifies the coworker and originating chat while
+keeping the execution provider separate, then links the resulting feedback
+workflow. Review-step verdict tools remain unavailable outside their matching
+review context.
 
 When provider routing selects a named coworker for repository review, Syrus
 freezes a protected context containing only that identity, applicable

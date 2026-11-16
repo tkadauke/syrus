@@ -1,0 +1,175 @@
+module Workflows
+  # Required review gates are evidence about one exact implementation commit.
+  # Dependency settlement alone is insufficient: a fanout control Step may be
+  # terminal while its members are still running, and an older review may be
+  # terminal after a repair changed HEAD.
+  class ImmutableReviewHeadBarrier
+    MUTATION_KINDS = %w[implement respond].freeze
+
+    def self.reviewed_head_sha(workflow)
+      workflow.steps.where(kind: MUTATION_KINDS, state: "succeeded").order(position: :desc, id: :desc)
+        .includes(:runs).detect { |step| step.runs.last&.head_sha.present? }
+        &.runs&.last&.head_sha
+    end
+
+    def self.stamp!(step, workflow)
+      gate_kind = effective_review_kind(step)
+      return unless gate_kind
+
+      sha = reviewed_head_sha(workflow)
+      return if sha.blank?
+
+      step.update!(details: step.details.to_h.merge("reviewed_head_sha" => sha))
+      sha
+    end
+
+    def self.satisfied_for?(step)
+      workflow = step.workflow
+      snapshots = required_snapshots(workflow)
+      return true if snapshots.empty? || review_work_step?(step)
+
+      sha = reviewed_head_sha(workflow)
+      return true if sha.blank? # Legacy/imported workflows have no immutable identity to compare.
+
+      snapshots.all? do |snapshot|
+        evidence = terminal_evidence(workflow, snapshot.fetch("step_kind"), sha)
+        evidence&.succeeded? && approved_evidence?(workflow, evidence, snapshot)
+      end
+    end
+
+    def self.invalidate_stale_evidence!(workflow)
+      sha = reviewed_head_sha(workflow)
+      return if sha.blank?
+
+      Step.where(workflow_id: workflow.id).find_each do |candidate|
+        next unless effective_review_kind(candidate)
+        reviewed_sha = candidate.details.to_h["reviewed_head_sha"]
+        next if reviewed_sha.blank? || reviewed_sha == sha
+
+        details = candidate.details.to_h.merge(
+          "review_evidence_superseded" => true,
+          "superseded_by_head_sha" => sha
+        )
+        Step.suppress_cancel_cascade do
+          candidate.cancel if candidate.may_cancel?
+          candidate.details = details
+          candidate.cancellation_reason ||= "implementation_head_changed"
+          candidate.save!
+          candidate.runs.active.each { |run| cancel_run_without_cascade!(run) }
+        end
+      end
+    end
+
+    def self.cancel_run_without_cascade!(run)
+      return unless run&.may_cancel?
+
+      # Run's ordinary cancelled callback models an operator stop and cancels
+      # the owning Step and Workflow. Barrier invalidation is expected graph
+      # maintenance, so persist the terminal Run without that callback.
+      run.update_columns(state: "cancelled", finished_at: Time.current, updated_at: Time.current)
+    end
+
+    # A repair belongs to one review loop, but invalidates the evidence from
+    # every required loop. Recreate any sibling loop whose old generation was
+    # cancelled so the barrier can converge instead of waiting forever for
+    # evidence that can no longer be produced.
+    def self.refresh_required_reviews!(workflow, repair_step)
+      sha = reviewed_head_sha(workflow)
+      return [] if sha.blank?
+
+      created = []
+      workflow.with_lock do
+        Step.transaction do
+          invalidate_stale_evidence!(workflow)
+          repair_step.reload
+          continuation = repair_step.next_step
+          snapshots = required_snapshots(workflow)
+
+          snapshots.each do |snapshot|
+            kind = snapshot.fetch("step_kind")
+            fresh = workflow.steps.where(state: Step::ACTIVE_STATES).order(position: :desc, id: :desc).detect do |candidate|
+              effective_review_kind(candidate) == kind &&
+                candidate.details.to_h["reviewed_head_sha"].in?([ nil, sha ])
+            end
+            if fresh
+              fresh.update!(details: fresh.details.to_h.merge("reviewed_head_sha" => sha, "required" => true))
+              next
+            end
+
+            previous = workflow.steps.order(position: :desc, id: :desc).detect do |candidate|
+              effective_review_kind(candidate) == kind && candidate.loop_id.present?
+            end
+            next unless previous
+
+            workflow.steps.where("position >= ?", repair_step.position + 1).update_all("position = position + 1")
+            step = Step.create!(
+              workflow: workflow,
+              kind: kind,
+              position: repair_step.position + 1,
+              iteration: previous.iteration + 1,
+              loop_id: previous.loop_id,
+              next_step: continuation,
+              depends_on_ids: [ repair_step.id ],
+              placement_policy: Step::Kind.fetch(kind).placement_policy_for(workflow.job.repository),
+              details: {
+                "reviewed_head_sha" => sha,
+                "required" => true,
+                "review_barrier_rematerialized" => true
+              }
+            )
+            repair_step.update!(next_step: step)
+            continuation = step
+            created << step
+          end
+        end
+      end
+      created
+    end
+
+    def self.effective_review_kind(step)
+      return if step.nil?
+
+      step.details.to_h["panel_review_kind"].presence ||
+        (step.kind if Step::Kind.review_gate_for(step.kind))
+    end
+
+    def self.review_work_step?(step)
+      effective_review_kind(step).present? ||
+        (MUTATION_KINDS.include?(step.kind) && step.loop_id.present?)
+    end
+
+    def self.required_snapshots(workflow)
+      Array(workflow.artifact("review_gate_contributions")).select do |snapshot|
+        next false unless snapshot.fetch("required", true) == true
+
+        latest_explicit = workflow.steps.order(position: :desc, id: :desc).detect do |step|
+          effective_review_kind(step) == snapshot["step_kind"] && step.details.to_h.key?("required")
+        end
+        latest_explicit.nil? || latest_explicit.details.to_h["required"] != false
+      end
+    end
+
+    def self.terminal_evidence(workflow, kind, sha)
+      workflow.steps.order(position: :desc, id: :desc).detect do |candidate|
+        effective_review_kind(candidate) == kind &&
+          !candidate.details.to_h["panel_fanout"] &&
+          !candidate.details.to_h["panel_member"] &&
+          candidate.details.to_h["reviewed_head_sha"] == sha &&
+          candidate.details.to_h["review_evidence_superseded"] != true &&
+          candidate.terminal?
+      end
+    end
+
+    def self.approved_evidence?(workflow, step, snapshot)
+      artifact_key = snapshot.fetch("verdict_artifact")
+      verdict = Array(workflow.artifact(artifact_key)).reverse.find do |entry|
+        entry["reviewed_head_sha"] == step.details.to_h["reviewed_head_sha"] &&
+          (!step.details.to_h["panel_id"] || entry["panel_id"] == step.details.to_h["panel_id"]) &&
+          (step.kind != "review_panel_collect" || entry["aggregate"] == true)
+      end&.fetch("verdict", nil)
+      Array(snapshot.fetch("exit_verdicts", %w[approved skipped])).include?(verdict)
+    end
+
+    private_class_method :required_snapshots, :terminal_evidence, :approved_evidence?
+  end
+end
