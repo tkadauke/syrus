@@ -5,23 +5,11 @@ import { fetchSidebarPluginPages } from "./api/sidebarPages"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 import { loadPluginModule } from "./i18n"
+import { getPluginContribution, loadPluginContribution } from "./pluginContributionRegistry"
 
 type PluginModule = {
   default?: ComponentType
 }
-
-const routeModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/routes/*.tsx", "!../../plugins/*/app/frontend/routes/*.test.tsx"])
-
-const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules)
-    .map(([path, loader]) => {
-      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
-      if (!match) return []
-
-      return [`${match[1]}/${match[2]}`, loader]
-    })
-    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
-)
 
 const componentCache = new Map<string, ComponentType>()
 
@@ -30,11 +18,12 @@ export function pluginSidebarComponentFor(key: string | null | undefined) {
   const cached = componentCache.get(key)
   if (cached) return cached
 
-  const loader = componentLoaders[key]
-  if (!loader) return null
+  const pluginName = key.split("/", 1)[0]
+  const contribution = getPluginContribution<PluginModule>("sidebar_page", pluginName, key)
+  if (!contribution) return null
 
   const Component = lazy(async () => {
-    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
+    const mod = await loadPluginModule(pluginName, () => loadPluginContribution(contribution))
     if (!mod.default) throw new Error(`Plugin sidebar component ${key} has no default export`)
     return { default: mod.default }
   })

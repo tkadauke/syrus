@@ -38,6 +38,19 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
   When adding a new agent provider or MCP tool set, implement it as a plugin
   gem that calls `Syrus::PluginRegistry.register` in its engine initializer;
   don't add the class directly to `app/services/agent_providers/`.
+- **Frontend contributions use the runtime registry.**
+  `app/frontend/pluginContributionRegistry.ts` is the single registration and
+  lookup boundary for plugin-owned React modules. Contributions may be eager
+  modules or async loaders, are idempotent by contribution kind, plugin name,
+  and key, and retain the existing `<plugin>/<Name>` key format. External
+  bundles register through `registerPluginContribution` and may subscribe to
+  registry changes when registrations can arrive after first render. The
+  build-time feed in `app/frontend/builtInPluginContributions.ts` registers
+  bundled-plugin globs at application startup; consumers must not add their
+  own `import.meta.glob` discovery. Current contribution kinds are
+  `workspace_tab`, `admin_page`, and `sidebar_page`. Lazy component consumers
+  must continue loading through `loadPluginModule` so plugin locales are ready
+  before React renders the module.
 - **Core specs must not enumerate plugin-provided things.** A bundled plugin is
   deletable — `bin/plugin-boundary-audit <name>` proves it by physically
   removing the plugin and running the suite in the copy — so a core spec that

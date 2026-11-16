@@ -1847,11 +1847,11 @@ which is really Option A with extra ceremony.
 So `:workspace_tab` follows `:admin_page`'s pattern instead (Option A, but
 with the build tooling this codebase already has, not new tooling): a plugin
 supplies declarative tab metadata via `Syrus::Plugin::WorkspaceTab`, and its
-own React component, discovered by
-`app/frontend/pluginWorkspaceTabs.tsx`'s `import.meta.glob("../../plugins/*/app/frontend/workspaceTabs/*.tsx")`
-— the same `import.meta.glob` convention `app/frontend/pluginAdminPages.tsx`
-already uses for admin pages. This was not new build-tooling to invent; it
-was already proven for admin pages before this extension point existed.
+own React component. Bundled components are discovered by the build-time feed
+in `app/frontend/builtInPluginContributions.ts` and registered in the shared
+runtime contribution registry — the same convention used for admin pages.
+This was not new build-tooling to invent; it was already proven for admin
+pages before this extension point existed.
 Rendering is fully owned by the plugin's component (a real Excalidraw canvas,
 in the whiteboard-migration Job this Epic sets up), while `.workspace_tabs`
 metadata stays declarative so the core tab bar (id, label, ordering,

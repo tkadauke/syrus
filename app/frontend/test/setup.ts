@@ -4,6 +4,7 @@ import { resetApiClientStateForTests } from "../api/clientTestState"
 import { cleanup, configure } from "@testing-library/react"
 import { afterEach, vi } from "vitest"
 import { _clearRecentApiRequestsForTest } from "../api/client"
+import "../builtInPluginContributions"
 
 // jsdom's Blob lacks stream(), which @shikijs/engine-oniguruma's inlined wasm
 // loader calls (Blob -> stream -> DecompressionStream). Provide it from the
