@@ -16,31 +16,14 @@ module Permissions
             fields: scope_keys.map { |key| { name: key.to_s, label: key.to_s.humanize, type: "string" } }
           }
         },
-        resource_scope_resolver: ->(arguments) { normalized(arguments).slice(*scope_keys.map(&:to_s)) },
+        resource_scope_resolver: ->(arguments) { normalize(arguments).slice(*scope_keys.map(&:to_s)) },
         classifier: ->(_arguments) { { operation:, effects:, risk:, confidence: :certain } },
-        fingerprint_normalizer: ->(arguments) { normalized(arguments) },
-        redactor: ->(arguments) { redact(arguments) },
+        fingerprint_normalizer: ->(arguments) { normalize(arguments) },
+        redactor: ->(arguments) { CapabilityDescriptorAdapter.send(:deep_redact, arguments) },
         presentation: CapabilityPresentation.for(capability:, operation:)
       )
     end
 
-    def normalized(value)
-      case value
-      when Hash then value.to_h.sort_by { |key, _| key.to_s }.to_h { |key, item| [ key.to_s, normalized(item) ] }
-      when Array then value.map { |item| normalized(item) }
-      else value
-      end
-    end
-
-    def redact(value)
-      case value
-      when Hash
-        value.to_h.sort_by { |key, _| key.to_s }.to_h do |key, item|
-          [ key.to_s, key.to_s.match?(CapabilityDescriptorAdapter::REDACTED_KEYS) ? "[REDACTED]" : redact(item) ]
-        end
-      when Array then value.map { |item| redact(item) }
-      else value
-      end
-    end
+    def normalize(value) = CapabilityDescriptorAdapter.send(:deep_normalize, value)
   end
 end

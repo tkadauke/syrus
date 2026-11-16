@@ -53,6 +53,22 @@ RSpec.describe AgentInsights::McpToolSet do
     )
   end
 
+  it "resolves mutation scopes from the tools' actual insight id arguments" do
+    update_descriptor = AgentInsights::CapabilityDescriptors.for("update_insight")
+    retire_descriptor = AgentInsights::CapabilityDescriptors.for("retire_insight")
+    accept_descriptor = AgentInsights::CapabilityDescriptors.for("accept_insight")
+    dismiss_descriptor = AgentInsights::CapabilityDescriptors.for("dismiss_insight")
+
+    expect(update_descriptor.resource_scope_for(target_insight_id: 17, reason: "new evidence"))
+      .to eq("target_insight_id" => 17)
+    expect(retire_descriptor.resource_scope_for(insight_ids: [ 17, 18 ], reason: "superseded"))
+      .to eq("insight_ids" => [ 17, 18 ])
+    expect(accept_descriptor.resource_scope_for(insight_id: 17))
+      .to eq("insight_id" => 17)
+    expect(dismiss_descriptor.resource_scope_for(insight_ids: [ 17, 18 ], reason: "not actionable"))
+      .to eq("insight_ids" => [ 17, 18 ])
+  end
+
   it "does not advertise workflow insight tools to ordinary workflow roles" do
     AgentRole::WORKFLOW_ROLES.each do |role|
       expect(tool_names_for(role)).to eq([])

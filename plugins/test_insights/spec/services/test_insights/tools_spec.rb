@@ -12,6 +12,16 @@ RSpec.describe "Test Insight MCP tools" do
     expect(definitions.map { |definition| definition.fetch(:capability_descriptor).effects }).to all(eq([ :confidential_read ]))
   end
 
+  it "resolves test identity scopes from the tools' actual arguments" do
+    read_descriptor = TestInsights::CapabilityDescriptors.for("read_test_insight")
+    comparison_descriptor = TestInsights::CapabilityDescriptors.for("compare_test_runtime")
+
+    expect(read_descriptor.resource_scope_for(test_identity_id: 17, history_limit: 5))
+      .to eq("test_identity_id" => 17)
+    expect(comparison_descriptor.resource_scope_for(repository_id: 3, test_identity_ids: [ 17, 18 ], limit: 10))
+      .to eq("repository_id" => 3, "test_identity_ids" => [ 17, 18 ])
+  end
+
   def create_identity!(name:, suite_name: "Suite", repo: repository, attrs: {})
     TestInsights::TestIdentity.create!({
       repository: repo,
