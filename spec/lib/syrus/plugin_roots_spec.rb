@@ -1,4 +1,6 @@
-require "rails_helper"
+require "spec_helper"
+require "tmpdir"
+require_relative "../../../lib/syrus/plugin_roots"
 
 RSpec.describe Syrus::PluginRoots do
   def make_plugin(root, name)
@@ -42,7 +44,7 @@ RSpec.describe Syrus::PluginRoots do
 
       expect(roots.resolve("same")).to eq(app.join("plugins/same"))
       expect(roots.duplicate_names).to eq([ "same" ])
-      expect(roots.problems.sole.message).to include("exists in both plugin roots", "skipping")
+      expect(roots.problems.fetch(0).message).to include("exists in both plugin roots", "skipping")
     end
   end
 
@@ -50,7 +52,7 @@ RSpec.describe Syrus::PluginRoots do
     Dir.mktmpdir do |directory|
       roots = described_class.new(application_root: directory, external_path: Pathname.new(directory).join("missing"))
 
-      expect(roots.problems.sole.code).to eq(:missing)
+      expect(roots.problems.fetch(0).code).to eq(:missing)
       expect(roots.plugin_directories).to be_empty
     end
   end
@@ -61,7 +63,7 @@ RSpec.describe Syrus::PluginRoots do
       file.write("not a directory")
       roots = described_class.new(application_root: directory, external_path: file)
 
-      expect(roots.problems.sole.code).to eq(:not_directory)
+      expect(roots.problems.fetch(0).code).to eq(:not_directory)
       expect(roots.plugin_directories).to be_empty
     end
   end
