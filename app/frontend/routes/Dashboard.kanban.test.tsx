@@ -265,6 +265,34 @@ describe("App dashboard Kanban", () => {
     expect(badge).toHaveAttribute("title", "All jobs closed - mark this epic done or file a follow-up.")
   })
 
+  it("shows the repository beside the Epic slug and the title on the next line", async () => {
+    mockDashboardFetch(
+      dashboardPayload({
+        subject: "epic",
+        view: "kanban",
+        lanes: [{ key: "ready", title: "Ready", count: 1, items: [dashboardEpicItem()] }]
+      })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const card = await screen.findByLabelText("EPIC-7 Raise the forum")
+    const epicSlug = within(card).getByRole("button", { name: "Copy EPIC-7 to clipboard" })
+    const repository = within(card).getByRole("link", { name: "acme/widgets" })
+    const title = within(card).getByRole("link", { name: "Raise the forum" })
+
+    expect(repository.parentElement).toContainElement(epicSlug)
+    expect(title.parentElement).toBe(card.firstElementChild)
+    expect(title).toHaveClass("block", "mt-1")
+    expect(repository).toHaveAttribute("href", "/app-shell/repositories/3")
+  })
+
   it("hides the needs attention badge on non-stuck Epic kanban cards", async () => {
     mockDashboardFetch(
       dashboardPayload({
