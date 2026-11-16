@@ -12,6 +12,8 @@ de:
 
         %{files}
       workspace_conflict_label: "Workspace-Konflikt"
+      workspace_sync_warning: "Die Hintergrundarbeit bleibt dauerhaft gespeichert, aber dieser Chat-Checkout konnte nicht sicher synchronisiert werden: %{detail}. Lokale Arbeit und der Zustand der Konfliktbehebung wurden nicht überschrieben."
+      workspace_sync_warning_label: "Warnung zur Workspace-Synchronisierung"
       workspace_already_saved: "Dieser Workspace wurde bereits gespeichert."
       workspace_save_label: "Workspace-Speicherung"
       workspace_save_failed: "Änderungen auf `%{branch}` bleiben nach %{attempts} fehlgeschlagenen Speicherversuchen lokal erhalten. %{status}"

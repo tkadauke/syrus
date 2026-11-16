@@ -22,6 +22,8 @@ module Coworkers
           Summary:
           #{@summary}
 
+          The background run is persisted before this follow-up is queued. If its files are absent from the chat checkout, distinguish a workspace synchronization warning or stale chat checkout from an actual background merge/push failure; do not claim the background work vanished merely because the checkout is stale.
+
           Follow up with your owner in your own voice. Comment on what matters, flag anything that needs a decision, and use your normal chat tools and capability grants when useful, including proposals, coworker messages, and workspace memory updates. This is an unattended system turn, so owner-facing questions follow the queued-message rules rather than acting like a live owner question.
 
           Do not repeat the whole background-run card. Do not start or fire another scheduled run as part of this follow-up.

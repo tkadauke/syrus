@@ -4,6 +4,7 @@ require "tmpdir"
 class Coworkers::ChatWorkspaceLifecycle
   include Syrus::Plugin::ChatWorkspaceLifecycle
   MAX_PUSH_ATTEMPTS = 3
+  MAX_SYNC_ATTEMPTS = 3
   MAX_RESOLUTION_ATTEMPTS = 2
   RESOLUTION_TIMEOUT = 1.hour
   BACKGROUND_GIT_TIMEOUT = 1.minute
@@ -42,6 +43,7 @@ class Coworkers::ChatWorkspaceLifecycle
       clone_branch!(chat_branch, path.to_s)
       @chat.chat_attachments.find_or_create_by!(attachable: @repository)
     end
+    synchronize_from_home!(path)
     @git.configure_author(identity, chdir: path.to_s)
     path
   end
@@ -141,6 +143,79 @@ class Coworkers::ChatWorkspaceLifecycle
 
   def workspace_repository
     @coworker.workspace_repository
+  end
+
+  # Background runs persist directly to the coworker's home branch. Refresh a
+  # long-lived chat checkout only at the start of its next owner turn, while
+  # the coworker's operation lock is held, so a background worker never races
+  # the live checkout. Every tree-changing operation is fast-forward-only.
+  def synchronize_from_home!(path)
+    unsafe_reason = unsafe_sync_reason(path)
+    return warn_sync_skipped!(unsafe_reason) if unsafe_reason
+
+    MAX_SYNC_ATTEMPTS.times do |attempt|
+      git_run("fetch", @remote_url,
+        "refs/heads/#{home_branch}:refs/remotes/origin/coworker-home", chdir: path.to_s, env: @env)
+      home_sha = git_run("rev-parse", "refs/remotes/origin/coworker-home", chdir: path.to_s).strip
+      current_sha = git_run("rev-parse", "HEAD", chdir: path.to_s).strip
+      unless current_sha == home_sha
+        ancestry = git_capture("merge-base", "--is-ancestor", "HEAD", home_sha, chdir: path.to_s)
+        return warn_sync_skipped!("the chat branch has commits that are not in the coworker home branch") unless ancestry.success?
+
+        git_run("merge", "--ff-only", home_sha, chdir: path.to_s)
+        push_guard.allow!(chat_branch)
+        git_run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: path.to_s, env: @env)
+      end
+
+      remote_home_sha = remote_branch_sha(home_branch)
+      return :synchronized if remote_home_sha == home_sha
+      break if attempt == MAX_SYNC_ATTEMPTS - 1
+    end
+
+    warn_sync_skipped!("the coworker home branch kept advancing during synchronization")
+  rescue GitRunner::GitError => error
+    warn_sync_skipped!("Git could not safely fast-forward the chat checkout: #{GitRunner.redact(error.message)}")
+  end
+
+  def unsafe_sync_reason(path)
+    return "a workspace conflict is awaiting recovery" if unresolved_conflict
+    return "a rebase is in progress" if git_operation_in_progress?(path, "rebase-merge", "rebase-apply")
+
+    unmerged = unmerged_files(path)
+    return "unmerged files are present (#{unmerged.join(', ')})" if unmerged.any?
+    return "another Git conflict recovery operation is in progress" if git_operation_in_progress?(path, "MERGE_HEAD")
+    "the chat checkout has uncommitted work" if git_run("status", "--porcelain", chdir: path.to_s).present?
+  end
+
+  def git_operation_in_progress?(path, *names)
+    names.any? do |name|
+      git_path = git_run("rev-parse", "--git-path", name, chdir: path.to_s).strip
+      Pathname(git_path).absolute? ? Pathname(git_path).exist? : path.join(git_path).exist?
+    end
+  end
+
+  def remote_branch_sha(branch)
+    git_run("ls-remote", "--heads", @remote_url, "refs/heads/#{branch}", env: @env).split.first
+  end
+
+  def warn_sync_skipped!(detail)
+    @chat.messages.create!(
+      role: "system",
+      content: {
+        "text" => I18n.t("api.coworkers.workspace_sync_warning", detail:),
+        "body_format" => "markdown",
+        "prominent" => true,
+        "system_label" => I18n.t("api.coworkers.workspace_sync_warning_label"),
+        "system_tone" => "warning",
+        "coworker_workspace_sync_warning" => { "detail" => detail }
+      },
+      skip_turn_trigger: true
+    )
+    :warning
+  end
+
+  def unresolved_conflict
+    Coworkers::WorkspaceConflict.unresolved.find_by(chat_session: @chat, repository: @repository)
   end
 
   def ensure_chat_branch!

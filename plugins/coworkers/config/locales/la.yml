@@ -12,6 +12,8 @@ la:
 
         %{files}
       workspace_conflict_label: "Conflictus spatii laboris"
+      workspace_sync_warning: "Opus in recessu servatum manet, sed hoc exemplar colloquii tuto synchronizari non potuit: %{detail}. Neque opus locale neque status conflictus corrigendi superscriptus est."
+      workspace_sync_warning_label: "Monitum synchronizationis spatii laboris"
       workspace_already_saved: "Hoc spatium laboris iam servatum est."
       workspace_save_label: "Servatio spatii laboris"
       workspace_save_failed: "Mutationes in `%{branch}` post %{attempts} conatus frustra factos localiter servantur. %{status}"

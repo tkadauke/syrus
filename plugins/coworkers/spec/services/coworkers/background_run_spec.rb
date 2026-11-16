@@ -342,6 +342,7 @@ RSpec.describe "Coworker background runs" do
     expect(wake.content.fetch("internal_prompt")).to include(
       "follow-up to your scheduled run", "Daily review", "Review today's calendar.",
       "Calendar reviewed.", "Run ID: #{source_run.id}", "Duration: 5.0 seconds", "Cost: $0.25",
+      "background run is persisted", "stale chat checkout", "actual background merge/push failure",
       "Do not repeat the whole background-run card", "Do not start or fire another scheduled run"
     )
     expect(main_chat.reload).to be_turn_in_flight
