@@ -84,7 +84,9 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
   it "cancels in-flight stale review work without cascading workflow failure" do
     stale = Step.create!(workflow: workflow, kind: "security_review", position: 1, state: "running",
       details: { "panel_member" => true, "reviewed_head_sha" => "head-a" })
-    run = stale.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+    run = stale.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", started_at: 1.minute.ago)
+    tail = Step.create!(workflow: workflow, kind: "format", position: 2, state: "queued")
+    stale.update!(next_step: tail)
 
     expect(described_class.reviewed_head_sha(workflow)).to eq("head-b")
     expect(described_class.effective_review_kind(stale)).to eq("security_review")
@@ -97,6 +99,41 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
       "superseded_by_head_sha" => "head-b"
     )
     expect(workflow.reload).not_to be_failed
+    # The stale review is graph maintenance, not an operator stop: the work
+    # after it must stay runnable.
+    expect(tail.reload).to be_queued
+  end
+
+  # Regression: a required review gate still waiting to run had been stamped
+  # with the HEAD of the time. A repair changed HEAD, invalidation cancelled
+  # that never-run gate as "stale evidence" -- and the cancellation took the
+  # rest of the chain (format, graders, pr_open) with it. The rematerialized
+  # loop then pointed at the cancelled gate, and the workflow stalled running
+  # with nothing left to run.
+  it "re-stamps a review gate that has not started yet instead of cancelling it and its tail" do
+    adversarial = collect(kind: "adversarial_review", position: 1, sha: "head-a")
+    adversarial.update!(loop_id: "adversarial-loop")
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 2, state: "succeeded",
+      loop_id: "adversarial-loop")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-c")
+    waiting_gate = Step.create!(workflow: workflow, kind: "security_review", position: 3, state: "queued",
+      details: { "reviewed_head_sha" => "head-a", "required" => true })
+    format = Step.create!(workflow: workflow, kind: "format", position: 4, state: "queued")
+    pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 5, state: "queued")
+    repair.update!(next_step: waiting_gate)
+    waiting_gate.update!(next_step: format)
+    format.update!(next_step: pr_open)
+
+    created = described_class.refresh_required_reviews!(workflow, repair)
+
+    expect(waiting_gate.reload).to be_queued
+    expect(waiting_gate.details).to include("reviewed_head_sha" => "head-c")
+    expect(waiting_gate.details).not_to include("review_evidence_superseded")
+    expect(format.reload).to be_queued
+    expect(pr_open.reload).to be_queued
+    expect(adversarial.reload.details).to include("review_evidence_superseded" => true)
+    expect(created.map(&:kind)).to eq([ "adversarial_review" ])
+    expect(created.first.next_step).to eq(waiting_gate)
   end
 
   it "idempotently rematerializes every missing required review for a repaired HEAD" do

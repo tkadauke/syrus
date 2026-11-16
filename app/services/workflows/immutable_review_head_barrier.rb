@@ -83,6 +83,15 @@ module Workflows
         reviewed_sha = candidate.details.to_h["reviewed_head_sha"]
         next if reviewed_sha.blank? || reviewed_sha == sha
 
+        # A gate that has not started has produced no evidence; it will review
+        # whatever HEAD is current when it runs. Point it at the new HEAD.
+        # Cancelling it instead also cancelled the chain behind it (format,
+        # graders, PR) and left the workflow with nothing to run.
+        if not_started?(candidate)
+          candidate.update!(details: candidate.details.to_h.merge("reviewed_head_sha" => sha))
+          next
+        end
+
         details = candidate.details.to_h.merge(
           "review_evidence_superseded" => true,
           "superseded_by_head_sha" => sha
@@ -95,6 +104,10 @@ module Workflows
           candidate.runs.active.each { |run| cancel_run_without_cascade!(run) }
         end
       end
+    end
+
+    def self.not_started?(step)
+      step.queued? && step.runs.where.not(started_at: nil).none? && step.runs.where.not(state: "queued").none?
     end
 
     def self.cancel_run_without_cascade!(run)
