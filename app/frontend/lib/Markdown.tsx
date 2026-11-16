@@ -32,7 +32,14 @@ type MarkdownProps = {
   slugHrefOverrides?: Record<string, string>
   slugTone?: SlugTone
 }
-type PlainTextProps = { className?: string; text: string; linkifyUrls?: boolean; onLinkClick?: MarkdownLinkHandler; slugTone?: SlugTone }
+type PlainTextProps = {
+  className?: string
+  highlightTerms?: string[]
+  text: string
+  linkifyUrls?: boolean
+  onLinkClick?: MarkdownLinkHandler
+  slugTone?: SlugTone
+}
 type TableColumnKind = "compact" | "label" | "prose"
 type TableColumnHint = { kind: TableColumnKind; width: string }
 type TableColumnMeasurement = { kind: TableColumnKind; min: number; preferred: number }
@@ -70,8 +77,10 @@ export function Markdown({
   )
 }
 
-export function PlainText({ className, text, linkifyUrls = false, onLinkClick, slugTone }: PlainTextProps) {
-  return <div className={className}>{linkifyUrls ? renderInlineText(text, true, 0, { linkifyUrls, onLinkClick, slugTone }) : text}</div>
+export function PlainText({ className, highlightTerms, text, linkifyUrls = false, onLinkClick, slugTone }: PlainTextProps) {
+  const content =
+    linkifyUrls || highlightTerms?.length ? renderInlineText(text, linkifyUrls, 0, { highlightTerms, linkifyUrls, onLinkClick, slugTone }) : text
+  return <div className={className}>{content}</div>
 }
 
 // Shared "light markdown" preview renderer for truncated content cards

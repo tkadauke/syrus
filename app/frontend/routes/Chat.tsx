@@ -1241,6 +1241,7 @@ function MessageStream({
                 queryKey={queryKey}
                 retryText={retryTextMap.get(item.id) ?? null}
                 retrying={retryTurn.isPending}
+                searchHighlight={findOpen && normalizedFindQuery && findMatches.some((match) => match.message_id === item.id) ? normalizedFindQuery : undefined}
                 onNotice={onNotice}
                 onRetry={retryMessage}
                 onSelectWorkspaceTab={onSelectWorkspaceTab}
