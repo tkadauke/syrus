@@ -672,6 +672,12 @@ de:
       welcome: "Willkommen bei Syrus."
 
     repositories:
+      tabs:
+        overview: "Übersicht"
+        health: "Zustand"
+        cognitive_debt: "Kognitive Schuld"
+        target_graph: "Zielgraph"
+        documents: "Dokumente"
       selector:
         no_token: "Kein GitHub-Token konfiguriert."
         credentials_rejected: "GitHub hat die Anmeldedaten abgelehnt."

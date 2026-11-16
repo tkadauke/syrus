@@ -732,6 +732,12 @@ en:
       welcome: "Welcome to Syrus."
 
     repositories:
+      tabs:
+        overview: "Overview"
+        health: "Health"
+        cognitive_debt: "Cognitive Debt"
+        target_graph: "Target Graph"
+        documents: "Documents"
       selector:
         no_token: "No GitHub token is configured."
         credentials_rejected: "GitHub rejected the credentials."
