@@ -253,8 +253,7 @@ module Api
           page = [ Integer(params[:page], exception: false).to_i, 1 ].max
           scope = hidden_chat_scope
           total = scope.count
-          chats = scope
-            .preload(repository_attachments: :attachable)
+          chats = scope.preload(repository_attachments: :attachable)
             .order("chat_participants.hidden_at DESC", id: :desc)
             .offset((page - 1) * HIDDEN_CHATS_PAGE_SIZE)
             .limit(HIDDEN_CHATS_PAGE_SIZE)
@@ -437,6 +436,19 @@ module Api
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
+        def message_delivery
+          chat_session = find_chat_session
+          key = params[:client_idempotency_key].to_s
+          delivered = key.present? && ChatIngressReceipt.exists?(
+            sender_user: Current.user,
+            chat_session: chat_session,
+            idempotency_key: key,
+            response_status: 200..299
+          )
+
+          render json: { delivered: delivered }
+        end
+
         def stop
           chat_session = find_chat_session
           chat_session.update!(stop_requested_at: Time.current)
@@ -566,7 +578,7 @@ module Api
           chat_session.soft_delete_by!(Current.user)
           request_chat_process_kill!(chat_session, kinds: %w[agent chat_prepare])
 
-          render json: { message: "Chat deleted." }
+          render json: { message: "Chat archived." }
         end
 
         def clear_messages
@@ -601,6 +613,18 @@ module Api
           render json: { chat: chat_nav_json(chat_session.reload) }
         end
 
+        def hide
+          chat_session = find_chat_session
+          current_participant_for(chat_session).update!(hidden_at: Time.current)
+          render json: { message: "Chat hidden.", chat: chat_nav_json(chat_session.reload) }
+        end
+
+        def unhide
+          chat_session = find_chat_session
+          current_participant_for(chat_session).update!(hidden_at: nil)
+          render json: { message: "Chat restored.", chat: chat_nav_json(chat_session.reload) }
+        end
+
         def update_chat_read_at(chat_session, timestamp)
           participant = current_participant_for(chat_session) || chat_session.chat_participants.find_or_create_by!(user: Current.user) do |new_participant|
             new_participant.role = chat_session.user_id == Current.user.id ? "owner" : "member"
@@ -608,20 +632,6 @@ module Api
           participant.update_columns(last_read_at: timestamp)
         end
         private :update_chat_read_at
-
-        def hide
-          chat_session = find_chat_session
-          current_participant_for(chat_session).update!(hidden_at: Time.current)
-
-          render json: { message: "Chat hidden.", chat: chat_nav_json(chat_session.reload) }
-        end
-
-        def unhide
-          chat_session = find_chat_session
-          current_participant_for(chat_session).update!(hidden_at: nil)
-
-          render json: { message: "Chat restored.", chat: chat_nav_json(chat_session.reload) }
-        end
 
         def enqueue_message
           chat_session = find_chat_session

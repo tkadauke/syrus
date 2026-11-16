@@ -83,6 +83,22 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "copies the parent and child proposal proposers to the Epic and child Jobs" do
+    proposer = Factories.user(email_address: "epic-proposer@example.com")
+    proposal = epic_proposal
+    proposal.update!(proposer: proposer)
+    first = child_for(proposal, "foundation")
+    second = child_for(proposal, "finish")
+    first.update!(proposer: proposer)
+    second.update!(proposer: proposer)
+    depend_on(second, first)
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.epic.proposer).to eq(proposer)
+    expect(result.jobs.map(&:proposer)).to contain_exactly(proposer, proposer)
+  end
+
   it "materializes a backlog-routed Epic bundle without starting child work" do
     proposal = epic_proposal
     proposal.update!(route_to_backlog: true)

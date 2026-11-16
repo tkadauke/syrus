@@ -7,6 +7,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     active_work_unit_without_workflow
     already_landed_stack_rebase
     cancelled_retry_until_barrier_blocks_tail
+    checkpoint_backed_blocked_stack_recovery
     closed_job_active_work_unit
     codex_overload_initial_retries
     cross_epic_approved_parent_waits_for_merge
@@ -38,7 +39,9 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     queued_step_without_run
     queued_workflow_with_failed_step
     queued_workflow_without_first_run
+    repeated_pr_open_failure_retry_recovers
     requested_intent_without_active_unit
+    required_review_barrier_recovers_unsafe_tail
     retryable_merge_train_build_rebuilds
     running_step_with_terminal_run
     running_workflow_with_failed_step
@@ -111,6 +114,19 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result).to be_success
     expect(Job.find(result.job_ids.first)).to be_implemented
     expect(reconciler_scopes).to all(include(job_id: result.job_ids.first))
+  end
+
+  it "cancels an unsafe persisted tail while a required review barrier is unresolved" do
+    result = run_scenario("required_review_barrier_recovers_unsafe_tail")
+
+    expect(result).to be_success
+    workflow = Job.find(result.job_ids.first).latest_workflow
+    unsafe_run = workflow.steps.find_by!(kind: "pr_open").runs.last
+    expect(unsafe_run).to be_cancelled
+    expect(workflow.artifact("review_head_barrier_block")).to include(
+      "code" => "required_review_head_unresolved",
+      "recovered_by" => "work_engine_reconciler"
+    )
   end
 
   it "reconciles a queued Job with a published PR without launching replacement work" do
@@ -392,6 +408,24 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result.events.join("\n")).to include("retryable_run_failure", "auto retry")
   end
 
+  it "retries repeated publication failures without restarting a repaired grade loop" do
+    result = run_scenario("repeated_pr_open_failure_retry_recovers")
+
+    expect(result).to be_success
+    job = Job.find(result.job_ids.first)
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    publication = workflow.steps.find_by!(kind: "pr_open")
+
+    expect(job).to be_implemented
+    expect(workflow).to be_succeeded
+    expect(publication).to be_succeeded
+    expect(publication.runs.where(state: "failed").count).to eq(2)
+    expect(publication.runs.where(state: "cancelled").count).to eq(1)
+    expect(publication.runs.where(state: "succeeded").count).to eq(1)
+    expect(workflow.steps.where(kind: "grader_fanout").count).to eq(2)
+    expect(workflow.runs.active).to be_empty
+  end
+
   {
     "happy_path_single_job_lands" => "auto_merge",
     "happy_path_epic_merge_train_lands" => "merge_train_land",
@@ -458,6 +492,32 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
 
     expect(result).to be_success
     expect(result.events.join("\n")).to include("workspace reconstructed")
+  end
+
+  it "restores a stranded stacked-child checkpoint once and admits its downstream sibling" do
+    result = run_scenario("checkpoint_backed_blocked_stack_recovery")
+
+    expect(result).to be_success
+    parent, child, sibling = Job.where(id: result.job_ids).order(:id).to_a
+    source = child.workflows.find_by!(trigger_kind: "initial")
+    replacements = child.workflows.where(trigger_kind: "base_refresh_retry")
+    replacement = replacements.sole
+
+    expect(parent).to be_approved
+    expect(child).to be_implemented
+    expect(sibling).to be_implemented
+    expect(source).to be_blocked
+    expect(source.work_unit).to be_failed
+    expect(source.runs.active).to be_empty
+    expect(replacement.artifacts).to include(
+      "checkpoint_sha" => "implementation-sha",
+      "checkpoint_source_workflow_id" => source.id
+    )
+    expect(replacements.count).to eq(1)
+    expect(WorkUnit.where(workflow: replacement).count).to eq(1)
+    expect(WorkUnits::Ownership.active_for_job?(child)).to be false
+    expect(WorkUnits::Ownership.retained_locks_for_job?(child)).to be false
+    expect(result.events.grep(/checkpoint_backed_blocked_workflow/).size).to eq(1)
   end
 
   it "fails unreconstructable grader-fanout storage into an automatic retry path" do

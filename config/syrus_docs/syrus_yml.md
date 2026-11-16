@@ -511,12 +511,13 @@ most once per workflow workspace.
 | `ci` | no | — | Legacy alternate command; expanded into a `<name>-ci` grader in the `ci` phase |
 | `description` | no | — | Human-readable label |
 | `required` | no | `true` | Non-required failures warn but don't block |
-| `timeout_minutes` | no | 15 | Clamped to 120 max |
+| `timeout_minutes` | no | 15 | Clamped to 150 max |
 | `<mode>_timeout_minutes` / `timeouts` | no | `timeout_minutes` | Plugin-defined graders can override generated `full`, `focused`, or `ci` grader timeouts |
 | `<mode>_display_name` / `display_names` | no | mode-aware default | Plugin-defined graders can override one generated mode's display name without changing `display_name`, which applies to every generated mode |
 | `tags` / `<mode>_include_tags` / `<mode>_exclude_tags` | no | plugin-defined | Plugin-defined test graders can add RSpec/Vitest tag filters per generated mode |
 | `parallel_rspec` | no | `false` | RSpec-only; opt into `parallel_rspec` command generation for selected RSpec modes |
 | `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
+| `metadata.always_rerun` | no | `false` | Set to `true` when a grader must run after every code-changing landing repair even if its declared inputs and dependency closure are unchanged |
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 | `base_retry` | no | cache-only | Focused command or strategy for base-revision retry |
@@ -885,8 +886,13 @@ Boolean, **defaults to `true`**; only the mapping form can set
 `grade.rerun_only_failed: false`. When `true`, the first grading iteration runs
 every active grader. Later repair iterations carry forward a required grader's
 earlier pass only while its inputs, dependencies, command, environment, and
-policy still prove it, and only when no repair changed code. Optional graders and
-graders whose `when_files_changed` glob newly matches always run. After an
+policy still prove it. Landing retries also retain successful unrelated targets
+across a code-changing repair: failed or inconclusive graders rerun, as do
+graders whose source scope or dependency closure intersects the repair. A
+repo-wide grader without a source scope is retained after a narrow repair when
+its command, configuration, environment, and declared dependencies are
+unchanged; set `metadata.always_rerun: true` to opt that grader out. Graders
+whose `when_files_changed` glob newly matches always run. After an
 infrastructure-only failure (lost worker, database interruption), unchanged
 successful required graders are carried forward regardless of this setting and
 only failed or inconclusive graders rerun.

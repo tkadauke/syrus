@@ -34,6 +34,9 @@ module Steps
       database_capacity
       database_lock
       disk_full
+      grader_cancelled
+      silent_timed_out
+      timed_out
       worker_died
       worker_died_under_resource_pressure
     ].freeze
@@ -41,6 +44,7 @@ module Steps
     def call
       grader_steps = current_iteration_graders
       carried_forward = carried_forward_grader_entries
+      carried_forward.concat(resolved_deduplicated_grader_entries(grader_steps))
       target_health_skipped = target_health_skipped_entries
       reject_unexplained_empty_iteration!(grader_steps, carried_forward, target_health_skipped)
       @manifest_grader_steps = grader_steps
@@ -61,21 +65,17 @@ module Steps
       end
       record_grader_loop_metrics!(grader_steps, failed_required: failed_required)
 
-      if cancelled_required.any?
-        names = grader_names(cancelled_required)
-        log("[grader_collect] required graders were cancelled: #{names.join(', ')}")
-        mark_transient_only_failure!
-        fail_with!(:worker_died, "required graders were cancelled: #{names.join(', ')}",
-                   evidence: { grader_names: names, states: cancelled_required.to_h { |grader| [ grader.id, grader.state ] } })
+      unsuccessful_required = failed_required + cancelled_required
+      infrastructure_failed_required = unsuccessful_required.select { |g| infrastructure_failed_step?(g) }
+      real_failed_required = unsuccessful_required - infrastructure_failed_required
+      infrastructure_evidence = if infrastructure_failed_required.any?
+        record_infrastructure_evidence!(infrastructure_failed_required)
       end
-
-      infrastructure_failed_required = failed_required.select { |g| infrastructure_failed_step?(g) }
-      real_failed_required = failed_required - infrastructure_failed_required
-      if infrastructure_failed_required.empty?
-        aggregate_status = GraderConclusionCache.aggregate_status_for(real_failed_required)
-        record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
-      else
+      if infrastructure_failed_required.any?
         log("[grader_collect] grader conclusion not cached — required grader infrastructure failure")
+      else
+        aggregate_status = GraderConclusionCache.aggregate_status_for(unsuccessful_required)
+        record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
       end
 
       grader_fingerprint = workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
@@ -89,7 +89,7 @@ module Steps
         log("[grader_collect] grader conclusion NOT cached — sha=#{current_head_sha.inspect} steps=#{grader_steps.size}")
       end
 
-      if failed_required.empty?
+      if unsuccessful_required.empty?
         skipped_count = target_health_skipped.size
         log("[grader_collect] all required graders passed (#{grader_steps.size} grader Step(s) ran, #{skipped_count} target-health skip(s))")
         record_landing_validation!
@@ -97,16 +97,16 @@ module Steps
       end
 
       if ci_repair_target_fixed?(grader_steps, carried_forward, target_health_skipped)
-        record_ci_repair_advisories!(failed_required)
+        record_ci_repair_advisories!(unsuccessful_required)
         return
       end
 
       if real_failed_required.empty?
-        fail_for_infrastructure!(infrastructure_failed_required)
+        fail_for_infrastructure!(infrastructure_failed_required, evidence: infrastructure_evidence)
       end
 
       if dismissed_by_rung_zero?(real_failed_required)
-        fail_for_infrastructure!(infrastructure_failed_required) if infrastructure_failed_required.any?
+        fail_for_infrastructure!(infrastructure_failed_required, evidence: infrastructure_evidence) if infrastructure_failed_required.any?
         return
       end
 
@@ -345,14 +345,41 @@ module Steps
       step.update!(details: step.details.to_h.merge(TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true))
     end
 
-    def fail_for_infrastructure!(grader_steps)
+    def fail_for_infrastructure!(grader_steps, evidence: nil)
       names = grader_names(grader_steps)
       classifications = grader_steps.filter_map { |grader| infrastructure_failure_classification_for(grader) }.uniq
-      code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "database_lock"
+      code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "worker_died"
+      evidence ||= record_infrastructure_evidence!(grader_steps)
       log("[grader_collect] required graders failed due to infrastructure: #{names.join(', ')}")
       mark_transient_only_failure!
       fail_with!(code, "required graders failed due to infrastructure: #{names.join(', ')}",
-                 evidence: { grader_names: names, classifications: classifications })
+                 evidence: { grader_names: names, classifications: classifications, graders: evidence })
+    end
+
+    def record_infrastructure_evidence!(grader_steps)
+      evidence = grader_steps.map { |grader| infrastructure_evidence_for(grader) }
+      evidence.each do |entry|
+        log(
+          "[grader_collect] inconclusive grader #{entry['grader_name']}: " \
+          "configured_timeout=#{entry['configured_timeout_s'].inspect}s " \
+          "observed_duration=#{entry['observed_duration_s'].inspect}s " \
+          "process_outcome=#{entry['process_outcome']} " \
+          "assertion_failures_present=#{entry['assertion_failures_present']}"
+        )
+      end
+      workflow.set_artifact!("grader_infrastructure_failures", evidence)
+      evidence
+    end
+
+    def infrastructure_evidence_for(grader)
+      details = grader.details.to_h
+      {
+        "grader_name" => details["name"],
+        "configured_timeout_s" => details["configured_timeout_s"] || details["timeout_minutes"].to_i.minutes.to_i.presence,
+        "observed_duration_s" => details["duration_s"],
+        "process_outcome" => details["process_outcome"] || grader_outcome_for(grader).reason,
+        "assertion_failures_present" => assertion_failures_present?(grader)
+      }
     end
 
     def grader_names(grader_steps) = grader_steps.map { |grader| grader.details["name"] }
@@ -472,6 +499,29 @@ module Steps
     # iteration's results instead of continuing to count as passing.
     def carried_forward_grader_entries
       Array(workflow.artifact(GraderFanout::CARRIED_FORWARD_ARTIFACT_KEY))
+    end
+
+    # A CI/non-CI alias is only synthesized after its canonical execution has
+    # succeeded. If the canonical grader fails, the normal required-failure
+    # barrier remains authoritative and no passing alias is invented.
+    def resolved_deduplicated_grader_entries(grader_steps)
+      by_name = grader_steps.index_by { |grader| grader.details.to_h["name"] }
+      Array(workflow.artifact(GraderFanout::DEDUPLICATED_ARTIFACT_KEY)).filter_map do |entry|
+        canonical = by_name[entry["canonical_name"]]
+        next unless canonical&.succeeded?
+
+        canonical_details = canonical.details.to_h
+        entry.slice("name", "required", "target_label").merge(
+          "source_iteration" => step.iteration,
+          "reason" => "deduplicated equivalent grader variant",
+          "target_fingerprints" => canonical_details["target_fingerprints"],
+          "exit_code" => canonical_details["exit_code"],
+          "duration_s" => canonical_details["duration_s"],
+          "log_path" => canonical_details["log_path"],
+          "log_bytes" => canonical_details["log_bytes"],
+          "output" => canonical_details["output"]
+        ).compact
+      end
     end
 
     def target_health_skipped_entries
@@ -687,15 +737,29 @@ module Steps
     end
 
     def infrastructure_failed_step?(grader_step)
-      return false unless grader_step.failed?
+      return false unless grader_step.failed? || grader_step.cancelled?
 
       infrastructure_failure_classification?(infrastructure_failure_classification_for(grader_step))
     end
 
     def infrastructure_failure_classification_for(grader_step)
-      return nil unless grader_step.failed?
+      return nil unless grader_step.failed? || grader_step.cancelled?
 
-      latest_runs_by_step_id([ grader_step ])[grader_step.id]&.run_failure_classification&.classification
+      run = latest_runs_by_step_id([ grader_step ])[grader_step.id]
+      return nil if assertion_failures_present?(grader_step, run: run)
+
+      classification = run&.run_failure_classification&.classification
+      return classification if infrastructure_failure_classification?(classification)
+
+      outcome = grader_outcome_for(grader_step)
+      return nil if outcome.test_failed?
+
+      outcome.reason if infrastructure_failure_classification?(outcome.reason)
+    end
+
+    def assertion_failures_present?(grader_step, run: nil)
+      run ||= latest_runs_by_step_id([ grader_step ])[grader_step.id]
+      TestEvidenceLookup.failed_test_cases_for(run, grader_step.details.to_h["name"]).any?
     end
 
     def rounded_average(values)

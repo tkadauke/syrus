@@ -5,6 +5,7 @@ import type { JobDeploymentStage } from "./jobs"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { RepositoryEpicDependencyPolicy } from "./repositories"
 import type { GoalProvenance } from "./chats"
+import type { Proposer } from "./proposers"
 
 export type EpicRepositoryOption = {
   id: number
@@ -40,6 +41,7 @@ export type EpicFormRecord = {
   epic_dependency_policy: EpicDependencyPolicy
   resolved_epic_dependency_policy: EpicDependencyPolicy | null
   goal_provenance?: GoalProvenance | null
+  proposer?: Proposer | null
   epic_path: string | null
 }
 
@@ -111,6 +113,7 @@ export type EpicDetailRecord = {
   epic_dependency_policy: EpicDependencyPolicy
   resolved_epic_dependency_policy: EpicDependencyPolicy
   goal_provenance?: GoalProvenance | null
+  proposer?: Proposer | null
 }
 
 export type EpicDetailSummary = {

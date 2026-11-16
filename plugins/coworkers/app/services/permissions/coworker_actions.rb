@@ -41,6 +41,8 @@ module Permissions
       "list_jobs" => read("syrus.read_jobs"),
       "search_jobs" => read("syrus.read_jobs"),
       "read_job" => read("syrus.read_jobs"),
+      "cancel_job" => Operation.new("syrus.jobs", %i[internal_write operational destructive], :high, :ask, nil, :none),
+      "submit_chat_feedback" => Operation.new("syrus.jobs", %i[internal_write operational], :medium, :ask, nil, :none),
       "propose_job" => benign("syrus.propose_job", :draft_proposal),
       "propose_epic_with_jobs" => benign("syrus.propose_job", :draft_proposal),
       # Cross-chat reads can contain anything another chat saw.

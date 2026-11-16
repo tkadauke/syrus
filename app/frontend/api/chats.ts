@@ -3,6 +3,7 @@ import type { ProviderAvailability } from "./providerAvailability"
 import type { TypedArtifact } from "./artifacts"
 import type { RuleDraftPreview } from "./permissionRuleDrafts"
 import type { PermissionAuthorityReference, PermissionPresentation, SmartPermissionOption } from "./permissionRequests"
+import type { Proposer } from "./proposers"
 import { readInitialBootstrap } from "./bootstrap"
 
 export type ChatRepository = {
@@ -170,6 +171,7 @@ export type ChatNavRecord = {
   updated_at?: string
   chat_type?: ChatType
   origin_platform?: string | null
+  archived_at?: string | null
 }
 
 export type ChatJobSummary = {
@@ -198,11 +200,6 @@ export type ChatJobSummaryRow = {
   started_at?: string
   finished_at?: string
   app_path: string
-}
-
-export type HiddenChatRecord = ChatNavRecord & {
-  hidden_at: string | null
-  app_unhide_path: string
 }
 
 export type ChatSystemMessage = {
@@ -257,7 +254,7 @@ export type ChatProposal = {
   dependency_requirements?: ChatProposalDependencyRequirement[]
   depends_on_epic_ids?: number[]
   goal_provenance?: GoalProvenance | null
-  proposer?: ChatProposalProposer | null
+  proposer?: Proposer | null
   media_ids?: string[]
   materialized_label: string | null
   materialized_path: string | null
@@ -266,13 +263,6 @@ export type ChatProposal = {
   materialized_epic_state_path?: string | null
   active_children_count?: number
   children?: ChatProposalChild[]
-}
-
-export type ChatProposalProposer = {
-  type: string
-  id: number
-  label: string
-  handle?: string | null
 }
 
 export type ChatProposalDependency = {
@@ -309,7 +299,7 @@ export type ChatProposalChild = {
   priority?: string
   planned_execution?: PlannedExecution | null
   goal_provenance?: GoalProvenance | null
-  proposer?: ChatProposalProposer | null
+  proposer?: Proposer | null
   media_ids?: string[]
   dependency_details?: ChatProposalChildDependency[]
   app_update_path: string
@@ -853,7 +843,6 @@ export type ChatGroupRecord = {
   has_more: boolean
 }
 
-export type ChatSidebarStatus = "active" | "hidden" | "all"
 export type ChatSidebarGroupBy = "date" | "repository" | "status" | "mode" | "chat_type" | "agent"
 export type ChatSidebarSortBy = "name" | "date_created" | "last_activity"
 export type ChatSidebarPerGroup = 5 | 10 | 15 | 20
@@ -864,7 +853,7 @@ export type ChatSidebarAgentOption = {
 }
 
 export type ChatSidebarSettings = {
-  status: ChatSidebarStatus
+  show_archived: boolean
   group_by: ChatSidebarGroupBy
   chat_types: ChatType[]
   sort_by: ChatSidebarSortBy
@@ -874,7 +863,7 @@ export type ChatSidebarSettings = {
 }
 
 export const DEFAULT_CHAT_SIDEBAR_SETTINGS: ChatSidebarSettings = {
-  status: "active",
+  show_archived: false,
   group_by: "repository",
   chat_types: [],
   sort_by: "last_activity",
@@ -899,15 +888,6 @@ export type MoreChatsPayload = {
   has_more: boolean
   agent_appearances?: Record<string, ChatAgentAppearance>
   provider_availability?: Record<string, ProviderAvailability>
-}
-
-export type HiddenChatsPayload = {
-  chats: HiddenChatRecord[]
-  total: number
-  page: number
-  per_page: number
-  total_pages: number
-  agent_appearances?: Record<string, ChatAgentAppearance>
 }
 
 export type ChatShellCommandOutcome = "succeeded" | "failed" | "killed" | "error"
@@ -1347,20 +1327,12 @@ export function markChatUnread(id: string | number) {
   return patchJson<{ chat: ChatNavRecord }>(`/api/v1/app/chats/${id}/mark_unread`)
 }
 
-export function hideChat(id: string | number) {
-  return patchJson<{ message: string; chat: ChatNavRecord }>(`/api/v1/app/chats/${id}/hide`)
-}
-
-export function unhideChat(path: string) {
-  return patchJson<{ message: string; chat: ChatNavRecord }>(path)
-}
-
 function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>, groupOffset?: number | null, activeChatId?: number | null) {
   const search = new URLSearchParams()
   if (groupOffset != null && groupOffset > 0) search.set("group_offset", String(groupOffset))
   if (!settings) return search
 
-  if (settings.status && settings.status !== "active") search.set("status", settings.status)
+  if (settings.show_archived === true) search.set("include_archived", "1")
   if (settings.group_by && settings.group_by !== "repository") search.set("group_by", settings.group_by)
   if (settings.chat_types && settings.chat_types.length > 0) search.set("chat_types", settings.chat_types.join(","))
   if (settings.sort_by && settings.sort_by !== "last_activity") search.set("sort_by", settings.sort_by)
@@ -1385,10 +1357,6 @@ export function fetchChatGroupsPage(settings: Partial<ChatSidebarSettings>, grou
 
 export function fetchNewChat() {
   return getJson<NewChatPayload>("/api/v1/app/chats/new")
-}
-
-export function fetchHiddenChats(page = 1) {
-  return getJson<HiddenChatsPayload>(`/api/v1/app/settings/hidden_chats?page=${encodeURIComponent(String(page))}`).then(withChatNavAppearances)
 }
 
 export function fetchMoreChatsForGroup(
@@ -1582,6 +1550,11 @@ export function sendChatMessage(
     ...(clientIdempotencyKey ? { client_idempotency_key: clientIdempotencyKey } : {}),
     ...chatMessagePayload(text, attachments)
   })
+}
+
+export function chatMessageWasDelivered(chatId: number | string, clientIdempotencyKey: string) {
+  const params = new URLSearchParams({ client_idempotency_key: clientIdempotencyKey })
+  return getJson<{ delivered: boolean }>(`/api/v1/app/chats/${chatId}/message_delivery?${params}`).then((result) => result.delivered)
 }
 
 export function renameChat(path: string, title: string) {

@@ -18,6 +18,7 @@ RSpec.describe "Syrus grader configuration" do
       feature-slugs
       plugin-model-namespaces
       plugin-boundaries
+      coworkers-removability
       eager-load
       production-build-boot
       frontend-typecheck
@@ -99,7 +100,7 @@ RSpec.describe "Syrus grader configuration" do
 
     expect(grader).to have_attributes(
       phases: [ "ci" ],
-      timeout_minutes: 120
+      timeout_minutes: 150
     )
   end
 

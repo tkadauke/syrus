@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatJobStatusPanel } from "./ChatJobStatusPanel"
+import i18n from "../i18n"
 import type { ChatJobStatusItem, ChatJobStatusPendingProposal } from "../api/chats"
 import { applyAppEvent } from "../lib/appEvents"
 
@@ -109,6 +110,32 @@ describe("ChatJobStatusPanel empty state", () => {
 })
 
 describe("ChatJobStatusPanel plugin actions", () => {
+  it("loads the plugin namespace before rendering an extension action label", async () => {
+    i18n.removeResourceBundle("en", "sdlc_pipeline")
+    delete (i18n.services.backendConnector.state as Record<string, number>)["en|sdlc_pipeline"]
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        items: [],
+        pending_proposals: [],
+        extensions: {
+          actions: [
+            {
+              id: "pipeline.1",
+              label_i18n_key: "sdlc_pipeline:chat_view_pipeline",
+              repository_id: 1,
+              repository_label: "acme/one",
+              path: "/repositories/1/plugin/sdlc-pipeline"
+            }
+          ]
+        }
+      })
+    )
+
+    renderPanel()
+
+    expect(await screen.findByRole("button", { name: "View pipeline" })).toBeInTheDocument()
+  })
+
   it("requires an explicit repository action and preserves its filtered path", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({

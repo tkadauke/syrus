@@ -327,6 +327,7 @@
   "recent_chats_settings": "Recent chats settings",
   "recent_chats_settings_close": "Close recent chats settings",
   "recent_chats_show_empty_groups": "Show empty groups",
+  "recent_chats_show_archived": "Show archived chats",
   "recent_chats_unread_only": "Unread only",
   "recent_chats_new_in": "New chat in {{group}}",
   "recent_chats_options": {

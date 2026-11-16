@@ -91,6 +91,38 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
     expect(Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)).to include("explain_stuck_job")
   end
 
+  it "keeps a 200-run explanation bounded and avoids whole-row association sorts" do
+    grant_full_chat_access(user)
+    baseline_job = Factories.job(repository: repository)
+    baseline_queries = capture_inspection_sql { call_tool(job_id: baseline_job.id) }
+    job = build_large_inspection_job(user: user, repository: repository)
+    expected_latest_run = job.runs.order(:created_at, :id).last
+
+    queries = capture_inspection_sql do
+      expect(wide_row_sort_statements do
+        @large_explanation_response = call_tool(job_id: job.id)
+      end).to be_empty
+    end
+
+    expect(@large_explanation_response.dig(:result, :isError)).to be_falsey
+    expect(response_payload(@large_explanation_response).dig(:runs, :latest, :id)).to eq(expected_latest_run.id)
+    expect(queries.size).to be <= baseline_queries.size + 10
+  end
+
+  it "returns the underlying database error when explanation SQL fails" do
+    job = Factories.job(repository: repository)
+    allow(Admin::StuckJobExplainer).to receive(:call).and_raise(
+      ActiveRecord::StatementInvalid, "Out of sort memory, consider increasing server sort buffer size"
+    )
+
+    response = call_tool(job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response_payload(response).dig(:error, :diagnostics, :database_message)).to eq(
+      "Out of sort memory, consider increasing server sort buffer size"
+    )
+  end
+
   it "respects mcp_context.allowed_job_ids, rejecting a job the user owns but the context excludes" do
     allowed_job = Factories.job_record(user: user, repository: repository, state: "implemented")
     excluded_job = Factories.job_record(user: user, repository: repository, state: "implemented")

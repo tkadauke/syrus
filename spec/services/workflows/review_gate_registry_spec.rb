@@ -49,6 +49,14 @@ RSpec.describe Workflows::ReviewGateRegistry do
     expect(keys).to eq(%w[adversarial security synthetic visual])
   end
 
+  it "keeps visual review outside the required immutable-HEAD barrier" do
+    definitions = described_class.definitions.index_by(&:key)
+
+    expect(definitions.fetch("adversarial").required).to be(true)
+    expect(definitions.fetch("security").required).to be(true)
+    expect(definitions.fetch("visual").required).to be(false)
+  end
+
   it "resolves project-overlay enablement, loop budget, repair, and evidence metadata" do
     gates = described_class.for(
       slot: :after_agent, job: job, agent_step: :implement,

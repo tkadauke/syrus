@@ -341,10 +341,38 @@ RSpec.describe Steps::Grader, :ci_only do
     details = step.reload.details
     expect(details["timed_out"]).to be true
     expect(details["exit_code"]).to eq(Steps::Grader::TIMEOUT_EXIT_CODE)
+    expect(details).to include(
+      "configured_timeout_s" => 60,
+      "duration_s" => 60.0,
+      "process_outcome" => "timed_out",
+      "silent_timed_out" => false
+    )
     expect(@ws_path.join(details["log_path"]).read).to include("[timed out after 1 minutes]")
     span = run.reload.command_spans.first
     expect(span.outcome).to eq("timed_out")
     expect(span.exit_status).to eq(Steps::Grader::TIMEOUT_EXIT_CODE)
+  end
+
+  it "records silent timeouts as an explicit inconclusive process outcome" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: nil, timed_out: false, stopped: false,
+      silent_timed_out: true, operator_killed: false,
+      aliveness_failed: false, duration_s: 600.2, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader"))
+      .and_return(instance_double(ProcessRunner, run: fake_result))
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader tests failed/)
+
+    expect(step.reload.details).to include(
+      "outcome" => GraderOutcome::INCONCLUSIVE,
+      "outcome_reason" => "silent_timed_out",
+      "duration_s" => 600.2,
+      "configured_timeout_s" => 60,
+      "process_outcome" => "silent_timed_out",
+      "silent_timed_out" => true
+    )
   end
 
   it "stores failure-focused excerpts for large logs instead of blind tail-only output" do

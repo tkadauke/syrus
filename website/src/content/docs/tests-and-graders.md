@@ -301,6 +301,15 @@ grade:
 This keeps agents from burning time on unrelated checks while preserving the
 gate when relevant files change.
 
+On a repeated landing repair, Syrus reruns failed or inconclusive graders and
+any target whose source scope or dependency closure intersects the repair.
+Successful unrelated targets are carried forward while their command,
+configuration, environment, and declared dependencies remain unchanged. A
+repo-wide grader with no source scope follows the same rule instead of rerunning
+solely because a narrow repair changed code. For a check that must execute after
+every code-changing landing repair, set `metadata.always_rerun: true` on that
+grader.
+
 ## Grader Resources
 
 A test runner has to choose its own parallelism before it starts, so declare

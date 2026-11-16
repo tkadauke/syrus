@@ -159,13 +159,13 @@ RSpec.describe RepoGradePlan do
         grade:
           - name: slow-tests
             run: bin/rspec
-            timeout_minutes: 150
+            timeout_minutes: 180
       YAML
 
       grader = described_class.for(@dir).graders.first
 
       expect(grader.name).to eq("slow-tests")
-      expect(grader.timeout_minutes).to eq(120)
+      expect(grader.timeout_minutes).to eq(150)
     end
 
     it "raises a parse error for unsafe or duplicate names" do

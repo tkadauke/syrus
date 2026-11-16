@@ -206,6 +206,7 @@ module Admin
       code.read
       coworker.message
       ops.read_logs
+      syrus.jobs
       syrus.propose_job
       syrus.read_jobs
     ].freeze

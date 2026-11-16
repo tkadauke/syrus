@@ -359,7 +359,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       )
     end
 
-    it "always reacts to a needs_work verdict with a repair, even with the (single-round) budget exhausted" do
+    it "fails closed after the final repair changes HEAD without another required review round" do
       AppSetting.current.update!(adversarial_review_rounds: 1)
       review_job = Factories.job_record(issue_number: 77, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -370,12 +370,11 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       StepDispatcher.start_workflow(review_workflow)
       described_class.perform_now(review_workflow.first_step.runs.last.id)
 
-      expect(review_workflow.reload).to be_succeeded
-      expect(review_workflow.steps.order(:position).pluck(:kind)).to eq(%w[
-        prepare implement adversarial_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open
-      ])
+      expect(review_workflow.reload).to be_failed
+      expect(review_workflow.failure_reason).to eq("required_review_budget_exhausted_after_head_change")
       expect(review_workflow.steps.where(kind: "implement").count).to eq(2)
       expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
+      expect(review_workflow.steps.where(kind: %w[format generate grader_fanout grader_collect summarize test_plan pr_open]).joins(:runs)).to be_empty
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
         [ "adversarial_review", 1, nil ],
@@ -383,7 +382,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       )
     end
 
-    it "seeks exactly the configured number of review opinions, each reacted to with a repair" do
+    it "fails closed when every required review opinion requests work through the final round" do
       AppSetting.current.update!(adversarial_review_rounds: 2)
       review_job = Factories.job_record(issue_number: 78, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -394,28 +393,13 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       StepDispatcher.start_workflow(review_workflow)
       described_class.perform_now(review_workflow.first_step.runs.last.id)
 
-      expect(review_workflow.reload).to be_succeeded
-      expect(review_workflow.steps.order(:position).pluck(:kind, :iteration)).to eq([
-        [ "prepare", 1 ],
-        [ "implement", 1 ],
-        [ "adversarial_review", 1 ],
-        [ "implement", 2 ],
-        [ "adversarial_review", 2 ],
-        [ "implement", 3 ],
-        [ "format", 1 ],
-        [ "generate", 1 ],
-        [ "grader_fanout", 1 ],
-        [ "grader_collect", 1 ],
-        [ "coverage_analyze", 1 ],
-        [ "dependency_audit", 1 ],
-        [ "summarize", 1 ],
-        [ "test_plan", 1 ],
-        [ "pr_open", 1 ]
-      ])
+      expect(review_workflow.reload).to be_failed
+      expect(review_workflow.failure_reason).to eq("required_review_budget_exhausted_after_head_change")
       # rounds: 2 seeks exactly two review opinions (the review-first fix: no longer
       # one review short) -- the third, budget-exhausted implement has no
       # review left to react to.
       expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(2)
+      expect(review_workflow.steps.where(kind: %w[format generate grader_fanout grader_collect summarize test_plan pr_open]).joins(:runs)).to be_empty
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
         [ "adversarial_review", 1, nil ],

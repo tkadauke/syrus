@@ -100,6 +100,40 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
       expect(response[:result][:isError]).to be_falsey
       expect(payload[:workflows].map { |wf| wf[:id] }).to include(other_job.latest_workflow.id)
     end
+
+    it "keeps a 200-run workflow listing bounded and avoids whole-row association sorts" do
+      job = build_large_inspection_job(user: user, repository: repository)
+      workflow = job.latest_workflow
+      expected_step_count = workflow.steps.count
+      expected_run_count = Run.joins(:step).where(steps: { workflow_id: workflow.id }).count
+
+      queries = capture_inspection_sql do
+        expect(wide_row_sort_statements do
+          @large_workflow_response = call_tool("list_job_workflows", job_id: job.id)
+        end).to be_empty
+      end
+
+      payload = response_payload(@large_workflow_response)
+      expect(payload[:workflows].first).to include(
+        step_count: expected_step_count,
+        run_count: expected_run_count
+      )
+      expect(queries.size).to be < 30
+    end
+
+    it "returns the underlying database error when workflow listing SQL fails" do
+      job = Factories.job(repository: repository)
+      allow(Mcp::Tools::ListJobWorkflowsTool).to receive(:workflow_index_for).and_raise(
+        ActiveRecord::StatementInvalid, "Out of sort memory, consider increasing server sort buffer size"
+      )
+
+      response = call_tool("list_job_workflows", job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(response_payload(response).dig(:error, :diagnostics, :database_message)).to eq(
+        "Out of sort memory, consider increasing server sort buffer size"
+      )
+    end
   end
 
   describe "read_workflow" do
@@ -159,7 +193,9 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
     it "returns paginated transcript chunks without the agent diff" do
       job = Factories.job(repository: repository)
       run = job.initial_run
-      run.update!(agent_outcome: "success", agent_summary: "changed the code", agent_diff: "full diff\n" * 20)
+      run.update!(agent_outcome: "success", agent_summary: "changed the code",
+        agent_diff: "full diff é\n" * 20, step_agent_diff: "step diff é\n",
+        base_sha: "base-sha", head_sha: "head-sha")
       5.times { |index| run.job_logs.create!(sequence: index, kind: "stdout", chunk: "chunk-#{index}") }
 
       response = call_tool("read_run_transcript", run_id: run.id, page: 2, per: 2)
@@ -168,7 +204,11 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
       expect(response[:result][:isError]).to be_falsey
       expect(payload).to include(run_id: run.id, run_state: run.state, agent_outcome: "success", agent_summary: "changed the code", total_chunks: 5, page: 2, per: 2, total_pages: 3)
       expect(payload).not_to include(:agent_diff)
-      expect(payload[:agent_diff_bytes]).to eq(("full diff\n" * 20).bytesize)
+      expect(payload[:agent_diff_bytes]).to eq(("full diff é\n" * 20).bytesize)
+      expect(payload).to include(
+        step_agent_diff_bytes: "step diff é\n".bytesize,
+        base_sha: "base-sha", head_sha: "head-sha"
+      )
       expect(payload[:chunks]).to eq([
         { sequence: 2, kind: "stdout", chunk: "chunk-2" },
         { sequence: 3, kind: "stdout", chunk: "chunk-3" }

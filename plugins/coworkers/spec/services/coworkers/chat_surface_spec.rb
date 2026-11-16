@@ -23,6 +23,9 @@ RSpec.describe "Coworker chat surface" do
     chat.define_singleton_method(:coworker) { assigned_coworker }
     Filters.subject(:chat_message)
     Coworkers::SearchExtension.install_into(scope)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_turn_lifecycle)
+      .and_return([ Coworkers::ChatTurnLifecycle ])
   end
 
   after { scope.dispose }
@@ -135,6 +138,44 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
   end
 
+  it "submits targeted Job feedback through the shared confirmation and records coworker provenance" do
+    allow_tool(Mcp::Tools::SubmitChatFeedbackTool)
+    job = Factories.job_record(user: owner, repository: repository, state: "implemented")
+
+    response = coworker_tool("submit_chat_feedback").call(
+      job_id: job.id,
+      feedback: "Cover the broader retry path before landing.",
+      server_context: { chat_session: chat }
+    )
+
+    expect(response).not_to be_error
+    action = chat.pending_actions.find(response_payload(response).fetch("pending_action_id"))
+    expect(action).to have_attributes(action: "submit_chat_feedback", state: "pending", origin: chat)
+    expect(action.payload.fetch("feedback_source")).to eq(
+      "type" => "coworker",
+      "coworker_id" => coworker.id,
+      "coworker_handle" => "maya",
+      "coworker_name" => "Maya",
+      "chat_session_id" => chat.id,
+      "agent_provider" => chat.effective_chat_provider
+    )
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+
+    expect { action.confirm!(user: owner) }.to have_enqueued_job(RunJob)
+    workflow = action.reload.result
+    expect(workflow).to have_attributes(job: job, trigger_kind: "chat_feedback")
+    expect(workflow.artifact("chat_feedback")).to eq("Cover the broader retry path before landing.")
+    expect(workflow.artifact("feedback_source")).to eq(action.payload.fetch("feedback_source"))
+
+    history = App::JobDetailPayload.build(job: job.reload, user: owner).fetch(:feedback_history).sole
+    expect(history).to include(
+      kind: "chat_feedback",
+      body: "Cover the broader retry path before landing.",
+      workflow_id: workflow.id,
+      feedback_source: action.payload.fetch("feedback_source")
+    )
+  end
+
   it "creates an ordinary pending Epic card and child cards with coworker provenance" do
     allow_tool(Mcp::Tools::ProposeEpicWithJobsTool)
 
@@ -165,6 +206,10 @@ RSpec.describe "Coworker chat surface" do
     expect(Epic.where(title: "Release readiness")).to be_empty
     expect(Job.where(issue_title: "Prepare release")).to be_empty
     expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+
+    result = ChatEpicProposalMaterializer.new(user: owner).file!(proposal)
+    expect(result.epic).to have_attributes(proposer: coworker)
+    expect(result.jobs.sole).to have_attributes(proposer: coworker)
   end
 
   it "preserves proposal validation and repository visibility for coworkers" do
@@ -516,7 +561,10 @@ RSpec.describe "Coworker chat surface" do
   it "uses the coworker chat branch lifecycle and withholds owner invocation credentials" do
     job = ChatTurnJob.new
     job.instance_variable_set(:@chat, chat)
-    job.instance_variable_set(:@user_message, chat.messages.create!(role: "user", content: { "text" => "Hello" }))
+    message = chat.messages.create!(role: "user", content: { "text" => "Hello" })
+    job.instance_variable_set(:@user_message, message)
+    job.instance_variable_set(:@turn_lifecycle,
+      Coworkers::ChatTurnLifecycle.new(chat_session: chat, user_message: message))
     allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(Pathname("/tmp/coworker-root"))
     lifecycle = class_double(Coworkers::ChatWorkspaceLifecycle, applies_to?: true)
     allow(lifecycle).to receive(:prepare!).with(chat_session: chat).and_return(Pathname("/tmp/coworker-chat"))

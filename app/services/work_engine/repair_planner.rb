@@ -528,6 +528,21 @@ module WorkEngine
         end
       end
 
+      class QueuedRunBeforeRequiredReviewBarrier < Base
+        def plan
+          automatic_plan(
+            "cancel_unsafe_review_barrier_run",
+            primary_run,
+            "The Run has not started and its required immutable-HEAD review barrier is unresolved.",
+            execution_steps: [ "Persist non-cascading Run cancellation", "Workflow#set_artifact!" ],
+            preconditions: {
+              run_state: "queued",
+              required_review_head_unresolved: true
+            }
+          )
+        end
+      end
+
       class CancelledRetryUntilBarrierBlockingTail < Base
         def plan
           automatic_plan(
@@ -1470,6 +1485,23 @@ module WorkEngine
             primary_workflow,
             "Reconstruct the missing workspace from durable source evidence, or fail it into the automatic retry path.",
             execution_steps: [ "WorkflowWorkspaceRecovery" ]
+          )
+        end
+      end
+
+      class CheckpointBackedBlockedWorkflow < Base
+        def plan
+          automatic_plan(
+            "refresh_base_from_blocked_checkpoint",
+            primary_workflow,
+            "The blocked Workflow is quiescent and its published checkpoint is verified, so recover it through the normal refresh-base admission path.",
+            execution_steps: [ "BaseRefreshRetryEnqueuer.call" ],
+            preconditions: {
+              workflow_state: "blocked",
+              checkpoint_id: issue.evidence["checkpoint_id"],
+              no_active_runs: true,
+              no_active_work_unit_or_locks: true
+            }
           )
         end
       end

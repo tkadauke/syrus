@@ -28,6 +28,7 @@ import { StatusPill } from "../../components/StatusPill"
 import { bulkDashboardEpics, type DashboardBulkEpicAction, type DashboardEpicItem, type DashboardWorkflowItem } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
 import { WorkflowReference } from "../../components/WorkflowReference"
+import { ProposerAttribution } from "../../components/ProposerAttribution"
 
 // Dashboard epic + workflow tables extracted from Dashboard.tsx: EpicsTable and
 // WorkflowsTable with their bulk actions, mobile lists, and per-row cells.
@@ -306,6 +307,7 @@ function MobileEpicRow({
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <RepositorySlugLink prefix={prefix} repository={epic.repository} />
           <OwnerBadge badge={epic.owner_badge} />
+          <ProposerAttribution label={(values) => t("proposed_by", values)} proposer={epic.proposer} />
         </div>
       </div>
       {showProgress ? (
@@ -373,7 +375,10 @@ function EpicCell({
   if (column === "owner")
     return (
       <DataTable.Cell className="text-xs text-gray-600 dark:text-gray-300">
-        <OwnerBadge badge={epic.owner_badge} />
+        <div className="space-y-1">
+          <OwnerBadge badge={epic.owner_badge} />
+          <ProposerAttribution label={(values) => t("proposed_by", values)} proposer={epic.proposer} />
+        </div>
       </DataTable.Cell>
     )
   if (column === "repository") {

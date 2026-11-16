@@ -9,8 +9,10 @@ namespace :plugin do
       next
     end
 
-    puts "#{name} owns #{report.tables.size} table(s), #{report.total_rows} row(s):"
+    puts "#{name} owns #{report.tables.size} table(s), #{report.inline_fields.size} inline field(s), #{report.total_rows} row(s):"
     report.row_counts.each { |table, count| puts "  #{table}: #{count} row(s)" }
+    report.inline_row_counts.each { |table, count| puts "  #{table}: #{count} plugin-owned row(s)" }
+    report.inline_fields.each { |field| puts "  #{field.table}.#{field.column}: inline field" }
     report.other_data.each { |line| puts "  #{line}" }
     puts
     puts "Run 'plugin:purge[#{name}]' to drop them. This is irreversible."
@@ -26,8 +28,10 @@ namespace :plugin do
       next
     end
 
-    puts "About to DROP #{report.tables.size} table(s) holding #{report.total_rows} row(s):"
+    puts "About to remove #{report.tables.size} table(s), #{report.inline_fields.size} inline field(s), and #{report.total_rows} row(s):"
     report.row_counts.each { |table, count| puts "  #{table}: #{count} row(s)" }
+    report.inline_row_counts.each { |table, count| puts "  delete #{count} plugin-owned row(s) from #{table}" }
+    report.inline_fields.each { |field| puts "  drop inline field #{field.table}.#{field.column}" }
     report.other_data.each { |line| puts "  and remove #{line}" }
     print "Type the plugin name to confirm: "
     confirmation = $stdin.gets.to_s.strip

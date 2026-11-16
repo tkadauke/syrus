@@ -76,7 +76,7 @@ module GlobalSearch
 
       def index_fields(epic)
         SearchIndexWriteLimits.row(
-          { title: epic.title, description: epic.description },
+          { title: epic.title, description: [ epic.description, epic.proposer&.handle ].compact_blank.join("\n\n") },
           index: "epic",
           record_id: epic.id
         )

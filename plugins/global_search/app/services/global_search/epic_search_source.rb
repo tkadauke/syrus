@@ -14,7 +14,7 @@ module GlobalSearch
     end
 
     def self.search_database_rebuild_key = "epics"
-    def self.search_database_content_version = "1"
+    def self.search_database_content_version = "2"
     def self.current_content_version = SearchIndexVersion.current(search_database_rebuild_key)
     def self.finish_content_version! = SearchIndexVersion.write!(search_database_rebuild_key, search_database_content_version)
     def self.search_database_tables = [ TABLE_NAME ]

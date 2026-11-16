@@ -1,5 +1,5 @@
 require "rails_helper"
-require Rails.root.join("db/migrate/20261104120818_migrate_coworker_grants_to_permission_rules")
+require Rails.root.join("plugins/coworkers/db/migrate/20261104120818_migrate_coworker_grants_to_permission_rules")
 
 RSpec.describe MigrateCoworkerGrantsToPermissionRules do
   subject(:migration) { described_class.new }

@@ -6,13 +6,13 @@ module Workflows
       :key, :step_kind, :slot, :before, :after, :excluded_trigger_kinds, :enabled_resolver,
       :loop_budget, :repair_step, :handler_provider, :prompt_provider,
       :tool_provider, :verdict_artifact, :exit_verdicts, :failure_policy,
-      :evidence_metadata, :panel_capable
+      :evidence_metadata, :panel_capable, :required
     ) do
       def initialize(key:, step_kind:, slot: "after_agent", before: [], after: [], excluded_trigger_kinds: [],
                      enabled_resolver:, loop_budget:, repair_step: nil,
                      handler_provider:, prompt_provider:, tool_provider:,
                      verdict_artifact:, exit_verdicts: %w[approved skipped],
-                     failure_policy: {}, evidence_metadata: {}, panel_capable: false)
+                     failure_policy: {}, evidence_metadata: {}, panel_capable: false, required: true)
         super(
           key: key.to_s, step_kind: step_kind.to_s, slot: slot.to_s,
           before: Array(before).map(&:to_s).freeze,
@@ -25,7 +25,7 @@ module Workflows
           exit_verdicts: Array(exit_verdicts).map(&:to_s).freeze,
           failure_policy: failure_policy.to_h.freeze,
           evidence_metadata: evidence_metadata.to_h.freeze,
-          panel_capable: panel_capable == true
+          panel_capable: panel_capable == true, required: required == true
         )
       end
 
@@ -48,7 +48,8 @@ module Workflows
           "key" => key, "step_kind" => step_kind, "slot" => slot,
           "verdict_artifact" => verdict_artifact,
           "exit_verdicts" => exit_verdicts, "failure_policy" => failure_policy,
-          "evidence_metadata" => evidence_metadata, "panel_capable" => panel_capable
+          "evidence_metadata" => evidence_metadata, "panel_capable" => panel_capable,
+          "required" => required
         }
       end
     end
@@ -82,7 +83,7 @@ module Workflows
         },
         handler_provider: "Steps::VisualReview", prompt_provider: "Prompts::VisualReview",
         tool_provider: %w[submit_visual_review], verdict_artifact: "visual_review_iterations",
-        failure_policy: { "deterministic" => "fail", "transient" => "retry" }
+        failure_policy: { "deterministic" => "fail", "transient" => "retry" }, required: false
       }
     ].freeze
 

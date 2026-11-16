@@ -60,7 +60,7 @@ jobs:
     # This includes npm install, lint, a production build, bundle analysis,
     # typechecking, and the full Vitest suite. The tests alone can take about
     # nine minutes, so 15 minutes leaves too little runner-variance headroom.
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 

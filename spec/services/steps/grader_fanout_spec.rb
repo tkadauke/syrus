@@ -2503,6 +2503,207 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
     end
 
+    it "narrows repeated landing repairs to failed, inconclusive, and repair-affected targets" do
+      workflow.update!(trigger_kind: "merge_train")
+      scoped = [
+        [ "models", "app/models/**" ],
+        [ "services", "app/services/**" ],
+        [ "fixtures", "spec/fixtures/**" ]
+      ]
+      repo_wide = 126.times.map { |index| "repo-wide-#{index}" }
+      steps_yaml = [
+        "    - name: failed",
+        "      run: bin/failed",
+        "    - name: inconclusive",
+        "      run: bin/inconclusive"
+      ]
+      scoped.each do |name, glob|
+        steps_yaml.concat([
+          "    - name: #{name}",
+          "      run: bin/#{name}",
+          "      when_files_changed: [\"#{glob}\"]"
+        ])
+      end
+      repo_wide.each do |name|
+        steps_yaml.concat([ "    - name: #{name}", "      run: bin/#{name}" ])
+      end
+      write_config("grade:\n  steps:\n#{steps_yaml.join("\n")}\n")
+      stub_changed_files("app/models/job.rb", "app/services/runner.rb", "spec/fixtures/jobs.yml")
+
+      handler.call
+
+      first_graders = workflow.steps.where(kind: "grader", iteration: 1).index_by { |grader| grader.details["name"] }
+      expect(first_graders.size).to eq(131)
+      first_graders.each_value { |grader| grader.update_columns(state: "succeeded") }
+      first_graders.fetch("failed").update_columns(state: "failed")
+      first_graders.fetch("inconclusive").update_columns(state: "cancelled")
+
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 250, iteration: 2, loop_id: loop_id)
+      repair.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        step_agent_diff: %w[
+          app/models/job.rb
+          app/services/runner.rb
+          app/models/user.rb
+          app/services/router.rb
+          app/models/step.rb
+          app/services/collector.rb
+        ].map { |path| "diff --git a/#{path} b/#{path}\n--- a/#{path}\n+++ b/#{path}\n@@ -1 +1 @@\n-old\n+new\n" }.join
+      )
+
+      build_iteration_two_handler.call
+
+      second_names = workflow.steps.where(kind: "grader", iteration: 2).map { |grader| grader.details["name"] }
+      expect(second_names).to match_array(%w[failed inconclusive models services])
+      second_carried = workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)
+      expect(second_carried.size).to eq(127)
+      expect(second_names.size + second_carried.size).to eq(131)
+      explanations = workflow.artifact(described_class::SELECTION_EXPLANATIONS_ARTIFACT_KEY).index_by { |entry| entry["name"] }
+      expect(explanations.fetch("failed")).to include("explanation" => "prior_failure", "selected" => true)
+      expect(explanations.fetch("models")).to include("explanation" => "repair_affected", "selected" => true)
+      expect(explanations.fetch("repo-wide-0")).to include("explanation" => "carried_forward", "selected" => false)
+
+      workflow.steps.where(kind: "grader", iteration: 2).each { |grader| grader.update_columns(state: "succeeded") }
+      workflow.steps.where(kind: "grader", iteration: 2).find { |grader| grader.details["name"] == "inconclusive" }.update_columns(state: "failed")
+      fixture_repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 350, iteration: 3, loop_id: loop_id)
+      fixture_repair.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 3,
+        step_agent_diff: "diff --git a/spec/fixtures/jobs.yml b/spec/fixtures/jobs.yml\n--- a/spec/fixtures/jobs.yml\n+++ b/spec/fixtures/jobs.yml\n@@ -1 +1 @@\n-old\n+new\n"
+      )
+
+      build_iteration_handler(3).call
+
+      third_names = workflow.steps.where(kind: "grader", iteration: 3).map { |grader| grader.details["name"] }
+      expect(third_names).to match_array(%w[inconclusive fixtures])
+      third_carried = workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)
+      expect(third_carried.size).to eq(129)
+      expect(third_names.size + third_carried.size).to eq(131)
+    end
+
+    it "reruns a prior failed grader after the repair removes its last matching file from the cumulative diff" do
+      workflow.update!(trigger_kind: "merge_train")
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: models
+              run: bin/models
+              when_files_changed: ["app/models/**"]
+            - name: services
+              run: bin/services
+              when_files_changed: ["app/services/**"]
+      YAML
+      stub_changed_files("app/models/job.rb")
+
+      handler.call
+      workflow.steps.where(kind: "grader", iteration: 1).sole.update_columns(state: "failed")
+
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 250, iteration: 2, loop_id: loop_id)
+      repair.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        step_agent_diff: "diff --git a/app/models/job.rb b/app/models/job.rb\n--- a/app/models/job.rb\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n"
+      )
+      stub_changed_files
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |grader| grader.details["name"] }).to eq([ "models" ])
+      expect(workflow.reload.artifact(described_class::SELECTION_EXPLANATIONS_ARTIFACT_KEY)).to include(
+        include("name" => "models", "explanation" => "prior_failure", "selected" => true)
+      )
+    end
+
+    it "deduplicates equivalent failed CI variants with the same identities and inputs" do
+      workflow.update!(trigger_kind: "merge_train")
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: tests
+              run: bin/rspec
+              phases: [landing]
+            - name: tests-ci
+              run: bin/rspec
+              phases: [landing]
+      YAML
+
+      handler.call
+      workflow.steps.where(kind: "grader", iteration: 1).each do |grader|
+        grader.update_columns(state: "failed")
+        grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed", iteration: 1)
+      end
+      allow(TestEvidenceLookup).to receive(:failed_test_cases_for).and_return([
+        { "identity" => "spec/models/job_spec.rb\0fails", "file_path" => "spec/models/job_spec.rb" }
+      ])
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 250, iteration: 2, loop_id: loop_id)
+      repair.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        step_agent_diff: "diff --git a/app/models/job.rb b/app/models/job.rb\n--- a/app/models/job.rb\n+++ b/app/models/job.rb\n@@ -1 +1 @@\n-old\n+new\n"
+      )
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |grader| grader.details["name"] }).to eq([ "tests" ])
+      expect(workflow.reload.artifact(described_class::DEDUPLICATED_ARTIFACT_KEY)).to contain_exactly(
+        include("name" => "tests-ci", "canonical_name" => "tests")
+      )
+      expect(workflow.artifact(described_class::SELECTION_EXPLANATIONS_ARTIFACT_KEY)).to include(
+        include("name" => "tests-ci", "explanation" => "deduplicated", "selected" => false)
+      )
+    end
+
+    it "reruns repo-wide graders for changed fingerprints or an explicit always-rerun policy" do
+      workflow.update!(trigger_kind: "merge_train")
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: configured
+              run: bin/check-v1
+            - name: volatile
+              run: bin/volatile
+              metadata:
+                always_rerun: true
+      YAML
+      handler.call
+      workflow.steps.where(kind: "grader", iteration: 1).each { |grader| grader.update_columns(state: "succeeded") }
+
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: configured
+              run: bin/check-v2
+            - name: volatile
+              run: bin/volatile
+              metadata:
+                always_rerun: true
+      YAML
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 250, iteration: 2, loop_id: loop_id)
+      repair.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        step_agent_diff: "diff --git a/app/models/job.rb b/app/models/job.rb\n--- a/app/models/job.rb\n+++ b/app/models/job.rb\n@@ -1 +1 @@\n-old\n+new\n"
+      )
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |grader| grader.details["name"] }).to match_array(%w[configured volatile])
+      explanations = workflow.reload.artifact(described_class::SELECTION_EXPLANATIONS_ARTIFACT_KEY).index_by { |entry| entry["name"] }
+      expect(explanations.fetch("configured")["explanation"]).to eq("fingerprint_changed")
+      expect(explanations.fetch("volatile")["explanation"]).to eq("explicitly_always_run")
+    end
+
     it "does not carry a pass across a repair iteration that committed a real diff" do
       write_config(<<~YAML)
         grade:

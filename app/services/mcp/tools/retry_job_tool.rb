@@ -39,7 +39,7 @@ module Mcp::Tools
           description: "Multiple Syrus Job ids to retry as one grouped pending action."
         },
         mode: { type: "string", enum: RetryJobs::Mode::MODES.keys, description: "Retry mode (defaults to auto)." },
-        source_workflow_id: { type: "integer", description: "Optional failed Workflow to use for failed_step or refresh_base." },
+        source_workflow_id: { type: "integer", description: "Optional failed Workflow to use for failed_step, or failed/strictly eligible blocked Workflow for refresh_base." },
         reason: { type: "string", description: "Required operator-facing audit reason for refresh_base." }
       }
     )

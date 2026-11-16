@@ -123,7 +123,7 @@ active records or another runtime blocker still use the plugin.
 | --- | --- | --- |
 | Disable | Capabilities withheld, UI hidden, work skipped, routes report `plugin_disabled` | retained |
 | Uninstall | Gem removed and no longer registered after restart | retained |
-| Purge | Plugin-owned tables and contributed external resources removed | destroyed |
+| Purge | Plugin-owned tables, declared shared-table fields and rows, and contributed external resources removed | destroyed |
 
 Installation and uninstallation are manual: update the bundle, run migrations,
 rebuild frontend assets when needed, and restart application processes. Purge is
@@ -133,6 +133,11 @@ an explicit, destructive operation performed only after uninstalling:
 bin/rails 'plugin:data[build_cache]'    # preview what purge removes
 bin/rails 'plugin:purge[build_cache]'   # confirm and destroy plugin data
 ```
+
+The preview includes plugin-owned rows and fields stored inline on shared core
+tables when the plugin ownership manifest explicitly declares how to remove
+them. Purge deletes those rows and fields before dropping plugin tables, so it
+does not leave dangling plugin references in retained core records.
 
 ## Repository workflow behavior contributed by plugins
 

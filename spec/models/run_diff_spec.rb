@@ -54,10 +54,10 @@ RSpec.describe RunDiff do
       ).then { |a, b, c| [ a.to_i, b.to_i, ActiveModel::Type::Boolean.new.cast(c) ] }
     end
 
-    it "reports bytes and a mismatch for a Run with differing diffs" do
-      run.update!(agent_diff: "hello\n", step_agent_diff: "x")
+    it "reports bytes and a mismatch for a Run with differing multibyte diffs" do
+      run.update!(agent_diff: "héllo\n", step_agent_diff: "é")
 
-      expect(project(run)).to eq([ "hello\n".bytesize, 1, false ])
+      expect(project(run)).to eq([ "héllo\n".bytesize, "é".bytesize, false ])
     end
 
     it "reports zero bytes for a Run without a diff row" do

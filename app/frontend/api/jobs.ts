@@ -13,6 +13,7 @@ import type {
 import type { AdmissionBreakdown, StartBlockedDetails } from "../types/startBlocked"
 import type { TypedArtifact } from "./artifacts"
 import type { GoalProvenance } from "./chats"
+import type { Proposer } from "./proposers"
 import { checkApiVersion } from "./version"
 
 export type JobRepository = {
@@ -192,6 +193,7 @@ export type JobRecord = {
   landing_blocker_override_requested_by?: JobUserReference | null
   origin?: JobOrigin | null
   goal_provenance?: GoalProvenance | null
+  proposer?: Proposer | null
   epic_id?: number | null
   total_cost_usd: number | null
   billed_runs_count: number

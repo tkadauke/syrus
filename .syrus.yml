@@ -474,6 +474,31 @@ grade:
     # under the 5-minute budget, so leave enough headroom for the full-tree scan.
     timeout_minutes: 8
 
+  - name: coworkers-removability
+    description: |
+      Physically subtracts the optional named-agent plugin, loads the retained
+      core schema, boots and eager-loads Rails, and builds the frontend from
+      the reduced tree. This proves plugin-owned migrations and UI modules are
+      not required for a fresh core installation.
+    run: >-
+      BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle"
+      bin/plugin-boundary-audit coworkers --command
+      'bundle config set --local path vendor/bundle && (bundle check || bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}") && RAILS_ENV=test bin/rails db:schema:load && RAILS_ENV=test bin/rails runner "Rails.application.eager_load!; puts :core_boot_ok" && npm ci && npm run build'
+    phases: [review, landing, ci, unland]
+    required: true
+    timeout_minutes: 20
+    when_files_changed:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "plugins/coworkers/**"
+      - "Gemfile"
+      - "Gemfile.lock"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+
   - name: eager-load
     description: |
       Forces Rails.application.eager_load! to surface Zeitwerk
@@ -613,10 +638,11 @@ grade:
       - "docs/metrics-catalog.md"
     timeout_minutes: 60
     focused_timeout_minutes: 10
-    # The CI variant runs the main suite in parallel, then 4,900+ ci_only
-    # examples, including schema-mutating cases, in an isolated serial pass.
-    # Healthy four-process runs now exceed 90 minutes under worker contention.
-    ci_timeout_minutes: 120
+    # The CI variant runs 17,000+ main examples, then 4,900+ ci_only examples,
+    # including schema-mutating cases, in an isolated serial pass. A one-CPU
+    # worker needs about 106 minutes for the main pass alone, so preserve enough
+    # cumulative budget for the required serial pass.
+    ci_timeout_minutes: 150
 
   - type: vitest
     name: react-tests

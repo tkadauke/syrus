@@ -121,6 +121,25 @@ RSpec.describe McpToolRegistry do
       )
       expect(entries).to all(have_attributes(explicit_descriptor: true, compatibility_descriptor: false, tier: :deferred))
     end
+
+    it "shares targeted Job feedback across chat and coworker surfaces without sharing reviewer verdicts" do
+      chat_feedback = described_class.entries(surface: :chat).find { |entry| entry.tool_name == "submit_chat_feedback" }
+      coworker_feedback = described_class.entries(surface: :coworker).find { |entry| entry.tool_name == "submit_chat_feedback" }
+
+      expect(coworker_feedback.tool).to eq(chat_feedback.tool)
+      expect(coworker_feedback.descriptor).to have_attributes(
+        capability: chat_feedback.descriptor.capability,
+        operation: chat_feedback.descriptor.operation,
+        effects: chat_feedback.descriptor.effects,
+        risk: chat_feedback.descriptor.risk
+      )
+      expect(chat_feedback.descriptor.defaults.values_at(*AgentRole::CHAT_ROLES)).to all(eq(:allow))
+      expect(coworker_feedback.descriptor.defaults.values_at(AgentRole::COWORKER_CHAT, AgentRole::COWORKER)).to all(eq(:ask))
+      expect(coworker_feedback).to have_attributes(mutation: true, approval_effect: true)
+      expect(described_class.entries(surface: :coworker).map(&:tool_name)).not_to include(
+        "submit_visual_review", "submit_adversarial_review", "submit_security_review", "submit_coworker_review"
+      )
+    end
   end
 
   describe ".tools_for_context" do

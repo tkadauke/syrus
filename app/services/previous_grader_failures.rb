@@ -22,16 +22,19 @@ class PreviousGraderFailures
   def spec_paths
     return [] unless step&.loop_id.present?
     return [] unless step.iteration.to_i > 1
-    return [] unless previous_step
 
-    run = previous_step.latest_run
-    return [] unless run
+    previous_steps.each do |previous_step|
+      run = previous_step.latest_run
+      next unless run
 
-    TestEvidenceLookup
-      .failed_test_cases_for(run, grader_name)
-      .filter_map { |test_case| test_case["file_path"].to_s.presence }
-      .uniq
-      .sort
+      paths = TestEvidenceLookup
+        .failed_test_cases_for(run, previous_step.details.to_h["name"])
+        .filter_map { |test_case| test_case["file_path"].to_s.presence }
+        .uniq
+        .sort
+      return paths if paths.any?
+    end
+    []
   end
 
   private
@@ -42,12 +45,29 @@ class PreviousGraderFailures
     step.details.to_h["name"].to_s
   end
 
-  # The same grader, one iteration back in the same loop. Matching on name
-  # rather than position: fanout can select a different set of graders per
-  # iteration, so position is not stable.
-  def previous_step
-    @previous_step ||= step.workflow.steps
-      .where(kind: step.kind, loop_id: step.loop_id, iteration: step.iteration.to_i - 1)
-      .find { |candidate| candidate.details.to_h["name"].to_s == grader_name }
+  # Walk past carried/deduplicated iterations to the latest persisted failing
+  # evidence. A CI-suffixed variant is equivalent only when its command and
+  # target fingerprints are also identical; phase-specific commands remain
+  # genuinely distinct graders.
+  def previous_steps
+    @previous_steps ||= step.workflow.steps
+      .where(kind: step.kind, loop_id: step.loop_id)
+      .where("iteration < ?", step.iteration.to_i)
+      .reorder(iteration: :desc, position: :desc)
+      .select { |candidate| equivalent_grader?(candidate) }
+  end
+
+  def equivalent_grader?(candidate)
+    details = candidate.details.to_h
+    current = step.details.to_h
+    return true if details["name"].to_s == grader_name
+    return false unless normalized_name(details["name"]) == normalized_name(grader_name)
+    return false unless details["command"].to_s == current["command"].to_s
+
+    details["target_fingerprints"].to_h == current["target_fingerprints"].to_h
+  end
+
+  def normalized_name(name)
+    name.to_s.downcase.sub(/-ci\z/, "").sub(/\Aci-/, "")
   end
 end
