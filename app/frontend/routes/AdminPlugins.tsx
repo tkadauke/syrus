@@ -150,7 +150,15 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
             <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
             {plugin.experimental ? <StatusBadge status="experimental" label={t("plugins.experimental")} /> : null}
+            {plugin.health && plugin.health.state !== "ok" ? (
+              <StatusBadge status={plugin.health.state} label={t(`plugins.health_states.${plugin.health.state}`, { defaultValue: plugin.health.state })} />
+            ) : null}
           </div>
+          {plugin.health && plugin.health.reasons.length > 0 && plugin.health.state !== "ok" ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-700 dark:text-amber-300">
+              {plugin.health.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+            </ul>
+          ) : null}
           {description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{description}</p> : null}
           {longDescription ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -353,7 +361,7 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
               <span className="font-mono text-sm text-gray-500 dark:text-gray-400">{plugin.name}</span>
               <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
               {plugin.experimental ? <StatusBadge status="experimental" label={t("plugins.experimental")} /> : null}
-              {plugin.health ? <StatusBadge status={plugin.health.state} label={`${t("plugins.health")}: ${plugin.health.state}`} /> : null}
+              {plugin.health ? <StatusBadge status={plugin.health.state} label={`${t("plugins.health")}: ${t(`plugins.health_states.${plugin.health.state}`, { defaultValue: plugin.health.state })}`} /> : null}
             </div>
             {plugin.health && plugin.health.reasons.length > 0 ? (
               <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-700 dark:text-amber-300">

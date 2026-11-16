@@ -297,11 +297,22 @@ module Syrus
         # Must precede any `config` access -- see the note in #syrus_plugin.
         @engine.called_from = lib_dir
 
-        @engine.config.to_prepare { definition.install! }
+        @engine.config.to_prepare { Syrus::PluginLoader.install_definition!(definition) }
         @engine
       end
 
       public
+
+      # A definition whose deferred registration fails must not leave a
+      # constant that looks like an available engine. Rails has no supported
+      # Railtie removal API, so plugin routes are deliberately registry-backed;
+      # removing the constant plus rolling back the registry makes it inert.
+      def discard_engine!
+        if namespace.const_defined?(:Engine, false) && namespace.const_get(:Engine, false).equal?(@engine)
+          namespace.send(:remove_const, :Engine)
+        end
+        @engine = nil
+      end
 
       # Runs on every `to_prepare`: at boot, and again after each code reload.
       # lib/ is autoloadable, so the registry it writes into is itself replaced

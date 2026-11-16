@@ -8,9 +8,53 @@ module Syrus
   class PluginLoader
     class Error < StandardError; end
 
-    Plugin = Data.define(:name, :directory, :entry_file, :dependencies, :external, :version, :requires_syrus)
+    Plugin = Data.define(:name, :directory, :entry_file, :dependencies, :required_dependencies, :external, :version, :requires_syrus)
     DEPENDENCY_DECLARATIONS = %w[depends_on optionally_depends_on].freeze
     FRAMEWORK_GEM_DEPENDENCIES = %w[rails].freeze
+    RESCUED_ERRORS = [ LoadError, StandardError, ScriptError ].freeze
+
+    class << self
+      attr_reader :plugins_by_name
+
+      def install_definition!(definition)
+        plugin = @plugins_by_name&.fetch(definition.name, nil)
+        failed_dependency = plugin&.required_dependencies&.find do |name|
+          manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == name }
+          manifest && !manifest.loaded
+        end
+        if failed_dependency
+          definition.discard_engine!
+          return record_failure(plugin, RuntimeError.new("dependency #{failed_dependency} failed to load"),
+            state: :skipped_dependency, message: "skipped because dependency #{failed_dependency} failed to load")
+        end
+
+        snapshot = Syrus::PluginRegistry.snapshot
+        definition.install!
+      rescue *RESCUED_ERRORS => e
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        raise unless plugin && isolate?(plugin)
+
+        definition.discard_engine!
+        record_failure(plugin, e)
+      end
+
+      def isolate?(plugin)
+        plugin.external || (defined?(Rails) && Rails.env.production?)
+      end
+
+      def record_failure(plugin, error, state: :failed, message: nil)
+        message ||= "#{error.class}: #{error.message}"
+        Syrus::PluginRegistry.record_load_failure(
+          name: plugin.name, state: state, message: message,
+          backtrace: error.backtrace, version: plugin.version, external: plugin.external,
+          requires_syrus: plugin.requires_syrus, dependencies: plugin.dependencies
+        )
+      end
+
+      def remember_plugins(plugins)
+        @plugins_by_name = plugins.index_by(&:name)
+      end
+    end
 
     def self.load!(plugin_roots: Syrus::PluginRoots.default)
       new(plugin_roots:).load!
@@ -21,7 +65,18 @@ module Syrus
     end
 
     def load!
-      ordered_plugins.each do |plugin|
+      plugins = safely_discovered_plugins
+      self.class.remember_plugins(plugins)
+      failed = Set.new
+      order_plugins(plugins).each do |plugin|
+        failed_dependency = plugin.required_dependencies.find { |name| failed.include?(name) }
+        if failed_dependency
+          self.class.record_failure(plugin, RuntimeError.new("dependency #{failed_dependency} failed to load"),
+            state: :skipped_dependency, message: "skipped because dependency #{failed_dependency} failed to load")
+          failed << plugin.name
+          next
+        end
+
         if plugin.external
           Syrus::PluginRegistry.register(name: plugin.name, version: plugin.version.to_s,
             requires_syrus: plugin.requires_syrus, external: true, loaded: compatible?(plugin))
@@ -29,12 +84,22 @@ module Syrus
         end
         lib_dir = plugin.directory.join("lib").to_s
         $LOAD_PATH.unshift(lib_dir) unless $LOAD_PATH.include?(lib_dir)
-        require plugin.entry_file.to_s
+        begin
+          require plugin.entry_file.to_s
+        rescue *RESCUED_ERRORS => e
+          raise unless self.class.isolate?(plugin)
+
+          self.class.record_failure(plugin, e)
+          failed << plugin.name
+        end
       end
     end
 
     def ordered_plugins
-      plugins = unique_plugins(@plugin_roots.plugin_directories.map { |directory| inspect_plugin(directory) })
+      order_plugins(unique_plugins(@plugin_roots.plugin_directories.map { |directory| inspect_plugin(directory) }))
+    end
+
+    def order_plugins(plugins)
       by_name = plugins.to_h { |plugin| [ plugin.name, plugin ] }
       pending = plugins.to_h { |plugin| [ plugin.name, plugin.dependencies.select { |name| by_name.key?(name) } ] }
       ordered = []
@@ -55,6 +120,46 @@ module Syrus
     end
 
     private
+
+    def safely_discovered_plugins
+      inspected = @plugin_roots.plugin_directories.filter_map do |directory|
+        inspect_plugin(directory)
+      rescue *RESCUED_ERRORS => e
+        raise unless @plugin_roots.external?(directory) || (defined?(Rails) && Rails.env.production?)
+
+        record_discovery_failure(directory, e)
+        nil
+      end
+
+      groups = inspected.group_by(&:name)
+      groups.each_value do |candidates|
+        next if candidates.one? || candidates.count { |candidate| !candidate.external }.one?
+
+        message = "duplicate plugin name #{candidates.first.name.inspect}: #{candidates.map(&:directory).sort.join(', ')}"
+        candidates.each do |plugin|
+          self.class.record_failure(plugin, Error.new(message), state: :duplicate_name, message: message)
+        end
+      end
+      groups.filter_map do |_name, candidates|
+        built_in = candidates.reject(&:external)
+        next built_in.first if built_in.one?
+        next if candidates.many?
+
+        candidates.first
+      end
+    end
+
+    def record_discovery_failure(directory, error)
+      name = directory.basename.to_s
+      gemspec = directory.glob("*.gemspec").first
+      if gemspec
+        specification = Gem::Specification.load(gemspec.to_s) rescue nil
+        name = specification.name if specification&.name
+      end
+      plugin = Plugin.new(name:, directory:, entry_file: directory.join("lib/#{name}.rb"), dependencies: [], required_dependencies: [],
+        external: @plugin_roots.external?(directory), version: "unknown", requires_syrus: nil)
+      self.class.record_failure(plugin, error)
+    end
 
     def unique_plugins(plugins)
       plugins.group_by(&:name).map do |name, candidates|
@@ -85,6 +190,7 @@ module Syrus
         directory: directory,
         entry_file: entry_file,
         dependencies: plugin_dependencies(entry_file),
+        required_dependencies: plugin_dependencies(entry_file, declarations: [ "depends_on" ]),
         external: external,
         version: specification.version,
         requires_syrus: requires_syrus
@@ -118,11 +224,11 @@ module Syrus
       match[1]
     end
 
-    def plugin_dependencies(entry_file)
+    def plugin_dependencies(entry_file, declarations: DEPENDENCY_DECLARATIONS)
       tokens = Ripper.lex(entry_file.read)
       dependencies = []
       tokens.each_with_index do |(_position, type, text, _state), index|
-        next unless type == :on_ident && DEPENDENCY_DECLARATIONS.include?(text)
+        next unless type == :on_ident && declarations.include?(text)
 
         bracket = ((index + 1)...tokens.length).find { |candidate| tokens[candidate][1] == :on_lbracket }
         next unless bracket

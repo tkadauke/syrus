@@ -490,6 +490,13 @@ module Syrus
         Syrus::PluginHealth.new(plugins, enabled_names: enabled_names)
       end
 
+      def record_load_failure(name:, state:, message:, backtrace: [], version: "unknown", external: true, requires_syrus: nil, dependencies: [])
+        details = { load_state: state.to_s, load_message: message.to_s, load_backtrace: Array(backtrace).first(12) }
+        register(name: name, version: version.to_s, provides: {}, external: external,
+          requires_syrus: requires_syrus, depends_on: dependencies, loaded: false,
+          default_enabled: false, disableable: false, **details)
+      end
+
       def validate_dependencies!
         plugins = @mutex.synchronize { @plugins.dup }
         names = plugins.map(&:name).to_set
