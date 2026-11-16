@@ -288,6 +288,9 @@ describe("App dashboard Kanban", () => {
     const title = within(card).getByRole("link", { name: "Raise the forum" })
 
     expect(repository.parentElement).toContainElement(epicSlug)
+    expect(repository.parentElement).toHaveClass("flex-nowrap", "min-w-0")
+    expect(epicSlug).toHaveClass("shrink-0", "whitespace-nowrap")
+    expect(repository).toHaveClass("min-w-0", "truncate", "whitespace-nowrap")
     expect(title.parentElement).toBe(card.firstElementChild)
     expect(title).toHaveClass("block", "mt-1")
     expect(repository).toHaveAttribute("href", "/app-shell/repositories/3")
