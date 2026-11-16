@@ -29,7 +29,6 @@ module Mcp::Tools
       )
 
       Mcp::Tools.success(
-        pending_confirmation_id: pending_action.id,
         pending_action_id: pending_action.id,
         state: pending_action.state,
         reason: pending_action.reason,

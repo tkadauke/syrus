@@ -389,7 +389,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     cases.each do |name, (arguments, expected_payload)|
       response = call_tool(admin_session, name, arguments)
       payload = payload_for(response)
-      action = ChatPendingAction.find(payload.fetch(:pending_confirmation_id))
+      action = ChatPendingAction.find(payload.fetch(:pending_action_id))
 
       expect(response.dig(:result, :isError)).to be_falsey, name
       expect(payload).to include(state: "pending", message: a_string_matching(/\?/))
@@ -454,7 +454,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       { job_id: workflow.job.id, workflow_ids: [ workflow.id ], reconcile: false, reason: "Cancel one stale workflow." }
     )
     body = payload_for(response)
-    action = ChatPendingAction.find(body.fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(body.fetch(:pending_action_id))
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(body).to include(state: "pending", message: "Cancel stale work for #{workflow.job.slug}?")
@@ -573,7 +573,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(LandingQueueRecheck).not_to receive(:call)
 
     response = call_tool(admin_session, "force_landing_recheck", { job_id: job.id, reason: "Refresh stale metadata." })
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_action_id))
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(action.payload).to include(
@@ -598,7 +598,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(LandingQueueRecheck).not_to receive(:call)
 
     response = call_tool(admin_session, "force_landing_recheck", { job_id: job.id, reason: "Refresh stale metadata." })
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_action_id))
 
     expect(action.reject!).to be true
     expect(landing_recheck_state(job)).to eq(before_state)
@@ -680,7 +680,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       { job_id: job.id, mode: "auto", reason: "JOB-115 has state drift." }
     )
     payload = payload_for(response)
-    action = ChatPendingAction.find(payload.fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload.fetch(:pending_action_id))
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(action).to have_attributes(
@@ -757,7 +757,7 @@ RSpec.describe "Mcp::Tools admin tools" do
 
   it "confirms wake_landing_queue by enqueueing the processor" do
     response = call_tool(admin_session, "wake_landing_queue", { reason: "Retry after metadata repair." })
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_action_id))
 
     expect {
       expect(action.confirm!).to be true
@@ -821,7 +821,7 @@ RSpec.describe "Mcp::Tools admin tools" do
         reason: "JOB feedback was blocked by a bad provider_usage_limit classification."
       }
     )
-    repair_action = ChatPendingAction.find(payload_for(repair_response).fetch(:pending_confirmation_id))
+    repair_action = ChatPendingAction.find(payload_for(repair_response).fetch(:pending_action_id))
 
     expect(repair_action.confirm!(user: admin)).to be true
     expect(ProviderCircuitBreaker.call("codex")).not_to be_open
@@ -832,7 +832,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       "wake_provider_admission",
       { provider: "codex", reason: "Provider evidence repaired." }
     )
-    wake_action = ChatPendingAction.find(payload_for(wake_response).fetch(:pending_confirmation_id))
+    wake_action = ChatPendingAction.find(payload_for(wake_response).fetch(:pending_action_id))
 
     expect {
       expect(wake_action.confirm!(user: admin)).to be true
@@ -877,7 +877,7 @@ RSpec.describe "Mcp::Tools admin tools" do
 
     response = call_tool(admin_session, "force_rebase", { job_id: job.id, reason: "Bypass queue position." })
     body = payload_for(response)
-    action = ChatPendingAction.find(body.fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(body.fetch(:pending_action_id))
 
     expect(body.fetch(:plan)).to include(
       job_id: job.id,
@@ -928,7 +928,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(response.dig(:result, :isError)).to be_falsey
     expect(body).to include(no_op: true, message: "No open child PR branches need restacking.")
     expect(body.fetch(:plan).fetch(:actions)).to be_empty
-    expect(body).not_to have_key(:pending_confirmation_id)
+    expect(body).not_to have_key(:pending_action_id)
     expect(admin_session.pending_actions.where(action: "restack_epic")).to be_empty
 
     stale_action = admin_session.pending_actions.create!(
@@ -958,7 +958,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     allow(WorkUnits::Launcher).to receive(:start!)
 
     response = call_tool(admin_session, "restack_epic", { epic_id: epic.id, reason: "Repair stale stack topology." })
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_action_id))
 
     expect {
       expect(action.confirm!).to be true
@@ -981,7 +981,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     allow(WorkUnits::Launcher).to receive(:start!)
 
     response = call_tool(admin_session, "restack_epic", { epic_id: epic.id, reason: "Repair stale stack topology." })
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_action_id))
 
     expect {
       expect(action.cancel!).to be true
@@ -1008,7 +1008,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     allow(LandingQueueRecheck).to receive(:call).with(job).and_return(result)
 
     response = call_tool(admin_session, "force_landing_recheck", { job_id: job.id, reason: "Refresh stale metadata." })
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_action_id))
 
     expect(action.confirm!).to be true
     expect(LandingQueueRecheck).to have_received(:call).with(job)
@@ -1028,7 +1028,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       "override_landing_blocker_once",
       { job_id: job.id, blocker_key: "landing_paused", reason: "Verified queue pause was stale." }
     )
-    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_action_id))
 
     expect {
       expect(action.confirm!).to be true

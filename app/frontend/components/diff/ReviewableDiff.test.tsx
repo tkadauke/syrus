@@ -1430,6 +1430,72 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByText("Changed files")).not.toBeInTheDocument()
   })
 
+  it("keeps rename relationships visible in changed-files navigation", () => {
+    const movedFile = {
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      path: "plugins/coworkers/app/models/coworker.rb",
+      previous_path: "app/models/coworker.rb",
+      status: "renamed"
+    }
+    render(<ReviewableDiff changedFilesPopup files={[movedFile]} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse changed files" }))
+
+    const movedPath = screen.getByTestId("changed-file-move-path")
+    expect(movedPath).toHaveTextContent("app/models/coworker.rb→plugins/coworkers/app/models/coworker.rbMoved")
+    expect(screen.getByTitle("app/models/coworker.rb → plugins/coworkers/app/models/coworker.rb")).toBeInTheDocument()
+  })
+
+  it("keeps both full rename paths visible in nested changed-files navigation", () => {
+    const movedFile = {
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      path: "plugins/coworkers/app/models/coworker.rb",
+      previous_path: "app/models/coworker.rb",
+      status: "renamed"
+    }
+    render(
+      <ReviewableDiff
+        changedFilesPopup
+        files={[movedFile]}
+        mode="continuous"
+        reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, file_list_layout: "nested" }}
+        showFileHeaders
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse changed files" }))
+
+    const movedPath = screen.getByTestId("changed-file-move-path")
+    expect(movedPath).toHaveTextContent("app/models/coworker.rb→plugins/coworkers/app/models/coworker.rbMoved")
+    expect(screen.getByTitle("app/models/coworker.rb → plugins/coworkers/app/models/coworker.rb")).toBeInTheDocument()
+  })
+
+  it.each(["binary", "oversized"] as const)("hides zero counts for an unedited %s rename in changed-files navigation", (patchStatus) => {
+    const movedFile = {
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      patch_status: patchStatus,
+      path: `new/file.${patchStatus}`,
+      previous_path: `old/file.${patchStatus}`,
+      status: "renamed"
+    }
+    render(<ReviewableDiff changedFilesPopup files={[movedFile]} mode="continuous" showFileHeaders />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Browse changed files" }))
+
+    const dialog = screen.getByRole("dialog")
+    const movedPath = screen.getByTestId("changed-file-move-path")
+    expect(movedPath).toHaveTextContent(`old/file.${patchStatus}→new/file.${patchStatus}Moved`)
+    expect(within(dialog).queryByText("+0")).not.toBeInTheDocument()
+    expect(within(dialog).queryByText("-0")).not.toBeInTheDocument()
+    expect(within(dialog).getByTitle(`old/file.${patchStatus} → new/file.${patchStatus}`)).toBeInTheDocument()
+  })
+
   it("closes the changed-files popup when clicking outside the file list", () => {
     render(<ReviewableDiff changedFilesPopup files={files} mode="continuous" showFileHeaders />)
 
@@ -1793,6 +1859,99 @@ describe("ReviewableDiff", () => {
     render(<ReviewableDiff files={binaryFiles} mode="single-file" selectedPath="vendor/some.bin" unavailableState="Diff not available" />)
 
     expect(screen.getByText("Diff not available")).toBeInTheDocument()
+  })
+
+  it("renders a pure rename as a compact move without zero counts or an unavailable message", () => {
+    const movedFile = {
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      path: "plugins/coworkers/db/migrate/create_coworkers.rb",
+      previous_path: "db/migrate/create_coworkers.rb",
+      status: "renamed"
+    }
+
+    render(<ReviewableDiff files={[movedFile]} mode="single-file" selectedPath={movedFile.path} showFileHeaders unavailableState="Diff not available" />)
+
+    const paths = screen.getByTestId("diff-file-move-paths")
+    expect(paths).toHaveTextContent("db/migrate/create_coworkers.rb")
+    expect(paths).toHaveTextContent("plugins/coworkers/db/migrate/create_coworkers.rb")
+    expect(screen.getByText("Moved")).toBeInTheDocument()
+    expect(screen.getByText("No content changes.")).toBeInTheDocument()
+    expect(screen.queryByText("+0")).not.toBeInTheDocument()
+    expect(screen.queryByText("-0")).not.toBeInTheDocument()
+    expect(screen.queryByText("Diff not available")).not.toBeInTheDocument()
+  })
+
+  it("renders a renamed and edited file with both paths, counts, and its normal line diff", () => {
+    const movedFile = {
+      additions: 1,
+      deletions: 1,
+      patch: "@@ -1 +1 @@\n-old\n+new",
+      path: "new/location.rb",
+      previous_path: "old/location.rb",
+      status: "renamed"
+    }
+
+    render(<ReviewableDiff files={[movedFile]} mode="single-file" selectedPath={movedFile.path} showFileHeaders />)
+
+    expect(screen.getByTestId("diff-file-move-paths")).toHaveTextContent("old/location.rb↳new/location.rb")
+    expect(screen.getByText("Moved + edited")).toBeInTheDocument()
+    expect(screen.getByText("+1")).toBeInTheDocument()
+    expect(screen.getByText("-1")).toBeInTheDocument()
+    expect(getCodeCellText("old")).toBeInTheDocument()
+    expect(getCodeCellText("new")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["binary", "Binary file content cannot be rendered."],
+    ["oversized", "The full text diff was omitted from the initial response."]
+  ] as const)("preserves moved paths and the %s-file explanation", (patchStatus, explanation) => {
+    const movedFile = {
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      patch_status: patchStatus,
+      path: `new/file.${patchStatus}`,
+      previous_path: `old/file.${patchStatus}`,
+      status: "renamed"
+    }
+
+    render(
+      <ReviewableDiff
+        files={[movedFile]}
+        mode="single-file"
+        onLoadFileDiff={patchStatus === "oversized" ? vi.fn() : undefined}
+        selectedPath={movedFile.path}
+        showFileHeaders
+        unavailableState="Diff not available"
+      />
+    )
+
+    expect(screen.getByTestId("diff-file-move-paths")).toHaveTextContent(`old/file.${patchStatus}↳new/file.${patchStatus}`)
+    expect(screen.getByText("Moved")).toBeInTheDocument()
+    expect(screen.getByText(explanation)).toBeInTheDocument()
+    expect(screen.queryByText("No content changes.")).not.toBeInTheDocument()
+    expect(screen.queryByText("+0")).not.toBeInTheDocument()
+    expect(screen.queryByText("-0")).not.toBeInTheDocument()
+  })
+
+  it("keeps both long move paths truncatable at narrow widths", () => {
+    const movedFile = {
+      additions: 0,
+      deletions: 0,
+      patch: null,
+      path: `${"new-segment/".repeat(12)}file.rb`,
+      previous_path: `${"old-segment/".repeat(12)}file.rb`,
+      status: "renamed"
+    }
+
+    render(<ReviewableDiff files={[movedFile]} mode="single-file" selectedPath={movedFile.path} showFileHeaders />)
+
+    const paths = screen.getByTestId("diff-file-move-paths")
+    expect(paths).toHaveClass("min-w-0")
+    expect(paths.querySelectorAll(".truncate")).toHaveLength(2)
+    expect(paths.parentElement).toHaveClass("min-w-0")
   })
 
   it("loads an omitted oversized text patch without claiming whole-file context was loaded", async () => {

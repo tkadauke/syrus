@@ -43,7 +43,7 @@ RSpec.describe Mcp::Tools::RunVisualReviewTool do
     }.not_to have_enqueued_job(RunJob)
 
     body = payload(@response)
-    pending_action = chat_session.pending_actions.find(body[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
 
     expect(@response.dig(:result, :isError)).to be_falsey
     expect(body).to include(state: "pending")
@@ -59,7 +59,7 @@ RSpec.describe Mcp::Tools::RunVisualReviewTool do
     instructions = "Scroll until the persistent diff file title is directly below the app header."
 
     response = call_tool(job_id: job.id, prompt: instructions)
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect(pending_action.payload).to eq("job_id" => job.id, "prompt" => instructions)
 
@@ -87,7 +87,7 @@ RSpec.describe Mcp::Tools::RunVisualReviewTool do
     stub_visual_review_plan(enabled: true)
     job = Factories.job_record(repository: repository, state: "implemented")
     response = call_tool(job_id: job.id)
-    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     expect {
       pending_action.confirm!(user: user)

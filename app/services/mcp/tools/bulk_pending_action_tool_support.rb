@@ -56,7 +56,6 @@ module Mcp::Tools
       Mcp::Tools.success(
         pending_action_group_id: group.id,
         pending_action_id: anchor.id,
-        pending_confirmation_id: anchor.id,
         state: group.state,
         member_count: members.size,
         message: message,

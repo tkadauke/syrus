@@ -72,7 +72,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
         server_context: { chat_session: plain_chat }, capability:, operation:,
         purpose: "Answer a customer question", duration: "chat_session"
       )
-      request = ChatPendingAction.find(body(response).fetch(:authorization_request_id))
+      request = ChatPendingAction.find(body(response).fetch(:pending_action_id))
 
       expect(request).to have_attributes(
         subject: owner, runtime_role: AgentRole::CHAT_PLANNER, chat_session: plain_chat
@@ -87,7 +87,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
 
       expect(response.error?).to be(false)
       payload = body(response)
-      request = ChatPendingAction.find(payload.fetch(:authorization_request_id))
+      request = ChatPendingAction.find(payload.fetch(:pending_action_id))
       expect(payload).to include(status: "created", grants_authority: false, requested_duration: "chat_session")
       expect(request).to have_attributes(
         request_kind: "authorization_request", action: "coworker_permission_request", state: "pending",
@@ -105,7 +105,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
     end
 
     it "shows the request in the approval inbox next to blocked tool calls" do
-      request = ChatPendingAction.find(body(request_permission).fetch(:authorization_request_id))
+      request = ChatPendingAction.find(body(request_permission).fetch(:pending_action_id))
 
       expect(Coworkers::PendingApprovals.new(owner:, coworker:).relation).to include(request)
       expect(Coworkers::PendingApprovals.new(owner:, coworker: other_coworker).relation).not_to include(request)
@@ -127,7 +127,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
     end
 
     it "caps the owner's approval at the duration the coworker asked for" do
-      request = ChatPendingAction.find(body(request_permission(duration: "chat_session")).fetch(:authorization_request_id))
+      request = ChatPendingAction.find(body(request_permission(duration: "chat_session")).fetch(:pending_action_id))
 
       option = Permissions::SmartDecision.new(request:, item: request.authorization_items.sole, user: owner).option
 
@@ -145,7 +145,8 @@ RSpec.describe "coworker permission requests and self-surrender" do
       first = body(request_permission)
       second = body(request_permission(purpose: "Same thing, again"))
 
-      expect(second).to include(status: "deduplicated", authorization_request_id: first.fetch(:authorization_request_id))
+      expect(second).to include(status: "deduplicated", pending_action_id: first.fetch(:pending_action_id))
+      expect(second).not_to have_key(:authorization_request_id)
       expect(ChatPendingAction.where(action: "coworker_permission_request").count).to eq(1)
       expect(audit_events("coworker_permission_request_deduplicated").count).to eq(1)
     end
@@ -164,7 +165,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
 
     it "limits the hourly request rate even after earlier requests were decided" do
       stub_const("Permissions::CoworkerPermissionRequest::MAX_PER_HOUR", 1)
-      first = ChatPendingAction.find(body(request_permission).fetch(:authorization_request_id))
+      first = ChatPendingAction.find(body(request_permission).fetch(:pending_action_id))
       first.update!(state: "cancelled")
 
       response = request_permission(capability: "files.write@v1", operation: "files.write/save@v1")
@@ -173,7 +174,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
     end
 
     it "does not re-ask right after the owner denied an equivalent request" do
-      request = ChatPendingAction.find(body(request_permission).fetch(:authorization_request_id))
+      request = ChatPendingAction.find(body(request_permission).fetch(:pending_action_id))
       Permissions::CoworkerAuthorizationDecision.new(request:, item: request.authorization_items.sole, user: owner)
         .call(decision: "denied")
 
@@ -185,16 +186,17 @@ RSpec.describe "coworker permission requests and self-surrender" do
     end
 
     it "reports an operation the coworker already holds without opening a request" do
-      request = ChatPendingAction.find(body(request_permission).fetch(:authorization_request_id))
+      request = ChatPendingAction.find(body(request_permission).fetch(:pending_action_id))
       approve(request, "chat_session")
 
       payload = body(request_permission)
 
-      expect(payload).to include(status: "already_authorized", authorization_request_id: nil)
+      expect(payload).to include(status: "already_authorized", pending_action_id: nil)
+      expect(payload).not_to have_key(:authorization_request_id)
     end
 
     it "applies the approval as a lease for exactly the requesting coworker" do
-      request = ChatPendingAction.find(body(request_permission(duration: "chat_session")).fetch(:authorization_request_id))
+      request = ChatPendingAction.find(body(request_permission(duration: "chat_session")).fetch(:pending_action_id))
 
       result = approve(request, "chat_session")
 
@@ -210,7 +212,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
     end
 
     it "refuses a bare approval and the generic approval path for a permission request" do
-      request = ChatPendingAction.find(body(request_permission).fetch(:authorization_request_id))
+      request = ChatPendingAction.find(body(request_permission).fetch(:pending_action_id))
 
       expect {
         Permissions::CoworkerAuthorizationDecision.new(request:, item: request.authorization_items.sole, user: owner)
@@ -226,7 +228,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
       response = Mcp::Tools::RequestPermissionTool.call(server_context: context, capability:, operation:, purpose: "x")
 
       expect(response.error?).to be(false)
-      request = ChatPendingAction.find(body(response).fetch(:authorization_request_id))
+      request = ChatPendingAction.find(body(response).fetch(:pending_action_id))
       expect(request).to have_attributes(subject: owner, runtime_role: AgentRole::CHAT_PLANNER)
     end
   end
@@ -407,7 +409,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
     it "files a coworker's request under that coworker even when another coworker's chat is involved" do
       payload = body(request_permission(session: other_chat, actor: other_coworker))
 
-      expect(ChatPendingAction.find(payload.fetch(:authorization_request_id)).subject).to eq(other_coworker)
+      expect(ChatPendingAction.find(payload.fetch(:pending_action_id)).subject).to eq(other_coworker)
       expect(ChatPendingAction.where(subject: coworker)).to be_empty
     end
   end

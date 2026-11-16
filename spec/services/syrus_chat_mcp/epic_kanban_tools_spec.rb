@@ -262,7 +262,7 @@ RSpec.describe "Mcp::Tools epic kanban tools", :full_chat_access do
       child_job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running", issue_number: 101)
 
       result = payload(call_tool("archive_epic", epic_id: epic.id))
-      pending_action = chat_session.pending_actions.find(result[:pending_confirmation_id])
+      pending_action = chat_session.pending_actions.find(result[:pending_action_id])
 
       expect(result).to include(state: "pending", message: "Archive #{epic.slug}? Open child Jobs will be cancelled and closed when confirmed.")
       expect(pending_action).to have_attributes(action: "archive_epic", requested_by: "agent")
@@ -301,7 +301,7 @@ RSpec.describe "Mcp::Tools epic kanban tools", :full_chat_access do
       response = JSON.parse(raw, symbolize_names: true)
 
       expect(response.dig(:result, :isError)).to be_falsey
-      pending_action = admin_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      pending_action = admin_session.pending_actions.find(payload(response)[:pending_action_id])
       expect(pending_action).to have_attributes(action: "archive_epic", requested_by: "agent")
       expect(other_epic.reload).to be_in_progress
     end

@@ -485,7 +485,11 @@ Epic proposals stay beside the assistant message that proposed them.
 performs destructive cleanup when the call explicitly confirms discard.
 Chat agents can list the current chat's pending actions and resolved outcomes,
 including compact target, status, and failure details, before reporting or
-withdrawing an action. When a pending action finishes, Syrus immediately records its confirmed,
+withdrawing an action. They refer to actions by what they do and their target,
+not by the internal numeric identifier behind the descriptive card. An action
+can be withdrawn without a selector when it is the chat's only pending action,
+or selected by action name and Job when several are waiting. When a pending
+action finishes, Syrus immediately records its confirmed,
 failed, rejected, or cancelled outcome in chat. Confirmed, rejected, and
 cancelled cards retire automatically after that durable outcome appears;
 failed cards remain visible until you hide them because they still need

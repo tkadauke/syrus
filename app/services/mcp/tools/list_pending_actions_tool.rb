@@ -11,8 +11,9 @@ module Mcp::Tools
 
     description <<~DESC
       List pending actions created in the current chat, including resolved
-      outcomes. Returns compact target identifiers and status details without
-      exposing raw tool arguments.
+      outcomes. Each row leads with the action, target, and reason. The numeric
+      pending_action_id is a trailing internal detail and must never be quoted
+      to the operator. Raw tool arguments are not exposed.
     DESC
 
     input_schema(
@@ -65,19 +66,23 @@ module Mcp::Tools
       def serialize(action)
         payload = action.payload.to_h
         row = {
-          pending_action_id: action.id,
           action: action.action.presence || action.action_type,
+          target_ids: payload.select { |key, _value| key.to_s.match?(ID_KEY) }.presence,
+          reason: action_reason(action, payload),
           state: action.state,
           execution_status: action.execution_status,
           group_id: action.pending_action_group_id,
           created_at: action.created_at&.iso8601,
-          resolved_at: resolved_at(action)&.iso8601
+          resolved_at: resolved_at(action)&.iso8601,
+          pending_action_id: action.id
         }
-        row[:target_ids] = payload.select { |key, _value| key.to_s.match?(ID_KEY) } if payload.any?
-        reason = action.reason.presence || payload["reason"].presence || payload["message"].presence || action.purpose.presence
-        row[:reason] = safe_summary(reason, 500) if reason
         row[:error_summary] = safe_summary(action.execution_error, 300) if action.execution_error.present?
         row.compact
+      end
+
+      def action_reason(action, payload)
+        reason = action.reason.presence || payload["reason"].presence || payload["message"].presence || action.purpose.presence
+        safe_summary(reason, 500) if reason
       end
 
       def safe_summary(value, limit)

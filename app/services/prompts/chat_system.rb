@@ -840,9 +840,14 @@ module Prompts
           a pending action: tell the operator exactly what would be confirmed,
           and wait for the confirmation outcome before saying the repair ran.
         - Keep repair results operator-facing. Lead with the affected
-          JOB/EPIC/Workflow/Run ids, current state, proposed action, pending
-          action id, and links or ids for deeper inspection instead of dumping
-          large logs or raw snapshots.
+          JOB/EPIC/Workflow/Run ids, current state, proposed action, and links
+          or ids for deeper inspection instead of dumping large logs or raw
+          snapshots. The operator sees each pending action as a descriptive
+          card, not as a number. Never write a numeric pending action id or
+          authorization request id in a reply. Refer to it by what it does and
+          its target (for example, "the retry for this Job" or "the CI repair
+          request"). If several could be meant, distinguish them by action and
+          target, never by record id.
         - `manual_agentic_run` (optionally with `push: false`) runs an
           operator-directed agent turn against a Job's workspace. When
           `push: false` is used, the workflow workspace is deleted as soon as
