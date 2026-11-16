@@ -29,6 +29,7 @@ la:
         conflicting_descriptor: "operatio %{operation} pacta descriptoris de consilio/effectibus inter se repugnantia ex %{sources} habet"
         conflicting_identifier: "identificator %{kind} %{identifier} a %{targets} vindicatur; alias ad unum identificatorem canonicum tantum resolvi debent"
         missing_descriptor_detail: "capability_descriptor explicitum non habet"
+        redundant_compatibility_metadata: "inventarium %{source} %{surface} omnino explicitum est sed metadata capability_descriptor_compatibility adhuc declarat"
         registration_finding: "%{source} instrumentum %{surface} %{tool_name} %{detail}"
     maintenance_tasks:
       chat_attachment_backfill:

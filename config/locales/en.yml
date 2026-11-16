@@ -60,6 +60,7 @@ en:
         conflicting_descriptor: "operation %{operation} has conflicting descriptor policy/effect contracts from %{sources}"
         conflicting_identifier: "%{kind} identifier %{identifier} is claimed by %{targets}; aliases must resolve to exactly one canonical identifier"
         missing_descriptor_detail: "has no explicit capability_descriptor"
+        redundant_compatibility_metadata: "%{source} %{surface} inventory is fully explicit but still declares capability_descriptor_compatibility metadata"
         registration_finding: "%{source} %{surface} tool %{tool_name} %{detail}"
     maintenance_tasks:
       chat_attachment_backfill:
