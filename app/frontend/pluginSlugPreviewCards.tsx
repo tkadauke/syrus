@@ -28,7 +28,9 @@ function contributionForPrefix(prefix: string): PluginContribution<PluginModule>
 }
 
 export function pluginSlugPreviewCardPrefixes() {
-  return getPluginContributions<PluginModule>("slug_preview_card").map(({ key }) => key.split(".", 1)[0]).sort()
+  return getPluginContributions<PluginModule>("slug_preview_card")
+    .map(({ key }) => key.split(".", 1)[0])
+    .sort()
 }
 
 export function pluginSlugPreviewCardComponentForPrefix(prefix: string | null | undefined) {

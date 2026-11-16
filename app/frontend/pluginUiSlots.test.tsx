@@ -53,9 +53,7 @@ describe("pluginUiSlots", () => {
         props: {
           untagged_issues: {
             total: 1,
-            repositories: [
-              { id: 1, slug: "acme/widgets", count: 1, issues_path: "/repositories/1/plugin/github/issues" }
-            ]
+            repositories: [{ id: 1, slug: "acme/widgets", count: 1, issues_path: "/repositories/1/plugin/github/issues" }]
           }
         }
       }
@@ -99,9 +97,7 @@ describe("pluginUiSlots", () => {
         props: {
           untagged_issues: {
             total: 1,
-            repositories: [
-              { id: 1, slug: "acme/widgets", count: 1, issues_path: "/repositories/1/plugin/github/issues" }
-            ]
+            repositories: [{ id: 1, slug: "acme/widgets", count: 1, issues_path: "/repositories/1/plugin/github/issues" }]
           }
         }
       }

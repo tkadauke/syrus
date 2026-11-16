@@ -16,7 +16,9 @@ type PluginModule = {
 const componentCache = new Map<string, ComponentType>()
 
 export function pluginRepoComponentKeys() {
-  return getPluginContributions<PluginModule>("repo_page_tab").map(({ pluginName, key }) => `${pluginName}/${key}`).sort()
+  return getPluginContributions<PluginModule>("repo_page_tab")
+    .map(({ pluginName, key }) => `${pluginName}/${key}`)
+    .sort()
 }
 
 export function pluginRepoComponentFor(key: string | null | undefined) {
