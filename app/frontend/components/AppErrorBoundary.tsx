@@ -5,6 +5,7 @@ import { fileEventJob } from "../api/eventActions"
 import { computeBrowserErrorFingerprint } from "../lib/browserErrorFingerprint"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
+import { reportStartupFailure } from "../lib/startupDiagnostics"
 
 const STORAGE_KEY = "syrus_reported_errors"
 
@@ -122,6 +123,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, Boundar
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
+    reportStartupFailure("route_initialization", error)
     this.setState((prev) => {
       if (!prev.hasError) return prev
       return { ...prev, componentStack: info.componentStack ?? "" }
