@@ -60,7 +60,10 @@ module Api
 
         def parameter_hash(key)
           value = params.fetch(key, {})
-          value.respond_to?(:to_unsafe_h) ? value.to_unsafe_h : value.to_h
+          return value.to_unsafe_h if value.is_a?(ActionController::Parameters)
+          return value if value.is_a?(Hash)
+
+          raise ArgumentError, "#{key} must be an object"
         end
       end
     end

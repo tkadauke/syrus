@@ -80,6 +80,17 @@ RSpec.describe "Plugin CLI commands", type: :request do
     expect(response_body.dig("error", "code")).to eq("invalid_arguments")
   end
 
+  { args: "not-an-object", flags: [ "not", "an", "object" ] }.each do |parameter, value|
+    it "rejects non-object #{parameter} as invalid arguments" do
+      post "/api/v1/app/plugin_cli_commands/execute", params: {
+        plugin: "fixture_cli", path: "fixture show", args: { value: "hello" }, parameter => value
+      }, headers: headers, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response_body.dig("error", "code")).to eq("invalid_arguments")
+    end
+  end
+
   it "returns a structured authorization error from the handler" do
     post "/api/v1/app/plugin_cli_commands/execute", params: {
       plugin: "fixture_cli", path: "fixture show", args: { value: "hello" }, flags: { deny: true }
