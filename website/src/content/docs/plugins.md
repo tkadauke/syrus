@@ -10,6 +10,13 @@ available after restart; enabling a plugin makes its surfaces visible and its
 behavior active. In general, the plugin enable switch is the feature flag for
 that plugin.
 
+External plugins can declare a `requires_syrus` Ruby version requirement, such
+as `>= 0.1.16`. Syrus withholds a plugin whose requirement is not met and shows
+the required and running releases in plugin health. If the running release is
+unknown, Syrus loads the plugin and records that the compatibility check was
+skipped. Plugin authors should declare the oldest Syrus release they have
+actually tested.
+
 ## What Plugins Can Add
 
 Plugins can contribute:
