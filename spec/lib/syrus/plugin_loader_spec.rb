@@ -93,6 +93,49 @@ RSpec.describe Syrus::PluginLoader do
     end
   end
 
+  it "keeps a built-in plugin when a differently named external directory declares the same plugin name" do
+    Dir.mktmpdir do |temporary|
+      app_root = Pathname.new(temporary).join("app")
+      built_in_root = app_root.join("plugins")
+      external_root = Pathname.new(temporary).join("external")
+      built_in_root.mkpath
+      external_root.mkpath
+      built_in = write_plugin(
+        built_in_root,
+        directory_name: "bundled_directory",
+        gem_name: "bundled_fixture",
+        plugin_name: "shared_name"
+      )
+      write_plugin(
+        external_root,
+        directory_name: "unrelated_directory",
+        gem_name: "external_loader_fixture",
+        plugin_name: "shared_name"
+      )
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+
+      plugins = described_class.new(plugin_roots: roots).ordered_plugins
+
+      expect(plugins.map(&:name)).to eq([ "shared_name" ])
+      expect(plugins.first.directory).to eq(built_in)
+    end
+  end
+
+  it "rejects duplicate declared names within the external plugin root" do
+    Dir.mktmpdir do |temporary|
+      app_root = Pathname.new(temporary).join("app")
+      external_root = Pathname.new(temporary).join("external")
+      app_root.join("plugins").mkpath
+      external_root.mkpath
+      write_plugin(external_root, directory_name: "first", gem_name: "first_fixture", plugin_name: "shared_name")
+      write_plugin(external_root, directory_name: "second", gem_name: "second_fixture", plugin_name: "shared_name")
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+
+      expect { described_class.new(plugin_roots: roots).ordered_plugins }
+        .to raise_error(Syrus::PluginLoader::Error, /Plugin name "shared_name" is declared by multiple manifests/)
+    end
+  end
+
   it "rejects gem dependencies declared by an external plugin" do
     Dir.mktmpdir do |temporary|
       app_root = Pathname.new(temporary).join("app")

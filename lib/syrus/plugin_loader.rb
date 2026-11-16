@@ -29,7 +29,7 @@ module Syrus
     end
 
     def ordered_plugins
-      plugins = @plugin_roots.plugin_directories.map { |directory| inspect_plugin(directory) }
+      plugins = unique_plugins(@plugin_roots.plugin_directories.map { |directory| inspect_plugin(directory) })
       by_name = plugins.to_h { |plugin| [ plugin.name, plugin ] }
       pending = plugins.to_h { |plugin| [ plugin.name, plugin.dependencies.select { |name| by_name.key?(name) } ] }
       ordered = []
@@ -50,6 +50,18 @@ module Syrus
     end
 
     private
+
+    def unique_plugins(plugins)
+      plugins.group_by(&:name).map do |name, candidates|
+        next candidates.first if candidates.one?
+
+        built_in = candidates.reject(&:external)
+        next built_in.first if built_in.one?
+
+        paths = candidates.map(&:directory).sort.join(", ")
+        raise Error, "Plugin name #{name.inspect} is declared by multiple manifests: #{paths}"
+      end
+    end
 
     def inspect_plugin(directory)
       gemspec = gemspec_for(directory)
