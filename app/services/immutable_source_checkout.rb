@@ -360,8 +360,9 @@ class ImmutableSourceCheckout
     end
 
     plan.commands.each_with_index do |command, index|
-      log("[immutable_source_checkout] prepare (#{index + 1}/#{plan.commands.size}) $ #{command}")
-      next if run_prepare_command(command)
+      occurrence = index + 1
+      log("[immutable_source_checkout] prepare (#{occurrence}/#{plan.commands.size}) $ #{command}")
+      next if run_prepare_command(command, occurrence: occurrence)
 
       if plan.guessed?
         log("[immutable_source_checkout] guessed prepare command failed; continuing with immutable checkout unprepared")
@@ -404,7 +405,7 @@ class ImmutableSourceCheckout
     path.join(PREPARED_MARKER)
   end
 
-  def run_prepare_command(command)
+  def run_prepare_command(command, occurrence:)
     current_run = Thread.current[:syrus_current_run] || @step.latest_run
     span_plan = GraderCommandSpans::Plan.for(command)
     span_recorder = GraderCommandSpans::Recorder.new(
@@ -412,7 +413,7 @@ class ImmutableSourceCheckout
       step: @step,
       workflow: @workflow,
       plan: span_plan,
-      idempotency_scope: "prepare:#{@step.id}:#{Digest::SHA256.hexdigest(command)}"
+      idempotency_scope: "prepare:#{@step.id}:#{occurrence}:#{Digest::SHA256.hexdigest(command)}"
     ) if current_run
     runner_command = span_recorder ? span_recorder.wrap(span_plan.shell_command) : command
 

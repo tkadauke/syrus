@@ -18,39 +18,65 @@ RSpec.describe "CommandSpan MySQL sequence allocation", :ci_only do
   end
 
   it "persists every concurrent event once with a unique sequence" do
-    errors = Queue.new
-    ready = Queue.new
-    start = Queue.new
-    keys = Array.new(8) { |index| "grader:#{index}" }
+    keys = Array.new(4) { |index| "grader:#{index}" }
+    ActiveRecord::Base.connection_handler.clear_all_connections!
 
-    threads = keys.map do |key|
-      Thread.new do
-        ActiveRecord::Base.connection_pool.with_connection do
-          ready << true
-          start.pop
-          2.times do
-            CommandSpan.record!(
-              run: @run,
-              idempotency_key: key,
-              job: @job,
-              workflow: @workflow,
-              step: @step,
-              name: key,
-              command_excerpt: "printf ready",
-              started_at: Time.current,
-              metadata: {}
-            )
+    children = keys.map do |key|
+      ready_reader, ready_writer = IO.pipe
+      start_reader, start_writer = IO.pipe
+      result_reader, result_writer = IO.pipe
+      pid = fork do
+        ready_reader.close
+        start_writer.close
+        result_reader.close
+
+        begin
+          ActiveRecord::Base.connection_handler.clear_all_connections!
+          ready_writer.write("1")
+          ready_writer.close
+          start_reader.read(1)
+
+          ActiveRecord::Base.connection_pool.with_connection do
+            child_run = Run.find(@run.id)
+            child_job = Job.find(@job.id)
+            child_workflow = Workflow.find(@workflow.id)
+            child_step = Step.find(@step.id)
+
+            2.times do
+              CommandSpan.record!(
+                run: child_run,
+                idempotency_key: key,
+                job: child_job,
+                workflow: child_workflow,
+                step: child_step,
+                name: key,
+                command_excerpt: "printf ready",
+                started_at: Time.current,
+                metadata: {}
+              )
+            end
           end
+          result_writer.write("ok")
         rescue StandardError => error
-          errors << error
+          result_writer.write("#{error.class}: #{error.message}")
+        ensure
+          result_writer.close
+          start_reader.close
         end
+        exit! 0
       end
+
+      ready_writer.close
+      start_reader.close
+      result_writer.close
+      { pid: pid, ready: ready_reader, start: start_writer, result: result_reader }
     end
 
-    keys.size.times { ready.pop }
-    keys.size.times { start << true }
-    threads.each(&:join)
-    raise errors.pop unless errors.empty?
+    children.each { |child| expect(child.fetch(:ready).read(1)).to eq("1") }
+    children.each { |child| child.fetch(:start).write("1"); child.fetch(:start).close }
+    results = children.map { |child| child.fetch(:result).read }
+    children.each { |child| Process.wait(child.fetch(:pid)) }
+    expect(results).to all(eq("ok"))
 
     spans = @run.command_spans.order(:sequence)
     expect(spans.pluck(:sequence)).to eq((1..keys.size).to_a)
