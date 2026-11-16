@@ -5,28 +5,17 @@ import { fetchAdminPluginPages } from "./api/adminPluginPages"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 import { loadPluginModule } from "./i18n"
+import "./builtInPluginContributions"
+import { getPluginContribution, getPluginContributions, pluginContributionLoader } from "./pluginContributionRegistry"
 
 type PluginModule = {
   default?: ComponentType
 }
 
-const routeModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/routes/*.tsx", "!../../plugins/*/app/frontend/routes/*.test.tsx"])
-
-const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules)
-    .map(([path, loader]) => {
-      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
-      if (!match) return []
-
-      return [`${match[1]}/${match[2]}`, loader]
-    })
-    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
-)
-
 const componentCache = new Map<string, ComponentType>()
 
 export function pluginAdminComponentKeys() {
-  return Object.keys(componentLoaders).sort()
+  return getPluginContributions<PluginModule>("admin_page").map(({ pluginName, key }) => `${pluginName}/${key}`).sort()
 }
 
 export function pluginAdminComponentFor(key: string | null | undefined) {
@@ -34,11 +23,12 @@ export function pluginAdminComponentFor(key: string | null | undefined) {
   const cached = componentCache.get(key)
   if (cached) return cached
 
-  const loader = componentLoaders[key]
-  if (!loader) return null
+  const [pluginName, componentKey] = key.split("/", 2)
+  const contribution = getPluginContribution<PluginModule>("admin_page", pluginName, componentKey)
+  if (!contribution) return null
 
   const Component = lazy(async () => {
-    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
+    const mod = await loadPluginModule(pluginName, pluginContributionLoader(contribution))
     if (!mod.default) throw new Error(`Plugin admin component ${key} has no default export`)
     return { default: mod.default }
   })

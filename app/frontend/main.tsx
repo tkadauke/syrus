@@ -14,6 +14,7 @@ import { installStaleChunkRecovery } from "./lib/staleChunkRecovery"
 import { configureExcalidrawAssets } from "./lib/excalidrawAssets"
 import { StartupRenderMarker } from "./lib/StartupRenderMarker"
 import { createQueryClient } from "./queryClient"
+import "./builtInPluginContributions"
 
 installStaleChunkRecovery()
 configureExcalidrawAssets()
