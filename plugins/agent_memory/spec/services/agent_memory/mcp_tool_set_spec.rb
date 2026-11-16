@@ -28,6 +28,14 @@ RSpec.describe AgentMemory::McpToolSet do
     )
   end
 
+  it "declares confidential reads and destructive deletion explicitly" do
+    definitions = described_class.tool_definitions.index_by { |item| item[:name] }
+
+    expect(definitions.values).to all(include(capability_descriptor: be_a(Permissions::CapabilityDescriptor)))
+    expect(definitions.fetch("read_memory")[:capability_descriptor].effects).to eq([ :confidential_read ])
+    expect(definitions.fetch("delete_memory")[:capability_descriptor].effects).to eq(%i[internal_write destructive])
+  end
+
   it "keeps read-only memory tools visible to visual reviewers" do
     expect(tool_names_for(AgentRole::WORKFLOW_VISUAL_REVIEWER)).to include(
       "read_memory",

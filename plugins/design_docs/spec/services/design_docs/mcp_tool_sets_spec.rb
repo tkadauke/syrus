@@ -6,6 +6,15 @@ RSpec.describe "DesignDocs MCP tool sets" do
   let(:repository) { Factories.repository(user: owner, owner: "acme", name: "widgets") }
   let(:chat_session) { ChatSession.create!(user: owner, repository: repository) }
 
+  it "declares document-scoped read, collaboration, and destructive descriptors" do
+    definitions = DesignDocs::ChatToolSet.tool_definitions(tier: :deferred).index_by { |item| item[:name] }
+
+    expect(definitions.values).to all(include(capability_descriptor: be_a(Permissions::CapabilityDescriptor)))
+    expect(definitions.fetch("read_design_doc")[:capability_descriptor].effects).to eq([ :confidential_read ])
+    expect(definitions.fetch("comment_on_design_doc")[:capability_descriptor].effects).to eq(%i[internal_write communication])
+    expect(definitions.fetch("delete_design_doc")[:capability_descriptor].effects).to eq(%i[internal_write destructive])
+  end
+
   def create_design_doc(user: owner, repo: repository, title: "Checkout design", markdown: "Hello world", visibility: "public")
     doc = DesignDocs::DesignDoc.create!(
       owner_user: user,

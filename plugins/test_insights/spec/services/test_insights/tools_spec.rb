@@ -5,6 +5,13 @@ RSpec.describe "Test Insight MCP tools" do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
+  it "declares explicit evidence descriptors on both MCP surfaces" do
+    definitions = TestInsights::McpToolSet.tool_definitions + TestInsights::ChatToolSet.tool_definitions(tier: :deferred)
+
+    expect(definitions).to all(include(capability_descriptor: be_a(Permissions::CapabilityDescriptor)))
+    expect(definitions.map { |definition| definition.fetch(:capability_descriptor).effects }).to all(eq([ :confidential_read ]))
+  end
+
   def create_identity!(name:, suite_name: "Suite", repo: repository, attrs: {})
     TestInsights::TestIdentity.create!({
       repository: repo,

@@ -39,6 +39,16 @@ RSpec.describe OperatorBriefing::McpToolSet do
     expect(described_class.tool_definitions(context: context_for("implement"))).to eq([])
   end
 
+  it "declares briefing evidence reads and bounded authoring explicitly" do
+    definitions = described_class.tool_definitions.index_by { |item| item[:name] }
+
+    expect(definitions.values).to all(include(capability_descriptor: be_a(Permissions::CapabilityDescriptor)))
+    expect(definitions.fetch("read_briefing")[:capability_descriptor].effects).to eq([ :confidential_read ])
+    expect(definitions.fetch("submit_dive_report")[:capability_descriptor]).to have_attributes(
+      effects: [ :internal_write ], authority_durations: [ :invocation ]
+    )
+  end
+
   it "advertises briefing topic tools only for dive report runs" do
     expect(described_class.tool_definitions(context: context_for("briefing_dive_investigate")).map { |definition| definition[:name] })
       .to eq(%w[read_briefing])

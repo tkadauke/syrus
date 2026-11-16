@@ -39,7 +39,8 @@ module AgentInsights
       {
         name: klass.tool_name,
         description: klass.description_value,
-        input_schema: klass.input_schema_value.to_h
+        input_schema: klass.input_schema_value.to_h,
+        capability_descriptor: CapabilityDescriptors.for(klass.tool_name)
       }
     end
 

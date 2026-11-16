@@ -43,6 +43,16 @@ RSpec.describe AgentInsights::McpToolSet do
     )
   end
 
+  it "describes reads and suggestion mutations explicitly" do
+    definitions = described_class.tool_definitions(context: context_for(AgentRole::AGENT_INSIGHT)).index_by { |item| item[:name] }
+
+    expect(definitions.values).to all(include(capability_descriptor: be_a(Permissions::CapabilityDescriptor)))
+    expect(definitions.fetch("read_run_transcript")[:capability_descriptor].effects).to eq([ :confidential_read ])
+    expect(definitions.fetch("submit_insight")[:capability_descriptor]).to have_attributes(
+      effects: [ :internal_write ], maximum_autonomy: :invocation
+    )
+  end
+
   it "does not advertise workflow insight tools to ordinary workflow roles" do
     AgentRole::WORKFLOW_ROLES.each do |role|
       expect(tool_names_for(role)).to eq([])

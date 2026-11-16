@@ -15,6 +15,15 @@ RSpec.describe CognitiveReview::McpToolSet do
     expect(described_class.tool_definitions(context: context).pluck(:name)).to eq([ "submit_review_notes" ])
   end
 
+  it "declares review-note writes as invocation-bound" do
+    descriptor = described_class.tool_definitions(context: context).sole.fetch(:capability_descriptor)
+
+    expect(descriptor).to have_attributes(
+      capability: "cognitive_review.notes@v1", effects: [ :internal_write ],
+      risk: :medium, authority_durations: [ :invocation ]
+    )
+  end
+
   it "advertises submit_review_notes through the real workflow MCP sidecar for review runs" do
     tool_names = workflow_sidecar_tool_names(run)
 
