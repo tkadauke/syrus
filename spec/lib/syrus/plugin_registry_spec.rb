@@ -264,6 +264,76 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.health.status("example").reasons).to include(match(/Unknown CLI flag type/))
     end
 
+    it "reports non-array declarations and non-mapping entries through plugin health" do
+      malformed = [
+        valid_command,
+        [valid_command.merge(arguments: { name: "owner", type: "string" })],
+        ["not a command mapping"]
+      ]
+
+      malformed.each do |commands|
+        expect {
+          described_class.register(name: "example", version: "1", cli_commands: commands)
+        }.not_to raise_error
+        expect(described_class.health.status("example").state).to eq(:degraded)
+      end
+    end
+
+    it "validates one-line summaries and boolean required metadata at registration" do
+      invalid_commands = [
+        valid_command.merge(summary: "List documents\nfrom the server"),
+        valid_command.merge(arguments: [{ name: "owner", type: "string", required: "yes" }])
+      ]
+
+      invalid_commands.each do |command|
+        described_class.register(name: "example", version: "1", cli_commands: [command])
+        expect(described_class.health.status("example").state).to eq(:degraded)
+      end
+    end
+
+    it "validates defaults against every declared value type at registration" do
+      invalid_parameters = [
+        { name: "string", type: "string", default: 1 },
+        { name: "boolean", type: "boolean", default: "true" },
+        { name: "integer", type: "integer", default: "1" },
+        { name: "enum", type: "enum", values: %w[draft archived], default: "missing" },
+        { name: "repeatable", type: "repeatable_string", default: "one" }
+      ]
+
+      invalid_parameters.each do |parameter|
+        command = valid_command.merge(flags: [parameter])
+        described_class.register(name: "example", version: "1", cli_commands: [command])
+        expect(described_class.health.status("example").reasons).to include(match(/default does not match type/))
+      end
+    end
+
+    it "accepts native defaults for every declared value type" do
+      defaults = [
+        { name: "string", type: "string", default: "one" },
+        { name: "boolean", type: "boolean", default: true },
+        { name: "integer", type: "integer", default: 1 },
+        { name: "enum", type: "enum", values: %w[draft archived], default: "draft" },
+        { name: "repeatable", type: "repeatable_string", default: %w[one two] }
+      ]
+
+      described_class.register(
+        name: "example", version: "1", cli_commands: [valid_command.merge(flags: defaults)]
+      )
+
+      manifest = described_class.all_plugins.find { |plugin| plugin.name == "example" }
+      expect(described_class.health.status("example").state).to eq(:ok)
+      expect(manifest.cli_commands.first.fetch("flags").map { |flag| flag.fetch("default") })
+        .to eq(["one", true, 1, "draft", %w[one two]])
+    end
+
+    it "reports malformed enum values through plugin health" do
+      command = valid_command.merge(flags: [{ name: "state", type: "enum", values: "draft" }])
+
+      described_class.register(name: "example", version: "1", cli_commands: [command])
+
+      expect(described_class.health.status("example").reasons).to include(match(/requires string values/))
+    end
+
     it "accepts CLI commands from the plugin manifest DSL" do
       definition = Syrus::PluginApi::Definition.new(
         name: "example", namespace: Module.new, lib_dir: Rails.root.to_s

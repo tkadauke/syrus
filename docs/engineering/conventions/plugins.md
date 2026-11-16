@@ -43,8 +43,10 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
   `summary`, a lazy `handler` class-name string, and optional `arguments` and
   `flags`. Parameters have a `name`, a `type` (`string`, `boolean`, `integer`,
   `enum`, or `repeatable_string`), and optional `required`, `default`, and
-  `values` (required for enums). Command paths and parameter names must be
-  unique within a plugin. Example:
+  `values` (a non-empty string list required for enums). `required` must be a
+  boolean, and defaults use the declared native type (with enum defaults drawn
+  from `values`). Command paths and parameter names must be unique within a
+  plugin. Example:
 
   ```ruby
   cli_commands [{

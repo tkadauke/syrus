@@ -806,24 +806,34 @@ module Syrus
       end
 
       CLI_VALUE_TYPES = %w[string boolean integer enum repeatable_string].freeze
+      CLI_DEFAULT_VALIDATORS = {
+        "string" => ->(value, _) { value.is_a?(String) },
+        "boolean" => ->(value, _) { value == true || value == false },
+        "integer" => ->(value, _) { value.is_a?(Integer) },
+        "enum" => ->(value, values) { value.is_a?(String) && values.include?(value) },
+        "repeatable_string" => ->(value, _) { value.is_a?(Array) && value.all? { |item| item.is_a?(String) } }
+      }.freeze
 
       def normalize_cli_commands!(commands, plugin_name:)
-        normalized = Array(commands).map do |command|
-          unless command.respond_to?(:to_h)
-            raise RegistrationError, "Plugin #{plugin_name.inspect} CLI commands must be mappings"
-          end
-          attrs = command.to_h.stringify_keys
-          path = attrs["path"].to_s.split.join(" ")
+        normalized = cli_declaration_list!(commands, label: "Plugin #{plugin_name.inspect} CLI commands").map do |command|
+          raise RegistrationError, "Plugin #{plugin_name.inspect} CLI commands must be mappings" unless command.is_a?(Hash)
+
+          attrs = command.stringify_keys
+          path = attrs["path"].is_a?(String) ? attrs["path"].split.join(" ") : ""
           raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command requires a path" if path.blank?
-          raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command #{path.inspect} requires a handler" if attrs["handler"].blank?
-          raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command #{path.inspect} requires a summary" if attrs["summary"].blank?
+          unless attrs["handler"].is_a?(String) && attrs["handler"].match?(/\A[A-Z]\w*(?:::[A-Z]\w*)*\z/)
+            raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command #{path.inspect} requires a handler class name"
+          end
+          unless attrs["summary"].is_a?(String) && attrs["summary"].present? && !attrs["summary"].match?(/[\r\n]/)
+            raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command #{path.inspect} requires a one-line summary"
+          end
 
           {
             "path" => path,
-            "summary" => attrs.fetch("summary").to_s,
+            "summary" => attrs.fetch("summary"),
             "arguments" => normalize_cli_parameters!(attrs["arguments"], command_path: path, kind: "argument"),
             "flags" => normalize_cli_parameters!(attrs["flags"], command_path: path, kind: "flag"),
-            "handler" => attrs.fetch("handler").to_s
+            "handler" => attrs.fetch("handler")
           }.freeze
         end
         duplicates = normalized.map { |command| command.fetch("path") }.tally.select { |_path, count| count > 1 }.keys
@@ -832,25 +842,47 @@ module Syrus
       end
 
       def normalize_cli_parameters!(parameters, command_path:, kind:)
-        Array(parameters).map do |parameter|
-          unless parameter.respond_to?(:to_h)
-            raise RegistrationError, "CLI #{kind}s must be mappings for #{command_path.inspect}"
-          end
-          attrs = parameter.to_h.stringify_keys
+        cli_declaration_list!(parameters, label: "CLI #{kind}s for #{command_path.inspect}").map do |parameter|
+          raise RegistrationError, "CLI #{kind}s must be mappings for #{command_path.inspect}" unless parameter.is_a?(Hash)
+
+          attrs = parameter.stringify_keys
           name = attrs["name"].to_s
           type = attrs.fetch("type", "string").to_s
           raise RegistrationError, "CLI #{kind} names cannot be blank for #{command_path.inspect}" if name.blank?
           unless CLI_VALUE_TYPES.include?(type)
             raise RegistrationError, "Unknown CLI #{kind} type #{type.inspect} for #{command_path.inspect}. Valid: #{CLI_VALUE_TYPES.inspect}"
           end
-          raise RegistrationError, "CLI enum #{name.inspect} requires values" if type == "enum" && Array(attrs["values"]).empty?
+          if attrs.key?("required") && attrs["required"] != true && attrs["required"] != false
+            raise RegistrationError, "CLI #{kind} #{name.inspect} required must be boolean"
+          end
+
+          values = normalize_cli_enum_values!(attrs["values"], name: name, type: type)
+          if attrs.key?("default") && !CLI_DEFAULT_VALIDATORS.fetch(type).call(attrs["default"], values)
+            raise RegistrationError, "CLI #{kind} #{name.inspect} default does not match type #{type.inspect}"
+          end
 
           { "name" => name, "type" => type, "required" => attrs["required"] == true,
-            "default" => attrs["default"], "values" => Array(attrs["values"]).map(&:to_s).presence }.compact.freeze
+            "default" => attrs["default"], "values" => values.presence }.compact.freeze
         end.tap do |entries|
           duplicates = entries.map { |entry| entry.fetch("name") }.tally.select { |_name, count| count > 1 }.keys
           raise RegistrationError, "Duplicate CLI #{kind} name(s) for #{command_path.inspect}: #{duplicates.inspect}" if duplicates.any?
         end
+      end
+
+      def cli_declaration_list!(value, label:)
+        return [] if value.nil?
+        return value if value.is_a?(Array)
+
+        raise RegistrationError, "#{label} must be an array"
+      end
+
+      def normalize_cli_enum_values!(value, name:, type:)
+        return [] unless type == "enum"
+        unless value.is_a?(Array) && value.any? && value.all? { |item| item.is_a?(String) }
+          raise RegistrationError, "CLI enum #{name.inspect} requires string values"
+        end
+
+        value
       end
 
       # Blank/absent category is still allowed (lightweight test registrations
