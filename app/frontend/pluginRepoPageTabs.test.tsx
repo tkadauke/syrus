@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import * as repoPluginTabsApi from "./api/repoPluginTabs"
 import { PluginRepoPageTabRoute, pluginRepoComponentFor, pluginRepoComponentKeys } from "./pluginRepoPageTabs"
+import { registerPluginContribution } from "./pluginContributionRegistry"
 
 vi.mock("./api/repoPluginTabs", () => ({ fetchRepoPluginTabs: vi.fn() }))
 
@@ -16,6 +17,13 @@ describe("plugin repo page tab registry", () => {
     expect(pluginRepoComponentFor("missing/Nope")).toBeNull()
     expect(pluginRepoComponentFor(null)).toBeNull()
     expect(pluginRepoComponentFor(undefined)).toBeNull()
+  })
+
+  it("returns a repo tab registered at runtime", () => {
+    registerPluginContribution("repo_page_tab", "runtime_repo", "RuntimeTab", async () => ({ default: () => null }))
+
+    expect(pluginRepoComponentKeys()).toContain("runtime_repo/RuntimeTab")
+    expect(pluginRepoComponentFor("runtime_repo/RuntimeTab")).toBeTruthy()
   })
 
   it("renders a native unavailable notice when a repository plugin tab is disabled or missing", async () => {
