@@ -206,6 +206,27 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     Thread.current[:syrus_current_run] = nil
   end
 
+  it "records repeated prepare commands as distinct semantic events" do
+    repeated_command = "printf 'ready\\n' >> repeated.txt"
+    update_remote_config(<<~YAML)
+      prepare:
+        - #{repeated_command}
+        - #{repeated_command}
+    YAML
+    Thread.current[:syrus_current_run] = run
+
+    described_class.new(step).setup
+
+    spans = run.reload.command_spans.ordered
+    expect(spans.pluck(:sequence, :command_excerpt, :outcome)).to eq([
+      [ 1, repeated_command, "succeeded" ],
+      [ 2, repeated_command, "succeeded" ]
+    ])
+    expect(spans.pluck(:idempotency_key).uniq.size).to eq(2)
+  ensure
+    Thread.current[:syrus_current_run] = nil
+  end
+
   it "reuses prepared state for later immutable-source steps with the same worker, workflow, snapshot, and fingerprint" do
     described_class.new(step).setup
     first_cache_details = step.reload.details.fetch("prepare_cache")
