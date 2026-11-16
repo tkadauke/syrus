@@ -179,11 +179,9 @@ module DesignDocs
       offset.to_i.clamp(0, length)
     end
 
-    # Every occurrence of `selection` in `markdown`, by index. Shared by
-    # OffsetProjection's diff-based re-anchoring and ReviewSuggestion's
-    # reconciliation of anchors whose marker was overwritten -- both need to
-    # know whether an anchor's exact prior excerpt still exists exactly once
-    # (safe to re-point at) or not (ambiguous/missing, so it's left alone).
+    # Every occurrence of `selection` in `markdown`, by index. Offset
+    # projection and suggestion creation both use this to distinguish an
+    # unambiguous exact match from missing or repeated text.
     def exact_matches(markdown, selection)
       return [] if selection.blank?
 

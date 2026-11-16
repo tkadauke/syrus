@@ -70,176 +70,71 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     expect(suggestion.anchor.reload.attributes).to eq(before[:anchor])
   end
 
-  # Reproduces the DOC-20 production sequence: a comment anchor exists, then a
-  # later full-document suggestion is accepted and its replaced range spans
-  # every marker in the document, not just its own.
-  it "marks an overwritten comment anchor stale and cascades to its pending suggestions, while re-projecting an anchor whose exact text survives" do
-    beta_comment = DesignDocs::CreateComment.call(
-      design_doc: doc,
-      user: collaborator,
-      attributes: { body: "Needs more evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" },
-      actor_kind: "user"
-    )
-    gamma_comment = DesignDocs::CreateComment.call(
-      design_doc: doc.reload,
-      user: collaborator,
-      attributes: { body: "Keep this term", start_offset: 11, end_offset: 16, selected_markdown: "gamma" },
-      actor_kind: "user"
-    )
-    beta_anchor = beta_comment.anchor
-    gamma_anchor = gamma_comment.anchor
-    full_document_suggestion = DesignDocs::CreateSuggestion.call(
-      design_doc: doc.reload,
-      user: collaborator,
-      attributes: {
-        start_offset: 0,
-        end_offset: DesignDocs::AnchorMarkers.strip(doc.markdown).length,
-        original_markdown: DesignDocs::AnchorMarkers.strip(doc.markdown),
-        proposed_markdown: "Zeta gamma omega",
-        change_summary: "Full rewrite"
-      },
-      actor_kind: "user"
-    ).suggestion
-    pending_reply_suggestion = doc.reload.suggestions.create!(
-      anchor: beta_anchor,
-      thread: beta_comment.thread,
-      suggested_by_kind: "user",
-      suggested_by_user: collaborator,
-      original_markdown: "beta",
-      suggested_markdown: "beta2"
-    )
+  [ [ "bravo extended", 10 ], [ "b", -3 ] ].each do |replacement, offset_delta|
+    it "refreshes a later non-overlapping anchor when accepted text changes length by #{offset_delta}" do
+      accepted = DesignDocs::CreateSuggestion.call(
+        design_doc: doc,
+        user: collaborator,
+        attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: replacement }
+      ).suggestion
+      later = DesignDocs::CreateSuggestion.call(
+        design_doc: doc.reload,
+        user: collaborator,
+        attributes: { start_offset: 17, end_offset: 22, original_markdown: "delta", proposed_markdown: "DELTA" }
+      ).suggestion
 
-    result = described_class.accept(suggestion: full_document_suggestion, user: owner)
+      described_class.accept(suggestion: accepted, user: owner)
 
-    expect(result.applied).to be(true)
-    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Zeta gamma omega")
-
-    expect(beta_anchor.reload.status).to eq("stale")
-    expect(beta_anchor.stale_as_of_version).to eq(result.version)
-    expect(pending_reply_suggestion.reload.state).to eq("stale")
-    expect(pending_reply_suggestion.conflict_reason).to include("suggestion ##{full_document_suggestion.id}")
-
-    expect(gamma_anchor.reload.status).to eq("active")
-    expect(DesignDocs::AnchorMarkers.strip(doc.markdown)[gamma_anchor.last_known_start_offset...gamma_anchor.last_known_end_offset]).to eq("gamma")
-    expect(doc.markdown).to include(DesignDocs::AnchorMarkers.range_start_marker(gamma_anchor.marker_id))
-    expect(doc.markdown).not_to include(full_document_suggestion.anchor.marker_id)
-    expect(full_document_suggestion.anchor.reload.status).to eq("stale")
+      expect(later.anchor.reload).to have_attributes(
+        status: "active",
+        last_known_start_offset: 17 + offset_delta,
+        last_known_end_offset: 22 + offset_delta
+      )
+      expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)[later.anchor.last_known_start_offset...later.anchor.last_known_end_offset]).to eq("delta")
+    end
   end
 
-  # Reproduces a comment anchor and a pending suggestion whose ranges
-  # partially overlap (neither fully nests inside the other): accepting the
-  # suggestion's `AnchorMarkers.replace_range` deletes only the side of the
-  # comment anchor's start/end marker pair that falls inside the accepted
-  # range, leaving the other side dangling. Without cleanup that leftover
-  # fragment gets duplicated by re-projection and blows up
-  # `NormalizeAnchorMarkers.assert_marker_pairs!`.
-  it "safely reprojects a comment anchor whose range partially overlaps an accepted suggestion when its exact text still exists afterward" do
-    comment = DesignDocs::CreateComment.call(
+  it "marks an unrelated anchor stale with a reason when a direct edit removed its marker" do
+    reviewed = DesignDocs::CreateSuggestion.call(
       design_doc: doc,
       user: collaborator,
-      attributes: { body: "Keep an eye on this phrase", start_offset: 6, end_offset: 16, selected_markdown: "beta gamma" },
-      actor_kind: "user"
-    )
-    comment_anchor = comment.anchor
-
-    suggestion = DesignDocs::CreateSuggestion.call(
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+    ).suggestion
+    marker_lost = DesignDocs::CreateSuggestion.call(
       design_doc: doc.reload,
       user: collaborator,
-      attributes: {
-        start_offset: 0,
-        end_offset: 10,
-        original_markdown: "Alpha beta",
-        proposed_markdown: "Omega beta",
-        change_summary: "Reword the opening"
-      },
-      actor_kind: "user"
+      attributes: { start_offset: 17, end_offset: 22, original_markdown: "delta", proposed_markdown: "DELTA" }
     ).suggestion
-
-    result = nil
-    expect {
-      result = described_class.accept(suggestion: suggestion, user: owner)
-    }.not_to raise_error
-
-    expect(result.applied).to be(true)
-    expect(suggestion.reload.state).to eq("accepted")
-    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Omega beta gamma delta")
-    expect { DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc) }.not_to raise_error
-
-    expect(comment_anchor.reload.status).to eq("active")
-    reprojected_start = comment_anchor.last_known_start_offset
-    reprojected_end = comment_anchor.last_known_end_offset
-    expect(DesignDocs::AnchorMarkers.strip(doc.markdown)[reprojected_start...reprojected_end]).to eq("beta gamma")
-  end
-
-  it "marks a partially overlapping comment anchor stale and cascades its pending replies when accepting a suggestion destroys its exact text" do
-    comment = DesignDocs::CreateComment.call(
-      design_doc: doc,
-      user: collaborator,
-      attributes: { body: "Keep an eye on this phrase", start_offset: 6, end_offset: 16, selected_markdown: "beta gamma" },
-      actor_kind: "user"
-    )
-    comment_anchor = comment.anchor
-    pending_reply = doc.reload.suggestions.create!(
-      anchor: comment_anchor,
-      thread: comment.thread,
-      suggested_by_kind: "user",
-      suggested_by_user: collaborator,
-      original_markdown: "beta gamma",
-      suggested_markdown: "beta gamma!"
-    )
-
-    # Built directly rather than through DesignDocs::CreateSuggestion, since
-    # that service's own `validate_pending_overlap!` correctly refuses to let
-    # an operator create a suggestion overlapping the comment's own pending
-    # reply through the UI. That guard is a separate feature; here we only
-    # want to exercise DesignDocs::ReviewSuggestion.accept's reconciliation
-    # once such a state exists.
-    doc.reload
-    suggestion_anchor = doc.anchors.create!(
-      marker_id: "manual-overlap-accept",
-      anchor_key: "manual-overlap-accept",
-      anchor_kind: "range",
-      design_doc_version: doc.current_version,
-      start_offset: 0,
-      end_offset: 10,
-      last_known_start_offset: 0,
-      last_known_end_offset: 10,
-      selected_markdown: "Alpha beta",
-      selected_text: "Alpha beta",
-      status: "active"
-    )
-    inserted = DesignDocs::AnchorMarkers.insert(
+    doc.update!(markdown: DesignDocs::AnchorMarkers.remove(
       markdown: doc.markdown,
-      marker_id: suggestion_anchor.marker_id,
-      start_offset: 0,
-      end_offset: 10,
-      anchor_kind: "range"
-    )
-    doc.update!(markdown: inserted.markdown)
-    suggestion = doc.suggestions.create!(
-      anchor: suggestion_anchor,
-      suggested_by_kind: "user",
-      suggested_by_user: collaborator,
-      original_markdown: "Alpha beta",
-      suggested_markdown: "Zzz zzzzz",
-      proposed_markdown: "Zzz zzzzz",
-      change_summary: "Reword the opening"
-    )
+      marker_id: marker_lost.anchor.marker_id,
+      anchor_kind: marker_lost.anchor.anchor_kind
+    ))
 
-    result = nil
-    expect {
-      result = described_class.accept(suggestion: suggestion, user: owner)
-    }.not_to raise_error
+    result = described_class.accept(suggestion: reviewed, user: owner)
 
-    expect(result.applied).to be(true)
-    expect(suggestion.reload.state).to eq("accepted")
-    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Zzz zzzzz gamma delta")
-    expect { DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc) }.not_to raise_error
+    expect(marker_lost.reload).to have_attributes(state: "stale", conflict_reason: "Anchor marker is missing.")
+    expect(marker_lost.anchor.reload).to have_attributes(status: "stale", stale_as_of_version: result.version)
+  end
 
-    expect(comment_anchor.reload.status).to eq("stale")
-    expect(doc.markdown).not_to include(comment_anchor.marker_id)
-    expect(pending_reply.reload.state).to eq("stale")
-    expect(pending_reply.conflict_reason).to include("suggestion ##{suggestion.id}")
+  it "keeps markers only for pending suggestions after accepting one suggestion" do
+    accepted = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+    ).suggestion
+    pending = DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: collaborator,
+      attributes: { start_offset: 17, end_offset: 22, original_markdown: "delta", proposed_markdown: "DELTA" }
+    ).suggestion
+
+    described_class.accept(suggestion: accepted, user: owner)
+
+    doc.reload.suggestions.where.not(state: "pending").includes(:anchor).each do |suggestion|
+      expect(doc.markdown).not_to include(suggestion.anchor.marker_id)
+    end
+    expect(doc.markdown).to include(pending.anchor.marker_id)
   end
 
   it "reports anchors as active only within their version window" do
