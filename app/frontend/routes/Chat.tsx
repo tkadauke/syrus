@@ -1234,6 +1234,7 @@ function MessageStream({
             ) : (
               <ChatMessage
                 animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
+                findQuery={normalizedFindQuery}
                 item={item}
                 key={renderItemKey(item)}
                 payload={payload}

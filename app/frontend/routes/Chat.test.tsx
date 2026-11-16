@@ -226,6 +226,58 @@ describe("chat context find", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "preview" } })
 
     expect(screen.getByText("1/1")).toBeInTheDocument()
+    expect(screen.getByText("preview")).toHaveAttribute("data-search-highlight")
+  })
+
+  it("highlights every visible match while preserving assistant markdown and human-message links", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/search/messages")) {
+        return Promise.resolve(jsonResponse({ matches: [] }))
+      }
+
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              {
+                type: "message",
+                id: 9,
+                role: "user",
+                tool_name: null,
+                content: { text: "Needle at https://example.test/needle" },
+                text: "Needle at https://example.test/needle",
+                bookmarkable: true
+              },
+              {
+                type: "message",
+                id: 10,
+                role: "assistant",
+                tool_name: null,
+                content: { text: "A **needle** in markdown." },
+                text: "A **needle** in markdown.",
+                bookmarkable: true
+              }
+            ]
+          })
+        )
+      )
+    })
+
+    renderRoute()
+    await screen.findByText(/Needle at/)
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "needle" } })
+
+    expect(document.querySelectorAll("mark[data-search-highlight]")).toHaveLength(3)
+    expect(document.querySelector("strong mark[data-search-highlight]")).toHaveTextContent("needle")
+    expect(screen.getByRole("link", { name: "https://example.test/needle" })).toHaveAttribute("href", "https://example.test/needle")
+
+    fireEvent.click(screen.getByRole("button", { name: "Close find" }))
+    expect(document.querySelector("mark[data-search-highlight]")).not.toBeInTheDocument()
   })
 
   it("keeps the selected match when chat messages update without changing find match ids", async () => {
