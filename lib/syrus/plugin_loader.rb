@@ -67,7 +67,6 @@ module Syrus
         raise Error, "Plugin name #{name.inspect} is declared by multiple manifests: #{paths}"
       end
     end
-
     def inspect_plugin(directory)
       gemspec = gemspec_for(directory)
       specification = Gem::Specification.load(gemspec.to_s)
@@ -102,7 +101,6 @@ module Syrus
     rescue ArgumentError => e
       raise Error, "Plugin manifest #{gemspec} has malformed requires_syrus #{value.inspect}: #{e.message}"
     end
-
     def gemspec_for(directory)
       gemspecs = directory.glob("*.gemspec")
       return gemspecs.first if gemspecs.one?

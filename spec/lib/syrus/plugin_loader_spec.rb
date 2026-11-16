@@ -116,7 +116,6 @@ RSpec.describe Syrus::PluginLoader do
       expect(plugin.requires_syrus).to be_nil
     end
   end
-
   it "registers every built-in declaration once with the same extension points" do
     entry_files = Syrus::PluginRoots.default.plugin_directories.map do |directory|
       directory.glob("lib/*.rb").find { |file| file.read.include?("syrus_plugin") }
@@ -219,7 +218,6 @@ RSpec.describe Syrus::PluginLoader do
         .to raise_error(Syrus::PluginLoader::Error, /Plugin name "shared_name" is declared by multiple manifests/)
     end
   end
-
   it "rejects gem dependencies declared by an external plugin" do
     Dir.mktmpdir do |temporary|
       app_root = Pathname.new(temporary).join("app")
