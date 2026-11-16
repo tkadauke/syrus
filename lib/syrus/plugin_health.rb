@@ -69,8 +69,10 @@ module Syrus
     end
 
     def status_for(manifest)
-      reasons = []
+      reasons = Array(manifest.registration_errors).dup
       state = :ok
+
+      state = :degraded if reasons.any?
 
       if cycle_members.include?(manifest.name)
         state = :cycle

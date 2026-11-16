@@ -29,11 +29,13 @@ module Syrus
       :links,
       :metrics,
       :credential_types,
+      :cli_commands,
+      :registration_errors,
       :prepare_priority,
       :hosts,
       :events
     ) do
-      def initialize(display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], prepare_priority: 100, hosts: [], events: {}, **) = super
+      def initialize(display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], cli_commands: [], registration_errors: [], prepare_priority: 100, hosts: [], events: {}, **) = super
 
       # Extension points this plugin hosts for others, qualified with its own
       # name: `hosts: [:parser]` on "test_insights" offers

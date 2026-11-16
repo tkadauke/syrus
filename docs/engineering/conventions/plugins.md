@@ -2,6 +2,43 @@
 
 Use these rules for plugin lifecycle, registration, boundaries, suggestions, and plugin-owned test coverage.
 
+## CLI commands
+
+Plugins may expose non-interactive CLI commands through their manifest. Commands
+run on the server as the authenticated API user; handlers must use the same
+policies and scopes as an ordinary controller action. They may not prompt or
+stream output.
+
+```ruby
+syrus_plugin "documents" do
+  cli_command "docs list",
+    summary: "List accessible documents",
+    handler: "Documents::Commands::List",
+    arguments: [ { name: "query", type: "string" } ],
+    flags: [
+      { name: "limit", type: "integer", default: 20 },
+      { name: "tag", type: "repeatable_string", default: [] },
+      { name: "format", type: "enum", values: %w[brief full], default: "brief" },
+      { name: "archived", type: "boolean", default: false }
+    ]
+end
+```
+
+Paths are lowercase space-separated command segments and may be nested. Each
+argument or flag has a `name` and one of `string`, `boolean`, `integer`, `enum`,
+or `repeatable_string`; it may also declare `required` or `default`. Enum values
+are supplied with `values`. Command paths must be unique across enabled plugins.
+Malformed declarations make the plugin unhealthy and withhold its commands,
+rather than preventing Syrus from booting.
+
+Handlers include `Syrus::Plugin::CliCommand` and implement
+`call(args:, flags:, user:)`. Return
+`Syrus::Plugin::CliCommand::Result.text(text:)`,
+`Syrus::Plugin::CliCommand::Result.table(columns:, rows:)`, or
+`Syrus::Plugin::CliCommand::Result.json(value:)`. The class name stays
+as a string in the manifest and is resolved only when the command is executed,
+so disabled plugins are not loaded by catalog requests.
+
 The complete extension-point interfaces, examples, frontend integration rules,
 icon pipeline, lifecycle hooks, and boundary tooling live in the
 [plugin-authoring reference](plugins/authoring.md).

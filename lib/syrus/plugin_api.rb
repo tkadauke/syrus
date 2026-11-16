@@ -96,6 +96,7 @@ module Syrus
         @links = []
         @metric_blocks = []
         @credential_types = []
+        @cli_commands = []
         @frontend = {}
         @events = {}
         @effects = []
@@ -163,6 +164,18 @@ module Syrus
           link(attrs.fetch(:label), attrs.fetch(:href), description: attrs[:description], kind: attrs.fetch(:kind, :surface), enabled_only: attrs.fetch(:enabled_only, true))
         end
       end
+
+      def cli_command(path = nil, summary: nil, handler: nil, arguments: [], flags: [])
+        @cli_commands << {
+          path: path,
+          summary: summary,
+          handler: handler,
+          arguments: arguments,
+          flags: flags
+        }
+      end
+
+      def cli_commands = @cli_commands
 
       # Declares credential type names that credential-management plugins may
       # discover. This is deliberately metadata-only: storage, encryption,
@@ -324,6 +337,7 @@ module Syrus
           links: (links if links.any?),
           metrics: (metric_declarations if metric_declarations.any?),
           credential_types: (@credential_types if @credential_types.any?),
+          cli_commands: (@cli_commands if @cli_commands.any?),
           frontend: (frontend if frontend.any?)
         }.merge(
           SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact

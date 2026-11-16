@@ -61,6 +61,8 @@ Rails.application.routes.draw do
         get "workflows/:workflow_id/preview", to: "workflows#preview"
         get "workflows/:workflow_id/detail", to: "workflows#detail", constraints: { workflow_id: /\d+/ }
         get "sidebar_pages", to: "sidebar_pages#index"
+        get "cli/commands", to: "plugin_cli_commands#index"
+        post "cli/commands/execute", to: "plugin_cli_commands#execute"
         patch "sidebar_nav_order", to: "sidebar_nav_order#update"
         post "filters/usage", to: "filters#usage"
         resources :tags, only: %i[ index create update destroy ]

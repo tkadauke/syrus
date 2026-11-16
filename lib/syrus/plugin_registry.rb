@@ -173,7 +173,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], cli_commands: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -193,6 +193,7 @@ module Syrus
           credential_types: credential_types,
           credential_type_names: credential_type_names
         )
+        cli_commands, registration_errors = Syrus::Plugin::CliCommand.normalize(cli_commands)
 
         @mutex.synchronize do
           # Registration runs on every `to_prepare`, so re-registering a name
@@ -200,6 +201,15 @@ module Syrus
           # It has to happen before the uniqueness checks, or a plugin would
           # collide with its own prior registration on the first reload.
           @plugins.reject! { |manifest| manifest.name == name }
+
+          existing_command_owners = @plugins.each_with_object({}) do |manifest, owners|
+            manifest.cli_commands.each { |command| owners[command.fetch("path")] = manifest.name }
+          end
+          cli_commands.each do |command|
+            owner = existing_command_owners[command.fetch("path")]
+            registration_errors += [ "CLI command path #{command.fetch('path').inspect} is already declared by #{owner.inspect}" ] if owner
+          end
+          registration_errors = registration_errors.freeze
 
           validate_plugin_event_name_uniqueness!(events, plugin_name: name)
           validate_mcp_tool_name_uniqueness!(provides)
@@ -232,6 +242,8 @@ module Syrus
             links:           links,
             metrics:         Array(metrics).map { |metric| metric.to_h.stringify_keys },
             credential_types: credential_types,
+            cli_commands:     cli_commands,
+            registration_errors: registration_errors,
             prepare_priority: prepare_priority,
             hosts:           Array(hosts),
             events:          events
