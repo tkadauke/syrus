@@ -98,10 +98,6 @@ module Api
           ::ScheduledTasks::Task.find(params[:id])
         end
 
-        def truthy?(value)
-          %w[ true 1 yes ].include?(value.to_s.downcase)
-        end
-
         def parse_time(value)
           Time.iso8601(value)
         rescue ArgumentError, TypeError

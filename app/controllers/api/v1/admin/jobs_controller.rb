@@ -209,12 +209,6 @@ module Api
           User.find_by(id: owner_user_id)
         end
 
-        # `?has_active_workflow=true` etc. — accept the canonical
-        # truthy strings and ignore the rest (don't raise on a typo).
-        def truthy?(value)
-          %w[ true 1 yes ].include?(value.to_s.downcase)
-        end
-
         def filter_by_proposer(scope)
           proposer = Mentionables::Resolver.find_by_handle(params[:proposer])
           proposer ? scope.where(proposer_type: proposer.class.base_class.name, proposer_id: proposer.mentionable_id) : scope.none
