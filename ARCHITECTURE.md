@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-11-08._
+_Last reviewed: 2026-11-15._
 
 This is the canonical system-wide overview and routing map. It explains how
 Syrus fits together; focused engineering documents own subsystem detail.
@@ -72,6 +72,9 @@ Workflow definitions under `app/services/workflows/` materialize Step chains;
 handlers under `app/services/steps/` execute them. `RunJob` delegates agentic
 work to provider adapters and deterministic work to step handlers. Review and
 grader loops are explicit workflow structures with bounded repair iterations.
+Review gates are registry contributions rather than a fixed core sequence.
+Required gates bind evidence to an immutable HEAD and prevent later Steps from
+advancing an unreviewed repair; optional gates do not become landing barriers.
 
 Most Steps share a mutable checkout at
 `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`. Terminal transitions schedule
@@ -125,7 +128,10 @@ Read [Chat and sidecars](docs/engineering/architecture/chat-and-sidecars.md).
 kinds, content sources, execution backends, MCP tools, routes, UI contributions,
 runtime services, and other optional capabilities. Bundled plugins live under
 `plugins/`; third-party plugins are Rails Engine gems. Plugin-owned code,
-tests, and operator docs remain in the plugin so it can be removed cleanly.
+data, tests, and operator docs remain in the plugin so it can be removed
+cleanly. Core-facing authorization, chat, identity, review, and UI contracts
+use generic provider interfaces; plugin-specific records and evidence remain
+opaque to core.
 
 The React application consumes Rails JSON APIs and live events. Rails owns SPA
 shell routes; React owns client routing and feature surfaces. Shared primitives
@@ -143,7 +149,9 @@ Runtime diagnosis starts with durable Job/Workflow/Step/Run state and worker
 ownership, then correlates queue, logs, workspace, and external-provider state.
 Recovery uses domain paths: retry, resume, pause, and reconciliation repair
 WorkIntents and WorkUnits before dispatching Workflow work. Operators should
-not manufacture state transitions directly in the database.
+not manufacture state transitions directly in the database. Safe recovery can
+resume from a published implementation checkpoint, but reconciliation rejects
+checkpoints that would bypass an immutable grader or required-review barrier.
 
 Read [Deployment](docs/engineering/operations/deployment.md),
 [Production debugging](docs/engineering/operations/production-debugging.md),
