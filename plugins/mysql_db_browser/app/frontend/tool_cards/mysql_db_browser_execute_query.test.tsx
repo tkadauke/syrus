@@ -118,6 +118,22 @@ describe("mysql_db_browser_execute_query tool card", () => {
     expect(screen.getByText(selectResult.statement)).toBeInTheDocument()
   })
 
+  it("renders cells as flat table content with copy controls revealed by cell interaction", () => {
+    render(<>{executeQueryToolCard.renderExpanded(context({ parsedResult: selectResult }))}</>)
+
+    const value = screen.getByText("queued")
+    const cell = value.closest("td")
+    const surface = value.closest("[data-code-surface-mode]")
+    const copyButton = within(cell!).getByRole("button", { name: "Copy code" })
+
+    expect(cell).toHaveClass("border-b", "group/result-cell")
+    expect(surface).toHaveClass("!border-0", "!bg-transparent", "!rounded-none")
+    expect(copyButton).toBeInTheDocument()
+    expect(surface?.className).toContain("[&>div>div]:opacity-0")
+    expect(surface?.className).toContain("group-hover/result-cell:")
+    expect(surface?.className).toContain("group-focus-within/result-cell:")
+  })
+
   it("renders duplicate column names with their distinct positional values", () => {
     const duplicateColumnsResult = { ...selectResult, columns: ["id", "id"], rows: [[12, 34]], row_count: 1 }
 
