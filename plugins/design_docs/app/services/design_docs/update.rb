@@ -146,10 +146,11 @@ module DesignDocs
       return design_doc.markdown if normalized_visible_markdown(candidate) == normalized_visible_markdown(stored_visible)
       return candidate if candidate.match?(AnchorMarkers::ANY_PATTERN)
 
+      anchors = design_doc.anchors.includes(:suggestions).to_a
       projection = AnchorMarkers.project(
         markdown: design_doc.markdown,
         visible_markdown: candidate,
-        anchors: design_doc.anchors.includes(:suggestions).to_a
+        anchors: anchors
       )
       projection.stale_anchors.each do |anchor|
         reason = "Anchor could not be placed unambiguously after the design doc changed."
@@ -157,7 +158,7 @@ module DesignDocs
         anchor.suggestions.where(state: "pending").update_all(state: "stale", reviewed_at: Time.current, conflict_reason: reason)
       end
       projection.locations.each do |anchor_id, (start_offset, end_offset)|
-        design_doc.anchors.find { |anchor| anchor.id == anchor_id }&.update!(
+        anchors.find { |anchor| anchor.id == anchor_id }&.update!(
           last_known_start_offset: start_offset,
           last_known_end_offset: end_offset
         )
