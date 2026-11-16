@@ -33,7 +33,17 @@ RSpec.describe SyrusDev::ChatToolSet do
       tools: contain_exactly(*tool_names)
     ))
     expect(described_class.tool_definitions(tier: :essential)).to all(
-      include(coworker_safe: true, capability: "syrus_dev.read_diagnostics")
+      include(
+        coworker_safe: true,
+        capability: "syrus_dev.read_diagnostics",
+        capability_descriptor: be_a(Permissions::CapabilityDescriptor)
+      )
+    )
+    expect(described_class.tool_definitions(tier: :essential).to_h { |definition|
+      [ definition.fetch(:name), definition.fetch(:capability_descriptor).operation ]
+    }).to eq(
+      "read_performance_diagnostics" => "syrus_dev.performance/read@v1",
+      "read_syrus_logs" => "syrus_dev.logs/search@v1"
     )
   end
 

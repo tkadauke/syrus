@@ -6,6 +6,10 @@ module SyrusDev
 
     CAPABILITY = "syrus_dev.read_diagnostics"
     TOOL_CLASSES = [ ReadPerformanceDiagnosticsTool, ReadSyrusLogsTool ].freeze
+    OPERATIONS = {
+      "read_performance_diagnostics" => "syrus_dev.performance/read@v1",
+      "read_syrus_logs" => "syrus_dev.logs/search@v1"
+    }.freeze
 
     def self.coworker_grants
       [
@@ -43,9 +47,7 @@ module SyrusDev
         input_schema: klass.input_schema_value.to_h,
         coworker_safe: true,
         capability: CAPABILITY,
-        capability_descriptor: Permissions::CoworkerActions.descriptor(
-          tool_name: klass.tool_name, family: CAPABILITY, effects: %i[confidential_read], risk: :medium, default: :ask
-        )
+        capability_descriptor: PermissionProvider.capability_descriptor(OPERATIONS.fetch(klass.tool_name))
       }
     end
 

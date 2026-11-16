@@ -2,7 +2,6 @@ module SyrusDev
   extend Syrus::PluginApi
 
   syrus_plugin "syrus_dev" do
-    capability_descriptor_compatibility mcp_tool_set: "daf0791578d623ea9c8585ea202bf6d39cf6d98c3907d1c3019776ddf3c7c757"
     experimental true
     display_name "Syrus Dev"
     description "Syrus development diagnostics and internal tooling."
@@ -20,7 +19,8 @@ module SyrusDev
 
     provides admin_page: "SyrusDev::AdminPages",
              mcp_tool_set: "SyrusDev::WorkflowToolSet",
-             chat_mcp_tool_set: "SyrusDev::ChatToolSet"
+             chat_mcp_tool_set: "SyrusDev::ChatToolSet",
+             permission_provider: "SyrusDev::PermissionProvider"
     route :get, "/api/v1/app/admin/performance", to: "api/v1/app/admin/performance#show"
     route :get, "/api/v1/app/admin/performance/events", to: "api/v1/app/admin/performance#events"
     route :post, "/api/v1/app/admin/performance/explain", to: "api/v1/app/admin/performance#explain"
