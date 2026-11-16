@@ -193,7 +193,13 @@ module Syrus
           credential_types: credential_types,
           credential_type_names: credential_type_names
         )
-        cli_commands = normalize_cli_commands!(cli_commands, plugin_name: name)
+        registration_errors = []
+        cli_commands = begin
+          normalize_cli_commands!(cli_commands, plugin_name: name)
+        rescue RegistrationError => e
+          registration_errors << e.message
+          []
+        end
 
         @mutex.synchronize do
           # Registration runs on every `to_prepare`, so re-registering a name
@@ -236,7 +242,8 @@ module Syrus
             prepare_priority: prepare_priority,
             hosts:           Array(hosts),
             events:          events,
-            cli_commands:    cli_commands
+            cli_commands:    cli_commands,
+            registration_errors: registration_errors.freeze
           )
         end
 
@@ -802,6 +809,9 @@ module Syrus
 
       def normalize_cli_commands!(commands, plugin_name:)
         normalized = Array(commands).map do |command|
+          unless command.respond_to?(:to_h)
+            raise RegistrationError, "Plugin #{plugin_name.inspect} CLI commands must be mappings"
+          end
           attrs = command.to_h.stringify_keys
           path = attrs["path"].to_s.split.join(" ")
           raise RegistrationError, "Plugin #{plugin_name.inspect} CLI command requires a path" if path.blank?
@@ -823,6 +833,9 @@ module Syrus
 
       def normalize_cli_parameters!(parameters, command_path:, kind:)
         Array(parameters).map do |parameter|
+          unless parameter.respond_to?(:to_h)
+            raise RegistrationError, "CLI #{kind}s must be mappings for #{command_path.inspect}"
+          end
           attrs = parameter.to_h.stringify_keys
           name = attrs["name"].to_s
           type = attrs.fetch("type", "string").to_s

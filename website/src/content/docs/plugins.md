@@ -27,6 +27,7 @@ Plugins can contribute:
 - dependency-audit commands,
 - affected-test analyzers,
 - execution backends for constrained process runs,
+- authenticated server-side CLI commands discovered at runtime,
 - source integrations such as GitHub or Linear,
 - speech-to-text backends for chat dictation,
 - batched badges and plugin-defined filters for chat search results.
@@ -48,6 +49,13 @@ remain outside this hook.
 The core app should keep behavior that is required for Syrus to function.
 Plugins should be things that can reasonably be disabled, replaced, or
 distributed separately.
+
+Server-side plugin commands give CLI clients an authenticated catalog from
+which they can build nested commands without compiling a plugin-specific module
+into the CLI. A client sends declared arguments and flags to the connected
+instance and receives table, text, or JSON results. Commands run as the
+authenticated user and enforce the same authorization policies as other
+requests. They do not support streaming or interactive prompts.
 
 The optional Container Execution backend can use a repository's standard
 `.devcontainer/devcontainer.json` or `.devcontainer.json` as its seed image.
@@ -275,6 +283,11 @@ plugin pages to use normal React components.
 Plugins may depend on other plugins. If a dependency is disabled, Syrus should
 warn or cascade-disable dependent plugins rather than exposing a broken UI
 surface.
+
+Malformed command declarations and other plugin health failures do not prevent
+Syrus from starting. The affected plugin is shown as degraded in Admin →
+Plugins, and its server-side commands stay out of the CLI catalog until the
+declaration is fixed.
 
 ## Authoring Guidelines
 

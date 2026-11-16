@@ -38,7 +38,7 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
   When adding a new agent provider or MCP tool set, implement it as a plugin
   gem that calls `Syrus::PluginRegistry.register` in its engine initializer;
   don't add the class directly to `app/services/agent_providers/`.
-- **Server-side CLI commands** are declared with `cli_commands:` in the plugin
+- **Server-side CLI commands** are declared with `cli_commands` in the plugin
   registration. Each entry contains a space-separated `path`, one-line
   `summary`, a lazy `handler` class-name string, and optional `arguments` and
   `flags`. Parameters have a `name`, a `type` (`string`, `boolean`, `integer`,
@@ -47,7 +47,7 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
   unique within a plugin. Example:
 
   ```ruby
-  cli_commands: [{
+  cli_commands [{
     path: "docs list", summary: "List design documents",
     arguments: [{ name: "owner", type: "string" }],
     flags: [{ name: "state", type: "enum", values: %w[draft archived] }],
@@ -60,8 +60,10 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
   names and the authenticated API user; they must authorize access through the
   same policies as controllers. Return `CliCommand::Table` (columns/rows),
   `CliCommand::Text`, or `CliCommand::Json`. Commands cannot stream or prompt.
-  Declarations are validated during registration, while handler constants are
-  resolved only when invoked so disabled plugins remain unloaded.
+  Declarations are validated during registration. Invalid declarations leave
+  the plugin registered but degraded, with the validation failure visible in
+  plugin health; none of that plugin's commands are exposed. Handler constants
+  are resolved only when invoked so disabled plugins remain unloaded.
 - **Core specs must not enumerate plugin-provided things.** A bundled plugin is
   deletable — `bin/plugin-boundary-audit <name>` proves it by physically
   removing the plugin and running the suite in the copy — so a core spec that

@@ -70,6 +70,22 @@ RSpec.describe "API: plugin CLI commands", type: :request do
     expect(body.dig("error", "code")).to eq("argument_invalid")
   end
 
+  it "rejects malformed argument and flag containers as validation errors" do
+    sign_in_as(user)
+
+    post "/api/v1/app/plugin_cli_commands/execute",
+      params: { plugin: "fixture_cli", path: "fixture show", args: "1", flags: {} },
+      as: :json
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(body.dig("error", "code")).to eq("argument_invalid")
+
+    post "/api/v1/app/plugin_cli_commands/execute",
+      params: { plugin: "fixture_cli", path: "fixture show", args: ["1"], flags: "short" },
+      as: :json
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(body.dig("error", "code")).to eq("argument_invalid")
+  end
+
   it "returns the handler's authorization failure" do
     FixtureCliCommand.failure = Pundit::NotAuthorizedError.new
     sign_in_as(user)

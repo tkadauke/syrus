@@ -17,7 +17,8 @@ class PluginCliCommands
   }.freeze
 
   def self.catalog
-    Syrus::PluginRegistry.all_plugins.select(&:enabled?).sort_by(&:name).flat_map do |manifest|
+    health = Syrus::PluginRegistry.health
+    Syrus::PluginRegistry.all_plugins.select { |manifest| manifest.enabled? && health.healthy?(manifest.name) }.sort_by(&:name).flat_map do |manifest|
       manifest.cli_commands.sort_by { |command| command.fetch("path") }.map do |command|
         command.except("handler").merge("plugin" => manifest.name)
       end
@@ -27,7 +28,7 @@ class PluginCliCommands
   def self.execute(plugin:, path:, args:, flags:, user:)
     manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == plugin }
     raise ValidationError, :plugin_unknown unless manifest
-    raise ValidationError, :plugin_disabled unless manifest.enabled?
+    raise ValidationError, :plugin_disabled unless manifest.enabled? && Syrus::PluginRegistry.health.healthy?(manifest.name)
     command = manifest.cli_commands.find { |candidate| candidate.fetch("path") == path.to_s.split.join(" ") }
     raise ValidationError, :command_unknown unless command
 
@@ -42,7 +43,13 @@ class PluginCliCommands
   end
 
   def self.validate_values(declarations, supplied, positional:)
-    values = positional ? Array(supplied) : supplied.to_h.stringify_keys
+    if positional
+      raise ValidationError, :argument_invalid unless supplied.nil? || supplied.is_a?(Array)
+      values = supplied || []
+    else
+      raise ValidationError, :argument_invalid unless supplied.is_a?(Hash) || supplied.respond_to?(:to_unsafe_h)
+      values = (supplied.respond_to?(:to_unsafe_h) ? supplied.to_unsafe_h : supplied).stringify_keys
+    end
     raise ValidationError, :argument_invalid if positional && values.length > declarations.length
     raise ValidationError, :argument_invalid unless positional || (values.keys - declarations.map { |entry| entry.fetch("name") }).empty?
 

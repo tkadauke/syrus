@@ -241,23 +241,40 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       ])
     end
 
-    it "rejects a missing handler" do
+    it "reports a missing handler through plugin health without aborting registration" do
       expect {
         described_class.register(name: "example", version: "1", cli_commands: [valid_command.except(:handler)])
-      }.to raise_error(described_class::RegistrationError, /requires a handler/)
+      }.not_to raise_error
+
+      manifest = described_class.all_plugins.find { |plugin| plugin.name == "example" }
+      expect(manifest.cli_commands).to eq([])
+      expect(described_class.health.status("example").reasons).to include(match(/registration error: .*requires a handler/))
     end
 
-    it "rejects duplicate command paths" do
-      expect {
-        described_class.register(name: "example", version: "1", cli_commands: [valid_command, valid_command])
-      }.to raise_error(described_class::RegistrationError, /duplicate CLI command path/)
+    it "reports duplicate command paths through plugin health" do
+      described_class.register(name: "example", version: "1", cli_commands: [valid_command, valid_command])
+
+      expect(described_class.health.status("example").reasons).to include(match(/duplicate CLI command path/))
     end
 
-    it "rejects an unknown flag type" do
+    it "reports an unknown flag type through plugin health" do
       invalid = valid_command.merge(flags: [{ name: "state", type: "mystery" }])
-      expect {
-        described_class.register(name: "example", version: "1", cli_commands: [invalid])
-      }.to raise_error(described_class::RegistrationError, /Unknown CLI flag type/)
+      described_class.register(name: "example", version: "1", cli_commands: [invalid])
+
+      expect(described_class.health.status("example").reasons).to include(match(/Unknown CLI flag type/))
+    end
+
+    it "accepts CLI commands from the plugin manifest DSL" do
+      definition = Syrus::PluginApi::Definition.new(
+        name: "example", namespace: Module.new, lib_dir: Rails.root.to_s
+      )
+      definition.cli_commands valid_command
+
+      expect(definition.manifest_arguments.fetch(:cli_commands)).to eq([valid_command])
+
+      described_class.register(**definition.manifest_arguments)
+      expect(described_class.all_plugins.find { |plugin| plugin.name == "example" }.cli_commands)
+        .to include(include("path" => "docs list", "handler" => "Example::ListDocuments"))
     end
   end
 

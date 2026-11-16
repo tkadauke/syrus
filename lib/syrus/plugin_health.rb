@@ -72,6 +72,11 @@ module Syrus
       reasons = []
       state = :ok
 
+      Array(manifest.registration_errors).each do |error|
+        state = :degraded
+        reasons << "registration error: #{error}"
+      end
+
       if cycle_members.include?(manifest.name)
         state = :cycle
         cycle = cycles.find { |c| c.include?(manifest.name) }

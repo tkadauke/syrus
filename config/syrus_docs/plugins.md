@@ -111,11 +111,29 @@ An enabled plugin is `degraded` when a hard dependency is missing or disabled,
 or when an enabled conflict exists. A dependency cycle reports `cycle` for all
 participants. Degraded and cyclic plugins keep their data and settings but
 withhold their runtime capabilities; they do not prevent Syrus from booting.
+Invalid plugin declarations are also reported as degraded plugin health rather
+than preventing Syrus from starting. The invalid capability is withheld and
+the reason appears under **Admin → Plugins**.
 
 Enablement can cascade through hard dependencies. Disabling a dependency can
 cascade through its enabled dependents, but the admin must confirm the complete
 set first. Disablement is rejected with a `plugin_in_use` HTTP 409 response when
 active records or another runtime blocker still use the plugin.
+
+## Plugin CLI commands
+
+Syrus exposes an authenticated catalog and execution API for commands declared
+by enabled, healthy plugins. CLI clients can build nested commands from that
+catalog without a separate plugin binary, so the available declarations follow
+the connected instance's installed and enabled plugins. A command accepts
+declared positional arguments and flags, runs on the server as the authenticated
+user, and returns table, text, or JSON output. It does not stream or prompt
+interactively. The command handler applies the same authorization policies as
+other requests; enabling a plugin does not grant the caller additional access.
+
+Disabled, unhealthy, and unknown plugins do not expose commands. Invalid
+arguments or flags return a structured validation error, while handler failures
+return a generic error without exposing internal exception details.
 
 ## Plugin lifecycle
 

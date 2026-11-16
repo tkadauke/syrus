@@ -1,11 +1,12 @@
 require "rails_helper"
 
 RSpec.describe Syrus::PluginHealth do
-  def manifest(name, depends_on: [], conflicts_with: [], optionally_depends_on: [])
+  def manifest(name, depends_on: [], conflicts_with: [], optionally_depends_on: [], registration_errors: [])
     Syrus::Plugin::Manifest.new(
       name: name, version: "1.0.0", provides: {}, metadata: {},
       depends_on: depends_on, conflicts_with: conflicts_with,
-      optionally_depends_on: optionally_depends_on
+      optionally_depends_on: optionally_depends_on,
+      registration_errors: registration_errors
     )
   end
 
@@ -60,6 +61,13 @@ RSpec.describe Syrus::PluginHealth do
     subject = health([ manifest("chat", optionally_depends_on: [ "design_docs" ]) ])
 
     expect(subject.status("chat").state).to eq(:ok)
+  end
+
+  it "degrades a plugin whose manifest declaration could not be registered" do
+    subject = health([ manifest("broken", registration_errors: ["CLI command requires a handler"]) ])
+
+    expect(subject.status("broken").state).to eq(:degraded)
+    expect(subject.status("broken").reasons).to eq(["registration error: CLI command requires a handler"])
   end
 
   it "degrades both sides of an enabled conflict" do
