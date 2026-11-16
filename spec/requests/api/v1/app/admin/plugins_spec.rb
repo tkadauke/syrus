@@ -801,6 +801,22 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(entry["health"]["state"]).to eq("degraded")
       expect(entry["health"]["reasons"]).to include("requires absent_plugin, which is not installed")
     end
+
+    it "reports an isolated load failure with its message" do
+      Syrus::PluginRegistry.record_load_failure(
+        name: "broken_external", state: :failed,
+        message: "SyntaxError: unexpected end-of-input", backtrace: [ "/plugins/broken/lib/broken.rb:4" ]
+      )
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/plugins"
+
+      entry = response.parsed_body["plugins"].find { |plugin| plugin["name"] == "broken_external" }
+      expect(entry["health"]).to eq(
+        "state" => "failed", "reasons" => [ "SyntaxError: unexpected end-of-input" ]
+      )
+    end
   end
 
   describe "enable-me recommendations" do

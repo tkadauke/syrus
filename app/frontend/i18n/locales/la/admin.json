@@ -497,6 +497,7 @@
     "version": "Versio",
     "source": "Fons",
     "health": "Status",
+    "health_states": { "ok": "Sanum", "failed": "In onerando defecit", "incompatible": "Incompatibile", "duplicate_name": "Nomen duplicatum", "skipped_dependency": "Praetermissum — dependentia defecit", "degraded": "Debilitatum", "cycle": "Circuitus dependentiarum" },
     "disableable": "Deactivabile",
     "yes": "Ita",
     "no": "Non",

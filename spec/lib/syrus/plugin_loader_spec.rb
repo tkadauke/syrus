@@ -236,4 +236,80 @@ RSpec.describe Syrus::PluginLoader do
         .to raise_error(Syrus::PluginLoader::Error, /may not declare gem dependencies.*rack/)
     end
   end
+
+  describe "boot isolation" do
+    def overwrite_entry(directory, gem_name, source)
+      directory.join("lib/#{gem_name}.rb").write(source)
+    end
+
+    it "isolates StandardError, LoadError, and syntax failures while loading healthy plugins" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        healthy = write_plugin(external_root, directory_name: "healthy", gem_name: "healthy_fixture")
+        standard = write_plugin(external_root, directory_name: "standard", gem_name: "standard_fixture")
+        load_error = write_plugin(external_root, directory_name: "load_error", gem_name: "load_error_fixture")
+        syntax = write_plugin(external_root, directory_name: "syntax", gem_name: "syntax_fixture")
+        overwrite_entry(standard, "standard_fixture", "module StandardFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"standard_fixture\" do; end\n  raise \"broken standard\"\nend\n")
+        overwrite_entry(load_error, "load_error_fixture", "module LoadErrorFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"load_error_fixture\" do; end\n  raise LoadError, \"missing helper\"\nend\n")
+        overwrite_entry(syntax, "syntax_fixture", "module SyntaxFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"syntax_fixture\" do; end\n  def broken(\nend\n")
+
+        expect { described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)).load! }
+          .not_to raise_error
+
+        expect(defined?(ExternalLoaderFixture)).to eq("constant")
+        %w[standard_fixture load_error_fixture syntax_fixture].each do |name|
+          status = Syrus::PluginRegistry.health.status(name)
+          expect(status.state).to eq(:failed)
+          expect(status.reasons.join).not_to be_empty
+        end
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+        Object.send(:remove_const, :StandardFixture) if defined?(StandardFixture)
+        Object.send(:remove_const, :LoadErrorFixture) if defined?(LoadErrorFixture)
+        Object.send(:remove_const, :SyntaxFixture) if defined?(SyntaxFixture)
+      end
+    end
+
+    it "rolls back a plugin that raises after registering and skips its dependent" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        broken = write_plugin(external_root, directory_name: "broken", gem_name: "atomic_fixture")
+        write_plugin(external_root, directory_name: "dependent", gem_name: "dependent_fixture", dependencies: [ "atomic_fixture" ])
+        overwrite_entry(broken, "atomic_fixture", <<~RUBY)
+          module AtomicFixture
+            extend Syrus::PluginApi
+            syrus_plugin "atomic_fixture" do
+              provides callbacks: "AtomicFixture::Provider"
+              route :get, "/atomic", to: "atomic#show"
+              on_boot { raise "after registry write" }
+            end
+            class Provider; end
+          end
+        RUBY
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        loader.load!
+
+        described_class.install_definition!(AtomicFixture.syrus_plugin_definition)
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+
+        expect(Syrus::PluginRegistry.health.status("atomic_fixture").state).to eq(:failed)
+        expect(Syrus::PluginRegistry.health.status("dependent_fixture").state).to eq(:skipped_dependency)
+        expect(Syrus::PluginRegistry.providers_for(:callbacks)).not_to include(AtomicFixture::Provider)
+        expect(Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "atomic_fixture" }.metadata[:routes]).to be_nil
+        expect(AtomicFixture.const_defined?(:Engine, false)).to be(false)
+        expect(ExternalLoaderFixture.const_defined?(:Engine, false)).to be(false)
+        request = ActionDispatch::Request.new(Rack::MockRequest.env_for("/atomic"))
+        expect(PluginRouteResolver.find(request, controller_prefix: "atomic")).to be_nil
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :AtomicFixture) if defined?(AtomicFixture)
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+      end
+    end
+  end
 end

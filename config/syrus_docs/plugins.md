@@ -119,6 +119,15 @@ release. When the running release is unknown, Syrus loads the plugin and notes
 in plugin health that the compatibility check was skipped. Bundled plugins are
 not checked because they ship with Syrus itself.
 
+External plugin discovery, entry loading, engine construction, and provider
+registration are isolated per plugin. A load error, syntax error, or other
+exception marks that plugin `failed`; plugins with a hard dependency on it are
+`skipped_dependency`. Duplicate external names are reported as
+`duplicate_name`. None of these plugins contributes providers or routes, and
+its engine declaration is made inert; the remaining plugins continue to load. Bundled plugins remain
+strict in development and test so defects are immediately visible; production
+isolates and reports their failures in the same way as external plugins.
+
 Enablement can cascade through hard dependencies. Disabling a dependency can
 cascade through its enabled dependents, but the admin must confirm the complete
 set first. Disablement is rejected with a `plugin_in_use` HTTP 409 response when
