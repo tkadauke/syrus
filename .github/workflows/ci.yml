@@ -58,9 +58,10 @@ jobs:
   react:
     runs-on: ubuntu-latest
     # This includes npm install, lint, a production build, bundle analysis,
-    # typechecking, and the full Vitest suite. The tests alone can take about
-    # nine minutes, so 15 minutes leaves too little runner-variance headroom.
-    timeout-minutes: 30
+    # typechecking, and the full coverage-enabled Vitest suite. Run coverage
+    # serially below to stay within hosted-runner memory, and leave enough
+    # time for the resulting lower-concurrency pass.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -79,4 +80,8 @@ jobs:
         run: npm run build && npm run check:bundle-size
 
       - name: Run React tests and typecheck
+        env:
+          # Coverage keeps substantial V8 state per worker. GitHub-hosted
+          # runners can exhaust their memory late in the suite with two.
+          VITEST_MAX_WORKERS: 1
         run: bin/test-react
