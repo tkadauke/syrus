@@ -663,7 +663,15 @@
     "version": "Version",
     "source": "Source",
     "health": "Health",
-    "health_states": { "ok": "Healthy", "failed": "Failed to load", "incompatible": "Incompatible", "duplicate_name": "Duplicate name", "skipped_dependency": "Skipped — dependency failed", "degraded": "Degraded", "cycle": "Dependency cycle" },
+    "health_states": {
+      "ok": "Healthy",
+      "failed": "Failed to load",
+      "incompatible": "Incompatible",
+      "duplicate_name": "Duplicate name",
+      "skipped_dependency": "Skipped — dependency failed",
+      "degraded": "Degraded",
+      "cycle": "Dependency cycle"
+    },
     "disableable": "Disableable",
     "yes": "Yes",
     "no": "No",
