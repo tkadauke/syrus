@@ -413,31 +413,28 @@ describe("startupDiagnostics", () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it.each(["root_mount", "bootstrap_fetch", "route_initialization"] as const)(
-    "shows and reports a bounded recovery surface for %s failures",
-    (phase) => {
-      const fetchSpy = installStartupShell({ path: "/jobs/42?tab=review" })
+  it.each(["root_mount", "bootstrap_fetch", "route_initialization"] as const)("shows and reports a bounded recovery surface for %s failures", (phase) => {
+    const fetchSpy = installStartupShell({ path: "/jobs/42?tab=review" })
 
-      window.SyrusStartupDiagnostics?.fail?.(phase, new TypeError("secret=do-not-render"))
+    window.SyrusStartupDiagnostics?.fail?.(phase, new TypeError("secret=do-not-render"))
 
-      const [error] = postedBrowserErrors(fetchSpy)
-      expect(error).toMatchObject({
-        name: "StartupFailure",
-        message: "secret=[FILTERED]",
-        trace_id: expect.stringMatching(/^startup-/),
-        path: "/jobs/42?tab=review"
-      })
-      expect(error.metadata).toMatchObject({
-        phase,
-        error_name: "TypeError",
-        route_intent: "/jobs/42?tab=review"
-      })
-      expect(startupStatus()).toHaveAttribute("data-startup-state", "failure")
-      expect(startupStatus()).not.toHaveTextContent("secret=do-not-render")
-      expect(startupStatus()).toHaveTextContent(/Reference: startup-/)
-      expect(startupRetry()).not.toHaveAttribute("hidden")
-    }
-  )
+    const [error] = postedBrowserErrors(fetchSpy)
+    expect(error).toMatchObject({
+      name: "StartupFailure",
+      message: "secret=[FILTERED]",
+      trace_id: expect.stringMatching(/^startup-/),
+      path: "/jobs/42?tab=review"
+    })
+    expect(error.metadata).toMatchObject({
+      phase,
+      error_name: "TypeError",
+      route_intent: "/jobs/42?tab=review"
+    })
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "failure")
+    expect(startupStatus()).not.toHaveTextContent("secret=do-not-render")
+    expect(startupStatus()).toHaveTextContent(/Reference: startup-/)
+    expect(startupRetry()).not.toHaveAttribute("hidden")
+  })
 
   it("reports later failures without resurrecting the startup recovery surface", () => {
     const fetchSpy = installStartupShell()
