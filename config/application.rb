@@ -8,6 +8,7 @@ require "rails/all"
 # from autoloading below so Zeitwerk does not manage the same constant.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "syrus/plugin_api"
+require "syrus/plugin_roots"
 require "syrus/plugin/grade_detector"
 require "syrus/plugin/grader_type"
 require "syrus/plugin/focused_test_command"
@@ -42,8 +43,17 @@ module Syrus
       g.test_framework :rspec, fixture: false, view_specs: false, helper_specs: false, routing_specs: false
     end
 
-    root.glob("plugins/*/db/migrate").sort_by(&:to_s).each do |path|
-      config.paths["db/migrate"] << path.to_s
+    plugin_roots = Syrus::PluginRoots.default
+    plugin_roots.plugin_directories.each do |plugin_dir|
+      migration_dir = plugin_dir.join("db/migrate")
+      config.paths["db/migrate"] << migration_dir.to_s if migration_dir.directory?
+
+      plugin_dir.glob("app/*").select { |path| path.directory? && path.glob("**/*.rb").any? }.each do |path|
+        config.autoload_paths << path.to_s
+        config.eager_load_paths << path.to_s
+      end
+
+      config.i18n.load_path.concat(plugin_dir.glob("config/locales/**/*.{rb,yml}").map(&:to_s))
     end
 
     initializer "syrus.plugin_migration_paths" do

@@ -50,10 +50,7 @@ module Admin
     attr_reader :root
 
     def plugin_dirs
-      plugins = root.join("plugins")
-      return [] unless plugins.directory?
-
-      plugins.children.select(&:directory?)
+      Syrus::PluginRoots.new(application_root: root).plugin_directories
     end
 
     def ownership_for(dir)

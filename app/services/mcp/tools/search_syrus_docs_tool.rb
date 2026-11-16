@@ -53,7 +53,7 @@ module Mcp::Tools
       # Where a plugin keeps its own full documentation, so deleting the plugin
       # directory removes its docs with it.
       def plugin_docs_dir(name)
-        Rails.root.join("plugins", name.to_s, "docs/syrus_docs")
+        (Syrus::PluginRoots.default.resolve(name) || Syrus::PluginRoots.default.built_in_root.join(name.to_s)).join("docs/syrus_docs")
       end
 
       private

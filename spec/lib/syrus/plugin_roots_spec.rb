@@ -1,0 +1,68 @@
+require "rails_helper"
+
+RSpec.describe Syrus::PluginRoots do
+  def make_plugin(root, name)
+    root.join(name).mkpath
+  end
+
+  it "enumerates and resolves built-in plugins without an external root" do
+    Dir.mktmpdir do |directory|
+      app = Pathname.new(directory)
+      make_plugin(app.join("plugins"), "alpha")
+      roots = described_class.new(application_root: app, external_path: nil)
+
+      expect(roots.roots).to eq([ app.join("plugins") ])
+      expect(roots.plugin_directories.map { |path| path.basename.to_s }).to eq([ "alpha" ])
+      expect(roots.resolve("alpha")).to eq(app.join("plugins/alpha"))
+      expect(roots).to be_built_in(app.join("plugins/alpha"))
+      expect(roots).not_to be_external(app.join("plugins/alpha"))
+    end
+  end
+
+  it "enumerates built-in plugins before external plugins" do
+    Dir.mktmpdir do |directory|
+      app = Pathname.new(directory).join("app")
+      external = Pathname.new(directory).join("external")
+      make_plugin(app.join("plugins"), "alpha")
+      make_plugin(external, "beta")
+      roots = described_class.new(application_root: app, external_path: external)
+
+      expect(roots.plugin_directories.map { |path| path.basename.to_s }).to eq(%w[alpha beta])
+      expect(roots).to be_external(external.join("beta"))
+    end
+  end
+
+  it "keeps the built-in plugin and reports a duplicate external name" do
+    Dir.mktmpdir do |directory|
+      app = Pathname.new(directory).join("app")
+      external = Pathname.new(directory).join("external")
+      make_plugin(app.join("plugins"), "same")
+      make_plugin(external, "same")
+      roots = described_class.new(application_root: app, external_path: external)
+
+      expect(roots.resolve("same")).to eq(app.join("plugins/same"))
+      expect(roots.duplicate_names).to eq([ "same" ])
+      expect(roots.problems.sole.message).to include("exists in both plugin roots", "skipping")
+    end
+  end
+
+  it "reports and ignores a missing external root" do
+    Dir.mktmpdir do |directory|
+      roots = described_class.new(application_root: directory, external_path: Pathname.new(directory).join("missing"))
+
+      expect(roots.problems.sole.code).to eq(:missing)
+      expect(roots.plugin_directories).to be_empty
+    end
+  end
+
+  it "reports and ignores a non-directory external path" do
+    Dir.mktmpdir do |directory|
+      file = Pathname.new(directory).join("plugin-file")
+      file.write("not a directory")
+      roots = described_class.new(application_root: directory, external_path: file)
+
+      expect(roots.problems.sole.code).to eq(:not_directory)
+      expect(roots.plugin_directories).to be_empty
+    end
+  end
+end

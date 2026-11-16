@@ -35,7 +35,11 @@ module Syrus
       private
 
       def plugin_dir
-        "plugins/#{file_name}"
+        Syrus::PluginRoots.new(application_root: destination_root_path).built_in_root.join(file_name).relative_path_from(destination_root_path).to_s
+      end
+
+      def destination_root_path
+        Pathname.new(destination_root).expand_path
       end
 
       def module_name

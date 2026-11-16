@@ -1,5 +1,14 @@
 # Docker Compose networking
 
+## External plugin volume
+
+Compose creates the optional `syrus-plugins` named volume and exposes it to
+every service that boots Rails at `/home/rails/.syrus-plugins`, with
+`SYRUS_PLUGIN_PATH` pointing at that directory. Application services mount the
+volume read-only. The profiled `plugin-installer` placeholder is the only
+service with write access; it intentionally performs no installation yet. An
+empty volume preserves the built-in-only behavior.
+
 The single-host Docker Compose distribution publishes the web container on
 `127.0.0.1:3000` by default. `SYRUS_BIND` selects the host interface and
 `SYRUS_PORT` selects the host port; both live in the install's `.env` file.
