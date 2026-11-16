@@ -102,6 +102,13 @@ Browser errors capture client-side exceptions with path, user agent, revision,
 stack, and request context. They are separate from performance data because a
 fast page can still crash in the renderer.
 
+If the browser app cannot finish starting, the loading shell changes to a
+recovery panel instead of leaving a blank page. Retry from that panel first.
+If the failure continues, include its displayed reference when reporting the
+problem. Syrus records the startup phase, requested route, build revisions,
+causal error, and available request correlation under the same reference while
+filtering credentials and secret-bearing URL parameters.
+
 The admin log UI can file a Syrus Job directly from a browser error and attach
 the full log entry to the prompt, so the agent starts with the evidence that
 was captured.
