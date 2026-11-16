@@ -753,6 +753,135 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     )
   end
 
+  it "reanchors several pending ranges independently across editor reserialization" do
+    original = <<~MARKDOWN
+      # Revised plan
+
+      - Alpha item
+      3. Ordered item
+
+      | Name | State |
+      |:-----|------:|
+      | Beta | Ready |
+
+      Closing paragraph.
+    MARKDOWN
+    candidate = <<~MARKDOWN
+      # Plan
+
+        - Alpha item
+      3. Ordered item
+
+      | Name | State |
+      | :--- | ---: |
+      | Beta | Ready |
+
+      Closing paragraph.
+    MARKDOWN
+    doc = create_design_doc(markdown: original)
+    selections = [ "- Alpha item", "3. Ordered item", "Beta", "Closing paragraph." ]
+    suggestions = selections.map do |selection|
+      start_offset = DesignDocs::AnchorMarkers.strip(doc.reload.markdown).index(selection)
+      DesignDocs::CreateSuggestion.call(
+        design_doc: doc,
+        user: owner,
+        attributes: {
+          start_offset: start_offset,
+          end_offset: start_offset + selection.length,
+          original_markdown: selection,
+          proposed_markdown: "#{selection} revised"
+        }
+      ).suggestion
+    end
+    sign_in_as(owner)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: { design_doc: { markdown: candidate } }
+
+    expect(response).to have_http_status(:ok)
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq(candidate)
+    ranges = suggestions.map do |suggestion|
+      location = DesignDocs::AnchorMarkers.locate(
+        markdown: doc.markdown,
+        marker_id: suggestion.anchor.marker_id,
+        anchor_kind: "range"
+      )
+      expect(location).to have_attributes(status: "active", selected_markdown: suggestion.original_markdown)
+      [ location.start_offset, location.end_offset ]
+    end
+    expect(ranges.sort.each_cons(2).all? { |left, right| left.last <= right.first }).to be(true)
+  end
+
+  it "stales only an anchor whose selected Markdown cannot be placed" do
+    doc = create_design_doc(markdown: "Alpha unique middle Omega")
+    lost = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 12, original_markdown: "unique", proposed_markdown: "distinct" }
+    ).suggestion
+    omega_offset = DesignDocs::AnchorMarkers.strip(doc.reload.markdown).index("Omega")
+    kept = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { start_offset: omega_offset, end_offset: omega_offset + 5, original_markdown: "Omega", proposed_markdown: "Final" }
+    ).suggestion
+    sign_in_as(owner)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: { design_doc: { markdown: "Alpha replacement middle Omega" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(lost.reload).to have_attributes(state: "stale", conflict_reason: /could not be placed unambiguously/)
+    expect(lost.anchor.reload.status).to eq("stale")
+    expect(doc.reload.markdown).not_to include(lost.anchor.marker_id)
+    expect(kept.reload.state).to eq("pending")
+    expect(DesignDocs::AnchorMarkers.locate(markdown: doc.markdown, marker_id: kept.anchor.marker_id, anchor_kind: "range")).to have_attributes(
+      status: "active",
+      selected_markdown: "Omega"
+    )
+  end
+
+  it "does not write formatting-only editor serialization changes" do
+    stored = "- Alpha  \n\n| Name |\n|:-----|\n| Beta |"
+    candidate = "  - Alpha\n\n| Name |\n| :--- |\n| Beta |"
+    doc = create_design_doc(markdown: stored)
+    untouched_at = 2.days.ago.change(usec: 0)
+    doc.update_column(:updated_at, untouched_at)
+    sign_in_as(owner)
+
+    patch "/api/v1/app/design_docs/#{doc.id}", params: { design_doc: { markdown: candidate } }
+
+    expect(response).to have_http_status(:ok)
+    expect(doc.reload).to have_attributes(markdown: stored, updated_at: untouched_at)
+  end
+
+  it "stores range markers after list syntax while retaining logical selection offsets" do
+    markdown = "- Alpha item\n\n3. Ordered item"
+    doc = create_design_doc(markdown: markdown)
+    ordered_start = markdown.index("3. Ordered item")
+
+    result = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: owner,
+      attributes: {
+        start_offset: 0,
+        end_offset: ordered_start,
+        original_markdown: markdown[0...ordered_start],
+        proposed_markdown: "- Revised item\n\n"
+      }
+    )
+
+    marker = DesignDocs::AnchorMarkers.range_start_marker(result.suggestion.anchor.marker_id)
+    end_marker = DesignDocs::AnchorMarkers.range_end_marker(result.suggestion.anchor.marker_id)
+    expect(doc.reload.markdown).to start_with("#{marker}\n- Alpha item")
+    expect(doc.markdown).to include("\n#{end_marker}\n3. Ordered item")
+    expect(DesignDocs::AnchorMarkers.locate(markdown: doc.markdown, marker_id: result.suggestion.anchor.marker_id, anchor_kind: "range")).to have_attributes(
+      start_offset: 0,
+      end_offset: ordered_start,
+      selected_markdown: markdown[0...ordered_start]
+    )
+    rendered = Commonmarker.to_html(doc.markdown)
+    expect(rendered).to include("<ul>", "<ol start=\"3\">")
+  end
+
   it "turns collaborator markdown edits into suggestions without mutating canonical markdown" do
     doc = create_design_doc(markdown: "Hello world")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)

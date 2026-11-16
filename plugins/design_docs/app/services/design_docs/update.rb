@@ -82,7 +82,7 @@ module DesignDocs
       permitted = attributes.slice(:title, :visibility, :state)
       if attributes.key?(:markdown)
         next_markdown = canonical_markdown_value
-        permitted[:markdown] = next_markdown
+        permitted[:markdown] = next_markdown unless next_markdown == design_doc.markdown
       end
 
       design_doc.assign_attributes(permitted)
@@ -141,14 +141,40 @@ module DesignDocs
 
     def canonical_markdown_value
       candidate = attributes[:markdown].to_s
-      return design_doc.markdown if candidate == AnchorMarkers.strip(design_doc.markdown)
+      stored_visible = AnchorMarkers.strip(design_doc.markdown)
+      return design_doc.markdown if candidate == stored_visible
+      return design_doc.markdown if normalized_visible_markdown(candidate) == normalized_visible_markdown(stored_visible)
       return candidate if candidate.match?(AnchorMarkers::ANY_PATTERN)
 
-      AnchorMarkers.project(
+      projection = AnchorMarkers.project(
         markdown: design_doc.markdown,
         visible_markdown: candidate,
-        anchors: design_doc.anchors.to_a
+        anchors: design_doc.anchors.includes(:suggestions).to_a
       )
+      projection.stale_anchors.each do |anchor|
+        reason = "Anchor could not be placed unambiguously after the design doc changed."
+        anchor.update!(status: "stale", stale_as_of_version: design_doc.current_version)
+        anchor.suggestions.where(state: "pending").update_all(state: "stale", reviewed_at: Time.current, conflict_reason: reason)
+      end
+      projection.locations.each do |anchor_id, (start_offset, end_offset)|
+        design_doc.anchors.find { |anchor| anchor.id == anchor_id }&.update!(
+          last_known_start_offset: start_offset,
+          last_known_end_offset: end_offset
+        )
+      end
+      projection.markdown
+    end
+
+    def normalized_visible_markdown(markdown)
+      markdown.to_s.gsub("\r\n", "\n").lines.map do |line|
+        normalized = line.rstrip
+        normalized = normalized.sub(/\A {1,3}(?=(?:[-+*]|\d+[.)])\s)/, "")
+        if normalized.match?(/\A\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*\z/)
+          cells = normalized.split("|").map(&:strip).reject(&:empty?)
+          normalized = "| #{cells.map { |cell| "#{cell.start_with?(':') ? ':' : ''}---#{cell.end_with?(':') ? ':' : ''}" }.join(' | ')} |"
+        end
+        normalized
+      end.join("\n").strip
     end
 
     def checkpoint?
