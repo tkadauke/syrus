@@ -1,4 +1,5 @@
 require "socket"
+require "rubygems"
 
 # Build/runtime identity for this process. SHA is baked into the
 # Docker image at build time by `bin/deploy` via --build-arg
@@ -10,6 +11,19 @@ module SyrusVersion
 
   def current
     ENV.fetch("GIT_SHA", "dev")
+  end
+
+  def release
+    value = ENV["SYRUS_VERSION"].to_s.strip
+    return if value.empty?
+
+    Gem::Version.new(value.delete_prefix("v"))
+  rescue ArgumentError
+    nil
+  end
+
+  def description
+    ENV["SYRUS_VERSION_DESCRIPTION"].presence || ENV["SYRUS_VERSION"].presence || current
   end
 
   def role

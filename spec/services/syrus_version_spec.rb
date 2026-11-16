@@ -10,6 +10,28 @@ RSpec.describe SyrusVersion do
     saved.each { |key, value| value.nil? ? ENV.delete(key.to_s) : ENV[key.to_s] = value }
   end
 
+  describe ".release" do
+    it "returns the semantic release version without changing the revision" do
+      with_env(SYRUS_VERSION: "v1.2.3", GIT_SHA: "abc123") do
+        expect(described_class.release).to eq(Gem::Version.new("1.2.3"))
+        expect(described_class.current).to eq("abc123")
+        expect(described_class.description).to eq("v1.2.3")
+      end
+    end
+
+    it "is unknown for empty or malformed values" do
+      [ "", "not-a-version" ].each do |value|
+        with_env(SYRUS_VERSION: value) { expect(described_class.release).to be_nil }
+      end
+    end
+
+    it "uses the baked full build description when present" do
+      with_env(SYRUS_VERSION: "1.2.3", SYRUS_VERSION_DESCRIPTION: "1.2.3-4-gabc123") do
+        expect(described_class.description).to eq("1.2.3-4-gabc123")
+      end
+    end
+  end
+
   def with_process_command(program:, argv:)
     saved_program = $PROGRAM_NAME.dup
     saved_argv = ARGV.dup

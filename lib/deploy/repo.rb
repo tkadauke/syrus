@@ -33,6 +33,14 @@ module Deploy
       @branch ||= git("rev-parse", "--abbrev-ref", "HEAD").out.strip
     end
 
+    def release_version
+      @release_version ||= git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*").out.strip.delete_prefix("v").presence
+    end
+
+    def version_description
+      @version_description ||= git("describe", "--tags", "--long", "--match", "v[0-9]*").out.strip.delete_prefix("v").presence
+    end
+
     # The revision whose images this build can be compared against, so an
     # unchanged plugin image is re-tagged in the registry instead of rebuilt.
     # Prefer the cluster that is actually being deployed to; deploying only

@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Syrus::PluginLoader do
-  def write_plugin(root, directory_name:, gem_name:, plugin_name: gem_name, dependencies: [], gem_dependencies: [])
+  def write_plugin(root, directory_name:, gem_name:, plugin_name: gem_name, dependencies: [], gem_dependencies: [], requires_syrus: nil)
     directory = root.join(directory_name)
     directory.join("lib").mkpath
     dependency_lines = ([ [ "rails", ">= 8.1" ] ] + gem_dependencies).map do |name, requirement|
@@ -15,6 +15,7 @@ RSpec.describe Syrus::PluginLoader do
         spec.summary = "fixture"
         spec.authors = [ "Spec" ]
         spec.files = []
+        spec.metadata["requires_syrus"] = #{requires_syrus.inspect} if #{!requires_syrus.nil?}
         #{dependency_lines}
       end
     RUBY
@@ -31,6 +32,89 @@ RSpec.describe Syrus::PluginLoader do
       end
     RUBY
     directory
+  end
+
+  it "validates requires_syrus in an external manifest" do
+    Dir.mktmpdir do |temporary|
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture", requires_syrus: "definitely invalid (")
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+
+      expect { described_class.new(plugin_roots: roots).ordered_plugins }
+        .to raise_error(Syrus::PluginLoader::Error, /malformed requires_syrus/)
+    end
+  end
+
+  it "skips and reports an external plugin requiring a newer Syrus release" do
+    Dir.mktmpdir do |temporary|
+      snapshot = Syrus::PluginRegistry.snapshot
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture", requires_syrus: ">= 9.0")
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+      allow(SyrusVersion).to receive(:release).and_return(Gem::Version.new("1.0"))
+
+      described_class.new(plugin_roots: roots).load!
+
+      expect(defined?(ExternalLoaderFixture)).to be_nil
+      status = Syrus::PluginRegistry.health.status("external_loader_fixture")
+      expect(status.state).to eq(:incompatible)
+      expect(status.reasons.join).to include(">= 9.0", "1.0")
+    ensure
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+    end
+  end
+
+  it "loads an external plugin when its requirement is satisfied" do
+    Dir.mktmpdir do |temporary|
+      snapshot = Syrus::PluginRegistry.snapshot
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture", requires_syrus: ">= 1.0")
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+      allow(SyrusVersion).to receive(:release).and_return(Gem::Version.new("1.2"))
+
+      described_class.new(plugin_roots: roots).load!
+
+      expect(defined?(ExternalLoaderFixture)).to eq("constant")
+    ensure
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+      Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+    end
+  end
+
+  it "loads an external plugin and notes the skipped check when the running release is unknown" do
+    Dir.mktmpdir do |temporary|
+      snapshot = Syrus::PluginRegistry.snapshot
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture", requires_syrus: ">= 1.0")
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+      allow(SyrusVersion).to receive(:release).and_return(nil)
+
+      described_class.new(plugin_roots: roots).load!
+
+      status = Syrus::PluginRegistry.health.status("external_loader_fixture")
+      expect(defined?(ExternalLoaderFixture)).to eq("constant")
+      expect(status.state).to eq(:ok)
+      expect(status.reasons.join).to include("unknown", "skipped")
+    ensure
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+      Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+    end
+  end
+
+  it "ignores requires_syrus for built-in plugins" do
+    Dir.mktmpdir do |temporary|
+      app_root = Pathname.new(temporary).join("app")
+      built_in_root = app_root.join("plugins").tap(&:mkpath)
+      write_plugin(built_in_root, directory_name: "fixture", gem_name: "external_loader_fixture", requires_syrus: "malformed (")
+
+      plugin = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root)).ordered_plugins.first
+
+      expect(plugin.requires_syrus).to be_nil
+    end
   end
 
   it "registers every built-in declaration once with the same extension points" do
