@@ -101,6 +101,12 @@ targets, report documents that are already archived, and present one operator
 confirmation with per-document results; the existing single-document archive
 tool remains available for one-off requests.
 
+Design Doc suggestions reserve their selected range while they are pending.
+Another suggestion may start or end at the same boundary, but cannot overlap
+that active range until the existing suggestion is accepted or rejected. When
+reviewing an unrelated suggestion, Syrus repairs damaged or colliding pending
+anchors by marking those suggestions stale instead of blocking the review.
+
 Whiteboard's high-level arrow tool creates connectors anchored to the visible
 edges of rectangles, stickies, ellipses, and diamonds. Optional arrow labels
 render as bound text and move with the connector, while raw scene updates
