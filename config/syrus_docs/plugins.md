@@ -112,6 +112,13 @@ or when an enabled conflict exists. A dependency cycle reports `cycle` for all
 participants. Degraded and cyclic plugins keep their data and settings but
 withhold their runtime capabilities; they do not prevent Syrus from booting.
 
+An external plugin is `incompatible` when its `requires_syrus` requirement is
+not satisfied by the running release. Syrus does not load the plugin or expose
+its providers, and plugin health reports both the requirement and the running
+release. When the running release is unknown, Syrus loads the plugin and notes
+in plugin health that the compatibility check was skipped. Bundled plugins are
+not checked because they ship with Syrus itself.
+
 Enablement can cascade through hard dependencies. Disabling a dependency can
 cascade through its enabled dependents, but the admin must confirm the complete
 set first. Disablement is rejected with a `plugin_in_use` HTTP 409 response when
