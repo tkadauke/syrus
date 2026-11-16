@@ -22,22 +22,20 @@ export type UiSlotPanel = {
 const corePanelModules = import.meta.glob<PluginModule>(["./ui_slots/*.tsx", "!./ui_slots/*.test.tsx"])
 
 const coreComponentLoaders = Object.fromEntries(
-  Object.entries(corePanelModules).map(([path, loader]) => {
-    const match = path.match(/^\.\/ui_slots\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(corePanelModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\/ui_slots\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [`core/${match[1]}`, loader]
-  })
+      return [`core/${match[1]}`, loader]
+    })
     .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType<Record<string, unknown>>>()
 
 export function pluginUiSlotComponentKeys() {
-  return [
-    ...Object.keys(coreComponentLoaders),
-    ...getPluginContributions<PluginModule>("ui_slot").map(({ pluginName, key }) => `${pluginName}/${key}`)
-  ].sort()
+  return [...Object.keys(coreComponentLoaders), ...getPluginContributions<PluginModule>("ui_slot").map(({ pluginName, key }) => `${pluginName}/${key}`)].sort()
 }
 
 export function pluginUiSlotComponentFor(key: string | null | undefined) {
@@ -51,9 +49,7 @@ export function pluginUiSlotComponentFor(key: string | null | undefined) {
   if (!coreLoader && !contribution) return null
 
   const Component = lazy(async () => {
-    const mod = coreLoader
-      ? await coreLoader()
-      : await loadPluginModule(pluginName, pluginContributionLoader(contribution!))
+    const mod = coreLoader ? await coreLoader() : await loadPluginModule(pluginName, pluginContributionLoader(contribution!))
     if (!mod.default) throw new Error(`Plugin UI slot component ${key} has no default export`)
     return { default: mod.default }
   })
