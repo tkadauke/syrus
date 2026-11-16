@@ -1385,6 +1385,13 @@ class StepDispatcher
     end
     return unless snapshot&.fetch("required", true) == true
 
+    reviewed_sha = @workflow.steps.reorder(position: :desc, id: :desc).detect do |candidate|
+      Workflows::ImmutableReviewHeadBarrier.effective_review_kind(candidate) == expected_review_kind &&
+        candidate.details.to_h["reviewed_head_sha"].present?
+    end&.details&.to_h&.fetch("reviewed_head_sha", nil)
+    repaired_sha = Workflows::ImmutableReviewHeadBarrier.reviewed_head_sha(@workflow)
+    return if reviewed_sha.blank? || repaired_sha.blank? || reviewed_sha == repaired_sha
+
     next_step = @from_step.next_step
     return expected_review_kind unless next_step
 

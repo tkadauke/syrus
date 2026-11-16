@@ -36,6 +36,7 @@ module Workflows
       snapshots.all? do |snapshot|
         evidence = terminal_evidence(workflow, snapshot.fetch("step_kind"), sha)
         (evidence&.succeeded? && approved_evidence?(workflow, evidence, snapshot)) ||
+          reacted_without_head_change?(workflow, evidence, snapshot.fetch("step_kind"), sha) ||
           exhausted_for_head?(workflow, snapshot.fetch("step_kind"), sha)
       end
     end
@@ -124,6 +125,9 @@ module Workflows
           snapshots.each do |snapshot|
             kind = snapshot.fetch("step_kind")
             next if exhausted_for_head?(workflow, kind, sha)
+
+            evidence = terminal_evidence(workflow, kind, sha)
+            next if reacted_without_head_change?(workflow, evidence, kind, sha)
 
             fresh = workflow.steps.where(state: Step::ACTIVE_STATES).reorder(position: :desc, id: :desc).detect do |candidate|
               effective_review_kind(candidate) == kind &&
@@ -218,6 +222,21 @@ module Workflows
       entry.to_h["review_kind"] == review_kind && entry.to_h["head_sha"] == sha
     end
 
-    private_class_method :required_snapshots, :terminal_evidence, :approved_evidence?, :exhaustion_matches?
+    # A final repair that leaves HEAD unchanged has reacted to evidence that is
+    # still current. It needs neither a fresh review round nor the warning used
+    # when changed HEAD has consumed the remaining review budget.
+    def self.reacted_without_head_change?(workflow, evidence, review_kind, sha)
+      return false unless evidence&.succeeded? && evidence.loop_id.present?
+
+      workflow.steps.where(kind: MUTATION_KINDS, state: "succeeded").reorder(position: :desc, id: :desc).any? do |repair|
+        next false unless repair.loop_id == evidence.loop_id && repair.position > evidence.position
+        next false unless repair.runs.reorder(:id).last&.head_sha == sha
+
+        effective_review_kind(repair.next_step) != review_kind
+      end
+    end
+
+    private_class_method :required_snapshots, :terminal_evidence, :approved_evidence?, :exhaustion_matches?,
+      :reacted_without_head_change?
   end
 end

@@ -147,6 +147,24 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
     expect(workflow.workflow_warnings.where(kind: "required_review_budget_exhausted").count).to eq(1)
   end
 
+  it "keeps current evidence after a final repair leaves HEAD unchanged without warning or another review" do
+    adversarial = collect(kind: "adversarial_review", position: 1, sha: "head-b", verdict: "needs_work")
+    adversarial.update!(loop_id: "adversarial-loop")
+    security = collect(kind: "security_review", position: 2, sha: "head-b")
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 3, state: "succeeded",
+      loop_id: "adversarial-loop")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-b")
+    tail = Step.create!(workflow: workflow, kind: "format", position: 4)
+    repair.update!(next_step: tail)
+
+    expect(described_class.refresh_required_reviews!(workflow, repair)).to be_empty
+    expect(described_class.satisfied_for?(tail)).to be(true)
+    expect(adversarial.reload.details).not_to include("review_evidence_superseded")
+    expect(workflow.artifact("review_budget_exhaustions")).to be_nil
+    expect(workflow.workflow_warnings.where(kind: "required_review_budget_exhausted")).to be_empty
+    expect(security.reload.details).not_to include("review_evidence_superseded")
+  end
+
   it "keeps the tail closed after a fresh required failure and releases it exactly once after all approve" do
     collect(kind: "adversarial_review", position: 1, sha: "head-b")
     collect(kind: "security_review", position: 2, sha: "head-b", verdict: "needs_work")
