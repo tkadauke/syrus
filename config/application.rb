@@ -2,13 +2,14 @@ require_relative "boot"
 
 require "rails/all"
 
-# Plugin gems call Syrus::PluginApi.syrus_plugin at *load* time, which is
+# Plugin entry files call Syrus::PluginApi.syrus_plugin at *load* time, which is
 # before Rails initializes and therefore before Zeitwerk and $LOAD_PATH are
 # set up. It has to be on the load path and required by hand, and excluded
 # from autoloading below so Zeitwerk does not manage the same constant.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "syrus/plugin_api"
 require "syrus/plugin_roots"
+require "syrus/plugin_loader"
 require "syrus/plugin/grade_detector"
 require "syrus/plugin/grader_type"
 require "syrus/plugin/focused_test_command"
@@ -20,6 +21,11 @@ require "syrus/server_time_zone"
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
+# Plugins are application components discovered from PluginRoots, not gems in
+# the bundle. Load their declarations after third-party dependencies exist and
+# before the application class is built so each Rails::Engine participates in
+# normal initialization.
+Syrus::PluginLoader.load!
 
 module Syrus
   class Application < Rails::Application

@@ -1,17 +1,5 @@
 source "https://rubygems.org"
 
-gem "ruby",        path: "plugins/ruby"
-gem "javascript",  path: "plugins/javascript"
-gem "java",        path: "plugins/java"
-gem "kotlin",      path: "plugins/kotlin"
-gem "ios",         path: "plugins/ios"
-gem "python",      path: "plugins/python"
-gem "django",      path: "plugins/django"
-gem "go",          path: "plugins/go"
-gem "syrus_rails", path: "plugins/rails"
-gem "design_docs", path: "plugins/design_docs"
-gem "operator_briefing", path: "plugins/operator_briefing"
-
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 
@@ -21,6 +9,10 @@ gem "propshaft"
 gem "sqlite3", ">= 2.1"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
+gem "kubeclient", "~> 4.13"
+gem "unicode-display_width", "~> 3.3"
+gem "websocket-driver", ">= 0.7"
+gem "mysql2", "~> 0.5"
 # Use Tailwind CSS [https://github.com/rails/tailwindcss-rails]
 gem "tailwindcss-rails"
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
@@ -96,53 +88,6 @@ gem "thruster", require: false
 gem "image_processing", "~> 2.2"
 gem "ruby-vips", "~> 2.0"
 
-# Bundled plugins. These are installed with Syrus but enabled/disabled through
-# PluginRecord at runtime; adding/removing plugin gems still requires restart.
-gem "agy_agent",     path: "plugins/agy_agent"
-gem "claude_agent",  path: "plugins/claude_agent"
-gem "codex_agent",   path: "plugins/codex_agent"
-gem "muse_agent",    path: "plugins/muse_agent"
-gem "github_source", path: "plugins/github_source"
-gem "github_host",   path: "plugins/github_host"
-gem "linear_source", path: "plugins/linear_source"
-gem "syrus_dev",     path: "plugins/syrus_dev"
-gem "admin_mysql",   path: "plugins/admin_mysql"
-gem "tailscale",     path: "plugins/tailscale"
-gem "discord",       path: "plugins/discord"
-gem "browser",       path: "plugins/browser"
-gem "mockups", path: "plugins/mockups"
-gem "video_walkthroughs", path: "plugins/video_walkthroughs"
-gem "git_history",   path: "plugins/git_history"
-gem "attention_report", path: "plugins/attention_report"
-gem "spending_insights", path: "plugins/spending_insights"
-gem "whiteboard", path: "plugins/whiteboard"
-gem "mysql_db_browser", path: "plugins/mysql_db_browser"
-gem "theming_tools", path: "plugins/theming_tools"
-gem "worker_timeline", path: "plugins/worker_timeline"
-gem "calendar", path: "plugins/calendar"
-gem "metrics_dashboard", path: "plugins/metrics_dashboard"
-gem "terminal",   path: "plugins/terminal"
-gem "runtime_terminal", path: "plugins/runtime_terminal"
-gem "throughput",    path: "plugins/throughput"
-gem "sdlc_pipeline", path: "plugins/sdlc_pipeline"
-gem "team_directory", path: "plugins/team_directory"
-gem "build_cache",   path: "plugins/build_cache"
-gem "test_insights", path: "plugins/test_insights"
-gem "agent_insights", path: "plugins/agent_insights"
-gem "coworkers", path: "plugins/coworkers"
-gem "scheduled_tasks", path: "plugins/scheduled_tasks"
-gem "agent_memory", path: "plugins/agent_memory"
-gem "credential_store", path: "plugins/credential_store"
-gem "global_search", path: "plugins/global_search"
-gem "k8s_cluster", path: "plugins/k8s_cluster"
-gem "agent_activity", path: "plugins/agent_activity"
-gem "plugin_runtime", path: "plugins/plugin_runtime"
-gem "git_mirror", path: "plugins/git_mirror"
-gem "container_execution", path: "plugins/container_execution"
-gem "whisper_stt", path: "plugins/whisper_stt"
-gem "cognitive_review", path: "plugins/cognitive_review"
-gem "alertmanager_investigations", path: "plugins/alertmanager_investigations"
-
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
@@ -166,9 +111,6 @@ group :development do
 end
 
 group :production do
-  # MySQL adapter for production
-  gem "mysql2", "~> 0.5"
-
   # S3-compatible object storage adapter for Active Storage. Production
   # uses an in-cluster MinIO (deployed by green_acres) as the storage
   # service for Job attachments — see config/storage.yml#minio.
