@@ -20,6 +20,48 @@ module Deploy
   class WorkloadStatus
     PROGRESS_DEADLINE_EXCEEDED = "ProgressDeadlineExceeded"
 
+    class Workload
+      def self.for(kind, spec:, status:)
+        {
+          "daemonset" => DaemonSet,
+          "statefulset" => StatefulSet
+        }.fetch(kind, Deployment).new(spec:, status:)
+      end
+
+      def initialize(spec:, status:)
+        @spec = spec
+        @status = status
+      end
+
+      def desired = Integer(spec["replicas"] || 0)
+      def updated = Integer(status["updatedReplicas"] || 0)
+      def available = Integer(status["availableReplicas"] || 0)
+      def total = Integer(status["replicas"] || 0)
+      def revisions_settled? = true
+
+      private
+
+      attr_reader :spec, :status
+    end
+
+    class Deployment < Workload
+    end
+
+    class DaemonSet < Workload
+      def desired = Integer(status["desiredNumberScheduled"] || 0)
+      def updated = Integer(status["updatedNumberScheduled"] || 0)
+      def available = Integer(status["numberAvailable"] || 0)
+      def total = Integer(status["currentNumberScheduled"] || 0)
+    end
+
+    class StatefulSet < Workload
+      def available = Integer(status["readyReplicas"] || 0)
+
+      def revisions_settled?
+        status["currentRevision"].to_s == status["updateRevision"].to_s
+      end
+    end
+
     attr_reader :target, :document
 
     def initialize(target:, document:)
@@ -64,35 +106,22 @@ module Deploy
     end
 
     def desired
-      case kind
-      when "daemonset" then Integer(status["desiredNumberScheduled"] || 0)
-      else Integer(spec["replicas"] || 0)
-      end
+      workload.desired
     end
 
     def updated
-      case kind
-      when "daemonset" then Integer(status["updatedNumberScheduled"] || 0)
-      else Integer(status["updatedReplicas"] || 0)
-      end
+      workload.updated
     end
 
     def available
-      case kind
-      when "daemonset" then Integer(status["numberAvailable"] || 0)
-      when "statefulset" then Integer(status["readyReplicas"] || 0)
-      else Integer(status["availableReplicas"] || 0)
-      end
+      workload.available
     end
 
     # Pods from the previous revision that are still up. `rollout status` waits
     # for these too, and so must this: a deploy is not done while the old image
     # is still serving.
     def total
-      case kind
-      when "daemonset" then Integer(status["currentNumberScheduled"] || 0)
-      else Integer(status["replicas"] || 0)
-      end
+      workload.total
     end
 
     def surplus?
@@ -102,9 +131,7 @@ module Deploy
     # A StatefulSet reports its revisions rather than counting old pods, so
     # partition progress needs its own read.
     def revisions_settled?
-      return true unless kind == "statefulset"
-
-      status["currentRevision"].to_s == status["updateRevision"].to_s
+      workload.revisions_settled?
     end
 
     private
@@ -127,6 +154,10 @@ module Deploy
 
     def conditions
       Array(status["conditions"])
+    end
+
+    def workload
+      @workload ||= Workload.for(kind, spec:, status:)
     end
   end
 end
