@@ -1,6 +1,8 @@
 import type { ReactNode } from "react"
 import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
 import type { MarkdownLinkHandler } from "./lib/Markdown"
+import "./builtInPluginContributions"
+import { getEagerPluginContributions, subscribeToPluginContributions } from "./pluginContributionRegistry"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -10,7 +12,8 @@ export { isPlainObject } from "./toolCardParsing"
 // viewer (see routes/AdminTranscript.tsx), which share the same rendering
 // path. Plugin-defined MCP tools register their card next to the tool
 // definition, under `<plugin>/app/frontend/tool_cards/*.tsx` — this file
-// discovers them by directory convention (mirrors pluginUiSlots.tsx), so
+// receives them from the built-in contribution feed by directory convention,
+// so
 // adding a new plugin card never requires editing this file or any other
 // core file. Core-owned tools may register their own cards the same way,
 // under `routes/chat/tool_cards/*.tsx`.
@@ -215,8 +218,6 @@ const PLUGIN_CARD_PATH_PATTERN = /\/plugins\/([^/]+)\/app\/frontend\/tool_cards\
 
 const cardModules = import.meta.glob<ToolCardModule>(
   [
-    "../../plugins/*/app/frontend/tool_cards/*.tsx",
-    "!../../plugins/*/app/frontend/tool_cards/*.test.tsx",
     "./routes/chat/tool_cards/*.tsx",
     "!./routes/chat/tool_cards/*.test.tsx"
   ],
@@ -242,10 +243,31 @@ export const discoveredToolCardEntries: DiscoveredToolCardEntry[] = Object.entri
   return [{ renderer, owner: ownerForCardPath(path), examples: mod.examples ?? [], path }]
 })
 
-const registeredToolCardRenderers: ToolCardRenderer[] = discoveredToolCardEntries.map((entry) => entry.renderer)
+function pluginToolCardEntries(): DiscoveredToolCardEntry[] {
+  return getEagerPluginContributions<ToolCardModule>("tool_card").flatMap(({ pluginName, key, value: mod }) => {
+    const path = `../../plugins/${pluginName}/app/frontend/tool_cards/${key}.tsx`
+    const renderer = mod.default
+    if (!isValidRenderer(renderer)) {
+      console.warn(`[pluginToolCards] Skipping ${path}: default export is not a valid ToolCardRenderer`)
+      return []
+    }
+    return [{ renderer, owner: { ownerType: "plugin" as const, ownerName: pluginName }, examples: mod.examples ?? [], path }]
+  })
+}
+
+discoveredToolCardEntries.push(...pluginToolCardEntries())
+subscribeToPluginContributions((change) => {
+  if (change.kind !== "tool_card") return
+  const entry = pluginToolCardEntries().find(({ owner, path }) => owner.ownerName === change.pluginName && path.endsWith(`/${change.key}.tsx`))
+  if (entry) discoveredToolCardEntries.push(entry)
+})
+
+function registeredToolCardRenderers() {
+  return discoveredToolCardEntries.map((entry) => entry.renderer)
+}
 
 export function pluginToolCardRendererFor(toolName: string): ToolCardRenderer | null {
-  return registeredToolCardRenderers.find((renderer) => renderer.toolName === toolName) ?? null
+  return registeredToolCardRenderers().find((renderer) => renderer.toolName === toolName) ?? null
 }
 
 export function pluginToolCardOwnerFor(toolName: string): string | null {
@@ -258,7 +280,7 @@ export function pluginToolCardArgumentSummary(toolName: string, input: Record<st
 }
 
 export function pluginToolCardRendererKeys() {
-  return registeredToolCardRenderers.map((renderer) => renderer.toolName).sort()
+  return registeredToolCardRenderers().map((renderer) => renderer.toolName).sort()
 }
 
 function logCardError(stage: string, toolName: string, error: unknown) {

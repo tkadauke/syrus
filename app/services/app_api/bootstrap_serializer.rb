@@ -48,6 +48,7 @@ module AppApi
 
     def app_payload
       {
+        enabled_plugins: Syrus::PluginRegistry.all_plugins.select(&:enabled?).map(&:name).sort,
         revision: app_revision,
         revision_url: app_revision_url,
         version: app_version,

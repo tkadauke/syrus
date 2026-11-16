@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest"
-import { getPluginContribution, getPluginContributions, registerPluginContribution, subscribeToPluginContributions } from "./pluginContributionRegistry"
+import {
+  getPluginContribution,
+  getPluginContributions,
+  preloadPluginContributions,
+  registerPluginContribution,
+  registerPluginContributionPreloader,
+  subscribeToPluginContributions
+} from "./pluginContributionRegistry"
 
 describe("plugin contribution registry", () => {
   it("registers and looks up lazy and eager contributions", () => {
@@ -43,5 +50,20 @@ describe("plugin contribution registry", () => {
     unsubscribe()
     registerPluginContribution("sidebar_page", "registry_test", "AfterUnsubscribe", { default: "component" })
     expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it("awaits enabled plugin preloaders", async () => {
+    let release!: () => void
+    const loaded = new Promise<void>((resolve) => { release = resolve })
+    registerPluginContributionPreloader("preload_test", async () => {
+      await loaded
+      registerPluginContribution("chat_message_renderer", "preload_test", "Late", { default: "late" })
+    })
+
+    const preload = preloadPluginContributions(["preload_test"])
+    expect(getPluginContribution("chat_message_renderer", "preload_test", "Late")).toBeUndefined()
+    release()
+    await preload
+    expect(getPluginContribution("chat_message_renderer", "preload_test", "Late")?.value).toEqual({ default: "late" })
   })
 })

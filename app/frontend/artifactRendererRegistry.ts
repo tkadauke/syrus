@@ -12,6 +12,7 @@ import type { ReactNode } from "react"
 import type { TypedArtifact } from "./api/artifacts"
 import { coreArtifactRendererEntries, RAW_JSON_RENDERER_TYPE } from "./components/artifacts/coreArtifactRenderers"
 import { discoveredArtifactRendererEntries, type ArtifactRendererExample } from "./pluginArtifactRenderers"
+import { subscribeToPluginContributions } from "./pluginContributionRegistry"
 
 export type { ArtifactRendererExample }
 
@@ -84,6 +85,9 @@ function coreCandidates(): ArtifactRendererEntry[] {
 }
 
 let cachedEntries: ArtifactRendererEntry[] | null = null
+subscribeToPluginContributions((change) => {
+  if (change.kind === "artifact_renderer") cachedEntries = null
+})
 
 function registryEntries(): ArtifactRendererEntry[] {
   if (!cachedEntries) cachedEntries = buildArtifactRendererRegistry([ ...coreCandidates(), ...pluginCandidates() ])

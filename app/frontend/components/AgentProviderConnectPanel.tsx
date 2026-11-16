@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { pluginAgentProviderConnectPanelComponentFor } from "../pluginAgentProviderConnectPanels"
 import { Button } from "./Button"
 import { useT } from "../hooks/useT"
+import { usePluginContributions } from "../hooks/usePluginContributions"
 
 export type ConnectableAgentProvider = string
 
@@ -25,6 +26,7 @@ export function AgentProviderConnectPanel({
   autoFocus?: boolean
   deferBootstrapRefresh?: boolean
 }) {
+  usePluginContributions()
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [ambientReady, setAmbientReady] = useState(false)

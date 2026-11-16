@@ -1,6 +1,6 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ReactNode } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { fetchMe, type MePayload } from "../api/me"
@@ -77,6 +77,7 @@ import { UiEngagementTelemetry } from "../lib/uiEngagement"
 import { useBrowserTimeZone } from "../hooks/useBrowserTimeZone"
 import { TimeZoneProvider } from "../contexts/TimeZoneContext"
 import { validTimeZone } from "../lib/relativeTime"
+import { pluginContributionsRequirePreload, preloadPluginContributions } from "../pluginContributionRegistry"
 
 type AppRouteDefinition = {
   path: string
@@ -278,6 +279,20 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
   useBrowserTimeZone(bootstrap.data)
+  const enabledPluginNames = bootstrap.data?.app.enabled_plugins ?? []
+  const pluginPreloadKey = enabledPluginNames.join("\0")
+  const requiresPluginPreload = pluginContributionsRequirePreload(enabledPluginNames)
+  const [preloadedPluginKey, setPreloadedPluginKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (!bootstrap.data?.current_user) return
+
+    let active = true
+    void preloadPluginContributions(pluginPreloadKey ? pluginPreloadKey.split("\0") : []).then(() => {
+      if (active) setPreloadedPluginKey(pluginPreloadKey)
+    })
+    return () => { active = false }
+  }, [bootstrap.data?.current_user, pluginPreloadKey])
+  const pluginsPreloaded = !bootstrap.data?.current_user || !requiresPluginPreload || preloadedPluginKey === pluginPreloadKey
   useQuery({
     queryKey: ["me"],
     queryFn: async () => {
@@ -311,7 +326,7 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     >
       <AppChromeV2 initialBootstrap={initialBootstrap}>
         <UiEngagementTelemetry enabled={Boolean(bootstrap.data?.app?.ui_engagement_telemetry_enabled)} />
-        {routes}
+        {pluginsPreloaded ? routes : null}
       </AppChromeV2>
     </TimeZoneProvider>
   )

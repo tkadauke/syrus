@@ -56,6 +56,7 @@ import {
   pluginToolCardRendererFor,
   type ToolCardContext
 } from "../../pluginToolCards"
+import { usePluginContributions } from "../../hooks/usePluginContributions"
 import { pluginNamespacesFor } from "../../i18n"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { ProposalCard } from "./ProposalCards"
@@ -327,6 +328,7 @@ export function SharedMessageRenderer({
   testId?: string
   targetProps?: ReturnType<typeof useLongPressMenu>["targetProps"]
 }) {
+  usePluginContributions()
   const Component = as
   const copyMenu = useLongPressMenu(!!copyText)
   const { copied, copy } = useCopyToClipboard()
