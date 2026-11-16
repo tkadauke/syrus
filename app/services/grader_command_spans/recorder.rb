@@ -7,16 +7,15 @@ module GraderCommandSpans
     MARKER_START = "\x1e"
     MARKER_END = "\x1f"
     MAX_SPANS_PER_RUN = 50
-    MAX_CREATE_ATTEMPTS = 5
 
     attr_reader :plan
 
-    def initialize(run:, step:, workflow:, plan:, sequence_offset: 0)
+    def initialize(run:, step:, workflow:, plan:, idempotency_scope:)
       @run = run
       @step = step
       @workflow = workflow
       @plan = plan
-      @sequence_offset = sequence_offset.to_i
+      @idempotency_scope = idempotency_scope
       @line_buffer = +""
       @open_spans = {}
       @span_ids_by_sequence = {}
@@ -103,7 +102,7 @@ module GraderCommandSpans
     def create_fallback_span!
       fragment = plan.fragments.first
       span = create_span!(
-        sequence: span_sequence(1),
+        sequence: 1,
         name: fragment.name,
         command_excerpt: fragment.command,
         started_at: Time.current,
@@ -133,10 +132,8 @@ module GraderCommandSpans
       sequence = Integer(parts.fetch(2))
       return if sequence > MAX_SPANS_PER_RUN
 
-      persisted_sequence = span_sequence(sequence)
-
       span = create_span!(
-        sequence: persisted_sequence,
+        sequence: sequence,
         name: decode64(parts.fetch(4)).presence || "command ##{sequence}",
         command_excerpt: decode64(parts.fetch(5)).squish.safe_byteslice(0, Plan::MAX_COMMAND_EXCERPT),
         started_at: time_from_ms(parts.fetch(3)),
@@ -163,54 +160,34 @@ module GraderCommandSpans
     end
 
     def create_span!(sequence:, name:, command_excerpt:, started_at:, metadata:)
-      next_sequence = sequence.to_i
-      attempts = 0
-
-      begin
-        CommandSpan.create!(
-          job: @run.job,
-          workflow: @workflow,
-          step: @step,
-          run: @run,
-          spawned_process_id: @spawned_process_id,
-          sequence: next_sequence,
-          name: name.to_s.safe_byteslice(0, 128),
-          command_excerpt: command_excerpt.to_s.safe_byteslice(0, Plan::MAX_COMMAND_EXCERPT),
-          started_at: started_at,
-          hostname: Socket.gethostname,
-          metadata: metadata
-        )
-      rescue ActiveRecord::RecordNotUnique => e
-        attempts += 1
-        return abandon_span!(error: e, sequence: sequence) if attempts >= MAX_CREATE_ATTEMPTS
-
-        next_sequence = next_available_sequence
-        retry
-      rescue ActiveRecord::RecordInvalid => e
-        raise unless e.record.errors.of_kind?(:sequence, :taken)
-
-        attempts += 1
-        return abandon_span!(error: e, sequence: sequence) if attempts >= MAX_CREATE_ATTEMPTS
-
-        next_sequence = next_available_sequence
-        retry
-      end
+      CommandSpan.record!(
+        idempotency_key: "#{@idempotency_scope}:#{sequence}",
+        job: @run.job,
+        workflow: @workflow,
+        step: @step,
+        run: @run,
+        spawned_process_id: @spawned_process_id,
+        name: name.to_s.safe_byteslice(0, 128),
+        command_excerpt: command_excerpt.to_s.safe_byteslice(0, Plan::MAX_COMMAND_EXCERPT),
+        started_at: started_at,
+        hostname: Socket.gethostname,
+        metadata: metadata
+      )
+    rescue ActiveRecord::ActiveRecordError => e
+      abandon_span!(error: e, sequence: sequence)
     end
 
     def abandon_span!(error:, sequence:)
-      Rails.logger.warn(
-        "[GraderCommandSpans::Recorder] command span telemetry disabled for Run ##{@run.id} " \
-        "sequence #{sequence}: #{error.class}: #{error.message}"
-      )
+      Rails.logger.warn(JSON.generate(
+        event: "command_span_allocation_exhausted",
+        run_id: @run.id,
+        step_id: @step.id,
+        idempotency_key: "#{@idempotency_scope}:#{sequence}",
+        attempts: CommandSpan::MAX_ALLOCATION_ATTEMPTS,
+        error_class: error.class.name,
+        error_message: error.message
+      ))
       nil
-    end
-
-    def span_sequence(sequence)
-      @sequence_offset + sequence
-    end
-
-    def next_available_sequence
-      (CommandSpan.where(run_id: @run.id).maximum(:sequence) || 0) + 1
     end
 
     def finish_span!(span, finished_at:, exit_status:, outcome:)
