@@ -263,7 +263,9 @@ describe("App dashboard Kanban", () => {
     const titleLink = within(card).getByRole("link", { name: "Raise the forum" })
     const slugRow = repositoryLink.parentElement
     expect(slugRow).toBe(copySlugButton.parentElement?.parentElement)
-    expect(slugRow).toHaveClass("flex-nowrap", "whitespace-nowrap")
+    expect(slugRow).toHaveClass("flex-nowrap", "whitespace-nowrap", "gap-1", "text-[11px]", "sm:gap-2", "sm:text-xs")
+    expect(copySlugButton).toHaveClass("text-[11px]", "sm:text-xs")
+    expect(repositoryLink).toHaveClass("px-1", "sm:px-1.5")
     expect(titleLink.previousElementSibling).toBe(slugRow)
     fireEvent.click(copySlugButton)
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("EPIC-7"))

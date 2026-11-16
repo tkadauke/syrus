@@ -310,12 +310,12 @@ function KanbanCard({
       onDragStart={(event) => onDragStart(item, event)}
     >
       <div className="p-3">
-        <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap text-xs">
+        <div className="flex flex-nowrap items-center gap-1 whitespace-nowrap text-[11px] sm:gap-2 sm:text-xs">
           <SlugHoverCard id={item.id} kind="epic">
-            <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
+            <CopyableSlug className="text-[11px] font-semibold uppercase sm:text-xs" slug={item.display_number} />
           </SlugHoverCard>
           <RepositorySlugLink
-            className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300"
+            className="rounded bg-gray-100 px-1 py-0.5 text-gray-500 hover:text-brand hover:underline sm:px-1.5 dark:bg-gray-800 dark:text-gray-300"
             prefix={prefix}
             repository={item.repository}
           />
