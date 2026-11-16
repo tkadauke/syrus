@@ -310,13 +310,23 @@ function KanbanCard({
       onDragStart={(event) => onDragStart(item, event)}
     >
       <div className="p-3">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <SlugHoverCard id={item.id} kind="epic">
-            <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
-          </SlugHoverCard>
-          <RepositorySlugLink prefix={prefix} repository={item.repository} />
+        <div className="flex min-w-0 flex-nowrap items-baseline gap-2">
+          <span className="shrink-0">
+            <SlugHoverCard id={item.id} kind="epic">
+              <CopyableSlug className="shrink-0 whitespace-nowrap text-xs font-semibold uppercase" slug={item.display_number} />
+            </SlugHoverCard>
+          </span>
+          <RepositorySlugLink
+            className="min-w-0 truncate whitespace-nowrap font-mono text-xs text-gray-500 hover:text-brand hover:underline dark:text-gray-400"
+            prefix={prefix}
+            repository={item.repository}
+          />
         </div>
-        <Link className="mt-1 line-clamp-2 block text-sm font-medium text-brand hover:underline" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>
+        <Link
+          className="mt-1 line-clamp-2 block text-sm font-medium text-brand hover:underline"
+          draggable={false}
+          to={withRoutePrefix(item.paths.epic_path, prefix)}
+        >
           {item.title}
         </Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
