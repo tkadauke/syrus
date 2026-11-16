@@ -8,7 +8,7 @@ module Api
 
         def index
           picker = params[:compact] == "picker"
-          epics = policy_scope(Epic).includes(:repository)
+          epics = policy_scope(Epic).includes(:repository).preload(:proposer)
           epics = epics.includes(:jobs) unless picker
           epics = epics.order(updated_at: :desc, id: :desc)
           epics = filter_epics(epics)
@@ -325,6 +325,10 @@ module Api
             pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
             scope = scope.where("LOWER(title) LIKE :pattern OR CAST(epics.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
+          if params[:proposer].present?
+            proposer = Mentionables::Resolver.find_by_handle(params[:proposer])
+            scope = proposer ? scope.where(proposer_type: proposer.class.base_class.name, proposer_id: proposer.mentionable_id) : scope.none
+          end
           scope
         end
 
@@ -347,6 +351,7 @@ module Api
             state: epic.state,
             repository_slug: epic.repository.slug,
             goal_provenance: ::App::GoalProvenancePayload.for(epic),
+            proposer: ::App::ProposerPayload.for(epic),
             done_jobs_count: done_jobs_count(jobs),
             total_jobs_count: jobs.size,
             updated_at: epic.updated_at&.iso8601,
@@ -522,6 +527,7 @@ module Api
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             goal_provenance: ::App::GoalProvenancePayload.for(epic),
+            proposer: ::App::ProposerPayload.for(epic),
             epic_path: epic.persisted? ? epic_path(epic) : nil
           }
         end

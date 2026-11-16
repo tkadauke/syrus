@@ -43,7 +43,7 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
     ...settings
   }
   if (
-    normalized.status === DEFAULT_CHAT_SIDEBAR_SETTINGS.status &&
+    normalized.show_archived === DEFAULT_CHAT_SIDEBAR_SETTINGS.show_archived &&
     normalized.group_by === DEFAULT_CHAT_SIDEBAR_SETTINGS.group_by &&
     normalized.chat_types.join(",") === DEFAULT_CHAT_SIDEBAR_SETTINGS.chat_types.join(",") &&
     normalized.sort_by === DEFAULT_CHAT_SIDEBAR_SETTINGS.sort_by &&
@@ -57,7 +57,7 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
   return [
     "chats",
     "recent",
-    normalized.status,
+    normalized.show_archived,
     normalized.group_by,
     normalized.chat_types.join(","),
     normalized.sort_by,
@@ -144,7 +144,7 @@ function updateUnreadGroups(groups: ChatGroupRecord[], id: number, unread: boole
   if (!chat) return updateUnreadFlags(groups, id, unread)
 
   const updated = { ...chat, unread }
-  if (sourceGroup.group_by !== "status" || sourceGroup.key === "status-hidden") {
+  if (sourceGroup.group_by !== "status" || sourceGroup.key === "status-hidden" || sourceGroup.key === "status-archived") {
     return updateUnreadFlags(groups, id, unread)
   }
 
@@ -186,7 +186,8 @@ function sortStatusGroups(groups: ChatGroupRecord[]) {
   const order = new Map([
     ["status-unread", 0],
     ["status-active", 1],
-    ["status-hidden", 2]
+    ["status-hidden", 2],
+    ["status-archived", 3]
   ])
 
   return [...groups].sort((left, right) => (order.get(left.key) ?? 9) - (order.get(right.key) ?? 9))
@@ -211,16 +212,15 @@ function recentChatRecord(chat: RecentChatUpdate, existing?: ChatNavRecord, occu
 function recentChatBelongsInQuery(chat: RecentChatUpdate, queryKey: QueryKey) {
   if (queryKey.length < 3) return true
 
-  const status = queryKey[2]
-  if (status === "hidden" && !chatIsHidden(chat)) return false
-  if (status === "active" && chatIsHidden(chat)) return false
+  const showArchived = queryKey[2] === true
+  if (!showArchived && chatIsArchived(chat)) return false
 
   const chatTypes = typeof queryKey[4] === "string" ? queryKey[4].split(",").filter(Boolean) : []
   return chatTypes.length === 0 || chatTypes.includes(chatTypeFor(chat))
 }
 
-function chatIsHidden(chat: RecentChatUpdate) {
-  return (chat as ChatRecord & { hidden_at?: string | null }).hidden_at != null
+function chatIsArchived(chat: RecentChatUpdate) {
+  return (chat as ChatRecord & { archived_at?: string | null }).archived_at != null
 }
 
 function chatTypeFor(chat: RecentChatUpdate) {

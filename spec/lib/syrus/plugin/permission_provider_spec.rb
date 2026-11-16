@@ -39,7 +39,30 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
           role: "chat_planner", policy: :allow, resource_scope: {}, constraints: {}
         } ]
       )
+
+      register_authorization_adapter(
+        "example.records",
+        Class.new do
+          def self.permission_descriptor(request) = request
+          def self.subject_selector(request) = [ "agent", request.subject_id.to_s ]
+        end
+      )
     end
+  end
+
+  it "registers namespaced authorization adapters without interpreting their domain" do
+    adapter = provider.permission_authorization_adapters.fetch("example.records")
+
+    expect(adapter.permission_descriptor(:request)).to eq(:request)
+    expect(provider.permission_authorization_adapters).to be_frozen
+    expect { provider.register_authorization_adapter("example.records", adapter) }
+      .to raise_error(ArgumentError, /already registered/)
+    expect { provider.register_authorization_adapter("Not Namespaced", adapter) }
+      .to raise_error(ArgumentError, /must be namespaced/)
+    expect { provider.register_authorization_adapter("records", adapter) }
+      .to raise_error(ArgumentError, /must be namespaced/)
+    expect { provider.register_authorization_adapter("example.incomplete", Object.new) }
+      .to raise_error(ArgumentError, /permission_descriptor, subject_selector/)
   end
 
   it "registers reusable resource schemas and complete capability contracts" do

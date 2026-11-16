@@ -1,4 +1,5 @@
 class RepositoryMembership < ApplicationRecord
+  after_commit -> { App::DashboardChromeCache.invalidate_user!(user_id) }
   include ValidatesAgentProvider
 
   # Ordered low to high -- see #at_least? and .at_least.

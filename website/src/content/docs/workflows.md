@@ -299,6 +299,14 @@ rewriting the original record.
 
 ## Step Kinds
 
+Required adversarial, security, coworker, and contributed review panels form a
+single immutable-HEAD gate. A panel fanout is only setup: formatting, graders,
+summaries, PR publication, and later review work do not start until every
+required panel aggregate approves the same implementation commit. When a
+review triggers a repair, Syrus retires the old commit's review work and runs
+the complete required review set again against the repaired commit. Optional
+panels do not block this gate.
+
 | Step | Agentic | Purpose |
 | --- | --- | --- |
 | `prepare` | No | If the repository is a fork, sync its default branch with upstream (merge, then push); then run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
@@ -364,6 +372,14 @@ Syrus chooses the template from the trigger kind:
 The template creates a Workflow row, creates each Step row in order, and
 wires `next_step_id` from each Step to its successor. The dispatcher starts
 the first Run, then advances the chain as Steps succeed.
+
+`base_refresh_retry` normally restores a failed Workflow's published mutation
+checkpoint onto the Job's current effective base. It can also recover a
+terminal blocked Workflow when structured infrastructure-failure evidence,
+durable checkpoint provenance, quiescent Runs, and retired mutation ownership
+make that recovery unambiguous. The reconciler uses the same admission path for
+that strict blocked state, so repeated recovery passes converge on one
+replacement Workflow while preserving the blocked source as audit evidence.
 
 ## Fork Review Flow
 

@@ -89,7 +89,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
   end
 
   it "records coworker-only decisions for coworker capabilities" do
-    %w[code.read coworker.message].each do |key|
+    %w[code.read coworker.message syrus.jobs].each do |key|
       decisions = described_class::EXPLICIT_SURFACE_DECISIONS.fetch(key)
 
       %i[user_api admin_api cli].each do |surface|

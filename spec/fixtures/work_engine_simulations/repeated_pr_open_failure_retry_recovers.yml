@@ -1,0 +1,82 @@
+name: repeated publication failure retry recovers
+repository:
+  owner: simulation
+  name: repeated-publication-failure-retry-recovers
+jobs:
+  publication:
+    title: Preserve publication as the retry point
+    state: failed
+    workflow:
+      kind: initial
+      state: failed
+      work_unit:
+        state: failed
+      chain_template:
+        - type: retry_until
+          max_iterations: 2
+          repair:
+            - implement
+          check:
+            - grader_fanout
+            - grader_collect
+          repair_first: false
+        - type: step
+          kind: summarize
+        - type: step
+          kind: pr_open
+      steps:
+        - kind: grader_fanout
+          state: failed
+          iteration: 1
+          loop_id: old-grade-loop
+          details:
+            retry_until_barrier_superseded: true
+          run:
+            state: failed
+        - kind: grader_collect
+          state: failed
+          iteration: 1
+          loop_id: old-grade-loop
+          details:
+            retry_until_barrier_superseded: true
+          run:
+            state: failed
+        - kind: grader_fanout
+          state: succeeded
+          iteration: 2
+          loop_id: repaired-grade-loop
+          run:
+            state: succeeded
+        - kind: grader_collect
+          state: succeeded
+          iteration: 2
+          loop_id: repaired-grade-loop
+          run:
+            state: succeeded
+        - kind: summarize
+          state: succeeded
+          run:
+            state: succeeded
+        - kind: pr_open
+          state: queued
+          runs:
+            - state: failed
+              created_at: "2026-01-01 00:00:00 UTC"
+            - state: failed
+              created_at: "2026-01-01 00:01:00 UTC"
+            - state: queued
+              created_at: "2026-01-01 00:02:00 UTC"
+outcomes:
+  default: success
+success_states:
+  publication:
+    - implemented
+expect:
+  queues:
+    active_runs: empty
+  events:
+    - cancel_terminal_workflow_active_descendants
+    - pr_open -> success
+  absent_events:
+    - grader_fanout -> success
+    - grader_collect -> success

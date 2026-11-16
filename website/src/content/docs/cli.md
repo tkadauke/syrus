@@ -334,6 +334,7 @@ Use `syrus job` commands for direct Job work:
 syrus job list --limit 20
 syrus job list --state running
 syrus job list --repo tkadauke/myapp
+syrus job list --proposer adrian
 syrus job search "dark mode"
 syrus job show 456
 syrus job log 456
@@ -595,6 +596,7 @@ Use `syrus epic` to inspect and create Epics:
 ```bash
 syrus epic list
 syrus epic list --repo tkadauke/myapp
+syrus epic list --proposer adrian
 syrus epic search "launch"
 syrus epic show EPIC-12
 syrus epic create
@@ -616,7 +618,7 @@ block child execution. Use `--yes` to skip the confirmation prompt. On success i
 `epic list`/`epic search` and `epic show` also accept `--json` for the
 same JSON-on-stdout behavior as the Job commands above. `epic list`/`epic
 search` also accept `--repo owner/name`, overriding auto-detection the same
-way as `job list`/`job search`.
+way as `job list`/`job search`, and `--proposer <handle>`.
 
 ## Repositories and Identity
 
@@ -628,12 +630,14 @@ syrus repo list
 syrus jobs
 syrus jobs --repo acme/widgets
 syrus jobs --closed
+syrus jobs --proposer adrian
 ```
 
 `syrus whoami` and `syrus repo list` accept `--json` too.
 
 `jobs` lists active Jobs across repositories by default and can scope
 to one repository.
+Job tables and `syrus job show` display the proposer handle when present.
 
 ## Schedules
 
@@ -764,6 +768,8 @@ syrus search syrus --type repository
 syrus search deploy --limit 10
 syrus search deploy --json
 ```
+
+Job and Epic results match proposer handles as well as their usual indexed text.
 
 `--type` restricts the search to a comma-separated list of `job`, `epic`,
 `chat`, and/or `repository`; omitting it searches all four. Repository names

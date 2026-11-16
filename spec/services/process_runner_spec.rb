@@ -1534,6 +1534,29 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(result.duration_s).to be < 5
   end
 
+  it "terminates the process group when the silent timeout elapses" do
+    marker = File.join(@dir, "silent-child.pid")
+    terminated = File.join(@dir, "silent-child.terminated")
+    child_command = "trap('TERM') { File.write(#{terminated.inspect}, 'yes'); exit! }; sleep 120"
+    command = <<~RUBY
+      child = Process.spawn(
+        #{ruby.inspect}, "-e",
+        #{child_command.inspect}
+      )
+      File.write(#{marker.inspect}, child.to_s)
+      sleep 120
+    RUBY
+    result = described_class.new(
+      env: {}, command: [ ruby, "-e", command ],
+      mounts: described_class.mounts(@dir), network: "grader",
+      timeout: 30, silent_timeout: 0.5, kill_grace_seconds: 0.5
+    ).run
+
+    expect(result).to be_silent_timed_out
+    expect(Integer(File.read(marker))).to be_positive
+    expect(File.read(terminated)).to eq("yes")
+  end
+
   it "counts changing out-of-band activity as output for the silent timeout" do
     activity_path = File.join(@dir, "session.jsonl")
     File.write(activity_path, "")

@@ -31,12 +31,13 @@ module Mcp::Tools
             :user,
             :parent_job,
             :epic,
-            { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :dependencies ] } ] },
-            { workflows: { steps: { runs: [ :run_diagnostic, :run_failure_classification ] } } }
+            { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :dependencies ] } ] }
           ]
         )
 
         Mcp::Tools.success(Admin::StuckJobExplainer.call(job))
+      rescue ActiveRecord::StatementInvalid => error
+        Mcp::Tools.database_error(error, operation: "Stuck Job explanation")
       end
     end
   end

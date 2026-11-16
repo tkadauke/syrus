@@ -13,8 +13,17 @@ module Coworkers
         end
       end
 
+      scope.effect("coworker workspace branches") do
+        Syrus::DataCleanup.register("Coworkers::Coworker", "coworkers.workspace_branches") do |coworker|
+          coworker.coworker_chats.includes(:chat_session).find_each { |link| Coworkers::ChatBranchCleanup.call(link) }
+        end
+      end
+
       scope.effect("coworker chats") do
         Syrus::DataCleanup.register("ChatSession", "coworkers.chat_links") do |chat|
+          Coworkers::Chat.where(chat_session_id: chat.id).includes(:coworker).find_each do |link|
+            Coworkers::ChatBranchCleanup.call(link)
+          end
           Coworkers::Chat.where(chat_session_id: chat.id).find_each(&:destroy)
           Coworkers::ChatAgent.where(chat_session_id: chat.id).find_each(&:destroy)
         end

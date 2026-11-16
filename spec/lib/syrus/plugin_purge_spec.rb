@@ -25,6 +25,35 @@ RSpec.describe Syrus::PluginPurge do
     it "reports nothing for a plugin that was never installed" do
       expect(described_class.new("no_such_plugin").report).to be_empty
     end
+
+    it "reports manifest-declared inline fields and plugin-owned rows" do
+      connection = ActiveRecord::Base.connection
+      connection.create_table(:plugin_purge_hosts) do |t|
+        t.integer :plugin_owner_id
+        t.string :plugin_policy
+      end
+      connection.execute("INSERT INTO plugin_purge_hosts (plugin_owner_id, plugin_policy) VALUES (42, 'active')")
+      connection.execute("INSERT INTO plugin_purge_hosts (plugin_owner_id, plugin_policy) VALUES (NULL, NULL)")
+      purge = described_class.new("no_such_plugin")
+      allow(purge).to receive(:inline_field_configuration).and_return(
+        "plugin_purge_hosts" => {
+          "delete_rows_where_present" => "plugin_owner_id",
+          "drop_columns" => %w[plugin_owner_id plugin_policy]
+        }
+      )
+
+      expect(purge.report).to have_attributes(
+        inline_fields: contain_exactly(
+          have_attributes(table: "plugin_purge_hosts", column: "plugin_owner_id"),
+          have_attributes(table: "plugin_purge_hosts", column: "plugin_policy")
+        ),
+        inline_row_counts: { "plugin_purge_hosts" => 1 },
+        empty?: false,
+        total_rows: 1
+      )
+    ensure
+      connection&.drop_table(:plugin_purge_hosts, if_exists: true)
+    end
   end
 
   describe "#purge!" do
@@ -69,6 +98,31 @@ RSpec.describe Syrus::PluginPurge do
           t.timestamps
         end
       end
+    end
+
+    it "deletes plugin-owned rows before dropping manifest-declared inline fields" do
+      connection = ActiveRecord::Base.connection
+      connection.create_table(:plugin_purge_hosts) do |t|
+        t.integer :plugin_owner_id
+        t.string :plugin_policy
+        t.string :retained_value
+      end
+      connection.execute("INSERT INTO plugin_purge_hosts (plugin_owner_id, plugin_policy, retained_value) VALUES (42, 'active', 'remove')")
+      connection.execute("INSERT INTO plugin_purge_hosts (plugin_owner_id, plugin_policy, retained_value) VALUES (NULL, NULL, 'keep')")
+      purge = described_class.new("no_such_plugin")
+      allow(purge).to receive(:inline_field_configuration).and_return(
+        "plugin_purge_hosts" => {
+          "delete_rows_where_present" => "plugin_owner_id",
+          "drop_columns" => %w[plugin_owner_id plugin_policy]
+        }
+      )
+
+      expect(purge.purge!).to include("plugin_purge_hosts.plugin_owner_id", "plugin_purge_hosts.plugin_policy")
+      expect(connection.column_exists?(:plugin_purge_hosts, :plugin_owner_id)).to be(false)
+      expect(connection.column_exists?(:plugin_purge_hosts, :plugin_policy)).to be(false)
+      expect(connection.select_values("SELECT retained_value FROM plugin_purge_hosts")).to eq([ "keep" ])
+    ensure
+      connection&.drop_table(:plugin_purge_hosts, if_exists: true)
     end
   end
 

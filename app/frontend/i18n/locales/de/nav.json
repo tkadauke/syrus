@@ -327,6 +327,7 @@
   "recent_chats_settings": "Einstellungen für letzte Chats",
   "recent_chats_settings_close": "Einstellungen für letzte Chats schließen",
   "recent_chats_show_empty_groups": "Leere Gruppen anzeigen",
+  "recent_chats_show_archived": "Archivierte Chats anzeigen",
   "recent_chats_unread_only": "Nur ungelesene",
   "recent_chats_new_in": "Neuer Chat in {{group}}",
   "recent_chats_options": {

@@ -41,7 +41,7 @@ module Api
         # Job ID so callers can drill into `/api/v1/admin/jobs/:id`
         # for the full nested state.
         def index
-          scope = Job.includes(:repository, :owner_user).order(updated_at: :desc)
+          scope = Job.includes(:repository, :owner_user).preload(:proposer).order(updated_at: :desc)
           scope = scope.where(pr_number: params[:pr_number])       if params[:pr_number].present?
           scope = scope.where(issue_number: params[:issue_number]) if params[:issue_number].present?
           if params[:state].present?
@@ -55,6 +55,7 @@ module Api
           if params[:user].present?
             scope = scope.joins(:user).where("users.email_address LIKE ?", "%#{params[:user]}%")
           end
+          scope = filter_by_proposer(scope) if params[:proposer].present?
           if truthy?(params[:has_active_workflow])
             scope = scope.where(id: WorkUnits::Ownership.all_active_job_ids.to_a)
           end
@@ -214,6 +215,11 @@ module Api
           %w[ true 1 yes ].include?(value.to_s.downcase)
         end
 
+        def filter_by_proposer(scope)
+          proposer = Mentionables::Resolver.find_by_handle(params[:proposer])
+          proposer ? scope.where(proposer_type: proposer.class.base_class.name, proposer_id: proposer.mentionable_id) : scope.none
+        end
+
         # Job IDs whose MOST RECENTLY CREATED workflow ended in
         # `failed` within `cutoff`. We can't just `joins(:workflows)
         # .where(workflows: { state: "failed" })` — that matches if
@@ -258,6 +264,7 @@ module Api
             credential_mode: job.credential_mode,
             triaging_reason: job.triaging_reason,
             goal_provenance: ::App::GoalProvenancePayload.for(job),
+            proposer:       ::App::ProposerPayload.for(job),
             owner_user:     owner_user_json(job.owner_user),
             job_provider_setting: job.job_provider_setting,
             title_pending:  job.title_pending?,
@@ -303,6 +310,7 @@ module Api
             invalidation_evidence: job.invalidation_evidence,
             triaging_reason: job.triaging_reason,
             goal_provenance: ::App::GoalProvenancePayload.for(job),
+            proposer: ::App::ProposerPayload.for(job),
             epic_id: job.epic_id,
             owner_user_id: job.owner_user_id,
             owner_user: owner_user_json(job.owner_user),

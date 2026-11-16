@@ -17,6 +17,7 @@ module Steps
         "iteration" => step.iteration,
         "panel_id" => details["panel_id"],
         "aggregate" => true,
+        "reviewed_head_sha" => details["reviewed_head_sha"],
         "verdict" => result.verdict,
         "vote_breakdown" => result.breakdown,
         "votes" => votes.map { |vote| vote.slice("provider", "model", "verdict") },

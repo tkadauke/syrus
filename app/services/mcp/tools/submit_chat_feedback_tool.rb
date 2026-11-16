@@ -45,7 +45,7 @@ module Mcp::Tools
           pending_action = chat_session.pending_actions.create!(
             action: "submit_chat_feedback",
             state: "queued",
-            payload: { "job_id" => job.id, "feedback" => feedback, "media" => media_refs },
+            payload: feedback_payload(job:, feedback:, media_refs:, server_context:),
             requested_by: "agent"
           )
 
@@ -67,7 +67,7 @@ module Mcp::Tools
           server_context,
           chat_session,
           action: "submit_chat_feedback",
-          payload: { "job_id" => job.id, "feedback" => feedback, "media" => media_refs },
+          payload: feedback_payload(job:, feedback:, media_refs:, server_context:),
           requested_by: "agent"
         )
 
@@ -82,6 +82,22 @@ module Mcp::Tools
       end
 
       private
+
+      def feedback_payload(job:, feedback:, media_refs:, server_context:)
+        context = McpToolContext.from_server_context(server_context)
+        payload = { "job_id" => job.id, "feedback" => feedback, "media" => media_refs }
+        return payload unless context.agent_actor
+
+        source = {
+          "type" => "coworker",
+          "chat_session_id" => context.chat_session.id,
+          "agent_provider" => context.chat_session.effective_chat_provider,
+          "coworker_id" => context.agent_actor.id,
+          "coworker_handle" => context.agent_actor.handle,
+          "coworker_name" => context.agent_actor.name
+        }
+        payload.merge("feedback_source" => source)
+      end
 
       def actionable?(job)
         job.implemented? || job.approved?

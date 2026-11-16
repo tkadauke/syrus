@@ -1,4 +1,5 @@
 class User < ApplicationRecord
+  after_commit -> { App::DashboardChromeCache.invalidate_user!(id) }, if: :dashboard_chrome_cache_relevant_change?
   has_many :approval_provider_delegations, foreign_key: :owner_user_id, dependent: :destroy
   include AutoApproveModes
   include PluginDataCleanup
@@ -1120,5 +1121,9 @@ class User < ApplicationRecord
     Time.zone.parse(value.to_s)
   rescue ArgumentError, TypeError
     nil
+  end
+
+  def dashboard_chrome_cache_relevant_change?
+    previous_changes.key?("id") || previous_changes.keys.intersect?(%w[dashboard_preferences global_role])
   end
 end

@@ -1078,9 +1078,9 @@ describe("AppChromeV2", () => {
     expect(fetchNewChat).toHaveBeenCalledTimes(1)
   })
 
-  it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
+  it("does not reuse an archived unstarted chat from an archive-inclusive recent-chat cache", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(recentChatsQueryKey({ status: "hidden" }), {
+    queryClient.setQueryData(recentChatsQueryKey({ show_archived: true }), {
       groups: [
         chatGroup({
           chats: [
@@ -1088,6 +1088,7 @@ describe("AppChromeV2", () => {
               id: 12,
               title: null,
               title_pending: true,
+              archived_at: "2026-11-14T12:00:00Z",
               chat_path: "/chats/12",
               current: false,
               last_message_at: null,
@@ -2527,7 +2528,7 @@ describe("AppChromeV2 recent chats", () => {
     })
   })
 
-  it("keeps Hide Chat below the pin action in the context menu", async () => {
+  it("keeps Archive Chat below the pin action in the context menu", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/chats/1") {
         return Promise.resolve(jsonResponse({ bookmarks: [] }))
@@ -2551,9 +2552,9 @@ describe("AppChromeV2 recent chats", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Menu order chat" }))
     const pinButton = await screen.findByRole("button", { name: "Pin chat" })
-    const hideButton = screen.getByRole("button", { name: "Hide Chat" })
+    const archiveButton = screen.getByRole("button", { name: "Archive Chat" })
 
-    expect(Boolean(pinButton.compareDocumentPosition(hideButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(Boolean(pinButton.compareDocumentPosition(archiveButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
   it("renames a chat from the context menu", async () => {
@@ -2615,11 +2616,11 @@ describe("AppChromeV2 recent chats", () => {
     })
   })
 
-  it("deletes a chat from the context menu after confirmation", async () => {
+  it("archives a chat from the context menu after confirmation", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1" && init?.method === "DELETE") {
-        return Promise.resolve(jsonResponse({ message: "Chat deleted." }))
+        return Promise.resolve(jsonResponse({ message: "Chat archived." }))
       }
 
       if (path === "/api/v1/app/chats/1") {
@@ -2647,17 +2648,19 @@ describe("AppChromeV2 recent chats", () => {
     renderAppChrome(undefined, { queryClient })
 
     fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Doomed chat" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Chat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Archive Chat" }))
 
-    expect(await screen.findByText("This permanently deletes the chat, its messages, and all associated data. This cannot be undone.")).toBeInTheDocument()
+    expect(
+      await screen.findByText("This archives the chat and removes its active workspace. The archived chat remains listed when archived chats are shown.")
+    ).toBeInTheDocument()
 
     // Portaled to document.body, not nested in the transformed row wrapper
     // (which would clip/misposition the fixed overlay).
-    const deleteDialog = screen.getByRole("dialog")
-    expect(deleteDialog.closest('[class*="-translate-y-1/2"]')).toBeNull()
-    expect(deleteDialog.parentElement?.parentElement).toBe(document.body)
+    const archiveDialog = screen.getByRole("dialog")
+    expect(archiveDialog.closest('[class*="-translate-y-1/2"]')).toBeNull()
+    expect(archiveDialog.parentElement?.parentElement).toBe(document.body)
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1", expect.objectContaining({ method: "DELETE" }))
@@ -2667,14 +2670,14 @@ describe("AppChromeV2 recent chats", () => {
     })
   })
 
-  it("surfaces the server error when chat deletion is refused", async () => {
+  it("surfaces the server error when chat archival is refused", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1" && init?.method === "DELETE") {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              error: { code: "turn_in_flight", message: "Cannot delete this chat while a turn is in progress. Stop the turn first." }
+              error: { code: "turn_in_flight", message: "Cannot archive this chat while a turn is in progress. Stop the turn first." }
             }),
             { status: 409, headers: { "Content-Type": "application/json" } }
           )
@@ -2706,10 +2709,10 @@ describe("AppChromeV2 recent chats", () => {
     renderAppChrome(undefined, { queryClient })
 
     fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Busy chat" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Chat" }))
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Archive Chat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Archive" }))
 
-    expect(await screen.findByText("Cannot delete this chat while a turn is in progress. Stop the turn first.")).toBeInTheDocument()
+    expect(await screen.findByText("Cannot archive this chat while a turn is in progress. Stop the turn first.")).toBeInTheDocument()
   })
 })
 

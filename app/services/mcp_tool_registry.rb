@@ -110,6 +110,17 @@ class McpToolRegistry
           scope_options_callback: nil,
           scope_label_callback: nil,
           valid_scope_callback: nil
+        },
+        {
+          name: "syrus.jobs",
+          label: "Act on visible Jobs",
+          description: "Submit targeted feedback to eligible Jobs in repositories visible to the coworker.",
+          default_policy: "confirm",
+          maximum_policy: "confirm",
+          tools: entries(surface: :coworker).select { |entry| entry.capability == :"syrus.jobs" }.map(&:tool_name),
+          scope_options_callback: nil,
+          scope_label_callback: nil,
+          valid_scope_callback: nil
         }
       ]
     end
@@ -248,7 +259,9 @@ class McpToolRegistry
         lifecycle_chat(Mcp::Tools::BaseRefreshRetryJobTool, mutation: true),
         legacy_chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
         legacy_chat(Mcp::Tools::RepoInfoTool),
-        legacy_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true, default_policy: :allow),
+        lifecycle_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true, approval_effect: true,
+          capability: "syrus.jobs", descriptor_roles: AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
+          descriptor_default_policies: AgentRole::CHAT_ROLES.index_with { :allow }),
         legacy_chat(Mcp::Tools::RenameChatTool, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::PinChatTool, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::UnpinChatTool, mutation: true, default_policy: :allow),
@@ -434,6 +447,7 @@ class McpToolRegistry
         coworker_action(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
+        *coworker_job_lifecycle_entries,
         # Proposal tools only create the owner's real confirmation cards. A
         # generic coworker gate here would ask once before asking again on the
         # proposal itself.
@@ -579,6 +593,37 @@ class McpToolRegistry
       entry(tool, surface: :coworker, tier: tier, **metadata)
     end
 
+    # Coworkers receive only cancellation and feedback submission from the
+    # shared Job lifecycle capability. Both retain their canonical pending
+    # actions instead of being wrapped in a generic coworker confirmation.
+    COWORKER_JOB_LIFECYCLE_TOOLS = [
+      Mcp::Tools::CancelJobTool,
+      Mcp::Tools::SubmitChatFeedbackTool
+    ].freeze
+
+    def coworker_job_lifecycle_entries
+      chat_entries.filter_map do |chat_entry|
+        next unless COWORKER_JOB_LIFECYCLE_TOOLS.include?(chat_entry.tool)
+
+        coworker(
+          chat_entry.tool,
+          tier: chat_entry.tier || :essential,
+          feature_flag: chat_entry.feature_flag,
+          capability: Permissions::JobLifecycle::JOBS.delete_suffix("@v1"),
+          mutation: chat_entry.mutation,
+          approval_effect: pending_action_tool?(chat_entry.tool),
+          descriptor: chat_entry.descriptor
+        )
+      end
+    end
+
+    def pending_action_tool?(tool)
+      PendingActions.for(tool_name_for(tool))
+      true
+    rescue PendingActions::UnknownAction
+      false
+    end
+
     # Compatibility is declared beside the registrations it covers so adding
     # a new tool through the normal builders fails descriptor validation.
     def legacy_chat(tool, **metadata) = chat(tool, **metadata, compatibility_descriptor: true)
@@ -587,8 +632,12 @@ class McpToolRegistry
     def legacy_entry(tool, **metadata) = entry(tool, **metadata, compatibility_descriptor: true)
 
     def lifecycle_chat(tool, **metadata)
-      roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
-      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: roles)
+      roles = metadata.delete(:descriptor_roles) || metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      shared_roles = (Array(roles) + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq
+      default_policies = metadata.delete(:descriptor_default_policies) || {}
+      descriptor = Permissions::JobLifecycle.descriptor_for(
+        tool_name_for(tool), required_roles: shared_roles, default_policies:
+      )
       chat(tool, **metadata, descriptor:)
     end
 

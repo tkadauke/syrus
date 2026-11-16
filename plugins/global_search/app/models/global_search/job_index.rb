@@ -85,6 +85,7 @@ module GlobalSearch
       def body_for(job)
         [
           job.issue_body,
+          job.proposer&.handle,
           canonical_summary_for(job),
           (job.description if job.respond_to?(:description))
         ].compact_blank.join("\n\n")

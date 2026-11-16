@@ -144,6 +144,9 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
   end
 
   it "keeps the legacy default grants aligned with the effective descriptor defaults" do
-    expect(Coworkers::Create::DEFAULT_GRANTS).to include("chats.read_shared" => "confirm", "syrus.propose_job" => "auto", "syrus.read_jobs" => "auto")
+    expect(Coworkers::Create::DEFAULT_GRANTS).to include(
+      "chats.read_shared" => "confirm", "syrus.jobs" => "confirm",
+      "syrus.propose_job" => "auto", "syrus.read_jobs" => "auto"
+    )
   end
 end

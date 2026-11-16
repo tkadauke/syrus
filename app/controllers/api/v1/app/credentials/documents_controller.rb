@@ -47,7 +47,10 @@ module Api
           document = Current.user.documents.find(params[:id])
           document.destroy!
 
-          render json: { id: document.id, message: I18n.t("api.credentials.documents.removed") }
+          render json: documents_payload(Current.user).merge(
+            id: document.id,
+            message: I18n.t("api.credentials.documents.removed")
+          )
         end
 
         def file

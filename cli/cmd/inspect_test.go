@@ -864,6 +864,31 @@ func TestJobListCommandRepoFlagOverridesAutoDetection(t *testing.T) {
 	}
 }
 
+func TestJobListCommandSendsProposerAndRendersColumn(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"jobs":[{"id":42,"state":"queued","title":"Fix it","repository_slug":"acme/widgets","proposer":{"type":"human","id":7,"label":"Adrian","handle":"adrian"}}]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+	output := &bytes.Buffer{}
+	command := NewJobCommand()
+	command.SetOut(output)
+	command.SetArgs([]string{"list", "--proposer", "@adrian"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := seen.URL.Query().Get("proposer"); got != "adrian" {
+		t.Fatalf("proposer = %q", got)
+	}
+	if !strings.Contains(output.String(), "PROPOSER") || !strings.Contains(output.String(), "@adrian") {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
 func TestJobSearchCommandRepoFlagOverridesAutoDetection(t *testing.T) {
 	var gotQuery string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -907,6 +932,27 @@ func TestEpicListCommandRepoFlagOverridesAutoDetection(t *testing.T) {
 	}
 	if !strings.Contains(gotQuery, "repo=tkadauke%2Fmyapp") {
 		t.Fatalf("query = %q", gotQuery)
+	}
+}
+
+func TestEpicListCommandSendsProposer(t *testing.T) {
+	var seen *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"epics":[]}`))
+	}))
+	defer server.Close()
+	withCredentials(t, server.URL, "secret-token")
+	withRepoSlug(t, "")
+	command := NewEpicCommand()
+	command.SetOut(&bytes.Buffer{})
+	command.SetArgs([]string{"list", "--proposer", "adrian"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := seen.URL.Query().Get("proposer"); got != "adrian" {
+		t.Fatalf("proposer = %q", got)
 	}
 }
 

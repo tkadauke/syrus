@@ -83,6 +83,7 @@ class RunJob < ApplicationJob
   RUNS_PAUSED_RETRY_DELAY = 30.seconds
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
   STEP_DEPENDENCY_RETRY_DELAY = 15.seconds
+  WORK_UNIT_LOCK_RETRY_DELAY = 15.seconds
   MACOS_WORKER_DRAIN_RETRY_DELAY = 30.seconds
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
 
@@ -443,6 +444,18 @@ class RunJob < ApplicationJob
       return
     end
 
+    unless Workflows::ImmutableReviewHeadBarrier.satisfied_for?(@step)
+      log("required review barrier unresolved for current implementation HEAD; cancelling unsafe queued Run", kind: "system")
+      Workflows::ImmutableReviewHeadBarrier.cancel_run_without_cascade!(@run)
+      @workflow.set_artifact!("review_head_barrier_block", {
+        "code" => "required_review_head_unresolved",
+        "step_id" => @step.id,
+        "run_id" => @run.id,
+        "recorded_at" => Time.current.iso8601
+      })
+      return
+    end
+
     authorization_continuation = pending_authorization_continuation?
     return if !authorization_continuation && handle_running_reentry
     return if defer_until_step_dependencies_settle
@@ -653,6 +666,13 @@ class RunJob < ApplicationJob
     record_run_started_activity! if acquired
 
     acquired
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info(
+      "[RunJob] WorkUnit lock #{e.lock_key} is still owned by WorkUnit ##{e.work_unit.id}; " \
+      "deferring Run ##{@run.id} by #{WORK_UNIT_LOCK_RETRY_DELAY.inspect}"
+    )
+    defer_run(@run.id, WORK_UNIT_LOCK_RETRY_DELAY)
+    false
   end
 
   def fresh_running_run?

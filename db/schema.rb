@@ -1607,6 +1607,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_192220) do
     t.integer "chat_goal_id"
     t.json "goal_prompt_snapshot"
     t.string "origin", default: "operator", null: false
+    t.string "proposer_type"
+    t.integer "proposer_id"
     t.index ["chat_goal_id", "created_at"], name: "index_epics_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_epics_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_epics_on_claimed_at"
@@ -1614,6 +1616,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_192220) do
     t.index ["origin"], name: "index_epics_on_origin"
     t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["owner_user_id"], name: "index_epics_on_owner_user_id"
+    t.index ["proposer_type", "proposer_id"], name: "index_epics_on_proposer"
     t.index ["repository_id"], name: "index_epics_on_repository_id"
     t.index ["slug"], name: "index_epics_on_slug", unique: true
     t.index ["user_id", "state"], name: "index_epics_on_user_id_and_state"
@@ -2095,7 +2098,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_192220) do
     t.datetime "pr_feedback_poll_selected_at"
     t.integer "rollback_of_id"
     t.integer "rollback_epic_id"
+    t.integer "canonical_job_id"
+    t.string "proposer_type"
+    t.integer "proposer_id"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
+    t.index ["canonical_job_id"], name: "index_jobs_on_canonical_job_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_jobs_on_claimed_at"
@@ -2121,6 +2128,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_192220) do
     t.index ["owner_user_id"], name: "index_jobs_on_owner_user_id"
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
     t.index ["pr_repository_id"], name: "index_jobs_on_pr_repository_id"
+    t.index ["proposer_type", "proposer_id"], name: "index_jobs_on_proposer"
     t.index ["repository_id", "external_pr_number"], name: "index_jobs_on_repository_id_and_external_pr_number_unique", unique: true
     t.index ["repository_id", "finished_at", "id", "landed_sha"], name: "idx_jobs_deployment_stage_poll"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"

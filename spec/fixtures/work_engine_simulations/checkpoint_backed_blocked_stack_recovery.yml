@@ -1,0 +1,83 @@
+name: checkpoint-backed blocked stacked child recovery
+repository:
+  owner: simulation
+  name: checkpoint-backed-blocked-stack-recovery
+epics:
+  feature:
+    title: Checkpoint recovery stack
+jobs:
+  parent:
+    title: Approved stack parent
+    epic: feature
+    state: approved
+    branch_name: syrus/parent
+    pr_number: 28922
+    pr_checks_state: passing
+    mergeability_head_sha: parent-head-sha
+    approved_at: "2026-11-01 12:00:00 UTC"
+  child:
+    title: JOB-8923 checkpoint-backed blocked child
+    epic: feature
+    state: failed
+    depends_on: [parent]
+    workflow:
+      kind: initial
+      state: blocked
+      started_at: "2026-11-01 12:05:00 UTC"
+      finished_at: "2026-11-01 12:10:00 UTC"
+      work_unit:
+        state: failed
+      steps:
+        - key: implement
+          kind: implement
+          state: succeeded
+          run:
+            state: succeeded
+            head_sha: implementation-sha
+            base_sha: parent-head-sha
+            checkpoint:
+              commit_sha: implementation-sha
+              base_sha: parent-head-sha
+              remote_ref: refs/syrus/checkpoints/scenarios/checkpoint-backed-blocked-child
+        - key: grader_fanout
+          kind: grader_fanout
+          state: failed
+          depends_on: [implement]
+          run:
+            state: failed
+            agent_outcome: worker_died
+            classification:
+              classification: storage_unavailable
+              retryable: true
+              reason: simulated grader storage loss after workspace recreation
+  sibling:
+    title: Downstream Epic sibling
+    epic: feature
+    state: queued
+    depends_on: [child]
+    workflow:
+      template: true
+      kind: initial
+runtime:
+  repository_revisions:
+    main: main-sha
+    syrus/parent: parent-head-sha
+    refs/syrus/checkpoints/scenarios/checkpoint-backed-blocked-child: implementation-sha
+outcomes:
+  default: success
+success_states:
+  parent: [approved]
+  child: [implemented]
+  sibling: [implemented]
+expect:
+  jobs:
+    parent: [approved]
+    child: [implemented]
+    sibling: [implemented]
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  events:
+    - checkpoint_backed_blocked_workflow
+    - base_refresh_rebase -> success
+    - pr_open -> success

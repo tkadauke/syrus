@@ -127,30 +127,32 @@ module WorkEngine
       end
 
       def call
-        with_simulated_workspaces do
-          with_stubbed_judgment_runner do
-            max_ticks.times do |tick|
-              before = fingerprint
-              apply_scenario_events!(tick)
-              reconcile!(tick)
-              process_auto_retry_attempts!(tick)
-              retry_failed_jobs!(tick)
-              wake_jobs!(tick)
-              process_landing_queue!(tick)
-              execute_active_runs!(tick)
-              next if retryable_failed_jobs?
-              return success(tick + 1) if complete?
-              return waiting(tick + 1) if no_active_runs? && valid_waiting?
+        with_simulated_repository_revisions do
+          with_simulated_workspaces do
+            with_stubbed_judgment_runner do
+              max_ticks.times do |tick|
+                before = fingerprint
+                apply_scenario_events!(tick)
+                reconcile!(tick)
+                process_auto_retry_attempts!(tick)
+                retry_failed_jobs!(tick)
+                wake_jobs!(tick)
+                process_landing_queue!(tick)
+                execute_active_runs!(tick)
+                next if retryable_failed_jobs?
+                return success(tick + 1) if complete?
+                return waiting(tick + 1) if no_active_runs? && valid_waiting?
 
-              after = fingerprint
-              if after == before && no_active_runs?
-                return stuck(tick + 1, "no state changed")
+                after = fingerprint
+                if after == before && no_active_runs?
+                  return stuck(tick + 1, "no state changed")
+                end
               end
+
+              return waiting(max_ticks) if valid_waiting? && no_active_runs?
+
+              stuck(max_ticks, "max ticks exhausted")
             end
-
-            return waiting(max_ticks) if valid_waiting? && no_active_runs?
-
-            stuck(max_ticks, "max ticks exhausted")
           end
         end
       end
@@ -187,6 +189,37 @@ module WorkEngine
       end
 
       attr_reader :job_ids, :work_intent_ids, :scenario, :outcomes, :scenario_events, :expectations, :runtime, :success_states, :wait_states, :max_ticks, :ignored_reconciler_issue_kinds, :events, :run_attempts
+
+      def with_simulated_repository_revisions
+        revisions = runtime.fetch("repository_revisions", {}).to_h
+        return yield if revisions.blank?
+
+        previous = RepositoryContent.provider_classes_override
+        fallbacks = RepositoryContent.provider_classes
+        provider = Class.new do
+          include Syrus::Plugin::RepositoryContentProvider
+
+          define_singleton_method(:provider_key) { "simulation_revisions" }
+          define_singleton_method(:display_name) { "Simulation revisions" }
+          define_singleton_method(:role) { :replica }
+          define_singleton_method(:available_for?) { |_repository| true }
+          define_singleton_method(:build) { |repository:, user:| new(revisions) }
+
+          define_method(:initialize) { |configured| @configured = configured }
+          define_method(:resolve) do |ref, max_age:|
+            sha = @configured[ref.to_s]
+            raise RepositoryContent::UnknownRevision, "unknown simulated ref #{ref}" unless sha
+
+            RepositoryContent::Revision.new(id: sha, ref: ref, observed_at: Time.current)
+          end
+          define_method(:tree) { |_revision_id| raise RepositoryContent::Unsupported, "simulation revisions do not provide trees" }
+          define_method(:read) { |_revision_id, _path| raise RepositoryContent::Unsupported, "simulation revisions do not provide blobs" }
+        end
+        RepositoryContent.provider_classes_override = [ provider, *fallbacks ]
+        yield
+      ensure
+        RepositoryContent.provider_classes_override = previous if defined?(previous)
+      end
 
       def apply_scenario_events!(tick)
         scenario_events.each do |event|

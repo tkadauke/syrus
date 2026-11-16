@@ -788,7 +788,8 @@ it("warns when the workspace tree and selected file are truncated", async () => 
           partial: true,
           selected_file: path.includes("path=") ? { path: "README.md", content: "# Partial", truncated: true, binary: false } : null,
           commits: [],
-          conflicts: []
+          conflicts: [],
+          branch_counts: { home: 1, chat: 4, run: 2 }
         })
       return jsonResponse(detailPayload)
     })
@@ -798,9 +799,34 @@ it("warns when the workspace tree and selected file are truncated", async () => 
   fireEvent.click(screen.getByRole("button", { name: "Workspace" }))
 
   expect(await screen.findByText("This workspace tree is incomplete. Only the available files are shown.")).toBeInTheDocument()
+  expect(screen.getByText("Branches: 1 home · 4 chat · 2 run")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "README.md" }))
   expect(await screen.findByText("This large file is shown in part.")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
+})
+
+it("hides branch counts when the remote count is unavailable", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/workspace"))
+        return jsonResponse({
+          remote: "https://github.com/acme/workspace.git",
+          branch: "coworkers/maya",
+          files: [],
+          partial: false,
+          selected_file: null,
+          commits: [],
+          conflicts: [],
+          branch_counts: { home: null, chat: null, run: null }
+        })
+      return jsonResponse(detailPayload)
+    })
+  )
+  renderRoute("/coworkers/7?tab=workspace")
+
+  await screen.findByText("coworkers/maya")
+  expect(screen.queryByText(/Branches:/)).not.toBeInTheDocument()
 })
 
 it("keeps unsaved recovery visible when the remote workspace is unavailable", async () => {
@@ -864,7 +890,8 @@ it("renders chat, run, and unavailable commit provenance honestly", async () => 
             { sha: "b".repeat(40), message: "Run change", authored_at: null, source: "run", source_id: 42 },
             { sha: "c".repeat(40), message: "Seed", authored_at: null, source: "unattributed", source_id: null }
           ],
-          conflicts: []
+          conflicts: [],
+          branch_counts: { home: 1, chat: 1, run: 0 }
         })
       return jsonResponse(detailPayload)
     })

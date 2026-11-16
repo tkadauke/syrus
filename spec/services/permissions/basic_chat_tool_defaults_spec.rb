@@ -10,7 +10,7 @@ RSpec.describe "defaults for basic chat tools" do
     entry = McpToolRegistry.entries(surface: :chat).find { |e| McpToolRegistry.tool_name_for(e.tool).to_s == name }
     raise "#{name} is not registered on the chat surface" unless entry
 
-    (entry.descriptor.defaults || {}).values.uniq
+    (entry.descriptor.defaults || {}).slice(*AgentRole::CHAT_ROLES).values.uniq
   end
 
   {

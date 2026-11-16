@@ -2335,6 +2335,37 @@ RSpec.describe StepDispatcher, :ci_only do
       )
     end
 
+    it "terminates visibly after bounded check-only retries for persistent worker loss" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 2)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      first_collect.update!(details: {
+        Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true,
+        "failure_code" => "worker_died"
+      })
+
+      described_class.fail_from(first_collect)
+
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      second_collect.update!(details: {
+        Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true,
+        "failure_code" => "worker_died"
+      })
+      described_class.fail_from(second_collect)
+
+      expect(retry_workflow.reload).to be_failed
+      expect(retry_workflow.failure_reason).to eq("landing_repair_flaky_retry_exhausted")
+      expect(retry_workflow.steps.where(kind: "landing_fix")).to be_empty
+      expect(retry_workflow.steps.where(kind: "grader_collect").pluck(:iteration)).to contain_exactly(1, 2)
+      expect(retry_workflow.artifact("transient_grader_repair_skips")).to contain_exactly(
+        include("iteration" => 1)
+      )
+      expect(retry_workflow.artifact(LandingRepairOutcome::SUMMARY_ARTIFACT_KEY)).to include(
+        "reason" => "landing_repair_flaky_retry_exhausted",
+        "flaky_retries" => 2,
+        "flaky_retry_limit" => LandingRepairOutcome::FLAKY_RETRY_LIMIT
+      )
+    end
+
     it "applies placement metadata to dynamically inserted retry_until iterations when distributed workflows are enabled" do
       Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
       job.repository.update!(distributed_workflow_dag_enabled: true)

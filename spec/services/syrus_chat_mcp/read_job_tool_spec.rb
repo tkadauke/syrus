@@ -13,6 +13,25 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     )
   end
 
+  it "returns state transition history without querying each transition user separately" do
+    job = Factories.job(repository: repository)
+    transition_users = Array.new(10) { Factories.user }
+    transition_users.each_with_index do |transition_user, index|
+      StateTransition.create!(
+        subject: job, from_state: "queued", to_state: "running", event_name: "start",
+        source: "operator", user: transition_user, metadata: { "sequence" => index }
+      )
+    end
+
+    response = nil
+    queries = capture_sql { response = call_tool(job_id: job.id) }
+    payload = response_payload(response)
+
+    expect(payload.dig(:job, :state_transitions).size).to be >= 10
+    user_queries = queries.grep(/SELECT [`"]?users[`"]?\.\* FROM [`"]?users[`"]? WHERE/i)
+    expect(user_queries.size).to be <= 2
+  end
+
   def call_tool(arguments)
     raw = server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "read_job", arguments: arguments } }.to_json)
     JSON.parse(raw, symbolize_names: true)
@@ -252,5 +271,40 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     expect(payload[:workflow_count]).to eq(2)
     expect(payload[:workflows_index].map { |workflow| workflow[:id] }).to eq([ newer.id, older.id ])
     expect(payload[:workflows_index].first).to include(summary: "Addressed feedback.", started_at: nil)
+  end
+
+  it "keeps a 200-run workflow index bounded and avoids whole-row association sorts" do
+    job = build_large_inspection_job(user: user, repository: repository)
+    workflow = job.latest_workflow
+    expected_step_count = workflow.steps.count
+    expected_run_count = Run.joins(:step).where(steps: { workflow_id: workflow.id }).count
+
+    queries = capture_sql do
+      expect(wide_row_sort_statements { @large_response = call_tool(job_id: job.id) }).to be_empty
+    end
+    payload = response_payload(@large_response)
+
+    expect(payload[:workflows_index].first).to include(step_count: expected_step_count, run_count: expected_run_count)
+    expect(queries.size).to be < 40
+  end
+
+  it "returns the underlying database error when Job inspection SQL fails" do
+    job = Factories.job(repository: repository)
+    allow(described_class).to receive(:workflow_index_for).and_raise(
+      ActiveRecord::StatementInvalid, "Out of sort memory, consider increasing server sort buffer size"
+    )
+
+    response = call_tool(job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response_payload(response)).to eq(
+      error: {
+        code: "database_error", message: "Job inspection could not query the database.", retryable: true,
+        diagnostics: {
+          exception: "ActiveRecord::StatementInvalid",
+          database_message: "Out of sort memory, consider increasing server sort buffer size"
+        }
+      }
+    )
   end
 end

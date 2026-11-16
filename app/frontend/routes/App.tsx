@@ -48,7 +48,6 @@ import { DirectJobNewRoute } from "./DirectJobNew"
 import { AdminFeatures } from "./AdminFeatures"
 import { EpicDetailRoute } from "./EpicDetail"
 import { EpicFormRoute } from "./EpicForm"
-import { HiddenChatsRoute } from "./HiddenChats"
 import { JobDetailRoute } from "./JobDetail"
 import { NotificationsSettingsRoute } from "./NotificationsSettings"
 import { OnboardingRoute } from "./Onboarding"
@@ -151,14 +150,6 @@ const appRouteDefinitions: AppRouteDefinition[] = [
     element: (
       <SettingsSectionRoute>
         <CredentialsRoute />
-      </SettingsSectionRoute>
-    )
-  },
-  {
-    path: "/settings/hidden_chats",
-    element: (
-      <SettingsSectionRoute>
-        <HiddenChatsRoute />
       </SettingsSectionRoute>
     )
   },
@@ -637,13 +628,6 @@ function settingsNavigationItems(t: (key: string) => string, pluginItems: Settin
     },
     { key: "themes", label: t("nav.themes"), path: "/settings/themes", active: (path) => path === "/settings/themes", groupId: "product" },
     { key: "permissions", label: t("nav.permissions"), path: "/settings/permissions", active: (path) => path === "/settings/permissions", groupId: "account" },
-    {
-      key: "hidden_chats",
-      label: t("nav.hidden_chats"),
-      path: "/settings/hidden_chats",
-      active: (path) => path === "/settings/hidden_chats",
-      groupId: "product"
-    },
     { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents", groupId: "workspace" },
     { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags", groupId: "workspace" },
     {

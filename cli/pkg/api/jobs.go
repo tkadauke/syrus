@@ -34,6 +34,14 @@ type JobItem struct {
 	CurrentStep         string         `json:"current_step"`
 	LatestRunID         int64          `json:"latest_run_id"`
 	Workflow            *WorkflowBrief `json:"workflow"`
+	Proposer            *Mentionable   `json:"proposer"`
+}
+
+type Mentionable struct {
+	Type   string `json:"type"`
+	ID     int64  `json:"id"`
+	Label  string `json:"label"`
+	Handle string `json:"handle"`
 }
 
 type WorkflowBrief struct {

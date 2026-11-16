@@ -82,9 +82,7 @@ module Admin
     end
 
     def workflows_payload
-      workflows = job.workflows.includes(steps: [ runs: [ :run_diagnostic, :run_failure_classification ] ])
-                     .reorder(created_at: :asc, id: :asc)
-                     .to_a
+      workflows = job.workflows.reorder(created_at: :asc, id: :asc).to_a
       active = workflows.select { |workflow| workflow.state.in?(%w[queued running]) }
       queued = workflows.select(&:queued?)
       failed = workflows.select(&:failed?)
@@ -182,7 +180,7 @@ module Admin
     def workflow_payload(workflow)
       return nil unless workflow
 
-      runs = workflow.runs.to_a
+      runs = runs_by_workflow.fetch(workflow.id, [])
       failed_run = runs.select(&:failed?).max_by { |run| [ run.finished_at || run.updated_at || run.created_at, run.id ] }
       blocked = WorkUnits::StartBlock.explain(workflow)
       {
@@ -221,9 +219,7 @@ module Admin
     end
 
     def runs_payload
-      runs = job.runs.includes(:run_diagnostic, :run_failure_classification, step: :workflow)
-                .order(:created_at)
-                .to_a
+      runs = inspection_runs
       active = runs.select { |run| run.state.in?(%w[queued running]) }
       {
         latest: run_payload(runs.last),
@@ -653,7 +649,41 @@ module Admin
     end
 
     def recent_log(run)
-      run.job_logs.order(sequence: :desc).limit(3).pluck(:chunk).reverse.join.truncate(500).presence
+      recent_logs_by_run.fetch(run.id, []).reverse.join.truncate(500).presence
+    end
+
+    def inspection_runs
+      @inspection_runs ||= begin
+        runs = job.runs
+          .select(:id, :job_id, :step_id, :state, :trigger_kind, :created_at,
+                  :updated_at, :started_at, :finished_at, :last_heartbeat_at)
+          .order(:created_at, :id)
+          .to_a
+        ActiveRecord::Associations::Preloader.new(records: runs, associations: [ :run_diagnostic, :run_failure_classification, :step ]).call
+        runs
+      end
+    end
+
+    def runs_by_workflow
+      @runs_by_workflow ||= inspection_runs.group_by(&:workflow_id)
+    end
+
+    def recent_logs_by_run
+      @recent_logs_by_run ||= begin
+        run_ids = inspection_runs.select(&:failed?).map(&:id)
+        if run_ids.empty?
+          {}
+        else
+          ranked = JobLog.where(run_id: run_ids)
+            .select("job_logs.run_id, job_logs.chunk, job_logs.sequence, job_logs.id, " \
+                    "ROW_NUMBER() OVER (PARTITION BY job_logs.run_id ORDER BY job_logs.sequence DESC, job_logs.id DESC) AS log_row_number")
+          JobLog.from("(#{ranked.to_sql}) job_logs")
+            .where("log_row_number <= 3")
+            .order(:run_id, sequence: :desc, id: :desc)
+            .group_by(&:run_id)
+            .transform_values { |logs| logs.map(&:chunk) }
+        end
+      end
     end
 
     def github_client

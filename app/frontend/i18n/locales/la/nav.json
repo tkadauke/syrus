@@ -327,6 +327,7 @@
   "recent_chats_settings": "Optiones colloquiorum recentium",
   "recent_chats_settings_close": "Optiones colloquiorum recentium claude",
   "recent_chats_show_empty_groups": "Greges vacuos monstra",
+  "recent_chats_show_archived": "Colloquia archivata monstra",
   "recent_chats_unread_only": "Tantum non lecta",
   "recent_chats_new_in": "Colloquium novum in {{group}}",
   "recent_chats_options": {

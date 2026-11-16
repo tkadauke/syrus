@@ -129,6 +129,7 @@ RSpec.describe Permissions::CoworkerDefaultPolicy do
   describe Permissions::CoworkerActions do
     it "derives grant defaults from the descriptor table" do
       expect(described_class.grant_default_policy("code.read")).to eq("auto")
+      expect(described_class.grant_default_policy("syrus.jobs")).to eq("confirm")
       expect(described_class.grant_default_policy("syrus.propose_job")).to eq("auto")
       expect(described_class.grant_default_policy("ops.read_logs")).to eq("confirm")
       expect(described_class.grant_default_policy("chats.read_shared")).to eq("confirm")
@@ -154,7 +155,8 @@ RSpec.describe Permissions::CoworkerDefaultPolicy do
       McpToolRegistry.entries(surface: :coworker).each do |entry|
         expect(described_class.covers?(entry.tool_name)).to be(true), "#{entry.tool_name} is missing from CoworkerActions"
         expect(entry.explicit_descriptor).to be(true)
-        expect(described_class.send(:const_get, :OPERATIONS).fetch(entry.tool_name).default).to eq(entry.descriptor.defaults.values.first)
+        expected = described_class.send(:const_get, :OPERATIONS).fetch(entry.tool_name).default
+        expect(entry.descriptor.defaults.values_at(*Permissions::CoworkerDefaultPolicy::ROLES)).to all(eq(expected))
       end
     end
   end

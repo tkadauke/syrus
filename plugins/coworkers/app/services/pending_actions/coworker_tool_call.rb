@@ -1,6 +1,13 @@
 module PendingActions
+  # The request was overtaken before anyone confirmed it -- the invocation was
+  # withdrawn or expired, its turn ended, or its authority no longer holds. It
+  # was withdrawn, not attempted: ChatPendingAction#fail_confirmation! records
+  # it as cancelled rather than failed.
+  class AuthorizationLapsed < ArgumentError; end
+
   class CoworkerToolCall < Base
     action_key "coworker_tool_call"
+    LAPSED_CLAIM_STATUSES = %i[unavailable non_resumable revalidation_failed].freeze
     def authorize_execution!
       return super unless @action.authorization_request?
 
@@ -50,7 +57,10 @@ module PendingActions
         origin_resumable: ->(_) { origin_resumable? },
         revalidate: ->(_) { revalidate_authority(context) }
       )
-      raise ArgumentError, "authorized invocation is no longer available (#{claim.status})" unless claim.claimed?
+      unless claim.claimed?
+        error = LAPSED_CLAIM_STATUSES.include?(claim.status) ? AuthorizationLapsed : ArgumentError
+        raise error, "authorized invocation is no longer available (#{claim.status})"
+      end
 
       authorized_context = server_context.merge(
         pending_action_id: action.id,

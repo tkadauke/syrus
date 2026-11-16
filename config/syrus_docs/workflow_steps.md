@@ -276,6 +276,15 @@ through the provider-routing hold path; and `fail` reports the panel as unable
 to proceed. If fewer than `min_members` non-skipped verdicts remain, consensus
 is `skipped`.
 
+Required review gates share one immutable implementation-HEAD barrier. Panel
+fanout completion only records that members were created; downstream mutation,
+formatting, grading, summarization, PR publication, and later review steps wait
+for every required panel's aggregate collect result to approve the same HEAD.
+If any review requests a repair, Syrus supersedes and cancels the old HEAD's
+member and aggregate work, then rematerializes every required review gate for
+the repaired HEAD. Optional review gates remain outside this join and cannot
+retroactively stop downstream work after it starts.
+
 Review-panel members may optionally identify an authorized coworker target in
 addition to their execution provider/model. This allows ordered named reviewers
 and named panels without inferring identity from prompts or titles. A dedicated

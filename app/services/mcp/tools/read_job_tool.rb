@@ -29,23 +29,22 @@ module Mcp::Tools
           includes: [
             :repository,
             :deployment_stage_statuses,
-            { dependencies: [ { depends_on_job: :repository }, :depends_on_epic ] },
-            { workflows: { steps: :runs } }
+            :canonical_job,
+            { dependencies: [ { depends_on_job: :repository }, :depends_on_epic ] }
           ]
         )
 
         workflow = job.latest_workflow
-        workflows_index = job.workflows
-                             .includes(steps: :runs)
-                             .reorder(created_at: :desc, id: :desc)
-                             .map { |wf| workflow_index_payload(wf) }
+        workflows_index = workflow_index_for(job)
         Mcp::Tools.success(
-          job: job_detail_payload(job),
+          job: job_detail_payload(job, include_state_transitions: true),
           workflow_count: workflows_index.size,
           workflows_index: workflows_index,
           latest_workflow: workflow_summary_payload(workflow),
           transcript: transcript_payload(workflow)
         )
+      rescue ActiveRecord::StatementInvalid => error
+        Mcp::Tools.database_error(error, operation: "Job inspection")
       end
 
       private
@@ -53,7 +52,7 @@ module Mcp::Tools
       def transcript_payload(workflow)
         return nil unless workflow
 
-        run_ids = workflow.steps.flat_map { |step| step.runs.map(&:id) }.compact
+        run_ids = Run.joins(:step).where(steps: { workflow_id: workflow.id }).pluck(:id)
         return Mcp::Tools.head_tail("") if run_ids.empty?
 
         logs = JobLog.where(run_id: run_ids).order(:sequence, :id)
