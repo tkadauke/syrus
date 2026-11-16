@@ -199,6 +199,7 @@ export const ChatMessage = memo(function ChatMessage({
     return (
       <SharedMessageRenderer animateClass={entranceClass} readOnly={readOnly}>
         <SystemMessage
+          highlightTerms={findQuery ? [findQuery] : undefined}
           item={item.system || { tone: "neutral", label: t("system.system"), body: item.text }}
           prefix={prefix}
           retryText={!readOnly ? retryText : null}
@@ -1614,6 +1615,7 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
 }
 
 export function SystemMessage({
+  highlightTerms,
   item,
   prefix,
   renderAnsi = false,
@@ -1621,6 +1623,7 @@ export function SystemMessage({
   retrying = false,
   onRetry
 }: {
+  highlightTerms?: string[]
   item: ChatSystemMessage
   prefix: string
   renderAnsi?: boolean
@@ -1649,7 +1652,9 @@ export function SystemMessage({
               <AnsiText text={item.body} />
             </pre>
           ) : item.body_format === "markdown" ? (
-            <Markdown className="break-words leading-relaxed" text={item.body} linkifyUrls />
+            <Markdown className="break-words leading-relaxed" highlightTerms={highlightTerms} text={item.body} linkifyUrls />
+          ) : highlightTerms?.length ? (
+            <PlainText className="break-words leading-relaxed" highlightTerms={highlightTerms} jobStyle="copyable" text={item.body} />
           ) : (
             <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
           )}
@@ -1680,7 +1685,11 @@ export function SystemMessage({
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${BANNER_TONE_CLASSES[item.tone]}`}>
         <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
         <span className="min-w-0 flex-1 truncate" data-testid="system-message-summary">
-          {linkifySlugs(item.body, { jobStyle: "copyable" })}
+          {highlightTerms?.length ? (
+            <PlainText as="span" className="contents" highlightTerms={highlightTerms} jobStyle="copyable" text={item.body} />
+          ) : (
+            linkifySlugs(item.body, { jobStyle: "copyable" })
+          )}
         </span>
         {item.cta ? (
           <Link className="min-w-0 max-w-[45%] shrink truncate font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
@@ -1708,7 +1717,9 @@ export function SystemMessage({
           data-testid="system-message-details"
         >
           {item.body_format === "markdown" ? (
-            <Markdown className="break-words leading-relaxed" text={item.body} linkifyUrls />
+            <Markdown className="break-words leading-relaxed" highlightTerms={highlightTerms} text={item.body} linkifyUrls />
+          ) : highlightTerms?.length ? (
+            <PlainText className="break-words leading-relaxed" highlightTerms={highlightTerms} jobStyle="copyable" text={item.body} />
           ) : (
             <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
           )}

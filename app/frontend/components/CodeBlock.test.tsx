@@ -28,6 +28,15 @@ describe("CodeBlock", () => {
     expect(container.querySelector("pre")).toHaveClass("my-code")
   })
 
+  it("highlights search matches without discarding syntax token colors", async () => {
+    render(<CodeBlock code="class User" highlightTerms={["class User"]} lang="ruby" />)
+
+    await screen.findByText("class")
+    const marks = document.querySelectorAll("mark[data-search-highlight]")
+    expect(Array.from(marks).map((mark) => mark.textContent).join("")).toBe("class User")
+    expect(marks[0].parentElement?.style.color).toBe("var(--shiki-token-keyword)")
+  })
+
   it("degrades to plain text without an unhandled rejection when the highlighter fails to load (e.g. CSP-blocked WASM)", async () => {
     const tokenizeSpy = vi.spyOn(highlighterLib, "tokenizeLines").mockRejectedValue(new Error("wasm-unsafe-eval blocked"))
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})

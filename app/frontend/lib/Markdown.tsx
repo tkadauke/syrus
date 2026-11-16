@@ -10,6 +10,7 @@ export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorEle
 export type SlugTone = "default" | "inverted"
 type RenderInlineOptions = {
   highlightTerms?: string[]
+  jobStyle?: "link" | "copyable"
   linkifySlugs?: boolean
   linkifyUrls?: boolean
   onLinkClick?: MarkdownLinkHandler
@@ -33,8 +34,10 @@ type MarkdownProps = {
   slugTone?: SlugTone
 }
 type PlainTextProps = {
+  as?: "div" | "span"
   className?: string
   highlightTerms?: string[]
+  jobStyle?: "link" | "copyable"
   text: string
   linkifyUrls?: boolean
   onLinkClick?: MarkdownLinkHandler
@@ -77,10 +80,10 @@ export function Markdown({
   )
 }
 
-export function PlainText({ className, highlightTerms, text, linkifyUrls = false, onLinkClick, slugTone }: PlainTextProps) {
+export function PlainText({ as: Element = "div", className, highlightTerms, jobStyle, text, linkifyUrls = false, onLinkClick, slugTone }: PlainTextProps) {
   const rendered =
-    linkifyUrls || highlightTerms?.length ? renderInlineText(text, true, 0, { highlightTerms, linkifyUrls, onLinkClick, slugTone }) : text
-  return <div className={className}>{rendered}</div>
+    linkifyUrls || highlightTerms?.length ? renderInlineText(text, true, 0, { highlightTerms, jobStyle, linkifyUrls, onLinkClick, slugTone }) : text
+  return <Element className={className}>{rendered}</Element>
 }
 
 // Shared "light markdown" preview renderer for truncated content cards
@@ -161,7 +164,7 @@ function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNod
       const lang = fence.languageHint ? detectFenceLanguage(fence.languageHint) : null
       blocks.push(
         <div className="overflow-x-auto" key={`block-${key++}`}>
-          <CodeBlock code={code.join("\n")} lang={lang} />
+          <CodeBlock code={code.join("\n")} highlightTerms={options.highlightTerms} lang={lang} />
         </div>
       )
       continue
@@ -778,6 +781,7 @@ function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number
         {linkifySlugs(decoded, {
           hrefFallbacks: options.slugHrefFallbacks,
           hrefOverrides: options.slugHrefOverrides,
+          jobStyle: options.jobStyle,
           onLinkClick: options.onLinkClick,
           tone: options.slugTone
         })}
@@ -811,6 +815,7 @@ function linkifyPlainUrls(text: string, shouldLinkifySlugs: boolean, key: number
         {linkifySlugs(text, {
           hrefFallbacks: options.slugHrefFallbacks,
           hrefOverrides: options.slugHrefOverrides,
+          jobStyle: options.jobStyle,
           onLinkClick: options.onLinkClick,
           tone: options.slugTone
         })}
@@ -829,6 +834,7 @@ function renderNonUrlText(text: string, shouldLinkifySlugs: boolean, key: string
         {linkifySlugs(text, {
           hrefFallbacks: options.slugHrefFallbacks,
           hrefOverrides: options.slugHrefOverrides,
+          jobStyle: options.jobStyle,
           onLinkClick: options.onLinkClick,
           tone: options.slugTone
         })}
@@ -849,7 +855,9 @@ function renderHighlightedText(text: string, shouldLinkifySlugs: boolean, key: n
       {parts.map((part, index) => {
         const highlighted = index % 2 === 1
         const content =
-          shouldLinkifySlugs && containsSlug(part) ? linkifySlugs(part, { hrefFallbacks: options.slugHrefFallbacks, tone: options.slugTone }) : part
+          shouldLinkifySlugs && containsSlug(part)
+            ? linkifySlugs(part, { hrefFallbacks: options.slugHrefFallbacks, jobStyle: options.jobStyle, tone: options.slugTone })
+            : part
         return highlighted ? (
           <mark className="rounded-sm bg-warning/20 px-0.5 text-inherit" data-search-highlight key={index}>
             {content}

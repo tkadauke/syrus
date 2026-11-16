@@ -44,7 +44,17 @@ export function renderCodeLine(tokens: ThemedToken[] | undefined, fallback: stri
 // Renders plain text immediately and swaps in highlighted spans once
 // tokenization resolves; `lang={null}` (unrecognized/unsupported
 // language) renders plain text permanently.
-export function CodeBlock({ code, lang, className }: { code: string; lang: HighlighterLanguageId | null; className?: string }) {
+export function CodeBlock({
+  code,
+  lang,
+  className,
+  highlightTerms
+}: {
+  code: string
+  lang: HighlighterLanguageId | null
+  className?: string
+  highlightTerms?: string[]
+}) {
   const lines = useHighlightedLines(code, lang)
   const codeLines = code.split("\n")
 
@@ -53,11 +63,63 @@ export function CodeBlock({ code, lang, className }: { code: string; lang: Highl
       <code>
         {codeLines.map((line, index) => (
           <Fragment key={index}>
-            {renderCodeLine(lines?.[index], line)}
+            {renderCodeLineWithHighlights(lines?.[index], line, highlightTerms)}
             {index < codeLines.length - 1 ? "\n" : null}
           </Fragment>
         ))}
       </code>
     </pre>
   )
+}
+
+type HighlightRange = { start: number; end: number }
+
+function renderCodeLineWithHighlights(tokens: ThemedToken[] | undefined, line: string, highlightTerms?: string[]) {
+  const ranges = highlightRanges(line, highlightTerms)
+  if (ranges.length === 0) return renderCodeLine(tokens, line)
+  if (!tokens) return renderHighlightedCodeText(line, ranges, "plain")
+
+  let offset = 0
+  return tokens.map((token, tokenIndex) => {
+    const tokenStart = offset
+    const tokenEnd = tokenStart + token.content.length
+    offset = tokenEnd
+    const tokenRanges = ranges
+      .filter((range) => range.start < tokenEnd && range.end > tokenStart)
+      .map((range) => ({ start: Math.max(0, range.start - tokenStart), end: Math.min(token.content.length, range.end - tokenStart) }))
+
+    return (
+      <span key={tokenIndex} style={{ color: token.color }}>
+        {renderHighlightedCodeText(token.content, tokenRanges, `token-${tokenIndex}`)}
+      </span>
+    )
+  })
+}
+
+function highlightRanges(text: string, terms?: string[]): HighlightRange[] {
+  const normalized = terms?.map((term) => term.trim()).filter(Boolean) ?? []
+  if (normalized.length === 0) return []
+
+  const pattern = new RegExp(normalized.map(escapeRegExp).join("|"), "gi")
+  return Array.from(text.matchAll(pattern), (match) => ({ start: match.index, end: match.index + match[0].length }))
+}
+
+function renderHighlightedCodeText(text: string, ranges: HighlightRange[], keyPrefix: string) {
+  const parts: ReactNode[] = []
+  let cursor = 0
+  ranges.forEach((range, index) => {
+    if (range.start > cursor) parts.push(<Fragment key={`${keyPrefix}-text-${index}`}>{text.slice(cursor, range.start)}</Fragment>)
+    parts.push(
+      <mark className="rounded-sm bg-warning/20 px-0.5 text-inherit" data-search-highlight key={`${keyPrefix}-match-${index}`}>
+        {text.slice(range.start, range.end)}
+      </mark>
+    )
+    cursor = range.end
+  })
+  if (cursor < text.length) parts.push(<Fragment key={`${keyPrefix}-tail`}>{text.slice(cursor)}</Fragment>)
+  return parts
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }

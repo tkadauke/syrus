@@ -280,6 +280,50 @@ describe("chat context find", () => {
     expect(document.querySelector("mark[data-search-highlight]")).not.toBeInTheDocument()
   })
 
+  it("highlights matches in fenced code and visible system messages", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path.startsWith("/api/v1/app/chats/search/messages")) return Promise.resolve(jsonResponse({ matches: [] }))
+
+      return Promise.resolve(
+        jsonResponse(
+          chatPayload({
+            messages: [
+              {
+                type: "message",
+                id: 9,
+                role: "assistant",
+                tool_name: null,
+                content: { text: "```\ncode needle\n```" },
+                text: "```\ncode needle\n```",
+                bookmarkable: true
+              },
+              {
+                type: "message",
+                id: 10,
+                role: "system",
+                tool_name: null,
+                content: { text: "System needle" },
+                text: "System needle",
+                bookmarkable: false
+              }
+            ]
+          })
+        )
+      )
+    })
+
+    renderRoute()
+    fireEvent.click(await screen.findByRole("button", { name: "Show 1 hidden system message" }))
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find" }), { target: { value: "needle" } })
+
+    expect(screen.getByText("1/2")).toBeInTheDocument()
+    expect(document.querySelector("pre mark[data-search-highlight]")).toHaveTextContent("needle")
+    expect(screen.getByTestId("system-message-summary").querySelector("mark[data-search-highlight]")).toHaveTextContent("needle")
+  })
+
   it("keeps the selected match when chat messages update without changing find match ids", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const payload = chatPayload({
