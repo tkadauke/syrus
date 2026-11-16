@@ -1,12 +1,5 @@
 export type PluginContributionKind =
-  | "workspace_tab"
-  | "admin_page"
-  | "sidebar_page"
-  | "repo_page_tab"
-  | "slug_preview_card"
-  | "review_contribution"
-  | "review_annotation"
-  | "ui_slot"
+  "workspace_tab" | "admin_page" | "sidebar_page" | "repo_page_tab" | "slug_preview_card" | "review_contribution" | "review_annotation" | "ui_slot"
 
 export type PluginContribution<T = unknown> = {
   pluginName: string

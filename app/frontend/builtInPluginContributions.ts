@@ -11,7 +11,10 @@ const workspaceTabModules = import.meta.glob<PluginModule>([
   "../../plugins/*/app/frontend/workspaceTabs/*.tsx",
   "!../../plugins/*/app/frontend/workspaceTabs/*.test.tsx"
 ])
-const repoPageTabModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/repo_tabs/*.tsx", "!../../plugins/*/app/frontend/repo_tabs/*.test.tsx"])
+const repoPageTabModules = import.meta.glob<PluginModule>([
+  "../../plugins/*/app/frontend/repo_tabs/*.tsx",
+  "!../../plugins/*/app/frontend/repo_tabs/*.test.tsx"
+])
 const slugPreviewCardModules = import.meta.glob<PluginModule>([
   "../../plugins/*/app/frontend/slugPreviewCards/*.tsx",
   "!../../plugins/*/app/frontend/slugPreviewCards/*.test.tsx"
