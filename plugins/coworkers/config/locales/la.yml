@@ -12,6 +12,9 @@ la:
 
         %{files}
       workspace_conflict_label: "Conflictus spatii laboris"
+      workspace_sync_stale: "Commit e cursu postico in ramo domestico collegae servatus est, sed hic checkout colloquii synchronizari non potuit quia %{reason}. Checkout exsistens ad restitutionem servatus est et obsoletus est."
+      workspace_sync_unavailable: "Syrus ramum domesticum collegae probare aut synchronizare non potuit quia %{reason}. Checkout colloquii exsistens ad restitutionem servatus est et obsoletus esse potest."
+      workspace_sync_warning_label: "Monitum synchronizationis spatii laboris"
       workspace_already_saved: "Hoc spatium laboris iam servatum est."
       workspace_save_label: "Servatio spatii laboris"
       workspace_save_failed: "Mutationes in `%{branch}` post %{attempts} conatus frustra factos localiter servantur. %{status}"

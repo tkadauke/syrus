@@ -12,6 +12,9 @@ de:
 
         %{files}
       workspace_conflict_label: "Workspace-Konflikt"
+      workspace_sync_stale: "Der Hintergrund-Commit ist im Home-Branch des Coworkers gespeichert, aber dieser Chat-Checkout konnte nicht synchronisiert werden, weil %{reason}. Der vorhandene Checkout wurde zur Wiederherstellung beibehalten und ist veraltet."
+      workspace_sync_unavailable: "Syrus konnte den Home-Branch des Coworkers nicht prüfen oder synchronisieren, weil %{reason}. Der vorhandene Chat-Checkout wurde zur Wiederherstellung beibehalten und kann veraltet sein."
+      workspace_sync_warning_label: "Warnung zur Workspace-Synchronisierung"
       workspace_already_saved: "Dieser Workspace wurde bereits gespeichert."
       workspace_save_label: "Workspace-Speicherung"
       workspace_save_failed: "Änderungen auf `%{branch}` bleiben nach %{attempts} fehlgeschlagenen Speicherversuchen lokal erhalten. %{status}"
