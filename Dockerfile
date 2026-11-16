@@ -223,6 +223,8 @@ ENV GIT_SHA=$GIT_SHA
 # payload then omits it and the UI falls back to the git SHA.
 ARG SYRUS_VERSION=""
 ENV SYRUS_VERSION=$SYRUS_VERSION
+ARG SYRUS_VERSION_DESCRIPTION=""
+ENV SYRUS_VERSION_DESCRIPTION=$SYRUS_VERSION_DESCRIPTION
 
 # And the build timestamp (UTC ISO-8601), so the UI's BuildBadge can show
 # WHEN this image was built — the fastest way to see which part of a
@@ -642,6 +644,8 @@ ENV GIT_SHA=$GIT_SHA
 # payload then omits it and the UI falls back to the git SHA.
 ARG SYRUS_VERSION=""
 ENV SYRUS_VERSION=$SYRUS_VERSION
+ARG SYRUS_VERSION_DESCRIPTION=""
+ENV SYRUS_VERSION_DESCRIPTION=$SYRUS_VERSION_DESCRIPTION
 
 # And the build timestamp (UTC ISO-8601), so the UI's BuildBadge can show
 # WHEN this image was built — the fastest way to see which part of a

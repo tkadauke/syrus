@@ -25,7 +25,7 @@ module Syrus
       def healthy? = ok?
     end
 
-    UNHEALTHY_STATES = %i[degraded cycle].freeze
+    UNHEALTHY_STATES = %i[degraded cycle incompatible].freeze
 
     # `enabled_names` is the set of plugin names currently enabled. Manifests
     # that are installed but disabled still count as "present" for cycle
@@ -71,6 +71,15 @@ module Syrus
     def status_for(manifest)
       reasons = []
       state = :ok
+
+      if manifest.external && manifest.requires_syrus
+        if SyrusVersion.release.nil?
+          reasons << "requires Syrus #{manifest.requires_syrus}; running release version is unknown, compatibility check skipped"
+        elsif !manifest.requires_syrus.satisfied_by?(SyrusVersion.release)
+          state = :incompatible
+          reasons << "requires Syrus #{manifest.requires_syrus}; running release is #{SyrusVersion.release}"
+        end
+      end
 
       if cycle_members.include?(manifest.name)
         state = :cycle

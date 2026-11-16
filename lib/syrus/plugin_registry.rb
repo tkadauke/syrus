@@ -173,7 +173,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -195,6 +195,9 @@ module Syrus
         )
 
         @mutex.synchronize do
+          previous = @plugins.find { |manifest| manifest.name == name }
+          requires_syrus ||= previous&.requires_syrus
+          external = previous&.external if external.nil?
           # Registration runs on every `to_prepare`, so re-registering a name
           # replaces the previous manifest rather than appending a second one.
           # It has to happen before the uniqueness checks, or a plugin would
@@ -234,7 +237,10 @@ module Syrus
             credential_types: credential_types,
             prepare_priority: prepare_priority,
             hosts:           Array(hosts),
-            events:          events
+            events:          events,
+            requires_syrus:  requires_syrus,
+            external:        external || false,
+            loaded:          loaded
           )
         end
 

@@ -2,6 +2,7 @@
 
 require "open3"
 require "spec_helper"
+require "tmpdir"
 
 RSpec.describe "bin/build-local-image" do
   let(:script_path) { File.expand_path("../../bin/build-local-image", __dir__) }
@@ -51,6 +52,33 @@ RSpec.describe "bin/build-local-image" do
 
   it "prints the SYRUS_BACKEND_IMAGE staging hint for the desktop build" do
     expect(script).to include("SYRUS_BACKEND_IMAGE=${IMAGE} npm --prefix desktop run build")
+  end
+
+  it "bakes the nearest reachable release tag and full git description" do
+    expect(script).to include("syrus_git_version_metadata")
+    expect(script).to include('--version="$SYRUS_RELEASE_VERSION"')
+    expect(script).to include('--version-description="$SYRUS_VERSION_DESCRIPTION"')
+    expect(lib).to include("git describe --tags --abbrev=0 --match 'v[0-9]*'")
+    expect(lib).to include("git describe --tags --long --match 'v[0-9]*'")
+  end
+
+  it "derives version metadata from git and leaves it empty when no tag is reachable" do
+    Dir.mktmpdir do |directory|
+      git = File.join(directory, "git")
+      File.write(git, <<~SH)
+        #!/usr/bin/env bash
+        if [[ "$*" == *"--abbrev=0"* ]]; then printf 'v1.4.2\n'; else printf 'v1.4.2-7-gabc123\n'; fi
+      SH
+      File.chmod(0o755, git)
+      out, status = Open3.capture2({ "PATH" => "#{directory}:#{ENV.fetch('PATH')}" }, "bash", "-c", ". bin/docker-image-lib; syrus_git_version_metadata")
+      expect(status).to be_success
+      expect(out.lines.map(&:strip)).to eq(%w[1.4.2 1.4.2-7-gabc123])
+
+      File.write(git, "#!/usr/bin/env bash\nexit 128\n")
+      out, status = Open3.capture2({ "PATH" => "#{directory}:#{ENV.fetch('PATH')}" }, "bash", "-c", ". bin/docker-image-lib; syrus_git_version_metadata")
+      expect(status).to be_success
+      expect(out).to be_empty
+    end
   end
 
   it "shares the base-image build with bin/compose-up via the lib" do

@@ -8,7 +8,7 @@ module Syrus
   class PluginLoader
     class Error < StandardError; end
 
-    Plugin = Data.define(:name, :directory, :entry_file, :dependencies, :external)
+    Plugin = Data.define(:name, :directory, :entry_file, :dependencies, :external, :version, :requires_syrus)
     DEPENDENCY_DECLARATIONS = %w[depends_on optionally_depends_on].freeze
     FRAMEWORK_GEM_DEPENDENCIES = %w[rails].freeze
 
@@ -22,6 +22,11 @@ module Syrus
 
     def load!
       ordered_plugins.each do |plugin|
+        if plugin.external
+          Syrus::PluginRegistry.register(name: plugin.name, version: plugin.version.to_s,
+            requires_syrus: plugin.requires_syrus, external: true, loaded: compatible?(plugin))
+          next unless compatible?(plugin)
+        end
         lib_dir = plugin.directory.join("lib").to_s
         $LOAD_PATH.unshift(lib_dir) unless $LOAD_PATH.include?(lib_dir)
         require plugin.entry_file.to_s
@@ -73,14 +78,29 @@ module Syrus
 
       external = @plugin_roots.external?(directory)
       validate_external_dependencies!(specification, gemspec) if external
+      requires_syrus = parse_requirement(specification.metadata["requires_syrus"], gemspec) if external
 
       Plugin.new(
         name: plugin_name(entry_file),
         directory: directory,
         entry_file: entry_file,
         dependencies: plugin_dependencies(entry_file),
-        external: external
+        external: external,
+        version: specification.version,
+        requires_syrus: requires_syrus
       )
+    end
+
+    def compatible?(plugin)
+      plugin.requires_syrus.nil? || SyrusVersion.release.nil? || plugin.requires_syrus.satisfied_by?(SyrusVersion.release)
+    end
+
+    def parse_requirement(value, gemspec)
+      return if value.to_s.strip.empty?
+
+      Gem::Requirement.new(value)
+    rescue ArgumentError => e
+      raise Error, "Plugin manifest #{gemspec} has malformed requires_syrus #{value.inspect}: #{e.message}"
     end
 
     def gemspec_for(directory)
