@@ -18,6 +18,12 @@ module Syrus
 
       def install_definition!(definition)
         plugin = @plugins_by_name&.fetch(definition.name, nil)
+        existing_manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == definition.name }
+        if existing_manifest && !existing_manifest.loaded && existing_manifest.metadata.to_h.key?(:load_state)
+          definition.discard_engine!
+          return existing_manifest
+        end
+
         failed_dependency = plugin&.required_dependencies&.find do |name|
           manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == name }
           manifest && !manifest.loaded

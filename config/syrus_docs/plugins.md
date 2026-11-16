@@ -124,7 +124,9 @@ registration are isolated per plugin. A load error, syntax error, or other
 exception marks that plugin `failed`; plugins with a hard dependency on it are
 `skipped_dependency`. Duplicate external names are reported as
 `duplicate_name`. None of these plugins contributes providers or routes, and
-its engine declaration is made inert; the remaining plugins continue to load. Bundled plugins remain
+its engine declaration is made inert; the remaining plugins continue to load.
+
+Bundled plugins remain
 strict in development and test so defects are immediately visible; production
 isolates and reports their failures in the same way as external plugins.
 

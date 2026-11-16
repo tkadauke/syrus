@@ -251,7 +251,17 @@ RSpec.describe Syrus::PluginLoader do
         standard = write_plugin(external_root, directory_name: "standard", gem_name: "standard_fixture")
         load_error = write_plugin(external_root, directory_name: "load_error", gem_name: "load_error_fixture")
         syntax = write_plugin(external_root, directory_name: "syntax", gem_name: "syntax_fixture")
-        overwrite_entry(standard, "standard_fixture", "module StandardFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"standard_fixture\" do; end\n  raise \"broken standard\"\nend\n")
+        overwrite_entry(standard, "standard_fixture", <<~RUBY)
+          module StandardFixture
+            extend Syrus::PluginApi
+            class Provider; end
+            syrus_plugin "standard_fixture" do
+              provides callbacks: "StandardFixture::Provider"
+              route :get, "/failed-require", to: "failed_require#show"
+            end
+            raise "broken standard"
+          end
+        RUBY
         overwrite_entry(load_error, "load_error_fixture", "module LoadErrorFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"load_error_fixture\" do; end\n  raise LoadError, \"missing helper\"\nend\n")
         overwrite_entry(syntax, "syntax_fixture", "module SyntaxFixture\n  extend Syrus::PluginApi\n  syrus_plugin \"syntax_fixture\" do; end\n  def broken(\nend\n")
 
@@ -259,11 +269,23 @@ RSpec.describe Syrus::PluginLoader do
           .not_to raise_error
 
         expect(defined?(ExternalLoaderFixture)).to eq("constant")
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+        described_class.install_definition!(StandardFixture.syrus_plugin_definition)
+        described_class.install_definition!(LoadErrorFixture.syrus_plugin_definition)
+
+        expect(Syrus::PluginRegistry.providers_for(:callbacks)).to include(ExternalLoaderFixture::Provider)
         %w[standard_fixture load_error_fixture syntax_fixture].each do |name|
           status = Syrus::PluginRegistry.health.status(name)
           expect(status.state).to eq(:failed)
           expect(status.reasons.join).not_to be_empty
         end
+        expect(Syrus::PluginRegistry.providers_for(:callbacks)).not_to include(StandardFixture::Provider)
+        failed_manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "standard_fixture" }
+        expect(failed_manifest.metadata[:routes]).to be_nil
+        expect(StandardFixture.const_defined?(:Engine, false)).to be(false)
+        expect(LoadErrorFixture.const_defined?(:Engine, false)).to be(false)
+        request = ActionDispatch::Request.new(Rack::MockRequest.env_for("/failed-require"))
+        expect(PluginRouteResolver.find(request, controller_prefix: "failed_require")).to be_nil
       ensure
         Syrus::PluginRegistry.restore(snapshot) if snapshot
         Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
