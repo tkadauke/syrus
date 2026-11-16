@@ -1052,12 +1052,20 @@ module App
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
       return job.state if job.closed?
+      return "blocked" if agent_cannot_proceed_workflow(job)
       return "repairing" if job.failed? && active_repair_work_for(job)
       return "landing" if job.landing? || active_landing_work_for(job)
       return "running" if job_running_runtime_work?(job)
       return "paused" if job_apparently_paused?(job)
 
       job.state
+    end
+
+    def agent_cannot_proceed_workflow(job)
+      return unless job.needs_attention_reason == "agent_cannot_proceed"
+
+      workflow = latest_workflow_for(job)
+      workflow if workflow&.blocked? && workflow.artifact("cannot_proceed").present?
     end
 
     def active_workflow_trigger_kind(job)

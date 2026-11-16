@@ -99,6 +99,7 @@ module App
           proposer: App::ProposerPayload.for(job),
           needs_attention: job.needs_attention?,
           needs_attention_reason: job.needs_attention_reason,
+          cannot_proceed_reason: agent_cannot_proceed_workflow(job)&.artifact("cannot_proceed").to_h["reason"],
           delivery_status: delivery_status,
           bulk_actions: bulk_actions,
           paths: {

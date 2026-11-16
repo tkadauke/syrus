@@ -1848,6 +1848,25 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(paused[:items].map { |row| row[:id] }).not_to include(job.id)
     end
 
+    it "shows an agent-blocked Job and its reported reason" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "blocked",
+        artifacts: { "cannot_proceed" => { "reason" => "Required compiler is unavailable." } }
+      )
+      job.set_needs_attention!(reason: "agent_cannot_proceed")
+
+      item = call(subject: "job", section: "rows")[:items].find { |row| row[:id] == job.id }
+
+      expect(item).to include(
+        summary_state: "blocked",
+        needs_attention_reason: "agent_cannot_proceed",
+        cannot_proceed_reason: "Required compiler is unavailable."
+      )
+    end
+
     it "shows blocked WorkUnits with running Runs as in progress" do
       job = Factories.job_record(user: user, repository: repo, state: "approved")
       workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)

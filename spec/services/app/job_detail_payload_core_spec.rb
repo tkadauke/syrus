@@ -338,6 +338,26 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload[:start_blocked_reason]).to eq("admission_control")
     end
 
+    it "shows an agent-blocked Job and its reported reason" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "blocked",
+        artifacts: { "cannot_proceed" => { "reason" => "Required compiler is unavailable." } }
+      )
+      job.set_needs_attention!(reason: "agent_cannot_proceed")
+
+      payload = payload_for(job).fetch(:job)
+
+      expect(payload).to include(
+        state: "running",
+        summary_state: "blocked",
+        needs_attention_reason: "agent_cannot_proceed",
+        cannot_proceed_reason: "Required compiler is unavailable."
+      )
+    end
+
     it "shows a blocked WorkUnit with an actively running Run as running" do
       job = Factories.job_record(user: user, repository: repo, state: "approved")
       workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running")

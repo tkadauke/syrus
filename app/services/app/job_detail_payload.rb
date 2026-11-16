@@ -358,6 +358,7 @@ module App
         investigation: @job.investigation?,
         state: @job.state,
         summary_state: summary_state(@job),
+        cannot_proceed_reason: agent_cannot_proceed_workflow(@job)&.artifact("cannot_proceed").to_h["reason"],
         priority: @job.priority,
         validity: @job.validity,
         triaging_reason: @job.triaging_reason,
@@ -1650,12 +1651,20 @@ module App
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
       return job.state if job.closed?
+      return "blocked" if agent_cannot_proceed_workflow(job)
       return "repairing" if job.failed? && active_repair_work_for_job
       return job.state if job.landing?
       return "running" if job_running_runtime_work?
       return "paused" if job_apparently_paused?(job)
 
       job.state
+    end
+
+    def agent_cannot_proceed_workflow(job)
+      return unless job.needs_attention_reason == "agent_cannot_proceed"
+
+      workflow = job.latest_workflow
+      workflow if workflow&.blocked? && workflow.artifact("cannot_proceed").present?
     end
 
     def job_apparently_paused?(job)
