@@ -158,6 +158,8 @@ module Api
           }
           payload[:version] = serializer.version(result.version) if result.version
           render json: payload, status: :created
+        rescue ::DesignDocs::CreateSuggestion::PendingOverlap => e
+          render_error("pending_suggestion_overlap", e.message, status: :unprocessable_content)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue Pundit::NotAuthorizedError
