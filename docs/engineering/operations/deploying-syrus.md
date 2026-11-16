@@ -45,6 +45,13 @@ otherwise rejects a `.js`-format response fetched as a worker.
 
 ## Syrus Kubernetes rollout ordering
 
+Kubernetes deployments may set `SYRUS_PLUGIN_PATH` to one absolute directory
+containing externally installed plugin directories. Mount the same contents at
+that path in every workload that boots Rails, including migration Jobs. Syrus
+ignores an unset, missing, or non-directory path. Shared-volume provisioning
+and external-plugin installation ergonomics are intentionally deployment-owned
+for now.
+
 `bin/deploy` is a Ruby program. It loads no Rails -- it runs on an operator's
 machine, against a cluster, before the image it is deploying exists -- and its
 implementation lives in `lib/deploy/`, one file per phase, with

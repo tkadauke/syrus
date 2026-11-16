@@ -227,6 +227,14 @@ bin/compose-up                       # restart / pick up changes
 
 ## What runs
 
+Compose also creates a `syrus-plugins` volume for external Ruby plugins. It is
+mounted read-only at `/home/rails/plugins-external` in setup, web, worker, and
+preview, and Compose sets `SYRUS_PLUGIN_PATH` to that location. Leaving the
+volume empty keeps the bundled-only behavior. A placeholder `plugin-installer`
+service has the only writable mount and currently exits without making changes;
+after deliberately populating the volume, restart the Rails services to repeat
+plugin discovery.
+
 - **web** — Rails app served by Thruster on `localhost:3000`.
 - **worker** — Solid Queue worker: pollers, prepare steps, agent runs,
   pushes, PR creation, reapers, and workspace pruning.

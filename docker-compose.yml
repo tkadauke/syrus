@@ -16,6 +16,7 @@ x-app: &app
     - syrus-data:/home/rails/.syrus
   environment:
     SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
+    SYRUS_PLUGIN_PATH: /home/rails/plugins-external
   restart: unless-stopped
 
 services:
@@ -38,6 +39,10 @@ services:
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
+      - syrus-plugins:/home/rails/plugins-external:ro
+    environment:
+      SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
+      SYRUS_PLUGIN_PATH: /home/rails/plugins-external
     restart: "no"
 
   web:
@@ -47,9 +52,12 @@ services:
         condition: service_completed_successfully
     environment:
       SYRUS_ROLE: web
+      SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
+      SYRUS_PLUGIN_PATH: /home/rails/plugins-external
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
+      - syrus-plugins:/home/rails/plugins-external:ro
     ports:
       - "${SYRUS_BIND:-127.0.0.1}:${SYRUS_PORT:-3000}:80"
     healthcheck:
@@ -74,10 +82,13 @@ services:
     environment:
       SYRUS_ROLE: worker
       SYRUS_TERMINAL_HOST: worker
+      SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
+      SYRUS_PLUGIN_PATH: /home/rails/plugins-external
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
       - syrus-mise-cache:/opt/mise
+      - syrus-plugins:/home/rails/plugins-external:ro
     command: ["./bin/jobs"]
 
   preview:
@@ -88,10 +99,23 @@ services:
     environment:
       SYRUS_ROLE: preview
       SYRUS_PREVIEW_INTERNAL_HOST: preview
+      SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
+      SYRUS_PLUGIN_PATH: /home/rails/plugins-external
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
+      - syrus-plugins:/home/rails/plugins-external:ro
     command: ["./bin/preview"]
+
+  # Reserved for the external-plugin installer. It is the only app-image
+  # service with write access to the shared plugin volume and intentionally
+  # performs no installation yet.
+  plugin-installer:
+    <<: *app
+    command: ["/bin/true"]
+    restart: "no"
+    volumes:
+      - syrus-plugins:/home/rails/plugins-external
 
   # Plugin Runtime's manager: starts the service containers that
   # container-backed plugins (Git Mirror, ...) need when those plugins are
@@ -128,3 +152,4 @@ volumes:
   syrus-data:
   syrus-search:
   syrus-mise-cache:
+  syrus-plugins:

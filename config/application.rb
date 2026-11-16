@@ -1,6 +1,7 @@
 require_relative "boot"
 
 require "rails/all"
+require_relative "../lib/plugin_roots"
 
 # Plugin gems call Syrus::PluginApi.syrus_plugin at *load* time, which is
 # before Rails initializes and therefore before Zeitwerk and $LOAD_PATH are
@@ -42,8 +43,16 @@ module Syrus
       g.test_framework :rspec, fixture: false, view_specs: false, helper_specs: false, routing_specs: false
     end
 
-    root.glob("plugins/*/db/migrate").sort_by(&:to_s).each do |path|
-      config.paths["db/migrate"] << path.to_s
+    plugin_roots = PluginRoots.default
+    plugin_roots.migration_directories.each { |path| config.paths["db/migrate"] << path.to_s }
+    plugin_roots.plugin_directories.each do |plugin_dir|
+      plugin_dir.glob("app/*").select(&:directory?).each do |app_path|
+        config.autoload_paths << app_path.to_s
+        config.eager_load_paths << app_path.to_s
+      end
+
+      locale_path = plugin_dir.join("config/locales")
+      config.i18n.load_path.concat(locale_path.glob("**/*.{rb,yml}")) if locale_path.directory?
     end
 
     initializer "syrus.plugin_migration_paths" do

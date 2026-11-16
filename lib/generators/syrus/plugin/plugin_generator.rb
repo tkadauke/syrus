@@ -35,7 +35,7 @@ module Syrus
       private
 
       def plugin_dir
-        "plugins/#{file_name}"
+        PluginRoots.default.built_in_root.join(file_name).relative_path_from(Rails.root).to_s
       end
 
       def module_name

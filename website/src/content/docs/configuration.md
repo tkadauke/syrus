@@ -760,6 +760,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_TIME_ZONE` | No | IANA deployment time zone (for example `Europe/Berlin`). An invalid explicit value stops boot; otherwise a valid process `TZ`, then `Etc/UTC`, is used. |
 | `SYRUS_ALLOWED_HOSTS` | No | Optional comma-separated extra hostnames; `SYRUS_APP_HOST` is always allowed, and a blank value falls back to only `SYRUS_APP_HOST` |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
+| `SYRUS_PLUGIN_PATH` | Optional | One directory containing external Ruby plugins. Mount it read-only into every Rails process; bundled plugins take precedence over duplicate names. |
 | `SYRUS_PREPARED_LAYER_CACHE_GB` | Worker optional | Overrides the instance prepared-workspace cache budget for a worker whose local disk differs from the fleet |
 | `SYRUS_WORKER_POOL_NAME` | External worker optional | Operator-facing pool label recorded in worker capability diagnostics, such as `macos-xcode` |
 | `SYRUS_WORKER_CAPABILITIES` | Worker optional | Comma or space separated capability advertisement for `os`, `arch`, `toolchain`, and `runtime` |

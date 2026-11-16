@@ -2,6 +2,13 @@
 
 ## Spreading workers across nodes (queue partitioning)
 
+All web, home-worker, compute-worker, preview, and database-setup processes
+must see the same external plugin directory when `SYRUS_PLUGIN_PATH` is set.
+Mount that shared directory read-only at the same absolute path in every
+Rails-booting container. Only the installer process may receive a writable
+mount; a worker-local plugin directory can otherwise make registration and
+migration availability differ by process.
+
 The search index is SQLite FTS5 on a single-node RWO volume, so the queues that
 touch it can't spread. To run agent compute on multiple nodes anyway, split the
 queues across two worker configs and select one per pod with the

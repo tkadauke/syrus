@@ -10,8 +10,9 @@ module Syrus
 
     ModelInfo = Data.define(:name, :table_name, :superclass_table_name, :abstract_class, :separate_database)
 
-    def initialize(root: Rails.root, model_classes: nil)
+    def initialize(root: Rails.root, model_classes: nil, plugin_roots: nil)
       @root = Pathname.new(root)
+      @plugin_roots = plugin_roots || PluginRoots.new(application_root: @root)
       @model_classes = model_classes
     end
 
@@ -25,14 +26,8 @@ module Syrus
 
     attr_reader :root
 
-    def plugin_root
-      root.join("plugins")
-    end
-
     def plugin_dirs
-      return [] unless plugin_root.directory?
-
-      plugin_root.children.select(&:directory?).sort_by(&:to_s)
+      @plugin_roots.plugin_directories
     end
 
     def load_plugin_models
@@ -58,7 +53,7 @@ module Syrus
 
         source_path = Object.const_source_location(klass.name)&.first
         next if source_path.blank?
-        next unless Pathname.new(source_path).expand_path.to_s.start_with?(plugin_root.expand_path.to_s)
+        next unless plugin_dirs.any? { |directory| Pathname.new(source_path).expand_path.to_s.start_with?("#{directory.expand_path}/") }
 
         model_info(klass)
       end.sort_by(&:name)

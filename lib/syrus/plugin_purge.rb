@@ -135,7 +135,7 @@ module Syrus
     private
 
     def plugin_dir
-      @plugin_dir ||= Rails.root.join("plugins", @plugin_name)
+      @plugin_dir ||= PluginRoots.default.resolve(@plugin_name) || PluginRoots.default.built_in_root.join(@plugin_name)
     end
 
     # A plugin owns a table only when the name carries its prefix. Belt and

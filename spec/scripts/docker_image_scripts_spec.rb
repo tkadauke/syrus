@@ -373,6 +373,19 @@ RSpec.describe "Docker image scripts" do
     expect(preview_section).to include("SYRUS_ROLE: preview")
   end
 
+  it "mounts the external plugin volume read-only in Rails services and writable only in the installer" do
+    %w[setup web worker preview].each do |service|
+      section = compose_yml[/^  #{service}:.*?(?=^  \w)/m] || ""
+      expect(section).to include("SYRUS_PLUGIN_PATH: /home/rails/plugins-external")
+      expect(section).to include("syrus-plugins:/home/rails/plugins-external:ro")
+    end
+
+    installer = compose_yml[/^  plugin-installer:.*?(?=^  \w)/m] || ""
+    expect(installer).to include("syrus-plugins:/home/rails/plugins-external")
+    expect(installer).not_to include("syrus-plugins:/home/rails/plugins-external:ro")
+    expect(compose_yml).to include("  syrus-plugins:\n")
+  end
+
   # An unlimited worker makes the kernel choose a global OOM victim, and it once
   # chose dockerd -- taking the whole stack down instead of the one container
   # whose agent run blew up.

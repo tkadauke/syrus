@@ -53,7 +53,7 @@ module Mcp::Tools
       # Where a plugin keeps its own full documentation, so deleting the plugin
       # directory removes its docs with it.
       def plugin_docs_dir(name)
-        Rails.root.join("plugins", name.to_s, "docs/syrus_docs")
+        PluginRoots.default.resolve(name)&.join("docs/syrus_docs")
       end
 
       private
@@ -83,7 +83,7 @@ module Mcp::Tools
 
       def enabled_plugin_sections(manifest)
         dir = plugin_docs_dir(manifest.name)
-        return [] unless Dir.exist?(dir)
+        return [] unless dir && Dir.exist?(dir)
 
         Dir.glob(dir.join("**/*.md")).flat_map { |path| parse_sections(path, source: "plugin:#{manifest.name}") }
       end
@@ -154,6 +154,9 @@ module Mcp::Tools
       end
 
       def display_path(path)
+        plugin_dir = PluginRoots.default.plugin_directories.find { |directory| Pathname.new(path).to_s.start_with?("#{directory}/") }
+        return "plugins/#{plugin_dir.basename}/#{Pathname.new(path).relative_path_from(plugin_dir)}" if plugin_dir
+
         Pathname.new(path).relative_path_from(Rails.root).to_s
       rescue ArgumentError
         File.basename(path)
