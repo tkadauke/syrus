@@ -26,7 +26,9 @@ type PluginModule = {
 const componentCache = new Map<string, ComponentType<PluginWorkspaceTabProps>>()
 
 export function pluginWorkspaceTabComponentKeys() {
-  return getPluginContributions<PluginModule>("workspace_tab").map(({ pluginName, key }) => `${pluginName}/${key}`).sort()
+  return getPluginContributions<PluginModule>("workspace_tab")
+    .map(({ pluginName, key }) => `${pluginName}/${key}`)
+    .sort()
 }
 
 export function pluginWorkspaceTabComponentFor(key: string | null | undefined) {

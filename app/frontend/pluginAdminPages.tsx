@@ -15,7 +15,9 @@ type PluginModule = {
 const componentCache = new Map<string, ComponentType>()
 
 export function pluginAdminComponentKeys() {
-  return getPluginContributions<PluginModule>("admin_page").map(({ pluginName, key }) => `${pluginName}/${key}`).sort()
+  return getPluginContributions<PluginModule>("admin_page")
+    .map(({ pluginName, key }) => `${pluginName}/${key}`)
+    .sort()
 }
 
 export function pluginAdminComponentFor(key: string | null | undefined) {
