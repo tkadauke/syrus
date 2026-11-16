@@ -6,6 +6,8 @@
   var pendingStartupState = null;
   var lifecycleState = document.visibilityState === "hidden" ? "hidden" : "active";
   var MAX_STARTUP_RESOURCES = 40;
+  var startupTraceId = "startup-" + startupAt + "-" + Math.random().toString(36).slice(2, 10);
+  var watchdogTimer = null;
 
   function meta(name) {
     var el = document.querySelector('meta[name="' + name + '"]');
@@ -20,10 +22,20 @@
     return String(value == null ? "" : value).replace(/\s+/g, " ").slice(0, limit);
   }
 
+  function safeErrorText(value, limit) {
+    return shortText(value, limit)
+      .replace(/((?:token|secret|password|authorization|api[_-]?key)\s*[=:]\s*)[^\s,;]+/gi, "$1[FILTERED]")
+      .replace(/(bearer\s+)[a-z0-9._~+\/-]+/gi, "$1[FILTERED]");
+  }
+
   function sameOriginPath(value) {
     try {
       var url = new URL(value, window.location.href);
-      return url.origin === window.location.origin ? url.pathname + url.search : "cross-origin";
+      if (url.origin !== window.location.origin) return "cross-origin";
+      url.searchParams.forEach(function (_value, key) {
+        if (/token|secret|password|authorization|api[_-]?key/i.test(key)) url.searchParams.set(key, "[FILTERED]");
+      });
+      return url.pathname + url.search;
     } catch (e) {
       return "unknown";
     }
@@ -98,7 +110,7 @@
     var standalone = standaloneContext();
     var base = {
       startup_elapsed_ms: Date.now() - startupAt,
-      current_path: window.location.pathname + window.location.search,
+      current_path: sameOriginPath(window.location.href),
       app_revision: meta("syrus-app-revision"),
       asset_revision: meta("syrus-asset-revision"),
       user_agent_family: userAgentFamily(),
@@ -157,12 +169,17 @@
     var message = el.querySelector("[data-syrus-startup-message]");
     var spinner = el.querySelector("[data-syrus-startup-spinner]");
     var retry = el.querySelector("[data-syrus-startup-retry]");
+    var correlation = el.querySelector("[data-syrus-startup-correlation]");
     el.hidden = !!state.hidden;
     el.dataset.startupState = state.name || "";
     if (title && state.title) title.textContent = state.title;
     if (message && state.message) message.textContent = state.message;
     if (spinner) spinner.hidden = state.retry === true;
     if (retry) retry.hidden = state.retry !== true;
+    if (correlation) {
+      correlation.hidden = state.retry !== true;
+      correlation.textContent = state.retry === true ? (el.dataset.referenceLabel || "Reference") + ": " + startupTraceId : "";
+    }
     return true;
   }
 
@@ -187,9 +204,9 @@
 
     postJson("/api/v1/app/performance_events", {
       performance_event: {
-        trace_id: "startup-" + startupAt + "-" + milestone,
+        trace_id: startupTraceId,
         name: "startup." + milestone,
-        path: window.location.pathname + window.location.search,
+        path: sameOriginPath(window.location.href),
         duration_ms: Date.now() - startupAt,
         visibility_state: document.visibilityState || "unknown",
         metadata: context(extra)
@@ -208,9 +225,10 @@
         app_revision: meta("syrus-app-revision"),
         fingerprint: fingerprint(kind, extra && extra.resource_url),
         name: kind,
-        message: shortText(message, 500),
-        url: window.location.href,
-        path: window.location.pathname + window.location.search,
+        message: safeErrorText(message, 500),
+        url: window.location.origin + sameOriginPath(window.location.href),
+        path: sameOriginPath(window.location.href),
+        trace_id: startupTraceId,
         user_agent: navigator.userAgent || "",
         viewport: {
           width: window.innerWidth,
@@ -237,12 +255,41 @@
     if (milestones.length > 20) milestones.shift();
     if (milestone === "react_commit") {
       window.__syrusReactFirstRender = true;
+      if (window.__syrusStartupFallbackTimer) {
+        window.clearTimeout(window.__syrusStartupFallbackTimer);
+        window.__syrusStartupFallbackTimer = null;
+      }
+      if (watchdogTimer !== null) {
+        window.clearTimeout(watchdogTimer);
+        watchdogTimer = null;
+      }
       hideStartupState();
     }
     reportMilestone(milestone);
   }
 
-  window.SyrusStartupDiagnostics = { mark: mark, report: report, context: context };
+  function fail(phase, error, extra) {
+    var errorObject = error && typeof error === "object" ? error : null;
+    var message = errorObject && errorObject.message ? errorObject.message : "SPA startup failed";
+    var status = startupStatus();
+    showStartupState({
+      name: "failure",
+      title: status && status.dataset.failureTitle ? status.dataset.failureTitle : "The app could not start",
+      message: status && status.dataset.failureMessage ? status.dataset.failureMessage : "Retry the page. If this keeps happening, share the reference below.",
+      retry: true
+    });
+    var details = {
+      phase: shortText(phase || "unknown", 80),
+      error_name: errorObject && errorObject.name ? shortText(errorObject.name, 100) : typeof error,
+      stack: errorObject && errorObject.stack ? safeErrorText(errorObject.stack, 2000) : null,
+      route_intent: sameOriginPath(window.location.href),
+      trace_id: startupTraceId
+    };
+    Object.keys(extra || {}).forEach(function (key) { details[key] = extra[key]; });
+    report("StartupFailure", message, details);
+  }
+
+  window.SyrusStartupDiagnostics = { mark: mark, fail: fail, report: report, context: context };
   mark("shell_loaded");
 
   document.addEventListener("visibilitychange", function () {
@@ -293,7 +340,7 @@
     });
   });
 
-  window.setTimeout(function () {
+  watchdogTimer = window.setTimeout(function () {
     if (window.__syrusReactFirstRender) return;
     var root = document.getElementById("syrus-spa-root");
     var rootBlank = !root || !root.textContent.trim();
@@ -304,8 +351,11 @@
       retry: true
     });
     report("StartupWatchdog", rootBlank ? "SPA startup watchdog: root still blank" : "SPA startup watchdog: first render not marked", {
+      phase: milestones.some(function (entry) { return entry.name === "react_module_evaluated"; }) ? "root_mount" : "bundle_evaluation",
       root_present: !!root,
-      root_blank: rootBlank
+      root_blank: rootBlank,
+      route_intent: sameOriginPath(window.location.href),
+      trace_id: startupTraceId
     });
   }, WATCHDOG_TIMEOUT_MS);
 })();

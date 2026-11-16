@@ -99,17 +99,22 @@
           var messageEl = status.querySelector("[data-syrus-startup-message]");
           var spinner = status.querySelector("[data-syrus-startup-spinner]");
           var retry = status.querySelector("[data-syrus-startup-retry]");
+          var correlation = status.querySelector("[data-syrus-startup-correlation]");
           if (titleEl) titleEl.textContent = title;
           if (messageEl) messageEl.textContent = message;
           if (spinner) spinner.hidden = true;
           if (retry) retry.hidden = false;
+          if (correlation) {
+            correlation.hidden = false;
+            correlation.textContent = (status.dataset.referenceLabel || "Reference") + ": startup-shell-" + Date.now();
+          }
         }
         window.addEventListener("error", function (event) {
           if (event.target && event.target.id === "syrus-startup-diagnostics") {
             showFailure("The app could not load", "Check your connection, then retry.");
           }
         }, true);
-        window.setTimeout(function () {
+        window.__syrusStartupFallbackTimer = window.setTimeout(function () {
           showFailure("Syrus is still loading", "This can happen on a slow connection. Retry if it does not finish soon.");
         }, 8000);
       })();

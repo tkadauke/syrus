@@ -38,6 +38,7 @@ function installStartupShell(
       <div data-syrus-startup-spinner></div>
       <p data-syrus-startup-title>Loading Syrus</p>
       <p data-syrus-startup-message>Loading the app.</p>
+      <p data-syrus-startup-correlation hidden></p>
       <a href="/jobs/42" data-syrus-startup-retry hidden>Retry</a>
     </div>
     <div id="syrus-spa-root"></div>
@@ -110,6 +111,7 @@ describe("startupDiagnostics", () => {
     vi.useRealTimers()
     delete window.SyrusStartupDiagnostics
     delete window.__syrusReactFirstRender
+    delete window.__syrusStartupFallbackTimer
     document.head.innerHTML = ""
     document.body.innerHTML = ""
     vi.restoreAllMocks()
@@ -376,6 +378,7 @@ describe("startupDiagnostics", () => {
       path: "/jobs/42"
     })
     expect(error.metadata).toMatchObject({
+      phase: "bundle_evaluation",
       root_present: true,
       root_blank: true,
       milestones: [{ name: "shell_loaded", at_ms: 0, visibility_state: "visible", document_ready_state: "complete", lifecycle_state: "active" }]
@@ -397,5 +400,42 @@ describe("startupDiagnostics", () => {
     expect(postedBrowserErrors(fetchSpy)).toEqual([])
     expect(startupStatus()).toHaveAttribute("hidden")
     expect(startupStatus()).toHaveAttribute("data-startup-state", "ready")
+    expect(vi.getTimerCount()).toBe(0)
   })
+
+  it("cleans up both shell and diagnostics watchdog timers after mount", () => {
+    vi.useFakeTimers()
+    installStartupShell()
+    window.eval(inlineStartupFallback())
+
+    window.SyrusStartupDiagnostics?.mark("react_commit")
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(["root_mount", "bootstrap_fetch", "route_initialization"] as const)(
+    "shows and reports a bounded recovery surface for %s failures",
+    (phase) => {
+      const fetchSpy = installStartupShell({ path: "/jobs/42?tab=review" })
+
+      window.SyrusStartupDiagnostics?.fail?.(phase, new TypeError("secret=do-not-render"))
+
+      const [error] = postedBrowserErrors(fetchSpy)
+      expect(error).toMatchObject({
+        name: "StartupFailure",
+        message: "secret=[FILTERED]",
+        trace_id: expect.stringMatching(/^startup-/),
+        path: "/jobs/42?tab=review"
+      })
+      expect(error.metadata).toMatchObject({
+        phase,
+        error_name: "TypeError",
+        route_intent: "/jobs/42?tab=review"
+      })
+      expect(startupStatus()).toHaveAttribute("data-startup-state", "failure")
+      expect(startupStatus()).not.toHaveTextContent("secret=do-not-render")
+      expect(startupStatus()).toHaveTextContent(/Reference: startup-/)
+      expect(startupRetry()).not.toHaveAttribute("hidden")
+    }
+  )
 })
