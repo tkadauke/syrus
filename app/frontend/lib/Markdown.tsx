@@ -78,8 +78,7 @@ export function Markdown({
 }
 
 export function PlainText({ className, highlightTerms, text, linkifyUrls = false, onLinkClick, slugTone }: PlainTextProps) {
-  const content =
-    linkifyUrls || highlightTerms?.length ? renderInlineText(text, linkifyUrls, 0, { highlightTerms, linkifyUrls, onLinkClick, slugTone }) : text
+  const content = linkifyUrls || highlightTerms?.length ? renderInlineText(text, linkifyUrls, 0, { highlightTerms, linkifyUrls, onLinkClick, slugTone }) : text
   return <div className={className}>{content}</div>
 }
 

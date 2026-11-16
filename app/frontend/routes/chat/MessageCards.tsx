@@ -395,7 +395,10 @@ function UserMessageText({
   const characters = Array.from(item.text)
 
   if (shouldRenderUserMarkdown(item.text)) {
-    const highlightTerms = [...(item.mentions?.map((mention) => characters.slice(mention.start, mention.end).join("")) ?? []), ...(searchHighlight ? [searchHighlight] : [])]
+    const highlightTerms = [
+      ...(item.mentions?.map((mention) => characters.slice(mention.start, mention.end).join("")) ?? []),
+      ...(searchHighlight ? [searchHighlight] : [])
+    ]
     return (
       <BoundedChatMarkdown
         className={humanMarkdownMessageBubbleClass(item, payload)}
