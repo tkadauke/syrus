@@ -253,7 +253,7 @@ class ChatHistoryTranscriptRenderer
     end
   end
 
-  def tool_result_text(result, tool_name:, proposal:)
+  def tool_result_text(result, tool_name: nil, proposal: nil)
     return proposal_tool_result_text(result, proposal) if proposal_tool?(tool_name)
 
     case result
