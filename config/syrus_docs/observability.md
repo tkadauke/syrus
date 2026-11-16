@@ -80,6 +80,15 @@ event instead of rebuilding a partial report from the visible stack. The
 fallback UI shows the captured browser error ID so an operator can correlate a
 visible crash with the admin event stream.
 
+The initial SPA loading shell also becomes a retryable recovery surface when
+bundle evaluation, root mounting, the initial bootstrap request, or route
+initialization fails to complete. Its displayed startup reference correlates
+the visible failure with a browser error containing the startup phase, build
+revisions, intended route, causal exception, and request correlation when one
+is available. Secret-bearing URL parameters and recognizable credential values
+are filtered before reporting. Once React commits successfully, later runtime
+or bootstrap errors do not bring the startup shell back over the running app.
+
 The admin UI exposes this stream at **Admin -> Browser Errors**
 (`/admin/browser_errors`). The app API endpoint is
 `GET /api/v1/app/admin/browser_errors`; the token admin API endpoint is
