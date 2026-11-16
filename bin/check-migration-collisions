@@ -21,8 +21,10 @@
 
 require "open3"
 require "pathname"
+require_relative "../lib/plugin_roots"
 
 ROOT = Pathname.new(Dir.pwd)
+PLUGIN_ROOTS = PluginRoots.new(application_root: ROOT)
 
 Migration = Struct.new(:path, :version, :namespace, keyword_init: true)
 
@@ -59,22 +61,28 @@ def namespace_for(path)
   end
 end
 
-def migration_for(path)
+def migration_for(path, plugin_migration: false)
   basename = File.basename(path)
   match = basename.match(/\A(\d{14})_/)
-  return nil unless match && migration_path?(path)
+  return nil unless match && (plugin_migration || migration_path?(path))
 
-  Migration.new(path: path, version: match[1], namespace: namespace_for(path))
+  Migration.new(path: path, version: match[1], namespace: plugin_migration ? "primary" : namespace_for(path))
 end
 
 def all_migrations
   patterns = [
     "db/migrate/*.rb",
-    "db/*_migrate/*.rb",
-    "plugins/*/db/migrate/*.rb"
+    "db/*_migrate/*.rb"
   ]
-  patterns.flat_map { |pattern| Dir.glob(pattern, base: ROOT.to_s) }
-          .filter_map { |path| migration_for(path) }
+  repository_migrations = patterns.flat_map { |pattern| Dir.glob(pattern, base: ROOT.to_s) }
+                                  .filter_map { |path| migration_for(path) }
+  plugin_migrations = PLUGIN_ROOTS.migration_directories.flat_map { |directory| directory.glob("*.rb") }
+                                  .filter_map do |path|
+    display_path = PLUGIN_ROOTS.built_in?(path) ? path.relative_path_from(ROOT).to_s : path.to_s
+    migration_for(display_path, plugin_migration: true)
+  end
+
+  (repository_migrations + plugin_migrations)
           .sort_by { |migration| [ migration.namespace, migration.version, migration.path ] }
 end
 

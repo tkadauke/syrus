@@ -16,8 +16,8 @@ RSpec.describe "bin/check-migration-collisions", :ci_only do
     File.write(path, content)
   end
 
-  def run_check(dir, *args)
-    Open3.capture3(RbConfig.ruby, script, *args, chdir: dir)
+  def run_check(dir, *args, env: {})
+    Open3.capture3(env, RbConfig.ruby, script, *args, chdir: dir)
   end
 
   def git!(dir, *args)
@@ -50,6 +50,21 @@ RSpec.describe "bin/check-migration-collisions", :ci_only do
 
       expect(status).to be_success, stderr
       expect(stdout).to include("[migration-collisions] all migration timestamps are unique within their namespaces")
+    end
+  end
+
+  it "detects collisions with migrations in the external plugin root" do
+    Dir.mktmpdir("migration-collisions") do |dir|
+      external = File.join(dir, "external")
+      write_file(dir, "db/migrate/20260830120000_create_widgets.rb")
+      write_file(external, "weather/db/migrate/20260830120000_create_weather_widgets.rb")
+
+      stdout, stderr, status = run_check(dir, "--all", env: { "SYRUS_PLUGIN_PATH" => external })
+
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to be_empty
+      expect(stdout).to include("primary/20260830120000")
+      expect(stdout).to include("external/weather/db/migrate/20260830120000_create_weather_widgets.rb")
     end
   end
 

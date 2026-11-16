@@ -10,7 +10,13 @@ RSpec.describe "plugin root path ownership" do
   ].freeze
 
   it "keeps Ruby plugin filesystem discovery behind PluginRoots" do
-    files = Dir.glob(Rails.root.join("{app,config,lib,bin}/**/*.{rb,rake}"))
+    ruby_sources = Dir.glob(Rails.root.join("{app,config,lib,bin}/**/*.{rb,rake}"))
+    ruby_executables = Dir.glob(Rails.root.join("bin/*")).select do |file|
+      File.file?(file) && File.open(file, &:readline).start_with?("#!/usr/bin/env ruby")
+    rescue EOFError
+      false
+    end
+    files = ruby_sources + ruby_executables
     offenders = files.filter_map do |file|
       relative = Pathname.new(file).relative_path_from(Rails.root).to_s
       next if relative == "lib/plugin_roots.rb" || BUILT_IN_ONLY.include?(relative)

@@ -146,6 +146,32 @@ RSpec.describe "bin/check-migrations", :ci_only do
     )
   end
 
+  it "lints migrations in the external plugin root" do
+    Dir.mktmpdir("external-plugin") do |external|
+      migration = File.join(external, "weather/db/migrate/20260830120500_create_weather_widgets.rb")
+      FileUtils.mkdir_p(File.dirname(migration))
+      File.write(migration, <<~RUBY)
+        class CreateWeatherWidgets < ActiveRecord::Migration[8.0]
+          def change
+            add_foreign_key :weather_widgets, :repositories
+          end
+        end
+      RUBY
+      git!("init", "-q", "-b", "main")
+      git!("config", "user.email", "test@example.com")
+      git!("config", "user.name", "Test")
+      git!("config", "commit.gpgsign", "false")
+      File.write(File.join(@dir, "README.md"), "base\n")
+      git!("add", "-A")
+      git!("commit", "-q", "-m", "base")
+
+      _stdout, stderr, status = run_check(env: { "SYRUS_PLUGIN_PATH" => external })
+
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include("weather/db/migrate/20260830120500_create_weather_widgets.rb:3")
+    end
+  end
+
   it "does not fail review scope for unchanged historical base-branch offenses" do
     git!("init", "-q", "-b", "main")
     git!("config", "user.email", "test@example.com")

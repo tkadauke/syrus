@@ -29,12 +29,13 @@
 
 require "pathname"
 require "open3"
+require_relative "../lib/plugin_roots"
 
 ROOT = Pathname.new(ENV.fetch("SYRUS_MIGRATION_LINT_ROOT", File.expand_path("..", __dir__)))
+PLUGIN_ROOTS = PluginRoots.new(application_root: ROOT)
 MIGRATION_GLOBS = [
   ROOT.join("db/migrate/*.rb"),
-  ROOT.join("db/*_migrate/*.rb"),
-  ROOT.join("plugins/*/db/migrate/*.rb")
+  ROOT.join("db/*_migrate/*.rb")
 ].freeze
 MIGRATION_PATH_PATTERN = %r{\A(?:db/(?:migrate|[^/]+_migrate)|plugins/[^/]+/db/migrate)/.*\.rb\z}
 NO_FK_POLICY_VERSION = "20260820010000"
@@ -47,10 +48,18 @@ NO_FK_POLICY_VERSION = "20260820010000"
 # workflow's grade.
 def migration_paths
   if ARGV.include?("--all")
-    MIGRATION_GLOBS.flat_map { |glob| Pathname.glob(glob) }.uniq.sort
+    (MIGRATION_GLOBS.flat_map { |glob| Pathname.glob(glob) } + plugin_migration_paths).uniq.sort
   else
-    diff_paths
+    (diff_paths + external_plugin_migration_paths).uniq.sort
   end
+end
+
+def plugin_migration_paths
+  PLUGIN_ROOTS.migration_directories.flat_map { |directory| directory.glob("*.rb") }
+end
+
+def external_plugin_migration_paths
+  plugin_migration_paths.select { |path| PLUGIN_ROOTS.external?(path) }
 end
 
 def diff_paths
