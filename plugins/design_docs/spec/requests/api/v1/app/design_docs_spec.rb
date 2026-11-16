@@ -1501,6 +1501,34 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:created)
   end
 
+  it "rejects a full-document suggestion that overlaps a pending range" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    existing = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+    ).suggestion
+    original_markdown = doc.reload.markdown
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 0,
+          end_offset: 16,
+          original_markdown: "Alpha beta gamma",
+          proposed_markdown: "A complete replacement"
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("overlaps pending suggestion ##{existing.id}")
+    expect(doc.reload.markdown).to eq(original_markdown)
+  end
+
   it "translates the overlap validation in every supported locale" do
     %i[en de la].each do |locale|
       message = I18n.with_locale(locale) do
