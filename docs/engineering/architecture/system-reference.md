@@ -1020,7 +1020,11 @@ with another review while budget remains. Once the review that just ran
 was the last one `rounds` allows, its `needs_work` repair runs alone,
 with no trailing review — there is no remaining review turn to act on.
 `rounds: N` seeks exactly N review opinions, each reacted to with exactly
-one repair. The grader retry loop in these four chains likewise runs
+one repair. A final repair that changes HEAD supersedes the old review evidence
+and records a durable operator warning for the exact gate and repaired HEAD;
+that explicit exhaustion record releases the immutable-HEAD barrier without
+presenting the stale verdict as current approval. The grader retry loop in
+these four chains likewise runs
 check-first: the first pass runs configured `format`, `generate`, and
 grader Steps against the existing implementation, and only adds another
 `implement`/`respond` Step after a failed grader iteration.

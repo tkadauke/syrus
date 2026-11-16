@@ -21,6 +21,13 @@ adversarial_review(1)
 
 `rounds: N` means exactly N review opinions get sought; every one of them — including the last — gets exactly one repair reaction. The loop never ends on an unreacted-to `needs_work`, and it never fails the workflow on its own (unlike the grader retry loop, which genuinely can exhaust its budget and fail).
 
+When the final repair changes HEAD, Syrus marks the previous review evidence
+stale and records a pending workflow warning that the repaired HEAD was not
+re-reviewed because the budget was exhausted. The warning remains available
+for operator judgment while the workflow continues to later review gates,
+graders, and PR creation; the stale verdict is never presented as approval of
+the repaired HEAD.
+
 Worked out for `rounds: 1, 2, 3` (worst case: every review says `needs_work`):
 
 | rounds | materialized sequence |

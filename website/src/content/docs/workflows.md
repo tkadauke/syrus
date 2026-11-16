@@ -304,8 +304,13 @@ single immutable-HEAD gate. A panel fanout is only setup: formatting, graders,
 summaries, PR publication, and later review work do not start until every
 required panel aggregate approves the same implementation commit. When a
 review triggers a repair, Syrus retires the old commit's review work and runs
-the complete required review set again against the repaired commit. Optional
-panels do not block this gate.
+the complete required review set again against the repaired commit while
+budget remains. If the last permitted opinion requests work, the final repair
+still proceeds: Syrus marks the old evidence stale, records a visible pending
+warning that the repaired commit was not re-reviewed, and continues through
+graders and PR publication. The warning is an explicit exception for that
+gate and exact commit; the stale verdict is not treated as current approval.
+Optional panels do not block this gate.
 
 | Step | Agentic | Purpose |
 | --- | --- | --- |

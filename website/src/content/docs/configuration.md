@@ -239,7 +239,10 @@ you want setup to be authoritative (and to fail loudly when it breaks).
 workflows. When it is greater than zero, Syrus runs independent review
 rounds before the normal grade loop. A reviewer verdict of `needs_work`
 feeds another implement/respond iteration; an `approved` verdict exits the
-loop early.
+loop early. `rounds: N` requests at most N opinions and still gives the Nth
+`needs_work` verdict one final repair. If that repair changes the commit, Syrus
+marks the old evidence stale, records a pending warning that the final commit
+was not re-reviewed, and continues rather than failing the workflow.
 
 `adversarial_review.criteria` adds repository- or project-specific focus
 areas to the reviewer prompt. Root `.syrus.yml` criteria apply repo-wide. In

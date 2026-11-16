@@ -745,7 +745,7 @@ RSpec.describe SyrusYml do
   it "enables the security review for this repository" do
     security_review = described_class.load_repo(Rails.root).security_review
 
-    expect(security_review.rounds).to eq(1)
+    expect(security_review.rounds).to eq(5)
     expect(security_review.required).to be(false)
     expect(security_review.criteria).not_to be_empty
   end

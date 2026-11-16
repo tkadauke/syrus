@@ -4,6 +4,14 @@ require "rails_helper"
 require "open3"
 
 RSpec.describe "Syrus grader configuration" do
+  it "configures five rounds for every built-in review type" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+
+    expect(config.adversarial_review.rounds).to eq(5)
+    expect(config.security_review.rounds).to eq(5)
+    expect(config.visual_review.rounds).to eq(5)
+  end
+
   it "keeps the unland gate fast and smoke-only" do
     plan = LandingGraderPlan.effective(
       RepoGradePlan.for(Rails.root),

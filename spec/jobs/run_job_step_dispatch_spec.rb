@@ -359,7 +359,7 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       )
     end
 
-    it "fails closed after the final repair changes HEAD without another required review round" do
+    it "continues after the final repair changes HEAD without another required review round" do
       AppSetting.current.update!(adversarial_review_rounds: 1)
       review_job = Factories.job_record(issue_number: 77, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -370,11 +370,21 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       StepDispatcher.start_workflow(review_workflow)
       described_class.perform_now(review_workflow.first_step.runs.last.id)
 
-      expect(review_workflow.reload).to be_failed
-      expect(review_workflow.failure_reason).to eq("required_review_budget_exhausted_after_head_change")
+      expect(review_workflow.reload).to be_succeeded
       expect(review_workflow.steps.where(kind: "implement").count).to eq(2)
       expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
-      expect(review_workflow.steps.where(kind: %w[format generate grader_fanout grader_collect summarize test_plan pr_open]).joins(:runs)).to be_empty
+      expect(review_workflow.steps.where(kind: %w[format generate grader_fanout grader_collect summarize test_plan pr_open]).pluck(:state).uniq)
+        .to eq([ "succeeded" ])
+      review = review_workflow.steps.find_by!(kind: "adversarial_review")
+      expect(review.details).to include("review_evidence_superseded" => true)
+      exhaustion = review_workflow.artifact("review_budget_exhaustions").sole
+      expect(exhaustion).to include(
+        "review_kind" => "adversarial_review",
+        "head_sha" => review_workflow.steps.where(kind: "implement").order(:position).last.runs.last.head_sha
+      )
+      warning = review_workflow.workflow_warnings.find_by!(kind: "required_review_budget_exhausted")
+      expect(warning).to be_pending
+      expect(warning.evidence).to include(exhaustion.except("recorded_at"))
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
         [ "adversarial_review", 1, nil ],
@@ -382,7 +392,25 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       )
     end
 
-    it "fails closed when every required review opinion requests work through the final round" do
+    it "continues without an exhaustion warning when the final repair leaves HEAD unchanged" do
+      AppSetting.current.update!(adversarial_review_rounds: 1)
+      review_job = Factories.job_record(issue_number: 79, state: "queued")
+      review_workflow = Workflows::Initial.instantiate(job: review_job)
+
+      install_adversarial_loop_handlers([], review_verdicts: { 1 => "needs_work" }, final_head_unchanged: true)
+
+      StepDispatcher.start_workflow(review_workflow)
+      described_class.perform_now(review_workflow.first_step.runs.last.id)
+
+      expect(review_workflow.reload).to be_succeeded
+      expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
+      expect(review_workflow.artifact("review_budget_exhaustions")).to be_nil
+      expect(review_workflow.workflow_warnings.where(kind: "required_review_budget_exhausted")).to be_empty
+      expect(review_workflow.steps.find_by!(kind: "adversarial_review").details)
+        .not_to include("review_evidence_superseded")
+    end
+
+    it "bounds repeated required-review repairs and continues after the final round" do
       AppSetting.current.update!(adversarial_review_rounds: 2)
       review_job = Factories.job_record(issue_number: 78, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -393,13 +421,14 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
       StepDispatcher.start_workflow(review_workflow)
       described_class.perform_now(review_workflow.first_step.runs.last.id)
 
-      expect(review_workflow.reload).to be_failed
-      expect(review_workflow.failure_reason).to eq("required_review_budget_exhausted_after_head_change")
+      expect(review_workflow.reload).to be_succeeded
       # rounds: 2 seeks exactly two review opinions (the review-first fix: no longer
       # one review short) -- the third, budget-exhausted implement has no
       # review left to react to.
       expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(2)
-      expect(review_workflow.steps.where(kind: %w[format generate grader_fanout grader_collect summarize test_plan pr_open]).joins(:runs)).to be_empty
+      expect(review_workflow.steps.where(kind: %w[format generate grader_fanout grader_collect summarize test_plan pr_open]).pluck(:state).uniq)
+        .to eq([ "succeeded" ])
+      expect(review_workflow.workflow_warnings.where(kind: "required_review_budget_exhausted").count).to eq(1)
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
         [ "adversarial_review", 1, nil ],
@@ -744,7 +773,9 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
     end
   end
 
-  def install_adversarial_loop_handlers(observed_parents, fail_role: nil, review_verdicts: {})
+  def install_adversarial_loop_handlers(
+    observed_parents, fail_role: nil, review_verdicts: {}, final_head_unchanged: false
+  )
     noop_handler = Class.new(Steps::Base) do
       def call; nil; end
     end
@@ -755,6 +786,12 @@ RSpec.describe RunJob, "step-dispatch path", :ci_only do
         raise Steps::Base::StepFailed, "implement crashed" if fail_role == role
 
         observed_parents << [ role, step.iteration, parent_session_id ]
+        head_sha = if role == "implement_final"
+          final_head_unchanged ? "head-review-#{step.iteration - 1}" : "head-final-#{step.iteration}"
+        else
+          "head-review-#{step.iteration}"
+        end
+        run.update!(head_sha: head_sha)
         ProviderSession.create!(
           run: run,
           session_id: role == "implement_review" ? "implement-#{step.iteration}" : "implement-final",
