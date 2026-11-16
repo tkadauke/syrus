@@ -271,13 +271,15 @@
   function fail(phase, error, extra) {
     var errorObject = error && typeof error === "object" ? error : null;
     var message = errorObject && errorObject.message ? errorObject.message : "SPA startup failed";
-    var status = startupStatus();
-    showStartupState({
-      name: "failure",
-      title: status && status.dataset.failureTitle ? status.dataset.failureTitle : "The app could not start",
-      message: status && status.dataset.failureMessage ? status.dataset.failureMessage : "Retry the page. If this keeps happening, share the reference below.",
-      retry: true
-    });
+    if (!window.__syrusReactFirstRender) {
+      var status = startupStatus();
+      showStartupState({
+        name: "failure",
+        title: status && status.dataset.failureTitle ? status.dataset.failureTitle : "The app could not start",
+        message: status && status.dataset.failureMessage ? status.dataset.failureMessage : "Retry the page. If this keeps happening, share the reference below.",
+        retry: true
+      });
+    }
     var details = {
       phase: shortText(phase || "unknown", 80),
       error_name: errorObject && errorObject.name ? shortText(errorObject.name, 100) : typeof error,

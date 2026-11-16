@@ -438,4 +438,21 @@ describe("startupDiagnostics", () => {
       expect(startupRetry()).not.toHaveAttribute("hidden")
     }
   )
+
+  it("reports later failures without resurrecting the startup recovery surface", () => {
+    const fetchSpy = installStartupShell()
+    window.SyrusStartupDiagnostics?.mark("react_commit")
+
+    window.SyrusStartupDiagnostics?.fail?.("bootstrap_fetch", new Error("later bootstrap failure"))
+
+    expect(postedBrowserErrors(fetchSpy)).toEqual([
+      expect.objectContaining({
+        name: "StartupFailure",
+        message: "later bootstrap failure"
+      })
+    ])
+    expect(startupStatus()).toHaveAttribute("hidden")
+    expect(startupStatus()).toHaveAttribute("data-startup-state", "ready")
+    expect(startupRetry()).toHaveAttribute("hidden")
+  })
 })
