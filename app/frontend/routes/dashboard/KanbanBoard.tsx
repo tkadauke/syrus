@@ -310,23 +310,23 @@ function KanbanCard({
       onDragStart={(event) => onDragStart(item, event)}
     >
       <div className="p-3">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <SlugHoverCard id={item.id} kind="epic">
             <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
           </SlugHoverCard>
-          <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>
-            {item.title}
-          </Link>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
-          <NeutralStatePill state={epicApparentState(item)} />
-          <EpicStuckBadge stuck={item.stuck} />
-          <OwnerBadge badge={item.owner_badge} />
           <RepositorySlugLink
             className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300"
             prefix={prefix}
             repository={item.repository}
           />
+        </div>
+        <Link className="mt-1 line-clamp-2 block text-sm font-medium text-brand hover:underline" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>
+          {item.title}
+        </Link>
+        <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <NeutralStatePill state={epicApparentState(item)} />
+          <EpicStuckBadge stuck={item.stuck} />
+          <OwnerBadge badge={item.owner_badge} />
         </div>
         <EpicExecutionBlockedHint names={item.execution_blocked_on} />
       </div>
