@@ -39,16 +39,15 @@ module DesignDocs
       start_offset = clamp_offset(start_offset, visible.length)
       end_offset = clamp_offset(end_offset, visible.length)
       start_offset, end_offset = end_offset, start_offset if end_offset < start_offset
-      raw_start_offset = raw_offset_for_visible_offset(raw, start_offset)
-      raw_end_offset = raw_offset_for_visible_offset(raw, end_offset)
-
       if anchor_kind.to_s == "point"
-        marker = block_safe_marker(visible, start_offset, point_marker(marker_id))
-        marked = raw.dup.insert(raw_start_offset, marker)
+        placement = block_safe_placement(visible, start_offset, point_marker(marker_id))
+        marked = raw.dup.insert(raw_offset_for_visible_offset(raw, placement[:offset]), placement[:marker])
       else
+        start_placement = block_safe_placement(visible, start_offset, range_start_marker(marker_id))
+        end_placement = block_safe_placement(visible, end_offset, range_end_marker(marker_id))
         marked = raw.dup
-        marked.insert(raw_end_offset, block_safe_marker(visible, end_offset, range_end_marker(marker_id)))
-        marked.insert(raw_start_offset, block_safe_marker(visible, start_offset, range_start_marker(marker_id)))
+        marked.insert(raw_offset_for_visible_offset(raw, end_placement[:offset]), end_placement[:marker])
+        marked.insert(raw_offset_for_visible_offset(raw, start_placement[:offset]), start_placement[:marker])
       end
 
       selected = visible[start_offset...end_offset].to_s
@@ -163,11 +162,14 @@ module DesignDocs
         next unless range
 
         if anchor.anchor_kind.to_s == "point"
-          [ { offset: range.first, marker: block_safe_marker(next_visible, range.first, point_marker(anchor.marker_id)), order: 0 } ]
+          placement = block_safe_placement(next_visible, range.first, point_marker(anchor.marker_id))
+          [ placement.merge(order: 0) ]
         else
+          end_placement = block_safe_placement(next_visible, range.last, range_end_marker(anchor.marker_id))
+          start_placement = block_safe_placement(next_visible, range.first, range_start_marker(anchor.marker_id))
           [
-            { offset: range.last, marker: block_safe_marker(next_visible, range.last, range_end_marker(anchor.marker_id)), order: 0 },
-            { offset: range.first, marker: block_safe_marker(next_visible, range.first, range_start_marker(anchor.marker_id)), order: 1 }
+            end_placement.merge(order: 0),
+            start_placement.merge(order: 1)
           ]
         end
       end.flatten
@@ -179,7 +181,7 @@ module DesignDocs
         end
       raise "anchor projection changed visible Markdown" unless strip(marked) == next_visible
 
-      Projection.new(markdown: marked, locations: locations.except(*stale_ids.to_a), stale_anchors: stale_anchors.uniq)
+      Projection.new(markdown: marked, locations: locations.except(*stale_ids.to_a), stale_anchors: stale_anchors.uniq(&:id))
     end
 
     def refresh_anchor!(anchor, markdown)
@@ -266,20 +268,26 @@ module DesignDocs
       end
     end
 
-    def block_safe_marker(markdown, offset, marker)
+    def block_safe_placement(markdown, offset, marker)
       value = clamp_offset(offset, markdown.length)
       line_start = value.zero? ? 0 : (markdown.rindex("\n", value - 1)&.+(1) || 0)
-      return marker unless value == line_start
+      leading = markdown[line_start...value].to_s
+      block_starts_here = leading.match?(/\A {0,3}\z/) && BLOCK_PREFIX_PATTERN.match?(markdown[line_start..].to_s)
+      return { offset: value, marker: marker } unless block_starts_here
 
-      prefix = BLOCK_PREFIX_PATTERN.match(markdown[line_start..].to_s)&.[](0)
       # A marker-only line immediately before the block preserves CommonMark
       # parsing. `strip` consumes that synthetic line, so visible offsets and
       # the user's exact Markdown remain unchanged.
-      prefix ? "#{marker}\n" : marker
+      { offset: line_start, marker: "#{marker}\n" }
     end
 
     def logical_offset_for_marker(raw, raw_offset)
-      strip(raw[0...raw_offset]).length
+      offset = strip(raw[0...raw_offset]).length
+      marker = ANY_PATTERN.match(raw, raw_offset)
+      return offset unless marker&.begin(0) == raw_offset && raw[marker.end(0)] == "\n"
+
+      indentation = raw[(marker.end(0) + 1)..].to_s[/\A {1,3}(?=(?:[-+*]\s+|\d+[.)]\s+|\#{1,6}\s+|\|))/, 0]
+      offset + indentation.to_s.length
     end
 
     def remove_marker(raw, pattern)

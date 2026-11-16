@@ -799,6 +799,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq(candidate)
+    alpha_marker = DesignDocs::AnchorMarkers.range_start_marker(suggestions.first.anchor.marker_id)
+    expect(doc.markdown).to include("#{alpha_marker}\n  - Alpha item")
     ranges = suggestions.map do |suggestion|
       location = DesignDocs::AnchorMarkers.locate(
         markdown: doc.markdown,
@@ -809,6 +811,9 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       [ location.start_offset, location.end_offset ]
     end
     expect(ranges.sort.each_cons(2).all? { |left, right| left.last <= right.first }).to be(true)
+    rendered = Commonmarker.to_html(doc.markdown)
+    expect(rendered).to include("<ul>", "<ol start=\"3\">")
+    expect(rendered).to include("Alpha item", "Ordered item")
   end
 
   it "stales only an anchor whose selected Markdown cannot be placed" do
