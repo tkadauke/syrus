@@ -50,6 +50,14 @@ RSpec.describe "Plugin source boundaries" do
     expect(coworkers.constants).to include("PendingActions::CoworkerToolCall")
   end
 
+  it "reuses compiled per-plugin matchers across source lines" do
+    manifest = audit.bundled_manifests.first
+
+    expect(audit.send(:gem_pattern_for, manifest)).to equal(audit.send(:gem_pattern_for, manifest))
+    expect(audit.send(:constant_pattern_for, manifest)).to equal(audit.send(:constant_pattern_for, manifest))
+    expect(audit.send(:frontend_dir_pattern_for, manifest)).to equal(audit.send(:frontend_dir_pattern_for, manifest))
+  end
+
   # The two whole-tree scans below are the slowest examples in the suite --
   # 44.6s and 31.5s measured in production, 76s of a 40-minute suite from two
   # examples -- because each reads every tracked source file and matches every
