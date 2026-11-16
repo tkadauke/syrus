@@ -21,9 +21,9 @@ module Syrus
   #     end
   #   end
   #
-  # This file is required explicitly from config/application.rb before
-  # Bundler.require, and excluded from autoloading. It has to exist at *gem
-  # load* time -- long before Zeitwerk or the rest of Syrus is available -- so
+  # This file is required explicitly from config/application.rb before the
+  # plugin loader runs, and excluded from autoloading. It has to exist at
+  # plugin-entry load time -- before Zeitwerk initializes -- so
   # it must not reference anything outside itself at load time. Everything it
   # touches (Syrus::PluginRegistry, Syrus::Installer, the provider constants)
   # is resolved later, inside `to_prepare`.
