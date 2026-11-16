@@ -1,5 +1,14 @@
 module DesignDocs
   class CreateSuggestion
+    class PendingOverlap < StandardError
+      attr_reader :suggestion_id
+
+      def initialize(suggestion_id)
+        @suggestion_id = suggestion_id
+        super(I18n.t("design_docs.errors.pending_suggestion_overlap", suggestion_id: suggestion_id))
+      end
+    end
+
     Result = Data.define(:design_doc, :anchor, :suggestion, :version)
 
     def self.call(...)
@@ -233,7 +242,7 @@ module DesignDocs
 
       overlapping = design_doc.suggestions.includes(:anchor).where(state: "pending").detect do |suggestion|
         anchor = suggestion.anchor
-        next false unless anchor&.range?
+        next false unless anchor&.range? && anchor.status == "active"
 
         other_start = anchor.last_known_start_offset || anchor.start_offset
         other_end = anchor.last_known_end_offset || anchor.end_offset
@@ -243,7 +252,7 @@ module DesignDocs
       end
       return unless overlapping
 
-      raise_invalid_suggestion!("Suggestion overlaps pending suggestion ##{overlapping.id}. Review the existing thread before creating another active suggestion for the same range.")
+      raise PendingOverlap, overlapping.id
     end
 
     def render_mode(original, proposed)

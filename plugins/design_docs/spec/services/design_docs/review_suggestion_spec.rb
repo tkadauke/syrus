@@ -324,7 +324,7 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     expect(suggestion.anchor.reload).to have_attributes(status: "stale", stale_as_of_version: result.version)
   end
 
-  it "raises when marker normalization sees duplicate marker ids" do
+  it "marks a pending suggestion stale and removes its markers when normalization sees duplicate marker ids" do
     suggestion = DesignDocs::CreateSuggestion.call(
       design_doc: doc,
       user: collaborator,
@@ -334,20 +334,21 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     marker = DesignDocs::AnchorMarkers.range_start_marker(suggestion.anchor.marker_id)
     doc.update!(markdown: doc.markdown + marker)
 
-    expect {
-      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
-    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /Duplicate/)
+    expect { DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc) }.not_to raise_error
+
+    expect(suggestion.reload).to have_attributes(state: "stale", conflict_reason: include("duplicated"))
+    expect(suggestion.anchor.reload.status).to eq("stale")
+    expect(doc.reload.markdown).not_to include(suggestion.anchor.marker_id)
   end
 
-  it "raises when marker normalization sees an orphan range marker" do
+  it "removes an orphan range marker that has no anchor" do
     doc.update!(markdown: doc.markdown + DesignDocs::AnchorMarkers.range_start_marker("orphan"))
 
-    expect {
-      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
-    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /orphan range marker/)
+    expect { DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc) }.not_to raise_error
+    expect(doc.reload.markdown).not_to include("orphan")
   end
 
-  it "raises when active pending suggestion ranges overlap" do
+  it "marks active overlapping pending suggestion ranges stale and removes their markers" do
     first = DesignDocs::CreateSuggestion.call(
       design_doc: doc,
       user: collaborator,
@@ -384,8 +385,79 @@ RSpec.describe DesignDocs::ReviewSuggestion do
       proposed_markdown: "replacement"
     )
 
-    expect {
-      DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc)
-    }.to raise_error(DesignDocs::NormalizeAnchorMarkers::InvariantError, /##{first.id} and ##{DesignDocSuggestion.last.id} overlap/)
+    second = DesignDocSuggestion.last
+
+    expect { DesignDocs::NormalizeAnchorMarkers.call(design_doc: doc) }.not_to raise_error
+    expect(first.reload).to have_attributes(state: "stale", conflict_reason: include("##{second.id}"))
+    expect(second.reload).to have_attributes(state: "stale", conflict_reason: include("##{first.id}"))
+    expect(doc.reload.markdown).not_to include(first.anchor.marker_id, second.anchor.marker_id)
+  end
+
+  it "accepts an unrelated suggestion while repairing two nested pending ranges" do
+    first = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 0, end_offset: 5, original_markdown: "Alpha", proposed_markdown: "One" }
+    ).suggestion
+    second = DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "Two" }
+    ).suggestion
+    third = DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: collaborator,
+      attributes: { start_offset: 17, end_offset: 22, original_markdown: "delta", proposed_markdown: "omega" }
+    ).suggestion
+    visible = DesignDocs::AnchorMarkers.strip(doc.markdown)
+    doc.update!(markdown: visible.dup
+      .insert(16, DesignDocs::AnchorMarkers.range_end_marker(first.anchor.marker_id))
+      .insert(10, DesignDocs::AnchorMarkers.range_end_marker(second.anchor.marker_id))
+      .insert(6, DesignDocs::AnchorMarkers.range_start_marker(second.anchor.marker_id))
+      .insert(0, DesignDocs::AnchorMarkers.range_start_marker(first.anchor.marker_id)))
+    third_insertion = DesignDocs::AnchorMarkers.insert(
+      markdown: doc.markdown,
+      marker_id: third.anchor.marker_id,
+      start_offset: 17,
+      end_offset: 22,
+      anchor_kind: "range"
+    )
+    doc.update!(markdown: third_insertion.markdown)
+
+    result = described_class.accept(suggestion: third, user: owner)
+
+    expect(result).to have_attributes(applied: true)
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Alpha beta gamma omega")
+    expect(first.reload).to have_attributes(state: "stale", conflict_reason: include("overlapped"))
+    expect(second.reload).to have_attributes(state: "stale", conflict_reason: include("overlapped"))
+    expect(doc.markdown).not_to include(first.anchor.marker_id, second.anchor.marker_id, third.anchor.marker_id)
+  end
+
+  it "accepts and rejects unrelated suggestions despite duplicated and orphan markers" do
+    %i[accept reject].each do |decision|
+      current_doc = DesignDoc.create!(owner_user: owner, title: "#{decision} RFC", markdown: "Alpha beta gamma", visibility: "private")
+      current_doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+      version = current_doc.versions.create!(markdown: current_doc.markdown, version_number: 1, actor_kind: "user", actor_user: owner)
+      current_doc.update!(current_version: version)
+      damaged = DesignDocs::CreateSuggestion.call(
+        design_doc: current_doc,
+        user: collaborator,
+        attributes: { start_offset: 0, end_offset: 5, original_markdown: "Alpha", proposed_markdown: "One" }
+      ).suggestion
+      reviewed = DesignDocs::CreateSuggestion.call(
+        design_doc: current_doc.reload,
+        user: collaborator,
+        attributes: { start_offset: 11, end_offset: 16, original_markdown: "gamma", proposed_markdown: "three" }
+      ).suggestion
+      current_doc.update!(markdown: current_doc.markdown +
+        DesignDocs::AnchorMarkers.range_start_marker(damaged.anchor.marker_id) +
+        DesignDocs::AnchorMarkers.range_start_marker("orphan"))
+
+      result = described_class.public_send(decision, suggestion: reviewed, user: owner)
+
+      expect(result.suggestion.state).to eq(decision == :accept ? "accepted" : "rejected")
+      expect(damaged.reload).to have_attributes(state: "stale", conflict_reason: include("duplicated"))
+      expect(current_doc.reload.markdown).not_to include(damaged.anchor.marker_id, "orphan")
+    end
   end
 end

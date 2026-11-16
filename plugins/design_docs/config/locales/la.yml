@@ -2,3 +2,4 @@ la:
   design_docs:
     errors:
       visible_body_blank: "corpus visibile vacuum esse non potest"
+      pending_suggestion_overlap: "Suggestio cum suggestione pendente #%{suggestion_id} concurrit; eam prius accipe aut reice."

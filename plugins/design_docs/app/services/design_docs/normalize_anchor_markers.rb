@@ -12,9 +12,9 @@ module DesignDocs
 
     def call
       remove_reviewed_suggestion_markers!
+      repair_invalid_marker_sets!
       refresh_marked_anchors!
-      assert_marker_pairs!
-      assert_no_pending_suggestion_overlaps!
+      repair_pending_suggestion_overlaps!
 
       design_doc
     end
@@ -52,34 +52,61 @@ module DesignDocs
       end
     end
 
-    def assert_marker_pairs!
+    def repair_invalid_marker_sets!
       AnchorMarkers.marker_counts(design_doc.markdown).each do |marker_id, counts|
         point_count = counts[:point]
         start_count = counts[:range_start]
         end_count = counts[:range_end]
 
-        if point_count > 1 || start_count > 1 || end_count > 1
-          raise InvariantError, "Duplicate design doc anchor marker #{marker_id.inspect}."
+        reason = if point_count > 1 || start_count > 1 || end_count > 1
+          "Anchor marker #{marker_id.inspect} was duplicated."
+        elsif point_count.positive? && (start_count.positive? || end_count.positive?)
+          "Anchor marker #{marker_id.inspect} mixed point and range markers."
+        elsif point_count != 1 && !(start_count == 1 && end_count == 1)
+          "Anchor marker #{marker_id.inspect} had an orphan range marker."
         end
-
-        if point_count.positive? && (start_count.positive? || end_count.positive?)
-          raise InvariantError, "Design doc anchor marker #{marker_id.inspect} mixes point and range markers."
-        end
-
-        next if point_count == 1
-        next if start_count == 1 && end_count == 1
-
-        raise InvariantError, "Design doc anchor marker #{marker_id.inspect} has an orphan range marker."
+        repair_marker_set!(marker_id, reason) if reason
       end
     end
 
-    def assert_no_pending_suggestion_overlaps!
+    def repair_pending_suggestion_overlaps!
       ranges = pending_suggestion_ranges
-      ranges.each_cons(2) do |left, right|
-        next unless left[:start] < right[:end] && right[:start] < left[:end]
-
-        raise InvariantError, "Pending design doc suggestions ##{left[:suggestion_id]} and ##{right[:suggestion_id]} overlap."
+      collisions = ranges.combination(2).select do |left, right|
+        left[:start] < right[:end] && right[:start] < left[:end]
       end
+      collisions.flatten.uniq { |range| range[:suggestion_id] }.each do |range|
+        suggestion = range[:suggestion]
+        other_ids = collisions.filter_map do |left, right|
+          next unless left[:suggestion_id] == suggestion.id || right[:suggestion_id] == suggestion.id
+
+          left[:suggestion_id] == suggestion.id ? right[:suggestion_id] : left[:suggestion_id]
+        end.uniq
+        mark_anchor_and_pending_suggestions_stale!(
+          suggestion.anchor,
+          "Pending suggestion ##{suggestion.id} overlapped pending suggestion#{'s' if other_ids.many?} #{other_ids.map { |id| "##{id}" }.to_sentence}."
+        )
+      end
+    end
+
+    def repair_marker_set!(marker_id, reason)
+      design_doc.anchors.where(marker_id: marker_id).find_each do |anchor|
+        mark_anchor_and_pending_suggestions_stale!(anchor, reason)
+      end
+      remove_all_marker_fragments!(marker_id)
+    end
+
+    def mark_anchor_and_pending_suggestions_stale!(anchor, reason)
+      anchor.update!(status: "stale", stale_as_of_version: design_doc.current_version)
+      anchor.suggestions.where(state: "pending").find_each do |pending|
+        pending.update!(state: "stale", reviewed_at: Time.current, conflict_reason: reason)
+      end
+      remove_all_marker_fragments!(anchor.marker_id)
+    end
+
+    def remove_all_marker_fragments!(marker_id)
+      escaped = Regexp.escape(marker_id)
+      cleaned = design_doc.markdown.to_s.gsub(/<!--\s*syrus:(?:anchor|range-start|range-end)\s+id="#{escaped}"\s*-->/, "")
+      design_doc.update!(markdown: cleaned) if cleaned != design_doc.markdown
     end
 
     def pending_suggestion_ranges
@@ -95,6 +122,7 @@ module DesignDocs
         next unless location.status == "active"
 
         {
+          suggestion: suggestion,
           suggestion_id: suggestion.id,
           start: location.start_offset,
           end: location.end_offset

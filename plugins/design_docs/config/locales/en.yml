@@ -2,3 +2,4 @@ en:
   design_docs:
     errors:
       visible_body_blank: "visible body can't be blank"
+      pending_suggestion_overlap: "Suggestion overlaps pending suggestion #%{suggestion_id}; accept or reject it first."

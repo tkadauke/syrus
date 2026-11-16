@@ -2,3 +2,4 @@ de:
   design_docs:
     errors:
       visible_body_blank: "sichtbarer Text darf nicht leer sein"
+      pending_suggestion_overlap: "Der Vorschlag überschneidet sich mit dem ausstehenden Vorschlag #%{suggestion_id}; nimm ihn zuerst an oder lehne ihn ab."

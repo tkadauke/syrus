@@ -160,6 +160,8 @@ module Api
           render json: payload, status: :created
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue ::DesignDocs::CreateSuggestion::PendingOverlap => e
+          render_error("pending_suggestion_overlap", e.message, status: :unprocessable_content)
         rescue Pundit::NotAuthorizedError
           render_error("forbidden", "You are not allowed to suggest changes to this design doc.", status: :forbidden)
         end
