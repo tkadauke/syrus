@@ -639,6 +639,18 @@ syrus jobs --proposer adrian
 to one repository.
 Job tables and `syrus job show` display the proposer handle when present.
 
+## Plugin-contributed commands
+
+Plugins can declare non-interactive commands that run on the Syrus server. The
+server exposes their paths, help summaries, arguments, and flags in a catalog
+for CLI clients, so command availability can follow the plugins enabled on the
+connected instance without requiring each plugin's command implementation to be
+compiled into the CLI.
+
+Plugin commands run as the signed-in user and enforce the same server-side
+authorization policies as the web app. They can return text, tables, or JSON,
+but do not stream output or open interactive prompts.
+
 ## Schedules
 
 Schedule commands are contributed by the bundled `scheduled_tasks` plugin

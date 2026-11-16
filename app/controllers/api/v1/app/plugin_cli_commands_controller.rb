@@ -8,6 +8,9 @@ module Api
         rescue_from PluginCli::Catalog::DisabledPlugin do
           render_cli_error("disabled_plugin", :not_found)
         end
+        rescue_from PluginCli::Catalog::UnavailablePlugin do
+          render_cli_error("unavailable_plugin", :service_unavailable)
+        end
         rescue_from PluginCli::Catalog::UnknownCommand do
           render_cli_error("unknown_command", :not_found)
         end
@@ -39,6 +42,7 @@ module Api
           render json: { result: result.as_json }
         rescue PluginCli::Catalog::UnknownPlugin,
                PluginCli::Catalog::DisabledPlugin,
+               PluginCli::Catalog::UnavailablePlugin,
                PluginCli::Catalog::UnknownCommand,
                Syrus::Plugin::CliCommand::InvalidArguments,
                Pundit::NotAuthorizedError

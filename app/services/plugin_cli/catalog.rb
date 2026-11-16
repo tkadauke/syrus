@@ -11,7 +11,8 @@ module PluginCli
     def find(plugin:, path:)
       manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == plugin }
       raise UnknownPlugin unless manifest
-      raise DisabledPlugin unless manifest.enabled? && Syrus::PluginRegistry.health.healthy?(manifest.name)
+      raise DisabledPlugin unless manifest.enabled?
+      raise UnavailablePlugin unless Syrus::PluginRegistry.health.healthy?(manifest.name)
 
       command = manifest.cli_commands.find { |candidate| candidate.fetch("path") == path }
       raise UnknownCommand unless command
@@ -29,6 +30,7 @@ module PluginCli
 
     UnknownPlugin = Class.new(StandardError)
     DisabledPlugin = Class.new(StandardError)
+    UnavailablePlugin = Class.new(StandardError)
     UnknownCommand = Class.new(StandardError)
   end
 end

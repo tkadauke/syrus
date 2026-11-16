@@ -234,7 +234,8 @@ de:
     plugin_cli:
       errors:
         unknown_plugin: "Dieses Plugin ist nicht installiert."
-        disabled_plugin: "Dieses Plugin ist deaktiviert oder nicht verfügbar."
+        disabled_plugin: "Dieses Plugin ist deaktiviert."
+        unavailable_plugin: "Dieses Plugin ist derzeit nicht verfügbar."
         unknown_command: "Dieser Plugin-Befehl existiert nicht."
         invalid_arguments: "Ungültige Befehlsargumente: %{detail}"
         forbidden: "Du darfst diesen Befehl nicht ausführen."

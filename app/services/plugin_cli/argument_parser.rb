@@ -42,11 +42,13 @@ module PluginCli
 
     def initialize(command, args:, flags:)
       @command = command
-      @args = parameter_hash(args).stringify_keys
-      @flags = parameter_hash(flags).stringify_keys
+      @args = args
+      @flags = flags
     end
 
     def parse
+      @args = parameter_hash(@args).stringify_keys
+      @flags = parameter_hash(@flags).stringify_keys
       unknown = @args.keys - argument_definitions.map { |item| item.fetch("name") }
       unknown += @flags.keys - flag_definitions.map { |item| item.fetch("name") }
       invalid!("unknown values: #{unknown.join(', ')}") if unknown.any?

@@ -234,7 +234,8 @@ la:
     plugin_cli:
       errors:
         unknown_plugin: "Hoc additamentum installatum non est."
-        disabled_plugin: "Hoc additamentum inactivum vel indisponibile est."
+        disabled_plugin: "Hoc additamentum inactivum est."
+        unavailable_plugin: "Hoc additamentum nunc indisponibile est."
         unknown_command: "Hoc mandatum additamenti non exsistit."
         invalid_arguments: "Argumenta mandati invalida sunt: %{detail}"
         forbidden: "Tibi hoc mandatum exsequi non licet."

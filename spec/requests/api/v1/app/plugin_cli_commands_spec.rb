@@ -63,6 +63,15 @@ RSpec.describe "Plugin CLI commands", :reset_plugin_registry, type: :request do
     expect(response).to have_http_status(:not_modified)
   end
 
+  it "allows an authenticated non-admin to discover commands" do
+    member_headers = { "Authorization" => "Bearer #{member.generate_api_token!}" }
+
+    get "/api/v1/app/cli/commands", headers: member_headers
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("commands").pluck("path")).to eq([ "fixture fail", "fixture show" ])
+  end
+
   it "omits disabled plugins from the catalog" do
     PluginRecord.find_by!(name: "cli_fixture").update!(enabled: false)
     Syrus::PluginRegistry.clear_plugin_record_cache!
@@ -98,6 +107,16 @@ RSpec.describe "Plugin CLI commands", :reset_plugin_registry, type: :request do
     expect(response.parsed_body.dig("error", "message")).to include("name is required")
   end
 
+  it "rejects non-object arguments as an argument validation error" do
+    post "/api/v1/app/cli/commands/execute", headers: headers, params: {
+      plugin: "cli_fixture", path: "fixture show", args: "not-an-object"
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig("error", "code")).to eq("invalid_arguments")
+    expect(response.parsed_body.dig("error", "message")).to include("args and flags must be objects")
+  end
+
   it "preserves handler authorization as a forbidden response" do
     member_headers = { "Authorization" => "Bearer #{member.generate_api_token!}" }
     post "/api/v1/app/cli/commands/execute", headers: member_headers, params: {
@@ -117,6 +136,21 @@ RSpec.describe "Plugin CLI commands", :reset_plugin_registry, type: :request do
     }
     expect(response).to have_http_status(:not_found)
     expect(response.parsed_body.dig("error", "code")).to eq("disabled_plugin")
+  end
+
+  it "reports an unhealthy plugin as unavailable" do
+    Syrus::PluginRegistry.register(
+      name: "cli_fixture",
+      version: "1.0.0",
+      cli_commands: [ { path: "fixture show", summary: "Show fixture data" } ]
+    )
+
+    post "/api/v1/app/cli/commands/execute", headers: headers, params: {
+      plugin: "cli_fixture", path: "fixture show", args: { name: "Ada" }
+    }
+
+    expect(response).to have_http_status(:service_unavailable)
+    expect(response.parsed_body.dig("error", "code")).to eq("unavailable_plugin")
   end
 
   it "contains handler exceptions behind a structured error" do

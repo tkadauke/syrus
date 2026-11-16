@@ -81,6 +81,23 @@ enabled plugin's documentation, and a short generated teaser for each installed
 but disabled plugin. The teaser explains that the capability is disabled and
 how to enable it. Searching for the plugin by name boosts that teaser.
 
+## Plugin-contributed CLI commands
+
+Enabled plugins can declare non-interactive server-side commands for CLI
+clients. Syrus exposes their command paths, summaries, arguments, and flags in
+a catalog that reflects the plugins enabled on that instance. Disabled or
+unhealthy plugins are omitted from discovery.
+
+Commands run on the server as the authenticated CLI user. A command handler
+applies the same authorization policies as the rest of Syrus, so discovering a
+command does not grant access to its underlying Jobs, repositories, credentials,
+or other records. Commands may return text, tabular data, or JSON. Plugin
+commands do not stream output or prompt interactively.
+
+Invalid arguments, unavailable plugins, authorization failures, and command
+failures are returned as structured errors that CLI clients can present without
+depending on translated message text.
+
 ## Plugin categories
 
 | Category | Purpose |

@@ -268,7 +268,8 @@ en:
     plugin_cli:
       errors:
         unknown_plugin: "That plugin is not installed."
-        disabled_plugin: "That plugin is disabled or unavailable."
+        disabled_plugin: "That plugin is disabled."
+        unavailable_plugin: "That plugin is currently unavailable."
         unknown_command: "That plugin command does not exist."
         invalid_arguments: "Invalid command arguments: %{detail}"
         forbidden: "You are not authorized to run that command."
