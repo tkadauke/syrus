@@ -7,8 +7,6 @@ module Api
       # Repositories::PluginRepoTabsPayload. Core's own repository-scoped
       # controllers use this flat naming for the same reason.
       class RepositoryThroughputController < BaseController
-        include RepositoryTabsSerialization
-
         def show
           repository = ::Repository.accessible_to(Current.user).find(params[:repository_id])
 
@@ -24,10 +22,7 @@ module Api
           fresh_when(etag: [ repository.id, payload[:generated_at] || payload["generated_at"], window ])
           return if request.fresh?(response)
 
-          render json: payload.merge(
-            repository: repository_json(repository),
-            tabs: repository_tabs_json(repository)
-          )
+          render json: payload.merge(repository: repository_json(repository))
         rescue ::Throughput::RepositorySnapshot::Unavailable => e
           render json: { error: "throughput_snapshot_unavailable", message: e.message }, status: :service_unavailable
         end

@@ -59,7 +59,6 @@ export function RepositoryInsightsRoute() {
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
     >
       {query.isPending ? <Notice>{t("loading")}</Notice> : null}
       {query.isError ? <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice> : null}

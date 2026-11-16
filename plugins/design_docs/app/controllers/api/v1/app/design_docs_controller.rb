@@ -2,8 +2,6 @@ module Api
   module V1
     module App
       class DesignDocsController < BaseController
-        include RepositoryTabsSerialization
-
         PER_PAGE = 25
 
         before_action :require_design_docs_enabled
@@ -18,8 +16,7 @@ module Api
             .where(design_doc_repositories: { repository_id: repository.id })
 
           render json: design_docs_payload(design_docs).merge(
-            repository: repository_json(repository),
-            tabs: repository_tabs_json(repository)
+            repository: repository_json(repository)
           )
         end
 

@@ -672,6 +672,12 @@ la:
       welcome: "Syro salve."
 
     repositories:
+      tabs:
+        overview: "Conspectus"
+        health: "Sanitas"
+        cognitive_debt: "Debitum cognitivum"
+        target_graph: "Graphus scoporum"
+        documents: "Documenta"
       selector:
         no_token: "Nullum signum GitHub configuratum est."
         credentials_rejected: "GitHub credentialia recusavit."

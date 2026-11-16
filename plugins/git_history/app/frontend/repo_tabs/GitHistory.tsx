@@ -50,7 +50,6 @@ export function GitHistory() {
         ) : null
       }
       prefix={prefix}
-      tabs={firstPage?.tabs ?? []}
     >
       {history.isPending ? <Notice>{t("loading")}</Notice> : null}
       {history.isError ? <Notice tone="danger">{t("error")}</Notice> : null}

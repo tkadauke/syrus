@@ -72,10 +72,6 @@ function repositoryDetailPayload(overrides: Partial<RepositoryDetailPayload> = {
       treat_grader_timeouts_as_failures: false,
       last_health_checked_sha: null
     },
-    tabs: [
-      { key: "overview", label: "Overview", path: "/repositories/1" },
-      { key: "health", label: "Health", path: "/repositories/1/health", badge: "!" }
-    ],
     counts: { running: 0, queued: 0, failed_7d: 0 },
     provider_retry_status: {
       agent_provider: "claude",

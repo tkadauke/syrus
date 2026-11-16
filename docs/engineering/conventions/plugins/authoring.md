@@ -3516,12 +3516,10 @@ the descriptors (same shape as `admin_page`: `id`, `label`, `label_key`,
 - Backs `GET /api/v1/app/repositories/:repository_id/plugin_tabs`, which the
   frontend route resolver (`app/frontend/pluginRepoPageTabs.tsx`, mirroring
   `pluginAdminPages.tsx`) uses to find and lazy-render the right plugin
-  component for the current repository and path.
-- Feeds `RepositoryTabsSerialization#repository_tabs_json`, so every one of
-  the six repository-scoped controllers (`repositories`, `repository_tests`,
-  `insight_suggestions`, `repository_documents`, `scheduled_tasks`, and the
-  dedicated plugin-tabs endpoint itself) shows the plugin's tab in the shared
-  tab bar automatically — no per-controller wiring needed.
+  component for the current repository and path. Repository pages load this
+  catalog independently; repository-scoped page and mutation payloads do not
+  embed a `tabs` copy. A registered provider therefore appears in the shared
+  tab bar automatically without per-controller wiring.
 
 Repo-page-tab plugins should declare:
 

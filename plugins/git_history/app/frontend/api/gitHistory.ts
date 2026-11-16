@@ -1,5 +1,4 @@
 import { getJson } from "@app/api/client"
-import type { RepositoryTab } from "@app/api/repositories"
 
 export type GitHistoryJobRef = { id: number; slug: string; title: string | null }
 export type GitHistoryEpicRef = { id: number; slug: string; title: string | null }
@@ -34,7 +33,6 @@ export type GitHistoryCommit = {
 
 export type GitHistoryPage = {
   repository?: { id: number; slug: string; github_url: string }
-  tabs?: RepositoryTab[]
   available: boolean
   commits: GitHistoryCommit[]
   next_cursor: string | null

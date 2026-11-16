@@ -7,7 +7,6 @@ module Api
       # issues are GitHub-specific operations, and an instance whose work
       # arrives from somewhere else has no use for them.
       class RepositoryIssuesController < BaseController
-        include RepositoryTabsSerialization
         include RepositorySummarySerialization
 
         # Smart folders over the poll-synchronized local issue cache.
@@ -91,7 +90,6 @@ module Api
               error: repository.last_poll_error
             },
             repository: issues_repository_json(repository),
-            tabs: repository_tabs_json(repository),
             folder: folder,
             query: filter.query,
             filter: filter.to_h,

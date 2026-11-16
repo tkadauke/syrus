@@ -13,7 +13,7 @@ RSpec.describe "Repository Insights tab", type: :request do
 
   def insights_tab
     sign_in_as(user)
-    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
+    get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
     JSON.parse(response.body)["tabs"].find { |tab| tab["key"] == "agent_insights.repository" }
   end
 

@@ -9,7 +9,6 @@ import * as useConfirmModule from "@app/hooks/useConfirm"
 function tasksPayload(overrides: Record<string, unknown> = {}) {
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
-    tabs: [],
     tasks: [
       {
         id: 10,
@@ -40,7 +39,26 @@ function repositoryTask(overrides: Record<string, unknown> = {}) {
 }
 
 function renderRoute(payload = tasksPayload()) {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+  const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+    if (String(input) === "/api/v1/app/repositories/1/plugin_tabs") {
+      return Promise.resolve(
+        jsonResponse({
+          tabs: [
+            { id: "overview", key: "overview", label: "Overview", path: "/repositories/1", paths: ["/repositories/1"], order: 0 },
+            {
+              id: "scheduled_tasks.repository",
+              key: "scheduled_tasks.repository",
+              label: "Scheduled Tasks",
+              path: "/repositories/1/scheduled_tasks",
+              paths: ["/repositories/1/scheduled_tasks"],
+              order: 10
+            }
+          ]
+        })
+      )
+    }
+    return Promise.resolve(jsonResponse(payload))
+  })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -54,27 +72,33 @@ function renderRoute(payload = tasksPayload()) {
       </MemoryRouter>
     </QueryClientProvider>
   )
+  return fetchSpy
 }
 
 describe("RepositoryScheduledTasksRoute loading", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("resolves past the loading state using the repository_id route param", async () => {
-    renderRoute()
+    const fetchSpy = renderRoute()
 
     await waitFor(() => {
       expect(screen.queryByText("Loading scheduled tasks...")).not.toBeInTheDocument()
     })
     expect(await screen.findByText("Daily check")).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "Scheduled Tasks" })).toHaveAttribute("href", "/app-shell/repositories/1/scheduled_tasks")
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/plugin_tabs", expect.anything())
   })
 
   it("renders repository tasks with shared sortable and configurable table controls", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(tasksPayload({
-      tasks: [
-        repositoryTask({ id: 10, name: "Weekly check" }),
-        repositoryTask({ id: 11, name: "Daily sync" })
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          tasksPayload({
+            tasks: [repositoryTask({ id: 10, name: "Weekly check" }), repositoryTask({ id: 11, name: "Daily sync" })]
+          })
+        )
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -107,9 +131,11 @@ describe("RepositoryScheduledTasksRoute loading", () => {
   })
 
   it("does not offer to enable a fired one-shot", async () => {
-    renderRoute(tasksPayload({
-      tasks: [repositoryTask({ name: "Completed task", state: "fired", active: false })]
-    }))
+    renderRoute(
+      tasksPayload({
+        tasks: [repositoryTask({ name: "Completed task", state: "fired", active: false })]
+      })
+    )
 
     expect(await screen.findByText("Completed task")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Enable" })).not.toBeInTheDocument()
@@ -153,26 +179,24 @@ describe("RepositoryScheduledTasksRoute delete", () => {
     fireEvent.click(deleteButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/1/scheduled_tasks/10",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/scheduled_tasks/10", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
   it("does not call the delete API when the user cancels", async () => {
     mockConfirm.mockResolvedValue(false)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(tasksPayload()))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(tasksPayload())))
 
     renderRoute()
 
     const deleteButton = await screen.findByRole("button", { name: "Delete" })
-    await act(async () => { fireEvent.click(deleteButton) })
+    await act(async () => {
+      fireEvent.click(deleteButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1/scheduled_tasks/10",
-      expect.objectContaining({ method: "DELETE" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/repositories/1/scheduled_tasks/10", expect.objectContaining({ method: "DELETE" }))
   })
 })

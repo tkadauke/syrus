@@ -194,7 +194,6 @@ per-user/private:
   - app/controllers/api/v1/app/repository_plugin_tabs_controller.rb
   - app/controllers/api/v1/app/runtime_sessions_controller.rb
   - plugins/test_insights/app/controllers/api/v1/app/repository_tests_controller.rb
-  - app/controllers/concerns/repository_tabs_serialization.rb
   - plugins/scheduled_tasks/app/controllers/api/v1/app/scheduled_tasks_controller.rb
   - plugins/global_search/app/controllers/api/v1/app/search_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb

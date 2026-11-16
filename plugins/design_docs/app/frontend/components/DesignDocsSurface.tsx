@@ -296,7 +296,6 @@ export function DesignDocsSurface({
           ) : null
         }
         prefix={prefix}
-        tabs={repositoryPayload?.tabs ?? []}
       >
         {content}
       </RepositoryPageShell>

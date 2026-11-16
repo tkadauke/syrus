@@ -7,15 +7,15 @@ import { RepositoryTestsRoute } from "./RepositoryTests"
 import type { RepositoryTestDetailPayload, RepositoryTestsPayload } from "../api/tests"
 
 const REPOSITORY = { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" }
-const TABS = [ { key: "test_insights.tests", label: "Tests", path: "/repositories/1?tab=tests" } ]
+const TABS = [{ key: "test_insights.tests", label: "Tests", path: "/repositories/1?tab=tests" }]
 
 const FILTER_SCHEMA = [
-  { field: "query", label: "Search", bucket: "string", operators: [ "contains" ], values: [], free_text_search: true },
+  { field: "query", label: "Search", bucket: "string", operators: ["contains"], values: [], free_text_search: true },
   {
     field: "reason",
     label: "Reason",
     bucket: "enum",
-    operators: [ "is" ],
+    operators: ["is"],
     values: [
       { value: "failing", label: "Failing" },
       { value: "flaky", label: "Flaky" },
@@ -26,7 +26,7 @@ const FILTER_SCHEMA = [
     field: "status",
     label: "Status",
     bucket: "enum",
-    operators: [ "is" ],
+    operators: ["is"],
     values: [
       { value: "passed", label: "Passed" },
       { value: "failed", label: "Failed" },
@@ -38,14 +38,14 @@ const FILTER_SCHEMA = [
     field: "suite_name",
     label: "Suite",
     bucket: "string",
-    operators: [ "contains" ],
+    operators: ["contains"],
     values: []
   },
   {
     field: "file_path",
     label: "File path",
     bucket: "string",
-    operators: [ "contains" ],
+    operators: ["contains"],
     values: []
   }
 ]
@@ -53,7 +53,6 @@ const FILTER_SCHEMA = [
 function listPayload(): RepositoryTestsPayload {
   return {
     repository: REPOSITORY,
-    tabs: [],
     filter: { and: [] },
     filter_schema: FILTER_SCHEMA,
     tests: []
@@ -77,23 +76,63 @@ function detailPayload(): RepositoryTestDetailPayload {
     passed_count: 2,
     failure_rate: 0.25,
     avg_duration_ms: 637,
-    interesting_reasons: [ "failing" ]
+    interesting_reasons: ["failing"]
   }
 
   const history = [
-    { id: 101, status: "passed" as const, duration_ms: 600, failure_message: null, created_at: "2026-08-16T10:00:00Z", grader_name: "rspec", run: { id: 501, slug: "RUN-501", path: "/jobs/55?tab=workflows#run-501" }, job: { id: 55, slug: "JOB-55", title: "Fix thing" } },
-    { id: 102, status: "skipped" as const, duration_ms: 400, failure_message: null, created_at: "2026-08-17T10:00:00Z", grader_name: "rspec", run: { id: 502, slug: "RUN-502", path: "/jobs/56?tab=workflows#run-502" }, job: { id: 56, slug: "JOB-56", title: "Another thing" } },
-    { id: 103, status: "failed" as const, duration_ms: 900, failure_message: "expected true to be false", created_at: "2026-08-18T10:00:00Z", grader_name: "rspec", run: { id: 503, slug: "RUN-503", path: "/jobs/57?tab=workflows#run-503" }, job: { id: 57, slug: "JOB-57", title: "Break thing" } },
-    { id: 104, status: "passed" as const, duration_ms: 650, failure_message: null, created_at: "2026-08-19T10:00:00Z", grader_name: "rspec", run: { id: 504, slug: "RUN-504", path: "/jobs/58?tab=workflows#run-504" }, job: { id: 58, slug: "JOB-58", title: "Fix again" } }
+    {
+      id: 101,
+      status: "passed" as const,
+      duration_ms: 600,
+      failure_message: null,
+      created_at: "2026-08-16T10:00:00Z",
+      grader_name: "rspec",
+      run: { id: 501, slug: "RUN-501", path: "/jobs/55?tab=workflows#run-501" },
+      job: { id: 55, slug: "JOB-55", title: "Fix thing" }
+    },
+    {
+      id: 102,
+      status: "skipped" as const,
+      duration_ms: 400,
+      failure_message: null,
+      created_at: "2026-08-17T10:00:00Z",
+      grader_name: "rspec",
+      run: { id: 502, slug: "RUN-502", path: "/jobs/56?tab=workflows#run-502" },
+      job: { id: 56, slug: "JOB-56", title: "Another thing" }
+    },
+    {
+      id: 103,
+      status: "failed" as const,
+      duration_ms: 900,
+      failure_message: "expected true to be false",
+      created_at: "2026-08-18T10:00:00Z",
+      grader_name: "rspec",
+      run: { id: 503, slug: "RUN-503", path: "/jobs/57?tab=workflows#run-503" },
+      job: { id: 57, slug: "JOB-57", title: "Break thing" }
+    },
+    {
+      id: 104,
+      status: "passed" as const,
+      duration_ms: 650,
+      failure_message: null,
+      created_at: "2026-08-19T10:00:00Z",
+      grader_name: "rspec",
+      run: { id: 504, slug: "RUN-504", path: "/jobs/58?tab=workflows#run-504" },
+      job: { id: 58, slug: "JOB-58", title: "Fix again" }
+    }
   ]
 
   return {
     repository: REPOSITORY,
-    tabs: [],
     test,
     history,
     pagination: { page: 1, per_page: history.length, total: history.length, total_pages: 1 },
-    duration_points: history.map((item) => ({ test_case_id: item.id, created_at: item.created_at, duration_ms: item.duration_ms as number, status: item.status }))
+    duration_points: history.map((item) => ({
+      test_case_id: item.id,
+      created_at: item.created_at,
+      duration_ms: item.duration_ms as number,
+      status: item.status
+    }))
   }
 }
 
@@ -107,7 +146,7 @@ function mockFetch() {
 }
 
 function buildTestsPayload(): RepositoryTestsPayload {
-  return { repository: REPOSITORY, tabs: TABS, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: [] }
+  return { repository: REPOSITORY, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: [] }
 }
 
 function buildDetailPayload(page: number): RepositoryTestDetailPayload {
@@ -130,13 +169,35 @@ function buildDetailPayload(page: number): RepositoryTestDetailPayload {
     interesting_reasons: []
   }
 
-  const history = page === 1
-    ? [ { id: 2, status: "passed" as const, duration_ms: 100, failure_message: null, created_at: "2026-01-02T00:00:00Z", grader_name: "rspec", run: { id: 10, slug: "RUN-10", path: "/jobs/1" }, job: { id: 1, slug: "JOB-1", title: "t" } } ]
-    : [ { id: 1, status: "failed" as const, duration_ms: 250, failure_message: "boom", created_at: "2026-01-01T00:00:00Z", grader_name: "rspec", run: { id: 9, slug: "RUN-9", path: "/jobs/1" }, job: { id: 1, slug: "JOB-1", title: "t" } } ]
+  const history =
+    page === 1
+      ? [
+          {
+            id: 2,
+            status: "passed" as const,
+            duration_ms: 100,
+            failure_message: null,
+            created_at: "2026-01-02T00:00:00Z",
+            grader_name: "rspec",
+            run: { id: 10, slug: "RUN-10", path: "/jobs/1" },
+            job: { id: 1, slug: "JOB-1", title: "t" }
+          }
+        ]
+      : [
+          {
+            id: 1,
+            status: "failed" as const,
+            duration_ms: 250,
+            failure_message: "boom",
+            created_at: "2026-01-01T00:00:00Z",
+            grader_name: "rspec",
+            run: { id: 9, slug: "RUN-9", path: "/jobs/1" },
+            job: { id: 1, slug: "JOB-1", title: "t" }
+          }
+        ]
 
   return {
     repository: REPOSITORY,
-    tabs: TABS,
     test,
     history,
     pagination: { page, per_page: 1, total: 2, total_pages: 2 },
@@ -146,11 +207,14 @@ function buildDetailPayload(page: number): RepositoryTestDetailPayload {
 
 function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["repositories", "1", "plugin_tabs"], {
+    tabs: TABS.map((tab, order) => ({ ...tab, id: tab.key, paths: [tab.path], order }))
+  })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ "/tests-panel" ]}>
+      <MemoryRouter initialEntries={["/repositories/1/plugin/tests"]}>
         <Routes>
-          <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId="42" />} path="/tests-panel" />
+          <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId="42" />} path="/repositories/:repositoryId/plugin/tests" />
           <Route element={<div>Run detail page</div>} path="/jobs/:id" />
         </Routes>
       </MemoryRouter>
@@ -165,11 +229,14 @@ describe("RepositoryTestsRoute tab bar", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(buildTestsPayload()))
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(["repositories", "1", "plugin_tabs"], {
+      tabs: TABS.map((tab, order) => ({ ...tab, id: tab.key, paths: [tab.path], order }))
+    })
     render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[ "/tests-panel" ]}>
+        <MemoryRouter initialEntries={["/repositories/1/plugin/tests"]}>
           <Routes>
-            <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/tests-panel" />
+            <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/repositories/:repositoryId/plugin/tests" />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
@@ -236,13 +303,64 @@ describe("DurationChart", () => {
 const COLUMNS_STORAGE_KEY = "syrus.test_insights.repository_tests_columns"
 
 const ALL_TESTS: RepositoryTestsPayload["tests"] = [
-  { id: 1, suite_name: "spec/a_spec.rb", name: "Zebra test", file_path: "spec/a_spec.rb", fingerprint: "f1", last_status: "passed", last_seen_at: "2026-01-03T00:00:00Z", last_failed_at: null, last_passed_at: "2026-01-03T00:00:00Z", last_duration_ms: 100, total_count: 5, failed_count: 0, passed_count: 5, failure_rate: 0, avg_duration_ms: 100, interesting_reasons: [] },
-  { id: 2, suite_name: "spec/b_spec.rb", name: "Alpha test", file_path: "spec/b_spec.rb", fingerprint: "f2", last_status: "failed", last_seen_at: "2026-01-01T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: null, last_duration_ms: 500, total_count: 4, failed_count: 3, passed_count: 1, failure_rate: 0.75, avg_duration_ms: 500, interesting_reasons: [ "failing" ] },
-  { id: 3, suite_name: "spec/c_spec.rb", name: "Middle test", file_path: "spec/c_spec.rb", fingerprint: "f3", last_status: "passed", last_seen_at: "2026-01-02T00:00:00Z", last_failed_at: "2026-01-01T00:00:00Z", last_passed_at: "2026-01-02T00:00:00Z", last_duration_ms: 2000, total_count: 4, failed_count: 1, passed_count: 3, failure_rate: 0.25, avg_duration_ms: 2000, interesting_reasons: [ "flaky", "slow" ] }
+  {
+    id: 1,
+    suite_name: "spec/a_spec.rb",
+    name: "Zebra test",
+    file_path: "spec/a_spec.rb",
+    fingerprint: "f1",
+    last_status: "passed",
+    last_seen_at: "2026-01-03T00:00:00Z",
+    last_failed_at: null,
+    last_passed_at: "2026-01-03T00:00:00Z",
+    last_duration_ms: 100,
+    total_count: 5,
+    failed_count: 0,
+    passed_count: 5,
+    failure_rate: 0,
+    avg_duration_ms: 100,
+    interesting_reasons: []
+  },
+  {
+    id: 2,
+    suite_name: "spec/b_spec.rb",
+    name: "Alpha test",
+    file_path: "spec/b_spec.rb",
+    fingerprint: "f2",
+    last_status: "failed",
+    last_seen_at: "2026-01-01T00:00:00Z",
+    last_failed_at: "2026-01-01T00:00:00Z",
+    last_passed_at: null,
+    last_duration_ms: 500,
+    total_count: 4,
+    failed_count: 3,
+    passed_count: 1,
+    failure_rate: 0.75,
+    avg_duration_ms: 500,
+    interesting_reasons: ["failing"]
+  },
+  {
+    id: 3,
+    suite_name: "spec/c_spec.rb",
+    name: "Middle test",
+    file_path: "spec/c_spec.rb",
+    fingerprint: "f3",
+    last_status: "passed",
+    last_seen_at: "2026-01-02T00:00:00Z",
+    last_failed_at: "2026-01-01T00:00:00Z",
+    last_passed_at: "2026-01-02T00:00:00Z",
+    last_duration_ms: 2000,
+    total_count: 4,
+    failed_count: 1,
+    passed_count: 3,
+    failure_rate: 0.25,
+    avg_duration_ms: 2000,
+    interesting_reasons: ["flaky", "slow"]
+  }
 ]
 
 function multiTestPayload(): RepositoryTestsPayload {
-  return { repository: REPOSITORY, tabs: TABS, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: ALL_TESTS }
+  return { repository: REPOSITORY, filter: { and: [] }, filter_schema: FILTER_SCHEMA, tests: ALL_TESTS }
 }
 
 function decodeFilterTree(q: string): { and?: Array<{ field: string; op: string; value?: unknown }> } {
@@ -255,7 +373,9 @@ function decodeFilterTree(q: string): { and?: Array<{ field: string; op: string;
 function encoded(tree: unknown) {
   const bytes = new TextEncoder().encode(JSON.stringify(tree))
   let binary = ""
-  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
@@ -286,12 +406,12 @@ function renderTestList(initialEntry = "/tests-panel") {
       return true
     })
 
-    return Promise.resolve(jsonResponse({ repository: REPOSITORY, tabs: TABS, filter: tree, filter_schema: FILTER_SCHEMA, tests }))
+    return Promise.resolve(jsonResponse({ repository: REPOSITORY, filter: tree, filter_schema: FILTER_SCHEMA, tests }))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ initialEntry ]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<RepositoryTestsRoute prefix="" repositoryId="1" selectedTestId={null} />} path="/tests-panel" />
         </Routes>
@@ -301,7 +421,8 @@ function renderTestList(initialEntry = "/tests-panel") {
 }
 
 function visibleTestOrder() {
-  return screen.getAllByRole("link")
+  return screen
+    .getAllByRole("link")
     .map((link) => link.textContent)
     .filter((text): text is string => text === "Zebra test" || text === "Alpha test" || text === "Middle test")
 }
@@ -316,13 +437,13 @@ describe("RepositoryTestsRoute test list", () => {
     renderTestList()
     await screen.findByText("Zebra test")
 
-    expect(visibleTestOrder()).toEqual([ "Zebra test", "Alpha test", "Middle test" ])
+    expect(visibleTestOrder()).toEqual(["Zebra test", "Alpha test", "Middle test"])
 
     fireEvent.click(screen.getByRole("button", { name: "Test" }))
-    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Alpha test", "Middle test", "Zebra test" ]))
+    await waitFor(() => expect(visibleTestOrder()).toEqual(["Alpha test", "Middle test", "Zebra test"]))
 
     fireEvent.click(screen.getByRole("button", { name: "Test" }))
-    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Zebra test", "Middle test", "Alpha test" ]))
+    await waitFor(() => expect(visibleTestOrder()).toEqual(["Zebra test", "Middle test", "Alpha test"]))
   })
 
   it("filters the test list through the FilterBar's reason field", async () => {
@@ -332,7 +453,7 @@ describe("RepositoryTestsRoute test list", () => {
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     fireEvent.click(screen.getByRole("button", { name: "Reason list" }))
 
-    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Alpha test" ]))
+    await waitFor(() => expect(visibleTestOrder()).toEqual(["Alpha test"]))
     expect(screen.getByRole("button", { name: "Reason is Failing" })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("link", { name: "Clear filters" }))
@@ -340,13 +461,15 @@ describe("RepositoryTestsRoute test list", () => {
   })
 
   it("filters the test list through status and suite chips", async () => {
-    const tree = { and: [
-      { field: "status", op: "is", value: "passed" },
-      { field: "suite_name", op: "contains", value: "spec/c" }
-    ] }
+    const tree = {
+      and: [
+        { field: "status", op: "is", value: "passed" },
+        { field: "suite_name", op: "contains", value: "spec/c" }
+      ]
+    }
     renderTestList(`/tests-panel?q=${encoded(tree)}`)
 
-    await waitFor(() => expect(visibleTestOrder()).toEqual([ "Middle test" ]))
+    await waitFor(() => expect(visibleTestOrder()).toEqual(["Middle test"]))
     expect(screen.getByRole("button", { name: "Status is Passed" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Suite contains spec/c" })).toBeInTheDocument()
   })
@@ -399,7 +522,7 @@ describe("RepositoryTestsRoute test list", () => {
     fireEvent.dragEnd(suiteHeader, { dataTransfer: transfer })
 
     const headers = screen.getAllByRole("columnheader").map((cell) => cell.textContent)
-    expect(headers).toEqual([ "Test", "Recent failures", "Duration", "Last seen", "Suite" ])
+    expect(headers).toEqual(["Test", "Recent failures", "Duration", "Last seen", "Suite"])
 
     const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) || "[]")
     expect(stored.indexOf("suite")).toBeGreaterThan(stored.indexOf("last_seen"))

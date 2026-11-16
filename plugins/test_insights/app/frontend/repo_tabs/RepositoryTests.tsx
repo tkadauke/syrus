@@ -70,7 +70,6 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
         ) : null
       }
       prefix={prefix}
-      tabs={shell?.tabs ?? []}
     >
       {tests.isPending && !shell ? <Notice>{t("repo_loading_tests")}</Notice> : null}
       {tests.isError && !tests.data ? <Notice tone="danger">{errorMessage(tests.error, t("repo_error_load_tests"))}</Notice> : null}

@@ -52,9 +52,17 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
     get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
     expect(response).to have_http_status(:ok)
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=60")
+    expect(response.headers["ETag"]).to be_present
+    expect(parse_body.fetch("tabs").first).to include(
+      "id" => "overview",
+      "key" => "overview",
+      "path" => "/repositories/#{repository.id}"
+    )
     expect(parse_body.fetch("tabs")).to include(
       include(
         "id" => "tab-plugin.example",
+        "key" => "tab-plugin.example",
         "label" => "Example Tab",
         "label_key" => "tab_plugin:nav_example",
         "path" => "/repositories/#{repository.id}/plugin/example",
@@ -63,6 +71,10 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
         "order" => 40
       )
     )
+
+    get "/api/v1/app/repositories/#{repository.id}/plugin_tabs", headers: { "If-None-Match" => response.headers["ETag"] }
+
+    expect(response).to have_http_status(:not_modified)
   end
 
   it "returns repo page tabs for a RepositoryMembership collaborator" do

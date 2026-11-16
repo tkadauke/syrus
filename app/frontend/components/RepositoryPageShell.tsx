@@ -1,7 +1,11 @@
+import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
+import { useParams } from "react-router-dom"
+import { fetchRepoPluginTabs } from "../api/repoPluginTabs"
 import { Page, usePageGutterRestoreClassName } from "./ui/Page"
 import { RepositoryTabs } from "./RepositoryTabs"
-import type { RepositoryTab } from "../api/repositories"
+
+export const REPOSITORY_TABS_STALE_TIME = 60_000
 
 /*
  * Shared layout for the repository detail tabs: heading -> tip banner ->
@@ -17,7 +21,6 @@ export function RepositoryPageShell({
   children,
   heading,
   prefix,
-  tabs,
   tipBanner
 }: {
   activeTab: string
@@ -25,9 +28,17 @@ export function RepositoryPageShell({
   children: ReactNode
   heading: ReactNode
   prefix: string
-  tabs: RepositoryTab[]
   tipBanner?: ReactNode
 }) {
+  const params = useParams()
+  const repositoryId = params.repositoryId || params.repository_id || params.id || ""
+  const tabs = useQuery({
+    queryKey: ["repositories", repositoryId, "plugin_tabs"],
+    queryFn: () => fetchRepoPluginTabs(repositoryId),
+    enabled: repositoryId.length > 0,
+    staleTime: REPOSITORY_TABS_STALE_TIME
+  })
+
   return (
     <Page.Root aria-label={ariaLabel} gutter="responsive" size="wide">
       <Page.Header>
@@ -35,7 +46,7 @@ export function RepositoryPageShell({
       </Page.Header>
       {tipBanner ? <TipBanner>{tipBanner}</TipBanner> : null}
       <Page.Nav>
-        <RepositoryTabs active={activeTab} prefix={prefix} tabs={tabs} />
+        <RepositoryTabs active={activeTab} prefix={prefix} tabs={(tabs.data?.tabs ?? []).map((tab) => ({ ...tab, badge: tab.badge ?? undefined }))} />
       </Page.Nav>
       {children}
     </Page.Root>

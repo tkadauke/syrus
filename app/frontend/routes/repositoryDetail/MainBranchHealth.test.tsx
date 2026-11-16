@@ -100,7 +100,6 @@ function buildPayload(): RepositoryDetailPayload {
   }
   return {
     repository,
-    tabs: [],
     counts: { running: 0, queued: 0, failed_7d: 0 },
     provider_retry_status: {
       agent_provider: "claude",
