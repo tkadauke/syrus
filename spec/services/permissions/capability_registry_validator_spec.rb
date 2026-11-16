@@ -61,6 +61,29 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     expect(expanded.findings.map(&:code)).to include(:missing_descriptor)
   end
 
+  it "rejects compatibility metadata when every tool in the surface has an explicit descriptor" do
+    digest = Digest::SHA256.hexdigest("read_example")
+    validator = described_class.new([
+      registration("read_example", descriptor: descriptor, compatibility_descriptor: digest)
+    ])
+
+    finding = validator.findings.find { |candidate| candidate.code == :redundant_compatibility_metadata }
+
+    expect(finding.message).to include("ExamplePlugin", "chat")
+  end
+
+  it "preserves compatibility metadata while any tool in the surface still needs it" do
+    digest = Digest::SHA256.hexdigest("legacy_example")
+    validator = described_class.new([
+      registration("read_example", descriptor: descriptor, compatibility_descriptor: digest),
+      registration("legacy_example", descriptor: descriptor(operation: "example.data/legacy@v1"),
+        explicit_descriptor: false, compatibility_descriptor: digest)
+    ])
+
+    expect(validator.findings.map(&:code)).not_to include(:redundant_compatibility_metadata)
+    expect(validator.findings).to be_empty
+  end
+
   it "rejects conflicting mappings for the same surface tool" do
     registrations = [
       registration("read_example", descriptor: descriptor),
