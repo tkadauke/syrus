@@ -113,6 +113,39 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(failed_tail.runs).to be_empty
   end
 
+  # Regression: finding the retryable step -- which the Job page does on every
+  # load -- selected loop iterations and failed Steps with ORDER BY position.
+  # Those filters keep MySQL off the (workflow_id, position) index, so it
+  # filesorted whole step rows and the Job page returned 500 with `Out of sort
+  # memory`.
+  it "finds the failed grade-loop step without sorting whole step rows" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 4, state: "succeeded",
+      iteration: 1, loop_id: "grade-loop")
+    Step.create!(workflow: workflow, kind: "grader", position: 5, state: "failed", iteration: 1,
+      loop_id: "grade-loop", details: { "name" => "rspec", "required" => true, "output" => "x" * 2_048 })
+    Step.create!(workflow: workflow, kind: "grader", position: 6, state: "cancelled", iteration: 1,
+      loop_id: "grade-loop", details: { "name" => "e2e", "required" => true })
+    Step.create!(workflow: workflow, kind: "grader_collect", position: 7, state: "failed", iteration: 1,
+      loop_id: "grade-loop")
+
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+    begin
+      @step = described_class.failed_step_for(workflow.reload)
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    expect(@step).to eq(fanout)
+    whole_row_unbounded_sorts = statements.select do |sql|
+      sql.match?(/select\s+[`"]?steps[`"]?\.\*/i) && sql.match?(/\border by\b/i) && !sql.match?(/\blimit\b/i)
+    end
+    expect(whole_row_unbounded_sorts).to be_empty
+  end
+
   it "retries the whole grade loop from fanout when collect fails" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "retry", chain_template: grade_retry_chain_template)

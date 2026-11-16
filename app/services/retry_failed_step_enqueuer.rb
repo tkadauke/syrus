@@ -24,7 +24,8 @@ class RetryFailedStepEnqueuer
     cancelled_loop = cancelled_grade_loop_restart_step_for(workflow)
     return cancelled_loop if cancelled_loop
 
-    step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).detect { |candidate| !candidate.retry_until_barrier_superseded? } ||
+    step = Workflows::StepPreloader.sorted(workflow.steps.where(state: "failed"), descending: true)
+      .detect { |candidate| !candidate.retry_until_barrier_superseded? } ||
       cancelled_publication_step_for(workflow)
     step = grade_loop_restart_step_for(step) if grade_loop_failure?(step)
     return unless step
@@ -41,17 +42,18 @@ class RetryFailedStepEnqueuer
   def self.grade_loop_restart_step_for(step)
     return step if step.kind == "grader_fanout"
 
-    step.workflow.steps
-      .where(kind: "grader_fanout", loop_id: step.loop_id, iteration: step.iteration)
-      .reorder(position: :asc, id: :asc)
-      .first || step
+    Workflows::StepPreloader.sorted(
+      step.workflow.steps.where(kind: "grader_fanout", loop_id: step.loop_id, iteration: step.iteration)
+    ).first || step
   end
 
   def self.cancelled_grade_loop_restart_step_for(workflow)
-    collectors = workflow.steps
-      .where(kind: "grader_collect")
-      .where.not(loop_id: nil)
-      .reorder(position: :desc, id: :desc)
+    # Every query here filters Steps beyond workflow_id, so ORDER BY position
+    # cannot use an index and MySQL would filesort whole rows; this runs on
+    # every Job page load. Sort in Ruby (Workflows::StepPreloader.sorted).
+    collectors = Workflows::StepPreloader.sorted(
+      workflow.steps.where(kind: "grader_collect").where.not(loop_id: nil), descending: true
+    )
     inspected_loop_ids = {}
 
     collectors.each do |collector|
@@ -60,10 +62,9 @@ class RetryFailedStepEnqueuer
       inspected_loop_ids[collector.loop_id] = true
       next if collector.retry_until_barrier_superseded?
 
-      iteration_steps = workflow.steps
-        .where(loop_id: collector.loop_id, iteration: collector.iteration)
-        .reorder(:position, :id)
-        .to_a
+      iteration_steps = Workflows::StepPreloader.sorted(
+        workflow.steps.where(loop_id: collector.loop_id, iteration: collector.iteration)
+      )
       next unless iteration_steps.any? { |candidate| candidate.runs.any? || candidate.failed? || candidate.succeeded? }
 
       cancelled_required = iteration_steps.any? do |candidate|
@@ -88,11 +89,11 @@ class RetryFailedStepEnqueuer
   def self.failed_grader_siblings(step)
     return [] unless step&.kind == "grader"
 
-    step.workflow.steps
-      .where(kind: "grader", state: "failed", loop_id: step.loop_id, iteration: step.iteration)
-      .where.not(id: step.id)
-      .order(:position)
-      .to_a
+    Workflows::StepPreloader.sorted(
+      step.workflow.steps
+        .where(kind: "grader", state: "failed", loop_id: step.loop_id, iteration: step.iteration)
+        .where.not(id: step.id)
+    )
   end
 
   def self.crosses_uncleared_retry_until_barrier?(step)
