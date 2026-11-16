@@ -282,7 +282,12 @@ formatting, grading, summarization, PR publication, and later review steps wait
 for every required panel's aggregate collect result to approve the same HEAD.
 If any review requests a repair, Syrus supersedes and cancels the old HEAD's
 member and aggregate work, then rematerializes every required review gate for
-the repaired HEAD. Optional review gates remain outside this join and cannot
+the repaired HEAD while review budget remains. If the final permitted opinion
+requests work, its successful repair still supersedes the old evidence, but
+Syrus records a pending operator warning that the exact repaired HEAD was not
+re-reviewed and continues through the remaining gates and pipeline. That
+explicit per-gate, per-HEAD exhaustion record satisfies the barrier; the stale
+verdict does not. Optional review gates remain outside this join and cannot
 retroactively stop downstream work after it starts.
 
 Review-panel members may optionally identify an authorized coworker target in

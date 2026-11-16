@@ -108,7 +108,7 @@ preview:
 
 visual_review:
   enabled: true
-  rounds: 2
+  rounds: 5
   when_files_changed:
     - "app/frontend/**/*"
     - "app/views/**/*"
@@ -211,7 +211,7 @@ merge_train:
   failure_rungs: [multisect]
 
 adversarial_review:
-  rounds: 1
+  rounds: 5
   criteria:
     - |-
       Reject any collapsed tool-card header that exceeds one visual line at any
@@ -268,7 +268,7 @@ adversarial_review:
       de/ or la/.
 
 security_review:
-  rounds: 1
+  rounds: 5
   required: false
   criteria:
     - |-

@@ -5,9 +5,11 @@ module Workflows
   # terminal after a repair changed HEAD.
   class ImmutableReviewHeadBarrier
     MUTATION_KINDS = %w[implement respond].freeze
+    EXHAUSTIONS_ARTIFACT = "review_budget_exhaustions"
+    EXHAUSTION_WARNING_KIND = "required_review_budget_exhausted"
 
     def self.reviewed_head_sha(workflow)
-      workflow.steps.where(kind: MUTATION_KINDS, state: "succeeded").order(position: :desc, id: :desc)
+      workflow.steps.where(kind: MUTATION_KINDS, state: "succeeded").reorder(position: :desc, id: :desc)
         .includes(:runs).detect { |step| step.runs.last&.head_sha.present? }
         &.runs&.last&.head_sha
     end
@@ -33,8 +35,42 @@ module Workflows
 
       snapshots.all? do |snapshot|
         evidence = terminal_evidence(workflow, snapshot.fetch("step_kind"), sha)
-        evidence&.succeeded? && approved_evidence?(workflow, evidence, snapshot)
+        (evidence&.succeeded? && approved_evidence?(workflow, evidence, snapshot)) ||
+          exhausted_for_head?(workflow, snapshot.fetch("step_kind"), sha)
       end
+    end
+
+    # A review budget is runaway protection, not a reason to discard a
+    # successful final repair. Preserve the immutable-HEAD boundary by
+    # recording an explicit exception for this gate and exact repaired HEAD;
+    # stale evidence remains superseded and can never satisfy the barrier.
+    def self.record_budget_exhaustion!(workflow, repair_step, review_kind)
+      sha = reviewed_head_sha(workflow)
+      return if sha.blank?
+
+      entry = {
+        "review_kind" => review_kind,
+        "head_sha" => sha,
+        "repair_step_id" => repair_step.id,
+        "repair_run_id" => repair_step.runs.reorder(:id).last&.id,
+        "recorded_at" => Time.current.iso8601
+      }
+      exhaustions = Array(workflow.artifact(EXHAUSTIONS_ARTIFACT))
+      unless exhaustions.any? { |existing| exhaustion_matches?(existing, review_kind, sha) }
+        workflow.set_artifact!(EXHAUSTIONS_ARTIFACT, exhaustions + [ entry ])
+      end
+
+      warning = workflow.workflow_warnings.where(kind: EXHAUSTION_WARNING_KIND, state: "pending").detect do |candidate|
+        exhaustion_matches?(candidate.evidence.to_h, review_kind, sha)
+      end
+      warning || WorkflowWarnings.record!(
+        workflow: workflow,
+        step: repair_step,
+        kind: EXHAUSTION_WARNING_KIND,
+        severity: "high",
+        title: "#{review_kind.humanize} budget exhausted; final repaired HEAD was not re-reviewed",
+        evidence: entry
+      )
     end
 
     def self.invalidate_stale_evidence!(workflow)
@@ -87,7 +123,9 @@ module Workflows
 
           snapshots.each do |snapshot|
             kind = snapshot.fetch("step_kind")
-            fresh = workflow.steps.where(state: Step::ACTIVE_STATES).order(position: :desc, id: :desc).detect do |candidate|
+            next if exhausted_for_head?(workflow, kind, sha)
+
+            fresh = workflow.steps.where(state: Step::ACTIVE_STATES).reorder(position: :desc, id: :desc).detect do |candidate|
               effective_review_kind(candidate) == kind &&
                 candidate.details.to_h["reviewed_head_sha"].in?([ nil, sha ])
             end
@@ -96,7 +134,7 @@ module Workflows
               next
             end
 
-            previous = workflow.steps.order(position: :desc, id: :desc).detect do |candidate|
+            previous = workflow.steps.reorder(position: :desc, id: :desc).detect do |candidate|
               effective_review_kind(candidate) == kind && candidate.loop_id.present?
             end
             next unless previous
@@ -142,7 +180,7 @@ module Workflows
       Array(workflow.artifact("review_gate_contributions")).select do |snapshot|
         next false unless snapshot.fetch("required", true) == true
 
-        latest_explicit = workflow.steps.order(position: :desc, id: :desc).detect do |step|
+        latest_explicit = workflow.steps.reorder(position: :desc, id: :desc).detect do |step|
           effective_review_kind(step) == snapshot["step_kind"] && step.details.to_h.key?("required")
         end
         latest_explicit.nil? || latest_explicit.details.to_h["required"] != false
@@ -150,7 +188,7 @@ module Workflows
     end
 
     def self.terminal_evidence(workflow, kind, sha)
-      workflow.steps.order(position: :desc, id: :desc).detect do |candidate|
+      workflow.steps.reorder(position: :desc, id: :desc).detect do |candidate|
         effective_review_kind(candidate) == kind &&
           !candidate.details.to_h["panel_fanout"] &&
           !candidate.details.to_h["panel_member"] &&
@@ -170,6 +208,16 @@ module Workflows
       Array(snapshot.fetch("exit_verdicts", %w[approved skipped])).include?(verdict)
     end
 
-    private_class_method :required_snapshots, :terminal_evidence, :approved_evidence?
+    def self.exhausted_for_head?(workflow, review_kind, sha)
+      Array(workflow.artifact(EXHAUSTIONS_ARTIFACT)).any? do |entry|
+        exhaustion_matches?(entry, review_kind, sha)
+      end
+    end
+
+    def self.exhaustion_matches?(entry, review_kind, sha)
+      entry.to_h["review_kind"] == review_kind && entry.to_h["head_sha"] == sha
+    end
+
+    private_class_method :required_snapshots, :terminal_evidence, :approved_evidence?, :exhaustion_matches?
   end
 end

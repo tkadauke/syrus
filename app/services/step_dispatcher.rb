@@ -1231,9 +1231,9 @@ class StepDispatcher
 
   def advance!
     if @from_step&.succeeded? && Workflows::ImmutableReviewHeadBarrier::MUTATION_KINDS.include?(@from_step.kind)
-      if exhausted_review_repair_without_validation?
+      if (review_kind = exhausted_review_repair_without_validation)
         Workflows::ImmutableReviewHeadBarrier.invalidate_stale_evidence!(@workflow)
-        return hard_fail_workflow!("required_review_budget_exhausted_after_head_change")
+        Workflows::ImmutableReviewHeadBarrier.record_budget_exhaustion!(@workflow, @from_step, review_kind)
       end
       Workflows::ImmutableReviewHeadBarrier.refresh_required_reviews!(@workflow, @from_step)
     end
@@ -1373,24 +1373,24 @@ class StepDispatcher
 
   private
 
-  def exhausted_review_repair_without_validation?
-    return false unless @from_step.loop_id.present?
+  def exhausted_review_repair_without_validation
+    return unless @from_step.loop_id.present?
 
     loop_node = loop_node_for(@from_step)
-    return false unless loop_node&.fetch("type", nil) == "loop"
+    return unless loop_node&.fetch("type", nil) == "loop"
 
     expected_review_kind = loop_step_kinds(loop_node).last
     snapshot = Array(@workflow.artifact("review_gate_contributions")).find do |candidate|
       candidate["step_kind"] == expected_review_kind
     end
-    return false unless snapshot&.fetch("required", true) == true
+    return unless snapshot&.fetch("required", true) == true
 
     next_step = @from_step.next_step
-    return true unless next_step
+    return expected_review_kind unless next_step
 
-    Workflows::ImmutableReviewHeadBarrier.effective_review_kind(next_step) != expected_review_kind
+    expected_review_kind if Workflows::ImmutableReviewHeadBarrier.effective_review_kind(next_step) != expected_review_kind
   rescue ArgumentError
-    false
+    nil
   end
 
   def clear_recovered_grader_loop_attention!

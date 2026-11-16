@@ -47,6 +47,10 @@ Syrus expects evidence for the actual changed route, screen, or component state.
 - `skipped` — the change is not visually testable or an external environment blocker prevents review.
 
 Every requested review opinion receives one repair reaction when it returns `needs_work`, including the final configured round. Findings from prior iterations remain available to later review and repair turns. The reviewer must submit a verdict explicitly.
+Because visual review is optional, an exhausted final repair proceeds without
+turning the visual verdict into required approval of the new HEAD. Any required
+code-review gates invalidated by that repair are still refreshed against the
+new HEAD before downstream work continues.
 
 ## Configuration (`.syrus.yml`)
 

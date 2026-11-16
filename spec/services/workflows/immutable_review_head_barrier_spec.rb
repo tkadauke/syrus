@@ -121,6 +121,32 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
     expect(described_class.satisfied_for?(tail)).to be(false)
   end
 
+  it "accepts only an explicit exhausted-gate exception for the repaired HEAD and rematerializes sibling gates" do
+    adversarial = collect(kind: "adversarial_review", position: 1, sha: "head-a")
+    security = collect(kind: "security_review", position: 2, sha: "head-a")
+    adversarial.update!(loop_id: "adversarial-loop")
+    security.update!(loop_id: "security-loop")
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 3, state: "succeeded",
+      loop_id: "adversarial-loop")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-c")
+    tail = Step.create!(workflow: workflow, kind: "format", position: 4)
+    repair.update!(next_step: tail)
+
+    described_class.invalidate_stale_evidence!(workflow)
+    described_class.record_budget_exhaustion!(workflow, repair, "adversarial_review")
+    created = described_class.refresh_required_reviews!(workflow, repair)
+    workflow.reload
+
+    expect(created.map(&:kind)).to eq([ "security_review" ])
+    expect(described_class.exhausted_for_head?(workflow, "adversarial_review", "head-c")).to be(true)
+    expect(described_class.exhausted_for_head?(workflow, "adversarial_review", "head-b")).to be(false)
+    expect(described_class.satisfied_for?(tail)).to be(false)
+    expect(workflow.workflow_warnings.where(kind: "required_review_budget_exhausted").count).to eq(1)
+
+    described_class.record_budget_exhaustion!(workflow, repair, "adversarial_review")
+    expect(workflow.workflow_warnings.where(kind: "required_review_budget_exhausted").count).to eq(1)
+  end
+
   it "keeps the tail closed after a fresh required failure and releases it exactly once after all approve" do
     collect(kind: "adversarial_review", position: 1, sha: "head-b")
     collect(kind: "security_review", position: 2, sha: "head-b", verdict: "needs_work")
