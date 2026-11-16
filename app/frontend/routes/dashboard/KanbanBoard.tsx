@@ -310,7 +310,7 @@ function KanbanCard({
       onDragStart={(event) => onDragStart(item, event)}
     >
       <div className="p-3">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap text-xs">
           <SlugHoverCard id={item.id} kind="epic">
             <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
           </SlugHoverCard>

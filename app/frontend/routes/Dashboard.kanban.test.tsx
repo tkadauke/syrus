@@ -261,8 +261,10 @@ describe("App dashboard Kanban", () => {
     expect(copySlugButton).toHaveTextContent("EPIC-7")
     const repositoryLink = within(card).getByRole("link", { name: "acme/widgets" })
     const titleLink = within(card).getByRole("link", { name: "Raise the forum" })
-    expect(repositoryLink.parentElement).toBe(copySlugButton.parentElement?.parentElement)
-    expect(titleLink.previousElementSibling).toBe(repositoryLink.parentElement)
+    const slugRow = repositoryLink.parentElement
+    expect(slugRow).toBe(copySlugButton.parentElement?.parentElement)
+    expect(slugRow).toHaveClass("flex-nowrap", "whitespace-nowrap")
+    expect(titleLink.previousElementSibling).toBe(slugRow)
     fireEvent.click(copySlugButton)
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("EPIC-7"))
     const badge = within(card).getByText("Needs attention")
