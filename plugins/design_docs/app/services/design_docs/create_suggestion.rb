@@ -26,6 +26,7 @@ module DesignDocs
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
 
       result = DesignDoc.transaction do
+        design_doc.lock!
         base_version = design_doc.current_version
         visible = AnchorMarkers.strip(design_doc.markdown)
         start_offset, end_offset = normalized_offsets(visible.length)
