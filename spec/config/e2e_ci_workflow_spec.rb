@@ -48,10 +48,14 @@ RSpec.describe "e2e CI workflow" do
     expect(run_steps.join("\n")).not_to match(/bin\/test-e2e --project=/)
   end
 
+  it "keeps Playwright on its validated runner image" do
+    expect(workflow.dig("jobs", "e2e", "runs-on")).to eq("ubuntu-24.04")
+  end
+
   it "installs Chromium's OS-level dependencies before bin/test-e2e installs the browser itself" do
     # bin/test-e2e installs the Playwright browser binaries (idempotent), but
     # not the system shared libraries Chromium needs -- the worker image gets
-    # those via Dockerfile's `--with-deps`, a bare ubuntu-latest runner does not.
+    # those via Dockerfile's `--with-deps`, a bare Ubuntu runner does not.
     run_steps = Array(workflow.dig("jobs", "e2e", "steps")).map { |step| step["run"] }.compact
     deps_index = run_steps.index { |body| body.include?("playwright install-deps") }
     suite_index = run_steps.index { |body| body.strip == "bin/test-e2e" }

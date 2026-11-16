@@ -23,4 +23,8 @@ RSpec.describe "CI workflow" do
   it "leaves enough time for the complete React coverage suite" do
     expect(workflow.dig("jobs", "react", "timeout-minutes")).to be >= 30
   end
+
+  it "keeps the React suite on its validated runner image" do
+    expect(workflow.dig("jobs", "react", "runs-on")).to eq("ubuntu-24.04")
+  end
 end
