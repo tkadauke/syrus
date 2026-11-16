@@ -1,4 +1,8 @@
 class ChatPendingAction < ApplicationRecord
+  # The request was withdrawn or expired before confirmation, so execution was
+  # never attempted and the pending action should be cancelled rather than failed.
+  class AuthorizationLapsed < ArgumentError; end
+
   include PendingActions::Invocation
 
   TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT = 250
@@ -496,7 +500,7 @@ class ChatPendingAction < ApplicationRecord
     with_lock do
       return false unless confirming?
 
-      if error.is_a?(PendingActions::AuthorizationLapsed)
+      if error.is_a?(AuthorizationLapsed)
         return update!(
           state: "cancelled",
           cancelled_at: Time.current,
