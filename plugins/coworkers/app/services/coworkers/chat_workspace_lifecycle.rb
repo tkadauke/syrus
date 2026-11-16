@@ -5,6 +5,7 @@ class Coworkers::ChatWorkspaceLifecycle
   include Syrus::Plugin::ChatWorkspaceLifecycle
   MAX_PUSH_ATTEMPTS = 3
   MAX_RESOLUTION_ATTEMPTS = 2
+  MAX_SYNC_ATTEMPTS = 3
   RESOLUTION_TIMEOUT = 1.hour
   BACKGROUND_GIT_TIMEOUT = 1.minute
 
@@ -41,6 +42,8 @@ class Coworkers::ChatWorkspaceLifecycle
       FileUtils.mkdir_p(path.dirname.to_s)
       clone_branch!(chat_branch, path.to_s)
       @chat.chat_attachments.find_or_create_by!(attachable: @repository)
+    else
+      synchronize_from_home!(path)
     end
     @git.configure_author(identity, chdir: path.to_s)
     path
@@ -141,6 +144,79 @@ class Coworkers::ChatWorkspaceLifecycle
 
   def workspace_repository
     @coworker.workspace_repository
+  end
+
+  # A background run persists through the home branch, while a chat keeps a
+  # long-lived branch and checkout. Refresh only at the start of an owner turn:
+  # changing this checkout from the background worker would race the live turn.
+  def synchronize_from_home!(path)
+    MAX_SYNC_ATTEMPTS.times do |attempt|
+      git_run("fetch", @remote_url,
+        "refs/heads/#{home_branch}:refs/remotes/origin/coworker-home", chdir: path.to_s, env: @env)
+      home_sha = git_run("rev-parse", "refs/remotes/origin/coworker-home", chdir: path.to_s).strip
+      local_sha = git_run("rev-parse", "HEAD", chdir: path.to_s).strip
+      return :synchronized if home_sha == local_sha
+
+      unsafe_reason = synchronization_blocker(path)
+      return warn_stale_checkout!(path, unsafe_reason, persisted_home_sha: home_sha) if unsafe_reason
+
+      merge = git_capture("merge", "--ff-only", home_sha, chdir: path.to_s, env: @env)
+      unless merge.success?
+        return warn_stale_checkout!(path, "the chat branch has changes that cannot be fast-forwarded",
+          persisted_home_sha: home_sha)
+      end
+
+      current_home_sha = remote_branch_sha(home_branch)
+      next if current_home_sha.present? && current_home_sha != home_sha && attempt < MAX_SYNC_ATTEMPTS - 1
+
+      if current_home_sha != home_sha
+        return warn_stale_checkout!(path, "the coworker home branch kept moving", persisted_home_sha: current_home_sha)
+      end
+
+      push_guard.allow!(chat_branch)
+      git_run("push", @remote_url, "HEAD:refs/heads/#{chat_branch}", chdir: path.to_s, env: @env)
+      return :synchronized
+    end
+  rescue GitRunner::GitError => error
+    warn_stale_checkout!(path, "Git synchronization failed: #{GitRunner.redact(error.message)}")
+  end
+
+  def synchronization_blocker(path)
+    return "an unresolved workspace conflict is being recovered" if active_conflict
+    return "a rebase is in progress" if rebase_in_progress?(path)
+    return "the index contains unmerged files" if unmerged_files(path).any?
+    "the checkout contains uncommitted work" if git_run("status", "--porcelain", chdir: path.to_s).present?
+  end
+
+  def rebase_in_progress?(path)
+    %w[rebase-merge rebase-apply].any? do |name|
+      git_path = git_run("rev-parse", "--git-path", name, chdir: path.to_s).strip
+      File.exist?(Pathname(path).join(git_path))
+    end
+  end
+
+  def remote_branch_sha(branch)
+    @git.run("ls-remote", "--heads", @remote_url, "refs/heads/#{branch}", env: @env).split.first
+  end
+
+  def warn_stale_checkout!(path, reason, persisted_home_sha: nil)
+    local_sha = git_run("rev-parse", "HEAD", chdir: path.to_s).strip rescue nil
+    home_sha = persisted_home_sha || (remote_branch_sha(home_branch) rescue nil)
+    warning = { "reason" => reason, "chat_sha" => local_sha, "home_sha" => home_sha }.compact
+    previous = @chat.messages.where(role: "system").order(id: :desc).find do |message|
+      message.content.to_h["coworker_workspace_sync_warning"] == warning
+    end
+    return :stale if previous
+
+    text_key = home_sha.present? && home_sha != local_sha ? "workspace_sync_stale" : "workspace_sync_unavailable"
+    @chat.messages.create!(role: "system", skip_turn_trigger: true, content: {
+      "text" => I18n.t("api.coworkers.#{text_key}", reason:),
+      "prominent" => true,
+      "system_label" => I18n.t("api.coworkers.workspace_sync_warning_label"),
+      "system_tone" => "warning",
+      "coworker_workspace_sync_warning" => warning
+    })
+    :stale
   end
 
   def ensure_chat_branch!
