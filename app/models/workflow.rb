@@ -455,16 +455,15 @@ class Workflow < ApplicationRecord
   end
 
   def uncleared_retry_until_barrier?
-    steps
+    barrier_steps = steps
       .where.not(loop_id: [ nil, "" ])
-      .reorder(position: :desc, id: :desc)
-      .each_with_object({}) do |step, latest_by_loop|
-        next unless retry_until_barrier_step?(step)
-        next if step.retry_until_barrier_superseded?
+      .unscope(:order)
+      .select { |step| retry_until_barrier_step?(step) && !step.retry_until_barrier_superseded? }
 
-        latest_by_loop[step.loop_id] ||= step
-      end
+    barrier_steps
+      .group_by(&:loop_id)
       .values
+      .map { |loop_steps| loop_steps.max_by { |step| [ step.position, step.id ] } }
       .any? { |step| !step.succeeded? }
   end
 

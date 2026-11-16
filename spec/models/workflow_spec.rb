@@ -287,6 +287,33 @@ RSpec.describe Workflow, :ci_only do
     end
   end
 
+  describe "#uncleared_retry_until_barrier?" do
+    it "finds the latest non-superseded barrier per loop without sorting in MySQL" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(workflow: workflow, kind: "grader_collect", position: 1, loop_id: "loop-a", state: "failed")
+      Step.create!(workflow: workflow, kind: "grader_collect", position: 2, loop_id: "loop-a", state: "succeeded")
+      Step.create!(workflow: workflow, kind: "grader_collect", position: 2, loop_id: "loop-b", state: "succeeded")
+      Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        loop_id: "loop-b",
+        state: "failed",
+        details: { Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY => true }
+      )
+      statements = []
+      subscriber = ->(*, payload) { statements << payload[:sql] if payload[:sql].match?(/FROM [`\"]steps[`\"]/i) }
+
+      result = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        workflow.uncleared_retry_until_barrier?
+      end
+
+      expect(result).to be(false)
+      expect(statements).to be_present
+      expect(statements).to all(satisfy { |sql| sql.exclude?("ORDER BY") })
+    end
+  end
+
   describe "#landing_workflow?" do
     it "treats every trigger that owns landing state as a landing workflow" do
       expect(described_class::LANDING_TRIGGER_KINDS).to contain_exactly(*WorkDefinitions.landing_workflow_kinds)
