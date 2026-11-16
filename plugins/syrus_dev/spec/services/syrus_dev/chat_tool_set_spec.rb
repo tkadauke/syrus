@@ -35,6 +35,13 @@ RSpec.describe SyrusDev::ChatToolSet do
     expect(described_class.tool_definitions(tier: :essential)).to all(
       include(coworker_safe: true, capability: "syrus_dev.read_diagnostics")
     )
+    expect(described_class.tool_definitions(tier: :essential).map { |definition| definition.fetch(:capability_descriptor) })
+      .to all(have_attributes(
+        capability: "syrus_dev.read_diagnostics@v1",
+        effects: [ :confidential_read ],
+        risk: :medium,
+        defaults: include(AgentRole::COWORKER_CHAT => :ask, AgentRole::COWORKER => :ask)
+      ))
   end
 
   it "advertises both tools as requestable without treating legacy grants as authority" do
