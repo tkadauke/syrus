@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import { PluginUiSlotCarousel, pluginUiSlotComponentFor, pluginUiSlotComponentKeys, type UiSlotPanel } from "./pluginUiSlots"
+import { registerPluginContribution } from "./pluginContributionRegistry"
 
 describe("pluginUiSlots", () => {
   it("returns null for an unknown component key", () => {
@@ -16,6 +17,13 @@ describe("pluginUiSlots", () => {
     for (const key of pluginUiSlotComponentKeys()) {
       expect(key).toMatch(/^[^/]+\/[^/]+$/)
     }
+  })
+
+  it("returns a UI slot registered at runtime", () => {
+    registerPluginContribution("ui_slot", "runtime_ui", "RuntimePanel", async () => ({ default: () => null }))
+
+    expect(pluginUiSlotComponentKeys()).toContain("runtime_ui/RuntimePanel")
+    expect(pluginUiSlotComponentFor("runtime_ui/RuntimePanel")).toBeTruthy()
   })
 
   it("does not resubscribe carousel panel visibility observers on ordinary rerenders", async () => {

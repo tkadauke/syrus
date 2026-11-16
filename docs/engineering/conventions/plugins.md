@@ -26,6 +26,11 @@ The currently registered contribution kinds are:
 - `workspace_tab` for `plugins/*/app/frontend/workspaceTabs/*.tsx`
 - `admin_page` for admin components in `plugins/*/app/frontend/routes/*.tsx`
 - `sidebar_page` for sidebar components in `plugins/*/app/frontend/routes/*.tsx`
+- `repo_page_tab` for `plugins/*/app/frontend/repo_tabs/*.tsx`
+- `slug_preview_card` for `plugins/*/app/frontend/slugPreviewCards/*.tsx`
+- `review_contribution` for `plugins/*/app/frontend/review_contributions/*.tsx`
+- `review_annotation` for `plugins/*/app/frontend/review_annotations/*.tsx`
+- `ui_slot` for `plugins/*/app/frontend/ui_slots/*.tsx`
 
 - **A disabled plugin is not eager loaded.** Its `app/` dirs stay on the
   autoload path, so Zeitwerk resolves constants on demand and enabling needs no

@@ -1,5 +1,7 @@
 import { lazy, type ComponentType } from "react"
 import { loadPluginModule } from "./i18n"
+import "./builtInPluginContributions"
+import { getPluginContributions, pluginContributionLoader, type PluginContribution } from "./pluginContributionRegistry"
 
 // Discovers plugin-supplied DOC-<id>-style slug hover/preview card
 // components. A plugin registers the slug prefix it owns (e.g. "DOC")
@@ -19,26 +21,14 @@ type PluginModule = {
   default?: ComponentType<PluginSlugPreviewCardProps>
 }
 
-const slugPreviewCardModules = import.meta.glob<PluginModule>([
-  "../../plugins/*/app/frontend/slugPreviewCards/*.tsx",
-  "!../../plugins/*/app/frontend/slugPreviewCards/*.test.tsx"
-])
-
-const componentLoaders = Object.fromEntries(
-  Object.entries(slugPreviewCardModules)
-    .map(([path, loader]) => {
-      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/slugPreviewCards\/([A-Z0-9]+)\.[^/.]+\.tsx$/)
-      if (!match) return []
-
-      return [match[2], { plugin: match[1], loader }]
-    })
-    .filter((entry): entry is [string, { plugin: string; loader: () => Promise<PluginModule> }] => entry.length === 2)
-)
-
 const componentCache = new Map<string, ComponentType<PluginSlugPreviewCardProps>>()
 
+function contributionForPrefix(prefix: string): PluginContribution<PluginModule> | undefined {
+  return getPluginContributions<PluginModule>("slug_preview_card").find(({ key }) => key.split(".", 1)[0] === prefix)
+}
+
 export function pluginSlugPreviewCardPrefixes() {
-  return Object.keys(componentLoaders).sort()
+  return getPluginContributions<PluginModule>("slug_preview_card").map(({ key }) => key.split(".", 1)[0]).sort()
 }
 
 export function pluginSlugPreviewCardComponentForPrefix(prefix: string | null | undefined) {
@@ -46,11 +36,11 @@ export function pluginSlugPreviewCardComponentForPrefix(prefix: string | null | 
   const cached = componentCache.get(prefix)
   if (cached) return cached
 
-  const entry = componentLoaders[prefix]
-  if (!entry) return null
+  const contribution = contributionForPrefix(prefix)
+  if (!contribution) return null
 
   const Component = lazy(async () => {
-    const mod = await loadPluginModule(entry.plugin, entry.loader)
+    const mod = await loadPluginModule(contribution.pluginName, pluginContributionLoader(contribution))
     if (!mod.default) throw new Error(`Plugin slug preview card for prefix ${prefix} has no default export`)
     return { default: mod.default }
   })

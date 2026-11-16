@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { matchingReviewContribution, renderReviewContribution, reviewContributionComponentFor, type ReviewContribution } from "./pluginReviewContributions"
+import { registerPluginContribution } from "./pluginContributionRegistry"
 
 describe("plugin review contributions", () => {
   const entries: ReviewContribution[] = [
@@ -26,5 +27,11 @@ describe("plugin review contributions", () => {
     }
     render(renderReviewContribution(contribution, { label: "Synthetic evidence rendered" }))
     expect(await screen.findByLabelText("Synthetic review evidence")).toHaveTextContent("Synthetic evidence rendered")
+  })
+
+  it("returns a review contribution registered at runtime", () => {
+    registerPluginContribution("review_contribution", "runtime_review", "RuntimeEvidence", async () => ({ default: () => null }))
+
+    expect(reviewContributionComponentFor("runtime_review/RuntimeEvidence")).toBeTruthy()
   })
 })
