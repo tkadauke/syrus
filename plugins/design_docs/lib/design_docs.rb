@@ -14,6 +14,16 @@ module DesignDocs
     default_enabled false
     disableable true
     optionally_depends_on [ "global_search" ]
+    cli_commands [
+      {
+        path: %w[docs list], summary: "List design docs", handler: "DesignDocs::Cli::List",
+        flags: [ { name: "repo", type: :string } ]
+      },
+      {
+        path: %w[docs show], summary: "Show a design doc", handler: "DesignDocs::Cli::Show",
+        arguments: [ { name: "DOC-ID", type: :string, required: true } ]
+      }
+    ]
     events "design_doc.upserted" => :async,
            "design_doc.deleted" => :async
     provides sidebar_page: "DesignDocs::SidebarPages",
