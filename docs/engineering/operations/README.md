@@ -23,6 +23,8 @@ recovering Syrus itself. Operator feature instructions remain in
 - [Docker Compose](docker_compose.md)
 - [Multi-worker operations](multi-worker.md) — queue partitioning, native
   macOS workers, storage remediation, and capacity sizing.
+- [External plugin operations](external-plugins.md) — install, replace,
+  diagnose, and remove a dropped-in plugin directory.
 - [Metrics operations](metrics.md) — scrape authentication, readiness, alert
   rules, and the operator metric catalog.
 - [Observability operations](observability.md) — on-demand process diagnostics

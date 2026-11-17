@@ -4,7 +4,8 @@ Use these rules for plugin lifecycle, registration, boundaries, suggestions, and
 
 The complete extension-point interfaces, examples, frontend integration rules,
 icon pipeline, lifecycle hooks, and boundary tooling live in the
-[plugin-authoring reference](plugins/authoring.md).
+[plugin-authoring reference](plugins/authoring.md). To build a plugin outside
+this repository, start with [Authoring an external plugin](plugins/external.md).
 
 ## Frontend contribution registry
 
