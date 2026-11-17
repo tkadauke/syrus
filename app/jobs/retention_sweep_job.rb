@@ -5,7 +5,9 @@ class RetentionSweepJob < ApplicationJob
 
   def perform
     RetentionPolicyPruneJob.perform_later_missing_simple_args(
-      RetentionPolicyRegistry.definitions.map { |definition| [ definition.key.to_s ] }
+      RetentionPolicyRegistry.definitions.filter_map do |definition|
+        [ definition.key.to_s, false ] unless definition.setting.archive_before_delete?
+      end
     )
   end
 end
