@@ -64,6 +64,8 @@ class Coworkers::Coworker < ApplicationRecord
     ).distinct.ids
   end
 
+  def listed_chats = coworker_chats.reject(&:mention?)
+
   def permission_rules = Coworkers::PermissionRules.new(self)
   def prepare_review_context!(run:, evidence:, criteria:) = Coworkers::ReviewMemoryLifecycle.prepare!(coworker: self, run:, evidence:, criteria:)
   def review_context_prompt(context) = Coworkers::ReviewMemoryLifecycle.prompt_section(context)
