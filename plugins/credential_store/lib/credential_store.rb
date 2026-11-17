@@ -25,6 +25,12 @@ module CredentialStore
       { name: "credential_store.kubeconfig", label: "Kubeconfig", description: "Kubernetes configuration constrained by context or cluster metadata." },
       { name: "credential_store.url_token", label: "URL token", description: "Token material constrained to one or more URL prefixes." }
     ]
+    cli_commands [
+      { path: %w[credential types], summary: "List credential type names", handler: "CredentialStore::Cli::Types", flags: [ { name: "json", type: :boolean, default: false } ] },
+      { path: %w[credential credentials], summary: "List accessible credential handles", handler: "CredentialStore::Cli::Credentials", flags: [ { name: "json", type: :boolean, default: false }, { name: "type" } ] },
+      { path: %w[credential_store types], summary: "List credential type names", handler: "CredentialStore::Cli::Types", flags: [ { name: "json", type: :boolean, default: false } ] },
+      { path: %w[credential_store credentials], summary: "List accessible credential handles", handler: "CredentialStore::Cli::Credentials", flags: [ { name: "json", type: :boolean, default: false }, { name: "type" } ] }
+    ]
     provides admin_page: "CredentialStore::AdminPages",
              sidebar_page: "CredentialStore::SidebarPages",
              mcp_tool_set: "CredentialStore::WorkflowToolSet",

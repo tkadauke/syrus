@@ -970,6 +970,12 @@ const bundledCliPath = () => {
   return path.join(bundledDir, `syrus-${process.platform}-${process.arch === "arm64" ? "arm64" : "x64"}${suffix}`)
 }
 
+const bundledCredentialCliPath = () => {
+  const bundledDir = app.isPackaged ? path.join(process.resourcesPath, "cli") : path.join(__dirname, "..", "resources", "cli")
+  const suffix = process.platform === "win32" ? ".exe" : ""
+  return path.join(bundledDir, `syrus-credential-${process.platform}-${process.arch === "arm64" ? "arm64" : "x64"}${suffix}`)
+}
+
 // Whether the app package actually carries a CLI binary to install from.
 // False means the build shipped without Resources/cli (or a dev build never
 // staged it) — the tray banner then shows manual guidance instead of an
@@ -1074,6 +1080,12 @@ const performCliInstall = async ({ withSkill = false }: CliInstallOptions = {}):
 
     await fs.copyFile(source, target)
     await fs.chmod(target, 0o755)
+    const credentialTarget = path.join(binDir, process.platform === "win32" ? "syrus-credential.exe" : "syrus-credential")
+    await fs.copyFile(bundledCredentialCliPath(), credentialTarget)
+    await fs.chmod(credentialTarget, 0o755)
+    const credentialAlias = path.join(binDir, process.platform === "win32" ? "syrus-credential_store.exe" : "syrus-credential_store")
+    await fs.copyFile(bundledCredentialCliPath(), credentialAlias)
+    await fs.chmod(credentialAlias, 0o755)
 
     if (process.platform === "win32") {
       // Best-effort: a failed PATH write still leaves a working absolute-
