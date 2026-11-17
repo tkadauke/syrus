@@ -68,6 +68,24 @@ RSpec.describe "API: /api/v1/app/cli_commands", type: :request do
     expect(response.parsed_body.dig("error", "code")).to eq("invalid_arguments")
   end
 
+  it "rejects malformed argument and flag containers as invalid arguments" do
+    register_fixture_plugin
+
+    [
+      { args: { name: "Thomas" } },
+      { args: "Thomas" },
+      { flags: "loud" },
+      { flags: [ "loud" ] }
+    ].each do |invalid_input|
+      post "/api/v1/app/cli_commands/execute",
+           params: { plugin: "fixture_cli", path: %w[fixture greet], args: [ "Thomas" ] }.merge(invalid_input),
+           as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body.dig("error", "code")).to eq("invalid_arguments")
+    end
+  end
+
   it "returns forbidden when the handler rejects the user" do
     register_fixture_plugin
     post "/api/v1/app/cli_commands/execute", params: { plugin: "fixture_cli", path: %w[fixture denied] }, as: :json
