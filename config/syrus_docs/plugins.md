@@ -103,6 +103,24 @@ React, React DOM, TanStack Query, i18next, react-i18next, and
 `@syrus/plugin-sdk` modules; those dependencies must remain external rather
 than being copied into the plugin bundle.
 
+## Hand-installing external plugins
+
+`SYRUS_PLUGIN_PATH` names a root whose immediate child directories are external
+plugins. Every Rails process must see identical contents, normally through the
+same read-only shared volume. Stage a complete plugin outside that root, swap
+its directory atomically, run the normal deployment migrations, and restart
+every web, worker, preview, setup, and other Rails container. External plugins
+are trusted in-process code and cannot add gems to the resolved Syrus bundle.
+
+After restart, use **Admin → Plugins** to check compatibility, dependency
+health, and load failures before enabling the plugin. `incompatible` means its
+`requires_syrus` requirement rejects this release; `failed` means its entry
+could not load. Both states withhold that plugin while the rest of Syrus keeps
+booting. To remove a plugin, disable it, resolve usage/dependency blockers,
+move its entire directory out of the root, restart all Rails processes, and
+confirm it disappears. Removal retains database data unless the plugin's purge
+procedure is run explicitly.
+
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore
 removes its documentation too.

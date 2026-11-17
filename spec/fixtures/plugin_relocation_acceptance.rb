@@ -49,5 +49,10 @@ assert!(frontend, "bootstrap omitted the external frontend")
 session.get(frontend.fetch("bundle_url"))
 assert!(session.response.status == 200, "external frontend bundle was not served")
 assert!(session.response.body.include?("registerPluginContribution"), "served bundle does not register a runtime contribution")
+german_locale = frontend.fetch("locales").find { |entry| entry["locale"] == "de" && entry["namespace"] == "relocatable_plugin" }
+assert!(german_locale, "bootstrap omitted the external frontend locale")
+session.get(german_locale.fetch("url"))
+assert!(session.response.status == 200, "external frontend locale was not served")
+assert!(JSON.parse(session.response.body).fetch("panel_title") == "Verschiebbares Plugin", "external frontend locale returned the wrong payload")
 
 puts "plugin relocation acceptance passed"

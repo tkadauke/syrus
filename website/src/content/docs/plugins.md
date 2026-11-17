@@ -25,6 +25,24 @@ react-i18next runtimes through the documented `@syrus/plugin-sdk` build
 contract. Their own CSS must be complete; core does not compile utility classes
 from an external plugin's source.
 
+## Installing an external plugin
+
+An operator can install a third-party plugin without rebuilding Syrus. Build
+its frontend bundle first, place the complete plugin directory directly under
+`SYRUS_PLUGIN_PATH`, run the normal deployment migrations, and restart every
+Syrus container that boots Rails. In a multi-container installation, all web,
+worker, preview, and setup processes must mount the same plugin root read-only.
+Stage upgrades outside the live root and swap the complete directory so no
+process can discover a partial copy.
+
+External plugins are trusted application code and cannot add Ruby gems to the
+already resolved Syrus bundle. Review the source before installing it. After
+restart, **Admin → Plugins** shows compatibility, dependency health, and load
+failures. A broken or incompatible plugin is withheld while Syrus and other
+plugins continue to boot. Disable a plugin and resolve usage blockers before
+removing its directory; uninstalling retains its database data unless its
+documented purge procedure is run.
+
 Plugins are installed extension bundles. Installing a plugin makes its code
 available after restart; enabling a plugin makes its surfaces visible and its
 behavior active. In general, the plugin enable switch is the feature flag for
