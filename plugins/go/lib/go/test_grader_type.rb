@@ -9,6 +9,7 @@ module Go
       "**/*.go",
       "go.mod",
       "go.sum",
+      "go.work",
       "Makefile"
     ].freeze
 

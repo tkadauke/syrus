@@ -200,7 +200,7 @@ RSpec.describe "Syrus grader configuration" do
       phases: %w[review landing ci],
       required: true,
       timeout_minutes: 5,
-      when_files_changed: [ "**/*.go", "go.mod", "go.sum", "Makefile" ]
+      when_files_changed: [ "**/*.go", "go.mod", "go.sum", "go.work", "Makefile" ]
     )
   end
 

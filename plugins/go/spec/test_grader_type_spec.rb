@@ -14,7 +14,7 @@ RSpec.describe Go::TestGraderType do
       phases: %w[review landing ci],
       required: true,
       timeout_minutes: 5,
-      when_files_changed: [ "**/*.go", "go.mod", "go.sum", "Makefile" ]
+      when_files_changed: [ "**/*.go", "go.mod", "go.sum", "go.work", "Makefile" ]
     )
     expect(step.metadata).to include(
       "grader_type" => "go-test",
@@ -30,7 +30,7 @@ RSpec.describe Go::TestGraderType do
     ).first
 
     expect(step.run).to eq("GOWORK=off mise exec go@1.26.5 -- sh -c 'cd plugins/example/cli && go test ./...'")
-    expect(step.when_files_changed).to eq([ "cli/**/*.go", "cli/go.mod", "cli/go.sum", "cli/Makefile" ])
+    expect(step.when_files_changed).to eq([ "cli/**/*.go", "cli/go.mod", "cli/go.sum", "cli/go.work", "cli/Makefile" ])
   end
 
   it "passes dependencies and timeout through" do
