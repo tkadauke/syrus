@@ -1,6 +1,7 @@
 import type { ComponentType } from "react"
 import type { RuntimeControlLease, RuntimeSession } from "./api/chats"
 import { getEagerPluginContributions } from "./pluginContributionRegistry"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 
 export type RuntimeSessionViewConnectionState = {
   connected: boolean
@@ -30,7 +31,7 @@ function registeredViews() {
       return []
     }
 
-    return [view]
+    return [{ ...view, component: withPluginErrorBoundary(pluginName, view.component) }]
   })
 }
 

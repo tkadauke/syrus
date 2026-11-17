@@ -8,11 +8,12 @@
 // from, composing existing rendering implementations
 // (coreArtifactRenderers.tsx's bodies, plugin-owned components discovered
 // via pluginArtifactRenderers.tsx) rather than duplicating them.
-import type { ReactNode } from "react"
+import { createElement, type ReactNode } from "react"
 import type { TypedArtifact } from "./api/artifacts"
 import { coreArtifactRendererEntries, RAW_JSON_RENDERER_TYPE } from "./components/artifacts/coreArtifactRenderers"
 import { discoveredArtifactRendererEntries, type ArtifactRendererExample } from "./pluginArtifactRenderers"
 import { subscribeToPluginContributions } from "./pluginContributionRegistry"
+import { PluginRenderBoundary } from "./components/PluginErrorBoundary"
 
 export type { ArtifactRendererExample }
 
@@ -74,6 +75,10 @@ export function buildArtifactRendererRegistry(candidates: unknown[]): ArtifactRe
 function pluginCandidates(): ArtifactRendererEntry[] {
   return discoveredArtifactRendererEntries.map((discovered) => ({
     ...discovered.definition,
+    render: (artifact) => createElement(PluginRenderBoundary, {
+      pluginName: discovered.owner.pluginName!,
+      render: () => discovered.definition.render(artifact)
+    }),
     ownerType: discovered.owner.ownerType,
     pluginName: discovered.owner.pluginName,
     examples: discovered.examples

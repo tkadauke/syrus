@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import type { ChatMessageItem, ChatPayload } from "./api/chats"
 import { pluginNamespacesFor } from "./i18n"
 import type { ChatQueryKey } from "./routes/chat/constants"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { getPluginContribution } from "./pluginContributionRegistry"
 
 export type PluginChatMessagePresentation = { component: string; data?: unknown }
@@ -23,7 +24,7 @@ export function pluginChatMessageComponentFor(key: string | null | undefined) {
   if (!key) return null
   const [pluginName, componentKey] = key.split("/", 2)
   const value = getPluginContribution<PluginModule>("chat_message_renderer", pluginName, componentKey)?.value
-  return value && typeof value !== "function" ? (value.default ?? null) : null
+  return value && typeof value !== "function" && value.default ? withPluginErrorBoundary(pluginName, value.default) : null
 }
 
 export function renderPluginChatMessage(props: PluginChatMessageProps, fallback: ReactNode = null) {

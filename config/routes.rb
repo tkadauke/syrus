@@ -27,6 +27,8 @@ Rails.application.routes.draw do
         get "bootstrap", to: "bootstrap#show"
         get "plugin_frontends/:plugin_name/:kind", to: "plugin_frontends#show",
           constraints: { plugin_name: /[a-zA-Z0-9_-]+/, kind: /bundle|css/ }
+        get "plugin_frontends/:plugin_name/locales/:locale/:namespace", to: "plugin_frontends#locale",
+          constraints: { plugin_name: /[a-zA-Z0-9_-]+/, locale: /en|de|la/, namespace: /[a-zA-Z0-9_-]+/ }
         get "me", to: "me#show"
         get "setup", to: "setup#show"
         patch "theme", to: "theme#update"

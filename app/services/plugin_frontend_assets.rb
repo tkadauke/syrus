@@ -5,7 +5,8 @@ class PluginFrontendAssets
 
   CONTENT_TYPES = {
     bundle: "text/javascript; charset=utf-8",
-    css: "text/css; charset=utf-8"
+    css: "text/css; charset=utf-8",
+    locale: "application/json; charset=utf-8"
   }.freeze
 
   def self.entries
@@ -19,9 +20,22 @@ class PluginFrontendAssets
         name: manifest.name,
         bundle_url: url_for(manifest.name, :bundle, hash),
         css_url: (url_for(manifest.name, :css, hash) if css),
+        locales: locale_assets(manifest).map do |asset|
+          locale, namespace = asset.kind.to_s.split(":", 2)
+          { locale: locale, namespace: namespace, url: locale_url_for(manifest.name, locale, namespace, asset.hash) }
+        end,
         hash: hash
       }.compact
     end
+  end
+
+  def self.find_locale(plugin_name, locale, namespace)
+    return unless %w[en de la].include?(locale.to_s) && namespace.to_s.match?(/\A[a-zA-Z0-9_-]+\z/)
+
+    manifest = enabled_manifests.find { |candidate| candidate.name == plugin_name }
+    return unless manifest
+
+    locale_assets(manifest).find { |asset| asset.kind == "#{locale}:#{namespace}" }
   end
 
   def self.find(plugin_name, kind)
@@ -53,6 +67,32 @@ class PluginFrontendAssets
   end
   private_class_method :asset_for
 
+  def self.locale_assets(manifest)
+    declarations = manifest.metadata.dig(:frontend, :i18n) || manifest.metadata.dig("frontend", "i18n") || []
+    return [] if manifest.plugin_root.blank?
+
+    root = Pathname.new(manifest.plugin_root).realpath
+    Array(declarations).flat_map { |pattern| Dir.glob(root.join(pattern.to_s)) }.filter_map do |path|
+      resolved = Pathname.new(path).realpath
+      next unless resolved.file? && resolved.to_s.start_with?("#{root}/")
+      match = resolved.to_s.match(%r{/locales/(en|de|la)/([^/]+)\.json\z})
+      next unless match
+
+      Asset.new(
+        plugin_name: manifest.name,
+        kind: "#{match[1]}:#{match[2]}",
+        path: resolved,
+        content_type: CONTENT_TYPES.fetch(:locale),
+        hash: Digest::SHA256.file(resolved).hexdigest
+      )
+    rescue Errno::ENOENT, Errno::EACCES
+      nil
+    end
+  rescue Errno::ENOENT, Errno::EACCES
+    []
+  end
+  private_class_method :locale_assets
+
   def self.enabled_manifests
     health = Syrus::PluginRegistry.health
     Syrus::PluginRegistry.all_plugins.select { |manifest| manifest.enabled? && health.healthy?(manifest.name) }
@@ -63,4 +103,9 @@ class PluginFrontendAssets
     "/api/v1/app/plugin_frontends/#{CGI.escapeURIComponent(plugin_name)}/#{kind}?v=#{hash}"
   end
   private_class_method :url_for
+
+  def self.locale_url_for(plugin_name, locale, namespace, hash)
+    "/api/v1/app/plugin_frontends/#{CGI.escapeURIComponent(plugin_name)}/locales/#{locale}/#{CGI.escapeURIComponent(namespace)}?v=#{hash}"
+  end
+  private_class_method :locale_url_for
 end

@@ -160,6 +160,12 @@ Plugin locale files live under
 merged into i18next whenever the plugin is installed. This does not depend on
 the plugin being enabled.
 
+External plugin bundles declare the same files through `frontend.i18n`. Keep
+English, German, and Latin files in parity; English is the runtime fallback
+when another locale is missing or cannot be fetched. All contributed React UI
+is isolated by the host plugin error boundary, which reports the plugin name
+and offers reload after render or lazy-import failures.
+
 Plugin Rails controllers can live under `plugins/<name>/app/controllers` and
 inherit the host controller base classes. The host owns auth namespaces. Plugin
 route metadata declares installed API/SPA routes: `/api/v1/app/*` and

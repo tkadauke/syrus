@@ -14,6 +14,14 @@ module Api
           response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
           send_file asset.path, type: asset.content_type, disposition: "inline"
         end
+
+        def locale
+          asset = PluginFrontendAssets.find_locale(params[:plugin_name], params[:locale], params[:namespace])
+          return head :not_found unless asset && ActiveSupport::SecurityUtils.secure_compare(params[:v].to_s, asset.hash.to_s)
+
+          response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+          send_file asset.path, type: asset.content_type, disposition: "inline"
+        end
       end
     end
   end

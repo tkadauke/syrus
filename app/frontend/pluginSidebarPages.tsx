@@ -3,6 +3,7 @@ import { lazy, Suspense, type ComponentType, type ReactNode } from "react"
 import { matchPath, useLocation } from "react-router-dom"
 import { fetchSidebarPluginPages } from "./api/sidebarPages"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { useT } from "./hooks/useT"
 import { loadPluginModule } from "./i18n"
 import { getPluginContribution, pluginContributionLoader } from "./pluginContributionRegistry"
@@ -27,8 +28,9 @@ export function pluginSidebarComponentFor(key: string | null | undefined) {
     if (!mod.default) throw new Error(`Plugin sidebar component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }
 
 /**

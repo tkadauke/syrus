@@ -1,5 +1,6 @@
 import { lazy, type ComponentType } from "react"
 import { loadPluginModule } from "./i18n"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import "./builtInPluginContributions"
 import { getPluginContributions, pluginContributionLoader, type PluginContribution } from "./pluginContributionRegistry"
 
@@ -46,6 +47,7 @@ export function pluginSlugPreviewCardComponentForPrefix(prefix: string | null | 
     if (!mod.default) throw new Error(`Plugin slug preview card for prefix ${prefix} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(prefix, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(contribution.pluginName, Component)
+  componentCache.set(prefix, IsolatedComponent)
+  return IsolatedComponent
 }

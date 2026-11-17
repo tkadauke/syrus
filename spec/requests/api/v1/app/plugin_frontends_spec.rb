@@ -10,6 +10,10 @@ RSpec.describe "API: external plugin frontends", type: :request do
       @plugin_root.join("dist").mkpath
       @plugin_root.join("dist/plugin.js").write("export const fixture = true\n")
       @plugin_root.join("dist/plugin.css").write(".fixture { color: red }\n")
+      @plugin_root.join("app/frontend/i18n/locales/en").mkpath
+      @plugin_root.join("app/frontend/i18n/locales/de").mkpath
+      @plugin_root.join("app/frontend/i18n/locales/en/external_fixture.json").write('{"greeting":"Hello"}')
+      @plugin_root.join("app/frontend/i18n/locales/de/external_fixture.json").write('{"greeting":"Hallo"}')
       example.run
     end
   end
@@ -20,7 +24,7 @@ RSpec.describe "API: external plugin frontends", type: :request do
     allow(Syrus::PluginRegistry).to receive(:health).and_return(double(healthy?: true))
   end
 
-  def manifest(enabled: true, frontend: { bundle: "dist/plugin.js", css: "dist/plugin.css" })
+  def manifest(enabled: true, frontend: { bundle: "dist/plugin.js", css: "dist/plugin.css", i18n: [ "app/frontend/i18n/locales/*/*.json" ] })
     Syrus::Plugin::Manifest.new(
       name: "external_fixture",
       version: "1.0.0",
@@ -29,6 +33,18 @@ RSpec.describe "API: external plugin frontends", type: :request do
       enabled: enabled,
       plugin_root: @plugin_root.to_s
     )
+  end
+
+  it "advertises and serves declared locale files" do
+    get api_v1_app_bootstrap_path
+    frontend = JSON.parse(response.body).dig("app", "external_plugin_frontends", 0)
+    german = frontend.fetch("locales").find { |entry| entry["locale"] == "de" }
+
+    expect(german).to include("namespace" => "external_fixture")
+    get german.fetch("url")
+    expect(response).to have_http_status(:ok)
+    expect(response.media_type).to eq("application/json")
+    expect(JSON.parse(response.body)).to eq("greeting" => "Hallo")
   end
 
   it "advertises content-hashed URLs and serves immutable JavaScript and CSS" do

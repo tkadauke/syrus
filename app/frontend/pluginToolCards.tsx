@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
 import type { MarkdownLinkHandler } from "./lib/Markdown"
 import { getEagerPluginContributions, subscribeToPluginContributions } from "./pluginContributionRegistry"
+import { PluginRenderBoundary } from "./components/PluginErrorBoundary"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -243,7 +244,14 @@ function pluginToolCardEntries(): DiscoveredToolCardEntry[] {
       console.warn(`[pluginToolCards] Skipping ${path}: default export is not a valid ToolCardRenderer`)
       return []
     }
-    return [{ renderer, owner: { ownerType: "plugin" as const, ownerName: pluginName }, examples: mod.examples ?? [], path }]
+    const isolatedRenderer: ToolCardRenderer = {
+      ...renderer,
+      renderExpanded: (context) => <PluginRenderBoundary pluginName={pluginName} render={() => renderer.renderExpanded(context)} />,
+      ...(renderer.renderPending
+        ? { renderPending: (context: ToolCardContext) => <PluginRenderBoundary pluginName={pluginName} render={() => renderer.renderPending!(context)} /> }
+        : {})
+    }
+    return [{ renderer: isolatedRenderer, owner: { ownerType: "plugin" as const, ownerName: pluginName }, examples: mod.examples ?? [], path }]
   })
 }
 
