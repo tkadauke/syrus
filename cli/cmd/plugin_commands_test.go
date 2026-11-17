@@ -252,13 +252,13 @@ func TestExecutableFallbackPreservesInternalInvocationAuthentication(t *testing.
 
 func TestCompiledCommandWinsOverCatalogCollision(t *testing.T) {
 	root := NewRootCommand()
-	existing := commandAtPath(root, []string{"docs"})
+	existing := commandAtPath(root, []string{"jobs"})
 	registerPluginCommands(root, []pluginCommandDeclaration{
-		{Plugin: "fixture", Path: []string{"docs"}, Summary: "Remote docs"},
+		{Plugin: "fixture", Path: []string{"jobs"}, Summary: "Remote jobs"},
 		{Plugin: "fixture", Path: []string{"insights", "remote"}, Summary: "Remote insight"},
 	}, config.Credentials{})
-	if commandAtPath(root, []string{"docs"}) != existing {
-		t.Fatal("catalog replaced the compiled-in docs command")
+	if commandAtPath(root, []string{"jobs"}) != existing {
+		t.Fatal("catalog replaced the built-in jobs command")
 	}
 	if commandAtPath(root, []string{"insights", "remote"}) == nil {
 		t.Fatal("catalog command was not attached below a built-in command group")
