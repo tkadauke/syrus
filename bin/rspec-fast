@@ -48,11 +48,17 @@ bin/rails db:test:prepare
 bundle exec rake parallel:prepare
 spec_file_count=""
 if [ "$#" -eq 0 ]; then
+  plugin_spec_roots=(plugins)
+  if [ -n "${SYRUS_PLUGIN_PATH:-}" ] && [ -d "$SYRUS_PLUGIN_PATH" ]; then
+    plugin_spec_roots+=("$SYRUS_PLUGIN_PATH")
+  fi
   spec_file_count="$(
     {
       find spec -type f -name '*_spec.rb'
-      find plugins -path '*/spec/*_spec.rb' -type f
-      find plugins -path '*/spec/**/*_spec.rb' -type f
+      for plugin_root in "${plugin_spec_roots[@]}"; do
+        find "$plugin_root" -path '*/spec/*_spec.rb' -type f
+        find "$plugin_root" -path '*/spec/**/*_spec.rb' -type f
+      done
     } | sort -u | wc -l | tr -d ' '
   )"
 else
@@ -94,7 +100,7 @@ if [ "$#" -eq 0 ]; then
     --quiet \
     --runtime-log "$RSPEC_RUNTIME_LOG" \
     --exec-args bin/rspec-worker \
-    spec plugins
+    spec "${plugin_spec_roots[@]}"
 else
   bundle exec parallel_rspec \
     -n "$PARALLEL_TEST_PROCESSORS" \

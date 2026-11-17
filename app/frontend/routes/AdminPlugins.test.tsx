@@ -948,7 +948,7 @@ describe("AdminPlugins", () => {
     expect((await screen.findAllByRole("heading", { name: "Terminal" })).length).toBeGreaterThan(0)
     expect(screen.getByRole("link", { name: "Open Terminal" })).toHaveAttribute("href", "/terminal")
     expect(screen.getByText("Runs a real PTY.")).toBeInTheDocument()
-    expect(screen.getByText("Health: degraded")).toBeInTheDocument()
+    expect(screen.getByText("Health: Degraded")).toBeInTheDocument()
     expect(screen.getByText("Relay host is unavailable")).toBeInTheDocument()
     expect(screen.getByText("Hostname")).toBeInTheDocument()
     expect(screen.getByText("worker")).toBeInTheDocument()
@@ -1209,6 +1209,39 @@ describe("AdminPlugins", () => {
 
     await screen.findByText("Python support")
     expect(screen.queryByText(/Suggested for this instance/)).not.toBeInTheDocument()
+  })
+
+  it("shows localized load states and messages for isolated plugins", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          ...[
+            ["broken", "failed", "SyntaxError: unexpected end-of-input"],
+            ["future", "incompatible", "requires Syrus >= 9.0"],
+            ["duplicate", "duplicate_name", "duplicate plugin name"],
+            ["dependent", "skipped_dependency", "skipped because dependency broken failed to load"]
+          ].map(([name, state, reason]) => ({
+            name,
+            display_name: name,
+            disable_blockers: [],
+            disableable: false,
+            version: "1.0.0",
+            enabled: false,
+            description: `${name} plugin`,
+            extension_points: [],
+            health: { state, reasons: [reason] }
+          }))
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText("Failed to load")).toBeInTheDocument()
+    expect(screen.getByText("Incompatible")).toBeInTheDocument()
+    expect(screen.getByText("Duplicate name")).toBeInTheDocument()
+    expect(screen.getByText("Skipped — dependency failed")).toBeInTheDocument()
+    expect(screen.getByText("SyntaxError: unexpected end-of-input")).toBeInTheDocument()
   })
 })
 

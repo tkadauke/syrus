@@ -448,3 +448,14 @@ Go straight to [`release-troubleshooting.md`](./release-troubleshooting.md) —
 a symptom-indexed runbook. The credential preflights fail in seconds with
 self-explanatory `::error` messages; those are setup mistakes, not pipeline
 bugs.
+
+## Backend version semantics
+
+Release images bake the release number into `SYRUS_VERSION`. Deploy, Compose,
+and local-image builds use the newest reachable `vX.Y.Z` tag (from
+`git describe --tags --abbrev=0 --match 'v[0-9]*'`) as their compatibility
+version, while `SYRUS_VERSION_DESCRIPTION` retains the commits-ahead and SHA
+description for display. `GIT_SHA` remains the build revision. If no release
+tag is reachable, such as in a shallow clone without tags, the release version
+is unknown and external-plugin compatibility checks are skipped with a
+plugin-health note.

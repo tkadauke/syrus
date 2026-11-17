@@ -54,8 +54,8 @@ export type BootstrapPayload = {
   app: {
     revision: string
     revision_url: string | null
-    // Release version baked into published backend images (SYRUS_VERSION);
-    // null on dev/deploy builds, where the badge falls back to the revision.
+    // Display identity for the backend: a release version, a commits-ahead
+    // description for non-release images, or the revision as a fallback.
     version: string | null
     // When the backend image was built (SYRUS_BUILT_AT, UTC ISO-8601); null
     // when the image predates the stamp. Feeds the badge's hover tooltip.

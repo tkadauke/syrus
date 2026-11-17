@@ -90,7 +90,7 @@ module Api
           decision = params.require(:decision).to_s
           raise ArgumentError, "decision must be approved or denied" unless decision.in?(%w[approved denied])
 
-          permission_requests = scope.where(id: ids, action: Permissions::CoworkerPermissionRequest::ACTION).order(:id).to_a
+          permission_requests = scope.where(id: ids, action: Permissions::PermissionRequest::ACTION).order(:id).to_a
           return decide_coworker_permission_requests!(ids, permission_requests, decision) if permission_requests.any?
 
           requests = []

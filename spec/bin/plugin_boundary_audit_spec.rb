@@ -46,10 +46,7 @@ RSpec.describe "bin/plugin-boundary-audit" do
     command = [
       "test ! -d plugins/ruby",
       "test ! -d plugins/rails",
-      "test -d plugins/python",
-      "! grep -q 'plugins/ruby' Gemfile",
-      "! grep -q 'plugins/rails' Gemfile",
-      "grep -q 'plugins/python' Gemfile"
+      "test -d plugins/python"
     ].join(" && ")
 
     stdout, stderr, status = Open3.capture3(

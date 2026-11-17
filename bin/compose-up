@@ -87,7 +87,8 @@ chmod 600 .env
 echo "== Building the worker image (first build can take 20-40 min) =="
 SYRUS_DOCKER_CACHE_PUSH="${SYRUS_DOCKER_CACHE_PUSH:-1}"
 export SYRUS_DOCKER_CACHE_PUSH
-syrus_build_local_base_image dev
+mapfile -t VERSION_METADATA < <(syrus_git_version_metadata)
+syrus_build_local_base_image dev --version="${VERSION_METADATA[0]:-}" --version-description="${VERSION_METADATA[1]:-}"
 
 # 3. Build the local extension (EXTRA_APT_PACKAGES) and start the stack. The
 #    build override turns the pull-based docker-compose.yml into a build-from-

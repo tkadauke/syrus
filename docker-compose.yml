@@ -16,6 +16,7 @@ x-app: &app
     - syrus-data:/home/rails/.syrus
   environment:
     SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
+    SYRUS_PLUGIN_PATH: /home/rails/.syrus-plugins
   restart: unless-stopped
 
 services:
@@ -38,6 +39,7 @@ services:
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
+      - syrus-plugins:/home/rails/.syrus-plugins:ro
     restart: "no"
 
   web:
@@ -47,9 +49,11 @@ services:
         condition: service_completed_successfully
     environment:
       SYRUS_ROLE: web
+      SYRUS_PLUGIN_PATH: /home/rails/.syrus-plugins
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
+      - syrus-plugins:/home/rails/.syrus-plugins:ro
     ports:
       - "${SYRUS_BIND:-127.0.0.1}:${SYRUS_PORT:-3000}:80"
     healthcheck:
@@ -74,10 +78,12 @@ services:
     environment:
       SYRUS_ROLE: worker
       SYRUS_TERMINAL_HOST: worker
+      SYRUS_PLUGIN_PATH: /home/rails/.syrus-plugins
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
       - syrus-mise-cache:/opt/mise
+      - syrus-plugins:/home/rails/.syrus-plugins:ro
     command: ["./bin/jobs"]
 
   preview:
@@ -88,10 +94,22 @@ services:
     environment:
       SYRUS_ROLE: preview
       SYRUS_PREVIEW_INTERNAL_HOST: preview
+      SYRUS_PLUGIN_PATH: /home/rails/.syrus-plugins
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
+      - syrus-plugins:/home/rails/.syrus-plugins:ro
     command: ["./bin/preview"]
+
+  # Reserved for the external-plugin installer. It is the only service with
+  # write access to the plugin volume; installation behavior lands separately.
+  plugin-installer:
+    <<: *app
+    profiles: ["plugin-installer"]
+    command: ["/bin/true"]
+    volumes:
+      - syrus-plugins:/home/rails/.syrus-plugins
+    restart: "no"
 
   # Plugin Runtime's manager: starts the service containers that
   # container-backed plugins (Git Mirror, ...) need when those plugins are
@@ -128,3 +146,4 @@ volumes:
   syrus-data:
   syrus-search:
   syrus-mise-cache:
+  syrus-plugins:

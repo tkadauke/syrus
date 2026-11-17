@@ -497,6 +497,15 @@
     "version": "Version",
     "source": "Quelle",
     "health": "Zustand",
+    "health_states": {
+      "ok": "Fehlerfrei",
+      "failed": "Laden fehlgeschlagen",
+      "incompatible": "Inkompatibel",
+      "duplicate_name": "Doppelter Name",
+      "skipped_dependency": "Übersprungen — Abhängigkeit fehlgeschlagen",
+      "degraded": "Beeinträchtigt",
+      "cycle": "Abhängigkeitszyklus"
+    },
     "disableable": "Deaktivierbar",
     "yes": "Ja",
     "no": "Nein",

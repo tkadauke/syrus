@@ -107,14 +107,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # Install application gems
 COPY vendor/* ./vendor/
 COPY Gemfile Gemfile.lock ./
-COPY plugins/ ./plugins/
-# Every bundled plugin's gemspec is `Syrus.plugin_gemspec(__FILE__)`, which
-# require_relatives this file. Bundler evaluates every bundled plugin gemspec during
-# `bundle install`, so it has to be here before that runs -- long before
-# `COPY . .` brings the rest of lib/ in. Kept to the single file the gemspecs
-# need so the layer cache does not turn over on unrelated lib/ edits.
-# Guarded by spec/architecture/docker_gemspec_requires_spec.rb.
-COPY lib/syrus/plugin_gemspec.rb ./lib/syrus/plugin_gemspec.rb
 
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
@@ -145,6 +137,7 @@ RUN npm ci && \
     fi
 
 # Copy application code
+COPY plugins/ ./plugins/
 COPY . .
 
 # Build the React SPA bundle into app/assets/builds for Propshaft. Jemalloc is
@@ -230,6 +223,8 @@ ENV GIT_SHA=$GIT_SHA
 # payload then omits it and the UI falls back to the git SHA.
 ARG SYRUS_VERSION=""
 ENV SYRUS_VERSION=$SYRUS_VERSION
+ARG SYRUS_VERSION_DESCRIPTION=""
+ENV SYRUS_VERSION_DESCRIPTION=$SYRUS_VERSION_DESCRIPTION
 
 # And the build timestamp (UTC ISO-8601), so the UI's BuildBadge can show
 # WHEN this image was built — the fastest way to see which part of a
@@ -649,6 +644,8 @@ ENV GIT_SHA=$GIT_SHA
 # payload then omits it and the UI falls back to the git SHA.
 ARG SYRUS_VERSION=""
 ENV SYRUS_VERSION=$SYRUS_VERSION
+ARG SYRUS_VERSION_DESCRIPTION=""
+ENV SYRUS_VERSION_DESCRIPTION=$SYRUS_VERSION_DESCRIPTION
 
 # And the build timestamp (UTC ISO-8601), so the UI's BuildBadge can show
 # WHEN this image was built — the fastest way to see which part of a

@@ -190,7 +190,7 @@ module Admin
     end
 
     def plugin_dirs
-      root.join("plugins").children.select(&:directory?)
+      Syrus::PluginRoots.new(application_root: root).plugin_directories
     end
 
     def manifest_for(dir)

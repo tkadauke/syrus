@@ -147,11 +147,13 @@ module AppApi
       ENV["GIT_SHA"].presence || "dev"
     end
 
-    # The release version baked into published images (bin/publish-image passes
-    # --build-arg SYRUS_VERSION=X.Y.Z; the Dockerfile bakes it as ENV). Nil on
-    # dev/deploy builds — the BuildBadge then falls back to the git SHA.
+    # Display identity for the running backend. Non-release images include the
+    # nearest release, commits ahead, and SHA; release images show the release
+    # version, and unversioned development processes fall back to GIT_SHA.
     def app_version
-      ENV["SYRUS_VERSION"].presence
+      return unless ENV["SYRUS_VERSION_DESCRIPTION"].present? || ENV["SYRUS_VERSION"].present?
+
+      SyrusVersion.description
     end
 
     # When the running image was built (UTC ISO-8601; SYRUS_BUILT_AT baked the

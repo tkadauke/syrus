@@ -5,6 +5,15 @@ description: Run Syrus on a single machine (web + worker, SQLite) with one comma
 
 # Docker Compose
 
+## External plugin storage
+
+The Compose stack creates a `syrus-plugins` named volume for externally
+installed plugins. Web, worker, preview, and setup mount it read-only at
+`/home/rails/.syrus-plugins`; `SYRUS_PLUGIN_PATH` points Syrus at that root.
+The volume is empty by default, so existing installations continue to use only
+the plugins bundled with Syrus. A reserved `plugin-installer` profile has the
+only writable mount, but does not install anything yet.
+
 Docker Compose is the lowest-friction way to run the real Syrus app on a
 single machine — your Mac, a laptop, a small box — without a Kubernetes
 cluster or a MySQL server. The default path pulls a prebuilt image; the
