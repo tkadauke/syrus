@@ -1,4 +1,12 @@
 class McpToolRegistry
+  ARTIFACT_WORKFLOW_ROLES = [
+    AgentRole::WORKFLOW_IMPLEMENT,
+    AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+    AgentRole::WORKFLOW_REBASE_CONFLICT,
+    AgentRole::WORKFLOW_MANUAL
+  ].freeze
+  ARTIFACT_DESCRIPTOR_ROLES = (AgentRole::CHAT_ROLES + ARTIFACT_WORKFLOW_ROLES).freeze
+
   Entry = Data.define(
     :tool,
     :surface,
@@ -475,12 +483,7 @@ class McpToolRegistry
         AgentRole::WORKFLOW_MANUAL
       ]
 
-      artifact_roles = [
-        AgentRole::WORKFLOW_IMPLEMENT,
-        AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-        AgentRole::WORKFLOW_REBASE_CONFLICT,
-        AgentRole::WORKFLOW_MANUAL
-      ]
+      artifact_roles = ARTIFACT_WORKFLOW_ROLES
 
       visual_artifact_roles = artifact_roles + [ AgentRole::WORKFLOW_VISUAL_REVIEWER ]
 
@@ -674,12 +677,14 @@ class McpToolRegistry
 
     def effect_chat(tool, **metadata)
       roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      roles = ARTIFACT_DESCRIPTOR_ROLES if tool_name_for(tool) == "submit_artifact"
       descriptor = Permissions::EffectActions.descriptor_for(tool_name_for(tool), required_roles: roles)
       chat(tool, **metadata, descriptor:)
     end
 
     def effect_workflow(tool, **metadata)
       roles = metadata[:required_roles].presence || AgentRole::WORKFLOW_ROLES
+      roles = ARTIFACT_DESCRIPTOR_ROLES if tool_name_for(tool) == "submit_artifact"
       descriptor = Permissions::EffectActions.descriptor_for(tool_name_for(tool), required_roles: roles)
       workflow(tool, **metadata, descriptor:)
     end
