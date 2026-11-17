@@ -4,9 +4,12 @@ class RetentionArchiveSweepJob < ApplicationJob
   queue_as :cleanup
 
   def perform
+    definitions = RetentionPolicyRegistry.definitions
+    settings = RetentionPolicySetting.for_definitions(definitions)
     RetentionPolicyPruneJob.perform_later_missing_simple_args(
-      RetentionPolicyRegistry.definitions.filter_map do |definition|
-        [ definition.key.to_s, true ] if definition.setting.archive_before_delete?
+      definitions.filter_map do |definition|
+        key = definition.key.to_s
+        [ key, true ] if settings.fetch(key).archive_before_delete?
       end
     )
   end
