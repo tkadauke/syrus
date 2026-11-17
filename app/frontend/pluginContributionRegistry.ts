@@ -1,6 +1,17 @@
 export type PluginContributionKind =
-  | "workspace_tab" | "admin_page" | "sidebar_page" | "repo_page_tab" | "slug_preview_card" | "review_contribution" | "review_annotation" | "ui_slot"
-  | "tool_card" | "chat_message_renderer" | "artifact_renderer" | "agent_provider_connect_panel" | "runtime_session_view"
+  | "workspace_tab"
+  | "admin_page"
+  | "sidebar_page"
+  | "repo_page_tab"
+  | "slug_preview_card"
+  | "review_contribution"
+  | "review_annotation"
+  | "ui_slot"
+  | "tool_card"
+  | "chat_message_renderer"
+  | "artifact_renderer"
+  | "agent_provider_connect_panel"
+  | "runtime_session_view"
 
 export type PluginContribution<T = unknown> = {
   pluginName: string
@@ -46,7 +57,9 @@ export function getPluginContributions<T>(kind: PluginContributionKind): Readonl
 }
 
 export function getEagerPluginContributions<T>(kind: PluginContributionKind): ReadonlyArray<PluginContribution<T> & { value: T }> {
-  return getPluginContributions<T>(kind).filter((contribution): contribution is PluginContribution<T> & { value: T } => typeof contribution.value !== "function")
+  return getPluginContributions<T>(kind).filter(
+    (contribution): contribution is PluginContribution<T> & { value: T } => typeof contribution.value !== "function"
+  )
 }
 
 export function getPluginContribution<T>(kind: PluginContributionKind, pluginName: string, key: string): PluginContribution<T> | undefined {

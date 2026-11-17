@@ -90,7 +90,7 @@ subscribeToPluginContributions((change) => {
 })
 
 function registryEntries(): ArtifactRendererEntry[] {
-  if (!cachedEntries) cachedEntries = buildArtifactRendererRegistry([ ...coreCandidates(), ...pluginCandidates() ])
+  if (!cachedEntries) cachedEntries = buildArtifactRendererRegistry([...coreCandidates(), ...pluginCandidates()])
   return cachedEntries
 }
 

@@ -42,9 +42,7 @@ export function AgentProviderConnectPanel({
           {connected}
         </div>
         <div className="flex justify-end">
-          <Button onClick={onCancel}>
-            {t('configure_agent.done')}
-          </Button>
+          <Button onClick={onCancel}>{t("configure_agent.done")}</Button>
         </div>
       </div>
     )
@@ -60,18 +58,22 @@ export function AgentProviderConnectPanel({
         await queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
         try {
           await onSaved?.()
-          setConnected(result.message || t('configure_agent.connected_default'))
+          setConnected(result.message || t("configure_agent.connected_default"))
         } catch {
           // The host owns error presentation. In onboarding, keeping this
           // panel open avoids claiming success when provider selection failed.
         }
       }}
       onPreflight={setAmbientReady}
-      secondaryAction={secondaryAction ? secondaryAction(ambientReady) : (
-        <Button onClick={onCancel} variant="secondary">
-          {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
-        </Button>
-      )}
+      secondaryAction={
+        secondaryAction ? (
+          secondaryAction(ambientReady)
+        ) : (
+          <Button onClick={onCancel} variant="secondary">
+            {ambientReady ? t("configure_agent.skip_for_now") : t("configure_agent.cancel")}
+          </Button>
+        )
+      }
     />
   )
 }

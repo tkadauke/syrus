@@ -290,7 +290,9 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     void preloadPluginContributions(pluginPreloadKey ? pluginPreloadKey.split("\0") : []).then(() => {
       if (active) setPreloadedPluginKey(pluginPreloadKey)
     })
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [bootstrap.data?.current_user, pluginPreloadKey])
   const pluginsPreloaded = !bootstrap.data?.current_user || !requiresPluginPreload || preloadedPluginKey === pluginPreloadKey
   useQuery({

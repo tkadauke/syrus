@@ -22,7 +22,7 @@ export function pluginChatMessageComponentFor(key: string | null | undefined) {
   if (!key) return null
   const [pluginName, componentKey] = key.split("/", 2)
   const value = getPluginContribution<PluginModule>("chat_message_renderer", pluginName, componentKey)?.value
-  return value && typeof value !== "function" ? value.default ?? null : null
+  return value && typeof value !== "function" ? (value.default ?? null) : null
 }
 
 export function renderPluginChatMessage(props: PluginChatMessageProps, fallback: ReactNode = null) {

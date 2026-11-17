@@ -21,14 +21,14 @@ type PluginModule = {
 
 function registeredPanels() {
   return getEagerPluginContributions<PluginModule>("agent_provider_connect_panel").flatMap(({ pluginName, key, value: mod }) => {
-  const panel = mod.default
-  if (!panel?.provider || !panel.component) {
-    console.warn(`[pluginAgentProviderConnectPanels] Skipping ${pluginName}/${key}: default export is not a valid PluginAgentProviderConnectPanel`)
-    return []
-  }
+    const panel = mod.default
+    if (!panel?.provider || !panel.component) {
+      console.warn(`[pluginAgentProviderConnectPanels] Skipping ${pluginName}/${key}: default export is not a valid PluginAgentProviderConnectPanel`)
+      return []
+    }
 
-  return [panel]
-})
+    return [panel]
+  })
 }
 
 export function pluginAgentProviderConnectPanelComponentFor(provider: string | null | undefined) {

@@ -29,11 +29,26 @@ const reviewAnnotationModules = import.meta.glob<PluginModule>([
   "!../../plugins/*/app/frontend/review_annotations/*.test.tsx"
 ])
 const uiSlotModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/ui_slots/*.tsx", "!../../plugins/*/app/frontend/ui_slots/*.test.tsx"])
-const toolCardModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/tool_cards/*.tsx", "!../../plugins/*/app/frontend/tool_cards/*.test.tsx"], { eager: true })
-const chatMessageRendererModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/chat_message_renderers/*.tsx", "!../../plugins/*/app/frontend/chat_message_renderers/*.test.tsx"], { eager: true })
-const artifactRendererModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/artifact_renderers/*.tsx", "!../../plugins/*/app/frontend/artifact_renderers/*.test.tsx"], { eager: true })
-const agentProviderConnectPanelModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/agentProviderConnectPanels/*.tsx", "!../../plugins/*/app/frontend/agentProviderConnectPanels/*.test.tsx"], { eager: true })
-const runtimeSessionViewModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/runtimeSessionViews/*.tsx", "!../../plugins/*/app/frontend/runtimeSessionViews/*.test.tsx"], { eager: true })
+const toolCardModules = import.meta.glob<PluginModule>(
+  ["../../plugins/*/app/frontend/tool_cards/*.tsx", "!../../plugins/*/app/frontend/tool_cards/*.test.tsx"],
+  { eager: true }
+)
+const chatMessageRendererModules = import.meta.glob<PluginModule>(
+  ["../../plugins/*/app/frontend/chat_message_renderers/*.tsx", "!../../plugins/*/app/frontend/chat_message_renderers/*.test.tsx"],
+  { eager: true }
+)
+const artifactRendererModules = import.meta.glob<PluginModule>(
+  ["../../plugins/*/app/frontend/artifact_renderers/*.tsx", "!../../plugins/*/app/frontend/artifact_renderers/*.test.tsx"],
+  { eager: true }
+)
+const agentProviderConnectPanelModules = import.meta.glob<PluginModule>(
+  ["../../plugins/*/app/frontend/agentProviderConnectPanels/*.tsx", "!../../plugins/*/app/frontend/agentProviderConnectPanels/*.test.tsx"],
+  { eager: true }
+)
+const runtimeSessionViewModules = import.meta.glob<PluginModule>(
+  ["../../plugins/*/app/frontend/runtimeSessionViews/*.tsx", "!../../plugins/*/app/frontend/runtimeSessionViews/*.test.tsx"],
+  { eager: true }
+)
 
 function registerModules(kind: PluginContributionKind, directory: string, modules: Record<string, PluginModuleLoader>) {
   const pattern = new RegExp(`^\\.\\.\\/\\.\\.\\/plugins\\/([^/]+)\\/app\\/frontend\\/${directory}\\/([^/]+)\\.tsx$`)

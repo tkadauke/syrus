@@ -216,13 +216,7 @@ export type DiscoveredToolCardEntry = { renderer: ToolCardRenderer; owner: ToolC
 
 const PLUGIN_CARD_PATH_PATTERN = /\/plugins\/([^/]+)\/app\/frontend\/tool_cards\//
 
-const cardModules = import.meta.glob<ToolCardModule>(
-  [
-    "./routes/chat/tool_cards/*.tsx",
-    "!./routes/chat/tool_cards/*.test.tsx"
-  ],
-  { eager: true }
-)
+const cardModules = import.meta.glob<ToolCardModule>(["./routes/chat/tool_cards/*.tsx", "!./routes/chat/tool_cards/*.test.tsx"], { eager: true })
 
 function isValidRenderer(renderer: ToolCardRenderer | undefined): renderer is ToolCardRenderer {
   return !!renderer && typeof renderer.toolName === "string" && renderer.toolName.length > 0 && typeof renderer.renderExpanded === "function"
@@ -280,7 +274,9 @@ export function pluginToolCardArgumentSummary(toolName: string, input: Record<st
 }
 
 export function pluginToolCardRendererKeys() {
-  return registeredToolCardRenderers().map((renderer) => renderer.toolName).sort()
+  return registeredToolCardRenderers()
+    .map((renderer) => renderer.toolName)
+    .sort()
 }
 
 function logCardError(stage: string, toolName: string, error: unknown) {

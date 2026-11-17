@@ -25,14 +25,14 @@ type PluginModule = {
 
 function registeredViews() {
   return getEagerPluginContributions<PluginModule>("runtime_session_view").flatMap(({ pluginName, key, value: mod }) => {
-  const view = mod.default
-  if (!view?.providerKey || !view.component) {
-    console.warn(`[pluginRuntimeSessionViews] Skipping ${pluginName}/${key}: default export is not a valid PluginRuntimeSessionView`)
-    return []
-  }
+    const view = mod.default
+    if (!view?.providerKey || !view.component) {
+      console.warn(`[pluginRuntimeSessionViews] Skipping ${pluginName}/${key}: default export is not a valid PluginRuntimeSessionView`)
+      return []
+    }
 
-  return [view]
-})
+    return [view]
+  })
 }
 
 export function pluginRuntimeSessionViewComponentFor(providerKey: string | null | undefined) {

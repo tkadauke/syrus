@@ -30,7 +30,9 @@ function renderPluginMessage() {
 describe("plugin chat message renderers", () => {
   it("shows the existing fallback before preload finishes and updates after registration", async () => {
     let release!: () => void
-    const loading = new Promise<void>((resolve) => { release = resolve })
+    const loading = new Promise<void>((resolve) => {
+      release = resolve
+    })
     registerPluginContributionPreloader("late_renderer_test", async () => {
       await loading
       registerPluginContribution("chat_message_renderer", "late_renderer_test", "Message", {

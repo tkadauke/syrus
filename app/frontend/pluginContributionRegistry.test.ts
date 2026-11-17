@@ -54,7 +54,9 @@ describe("plugin contribution registry", () => {
 
   it("awaits enabled plugin preloaders", async () => {
     let release!: () => void
-    const loaded = new Promise<void>((resolve) => { release = resolve })
+    const loaded = new Promise<void>((resolve) => {
+      release = resolve
+    })
     registerPluginContributionPreloader("preload_test", async () => {
       await loaded
       registerPluginContribution("chat_message_renderer", "preload_test", "Late", { default: "late" })

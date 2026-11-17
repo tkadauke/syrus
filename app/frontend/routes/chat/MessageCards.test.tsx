@@ -177,20 +177,22 @@ it("updates a mounted tool group when a tool card registers late", async () => {
   const item: ChatToolGroupItem = {
     type: "tool_group",
     tool: "late_subscription_tool",
-    calls: [{
-      message_id: 901,
-      tool_name: "late_subscription_tool",
-      raw_name: "mcp__late_subscription_test__late_subscription_tool",
-      detail: "Existing fallback detail",
-      display_label: "Late subscription tool",
-      progress_label: "Running",
-      raw_payload: {},
-      result_body: JSON.stringify({ status: "ready" }),
-      result_json: { status: "ready" },
-      result_error: false,
-      result_kind: "record",
-      result_summary: ""
-    }]
+    calls: [
+      {
+        message_id: 901,
+        tool_name: "late_subscription_tool",
+        raw_name: "mcp__late_subscription_test__late_subscription_tool",
+        detail: "Existing fallback detail",
+        display_label: "Late subscription tool",
+        progress_label: "Running",
+        raw_payload: {},
+        result_body: JSON.stringify({ status: "ready" }),
+        result_json: { status: "ready" },
+        result_error: false,
+        result_kind: "record",
+        result_summary: ""
+      }
+    ]
   }
 
   render(<ToolGroup item={item} />)

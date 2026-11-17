@@ -100,15 +100,15 @@ function ownerForRendererPath(path: string): ArtifactRendererOwner {
 
 function registeredArtifactRendererEntries(): DiscoveredArtifactRendererEntry[] {
   return getEagerPluginContributions<ArtifactRendererModule>("artifact_renderer").flatMap(({ pluginName, key, value: mod }) => {
-  const path = `../../plugins/${pluginName}/app/frontend/artifact_renderers/${key}.tsx`
-  const definition = mod.default
-  if (!isValidDefinition(definition)) {
-    console.warn(`[pluginArtifactRenderers] Skipping ${path}: default export is not a valid ArtifactRendererDefinition`)
-    return []
-  }
+    const path = `../../plugins/${pluginName}/app/frontend/artifact_renderers/${key}.tsx`
+    const definition = mod.default
+    if (!isValidDefinition(definition)) {
+      console.warn(`[pluginArtifactRenderers] Skipping ${path}: default export is not a valid ArtifactRendererDefinition`)
+      return []
+    }
 
-  return [{ definition, owner: ownerForRendererPath(path), examples: mod.examples ?? [], path }]
-})
+    return [{ definition, owner: ownerForRendererPath(path), examples: mod.examples ?? [], path }]
+  })
 }
 
 export const discoveredArtifactRendererEntries = registeredArtifactRendererEntries()
