@@ -39,7 +39,11 @@ class Coworkers::Coworker < ApplicationRecord
   def subtitle = role_summary
   def kind = "coworker"
   def accent_hex = self[:accent_hex]
-  def agentic? = true
+  # Roster mentions are delegated to native coworker sessions. They must not
+  # address the host chat's agent; native coworker chats contribute their own
+  # turn-trigger policy through ChatIdentityProvider.
+  def agentic? = false
+  def delegates_turn? = true
   def avatar_url = avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(avatar, only_path: true) : nil
   def avatar_key = self[:avatar_key]
   def addressable_in?(chat)

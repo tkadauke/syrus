@@ -30,7 +30,7 @@ RSpec.describe Coworkers::ChatIdentityProvider do
     )
   end
 
-  it "delegates the first roster-mentioned coworker instead of selecting it for the source turn" do
+  it "does not own a roster mention or select it for the source turn" do
     Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
     message = chat.messages.create!(
       role: "user", content: { "text" => "@maya-identity help" },
@@ -40,7 +40,8 @@ RSpec.describe Coworkers::ChatIdentityProvider do
 
     expect(described_class.chat_turn_identity(chat_session: chat, message: message)).to be_nil
     expect(described_class.chat_turn_trigger(chat_session: chat, message: message, mentions: message.resolved_mentions))
-      .to include(trigger: false, reason: "delegated coworker mention")
+      .to be_nil
+    expect(chat.should_trigger_agent?(message.resolved_mentions)).to be(false)
   end
 
   it "preserves direct and group-chat turn trigger decisions" do
@@ -70,8 +71,9 @@ RSpec.describe Coworkers::ChatIdentityProvider do
       skip_turn_trigger: true
     )
 
-    expect(described_class.chat_message_presentations(messages: [ message ]).dig(message.id, :plugin_message, :data, :appearance))
-      .to include(handle: "maya-identity")
+    presentation = described_class.chat_message_presentations(messages: [ message ]).fetch(message.id)
+    expect(presentation.dig(:plugin_message, :data, :appearance)).to include(handle: "maya-identity")
+    expect(presentation.fetch(:author)).to include(name: "Maya", handle: "maya-identity")
   end
 
   it "decorates an inbound historical bridge without a legacy payload writer" do

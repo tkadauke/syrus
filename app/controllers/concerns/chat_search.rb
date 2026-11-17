@@ -161,7 +161,9 @@ module ChatSearch
   def chat_search_result_json(chat_session, rows, badges_by_chat_id: {})
     return unless chat_session
 
-    top_matches = rows.first(SEARCH_TOP_MATCHES).map { |row| chat_search_match_json(row) }
+    top_rows = rows.first(SEARCH_TOP_MATCHES)
+    authors = chat_search_authors(top_rows)
+    top_matches = top_rows.map { |row| chat_search_match_json(row, authors:) }
     {
       chat_session_id: chat_session.id,
       chat_title: chat_search_title(chat_session),
@@ -180,13 +182,22 @@ module ChatSearch
     }
   end
 
-  def chat_search_match_json(row)
+  def chat_search_match_json(row, authors: nil)
+    authors ||= chat_search_authors([ row ])
     {
       message_id: row.fetch(:chat_message_id).to_i,
       role: row.fetch(:role),
       snippet: row.fetch(:snippet),
+      author: authors[row.fetch(:chat_message_id).to_i],
       created_at: row.fetch(:created_at)
-    }
+    }.compact
+  end
+
+  def chat_search_authors(rows)
+    ids = rows.map { |row| row.fetch(:chat_message_id).to_i }
+    messages = ChatMessage.where(id: ids).includes(:chat_session).index_by(&:id)
+    presentations = ChatIdentityContributions.message_presentations(messages: ids.filter_map { |id| messages[id] })
+    presentations.to_h { |id, presentation| [ id, presentation["author"] || presentation[:author] ] }.compact
   end
 
   def chat_search_title(chat_session)

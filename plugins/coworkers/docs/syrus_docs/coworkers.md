@@ -521,8 +521,10 @@ coworker page or by choosing an autocomplete result marked "Add to chat."
 Rostered coworkers become addressable by every participant in that chat. An
 exact structured mention delegates the message to a reusable hidden coworker
 session for that source chat; the coworker's final answer returns automatically
-as a named, colored coworker message, and the planner does not answer the
-mention. Proposals, structured questions, permission requests, spawn requests,
+as a named, colored coworker message with a link to the hidden working session,
+and the planner does not answer the mention. The source chat keeps its own
+repository; only the linked working session uses the coworker's workspace.
+Proposals, structured questions, permission requests, spawn requests,
 and confirmation cards created during the hidden turn appear directly in the
 source chat. Answering or confirming there resumes the hidden session; queued
 approval policies keep using their normal unattended behavior. Each roster row

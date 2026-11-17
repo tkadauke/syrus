@@ -966,8 +966,9 @@ Selecting an own coworker marked **Add to chat** adds it to the chat's agent
 roster before inserting the mention. Everyone participating in the chat can
 then address that coworker. An exact mention delegates the message to a reusable
 hidden session for that coworker and source chat. The coworker's final reply is
-delivered automatically as a named coworker message in the source chat, and the
-planner does not also answer the mention. Proposals, questions, permission and
+delivered automatically in its colored, named bubble with a link to the working
+session. The source chat keeps its own repository, and the planner does not also
+answer the mention. Proposals, questions, permission and
 spawn requests, and other confirmation cards created in the hidden session
 appear in the source chat; answering or confirming them resumes the coworker.
 The roster control can either wake the planner once after each delivered reply

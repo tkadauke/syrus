@@ -405,6 +405,33 @@ describe("coworker messages", () => {
     expect(message.closest("article")).not.toHaveClass("justify-end")
   })
 
+  it("renders two delivered mention replies with distinct authors and working-session links", () => {
+    const reply = (id: number, name: string, handle: string, color: string, workingChatId: number) =>
+      userMessage(`${name} answered.`, {
+        id,
+        plugin_message: {
+          component: "coworkers/CoworkerMessage",
+          data: {
+            direction: "incoming",
+            handle,
+            working_chat_session_id: workingChatId,
+            appearance: { id, name, handle, accent_hex: color, avatar_key: "comet", avatar_url: null }
+          }
+        }
+      })
+
+    const first = renderChatMessageItem(reply(81, "Dinesh", "dinesh", "#0090FF", 701))
+    expect(screen.getByTestId("coworker-incoming-message")).toHaveStyle({ borderLeftColor: "#0090FF" })
+    expect(screen.getByRole("link", { name: "View working session" })).toHaveAttribute("href", "/chats/701")
+    first.unmount()
+
+    renderChatMessageItem(reply(82, "Gilfoyle", "gilfoyle", "#8B5CF6", 702))
+    const second = screen.getByTestId("coworker-incoming-message")
+    expect(second).toHaveTextContent("Gilfoyle")
+    expect(second).toHaveStyle({ borderLeftColor: "#8B5CF6" })
+    expect(screen.getByRole("link", { name: "View working session" })).toHaveAttribute("href", "/chats/702")
+  })
+
   it("renders a coworker cross-chat bridge with the standard coworker identity and bubble color", () => {
     const item = userMessage("Approved direction.", {
       cross_chat_bridge: {

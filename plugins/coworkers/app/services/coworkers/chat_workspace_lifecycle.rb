@@ -10,7 +10,7 @@ class Coworkers::ChatWorkspaceLifecycle
 
   class << self
     def applies_to?(chat_session:)
-      chat_session.respond_to?(:coworker) && chat_session.coworker.kind == "coworker"
+      chat_session.respond_to?(:coworker_chat) && chat_session.coworker_chat.present?
     end
 
     def prepare!(chat_session:)

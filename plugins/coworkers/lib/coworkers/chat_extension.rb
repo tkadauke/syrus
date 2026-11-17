@@ -49,17 +49,6 @@ module Coworkers
           coworker_chat&.coworker || ::Coworker::Syrus.for(user)
         end
 
-        ChatSession.define_method(:coworker_roster_mention) do |message|
-          mentions = Array(message.resolved_mentions)
-          coworker_ids = mentions.filter_map { |mention| mention["id"] if mention["kind"] == "coworker" }
-          rostered = Coworkers::ChatAgent.where(chat_session_id: id, coworker_id: coworker_ids).includes(:coworker).index_by(&:coworker_id)
-          coworker_ids.lazy.filter_map { |coworker_id| rostered[coworker_id]&.coworker }.first
-        end
-
-        ChatSession.define_method(:agent_turn_context) do |message|
-          coworker_chat ? Coworkers::TurnChatContext.new(self, coworker_chat.coworker) : self
-        end
-
         ChatSession.define_method(:owner_facing_chat_session) do
           link = coworker_chat
           link&.mention? ? link.source_chat_session : self
@@ -102,7 +91,7 @@ module Coworkers
 
         -> do
           ChatMessage.skip_callback(:commit, :after, :delegate_coworker_mention, on: :create)
-          %i[coworker coworker_roster_mention agent_turn_context owner_facing_chat_session workspace_file_read_policy coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
+          %i[coworker owner_facing_chat_session workspace_file_read_policy coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end

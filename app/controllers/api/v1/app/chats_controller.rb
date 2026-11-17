@@ -243,8 +243,9 @@ module Api
 
           chat_session = visible_chat_scope.find(params[:chat_session_id])
           matches = chat_search_rows(query, chat_session_id: chat_session.id, limit: SEARCH_MESSAGE_PAGE_SIZE + 1)
+          authors = chat_search_authors(matches.first(SEARCH_MESSAGE_PAGE_SIZE))
           render json: {
-            matches: matches.first(SEARCH_MESSAGE_PAGE_SIZE).map { |row| chat_search_match_json(row) },
+            matches: matches.first(SEARCH_MESSAGE_PAGE_SIZE).map { |row| chat_search_match_json(row, authors:) },
             has_more: matches.size > SEARCH_MESSAGE_PAGE_SIZE
           }
         end

@@ -860,7 +860,14 @@ RSpec.describe "API: coworkers", type: :request do
     coworker_chat = ChatSession.create!(user: owner, title: "Maya")
     syrus_chat = ChatSession.create!(user: owner, title: "Syrus")
     Coworkers::Chat.create!(coworker: coworker, chat_session: coworker_chat, role: "main")
-    message = coworker_chat.messages.create!(role: "user", content: { "text" => "calendar needle" })
+    message = coworker_chat.messages.create!(
+      role: "assistant",
+      content: {
+        "text" => "calendar needle", "source" => "coworker_message",
+        "coworker_message" => { "direction" => "incoming", "sender_id" => coworker.id, "sender_handle" => coworker.handle }
+      },
+      skip_turn_trigger: true
+    )
     syrus_chat.messages.create!(role: "user", content: { "text" => "engineering needle" })
     ChatMessageSearchIndex.insert(message)
     sign_in_as(owner)
@@ -869,10 +876,19 @@ RSpec.describe "API: coworkers", type: :request do
     coworker_field = response.parsed_body.fetch("fields").find { |field| field.fetch("field") == "coworker_id" }
     expect(coworker_field.fetch("values")).to include({ "value" => "syrus", "label" => "Syrus" }, { "value" => coworker.id.to_s, "label" => "Maya" })
 
-    get "/api/v1/app/chats/search", params: { coworker_id: coworker.id }
+    get "/api/v1/app/chats/search", params: { q: "calendar", coworker_id: coworker.id }
     expect(response.parsed_body.fetch("results")).to contain_exactly(
-      include("chat_session_id" => coworker_chat.id, "badges" => [ { "kind" => "coworker", "id" => coworker.id, "name" => "Maya" } ])
+      include(
+        "chat_session_id" => coworker_chat.id,
+        "badges" => [ { "kind" => "coworker", "id" => coworker.id, "name" => "Maya" } ],
+        "top_matches" => [ include("author" => include("name" => "Maya", "handle" => "maya")) ]
+      )
     )
+
+    message.pins.create!
+    get "/api/v1/app/chats/#{coworker_chat.id}/pins"
+    expect(response.parsed_body.fetch("pins").sole.fetch("author"))
+      .to include("name" => "Maya", "handle" => "maya")
 
     filter = Filters::QueryParam.encode("and" => [ { "field" => "coworker_id", "op" => "is", "value" => coworker.id } ])
     get "/api/v1/app/search", params: { query: "calendar", q: filter, types: [ "chat" ] }

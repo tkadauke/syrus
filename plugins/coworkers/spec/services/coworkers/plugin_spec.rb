@@ -147,7 +147,7 @@ RSpec.describe "Coworkers plugin" do
   end
 
 
-  it "delegates a roster mention without taking over the source chat turn context" do
+  it "keeps roster membership out of the source chat turn context" do
     repository = Factories.repository(user: owner, owner: "acme", name: "coworker-workspace")
     coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-turn", workspace_repo: repository.remote_url,
@@ -164,11 +164,10 @@ RSpec.describe "Coworkers plugin" do
     scope = Syrus::EffectScope.new(label: "rostered coworker turn spec")
     Coworkers::ChatExtension.install_into(scope)
 
-    context = chat.reload.agent_turn_context(message)
-
     expect(chat.coworker).to be_a(Coworker::Syrus)
-    expect(context).to eq(chat)
-    expect(chat.coworker_roster_mention(message)).to eq(coworker)
+    expect(chat).not_to respond_to(:agent_turn_context)
+    expect(chat).not_to respond_to(:coworker_roster_mention)
+    expect(chat.repository).to be_nil
   ensure
     scope&.dispose
   end

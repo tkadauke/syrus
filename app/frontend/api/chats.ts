@@ -79,6 +79,7 @@ export type ChatRecord = {
 }
 
 export type ChatAgentAppearance = { name: string; accent_hex: string; avatar_key: string | null; avatar_url: string | null }
+export type ChatMessageAuthor = ChatAgentAppearance & { id: number; handle: string }
 export type ChatAgentRosterItem = ChatAgentAppearance & {
   id: number
   handle: string
@@ -623,6 +624,7 @@ export type ChatMessagePin = {
   chat_message_id: number
   text: string
   role: string
+  author?: ChatMessageAuthor | null
   created_at: string
 }
 
@@ -1204,6 +1206,7 @@ export type ChatSearchMatch = {
   message_id: number
   role: "user" | "assistant" | "tool_use" | "tool_result" | "system" | string
   snippet: string | null
+  author?: ChatMessageAuthor | null
   created_at: string | null
 }
 

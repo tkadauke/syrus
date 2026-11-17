@@ -119,6 +119,7 @@ class Coworkers::MessageReply
         "coworker_message" => {
           "direction" => "incoming", "sender_id" => link.coworker_id,
           "sender_handle" => link.coworker.handle,
+          "working_chat_session_id" => chat_session.id,
           "origin_turn_id" => metadata["source_message_id"],
           "hop_count" => metadata.fetch("hop_count", 0).to_i + 1
         }

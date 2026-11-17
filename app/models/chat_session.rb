@@ -702,6 +702,12 @@ class ChatSession < ApplicationRecord
     else
       resolve_mentions(message_or_mentions)
     end
+    delegated = mentions.any? do |mention|
+      mentionable = Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+      mentionable&.respond_to?(:delegates_turn?) && mentionable.delegates_turn? && mentionable.addressable_in?(self)
+    end
+    return false if delegated
+
     decision = ChatIdentityContributions.trigger_decision(
       chat_session: self,
       message: message_or_mentions.is_a?(Array) ? nil : message_or_mentions,

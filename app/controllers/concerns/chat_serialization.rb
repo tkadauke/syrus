@@ -271,13 +271,15 @@ module ChatSerialization
   end
 
   def pin_json(pin)
+    presentation = ChatIdentityContributions.message_presentations(messages: [ pin.chat_message ]).fetch(pin.chat_message_id, {})
     {
       id: pin.id,
       chat_message_id: pin.chat_message_id,
       text: pin.chat_message.preview_text,
       role: pin.chat_message.role,
+      author: presentation["author"] || presentation[:author],
       created_at: pin.created_at.iso8601
-    }
+    }.compact
   end
 
   def pins_json(chat_session)

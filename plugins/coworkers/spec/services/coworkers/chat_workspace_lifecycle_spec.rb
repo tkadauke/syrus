@@ -42,6 +42,13 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     described_class.new(session, remote_url: @remote.to_s, repository: repository)
   end
 
+  it "never applies to a roster-only source chat" do
+    source = ChatSession.create!(user: owner, repository: repository, title: "Planning")
+    Coworkers::ChatAgent.create!(chat_session: source, coworker: coworker, added_by_user: owner)
+
+    expect(described_class).not_to be_applies_to(chat_session: source)
+  end
+
   def run_git(*args, chdir: nil)
     options = chdir ? { chdir: chdir.to_s } : {}
     stdout, stderr, status = Open3.capture3("git", *args, **options)
