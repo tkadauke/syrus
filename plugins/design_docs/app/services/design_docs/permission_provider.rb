@@ -20,9 +20,10 @@ module DesignDocs
     EFFECTS.each do |name, effects|
       operation = OPERATIONS.fetch(name)
       mutation = effects.include?(:internal_write)
+      risk = effects.include?(:destructive) ? :high : (mutation ? :medium : :low)
       register_capability(
         capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
-        effects:, risk: effects.include?(:destructive) ? :high : (mutation ? :medium : :low), requestable_roles: ROLES,
+        effects:, risk:, requestable_roles: ROLES,
         defaults: ROLES.index_with { mutation ? :ask : :allow }, maximum_autonomy: mutation ? :invocation : :permanent,
         authority_durations: mutation ? %i[invocation] : Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
         resource_scope: { type: :none }, classifier: ->(_arguments) { { operation:, effects:, risk:, confidence: :certain } },
