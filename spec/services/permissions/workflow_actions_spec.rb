@@ -13,7 +13,7 @@ RSpec.describe Permissions::WorkflowActions do
   end
 
   it "covers every workflow registration with a certain classification" do
-    expect(workflow_entries.keys - described_class.tool_names).to be_empty
+    expect(workflow_entries.keys - described_class.tool_names - Permissions::EffectActions.tool_names).to be_empty
 
     workflow_entries.each_value do |entry|
       expect(entry.descriptor.classify({})).to include(confidence: :certain)
@@ -23,7 +23,10 @@ RSpec.describe Permissions::WorkflowActions do
   it "keeps read operations allowed and caps mutations at invocation authority" do
     workflow_entries.each_value do |entry|
       descriptor = entry.descriptor
-      if entry.mutation
+      if entry.tool_name == "submit_artifact"
+        expect(descriptor.defaults.values.uniq).to eq([ :allow ])
+        expect(descriptor.maximum_autonomy).to eq(:permanent)
+      elsif entry.mutation
         expect(descriptor.defaults.values.uniq).to eq([ :ask ])
         expect(descriptor.maximum_autonomy).to eq(:invocation)
         expect(descriptor.authority_durations).to eq([ :invocation ])
@@ -60,7 +63,8 @@ RSpec.describe Permissions::WorkflowActions do
         descriptor: entry.descriptor, role:, resource_scope: {}, rules: [], context: {}, arguments: {}
       ).call
 
-      expect(decision.policy).to eq(entry.mutation ? :ask : :allow)
+      expected = entry.mutation && entry.tool_name != "submit_artifact" ? :ask : :allow
+      expect(decision.policy).to eq(expected)
     end
   end
 end

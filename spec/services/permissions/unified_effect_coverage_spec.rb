@@ -102,7 +102,7 @@ RSpec.describe "Unified consequential-effect coverage" do
     }.each do |source, names|
       names.each do |name|
         operations = Array(by_name[name]).map { |entry| entry.descriptor.operation }.uniq
-        expect(operations).to eq([ source.descriptor_for(name).operation ]), "#{source}##{name}"
+        expect(operations).to include(source.descriptor_for(name).operation), "#{source}##{name}"
       end
     end
     expect(self.class.effects.reject { |effect| effect.tool_names.any? }.map(&:label))

@@ -21,9 +21,12 @@ module AgentMemory
       operation = OPERATIONS.fetch(name)
       mutation = effects.include?(:internal_write)
       risk = effects.include?(:destructive) ? :high : (mutation ? :medium : :low)
+      defaults = ROLES.index_with do |role|
+        mutation || role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) ? :ask : :allow
+      end
       register_capability(
         capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
-        effects:, risk:, requestable_roles: ROLES, defaults: ROLES.index_with { mutation ? :ask : :allow },
+        effects:, risk:, requestable_roles: ROLES, defaults:,
         maximum_autonomy: mutation ? :invocation : :permanent,
         authority_durations: mutation ? %i[invocation] : Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
         resource_scope: { type: :none }, classifier: ->(_arguments) { { operation:, effects:, risk:, confidence: :certain } },

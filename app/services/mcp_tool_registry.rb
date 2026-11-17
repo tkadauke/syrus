@@ -530,7 +530,7 @@ class McpToolRegistry
         workflow_action(Mcp::Tools::ListOpenPrsTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ReadPrTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ListOpenIssuesTool, required_roles: workflow_roles),
-        workflow_action(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
+        effect_workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
         workflow_action(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
         # Only the implementing agent may add work to its own workflow, and
         # WorkflowPatch bounds what "add" means (workflow-engine-v3 A7).
@@ -676,6 +676,12 @@ class McpToolRegistry
       roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
       descriptor = Permissions::EffectActions.descriptor_for(tool_name_for(tool), required_roles: roles)
       chat(tool, **metadata, descriptor:)
+    end
+
+    def effect_workflow(tool, **metadata)
+      roles = metadata[:required_roles].presence || AgentRole::WORKFLOW_ROLES
+      descriptor = Permissions::EffectActions.descriptor_for(tool_name_for(tool), required_roles: roles)
+      workflow(tool, **metadata, descriptor:)
     end
 
     # `ungated` is read by Mcp::CoworkerToolCatalog but was never consulted on

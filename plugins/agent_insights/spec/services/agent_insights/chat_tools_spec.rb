@@ -175,6 +175,26 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
       confidence: 0.5
     )
     superseding_job = Factories.job(user: user, repository: repository)
+    descriptor = AgentInsights::PermissionProvider.capability_descriptor(
+      AgentInsights::PermissionProvider::OPERATIONS.fetch("retire_insight")
+    )
+    arguments = {
+      target_insight_id: target.id,
+      reason: "Superseded by filed work.",
+      superseded_by_job_id: superseding_job.id
+    }
+    Permissions::Management.new(user).lease!(
+      {
+        "capability" => descriptor.capability,
+        "operation" => descriptor.operation,
+        "role" => AgentRole::CHAT_PLANNER,
+        "subject_selector_type" => "interactive_chat",
+        "resource_scope" => {},
+        "duration" => "invocation",
+        "arguments" => arguments
+      },
+      actor: user
+    )
     server = server_for(chat_session, tier: :deferred)
     _ = jsonrpc(server, "initialize", id: 0)
 
@@ -182,9 +202,7 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
       response = call_tool(
         server,
         "retire_insight",
-        target_insight_id: target.id,
-        reason: "Superseded by filed work.",
-        superseded_by_job_id: superseding_job.id
+        arguments
       )
 
       expect(response.dig(:result, :isError)).to be_falsey

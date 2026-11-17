@@ -37,7 +37,6 @@ module Permissions
       "submit_test_plan" => Operation.new(RESULTS, "submit_test_plan", WRITE, :low, true),
       "submit_report" => Operation.new(RESULTS, "submit_report", WRITE, :low, true),
       "propose_job" => Operation.new(RESULTS, "propose_job", WRITE, :medium, true),
-      "submit_artifact" => Operation.new(RESULTS, "submit_artifact", WRITE, :low, true),
       "run_target_prepare" => Operation.new(CONTROL, "run_target_prepare", EXECUTE, :medium, true),
       "patch_workflow" => Operation.new(CONTROL, "patch_workflow", WRITE, :medium, true),
       "submit_visual_artifact" => Operation.new(RESULTS, "submit_visual_artifact", WRITE, :low, true),
