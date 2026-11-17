@@ -9,10 +9,8 @@ import (
 	"github.com/tkadauke/syrus/cli/internal/config"
 	credentialstore "github.com/tkadauke/syrus/plugins/credential_store/cli"
 	designdocs "github.com/tkadauke/syrus/plugins/design_docs/cli"
-	globalsearch "github.com/tkadauke/syrus/plugins/global_search/cli"
 	k8scluster "github.com/tkadauke/syrus/plugins/k8s_cluster/cli"
 	scheduledtasks "github.com/tkadauke/syrus/plugins/scheduled_tasks/cli"
-	spendinginsights "github.com/tkadauke/syrus/plugins/spending_insights/cli"
 )
 
 const loginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
@@ -62,19 +60,15 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(NewEpicCommand())
 	rootCmd.AddCommand(NewRepoCommand())
 	rootCmd.AddCommand(NewWhoamiCommand())
-	// Contributed by a bundled plugin. Its commands live in the plugin's own
-	// module (plugins/scheduled_tasks/cli) so they are deleted with it; Go has
-	// no usable dynamic loading for a single static binary, so they are
-	// compiled in here. No runtime gating: when the plugin is disabled the
-	// instance already answers its routes with a "plugin_disabled" error.
+	// These plugin trees retain local-only behavior: schedule list/create/delete
+	// inspect the checkout or prompt interactively, while docs list/show inspect
+	// the checkout or launch $PAGER. Their server-safe siblings are discovered
+	// from the instance catalog.
 	rootCmd.AddCommand(scheduledtasks.NewScheduleCommand())
 	rootCmd.AddCommand(k8scluster.NewK8sCommand())
 	rootCmd.AddCommand(credentialstore.NewCredentialStoreCommand())
-	rootCmd.AddCommand(globalsearch.NewSearchCommand())
 	rootCmd.AddCommand(designdocs.NewDocsCommand())
-	insightsCmd := NewInsightsCommand()
-	insightsCmd.AddCommand(spendinginsights.NewSpendingCommand())
-	rootCmd.AddCommand(insightsCmd)
+	rootCmd.AddCommand(NewInsightsCommand())
 	rootCmd.AddCommand(NewSkillCommand())
 	rootCmd.AddCommand(NewLocalCommand())
 	return rootCmd

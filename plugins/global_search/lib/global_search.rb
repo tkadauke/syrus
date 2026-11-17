@@ -24,6 +24,17 @@ module GlobalSearch
                "GlobalSearch::EpicSearchSource",
                "GlobalSearch::SourceProvider"
              ]
+    cli_commands [
+      {
+        path: %w[search], summary: "Search Jobs, Epics, chats, and repositories", handler: "GlobalSearch::Cli::Search",
+        arguments: [ { name: "query", type: :string, required: true } ],
+        flags: [
+          { name: "type", type: :string },
+          { name: "limit", type: :integer },
+          { name: "json", type: :boolean, default: false }
+        ]
+      }
+    ]
     route :get, "/api/v1/app/search", to: "api/v1/app/search#index"
     frontend routes: { "global_search/Search" => "app/frontend/routes/Search.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/global_search.json" ]
