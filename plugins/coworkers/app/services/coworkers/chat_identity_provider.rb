@@ -20,7 +20,7 @@ module Coworkers
       end
 
       def chat_turn_identity(chat_session:, message:)
-        coworker = rostered_coworker(chat_session, message) || linked_coworker(chat_session)
+        coworker = linked_coworker(chat_session)
         identity(coworker) if coworker
       end
 
@@ -29,7 +29,10 @@ module Coworkers
       # explicit mention of an addressable agent. Returning nil for all other
       # chats leaves the generic host policy in charge.
       def chat_turn_trigger(chat_session:, message:, mentions:)
-        owns_turn = linked_coworker(chat_session) || coworker_mentions(mentions).any?
+        roster_mention = rostered_coworker_for_mentions(chat_session, mentions)
+        return { trigger: false, reason: "delegated coworker mention" } if roster_mention
+
+        owns_turn = linked_coworker(chat_session)
         return unless owns_turn
 
         trigger = chat_session.chat_participants.count <= 1 || Array(mentions).any? do |mention|
@@ -80,7 +83,11 @@ module Coworkers
       end
 
       def rostered_coworker(chat_session, message)
-        ids = coworker_mentions(message&.resolved_mentions)
+        rostered_coworker_for_mentions(chat_session, message&.resolved_mentions)
+      end
+
+      def rostered_coworker_for_mentions(chat_session, mentions)
+        ids = coworker_mentions(mentions)
         return if ids.empty?
 
         roster = Coworkers::ChatAgent.where(chat_session_id: chat_session.id, coworker_id: ids)

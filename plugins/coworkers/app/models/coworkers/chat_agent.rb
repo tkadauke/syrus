@@ -7,7 +7,18 @@ class Coworkers::ChatAgent < ApplicationRecord
 
   validate :coworker_belongs_to_chat_owner
 
+  after_create_commit :grant_source_chat_access
+  after_destroy_commit :revoke_source_chat_access
+
   private
+
+  def grant_source_chat_access
+    chat_session.chat_shares.find_or_create_by!(target: coworker) { |share| share.shared_by_user = added_by_user }
+  end
+
+  def revoke_source_chat_access
+    chat_session.chat_shares.where(target: coworker).destroy_all
+  end
 
   def coworker_belongs_to_chat_owner
     return if coworker.nil? || chat_session.nil?
