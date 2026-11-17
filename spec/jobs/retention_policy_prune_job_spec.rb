@@ -43,6 +43,54 @@ RSpec.describe RetentionPolicyPruneJob do
       .to have_enqueued_job(described_class).with("notification").once
   end
 
+  it "keeps the originating archive cadence on backlog continuations" do
+    executor = instance_double(RetentionPolicyExecutors::Default)
+    setting = instance_double(RetentionPolicySetting, archive_before_delete?: true)
+    definition = instance_double(
+      RetentionPolicyRegistry::Definition,
+      key: :run_diagnostic,
+      setting: setting,
+      executor: executor
+    )
+    allow(RetentionPolicyRegistry).to receive(:find).with("run_diagnostic").and_return(definition)
+    allow(executor).to receive(:call).and_return(
+      RetentionPolicyExecutors::Result.new(deleted_count: 50_000, backlog: true)
+    )
+
+    expect { described_class.perform_now("run_diagnostic", true) }
+      .to have_enqueued_job(described_class).with("run_diagnostic", true).once
+  end
+
+  it "stops a frequent-sweep job when archiving was enabled while it was queued" do
+    executor = instance_double(RetentionPolicyExecutors::Default)
+    setting = instance_double(RetentionPolicySetting, archive_before_delete?: true)
+    definition = instance_double(
+      RetentionPolicyRegistry::Definition,
+      key: :run_diagnostic,
+      setting: setting,
+      executor: executor
+    )
+    allow(RetentionPolicyRegistry).to receive(:find).with("run_diagnostic").and_return(definition)
+
+    expect(executor).not_to receive(:call)
+    expect(described_class.perform_now("run_diagnostic", false)).to eq(0)
+  end
+
+  it "stops a daily-sweep job when archiving was disabled while it was queued" do
+    executor = instance_double(RetentionPolicyExecutors::Default)
+    setting = instance_double(RetentionPolicySetting, archive_before_delete?: false)
+    definition = instance_double(
+      RetentionPolicyRegistry::Definition,
+      key: :run_diagnostic,
+      setting: setting,
+      executor: executor
+    )
+    allow(RetentionPolicyRegistry).to receive(:find).with("run_diagnostic").and_return(definition)
+
+    expect(executor).not_to receive(:call)
+    expect(described_class.perform_now("run_diagnostic", true)).to eq(0)
+  end
+
   it "deduplicates overlap by retention key while allowing different keys" do
     expect(described_class.concurrency_key.call("notification")).to eq("retention:notification")
     expect(described_class.concurrency_key.call("run_diagnostic")).to eq("retention:run_diagnostic")
