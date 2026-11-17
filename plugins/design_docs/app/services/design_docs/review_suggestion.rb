@@ -93,7 +93,7 @@ module DesignDocs
         suffix_context: location.suffix_context
       )
       suggestion.update!(state: "accepted", reviewed_at: Time.current, reviewed_by_user: user)
-      reconcile_unrelated_anchors!(old_markdown: old_markdown, version: version, accepted_anchor: anchor)
+      refresh_active_anchors!(old_markdown: old_markdown, version: version, accepted_anchor: anchor)
       NormalizeAnchorMarkers.call(design_doc: design_doc)
 
       Result.new(design_doc: design_doc.reload, suggestion: suggestion.reload, version: version, applied: true)
@@ -124,59 +124,52 @@ module DesignDocs
         last_known_end_offset: start_offset + suggestion.proposed_markdown_value.length
       )
       suggestion.update!(state: "accepted", reviewed_at: Time.current, reviewed_by_user: user)
-      reconcile_unrelated_anchors!(old_markdown: old_markdown, version: version, accepted_anchor: anchor)
+      refresh_active_anchors!(old_markdown: old_markdown, version: version, accepted_anchor: anchor)
       NormalizeAnchorMarkers.call(design_doc: design_doc)
 
       Result.new(design_doc: design_doc.reload, suggestion: suggestion.reload, version: version, applied: true)
     end
 
-    # Accepting a suggestion can overwrite raw markdown that other anchors'
-    # hidden markers were sitting in (a full-document suggestion is the
-    # extreme case: its replaced range is the entire document). Anything that
-    # was active before and lost its marker gets re-projected onto the new
-    # text when the exact same excerpt still exists exactly once, otherwise
-    # it's marked stale immediately instead of quietly drifting to the wrong
-    # offsets. Anchors whose marker survived untouched still get their cached
-    # offsets refreshed, since the surrounding text length may have changed.
-    def reconcile_unrelated_anchors!(old_markdown:, version:, accepted_anchor:)
+    # Non-overlapping anchors keep their markers when a suggestion is
+    # accepted, but edits before them can still shift their visible offsets.
+    # Comment anchors may overlap a suggestion and lose a marker during the
+    # replacement; preserve those only when their exact text remains unique.
+    # A marker already missing before review cannot be safely followed and
+    # must stale its anchor rather than letting cached offsets silently drift.
+    def refresh_active_anchors!(old_markdown:, version:, accepted_anchor:)
       design_doc.anchors.where(status: "active").where.not(id: accepted_anchor.id).find_each do |candidate|
-        before = AnchorMarkers.locate(markdown: old_markdown, marker_id: candidate.marker_id, anchor_kind: candidate.anchor_kind)
-        next unless before.status == "active"
-
-        after = AnchorMarkers.locate(markdown: design_doc.markdown, marker_id: candidate.marker_id, anchor_kind: candidate.anchor_kind)
-        if after.status == "active"
+        location = AnchorMarkers.locate(markdown: design_doc.markdown, marker_id: candidate.marker_id, anchor_kind: candidate.anchor_kind)
+        if location.status == "active"
           candidate.update!(
-            last_known_start_offset: after.start_offset,
-            last_known_end_offset: after.end_offset,
-            prefix_context: after.prefix_context,
-            suffix_context: after.suffix_context
+            last_known_start_offset: location.start_offset,
+            last_known_end_offset: location.end_offset,
+            prefix_context: location.prefix_context,
+            suffix_context: location.suffix_context
           )
           next
         end
 
-        reproject_or_mark_stale!(candidate, version, after)
+        before = AnchorMarkers.locate(markdown: old_markdown, marker_id: candidate.marker_id, anchor_kind: candidate.anchor_kind)
+        if before.status == "active" && location.status == "missing" && !candidate.suggestions.where(state: "pending").exists?
+          reproject_comment_anchor_or_mark_stale!(candidate, version)
+          next
+        end
+
+        mark_anchor_stale!(candidate, version, location.status)
       end
     end
 
-    # `after.status == "duplicated"` means the candidate's marker id already
-    # appears more than once in the current markdown; inserting yet another
-    # occurrence via AnchorMarkers.insert would not resolve that; it would
-    # just add a third one. Only "missing" (the marker is genuinely gone) is
-    # eligible for re-projection -- anything else goes straight to stale.
-    #
-    # Point anchors always have an empty `selected_markdown` (they mark a
-    # single position, not a text range), so there is nothing to search for
-    # and they always fall through to stale here -- there is no such thing
-    # as a safe re-projection for a point anchor once its marker is gone.
-    def reproject_or_mark_stale!(candidate, version, after)
-      return mark_unrelated_anchor_stale!(candidate, version) unless after.status == "missing"
-
-      clear_orphan_marker_fragment!(candidate)
+    def reproject_comment_anchor_or_mark_stale!(candidate, version)
+      cleaned_markdown = AnchorMarkers.remove(
+        markdown: design_doc.markdown,
+        marker_id: candidate.marker_id,
+        anchor_kind: candidate.anchor_kind
+      )
+      design_doc.update!(markdown: cleaned_markdown) if cleaned_markdown != design_doc.markdown
 
       selected = candidate.selected_markdown.to_s
       matches = AnchorMarkers.exact_matches(AnchorMarkers.strip(design_doc.markdown), selected)
-
-      return mark_unrelated_anchor_stale!(candidate, version) unless matches.one?
+      return mark_anchor_stale!(candidate, version, "missing") unless matches.one?
 
       inserted = AnchorMarkers.insert(
         markdown: design_doc.markdown,
@@ -187,7 +180,6 @@ module DesignDocs
       )
       design_doc.update!(markdown: inserted.markdown)
       candidate.update!(
-        status: "active",
         last_known_start_offset: inserted.start_offset,
         last_known_end_offset: inserted.end_offset,
         prefix_context: inserted.prefix_context,
@@ -195,35 +187,14 @@ module DesignDocs
       )
     end
 
-    # A candidate whose range only partially overlaps the accepted anchor's
-    # range (rather than nesting fully inside or outside it) can have exactly
-    # one side of its start/end marker pair fall inside the replaced text.
-    # `AnchorMarkers.replace_range` deletes that side along with everything
-    # else in the accepted range, but has no way to know about -- or remove
-    # -- the other side, which sits outside the replaced text and survives
-    # untouched. Left alone, that dangling fragment either gets duplicated by
-    # `AnchorMarkers.insert` below (if we reproject) or lingers forever (if we
-    # mark stale), and either way `NormalizeAnchorMarkers.assert_marker_pairs!`
-    # explodes on the next check. Removing it here is safe unconditionally --
-    # a `status: "missing"` candidate has already lost the invariant we'd be
-    # protecting by leaving a lone fragment in place.
-    def clear_orphan_marker_fragment!(candidate)
-      cleaned_markdown = AnchorMarkers.remove(
-        markdown: design_doc.markdown,
-        marker_id: candidate.marker_id,
-        anchor_kind: candidate.anchor_kind
-      )
-      design_doc.update!(markdown: cleaned_markdown) if cleaned_markdown != design_doc.markdown
-    end
-
-    def mark_unrelated_anchor_stale!(candidate, version)
+    def mark_anchor_stale!(candidate, version, marker_status)
       candidate.update!(status: "stale", stale_as_of_version: version)
       candidate.suggestions.where(state: "pending").find_each do |pending|
         pending.update!(
           state: "stale",
           reviewed_at: Time.current,
           reviewed_by_user: user,
-          conflict_reason: "Anchor marker was overwritten while accepting suggestion ##{suggestion.id}."
+          conflict_reason: "Anchor marker is #{marker_status}."
         )
       end
     end

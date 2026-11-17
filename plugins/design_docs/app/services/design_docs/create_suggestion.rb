@@ -1,5 +1,14 @@
 module DesignDocs
   class CreateSuggestion
+    class PendingOverlap < StandardError
+      attr_reader :suggestion
+
+      def initialize(suggestion)
+        @suggestion = suggestion
+        super(I18n.t("design_docs.errors.pending_suggestion_overlap", suggestion_id: suggestion.id))
+      end
+    end
+
     Result = Data.define(:design_doc, :anchor, :suggestion, :version)
 
     def self.call(...)
@@ -17,6 +26,7 @@ module DesignDocs
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
 
       result = DesignDoc.transaction do
+        design_doc.lock!
         base_version = design_doc.current_version
         visible = AnchorMarkers.strip(design_doc.markdown)
         start_offset, end_offset = normalized_offsets(visible.length)
@@ -44,7 +54,7 @@ module DesignDocs
         end
 
         validate_range!(visible, start_offset, end_offset) unless autosave?
-        validate_pending_overlap!(start_offset, end_offset) unless full_document_suggestion?
+        validate_pending_overlap!(start_offset, end_offset)
         next create_autosave_suggestion(base_version) if autosave?
 
         anchor_result = CreateAnchor.call(
@@ -84,7 +94,7 @@ module DesignDocs
     def create_autosave_suggestion(base_version)
       visible = AnchorMarkers.strip(design_doc.markdown)
       start_offset, end_offset = normalized_offsets(visible.length)
-      validate_pending_overlap!(start_offset, end_offset) unless full_document_suggestion?
+      validate_pending_overlap!(start_offset, end_offset)
       anchor = create_autosave_anchor(base_version)
       suggestion = design_doc.suggestions.create!(
         anchor: anchor,
@@ -233,7 +243,7 @@ module DesignDocs
 
       overlapping = design_doc.suggestions.includes(:anchor).where(state: "pending").detect do |suggestion|
         anchor = suggestion.anchor
-        next false unless anchor&.range?
+        next false unless anchor&.range? && anchor.status == "active"
 
         other_start = anchor.last_known_start_offset || anchor.start_offset
         other_end = anchor.last_known_end_offset || anchor.end_offset
@@ -243,7 +253,7 @@ module DesignDocs
       end
       return unless overlapping
 
-      raise_invalid_suggestion!("Suggestion overlaps pending suggestion ##{overlapping.id}. Review the existing thread before creating another active suggestion for the same range.")
+      raise PendingOverlap, overlapping
     end
 
     def render_mode(original, proposed)
