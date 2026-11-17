@@ -12,7 +12,12 @@ installed plugins. Web, worker, preview, and setup mount it read-only at
 `/home/rails/.syrus-plugins`; `SYRUS_PLUGIN_PATH` points Syrus at that root.
 The volume is empty by default, so existing installations continue to use only
 the plugins bundled with Syrus. A reserved `plugin-installer` profile has the
-only writable mount, but does not install anything yet.
+only writable mount, but does not install anything yet. To hand-install a
+plugin, stop the stack and populate that volume through an operator-controlled
+helper container or volume-management procedure, then restart the full stack.
+Do not copy files into the live volume one at a time. See
+[Plugins](/docs/plugins#hand-install-an-external-plugin) for the complete
+install, migration, health-check, and removal procedure.
 
 Docker Compose is the lowest-friction way to run the real Syrus app on a
 single machine — your Mac, a laptop, a small box — without a Kubernetes
