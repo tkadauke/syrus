@@ -17,15 +17,14 @@ Use these rules for the Go CLI and the Electron desktop application.
   mismatches. Job and Epic identifiers are accepted as numeric IDs, `JOB-N`/`EPIC-N`
   prefixes, or human-readable slugs; use the `JobEpicRefFinder` concern
   (included in both app and admin base controllers) to resolve them server-side.
-  Commands a bundled plugin owns live in that plugin's own Go module under
-  `plugins/<name>/cli` and are wired into the root command in `cli/cmd/root.go`
-  (`go.work` joins the modules). Go has no usable dynamic plugin loading for a
-  single static binary, so they are compiled in rather than loaded; there is no
-  runtime gating, because a disabled plugin's API routes already answer with a
-  `plugin_disabled` error. A plugin module cannot reach `cli/internal/...`, so
-  the helpers it may use are exported from `cli/pkg/cliplugin` (and
-  `cliplugintest` for the test harness) -- keep that surface small and add to it
-  deliberately, since it is API for plugin modules.
+  Server-safe plugin commands are declared in the plugin manifest and
+  discovered from the configured instance at runtime. Commands that require
+  local files, prompts, agents, or process execution use a `syrus-<name>`
+  executable distributed beside the CLI. Those local executables may live in a
+  plugin-owned Go module under `plugins/<name>/cli`; helpers shared with them
+  are exported from `cli/pkg/cliplugin` (and `cliplugintest` for the test
+  harness). Keep that surface small and add to it deliberately, since it is API
+  for plugin executables.
 - **Desktop app** lives under `desktop/` as a separate Electron + React + Vite
   app. It uses Tailwind too, but it does not share the Rails web app's compiled
   CSS or components at runtime. Keep the desktop UI visually aligned with the

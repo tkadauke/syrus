@@ -457,6 +457,9 @@ func runPluginExecutable(ctx context.Context, root *cobra.Command, executable st
 	process.Stdout = root.OutOrStdout()
 	process.Stderr = root.ErrOrStderr()
 	process.Env = append(os.Environ(), "SYRUS_URL="+creds.URL, "SYRUS_TOKEN="+creds.Token)
+	if creds.Internal {
+		process.Env = append(process.Env, "SYRUS_CLI_INTERNAL=1", "SYRUS_CLI_URL="+creds.URL, "SYRUS_CLI_INVOCATION_CONTEXT="+creds.Token)
+	}
 	err := process.Run()
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {

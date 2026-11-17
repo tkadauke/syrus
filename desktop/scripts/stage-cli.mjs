@@ -61,6 +61,13 @@ for (const target of targets) {
       stdio: "inherit"
     })
     fs.chmodSync(path.join(stagingDir, outName), 0o755)
+    const credentialOutName = `syrus-credential-${target.platform}-${arch === "amd64" ? "x64" : arch}${target.suffix}`
+    execFileSync(goBinary, ["build", "-trimpath", "-o", path.join(stagingDir, credentialOutName), "./cmd/syrus-credential"], {
+      cwd: path.resolve(desktopRoot, "..", "plugins", "credential_store", "cli"),
+      env: { ...process.env, GOWORK: "off", CGO_ENABLED: "0", GOOS: target.goos, GOARCH: arch },
+      stdio: "inherit"
+    })
+    fs.chmodSync(path.join(stagingDir, credentialOutName), 0o755)
   }
 }
 
