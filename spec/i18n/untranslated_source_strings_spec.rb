@@ -505,7 +505,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
     /
     \A(?:[a-z0-9_.\/:-]+|[A-Z0-9_]+)\z
     |[{};=?`&]
-    |\b(?:Array|DataTableColumnDef|InboxEntry|Pick|Promise|Record|ReturnType|Set)\b
+    |\b(?:Array|ComponentType|DataTableColumnDef|InboxEntry|Map|Pick|PluginContribution|Promise|ReadonlyArray|Record|ReturnType|Set)\b
     |\b(?:Partial|Number|selection)\b
     /x
   end

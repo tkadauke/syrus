@@ -281,6 +281,10 @@
     "match": "Passwörter stimmen überein",
     "mismatch": "Stimmt noch nicht überein"
   },
+  "plugin_error": {
+    "heading": "Das Plugin {{plugin}} konnte nicht angezeigt werden.",
+    "reload": "Neu laden"
+  },
   "route_error": {
     "heading": "Etwas ist schiefgelaufen",
     "go_back": "Zurück",

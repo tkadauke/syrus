@@ -1,9 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { beforeAll, describe, expect, it, vi } from "vitest"
 import * as sidebarPagesApi from "./api/sidebarPages"
 import { PluginSidebarPageRoute, pluginSidebarComponentFor } from "./pluginSidebarPages"
+
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 vi.mock("./api/sidebarPages", () => ({ fetchSidebarPluginPages: vi.fn() }))
 

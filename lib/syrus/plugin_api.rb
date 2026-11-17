@@ -334,7 +334,8 @@ module Syrus
           links: (links if links.any?),
           metrics: (metric_declarations if metric_declarations.any?),
           credential_types: (@credential_types if @credential_types.any?),
-          frontend: (frontend if frontend.any?)
+          frontend: (frontend if frontend.any?),
+          plugin_root: File.expand_path("..", lib_dir)
         }.merge(
           SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact
         ).merge(

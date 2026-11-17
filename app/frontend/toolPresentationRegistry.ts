@@ -205,21 +205,23 @@ const WEB_SEARCH_EXAMPLES: ToolPresentationExample[] = [
 // providers "resolve consistently" (same canonical name, display label,
 // progress label, and argument summary) regardless of which raw name a
 // given transcript happened to carry.
-const PROVIDER_BUILTIN_ENTRIES: ToolPresentationEntry[] = [
-  builtin("Bash", { aliases: ["bash", "command_execution"], readOnly: false, examples: BASH_EXAMPLES }),
-  builtin("Read", { readOnly: true, examples: READ_EXAMPLES }),
-  builtin("Edit", { readOnly: false }),
-  builtin("MultiEdit", { readOnly: false }),
-  builtin("Write", { readOnly: false }),
-  builtin("NotebookEdit", { readOnly: false }),
-  builtin("Glob", { readOnly: true }),
-  builtin("Grep", { readOnly: true, examples: GREP_EXAMPLES }),
-  builtin("WebFetch", { readOnly: true }),
-  builtin("WebSearch", { readOnly: true, examples: WEB_SEARCH_EXAMPLES }),
-  builtin("TodoWrite", { readOnly: false }),
-  builtin("Task", { aliases: ["Agent"], readOnly: false }),
-  builtin("ToolSearch", { readOnly: true })
-]
+function providerBuiltinEntries(): ToolPresentationEntry[] {
+  return [
+    builtin("Bash", { aliases: ["bash", "command_execution"], readOnly: false, examples: BASH_EXAMPLES }),
+    builtin("Read", { readOnly: true, examples: READ_EXAMPLES }),
+    builtin("Edit", { readOnly: false }),
+    builtin("MultiEdit", { readOnly: false }),
+    builtin("Write", { readOnly: false }),
+    builtin("NotebookEdit", { readOnly: false }),
+    builtin("Glob", { readOnly: true }),
+    builtin("Grep", { readOnly: true, examples: GREP_EXAMPLES }),
+    builtin("WebFetch", { readOnly: true }),
+    builtin("WebSearch", { readOnly: true, examples: WEB_SEARCH_EXAMPLES }),
+    builtin("TodoWrite", { readOnly: false }),
+    builtin("Task", { aliases: ["Agent"], readOnly: false }),
+    builtin("ToolSearch", { readOnly: true })
+  ]
+}
 
 // Tools that are technically ordinary MCP tools (same sidecar, same
 // tool_use/tool_result envelope) but exist specifically to manage a Local
@@ -344,7 +346,7 @@ function withLocalModeOverrides(entries: ToolPresentationEntry[]): ToolPresentat
 
 function buildRegistry(): ToolPresentationEntry[] {
   const mcpEntries = withLocalModeOverrides(discoveredToolCardEntries.map(mcpToolEntryFor))
-  return [...mcpEntries, ...PROVIDER_BUILTIN_ENTRIES, ...CHAT_SURFACE_COMPONENT_ENTRIES]
+  return [...mcpEntries, ...providerBuiltinEntries(), ...CHAT_SURFACE_COMPONENT_ENTRIES]
 }
 
 let cachedEntries: ToolPresentationEntry[] | null = null

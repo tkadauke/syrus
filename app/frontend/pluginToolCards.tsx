@@ -1,6 +1,9 @@
 import type { ReactNode } from "react"
 import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
 import type { MarkdownLinkHandler } from "./lib/Markdown"
+import { getEagerPluginContributions, subscribeToPluginContributions } from "./pluginContributionRegistry"
+import { PluginRenderBoundary } from "./components/PluginErrorBoundary"
+import "./builtInPluginContributions"
 export { isPlainObject } from "./toolCardParsing"
 
 // Extension point for custom chat tool-call cards (the Tier 1 tool-card work).
@@ -213,15 +216,7 @@ export type DiscoveredToolCardEntry = { renderer: ToolCardRenderer; owner: ToolC
 
 const PLUGIN_CARD_PATH_PATTERN = /\/plugins\/([^/]+)\/app\/frontend\/tool_cards\//
 
-const cardModules = import.meta.glob<ToolCardModule>(
-  [
-    "../../plugins/*/app/frontend/tool_cards/*.tsx",
-    "!../../plugins/*/app/frontend/tool_cards/*.test.tsx",
-    "./routes/chat/tool_cards/*.tsx",
-    "!./routes/chat/tool_cards/*.test.tsx"
-  ],
-  { eager: true }
-)
+const cardModules = import.meta.glob<ToolCardModule>(["./routes/chat/tool_cards/*.tsx", "!./routes/chat/tool_cards/*.test.tsx"], { eager: true })
 
 function isValidRenderer(renderer: ToolCardRenderer | undefined): renderer is ToolCardRenderer {
   return !!renderer && typeof renderer.toolName === "string" && renderer.toolName.length > 0 && typeof renderer.renderExpanded === "function"
@@ -242,10 +237,38 @@ export const discoveredToolCardEntries: DiscoveredToolCardEntry[] = Object.entri
   return [{ renderer, owner: ownerForCardPath(path), examples: mod.examples ?? [], path }]
 })
 
-const registeredToolCardRenderers: ToolCardRenderer[] = discoveredToolCardEntries.map((entry) => entry.renderer)
+function pluginToolCardEntries(): DiscoveredToolCardEntry[] {
+  return getEagerPluginContributions<ToolCardModule>("tool_card").flatMap(({ pluginName, key, value: mod }) => {
+    const path = `../../plugins/${pluginName}/app/frontend/tool_cards/${key}.tsx`
+    const renderer = mod.default
+    if (!isValidRenderer(renderer)) {
+      console.warn(`[pluginToolCards] Skipping ${path}: default export is not a valid ToolCardRenderer`)
+      return []
+    }
+    const isolatedRenderer: ToolCardRenderer = {
+      ...renderer,
+      renderExpanded: (context) => <PluginRenderBoundary pluginName={pluginName} render={() => renderer.renderExpanded(context)} />,
+      ...(renderer.renderPending
+        ? { renderPending: (context: ToolCardContext) => <PluginRenderBoundary pluginName={pluginName} render={() => renderer.renderPending!(context)} /> }
+        : {})
+    }
+    return [{ renderer: isolatedRenderer, owner: { ownerType: "plugin" as const, ownerName: pluginName }, examples: mod.examples ?? [], path }]
+  })
+}
+
+discoveredToolCardEntries.push(...pluginToolCardEntries())
+subscribeToPluginContributions((change) => {
+  if (change.kind !== "tool_card") return
+  const entry = pluginToolCardEntries().find(({ owner, path }) => owner.ownerName === change.pluginName && path.endsWith(`/${change.key}.tsx`))
+  if (entry) discoveredToolCardEntries.push(entry)
+})
+
+function registeredToolCardRenderers() {
+  return discoveredToolCardEntries.map((entry) => entry.renderer)
+}
 
 export function pluginToolCardRendererFor(toolName: string): ToolCardRenderer | null {
-  return registeredToolCardRenderers.find((renderer) => renderer.toolName === toolName) ?? null
+  return registeredToolCardRenderers().find((renderer) => renderer.toolName === toolName) ?? null
 }
 
 export function pluginToolCardOwnerFor(toolName: string): string | null {
@@ -258,7 +281,9 @@ export function pluginToolCardArgumentSummary(toolName: string, input: Record<st
 }
 
 export function pluginToolCardRendererKeys() {
-  return registeredToolCardRenderers.map((renderer) => renderer.toolName).sort()
+  return registeredToolCardRenderers()
+    .map((renderer) => renderer.toolName)
+    .sort()
 }
 
 function logCardError(stage: string, toolName: string, error: unknown) {

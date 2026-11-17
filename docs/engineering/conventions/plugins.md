@@ -6,6 +6,46 @@ The complete extension-point interfaces, examples, frontend integration rules,
 icon pipeline, lifecycle hooks, and boundary tooling live in the
 [plugin-authoring reference](plugins/authoring.md).
 
+## Frontend contribution registry
+
+Plugin frontend components are registered through
+`app/frontend/pluginContributionRegistry.ts`. Registrations are keyed by
+contribution kind, plugin name, and component key; registering the same tuple
+again is a no-op. Values may be async module loaders or already-resolved
+modules. Reads are synchronous, and external bundles can subscribe to registry
+changes when they need to react to contributions added after first render.
+
+In-repository plugins remain build-time modules. At application startup,
+`app/frontend/builtInPluginContributions.ts` discovers their files and feeds
+the same registry external bundles use. Component keys keep the public
+`<plugin>/<Name>` format, and consumers continue loading plugin locales through
+`loadPluginModule` before resolving the component.
+
+Every plugin-contributed UI is rendered inside the shared plugin error boundary.
+Render failures and rejected lazy imports report through the browser-error API
+with the plugin name and show a compact localized reload action; they must not
+escape into the surrounding application. Tool-card failures use this isolation
+in expanded content and never change the design-locked one-line collapsed
+header geometry.
+
+External plugins declare locale JSON with `frontend.i18n` manifest patterns.
+Locale files use `app/frontend/i18n/locales/{en,de,la}/<namespace>.json`; the
+host advertises authenticated, content-hashed URLs and loads the active language
+on demand. English is the required default and is used when an active-language
+file is absent or fails to load. Bundled plugins retain the build-time locale
+glob and `loadPluginModule` contract.
+
+The currently registered contribution kinds are:
+
+- `workspace_tab` for `plugins/*/app/frontend/workspaceTabs/*.tsx`
+- `admin_page` for admin components in `plugins/*/app/frontend/routes/*.tsx`
+- `sidebar_page` for sidebar components in `plugins/*/app/frontend/routes/*.tsx`
+- `repo_page_tab` for `plugins/*/app/frontend/repo_tabs/*.tsx`
+- `slug_preview_card` for `plugins/*/app/frontend/slugPreviewCards/*.tsx`
+- `review_contribution` for `plugins/*/app/frontend/review_contributions/*.tsx`
+- `review_annotation` for `plugins/*/app/frontend/review_annotations/*.tsx`
+- `ui_slot` for `plugins/*/app/frontend/ui_slots/*.tsx`
+
 - **A disabled plugin is not eager loaded.** Its `app/` dirs stay on the
   autoload path, so Zeitwerk resolves constants on demand and enabling needs no
   restart, but its code is skipped at eager load (`Syrus::PluginEagerLoad`,

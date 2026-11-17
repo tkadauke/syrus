@@ -30,10 +30,27 @@ module Syrus
     def file
       raise Missing, "Vite manifest is missing: #{manifest_path} (run `npm run build`)" unless manifest_path.file?
 
-      entries = JSON.parse(manifest_path.read).values.select { |chunk| chunk["isEntry"] }
-      raise Missing, "Vite manifest #{manifest_path} lists #{entries.size} entries, expected 1" unless entries.one?
+      manifest = JSON.parse(manifest_path.read)
+      manifest.fetch("app/frontend/main.tsx").fetch("file")
+    rescue KeyError
+      raise Missing, "Vite manifest #{manifest_path} does not list app/frontend/main.tsx"
+    end
 
-      entries.first.fetch("file")
+    def plugin_import_map
+      manifest = JSON.parse(manifest_path.read)
+      sources = {
+        "react" => "app/frontend/pluginHost/react.ts",
+        "react/jsx-runtime" => "app/frontend/pluginHost/reactJsxRuntime.ts",
+        "react-dom" => "app/frontend/pluginHost/reactDom.ts",
+        "react-dom/client" => "app/frontend/pluginHost/reactDomClient.ts",
+        "@tanstack/react-query" => "app/frontend/pluginHost/reactQuery.ts",
+        "i18next" => "app/frontend/pluginHost/i18next.ts",
+        "react-i18next" => "app/frontend/pluginHost/reactI18next.ts",
+        "@syrus/plugin-sdk" => "app/frontend/pluginHost/sdk.ts"
+      }
+      { "imports" => sources.transform_values { |source| "/assets/#{manifest.fetch(source).fetch('file')}" } }
+    rescue Errno::ENOENT, JSON::ParserError, KeyError => error
+      raise Missing, "Vite plugin host entries are missing: #{error.message} (run `npm run build`)"
     end
 
     private
