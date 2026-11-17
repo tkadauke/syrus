@@ -1,13 +1,30 @@
 import { act, render, screen } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it } from "vitest"
-import { usePluginContributions } from "./hooks/usePluginContributions"
-import { pluginChatMessageComponentFor, type PluginChatMessageProps } from "./pluginChatMessageRenderers"
+import type { ChatPayload, ChatRenderItem } from "./api/chats"
 import { preloadPluginContributions, registerPluginContribution, registerPluginContributionPreloader } from "./pluginContributionRegistry"
+import { ChatMessage } from "./routes/chat/MessageCards"
 
-function LateRendererConsumer() {
-  usePluginContributions()
-  const Component = pluginChatMessageComponentFor("late_renderer_test/Message")
-  return Component ? <Component {...({} as PluginChatMessageProps)} /> : <span>Existing fallback</span>
+function renderPluginMessage() {
+  const item = {
+    type: "message",
+    id: 91,
+    role: "assistant",
+    text: "Existing fallback",
+    attachments: [],
+    plugin_message: { component: "late_renderer_test/Message" }
+  } as Extract<ChatRenderItem, { type: "message" }>
+  const payload = { chat: { id: 122 } } as ChatPayload
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <ChatMessage item={item} payload={payload} prefix="" queryKey={["chats", "122", ""] as const} onNotice={() => {}} />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
 }
 
 describe("plugin chat message renderers", () => {
@@ -22,8 +39,8 @@ describe("plugin chat message renderers", () => {
     })
 
     const preload = preloadPluginContributions(["late_renderer_test"])
-    render(<LateRendererConsumer />)
-    expect(screen.getByText("Existing fallback")).toBeInTheDocument()
+    const { container } = renderPluginMessage()
+    expect(container).toBeEmptyDOMElement()
 
     await act(async () => {
       release()
@@ -31,6 +48,5 @@ describe("plugin chat message renderers", () => {
     })
 
     expect(screen.getByText("Late plugin message")).toBeInTheDocument()
-    expect(screen.queryByText("Existing fallback")).not.toBeInTheDocument()
   })
 })
