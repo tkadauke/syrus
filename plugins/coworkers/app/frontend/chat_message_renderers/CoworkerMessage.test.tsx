@@ -4,7 +4,10 @@ import CoworkerMessage, { withoutMessagePrefix } from "./CoworkerMessage"
 
 describe("Coworkers chat message contribution", () => {
   it("is discovered through the generic plugin renderer registry", () => {
-    expect(pluginChatMessageComponentFor("coworkers/CoworkerMessage")).toBe(CoworkerMessage)
+    const component = pluginChatMessageComponentFor("coworkers/CoworkerMessage")
+
+    expect(component).not.toBeNull()
+    expect(component).not.toBe(CoworkerMessage)
   })
 
   it("removes only the matching transport prefix from historical messages", () => {

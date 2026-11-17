@@ -2,6 +2,7 @@ import type { ComponentType } from "react"
 import type { RuntimeControlLease, RuntimeSession } from "./api/chats"
 import { getEagerPluginContributions } from "./pluginContributionRegistry"
 import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
+import "./builtInPluginContributions"
 
 export type RuntimeSessionViewConnectionState = {
   connected: boolean
