@@ -8054,16 +8054,18 @@ describe("chat agent roster", () => {
     window.localStorage.clear()
   })
 
-  const agentRoster = [{
-    id: 7,
-    name: "Maya",
-    handle: "maya",
-    accent_hex: "#b6492e",
-    avatar_key: null,
-    avatar_url: null,
-    removable: true,
-    after_reply: "wake" as const
-  }]
+  const agentRoster = [
+    {
+      id: 7,
+      name: "Maya",
+      handle: "maya",
+      accent_hex: "#b6492e",
+      avatar_key: null,
+      avatar_url: null,
+      removable: true,
+      after_reply: "wake" as const
+    }
+  ]
 
   it("shows a removable roster affordance on mobile", async () => {
     mockMobileViewport()
@@ -8106,11 +8108,13 @@ describe("chat agent roster", () => {
     renderRoute()
 
     fireEvent.change(await screen.findByRole("combobox", { name: "After Maya replies" }), { target: { value: "quiet" } })
-    await waitFor(() => expect(requests).toContainEqual({
-      path: "/api/v1/app/chats/8/agents/7",
-      method: "PATCH",
-      body: JSON.stringify({ after_reply: "quiet" })
-    }))
+    await waitFor(() =>
+      expect(requests).toContainEqual({
+        path: "/api/v1/app/chats/8/agents/7",
+        method: "PATCH",
+        body: JSON.stringify({ after_reply: "quiet" })
+      })
+    )
   })
 })
 

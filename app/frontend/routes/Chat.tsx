@@ -1996,13 +1996,10 @@ function ChatAgentRoster({ payload, queryKey, onNotice }: { payload: ChatPayload
     onError: (error) => onNotice(errorMessage(error, t("command_failed")))
   })
   const updatePolicy = useMutation({
-    mutationFn: ({ coworkerId, afterReply }: { coworkerId: number; afterReply: "wake" | "quiet" }) =>
-      updateChatAgent(payload.chat.id, coworkerId, afterReply),
+    mutationFn: ({ coworkerId, afterReply }: { coworkerId: number; afterReply: "wake" | "quiet" }) => updateChatAgent(payload.chat.id, coworkerId, afterReply),
     onSuccess: ({ agent }) => {
       queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) =>
-        current
-          ? { ...current, agent_roster: (current.agent_roster || []).map((item) => (item.id === agent.id ? agent : item)) }
-          : current
+        current ? { ...current, agent_roster: (current.agent_roster || []).map((item) => (item.id === agent.id ? agent : item)) } : current
       )
     },
     onError: (error) => onNotice(errorMessage(error, t("command_failed")))
