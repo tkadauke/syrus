@@ -15,8 +15,9 @@ class Coworkers::ReviewToolSet
     return [] if context && !available_for_context?(context)
     TOOLS.select { |entry| context.nil? || entry[:roles].include?(context.role) }.map do |entry|
       tool = entry[:tool]
-      { name: tool.tool_name, description: tool.description_value, input_schema: tool.input_schema_value.to_h,
+      definition = { name: tool.tool_name, description: tool.description_value, input_schema: tool.input_schema_value.to_h,
         capability: entry[:capability], mutation: true, coworker_safe: true }
+      definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
     end
   end
 

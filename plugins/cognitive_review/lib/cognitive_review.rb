@@ -2,7 +2,6 @@ module CognitiveReview
   extend Syrus::PluginApi
 
   syrus_plugin "cognitive_review" do
-    capability_descriptor_compatibility mcp_tool_set: "87ed553c7f715344aeb0d2c99397dc02ec73bea733c277023dcd515c617db64d"
     experimental true
     display_name "Review Notes"
     description "Agent-authored review notes for changed diff ranges, surfaced in the Job review tab."
@@ -16,6 +15,7 @@ module CognitiveReview
     optionally_depends_on [ "agent_memory" ]
 
     provides post_implementation_review_provider: "CognitiveReview::PostImplementationReviewProvider",
+             permission_provider: "CognitiveReview::PermissionProvider",
              diff_review_annotation_provider: "CognitiveReview::DiffReviewAnnotationProvider",
              mcp_tool_set: "CognitiveReview::McpToolSet"
 
