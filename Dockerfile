@@ -170,12 +170,16 @@ WORKDIR /src
 
 COPY cli/go.mod cli/go.sum ./cli/
 COPY plugins/credential_store/cli/go.mod ./plugins/credential_store/cli/
+COPY plugins/design_docs/cli/go.mod ./plugins/design_docs/cli/
+COPY plugins/scheduled_tasks/cli/go.mod ./plugins/scheduled_tasks/cli/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd cli && GOWORK=off go mod download
 
 COPY cli/ ./cli/
 COPY plugins/credential_store/cli/ ./plugins/credential_store/cli/
+COPY plugins/design_docs/cli/ ./plugins/design_docs/cli/
+COPY plugins/scheduled_tasks/cli/ ./plugins/scheduled_tasks/cli/
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -190,7 +194,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     cd ../plugins/credential_store/cli; \
     env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
       go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus-credential ./cmd/syrus-credential; \
-    cp /usr/local/bin/syrus-credential /usr/local/bin/syrus-credential_store
+    cp /usr/local/bin/syrus-credential /usr/local/bin/syrus-credential_store; \
+    cd ../../design_docs/cli; \
+    env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
+      go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus-docs ./cmd/syrus-docs; \
+    cd ../../scheduled_tasks/cli; \
+    env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
+      go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus-schedule ./cmd/syrus-schedule
 
 # Final stage for app image
 FROM base AS app
@@ -202,6 +212,8 @@ USER 1000:1000
 COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus
 COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-credential /usr/local/bin/syrus-credential
 COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-credential_store /usr/local/bin/syrus-credential_store
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-docs /usr/local/bin/syrus-docs
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-schedule /usr/local/bin/syrus-schedule
 RUN /usr/local/bin/syrus --help >/dev/null
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
@@ -627,6 +639,8 @@ COPY --chown=rails:rails --from=build /rails /rails
 COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus
 COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-credential /usr/local/bin/syrus-credential
 COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-credential_store /usr/local/bin/syrus-credential_store
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-docs /usr/local/bin/syrus-docs
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-schedule /usr/local/bin/syrus-schedule
 RUN /usr/local/bin/syrus --help >/dev/null
 
 # Bake the git SHA the image was built from. .git/ is excluded via

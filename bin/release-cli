@@ -89,6 +89,12 @@ for target in "${targets[@]}"; do
     env CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" GOWORK=off \
       go build -trimpath -ldflags="-s -w" -o "$STAGING/syrus-credential" ./cmd/syrus-credential
     cp "$STAGING/syrus-credential" "$STAGING/syrus-credential_store"
+    cd "$ROOT/plugins/design_docs/cli"
+    env CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" GOWORK=off \
+      go build -trimpath -ldflags="-s -w" -o "$STAGING/syrus-docs" ./cmd/syrus-docs
+    cd "$ROOT/plugins/scheduled_tasks/cli"
+    env CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" GOWORK=off \
+      go build -trimpath -ldflags="-s -w" -o "$STAGING/syrus-schedule" ./cmd/syrus-schedule
   )
 
   tar -C "$TMP_DIR" -czf "$OUT_DIR/$NAME.tar.gz" "$NAME"

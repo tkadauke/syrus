@@ -56,7 +56,7 @@ mac:
   extraResources:
     - from: resources/cli
       to: cli
-      filter: ["syrus-darwin-*", "syrus-credential-darwin-*"]
+      filter: ["syrus-darwin-*", "syrus-credential-darwin-*", "syrus-docs-darwin-*", "syrus-schedule-darwin-*"]
   # The CLI binaries are single-arch Mach-O files, identical in both arch app
   # builds. Without this, @electron/universal fails the merge ("Detected file
   # ... same in both x64 and arm64 builds and not covered by the x64ArchFiles

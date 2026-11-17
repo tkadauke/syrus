@@ -68,6 +68,15 @@ for (const target of targets) {
       stdio: "inherit"
     })
     fs.chmodSync(path.join(stagingDir, credentialOutName), 0o755)
+    for (const plugin of ["docs", "schedule"]) {
+      const pluginOutName = `syrus-${plugin}-${target.platform}-${arch === "amd64" ? "x64" : arch}${target.suffix}`
+      execFileSync(goBinary, ["build", "-trimpath", "-o", path.join(stagingDir, pluginOutName), `./cmd/syrus-${plugin}`], {
+        cwd: path.resolve(desktopRoot, "..", "plugins", plugin === "docs" ? "design_docs" : "scheduled_tasks", "cli"),
+        env: { ...process.env, GOWORK: "off", CGO_ENABLED: "0", GOOS: target.goos, GOARCH: arch },
+        stdio: "inherit"
+      })
+      fs.chmodSync(path.join(stagingDir, pluginOutName), 0o755)
+    }
   }
 }
 

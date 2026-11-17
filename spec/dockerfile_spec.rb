@@ -124,11 +124,18 @@ RSpec.describe "Dockerfile" do
     expect(cli_stage).to include('env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch"')
     expect(cli_stage).to include('go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .')
 
-    expect(cli_stage).not_to match(%r{COPY plugins/(?!credential_store/cli)\S+/cli})
+    expect(cli_stage).to include("COPY plugins/design_docs/cli/ ./plugins/design_docs/cli/")
+    expect(cli_stage).to include("COPY plugins/scheduled_tasks/cli/ ./plugins/scheduled_tasks/cli/")
+    expect(cli_stage).to include('go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus-docs ./cmd/syrus-docs')
+    expect(cli_stage).to include('go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus-schedule ./cmd/syrus-schedule')
 
     expect(app_stage).to include("COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus")
+    expect(app_stage).to include("COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-docs /usr/local/bin/syrus-docs")
+    expect(app_stage).to include("COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-schedule /usr/local/bin/syrus-schedule")
     expect(app_stage).to include("RUN /usr/local/bin/syrus --help >/dev/null")
     expect(worker_stage).to include("COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus")
+    expect(worker_stage).to include("COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-docs /usr/local/bin/syrus-docs")
+    expect(worker_stage).to include("COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-schedule /usr/local/bin/syrus-schedule")
     expect(worker_stage).to include("RUN /usr/local/bin/syrus --help >/dev/null")
   end
 
