@@ -279,7 +279,7 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
   useBrowserTimeZone(bootstrap.data)
-  const enabledPluginNames = bootstrap.data?.app.enabled_plugins ?? []
+  const enabledPluginNames = bootstrap.data?.app?.enabled_plugins ?? []
   const pluginPreloadKey = enabledPluginNames.join("\0")
   const requiresPluginPreload = pluginContributionsRequirePreload(enabledPluginNames)
   const [preloadedPluginKey, setPreloadedPluginKey] = useState<string | null>(null)
