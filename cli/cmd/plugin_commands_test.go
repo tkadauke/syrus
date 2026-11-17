@@ -89,6 +89,32 @@ func TestRenderPluginResultKinds(t *testing.T) {
 	}
 }
 
+func TestExecutePluginCommandPreservesRawTextBytes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/cli_commands/execute" {
+			t.Fatalf("unexpected request path %s", r.URL.Path)
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"result": map[string]any{"kind": "raw_text", "text": "hello\n"},
+		})
+	}))
+	defer server.Close()
+
+	output := &bytes.Buffer{}
+	command := NewRootCommand()
+	command.SetContext(context.Background())
+	command.SetOut(output)
+	declaration := pluginCommandDeclaration{Plugin: "k8s_cluster", Path: []string{"k8s", "logs"}}
+	credentials := config.Credentials{URL: server.URL, Token: "secret-token"}
+
+	if err := executePluginCommand(command, declaration, []string{"web-1"}, map[string]any{"namespace": "default"}, credentials); err != nil {
+		t.Fatalf("executePluginCommand returned error: %v", err)
+	}
+	if got := output.String(); got != "hello\n" {
+		t.Fatalf("raw text output = %q, want exact trailing-newline payload", got)
+	}
+}
+
 func TestPluginCatalogUsesETagAndStaleCacheOffline(t *testing.T) {
 	usePluginCatalogTestCache(t)
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
