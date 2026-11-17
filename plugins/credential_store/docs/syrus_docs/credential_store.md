@@ -118,8 +118,10 @@ not a substitute for careful tool design.
 
 ## CLI
 
-The bundled `syrus` binary includes a static `credential` namespace owned by
-this plugin. `credential_store` remains an alias for older scripts:
+The CLI discovers the safe metadata commands from the enabled plugin at
+runtime. Local lease and process-wrapper behavior is supplied by the
+`syrus-credential` executable distributed alongside `syrus`.
+`credential_store` remains an alias for older scripts:
 
 ```bash
 syrus credential types

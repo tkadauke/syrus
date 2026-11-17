@@ -198,6 +198,30 @@ func TestExecutableFallbackTracksMatchedWordsAroundFlags(t *testing.T) {
 	}
 }
 
+func TestExecutableFallbackPreservesInternalInvocationAuthentication(t *testing.T) {
+	bin := t.TempDir()
+	outputPath := filepath.Join(t.TempDir(), "plugin-output")
+	plugin := filepath.Join(bin, "syrus-credential")
+	script := "#!/bin/sh\nprintf '%s\\n%s\\n%s\\n' \"$SYRUS_CLI_INTERNAL\" \"$SYRUS_CLI_URL\" \"$SYRUS_CLI_INVOCATION_CONTEXT\" > \"$PLUGIN_OUTPUT\"\n"
+	if err := os.WriteFile(plugin, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("PLUGIN_OUTPUT", outputPath)
+	root := NewRootCommand()
+	err := runPluginExecutable(context.Background(), root, plugin, []string{"lease"}, config.Credentials{URL: "https://syrus.example", Token: "invocation-token", Internal: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(payload); got != "1\nhttps://syrus.example\ninvocation-token\n" {
+		t.Fatalf("internal invocation environment = %q", got)
+	}
+}
+
 func TestCompiledCommandWinsOverCatalogCollision(t *testing.T) {
 	root := NewRootCommand()
 	existing := commandAtPath(root, []string{"docs"})

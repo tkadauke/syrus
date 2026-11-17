@@ -7,9 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/config"
-	credentialstore "github.com/tkadauke/syrus/plugins/credential_store/cli"
 	designdocs "github.com/tkadauke/syrus/plugins/design_docs/cli"
-	k8scluster "github.com/tkadauke/syrus/plugins/k8s_cluster/cli"
 	scheduledtasks "github.com/tkadauke/syrus/plugins/scheduled_tasks/cli"
 )
 
@@ -65,8 +63,6 @@ func NewRootCommand() *cobra.Command {
 	// the checkout or launch $PAGER. Their server-safe siblings are discovered
 	// from the instance catalog.
 	rootCmd.AddCommand(scheduledtasks.NewScheduleCommand())
-	rootCmd.AddCommand(k8scluster.NewK8sCommand())
-	rootCmd.AddCommand(credentialstore.NewCredentialStoreCommand())
 	rootCmd.AddCommand(designdocs.NewDocsCommand())
 	rootCmd.AddCommand(NewInsightsCommand())
 	rootCmd.AddCommand(NewSkillCommand())

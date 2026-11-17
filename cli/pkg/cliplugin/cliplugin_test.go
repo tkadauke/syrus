@@ -1,6 +1,32 @@
 package cliplugin
 
-import "testing"
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestClientUsesExecutableFallbackCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer executable-token" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	t.Setenv("SYRUS_CLI_INTERNAL", "")
+	t.Setenv("SYRUS_URL", server.URL)
+	t.Setenv("SYRUS_TOKEN", "executable-token")
+
+	client, err := Client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Do(context.Background(), http.MethodGet, "/probe", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestExitStatusErrorNormalizesProcessStatus(t *testing.T) {
 	tests := map[int]int{

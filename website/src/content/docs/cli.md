@@ -677,9 +677,10 @@ repository-owned.
 
 ## Kubernetes clusters
 
-`syrus k8s` commands are contributed by the bundled `k8s_cluster` plugin
-and browse clusters registered from Admin -> Kubernetes Clusters, using
-the same admin API the web UI's cluster browser and the agent's
+`syrus k8s` commands are discovered from the configured instance and handled
+by the bundled `k8s_cluster` plugin. They browse clusters registered from
+Admin -> Kubernetes Clusters, using the same authorization and services as
+the web UI's cluster browser and the agent's
 `k8s_cluster_*` chat/workflow tools call:
 
 ```bash
@@ -708,7 +709,8 @@ CLI to call — the CLI does not duplicate them.
 
 ## Credential Store
 
-`syrus credential` is contributed by the bundled `credential_store` plugin.
+`syrus credential` metadata commands are discovered from the configured
+instance and handled by the bundled `credential_store` plugin.
 `syrus credential_store` remains an alias for older scripts. The command group
 provides safe discovery for credential type declarations and credential handles
 without printing encrypted payloads:
@@ -719,7 +721,8 @@ syrus credential credentials
 syrus credential credentials --type credential_store.url_token
 ```
 
-The command group also has a runtime lease client:
+The locally distributed `syrus-credential` executable supplies the runtime
+lease and process-wrapper commands:
 
 ```bash
 syrus credential lease deploy-token \
