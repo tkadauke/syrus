@@ -6,7 +6,9 @@ import * as repoPluginTabsApi from "./api/repoPluginTabs"
 import { PluginRepoPageTabRoute, pluginRepoComponentFor, pluginRepoComponentKeys } from "./pluginRepoPageTabs"
 import { registerPluginContribution } from "./pluginContributionRegistry"
 
-beforeAll(async () => { await import("./builtInPluginContributions") })
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 vi.mock("./api/repoPluginTabs", () => ({ fetchRepoPluginTabs: vi.fn() }))
 

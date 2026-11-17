@@ -2,7 +2,9 @@ import { beforeAll, describe, expect, it } from "vitest"
 import { pluginSlugPreviewCardComponentForPrefix, pluginSlugPreviewCardPrefixes } from "./pluginSlugPreviewCards"
 import { registerPluginContribution } from "./pluginContributionRegistry"
 
-beforeAll(async () => { await import("./builtInPluginContributions") })
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 describe("plugin slug preview card registry", () => {
   it("discovers installed plugin slug preview card components by slug prefix", () => {
