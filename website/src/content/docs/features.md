@@ -964,12 +964,17 @@ mention. Your own handle is editable under Profile; handles are public,
 instance-wide identifiers and should not contain sensitive information.
 Selecting an own coworker marked **Add to chat** adds it to the chat's agent
 roster before inserting the mention. Everyone participating in the chat can
-then address that coworker. An exact mention starts that coworker with the chat
-owner's settings. A coworker is also implicitly addressable in its own main
-and side chats without a roster entry; coworkers that are neither the chat's
-implicit coworker nor on its roster remain plain text and do not start a turn.
-Coworker turns in the same chat run one at a time. The chat owner can remove a
-coworker from the roster.
+then address that coworker. An exact mention delegates the message to a reusable
+hidden session for that coworker and source chat. The coworker's final reply is
+delivered automatically as a named coworker message in the source chat, and the
+planner does not also answer the mention. If one message mentions several
+rostered coworkers, only the first rostered coworker answers. These working
+sessions stay out of the coworker's chat list and search by default but remain
+reachable by direct link. A coworker is also implicitly addressable in its own
+main and side chats without a roster entry; coworkers that are neither the
+chat's implicit coworker nor on its roster remain plain text and do not start a
+turn. The chat owner can remove a coworker from the roster, which also revokes
+the coworker's read access to that source chat.
 
 Coworker detail tabs load independently, so opening a coworker does not fetch
 remote profile content, chat rosters, permissions, schedules, and activity all

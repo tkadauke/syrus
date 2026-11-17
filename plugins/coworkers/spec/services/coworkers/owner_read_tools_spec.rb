@@ -100,6 +100,9 @@ RSpec.describe "owner-scoped coworker read tools" do
       constraints: { "confirm_paths" => [ "SOUL.md" ] })
     main_chat = ChatSession.create!(user: owner, title: "Maya main")
     Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
+    source_chat = ChatSession.create!(user: owner, title: "Source")
+    mention_chat = ChatSession.create!(user: owner, title: "Maya mention", hidden_at: Time.current)
+    Coworkers::Chat.create!(coworker: coworker, chat_session: mention_chat, source_chat_session: source_chat, role: "mention")
 
     result = payload(Coworkers::McpTools::ReadCoworkerTool.call(server_context: context, handle: "maya-shape")).fetch("coworker")
 
@@ -109,7 +112,7 @@ RSpec.describe "owner-scoped coworker read tools" do
     expect(result.dig("workspace", "home_branch")).to eq("coworkers/maya-shape")
     expect(result.dig("workspace", "repository")).to eq("https://github.com/acme/workspace.git")
     expect(result.fetch("grants").first).to include("approval_policy" => "confirm", "constraints" => { "confirm_paths" => [ "SOUL.md" ] })
-    expect(result.fetch("chats").first).to include("role" => "main", "path" => "/chats/#{main_chat.id}")
+    expect(result.fetch("chats")).to contain_exactly(include("role" => "main", "path" => "/chats/#{main_chat.id}"))
     expect(result.to_json).not_to match(/oauth-secret|token|credential|password|authenticated_remote/i)
   end
 

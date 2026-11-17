@@ -486,7 +486,7 @@ module Api
         end
 
         def chats_json(coworker)
-          coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map do |link|
+          coworker.listed_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map do |link|
             { id: link.chat_session_id, link_id: link.id, role: link.role, title: link.chat_session.title,
               path: "/chats/#{link.chat_session_id}", unsaved_workspace: link.unsaved_workspace_json }
           end
