@@ -26,6 +26,16 @@ module DesignDocs
              domain_subscriber: "DesignDocs::Subscribers",
              slug_type: "DesignDocs::SlugType",
              "global_search:source" => "DesignDocs::SearchSource"
+    cli_commands [
+      {
+        path: %w[docs list], summary: "List design docs", handler: "DesignDocs::Cli::List",
+        flags: [ { name: "repo", type: :string } ]
+      },
+      {
+        path: %w[docs show], summary: "Show a design doc", handler: "DesignDocs::Cli::Show",
+        arguments: [ { name: "DOC-ID", type: :string, required: true } ]
+      }
+    ]
     route :get, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#index"
     route :patch, "/api/v1/app/design_docs/preferences", to: "api/v1/app/design_docs#preferences"
     route :post, "/api/v1/app/design_docs", to: "api/v1/app/design_docs#create"
