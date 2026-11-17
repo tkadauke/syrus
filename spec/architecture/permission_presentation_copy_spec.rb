@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "permission presentation copy" do
   it "requires descriptor registries and the compatibility adapter to declare presentation copy" do
     sources = %w[
-      execution_actions ingestion_actions local_mode_actions
+      execution_actions ingestion_actions local_mode_actions chat_mutation_actions
       job_lifecycle operational_actions effect_actions capability_descriptor_adapter
     ]
 
