@@ -13,15 +13,15 @@ import (
 
 func NewScheduleCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "schedule", Short: "Manage Syrus schedules"}
-	cmd.AddCommand(newScheduleListCommand(), newScheduleCreateCommand(), newScheduleShowCommand(), newScheduleDeleteCommand(), newScheduleRunCommand())
+	// list reads the current checkout and create/delete prompt interactively;
+	// the instance catalog contributes show and run at runtime.
+	cmd.AddCommand(newScheduleListCommand(), newScheduleCreateCommand(), newScheduleDeleteCommand())
 	return cmd
 }
 
 func newScheduleListCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List schedules",
-		Args:  cobra.NoArgs,
+		Use: "list", Short: "List schedules", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := cliplugin.Client()
 			if err != nil {
@@ -56,46 +56,6 @@ func newScheduleCreateCommand() *cobra.Command {
 	return cmd
 }
 
-func newScheduleShowCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "show ID",
-		Short: "Show a schedule",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := cliplugin.Client()
-			if err != nil {
-				return err
-			}
-			payload, err := GetScheduledTask(cmd.Context(), client, args[0])
-			if err != nil {
-				return err
-			}
-			task := payload.Task
-			out := cmd.OutOrStdout()
-			fmt.Fprintf(out, "Schedule #%d: %s\n", task.ID, task.Name)
-			fmt.Fprintf(out, "State: %s\nRepository: %s\n", task.State, task.Repository.Slug)
-			fmt.Fprintf(out, "Cron: %s\nNext run: %s\n", valueOrDash(task.CronExpression), valueOrDash(task.NextFireAt))
-			fmt.Fprintf(out, "Pileup policy: %s\nAuto approve: %s\n\n", valueOrDash(task.PrPileupPolicy), valueOrDash(task.AutoApproveMode))
-			fmt.Fprintln(out, "Prompt:")
-			for _, line := range strings.Split(task.Prompt, "\n") {
-				fmt.Fprintf(out, "  %s\n", line)
-			}
-			fmt.Fprintln(out, "\nRecent jobs:")
-			if len(payload.RecentJobs) == 0 {
-				fmt.Fprintln(out, "  none")
-				return nil
-			}
-			for i, job := range payload.RecentJobs {
-				if i >= 5 {
-					break
-				}
-				fmt.Fprintf(out, "  #%d %s\n", job.ID, job.State)
-			}
-			return nil
-		},
-	}
-}
-
 func newScheduleDeleteCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete ID",
@@ -123,32 +83,6 @@ func newScheduleDeleteCommand() *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Deleted schedule #%s\n", args[0])
-			return nil
-		},
-	}
-}
-
-func newScheduleRunCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "run ID",
-		Short: "Run a schedule now",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := cliplugin.Client()
-			if err != nil {
-				return err
-			}
-			payload, err := FireScheduledTask(cmd.Context(), client, args[0])
-			if err != nil {
-				return err
-			}
-			if payload.FireResult.JobID == 0 {
-				if payload.Message != "" {
-					return errors.New(payload.Message)
-				}
-				return errors.New("schedule run did not create a job")
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", cliplugin.JobSlug(payload.FireResult.JobID))
 			return nil
 		},
 	}
