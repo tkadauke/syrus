@@ -34,6 +34,39 @@ RSpec.describe Syrus::PluginRoots do
     end
   end
 
+  it "resolves a relocatable plugin by its declared manifest name" do
+    Dir.mktmpdir do |directory|
+      app = Pathname.new(directory).join("app")
+      external = Pathname.new(directory).join("external")
+      installed = make_plugin(external, "registry-package-123")
+      installed.join("lib").mkpath
+      installed.join("lib/registry_package.rb").write(<<~RUBY)
+        module RegistryPackage
+          extend Syrus::PluginApi
+          syrus_plugin "weather-tools" do
+          end
+        end
+      RUBY
+      roots = described_class.new(application_root: app, external_path: external)
+
+      expect(roots.resolve("weather-tools")).to eq(installed)
+    end
+  end
+
+  it "preserves built-in precedence when resolving a declared manifest name" do
+    Dir.mktmpdir do |directory|
+      app = Pathname.new(directory).join("app")
+      external = Pathname.new(directory).join("external")
+      built_in = make_plugin(app.join("plugins"), "bundled-package")
+      built_in.join("lib").mkpath
+      built_in.join("lib/bundled_package.rb").write('syrus_plugin "shared-name" do; end')
+      make_plugin(external, "shared-name")
+      roots = described_class.new(application_root: app, external_path: external)
+
+      expect(roots.resolve("shared-name")).to eq(built_in)
+    end
+  end
+
   it "keeps the built-in plugin and reports a duplicate external name" do
     Dir.mktmpdir do |directory|
       app = Pathname.new(directory).join("app")

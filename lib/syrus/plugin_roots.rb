@@ -40,7 +40,10 @@ module Syrus
     end
 
     def resolve(name)
-      plugin_directories.find { |directory| directory.basename.to_s == name.to_s }
+      requested_name = name.to_s
+      plugin_directories.find do |directory|
+        directory.basename.to_s == requested_name || declared_plugin_name(directory) == requested_name
+      end
     end
 
     def built_in?(directory)
@@ -95,6 +98,19 @@ module Syrus
       return [] unless root.directory?
 
       root.children.select(&:directory?).sort_by { |directory| directory.basename.to_s }
+    end
+
+    # The registry identity comes from `syrus_plugin`, not from the installer
+    # directory or gem name. Read only the declaration here: evaluating an
+    # entry file just to locate its app/docs/migrations would run plugin code.
+    def declared_plugin_name(directory)
+      directory.glob("lib/*.rb").sort.each do |entry_file|
+        match = entry_file.read.match(/\bsyrus_plugin\s+["']([^"']+)["']/)
+        return match[1] if match
+      rescue SystemCallError
+        next
+      end
+      nil
     end
 
     def contained_by?(directory, root)
