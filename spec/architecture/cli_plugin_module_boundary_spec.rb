@@ -1,4 +1,5 @@
 require "rails_helper"
+require "open3"
 
 RSpec.describe "CLI plugin module boundary" do
   it "keeps plugin modules out of the core CLI module graph and workspace" do
