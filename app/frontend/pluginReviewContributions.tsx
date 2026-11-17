@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react"
 import "./builtInPluginContributions"
 import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
+import { loadPluginModule } from "./i18n"
 import { getPluginContribution, pluginContributionLoader } from "./pluginContributionRegistry"
 
 export type ReviewContributionKind = "target_editor" | "evidence" | "audit" | "settings_summary"
@@ -28,7 +29,7 @@ export function reviewContributionComponentFor(key: string | null | undefined) {
   const contribution = getPluginContribution<PluginModule>("review_contribution", pluginName, componentKey)
   if (!contribution) return null
   const Component = lazy(async () => {
-    const module = await pluginContributionLoader(contribution)()
+    const module = await loadPluginModule(pluginName, pluginContributionLoader(contribution))
     if (!module.default) throw new Error(`Plugin review contribution ${key} has no default export`)
     return { default: module.default }
   })
