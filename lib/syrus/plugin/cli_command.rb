@@ -55,8 +55,11 @@ module Syrus
       end
 
       def validate_inputs(args:, flags:)
-        raw_args = Array(args)
-        raw_flags = flags.respond_to?(:to_h) ? flags.to_h.stringify_keys : {}
+        raise ValidationError, "args must be a list" unless args.nil? || args.is_a?(Array)
+        raise ValidationError, "flags must be an object" unless flags.nil? || flags.is_a?(Hash)
+
+        raw_args = args || []
+        raw_flags = (flags || {}).stringify_keys
         unknown_flags = raw_flags.keys - self.flags.map { |flag| flag.fetch(:name) }
         raise ValidationError, "unknown flag: #{unknown_flags.first}" if unknown_flags.any?
 
