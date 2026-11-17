@@ -18,8 +18,8 @@ add nested commands, positional arguments, typed flags, validation, defaults,
 and command help without rebuilding the CLI. The catalog is cached separately
 for each instance, refreshed after a short interval with HTTP ETags, and the
 last cached copy remains usable when the instance is temporarily offline.
-Built-in commands, including commands compiled into the current CLI release,
-always win if paths collide.
+Built-in core commands always win if paths collide. Plugin commands are not
+compiled into the Syrus binary.
 
 For commands that need local behavior, the CLI next searches `PATH` for an
 executable named after the command path. For example, `syrus acme scan ./src`
