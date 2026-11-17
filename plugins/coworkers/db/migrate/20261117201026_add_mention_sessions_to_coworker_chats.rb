@@ -1,9 +1,11 @@
 class AddMentionSessionsToCoworkerChats < ActiveRecord::Migration[8.1]
   def up
-    add_column :coworker_chats, :source_chat_session_id, :integer unless column_exists?(:coworker_chats, :source_chat_session_id)
-    add_column :coworker_chats, :last_delivered_message_id, :integer unless column_exists?(:coworker_chats, :last_delivered_message_id)
-    add_index :coworker_chats, [ :coworker_id, :source_chat_session_id ], unique: true,
-      name: "idx_coworker_chats_mention_source" unless index_exists?(:coworker_chats, [ :coworker_id, :source_chat_session_id ], name: "idx_coworker_chats_mention_source")
+    add_column :coworker_chats, :source_chat_session_id, :bigint unless column_exists?(:coworker_chats, :source_chat_session_id)
+    add_column :coworker_chats, :last_delivered_message_id, :bigint unless column_exists?(:coworker_chats, :last_delivered_message_id)
+    unless index_exists?(:coworker_chats, [ :coworker_id, :source_chat_session_id ], name: "idx_coworker_chats_mention_source")
+      add_index :coworker_chats, [ :coworker_id, :source_chat_session_id ], unique: true,
+        name: "idx_coworker_chats_mention_source"
+    end
 
     execute <<~SQL.squish
       INSERT INTO chat_shares (chat_session_id, target_type, target_id, shared_by_user_id, created_at)
