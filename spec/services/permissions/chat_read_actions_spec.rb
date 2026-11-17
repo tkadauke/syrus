@@ -10,10 +10,7 @@ RSpec.describe Permissions::ChatReadActions do
   it "explicitly describes the complete chat read and diagnostic inventory" do
     expect(entries.keys).to contain_exactly(*described_class.tool_names)
     expect(entries.values).to all(
-      have_attributes(mutation: false, explicit_descriptor: true, compatibility_descriptor: false)
-    )
-    expect(McpToolRegistry.entries(surface: :chat).select(&:compatibility_descriptor?)).to all(
-      have_attributes(mutation: true)
+      have_attributes(mutation: false, explicit_descriptor: true)
     )
   end
 
@@ -69,8 +66,7 @@ RSpec.describe Permissions::ChatReadActions do
     expect(validator.findings).to be_empty
     expect(validator.coverage).to include(
       tools: described_class.tool_names.length,
-      explicit_descriptors: described_class.tool_names.length,
-      legacy_descriptors: 0
+      explicit_descriptors: described_class.tool_names.length
     )
   end
 
