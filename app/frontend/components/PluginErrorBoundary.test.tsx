@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useState } from "react"
 import { vi } from "vitest"
 import { describe, expect, it } from "vitest"
 
@@ -9,7 +9,7 @@ vi.mock("../api/browserErrors", () => ({
 }))
 
 import { recordBrowserError } from "../api/browserErrors"
-import { PluginErrorBoundary } from "./PluginErrorBoundary"
+import { PluginErrorBoundary, PluginRenderBoundary } from "./PluginErrorBoundary"
 
 const Throw = () => { throw new Error("broken plugin") }
 
@@ -33,5 +33,18 @@ describe("PluginErrorBoundary", () => {
     fireEvent.click(screen.getByRole("button"))
     expect(reload).toHaveBeenCalled()
     vi.unstubAllGlobals()
+  })
+
+  it("preserves rendered plugin state across parent rerenders", () => {
+    function StatefulPlugin() {
+      const [count, setCount] = useState(0)
+      return <button onClick={() => setCount((value) => value + 1)}>Count: {count}</button>
+    }
+
+    const view = render(<PluginRenderBoundary pluginName="weather" render={() => <StatefulPlugin />} />)
+    fireEvent.click(screen.getByRole("button", { name: "Count: 0" }))
+    view.rerender(<PluginRenderBoundary pluginName="weather" render={() => <StatefulPlugin />} />)
+
+    expect(screen.getByRole("button", { name: "Count: 1" })).toBeInTheDocument()
   })
 })

@@ -58,11 +58,14 @@ export function withPluginErrorBoundary<Props extends object>(pluginName: string
   return BoundaryWrappedComponent
 }
 
+function PluginRenderer({ render }: { render: () => ReactNode }) {
+  return render()
+}
+
 export function PluginRenderBoundary({ pluginName, render }: { pluginName: string; render: () => ReactNode }) {
-  const Renderer = () => render()
   return (
     <PluginErrorBoundary pluginName={pluginName}>
-      <Renderer />
+      <PluginRenderer render={render} />
     </PluginErrorBoundary>
   )
 }
