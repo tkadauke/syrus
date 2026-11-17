@@ -31,6 +31,17 @@ RSpec.describe App::JobDetailPayload do
     queries
   end
 
+  it "resolves configured agent providers once while building actions" do
+    job = Factories.job_record(user: user, repository: repo, state: "queued")
+    job.user = user
+    allow(user).to receive(:configured_agent_providers).once.and_return(%w[claude codex])
+
+    actions = described_class.actions_payload(job: job, user: user).fetch(:actions)
+
+    expect(actions[:feedback_agent_options]).to eq([ "codex" ])
+    expect(actions[:rebase_agent_options]).to eq([ "codex" ])
+  end
+
   it "reports unlanding unavailable and omits the action path when the flag is off" do
     original = Factories.job_record(
       user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
