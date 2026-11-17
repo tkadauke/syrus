@@ -27,6 +27,19 @@ module SpaAssetsHelper
     nil
   end
 
+  def plugin_frontend_import_map_tag
+    tag.script(
+      raw(json_escape(Syrus::ViteEntrypoint.new(Rails.root.join(Syrus::ViteEntrypoint::MANIFEST_PATH)).plugin_import_map.to_json)),
+      type: "importmap",
+      nonce: content_security_policy_nonce
+    )
+  rescue Syrus::ViteEntrypoint::Missing => error
+    raise if Rails.env.production?
+
+    Rails.logger.warn(error.message)
+    nil
+  end
+
   private
 
   def append_spa_asset_version(tags)

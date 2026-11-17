@@ -53,6 +53,7 @@ export type BootstrapPayload = {
   }
   app: {
     enabled_plugins?: string[]
+    external_plugin_frontends?: ExternalPluginFrontend[]
     revision: string
     revision_url: string | null
     // Display identity for the backend: a release version, a commits-ahead
@@ -105,6 +106,13 @@ export type BootstrapPayload = {
     types: SlugReferenceType[]
   }
   feature_flags: Record<string, boolean>
+}
+
+export type ExternalPluginFrontend = {
+  name: string
+  bundle_url: string
+  css_url?: string
+  hash: string
 }
 
 export type SlugReferenceType = {

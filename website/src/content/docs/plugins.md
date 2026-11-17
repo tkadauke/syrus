@@ -5,6 +5,19 @@ description: How Syrus plugins extend UI, tools, prompts, graders, previews, and
 
 # Plugins
 
+## Prebuilt frontend bundles
+
+An externally installed plugin may ship its UI as a prebuilt ESM bundle and
+stylesheet. Syrus serves and loads those files for enabled plugins at startup,
+so installing UI contributions requires a restart but no rebuild of the core
+frontend. If one bundle fails, Syrus logs and skips it while the application
+continues loading.
+
+Plugin bundles share the host's React, React DOM, TanStack Query, i18next, and
+react-i18next runtimes through the documented `@syrus/plugin-sdk` build
+contract. Their own CSS must be complete; core does not compile utility classes
+from an external plugin's source.
+
 Plugins are installed extension bundles. Installing a plugin makes its code
 available after restart; enabling a plugin makes its surfaces visible and its
 behavior active. In general, the plugin enable switch is the feature flag for
