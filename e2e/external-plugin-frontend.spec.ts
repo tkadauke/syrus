@@ -10,7 +10,7 @@ let fixtureBundle: string
 
 test.beforeAll(() => {
   fixtureRoot = mkdtempSync(join(tmpdir(), "syrus-external-plugin-e2e-"))
-  cpSync("spec/fixtures/external_frontend_plugin", fixtureRoot, { recursive: true })
+  cpSync("spec/fixtures/relocatable_plugin", fixtureRoot, { recursive: true })
   execFileSync("bin/build-plugin-frontend", [fixtureRoot], { cwd: process.cwd(), stdio: "pipe" })
   fixtureBundle = readFileSync(join(fixtureRoot, "dist/frontend/plugin.js"), "utf8")
 })
@@ -28,7 +28,7 @@ test("loads a built external plugin through the host import map", async ({ page 
       body: `
         import { getPluginContribution } from "@syrus/plugin-sdk"
         window.__externalPluginRegistered = Boolean(
-          getPluginContribution("workspace_tab", "external_fixture", "Fixture")
+          getPluginContribution("workspace_tab", "relocatable_plugin", "Relocatable")
         )
       `,
       contentType: "text/javascript"

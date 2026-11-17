@@ -130,3 +130,14 @@ The currently registered contribution kinds are:
   plugin spec may only name tools from a plugin it declares `depends_on`.
   See the [plugin-authoring reference](plugins/authoring.md) for the audit
   recipe.
+
+## Definition of done for relocatable plugins
+
+`bin/test-plugin-relocation` is the acceptance boundary for claiming that
+plugins are relocatable. It copies a deliberately small, full-surface fixture
+to a temporary `SYRUS_PLUGIN_PATH` outside the repository and proves discovery,
+health and providers, routes, migrations, a prebuilt frontend contribution,
+and server-backed CLI discovery and execution. The same check verifies version
+incompatibility and load-failure isolation, then boots once more with the
+plugin absent from both roots. Keep this acceptance test green whenever a
+plugin surface or its discovery mechanism changes.
