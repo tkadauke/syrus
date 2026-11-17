@@ -59,6 +59,8 @@ Rails.application.routes.draw do
         post "performance_events", to: "performance_events#create"
         post "ui_engagement_samples", to: "ui_engagement_samples#create"
         post "client_metrics", to: "client_metrics#create"
+        get "cli_commands", to: "cli_commands#index"
+        post "cli_commands/execute", to: "cli_commands#create"
         post "report_issue", to: "report_issue#create"
         get "slug_refs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }
         get "slugs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }

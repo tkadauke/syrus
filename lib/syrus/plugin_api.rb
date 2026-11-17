@@ -80,7 +80,7 @@ module Syrus
         version default_enabled disableable experimental home_queue tick_interval prepare_priority
       ].freeze
 
-      LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema].freeze
+      LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema cli_commands].freeze
 
       attr_reader :name, :namespace, :lib_dir
 
