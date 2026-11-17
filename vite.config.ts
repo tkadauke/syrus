@@ -78,7 +78,21 @@ const config: ViteUserConfigFnPromise = async ({ mode }: ConfigEnv) => {
       // current name from .vite/manifest.json (Syrus::ViteEntrypoint).
       manifest: true,
       rollupOptions: {
-        input: "app/frontend/main.tsx",
+        input: {
+          main: "app/frontend/main.tsx",
+          "plugin-host-react": "app/frontend/pluginHost/react.ts",
+          "plugin-host-react-jsx-runtime": "app/frontend/pluginHost/reactJsxRuntime.ts",
+          "plugin-host-react-dom": "app/frontend/pluginHost/reactDom.ts",
+          "plugin-host-react-dom-client": "app/frontend/pluginHost/reactDomClient.ts",
+          "plugin-host-react-query": "app/frontend/pluginHost/reactQuery.ts",
+          "plugin-host-i18next": "app/frontend/pluginHost/i18next.ts",
+          "plugin-host-react-i18next": "app/frontend/pluginHost/reactI18next.ts",
+          "plugin-host-sdk": "app/frontend/pluginHost/sdk.ts"
+        },
+        // External plugin bundles import the named exports of these additional
+        // entries at runtime. Keep their public facades even when core itself
+        // does not statically consume every export.
+        preserveEntrySignatures: "exports-only",
         output: {
           // Propshaft keeps a name as-is only when it ends in
           // `-<hash>.digested.<ext>`; anything else gets a second digest while
@@ -86,7 +100,7 @@ const config: ViteUserConfigFnPromise = async ({ mode }: ConfigEnv) => {
           // includes the entry: lazy chunks import shared code back from it,
           // so it must be served under exactly the name Vite gave it, and the
           // page must load that same URL or the entry runs twice.
-          entryFileNames: "spa-entry-[hash].digested.js",
+          entryFileNames: (chunk) => (chunk.name === "main" ? "spa-entry-[hash].digested.js" : "spa-[name]-[hash].digested.js"),
           chunkFileNames: "spa-[name]-[hash].digested.js",
           assetFileNames: "spa-[name]-[hash].digested[extname]",
           manualChunks: manualVendorChunk

@@ -173,7 +173,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, plugin_root: nil, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -234,7 +234,8 @@ module Syrus
             credential_types: credential_types,
             prepare_priority: prepare_priority,
             hosts:           Array(hosts),
-            events:          events
+            events:          events,
+            plugin_root:     plugin_root
           )
         end
 

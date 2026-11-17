@@ -25,6 +25,8 @@ Rails.application.routes.draw do
     namespace :v1 do
       namespace :app do
         get "bootstrap", to: "bootstrap#show"
+        get "plugin_frontends/:plugin_name/:kind", to: "plugin_frontends#show",
+          constraints: { plugin_name: /[a-zA-Z0-9_-]+/, kind: /bundle|css/ }
         get "me", to: "me#show"
         get "setup", to: "setup#show"
         patch "theme", to: "theme#update"

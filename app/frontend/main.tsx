@@ -15,6 +15,7 @@ import { configureExcalidrawAssets } from "./lib/excalidrawAssets"
 import { StartupRenderMarker } from "./lib/StartupRenderMarker"
 import { createQueryClient } from "./queryClient"
 import "./builtInPluginContributions"
+import { loadExternalPluginFrontends } from "./externalPluginFrontends"
 
 installStaleChunkRecovery()
 configureExcalidrawAssets()
@@ -25,7 +26,10 @@ markStartupMilestone("react_module_evaluated")
 const root = document.getElementById("syrus-spa-root")
 const queryClient = createQueryClient()
 
-if (root) {
+async function renderApplication() {
+  await loadExternalPluginFrontends()
+  if (!root) return
+
   createRoot(root).render(
     <StrictMode>
       <I18nextProvider i18n={i18n}>
@@ -43,3 +47,5 @@ if (root) {
     </StrictMode>
   )
 }
+
+void renderApplication()

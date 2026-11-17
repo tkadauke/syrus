@@ -1,0 +1,39 @@
+#!/usr/bin/env node
+
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { pathToFileURL } from "node:url"
+import { build } from "vite"
+import react from "@vitejs/plugin-react"
+
+const pluginRoot = resolve(process.argv[2] || "")
+const entry = resolve(pluginRoot, "frontend/entry.tsx")
+const outDir = resolve(pluginRoot, "dist/frontend")
+
+if (!process.argv[2] || !existsSync(entry)) {
+  console.error("Usage: bin/build-plugin-frontend <plugin-dir>\nExpected frontend/entry.tsx in the plugin directory.")
+  process.exit(1)
+}
+
+const sharedPackages = new Set(["react", "react-dom", "@tanstack/react-query", "i18next", "react-i18next", "@syrus/plugin-sdk"])
+const external = (id) => [...sharedPackages].some((name) => id === name || id.startsWith(`${name}/`))
+
+await build({
+  configFile: false,
+  root: pluginRoot,
+  plugins: [react()],
+  build: {
+    outDir,
+    emptyOutDir: true,
+    cssCodeSplit: false,
+    lib: { entry, formats: ["es"], fileName: () => "plugin.js", cssFileName: "plugin" },
+    rollupOptions: { external }
+  }
+})
+
+const frontend = { bundle: "dist/frontend/plugin.js" }
+if (existsSync(resolve(outDir, "plugin.css"))) frontend.css = "dist/frontend/plugin.css"
+mkdirSync(outDir, { recursive: true })
+writeFileSync(resolve(outDir, "manifest.json"), `${JSON.stringify({ frontend }, null, 2)}\n`)
+
+console.log(`Built ${pathToFileURL(resolve(outDir, "plugin.js")).pathname}`)

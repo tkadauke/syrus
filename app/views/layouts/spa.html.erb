@@ -148,6 +148,7 @@
     </script>
 
     <%= spa_stylesheet_link_tags %>
+    <%= plugin_frontend_import_map_tag unless Rails.env.test? %>
     <% if Rails.env.test? %>
       <%= spa_asset_tag tag.script("", src: "/assets/spa-test.js", type: "module") %>
     <% else %>
