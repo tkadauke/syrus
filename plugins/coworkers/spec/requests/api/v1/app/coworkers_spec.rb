@@ -885,10 +885,20 @@ RSpec.describe "API: coworkers", type: :request do
       )
     )
 
+    second_message = coworker_chat.messages.create!(
+      role: "assistant",
+      content: {
+        "text" => "second calendar result", "source" => "coworker_message",
+        "coworker_message" => { "direction" => "incoming", "sender_id" => coworker.id, "sender_handle" => coworker.handle }
+      },
+      skip_turn_trigger: true
+    )
     message.pins.create!
+    second_message.pins.create!
+    expect(ChatIdentityContributions).to receive(:message_presentations).once.and_call_original
     get "/api/v1/app/chats/#{coworker_chat.id}/pins"
-    expect(response.parsed_body.fetch("pins").sole.fetch("author"))
-      .to include("name" => "Maya", "handle" => "maya")
+    expect(response.parsed_body.fetch("pins").map { |pin| pin.fetch("author") })
+      .to all(include("name" => "Maya", "handle" => "maya"))
 
     filter = Filters::QueryParam.encode("and" => [ { "field" => "coworker_id", "op" => "is", "value" => coworker.id } ])
     get "/api/v1/app/search", params: { query: "calendar", q: filter, types: [ "chat" ] }

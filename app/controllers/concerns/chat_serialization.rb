@@ -270,8 +270,7 @@ module ChatSerialization
     end
   end
 
-  def pin_json(pin)
-    presentation = ChatIdentityContributions.message_presentations(messages: [ pin.chat_message ]).fetch(pin.chat_message_id, {})
+  def pin_json(pin, presentation = {})
     {
       id: pin.id,
       chat_message_id: pin.chat_message_id,
@@ -283,12 +282,15 @@ module ChatSerialization
   end
 
   def pins_json(chat_session)
-    ChatMessagePin
+    pins = ChatMessagePin
       .joins(:chat_message)
       .where(chat_messages: { chat_session_id: chat_session.id, deleted_at: nil })
       .order("chat_message_pins.created_at", "chat_message_pins.id")
       .includes(:chat_message)
-      .map { |pin| pin_json(pin) }
+      .to_a
+    presentations = ChatIdentityContributions.message_presentations(messages: pins.map(&:chat_message))
+
+    pins.map { |pin| pin_json(pin, presentations.fetch(pin.chat_message_id, {})) }
   end
 
   def hidden_chat_json(chat_session, context: nil)
