@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it } from "vitest"
 import { matchingReviewContribution, renderReviewContribution, reviewContributionComponentFor, type ReviewContribution } from "./pluginReviewContributions"
 import { registerPluginContribution } from "./pluginContributionRegistry"
+
+beforeAll(async () => { await import("./builtInPluginContributions") })
 
 describe("plugin review contributions", () => {
   const entries: ReviewContribution[] = [

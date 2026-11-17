@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react"
 import { createElement, Fragment } from "react"
-import { describe, expect, it, vi } from "vitest"
+import { beforeAll, describe, expect, it, vi } from "vitest"
 import type { TypedArtifact } from "./api/artifacts"
 import {
   allArtifactRendererEntries,
@@ -10,6 +10,10 @@ import {
   renderArtifactRendererEntry,
   type ArtifactRendererEntry
 } from "./artifactRendererRegistry"
+
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 function entry(overrides: Partial<ArtifactRendererEntry> = {}): ArtifactRendererEntry {
   return {
@@ -38,7 +42,7 @@ const rawArtifact = (overrides: Partial<TypedArtifact> = {}): TypedArtifact => (
 describe("artifactRendererRegistry", () => {
   describe("core lookup", () => {
     it("resolves every core renderer_type from TypedArtifactPanel with its owner, label, and payload shape", () => {
-      for (const rendererType of [ "image_diff", "before_after_visual_diff", "data_table", "before_after_diff" ]) {
+      for (const rendererType of ["image_diff", "before_after_visual_diff", "data_table", "before_after_diff"]) {
         const found = artifactRendererEntryFor(rendererType)
         expect(found.rendererType).toBe(rendererType)
         expect(found.ownerType).toBe("core")
@@ -96,9 +100,9 @@ describe("artifactRendererRegistry", () => {
       const valid = entry({ rendererType: "valid_one" })
       const malformed = { displayLabel: "No rendererType", render: () => null }
 
-      const result = buildArtifactRendererRegistry([ valid, malformed ])
+      const result = buildArtifactRendererRegistry([valid, malformed])
 
-      expect(result).toEqual([ valid ])
+      expect(result).toEqual([valid])
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("malformed"))
       warn.mockRestore()
     })
@@ -107,7 +111,7 @@ describe("artifactRendererRegistry", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
       const malformed = { rendererType: "no_render" }
 
-      const result = buildArtifactRendererRegistry([ malformed ])
+      const result = buildArtifactRendererRegistry([malformed])
 
       expect(result).toEqual([])
       expect(warn).toHaveBeenCalled()
@@ -116,7 +120,7 @@ describe("artifactRendererRegistry", () => {
 
     it("skips null/undefined candidates without throwing", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-      expect(() => buildArtifactRendererRegistry([ null, undefined, entry() ])).not.toThrow()
+      expect(() => buildArtifactRendererRegistry([null, undefined, entry()])).not.toThrow()
       warn.mockRestore()
     })
   })
@@ -127,10 +131,10 @@ describe("artifactRendererRegistry", () => {
       const first = entry({ rendererType: "dup", displayLabel: "First" })
       const second = entry({ rendererType: "dup", displayLabel: "Second", ownerType: "plugin", pluginName: "some_plugin" })
 
-      const result = buildArtifactRendererRegistry([ first, second ])
+      const result = buildArtifactRendererRegistry([first, second])
 
-      expect(result).toEqual([ first ])
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Duplicate renderer_type \"dup\""))
+      expect(result).toEqual([first])
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Duplicate renderer_type "dup"'))
       warn.mockRestore()
     })
 
@@ -138,9 +142,9 @@ describe("artifactRendererRegistry", () => {
       const a = entry({ rendererType: "a" })
       const b = entry({ rendererType: "b" })
 
-      const result = buildArtifactRendererRegistry([ a, b ])
+      const result = buildArtifactRendererRegistry([a, b])
 
-      expect(result).toEqual(expect.arrayContaining([ a, b ]))
+      expect(result).toEqual(expect.arrayContaining([a, b]))
       expect(result.length).toBe(2)
     })
   })
@@ -163,7 +167,12 @@ describe("artifactRendererRegistry", () => {
 
     it("falls back to raw JSON when a renderer's render() throws, instead of crashing the panel", () => {
       const error = vi.spyOn(console, "error").mockImplementation(() => {})
-      const broken = entry({ rendererType: "broken_one", render: () => { throw new Error("boom") } })
+      const broken = entry({
+        rendererType: "broken_one",
+        render: () => {
+          throw new Error("boom")
+        }
+      })
 
       const result = renderArtifactRendererEntry(broken, rawArtifact())
 
@@ -174,7 +183,12 @@ describe("artifactRendererRegistry", () => {
 
     it("returns null (not a second throw) when the raw JSON fallback entry itself throws", () => {
       const error = vi.spyOn(console, "error").mockImplementation(() => {})
-      const brokenFallback = entry({ rendererType: "raw_json", render: () => { throw new Error("boom") } })
+      const brokenFallback = entry({
+        rendererType: "raw_json",
+        render: () => {
+          throw new Error("boom")
+        }
+      })
 
       expect(() => renderArtifactRendererEntry(brokenFallback, rawArtifact())).not.toThrow()
       expect(renderArtifactRendererEntry(brokenFallback, rawArtifact())).toBeNull()

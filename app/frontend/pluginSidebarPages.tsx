@@ -5,7 +5,6 @@ import { fetchSidebarPluginPages } from "./api/sidebarPages"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 import { loadPluginModule } from "./i18n"
-import "./builtInPluginContributions"
 import { getPluginContribution, pluginContributionLoader } from "./pluginContributionRegistry"
 
 type PluginModule = {

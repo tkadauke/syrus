@@ -17,7 +17,6 @@ export { normalizedToolCardParsedResult, parseJsonText } from "../../toolCardPar
 const WORKSPACE_MARKER = "/.syrus/"
 const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", '"', "`", ",", ":", ";", "]", ")", "}"])
 const COUNTED_RESULT_TOOLS = new Set(["Read", "Glob", "Grep"])
-const CHAT_MCP_SERVER_PREFIXES = ["syrus-chat-sidecar", "syrus-chat-deferred-sidecar", "syrus-mcp-sidecar"]
 const RESULT_SUMMARY_LINE_THRESHOLD = 8
 const TOOL_RESULT_PREVIEW_CHARS = 20_000
 const TOOL_RESULT_PREVIEW_LINES = 400
@@ -86,12 +85,19 @@ export function normalizedToolName(name: string) {
     return parts.length >= 3 ? parts.slice(2).join("__") || name : name
   }
 
-  for (const prefix of CHAT_MCP_SERVER_PREFIXES) {
+  for (const prefix of chatMcpServerPrefixes()) {
     if (name === prefix) return name
     if (name.startsWith(`${prefix}.`)) return name.slice(prefix.length + 1)
   }
 
   return name
+}
+
+// A function declaration is available during ESM cycle initialization. Keep
+// these prefixes behind it because eager plugin registration can reach tool
+// presentation metadata while toolRendering.ts itself is still evaluating.
+function chatMcpServerPrefixes() {
+  return ["syrus-chat-sidecar", "syrus-chat-deferred-sidecar", "syrus-mcp-sidecar"]
 }
 
 function displayToolName(name: string) {

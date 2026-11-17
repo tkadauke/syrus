@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it } from "vitest"
 import { discoveredArtifactRendererEntries } from "./pluginArtifactRenderers"
+
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 describe("pluginArtifactRenderers", () => {
   it("discovers plugin-registered renderers by directory convention, without any core import of that plugin", () => {

@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { beforeAll, describe, expect, it, vi } from "vitest"
 import * as repoPluginTabsApi from "./api/repoPluginTabs"
 import { PluginRepoPageTabRoute, pluginRepoComponentFor, pluginRepoComponentKeys } from "./pluginRepoPageTabs"
 import { registerPluginContribution } from "./pluginContributionRegistry"
+
+beforeAll(async () => { await import("./builtInPluginContributions") })
 
 vi.mock("./api/repoPluginTabs", () => ({ fetchRepoPluginTabs: vi.fn() }))
 

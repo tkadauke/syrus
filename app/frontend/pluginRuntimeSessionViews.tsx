@@ -1,5 +1,6 @@
 import type { ComponentType } from "react"
 import type { RuntimeControlLease, RuntimeSession } from "./api/chats"
+import { getEagerPluginContributions } from "./pluginContributionRegistry"
 
 export type RuntimeSessionViewConnectionState = {
   connected: boolean
@@ -21,24 +22,21 @@ type PluginModule = {
   default?: PluginRuntimeSessionView
 }
 
-const viewModules = import.meta.glob<PluginModule>(
-  ["../../plugins/*/app/frontend/runtimeSessionViews/*.tsx", "!../../plugins/*/app/frontend/runtimeSessionViews/*.test.tsx"],
-  { eager: true }
-)
+function registeredViews() {
+  return getEagerPluginContributions<PluginModule>("runtime_session_view").flatMap(({ pluginName, key, value: mod }) => {
+    const view = mod.default
+    if (!view?.providerKey || !view.component) {
+      console.warn(`[pluginRuntimeSessionViews] Skipping ${pluginName}/${key}: default export is not a valid PluginRuntimeSessionView`)
+      return []
+    }
 
-const registeredViews = Object.entries(viewModules).flatMap(([path, mod]) => {
-  const view = mod.default
-  if (!view?.providerKey || !view.component) {
-    console.warn(`[pluginRuntimeSessionViews] Skipping ${path}: default export is not a valid PluginRuntimeSessionView`)
-    return []
-  }
-
-  return [view]
-})
+    return [view]
+  })
+}
 
 export function pluginRuntimeSessionViewComponentFor(providerKey: string | null | undefined) {
   if (!providerKey) return null
-  return registeredViews.find((view) => view.providerKey === providerKey)?.component ?? null
+  return registeredViews().find((view) => view.providerKey === providerKey)?.component ?? null
 }
 
 function capabilityStrings(value: unknown): string[] {

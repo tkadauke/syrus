@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react"
+import { getEagerPluginContributions } from "./pluginContributionRegistry"
 
 export type AgentProviderConnectPanelProps = {
   autoFocus?: boolean
@@ -17,27 +18,21 @@ type PluginModule = {
   default?: PluginAgentProviderConnectPanel
 }
 
-const panelModules = import.meta.glob<PluginModule>(
-  [
-    "../../plugins/*/app/frontend/agentProviderConnectPanels/*.tsx",
-    "!../../plugins/*/app/frontend/agentProviderConnectPanels/*.test.tsx"
-  ],
-  { eager: true }
-)
+function registeredPanels() {
+  return getEagerPluginContributions<PluginModule>("agent_provider_connect_panel").flatMap(({ pluginName, key, value: mod }) => {
+    const panel = mod.default
+    if (!panel?.provider || !panel.component) {
+      console.warn(`[pluginAgentProviderConnectPanels] Skipping ${pluginName}/${key}: default export is not a valid PluginAgentProviderConnectPanel`)
+      return []
+    }
 
-const registeredPanels = Object.entries(panelModules).flatMap(([path, mod]) => {
-  const panel = mod.default
-  if (!panel?.provider || !panel.component) {
-    console.warn(`[pluginAgentProviderConnectPanels] Skipping ${path}: default export is not a valid PluginAgentProviderConnectPanel`)
-    return []
-  }
-
-  return [panel]
-})
+    return [panel]
+  })
+}
 
 export function pluginAgentProviderConnectPanelComponentFor(provider: string | null | undefined) {
   if (!provider) return null
-  return registeredPanels.find((panel) => panel.provider === provider)?.component ?? null
+  return registeredPanels().find((panel) => panel.provider === provider)?.component ?? null
 }
 
 // Popular-to-less-popular display order for onboarding; any provider not
@@ -45,7 +40,7 @@ export function pluginAgentProviderConnectPanelComponentFor(provider: string | n
 const PROVIDER_DISPLAY_ORDER = ["claude", "codex", "agy", "muse"]
 
 export function pluginAgentProviderConnectPanelProviders() {
-  return registeredPanels
+  return registeredPanels()
     .map((panel) => panel.provider)
     .sort((a, b) => providerDisplayRank(a) - providerDisplayRank(b) || a.localeCompare(b))
 }
