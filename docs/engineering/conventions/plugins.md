@@ -103,7 +103,6 @@ The currently registered contribution kinds are:
   processes use a separately distributed `syrus-<name>` executable discovered
   on `PATH`. This is an independent binary target, not a package imported by
   the core CLI: plugin modules must not appear in `cli/go.mod` or `go.work`.
-
   ```ruby
   cli_commands [
     {
