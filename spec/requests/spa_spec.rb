@@ -264,6 +264,7 @@ RSpec.describe "SPA shell", type: :request do
       allow(Rails.env).to receive(:production?).and_return(production)
       allow(SyrusVersion).to receive(:current).and_return("entrypoint-sha")
       allow(Syrus::ViteEntrypoint).to receive(:current).and_return("spa-entry-SpEc_En-1.digested.js")
+      allow_any_instance_of(Syrus::ViteEntrypoint).to receive(:plugin_import_map).and_return("imports" => {})
       user = Factories.user
       sign_in_as(user)
 

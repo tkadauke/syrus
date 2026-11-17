@@ -352,6 +352,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/platform_identities` | `api/v1/app/platform_identities#index` |
 | core | DELETE | `/api/v1/app/platform_identities/:id` | `api/v1/app/platform_identities#destroy` |
 | core | POST | `/api/v1/app/platform_identities/linking_token` | `api/v1/app/platform_identities#linking_token` |
+| core | GET | `/api/v1/app/plugin_frontends/:plugin_name/:kind` | `api/v1/app/plugin_frontends#show` |
+| core | GET | `/api/v1/app/plugin_frontends/:plugin_name/locales/:locale/:namespace` | `api/v1/app/plugin_frontends#locale` |
 | core | GET | `/api/v1/app/preview_panels/:id` | `api/v1/app/preview_panels#show` |
 | core | PATCH | `/api/v1/app/preview_panels/:id` | `api/v1/app/preview_panels#update` |
 | core | GET | `/api/v1/app/preview_panels/:id/export` | `api/v1/app/preview_panels#export` |

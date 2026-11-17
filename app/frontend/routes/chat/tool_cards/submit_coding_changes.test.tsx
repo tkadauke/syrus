@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import type { ChatPendingActionInline } from "../../../api/chats"
-import submitCodingChangesToolCard from "./submit_coding_changes"
 import { normalizedToolCardParsedResult, toolLabel, toolResultPresentation } from "../toolRendering"
+import submitCodingChangesToolCard from "./submit_coding_changes"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {
