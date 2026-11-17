@@ -1,11 +1,17 @@
 require "rails_helper"
 
 RSpec.describe SyrusDev::PermissionFactoryReset do
+  ALL_PROFILE_SUBJECTS = %w[interactive_chat coding_chat local_chat].freeze
+
   let(:admin) { Factories.user(admin: true) }
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
 
-  before { PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true) }
+  before do |example|
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
+    profile_subjects = example.metadata[:all_profile_subjects] ? ALL_PROFILE_SUBJECTS : [ "interactive_chat" ]
+    stub_const("SyrusDev::PermissionFactoryReset::PROFILE_SUBJECTS", profile_subjects)
+  end
 
   def custom_rule(**attributes)
     PermissionRule.create!({
@@ -42,7 +48,7 @@ RSpec.describe SyrusDev::PermissionFactoryReset do
     end
   end
 
-  it "previews and transactionally resets a repository without deleting audit history" do
+  it "previews and transactionally resets a repository without deleting audit history", :all_profile_subjects do
     rule = custom_rule
     lease = temporary_lease
     request = pending_request
@@ -81,8 +87,9 @@ RSpec.describe SyrusDev::PermissionFactoryReset do
     )
     expect(Repository.exists?(repository.id)).to be(true)
     expect(User.exists?(owner.id)).to be(true)
-    expect(Permissions::Management.new(owner).current_profile(subject_selector_type: "interactive_chat"))
-      .to eq("ask_on_first_use@v1")
+    management = Permissions::Management.new(owner)
+    profiles = ALL_PROFILE_SUBJECTS.map { |subject| management.current_profile(subject_selector_type: subject) }
+    expect(profiles).to all(eq("ask_on_first_use@v1"))
   end
 
   it "is idempotent once factory defaults are installed" do

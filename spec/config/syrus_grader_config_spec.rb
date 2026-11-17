@@ -4,6 +4,8 @@ require "rails_helper"
 require "open3"
 
 RSpec.describe "Syrus grader configuration" do
+  ROOT_GRAPH_CACHE = {}
+
   it "configures five rounds for every built-in review type" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
 
@@ -165,7 +167,7 @@ RSpec.describe "Syrus grader configuration" do
 
   it "declares the root Rails app project while keeping global policy in the root config" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
 
     expect(config.project).to have_attributes(id: "repo", label: "Syrus App", kind: "rails_app")
     expect(config.prepare).to include(
@@ -330,7 +332,7 @@ RSpec.describe "Syrus grader configuration" do
     expect(config.visual_review).to have_attributes(enabled: true, rounds: 2)
     expect(config.coverage.sources.first.artifact).to eq("coverage/lcov.info")
 
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
     expect(graph.target("//desktop:renderer-build").command).to eq("npm run build:renderer")
     expect(graph.target("//desktop:main-build").command).to eq("npm run build:main")
 
@@ -345,7 +347,7 @@ RSpec.describe "Syrus grader configuration" do
   end
 
   it "selects the CLI target and the executable root backstop for core CLI changes" do
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
 
     cli_prepare = graph.target("//cli:prepare")
     cli_tests = graph.affected("//cli:grade/go-tests", changed_files: [ "cli/cmd/jobs.go" ])
@@ -380,7 +382,7 @@ RSpec.describe "Syrus grader configuration" do
   end
 
   it "selects the union of Rails app and CLI project primitives for mixed app and CLI changes" do
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
     changed_files = [ "app/services/target_graph.rb", "cli/cmd/jobs.go" ]
 
     app_focused_specs = graph.affected("//:grade/rspec-focused", changed_files: changed_files)
@@ -393,7 +395,7 @@ RSpec.describe "Syrus grader configuration" do
   end
 
   it "selects desktop targets without treating the root React grader as a desktop backstop" do
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
 
     typecheck = graph.affected("//desktop:grade/typecheck", changed_files: [ "desktop/src/App.tsx" ])
     renderer_build = graph.affected("//desktop:renderer-build", changed_files: [ "desktop/src/App.tsx" ])
@@ -411,7 +413,7 @@ RSpec.describe "Syrus grader configuration" do
   end
 
   it "selects the union of Rails app and desktop project primitives for mixed app and desktop changes" do
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
     changed_files = [ "app/frontend/routes/Dashboard.tsx", "desktop/src/App.tsx" ]
 
     app_visual = App::VisualReviewProjects.call(workspace_path: Rails.root, changed_files: changed_files)
@@ -459,7 +461,7 @@ RSpec.describe "Syrus grader configuration" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
     matching_graders = config.grade.steps.select { |step| step.name.start_with?("work-engine-simulations") }
     grader = matching_graders.sole
-    target = TargetGraph::Compiler.compile(Rails.root).target("//:grade/work-engine-simulations")
+    target = root_graph.target("//:grade/work-engine-simulations")
 
     expect(grader).to have_attributes(
       phases: %w[review landing ci],
@@ -510,7 +512,7 @@ RSpec.describe "Syrus grader configuration" do
     end
     Syrus::PluginRegistry.clear_plugin_record_cache!
 
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
     plugin_dirs = Rails.root.join("plugins").children.select(&:directory?).map { |path| path.basename.to_s }.sort
     frontend_test_plugins = plugin_dirs.select do |plugin|
       Dir.glob(Rails.root.join("plugins/#{plugin}/app/frontend/**/*.{test,spec}.{ts,tsx}").to_s, File::FNM_EXTGLOB).any?
@@ -566,7 +568,7 @@ RSpec.describe "Syrus grader configuration" do
   end
 
   it "uses plugin dependency declarations as target graph dependency edges" do
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
 
     expect(graph.affected("//plugins/rails:grade/rspec", changed_files: [ "plugins/ruby/lib/ruby.rb" ])).to have_attributes(
       affected: true,
@@ -587,7 +589,7 @@ RSpec.describe "Syrus grader configuration" do
   # without this one, editing the very extension point a plugin implements
   # selected no plugin grader at all, and a broken plugin landed green.
   it "selects every plugin's specs when the core plugin API changes" do
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
     plugin_rspec_labels = Dir[Rails.root.join("plugins/*/.syrus.yml")].map do |path|
       "//plugins/#{File.basename(File.dirname(path))}:grade/rspec"
     end
@@ -610,7 +612,7 @@ RSpec.describe "Syrus grader configuration" do
 
   it "scopes the website build grader to website and website deploy changes" do
     config = SyrusYml.new(Rails.root.join("website/.syrus.yml").read, project_path: "website").parse
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
     grader = config.grade.steps.find { |step| step.name == "build" }
 
     expect(grader.when_files_changed).to contain_exactly("**/*")
@@ -624,7 +626,7 @@ RSpec.describe "Syrus grader configuration" do
 
   it "selects the Website preview and relative visual-review policy only for rendered website changes" do
     config = SyrusYml.new(Rails.root.join("website/.syrus.yml").read, project_path: "website").parse
-    graph = TargetGraph::Compiler.compile(Rails.root)
+    graph = root_graph
     website = graph.project("website")
 
     expect(website).to have_attributes(
@@ -700,6 +702,11 @@ RSpec.describe "Syrus grader configuration" do
     grader = config.grade.steps.find { |step| step.name == "plugin-boundaries" }
 
     expect(grader.timeout_minutes).to be >= 8
+  end
+
+  def root_graph
+    enabled_plugins = PluginRecord.order(:name).select(&:effective_enabled?).map(&:name)
+    ROOT_GRAPH_CACHE[enabled_plugins] ||= TargetGraph::Compiler.compile(Rails.root)
   end
 
   def copy_cli_prepare_fixture(destination)
