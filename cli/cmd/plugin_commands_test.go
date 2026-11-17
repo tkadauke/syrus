@@ -159,6 +159,45 @@ func TestExecutableFallbackPrefersLongestMatchAndPassesEnvironment(t *testing.T)
 	}
 }
 
+func TestExecutableFallbackTracksMatchedWordsAroundFlags(t *testing.T) {
+	usePluginCatalogTestCache(t)
+	home := writePluginTestCredentials(t, "http://127.0.0.1:1")
+	bin := t.TempDir()
+	outputPath := filepath.Join(home, "plugin-output")
+	plugin := filepath.Join(bin, "syrus-foo-bar")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$PLUGIN_OUTPUT\"\n"
+	if err := os.WriteFile(plugin, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("PLUGIN_OUTPUT", outputPath)
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "root flag before path", args: []string{"--debug", "foo", "bar", "tail"}, want: "tail\n"},
+		{name: "plugin flag between path words", args: []string{"foo", "--plugin-flag", "bar", "tail"}, want: "--plugin-flag tail\n"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := NewRootCommand()
+			handled, err := resolvePluginCommand(context.Background(), root, test.args)
+			if !handled || err != nil {
+				t.Fatalf("fallback = handled %v, err %v", handled, err)
+			}
+			payload, err := os.ReadFile(outputPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := string(payload); got != test.want {
+				t.Fatalf("fallback arguments = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestCompiledCommandWinsOverCatalogCollision(t *testing.T) {
 	root := NewRootCommand()
 	existing := commandAtPath(root, []string{"docs"})
