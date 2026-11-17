@@ -5,6 +5,7 @@ import { pluginNamespacesFor } from "./i18n"
 import type { ChatQueryKey } from "./routes/chat/constants"
 import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { getPluginContribution } from "./pluginContributionRegistry"
+import "./builtInPluginContributions"
 
 export type PluginChatMessagePresentation = { component: string; data?: unknown }
 export type PluginChatMessageProps = {

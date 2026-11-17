@@ -30,7 +30,10 @@ describe("credential_store_ssh_exec tool card", () => {
   it("registers for both sidecar raw-name variants", () => {
     for (const rawName of ["mcp__syrus-chat-sidecar__credential_store_ssh_exec", "mcp__syrus-chat-deferred-sidecar__credential_store_ssh_exec"]) {
       expect(normalizedToolName(rawName)).toBe("credential_store_ssh_exec")
-      expect(pluginToolCardRendererFor(normalizedToolName(rawName))).toBe(credentialStoreSshExecToolCard)
+      const renderer = pluginToolCardRendererFor(normalizedToolName(rawName))
+      expect(renderer).not.toBeNull()
+      expect(renderer).not.toBe(credentialStoreSshExecToolCard)
+      expect(renderer?.toolName).toBe(credentialStoreSshExecToolCard.toolName)
     }
   })
 
