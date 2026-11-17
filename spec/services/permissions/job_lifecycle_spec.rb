@@ -7,7 +7,7 @@ RSpec.describe Permissions::JobLifecycle do
     described_class.tool_names.each do |tool_name|
       entry = chat_entries.fetch(tool_name)
 
-      expect(entry).to have_attributes(explicit_descriptor: true, compatibility_descriptor: false)
+      expect(entry).to have_attributes(explicit_descriptor: true)
       expect(entry.descriptor.operation).to match(%r{\Asyrus\.(jobs|epics|landing_queue)/[a-z_]+@v1\z})
       expect(entry.descriptor.classify({})).to include(confidence: :certain)
     end
@@ -20,7 +20,7 @@ RSpec.describe Permissions::JobLifecycle do
     landing.each do |entry|
       expect(described_class).to be_covers(entry.tool_name)
       expect(entry.descriptor.capability).to eq("syrus.landing_queue@v1")
-      expect(entry).to have_attributes(explicit_descriptor: true, compatibility_descriptor: false)
+      expect(entry).to have_attributes(explicit_descriptor: true)
     end
     expect(chat_entries.fetch("wake_landing_queue").admin_only).to be(true)
   end

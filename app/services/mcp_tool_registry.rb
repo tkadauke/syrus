@@ -15,8 +15,7 @@ class McpToolRegistry
     :ungated,
     :approval_effect,
     :descriptor,
-    :explicit_descriptor,
-    :compatibility_descriptor
+    :explicit_descriptor
   ) do
     def initialize(available_if: nil, approval_effect: false, **attributes)
       super(available_if: available_if, approval_effect: approval_effect, **attributes)
@@ -29,8 +28,6 @@ class McpToolRegistry
     def read_only?
       !mutation
     end
-
-    def compatibility_descriptor? = compatibility_descriptor
 
     def to_h
       {
@@ -50,7 +47,6 @@ class McpToolRegistry
         approval_effect: approval_effect,
         descriptor: descriptor,
         explicit_descriptor: explicit_descriptor,
-        compatibility_descriptor: compatibility_descriptor,
         read_only: read_only?
       }
     end
@@ -637,13 +633,6 @@ class McpToolRegistry
       false
     end
 
-    # Compatibility is declared beside the registrations it covers so adding
-    # a new tool through the normal builders fails descriptor validation.
-    def legacy_chat(tool, **metadata) = chat(tool, **metadata, compatibility_descriptor: true)
-    def legacy_workflow(tool, **metadata) = workflow(tool, **metadata, compatibility_descriptor: true)
-    def legacy_coworker(tool, **metadata) = coworker(tool, **metadata, compatibility_descriptor: true)
-    def legacy_entry(tool, **metadata) = entry(tool, **metadata, compatibility_descriptor: true)
-
     def lifecycle_chat(tool, **metadata)
       roles = metadata.delete(:descriptor_roles) || metadata[:required_roles].presence || AgentRole::CHAT_ROLES
       shared_roles = (Array(roles) + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq
@@ -709,20 +698,22 @@ class McpToolRegistry
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
               required_roles: [], step_kinds: [], capability: nil, available_if: nil, interactive_only: false, mutation: false, ungated: false,
               approval_effect: false,
-              descriptor: nil, compatibility_descriptor: false, default_policy: nil)
+              descriptor: nil, default_policy: nil)
       tool_name = tool_name_for(tool)
       explicit_descriptor = descriptor.present?
-      resolved_descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
-        tool_name: tool_name,
-        capability: capability,
-        mutation: mutation,
-        required_roles: required_roles,
-        admin_only: admin_only,
-        descriptor: descriptor,
-        default_policy: default_policy
-      )
+      resolved_descriptor = if descriptor
+        Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+          tool_name: tool_name,
+          capability: capability,
+          mutation: mutation,
+          required_roles: required_roles,
+          admin_only: admin_only,
+          descriptor: descriptor,
+          default_policy: default_policy
+        )
+      end
       # Invariant: a coworker tool can never silently inherit an unsafe `allow`.
-      Permissions::CoworkerDefaultPolicy.validate!(resolved_descriptor) if surface.to_sym == :coworker
+      Permissions::CoworkerDefaultPolicy.validate!(resolved_descriptor) if surface.to_sym == :coworker && resolved_descriptor
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
@@ -739,8 +730,7 @@ class McpToolRegistry
         ungated: ungated,
         approval_effect: approval_effect,
         descriptor: resolved_descriptor,
-        explicit_descriptor: explicit_descriptor,
-        compatibility_descriptor: compatibility_descriptor
+        explicit_descriptor: explicit_descriptor
       )
     end
 

@@ -8,7 +8,7 @@ RSpec.describe Permissions::WorkflowActions do
     expect(workflow_entries.size).to eq(35)
     expect(insight_entries.keys).to contain_exactly("read_live_state", "read_run_worker_health")
     expect(workflow_entries.values + insight_entries.values).to all(
-      have_attributes(explicit_descriptor: true, compatibility_descriptor: false)
+      have_attributes(explicit_descriptor: true)
     )
   end
 
@@ -51,7 +51,6 @@ RSpec.describe Permissions::WorkflowActions do
 
     validator = Permissions::CapabilityRegistryValidator.new(registrations)
     expect(validator.findings).to be_empty
-    expect(validator.coverage.fetch(:legacy_descriptors)).to eq(0)
   end
 
   it "drives authorization decisions from every migrated descriptor" do

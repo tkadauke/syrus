@@ -10,7 +10,7 @@ RSpec.describe Permissions::ChatMutationActions do
   it "explicitly describes the complete remaining core chat mutation inventory" do
     expect(entries.keys).to contain_exactly(*described_class.tool_names)
     expect(entries.values).to all(
-      have_attributes(mutation: true, explicit_descriptor: true, compatibility_descriptor: false)
+      have_attributes(mutation: true, explicit_descriptor: true)
     )
   end
 
