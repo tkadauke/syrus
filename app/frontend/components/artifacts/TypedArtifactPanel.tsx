@@ -1,5 +1,6 @@
 import type { TypedArtifact } from "../../api/artifacts"
 import { renderArtifactBody } from "../../artifactRendererRegistry"
+import { usePluginContributions } from "../../hooks/usePluginContributions"
 
 // Renders all typed artifacts stored on a workflow. Dispatches to the
 // appropriate renderer via the artifact renderer registry (see
@@ -21,7 +22,7 @@ export function TypedArtifactPanel({ artifacts }: { artifacts: TypedArtifact[] }
 // see App::JobDetailPayload#typed_artifacts_json), so `type` alone is no
 // longer a safe React key.
 function artifactKey(artifact: TypedArtifact, index: number) {
-  return [ artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index ].join("-")
+  return [artifact.type, artifact.workflow_id ?? "x", artifact.run_id ?? "x", artifact.created_at ?? index].join("-")
 }
 
 function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {
@@ -41,5 +42,6 @@ function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {
 // Exported so Job Review/Report and chat artifact surfaces render the same
 // renderer_type -> component mappings instead of duplicating this switch.
 export function ArtifactBody({ artifact }: { artifact: TypedArtifact }) {
+  usePluginContributions()
   return <div className="min-w-0 overflow-x-auto">{renderArtifactBody(artifact)}</div>
 }

@@ -21,6 +21,8 @@ import { renderItemKey } from "./messageStreamItems"
 import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
+import { registerPluginContribution } from "../../pluginContributionRegistry"
+import { pluginToolCardRendererFor } from "../../pluginToolCards"
 import i18n from "../../i18n"
 
 class TestPointerEvent extends MouseEvent {
@@ -170,6 +172,45 @@ function renderChatMessageItem(
     </QueryClientProvider>
   )
 }
+
+it("updates a mounted tool group when a tool card registers late", async () => {
+  const item: ChatToolGroupItem = {
+    type: "tool_group",
+    tool: "late_subscription_tool",
+    calls: [
+      {
+        message_id: 901,
+        tool_name: "late_subscription_tool",
+        raw_name: "mcp__late_subscription_test__late_subscription_tool",
+        detail: "Existing fallback detail",
+        display_label: "Late subscription tool",
+        progress_label: "Running",
+        raw_payload: {},
+        result_body: JSON.stringify({ status: "ready" }),
+        result_json: { status: "ready" },
+        result_error: false,
+        result_kind: "record",
+        result_summary: ""
+      }
+    ]
+  }
+
+  render(<ToolGroup item={item} />)
+  expect(screen.queryByText("Late registered summary")).not.toBeInTheDocument()
+
+  await act(async () => {
+    registerPluginContribution("tool_card", "late_subscription_test", "LateToolCard", {
+      default: {
+        toolName: "late_subscription_tool",
+        collapsedSummary: () => "Late registered summary",
+        renderExpanded: () => <div>Late registered body</div>
+      }
+    })
+  })
+
+  expect(pluginToolCardRendererFor("late_subscription_tool")).not.toBeNull()
+  await waitFor(() => expect(screen.getByText("Late registered summary")).toBeInTheDocument())
+})
 
 it("renders a background run result above its metadata", () => {
   const item = assistantMessage("Calendar reviewed.")

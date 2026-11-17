@@ -10,17 +10,17 @@ RSpec.describe "plugin frontend contribution registry" do
     app/frontend/pluginReviewContributions.tsx
     app/frontend/pluginReviewAnnotations.tsx
     app/frontend/pluginUiSlots.tsx
+    app/frontend/pluginAgentProviderConnectPanels.tsx
+    app/frontend/pluginArtifactRenderers.tsx
+    app/frontend/pluginChatMessageRenderers.tsx
+    app/frontend/pluginRuntimeSessionViews.tsx
+    app/frontend/pluginToolCards.tsx
   ].freeze
 
   ALLOWED_PLUGIN_GLOB_FILES = %w[
     app/frontend/builtInPluginContributions.ts
     app/frontend/i18n/index.ts
     app/frontend/test/setup.ts
-    app/frontend/pluginAgentProviderConnectPanels.tsx
-    app/frontend/pluginArtifactRenderers.tsx
-    app/frontend/pluginChatMessageRenderers.tsx
-    app/frontend/pluginRuntimeSessionViews.tsx
-    app/frontend/pluginToolCards.tsx
   ].freeze
 
   it "keeps build-time globs out of migrated contribution consumers" do
@@ -33,7 +33,7 @@ RSpec.describe "plugin frontend contribution registry" do
       "migrated consumers must read the shared registry instead of declaring import.meta.glob: #{offenders.join(', ')}"
   end
 
-  it "keeps plugin globs in the built-in feed, pending eager conventions, and locale loading only" do
+  it "keeps plugin globs in the built-in feed and locale loading only" do
     glob_files = Dir[Rails.root.join("app/frontend/**/*.{ts,tsx}")].filter_map do |file|
       source = File.read(file)
       next unless source.include?("import.meta.glob") && source.include?("plugins/*/app/frontend")

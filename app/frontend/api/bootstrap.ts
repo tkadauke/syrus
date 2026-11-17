@@ -51,6 +51,7 @@ export type BootstrapPayload = {
     available_chat_models?: Record<string, ChatModelOption[]>
   }
   app: {
+    enabled_plugins?: string[]
     revision: string
     revision_url: string | null
     // Release version baked into published backend images (SYRUS_VERSION);

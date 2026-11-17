@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it } from "vitest"
 import { pluginWorkspaceTabComponentFor, pluginWorkspaceTabComponentKeys } from "./pluginWorkspaceTabs"
 import { registerPluginContribution } from "./pluginContributionRegistry"
+
+beforeAll(async () => { await import("./builtInPluginContributions") })
 
 describe("plugin workspace tab registry", () => {
   it("discovers installed plugin workspace tab components by component key", () => {

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { TypedArtifact } from "./api/artifacts"
+import { getEagerPluginContributions, subscribeToPluginContributions } from "./pluginContributionRegistry"
 
 // Extension point for custom typed-artifact renderers (the artifact
 // renderer registry contract -- see artifactRendererRegistry.ts).
@@ -86,11 +87,6 @@ type ArtifactRendererModule = { default?: ArtifactRendererDefinition; examples?:
 
 const PLUGIN_RENDERER_PATH_PATTERN = /\/plugins\/([^/]+)\/app\/frontend\/artifact_renderers\//
 
-const rendererModules = import.meta.glob<ArtifactRendererModule>(
-  [ "../../plugins/*/app/frontend/artifact_renderers/*.tsx", "!../../plugins/*/app/frontend/artifact_renderers/*.test.tsx" ],
-  { eager: true }
-)
-
 function isValidDefinition(definition: ArtifactRendererDefinition | undefined): definition is ArtifactRendererDefinition {
   return !!definition && typeof definition.rendererType === "string" && definition.rendererType.length > 0 && typeof definition.render === "function"
 }
@@ -100,12 +96,22 @@ function ownerForRendererPath(path: string): ArtifactRendererOwner {
   return pluginMatch ? { ownerType: "plugin", pluginName: pluginMatch[1] } : { ownerType: "core", pluginName: null }
 }
 
-export const discoveredArtifactRendererEntries: DiscoveredArtifactRendererEntry[] = Object.entries(rendererModules).flatMap(([ path, mod ]) => {
-  const definition = mod.default
-  if (!isValidDefinition(definition)) {
-    console.warn(`[pluginArtifactRenderers] Skipping ${path}: default export is not a valid ArtifactRendererDefinition`)
-    return []
-  }
+function registeredArtifactRendererEntries(): DiscoveredArtifactRendererEntry[] {
+  return getEagerPluginContributions<ArtifactRendererModule>("artifact_renderer").flatMap(({ pluginName, key, value: mod }) => {
+    const path = `../../plugins/${pluginName}/app/frontend/artifact_renderers/${key}.tsx`
+    const definition = mod.default
+    if (!isValidDefinition(definition)) {
+      console.warn(`[pluginArtifactRenderers] Skipping ${path}: default export is not a valid ArtifactRendererDefinition`)
+      return []
+    }
 
-  return [{ definition, owner: ownerForRendererPath(path), examples: mod.examples ?? [], path }]
+    return [{ definition, owner: ownerForRendererPath(path), examples: mod.examples ?? [], path }]
+  })
+}
+
+export const discoveredArtifactRendererEntries = registeredArtifactRendererEntries()
+subscribeToPluginContributions((change) => {
+  if (change.kind !== "artifact_renderer") return
+  const entry = registeredArtifactRendererEntries().find(({ owner, path }) => owner.pluginName === change.pluginName && path.endsWith(`/${change.key}.tsx`))
+  if (entry) discoveredArtifactRendererEntries.push(entry)
 })

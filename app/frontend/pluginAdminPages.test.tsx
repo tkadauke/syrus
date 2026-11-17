@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import * as adminPluginPagesApi from "./api/adminPluginPages"
 import type { AdminPluginPage } from "./api/adminPluginPages"
 import { ThemeProvider } from "./contexts/ThemeContext"
 import { PluginAdminPageRoute, pluginAdminComponentFor, pluginAdminComponentKeys, usePluginAdminPage } from "./pluginAdminPages"
+
+beforeAll(async () => { await import("./builtInPluginContributions") })
 import i18n from "./i18n"
 
 vi.mock("./api/adminPluginPages", () => ({ fetchAdminPluginPages: vi.fn() }))

@@ -100,6 +100,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "user" => { "name" => "Etc/UTC", "mode" => "automatic" }
     )
     expect(body["app"]).to include(
+      "enabled_plugins" => be_an(Array),
       "revision" => "dev",
       "revision_url" => nil,
       "version" => nil,

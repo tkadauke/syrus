@@ -2,7 +2,7 @@ import { useEffect } from "react"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import type { FullSetupStatusPayload } from "../api/setup"
 import { OnboardingRoute } from "../routes/Onboarding"
@@ -46,6 +46,10 @@ vi.mock("./AgentProviderConnectPanel", () => ({
     )
   }
 }))
+
+beforeAll(async () => {
+  await import("../builtInPluginContributions")
+})
 
 vi.mock("../api/credentials", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/credentials")>()

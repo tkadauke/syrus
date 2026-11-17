@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { beforeAll, describe, expect, it, vi } from "vitest"
 import { PluginUiSlotCarousel, pluginUiSlotComponentFor, pluginUiSlotComponentKeys, type UiSlotPanel } from "./pluginUiSlots"
 import { registerPluginContribution } from "./pluginContributionRegistry"
+
+beforeAll(async () => { await import("./builtInPluginContributions") })
 
 describe("pluginUiSlots", () => {
   it("returns null for an unknown component key", () => {
