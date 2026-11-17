@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"strings"
 
@@ -20,7 +21,12 @@ const invocationContextMessage = "Syrus internal CLI authentication is enabled, 
 var chatDebug bool
 
 func Execute() error {
-	return NewRootCommand().Execute()
+	root := NewRootCommand()
+	args := os.Args[1:]
+	if handled, err := resolvePluginCommand(context.Background(), root, args); handled || err != nil {
+		return err
+	}
+	return root.Execute()
 }
 
 func NewRootCommand() *cobra.Command {
@@ -31,6 +37,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:           "syrus",
 		Short:         "Syrus command line client",
+		Long:          "Syrus command line client. Commands may also be discovered from the configured instance or from syrus-<name> executables on PATH.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
