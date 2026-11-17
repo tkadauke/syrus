@@ -26,6 +26,7 @@ RSpec.describe "desktop CLI install" do
     # Naming mirrors Electron's process.platform/process.arch so main.ts can
     # derive the bundled source.
     expect(stage).to match(/goos: "darwin", platform: "darwin", suffix: ""/)
+    expect(stage).to include('credentialOutName = `syrus-credential-${target.platform}-')
     # Missing Go must degrade to a notice in DEV builds, not break packaging.
     expect(stage).to include("skipping CLI bundling")
     # ...but RELEASE builds hard-fail: 0.1.1/0.1.2 shipped with an empty
@@ -40,7 +41,7 @@ RSpec.describe "desktop CLI install" do
 
     config = read("electron-builder.yml")
     # Per-platform filter: mac DMGs carry only darwin binaries.
-    expect(config).to match(%r{mac:[\s\S]{0,1400}- from: resources/cli\s+to: cli\s+filter: \["syrus-darwin-\*"\]})
+    expect(config).to match(%r{mac:[\s\S]{0,1400}- from: resources/cli\s+to: cli\s+filter: \["syrus-darwin-\*", "syrus-credential-darwin-\*"\]})
 
     package = JSON.parse(read("package.json"))
     expect(package.dig("scripts", "build")).to include("stage:cli")
@@ -61,6 +62,8 @@ RSpec.describe "desktop CLI install" do
     # launch-time freshness check and the installer share it.
     expect(main[/const bundledCliPath[\s\S]{0,900}/]).to match(/syrus-\$\{process\.platform\}-/)
     expect(install).to include("const source = bundledCliPath()")
+    expect(install).to include("fs.copyFile(bundledCredentialCliPath(), credentialTarget)")
+    expect(install).to include("fs.copyFile(bundledCredentialCliPath(), credentialAlias)")
     # No credentials writing here: credentialsStore.ts owns
     # ~/.syrus/credentials, and the app already keeps it in the CLI-shared
     # format — the CLI is signed in the moment the binary lands.
