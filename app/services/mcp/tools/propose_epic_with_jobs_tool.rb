@@ -48,11 +48,9 @@ module Mcp::Tools
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again with a
       new slug. Reusing a withdrawn slug is an error.
-      Any `id` in the response is a proposal record ID -- NOT an Epic or Job
-      ID. Never write `EPIC-{id}` or `JOB-{id}` using these numbers. The actual
-      Epic and Job IDs are assigned only when the operator confirms, and will
-      appear as `EPIC-<id>` and `JOB-<id>` in the next turn's system prompt
-      under "Recent proposal activity".
+      A proposal's future Epic and Job IDs are assigned only when the operator
+      confirms, and appear as `EPIC-<id>` and `JOB-<id>` in the next turn's
+      system prompt under "Recent proposal activity".
       To sequence multiple epics, set epic.depends_on_proposal_slugs on each
       dependent epic card — the system resolves slugs to Epic IDs at
       confirmation time, making post-confirmation add_epic_dependency calls
@@ -633,7 +631,6 @@ module Mcp::Tools
       def payload_for(proposal)
         media_previews = media_previews_for(proposal)
         {
-          id: proposal.id,
           slug: proposal.slug,
           title: proposal.title,
           description: proposal.body,
@@ -647,7 +644,6 @@ module Mcp::Tools
           proposer: App::ChatMessagePayload.proposer_json(proposal),
           child_jobs: proposal.child_proposals.map do |child|
             {
-              id: child.id,
               slug: child.slug,
               title: child.title,
               description: child.body,

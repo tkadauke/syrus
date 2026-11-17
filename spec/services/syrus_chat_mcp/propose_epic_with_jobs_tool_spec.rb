@@ -67,7 +67,10 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool, :full_chat_access do
     )
 
     expect(response[:result][:isError]).to be_falsey
-    children = response_payload(response).fetch(:child_jobs).index_by { |child| child.fetch(:slug) }
+    payload = response_payload(response)
+    expect(payload).not_to have_key(:id)
+    expect(payload.fetch(:child_jobs)).to all(satisfy { |child| !child.key?(:id) })
+    children = payload.fetch(:child_jobs).index_by { |child| child.fetch(:slug) }
     expect(children.fetch("urgent-child")).to include(priority: "urgent")
     expect(children.fetch("default-child")).to include(priority: "medium")
     expect(chat_session.proposals.find_by!(slug: "urgent-child")).to have_attributes(priority: "urgent")
@@ -363,7 +366,6 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool, :full_chat_access do
     )
     expect(payload.fetch(:child_jobs)).to include(
       include(
-        id: schema.id,
         slug: "schema",
         title: "Add proposal schema",
         description: "Persist the grouped proposal shape.",
@@ -1561,6 +1563,8 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool, :full_chat_access do
       expect(tool_description).to include("epic.depends_on")
       expect(tool_description).to include("jobs[].depends_on_epic_ids")
       expect(tool_description).to include("ALL child jobs")
+      expect(tool_description).not_to include("`id` in the response")
+      expect(tool_description).to include("future Epic and Job IDs are assigned only when the operator\nconfirms")
     end
 
     it "tells agents Epic children must be landable implementation Jobs" do

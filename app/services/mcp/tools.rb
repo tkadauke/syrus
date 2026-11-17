@@ -156,7 +156,6 @@ module Mcp
 
       def proposal_payload(proposal)
         {
-          id: proposal.id,
           slug: proposal.slug,
           title: proposal.title,
           body: proposal.body,
