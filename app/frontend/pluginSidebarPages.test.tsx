@@ -5,7 +5,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest"
 import * as sidebarPagesApi from "./api/sidebarPages"
 import { PluginSidebarPageRoute, pluginSidebarComponentFor } from "./pluginSidebarPages"
 
-beforeAll(async () => { await import("./builtInPluginContributions") })
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 vi.mock("./api/sidebarPages", () => ({ fetchSidebarPluginPages: vi.fn() }))
 

@@ -4,7 +4,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest"
 import { PluginUiSlotCarousel, pluginUiSlotComponentFor, pluginUiSlotComponentKeys, type UiSlotPanel } from "./pluginUiSlots"
 import { registerPluginContribution } from "./pluginContributionRegistry"
 
-beforeAll(async () => { await import("./builtInPluginContributions") })
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 describe("pluginUiSlots", () => {
   it("returns null for an unknown component key", () => {
