@@ -1,0 +1,73 @@
+import { Component, type ComponentType, type ErrorInfo, type ReactNode } from "react"
+import { buildBrowserErrorPayload, recordBrowserError } from "../api/browserErrors"
+import { computeBrowserErrorFingerprint } from "../lib/browserErrorFingerprint"
+import { useT } from "../hooks/useT"
+import { Button } from "./Button"
+
+function PluginErrorFallback({ pluginName }: { pluginName: string }) {
+  const { t } = useT("common")
+  return (
+    <div className="rounded border border-danger-border bg-danger-bg p-3 text-sm text-danger-text" role="alert">
+      <p className="font-medium">{t("plugin_error.heading", { plugin: pluginName })}</p>
+      <Button className="mt-2" size="sm" variant="secondary" onClick={() => window.location.reload()}>
+        {t("plugin_error.reload")}
+      </Button>
+    </div>
+  )
+}
+
+type State = { failed: boolean }
+
+export class PluginErrorBoundary extends Component<{ children: ReactNode; pluginName: string }, State> {
+  state: State = { failed: false }
+
+  static getDerivedStateFromError(): State {
+    return { failed: true }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    void recordBrowserError(
+      buildBrowserErrorPayload(error, {
+        boundary: `plugin:${this.props.pluginName}`,
+        componentStack: info.componentStack ?? "",
+        fingerprint: computeBrowserErrorFingerprint(error)
+      })
+    ).catch(() => {
+      // Plugin isolation must remain usable when diagnostic delivery fails.
+    })
+  }
+
+  render() {
+    return this.state.failed ? <PluginErrorFallback pluginName={this.props.pluginName} /> : this.props.children
+  }
+}
+
+const wrappedComponents = new WeakMap<ComponentType<object>, Map<string, ComponentType<object>>>()
+
+export function withPluginErrorBoundary<Props extends object>(pluginName: string, Wrapped: ComponentType<Props>): ComponentType<Props> {
+  const cached = wrappedComponents.get(Wrapped as ComponentType<object>)?.get(pluginName)
+  if (cached) return cached as ComponentType<Props>
+  function BoundaryWrappedComponent(props: Props) {
+    return (
+      <PluginErrorBoundary pluginName={pluginName}>
+        <Wrapped {...props} />
+      </PluginErrorBoundary>
+    )
+  }
+  const byPlugin = wrappedComponents.get(Wrapped as ComponentType<object>) ?? new Map<string, ComponentType<object>>()
+  byPlugin.set(pluginName, BoundaryWrappedComponent as ComponentType<object>)
+  wrappedComponents.set(Wrapped as ComponentType<object>, byPlugin)
+  return BoundaryWrappedComponent
+}
+
+function PluginRenderer({ render }: { render: () => ReactNode }) {
+  return render()
+}
+
+export function PluginRenderBoundary({ pluginName, render }: { pluginName: string; render: () => ReactNode }) {
+  return (
+    <PluginErrorBoundary pluginName={pluginName}>
+      <PluginRenderer render={render} />
+    </PluginErrorBoundary>
+  )
+}

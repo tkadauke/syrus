@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it } from "vitest"
 import {
   discoveredToolCardEntries,
   pluginToolCardRendererFor,
@@ -13,6 +13,10 @@ import {
   type ToolCardExample,
   type ToolCardRenderer
 } from "./pluginToolCards"
+
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return {

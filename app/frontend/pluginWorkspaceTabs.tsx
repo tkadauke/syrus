@@ -1,13 +1,16 @@
 import { lazy, type ComponentType } from "react"
 import type { ChatPayload, ChatWorkspaceTab } from "./api/chats"
 import { loadPluginModule } from "./i18n"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
+import "./builtInPluginContributions"
+import { getPluginContribution, getPluginContributions, pluginContributionLoader } from "./pluginContributionRegistry"
 
-// Discovers plugin-supplied chat workspace tab components, the same
-// import.meta.glob-based convention pluginAdminPages.tsx uses for admin
-// pages: a plugin declares tab metadata (id, label, component key) via the
-// :workspace_tab extension point (see Syrus::Plugin::WorkspaceTab), and the
-// component itself lives at plugins/<name>/app/frontend/workspaceTabs/<Name>.tsx,
-// keyed here as "<name>/<Name>".
+// Resolves plugin-supplied chat workspace tab components from the shared
+// contribution registry. A plugin declares tab metadata (id, label, component
+// key) via the :workspace_tab extension point (see
+// Syrus::Plugin::WorkspaceTab), and the component itself lives at
+// plugins/<name>/app/frontend/workspaceTabs/<Name>.tsx, keyed here as
+// "<name>/<Name>".
 //
 // Unlike a standalone admin route (which derives its context from the URL),
 // a workspace tab renders inside one specific chat, so its component
@@ -21,26 +24,12 @@ type PluginModule = {
   default?: ComponentType<PluginWorkspaceTabProps>
 }
 
-const workspaceTabModules = import.meta.glob<PluginModule>([
-  "../../plugins/*/app/frontend/workspaceTabs/*.tsx",
-  "!../../plugins/*/app/frontend/workspaceTabs/*.test.tsx"
-])
-
-const componentLoaders = Object.fromEntries(
-  Object.entries(workspaceTabModules)
-    .map(([path, loader]) => {
-      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/workspaceTabs\/([^/.]+)\.tsx$/)
-      if (!match) return []
-
-      return [`${match[1]}/${match[2]}`, loader]
-    })
-    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
-)
-
 const componentCache = new Map<string, ComponentType<PluginWorkspaceTabProps>>()
 
 export function pluginWorkspaceTabComponentKeys() {
-  return Object.keys(componentLoaders).sort()
+  return getPluginContributions<PluginModule>("workspace_tab")
+    .map(({ pluginName, key }) => `${pluginName}/${key}`)
+    .sort()
 }
 
 export function pluginWorkspaceTabComponentFor(key: string | null | undefined) {
@@ -48,14 +37,16 @@ export function pluginWorkspaceTabComponentFor(key: string | null | undefined) {
   const cached = componentCache.get(key)
   if (cached) return cached
 
-  const loader = componentLoaders[key]
-  if (!loader) return null
+  const [pluginName, componentKey] = key.split("/", 2)
+  const contribution = getPluginContribution<PluginModule>("workspace_tab", pluginName, componentKey)
+  if (!contribution) return null
 
   const Component = lazy(async () => {
-    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
+    const mod = await loadPluginModule(pluginName, pluginContributionLoader(contribution))
     if (!mod.default) throw new Error(`Plugin workspace tab component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }

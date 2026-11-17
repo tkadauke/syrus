@@ -9,19 +9,18 @@ import { StatusBox } from "./credentials/ConnectFlowUi"
 import { pluginAgentProviderConnectPanelProviders } from "../pluginAgentProviderConnectPanels"
 import { AgentProviderConnectPanel } from "./AgentProviderConnectPanel"
 
-const AGENT_PROVIDER_TABS = pluginAgentProviderConnectPanelProviders()
-const INITIAL_TAB = AGENT_PROVIDER_TABS.includes("claude") ? "claude" : (AGENT_PROVIDER_TABS[0] ?? "")
-
 export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<string>(INITIAL_TAB)
+  const agentProviderTabs = pluginAgentProviderConnectPanelProviders()
+  const initialTab = agentProviderTabs.includes("claude") ? "claude" : (agentProviderTabs[0] ?? "")
+  const [tab, setTab] = useState<string>(initialTab)
   // Every provider tab the operator has opened stays mounted (hidden, not
   // unmounted) once visited. Unmounting mid-OAuth-flow (Claude, Codex) would
   // reset that panel's local authStarted/pasted-code state and can force a
   // re-Authorize that rotates the session's PKCE verifier, invalidating a
   // code the operator already copied.
-  const [visitedProviderTabs, setVisitedProviderTabs] = useState<string[]>(AGENT_PROVIDER_TABS.includes(INITIAL_TAB) ? [INITIAL_TAB] : [])
+  const [visitedProviderTabs, setVisitedProviderTabs] = useState<string[]>(agentProviderTabs.includes(initialTab) ? [initialTab] : [])
   // Fires after a connect panel's own credential save/probe succeeds — the
   // one place onboarding auto-enables the plugin behind the provider the
   // operator just connected, so it doesn't have to be toggled on separately
@@ -43,7 +42,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
   function selectTab(nextTab: string) {
     setTab(nextTab)
     connectProvider.reset()
-    if (AGENT_PROVIDER_TABS.includes(nextTab)) {
+    if (agentProviderTabs.includes(nextTab)) {
       setVisitedProviderTabs((current) => (current.includes(nextTab) ? current : [...current, nextTab]))
     }
   }
@@ -82,7 +81,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               analysis) and isn't shown here; it stays configurable from
               Settings. */}
         <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-700" role="tablist">
-          {AGENT_PROVIDER_TABS.map((provider) => (
+          {agentProviderTabs.map((provider) => (
             <button
               aria-selected={tab === provider}
               className={tabClass(tab === provider)}
@@ -114,7 +113,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
           </div>
         ))}
 
-        {connectProvider.isError && AGENT_PROVIDER_TABS.includes(tab) ? <StatusBox tone="warning">{t("configure_agent.auto_enable_error")}</StatusBox> : null}
+        {connectProvider.isError && agentProviderTabs.includes(tab) ? <StatusBox tone="warning">{t("configure_agent.auto_enable_error")}</StatusBox> : null}
       </div>
     </Modal>
   )

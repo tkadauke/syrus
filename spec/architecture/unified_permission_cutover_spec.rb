@@ -13,6 +13,15 @@ RSpec.describe "Unified permission cutover" do
     end
   end
 
+  it "keeps every bundled core registration on an explicit descriptor" do
+    core_registrations = Permissions::CapabilityRegistryValidator.for_application.registrations.select do |registration|
+      registration.source == "core"
+    end
+
+    expect(core_registrations).not_to be_empty
+    expect(core_registrations).to all(have_attributes(explicit_descriptor: true))
+  end
+
   it "has no observational shadow authority path" do
     expect(defined?(Permissions::ShadowEvaluator)).to be_nil
     expect(Rails.root.join("app/services/mcp_tool_registry.rb").read).not_to include("ShadowEvaluator")

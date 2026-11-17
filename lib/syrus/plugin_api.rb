@@ -78,7 +78,6 @@ module Syrus
         display_name display_name_i18n_key description description_i18n_key
         long_description long_description_i18n_key homepage icon_url author category
         version default_enabled disableable experimental home_queue tick_interval prepare_priority
-        capability_descriptor_compatibility
       ].freeze
 
       LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema cli_commands].freeze
@@ -335,7 +334,8 @@ module Syrus
           links: (links if links.any?),
           metrics: (metric_declarations if metric_declarations.any?),
           credential_types: (@credential_types if @credential_types.any?),
-          frontend: (frontend if frontend.any?)
+          frontend: (frontend if frontend.any?),
+          plugin_root: File.expand_path("..", lib_dir)
         }.merge(
           SCALARS.each_with_object({}) { |field, args| args[field] = @scalars[field] unless field == :version }.compact
         ).merge(

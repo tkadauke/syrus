@@ -10,7 +10,16 @@ their triggers are:
 - `prepare_target_side_effect` — target preparation changed protected source.
 - `implementation_capability_escalation` — implementation discovered that its
   declared mutable-workspace placement is inadequate.
-- `agent_cannot_proceed` — an agent reported a concrete environmental blocker.
+- `agent_cannot_proceed` — an agent reported it could not continue. Verified
+  permanent blockers (such as a missing worker binary or unavailable workflow
+  capability) block the Workflow and appear as blocked on the Job; transient
+  timeout, network, resource-pressure, dependency-prepare, and inconclusive
+  grader reports retain this warning but become retryable failures. Retry a
+  genuinely blocked Job to retire its blocked attempt and release its lock, or
+  file the warning's suggested fix Job. Agent-blocked Workflows older than 24
+  hours appear in the admin stuck list through the normal operator-attention
+  channel; set `SYRUS_STALE_AGENT_BLOCKED_WORKFLOW_HOURS` to change that
+  threshold.
 - `review_execution_skipped` — a review could not execute and was skipped under
   the configured policy.
 - `visual_review_blocked` — visual review could not collect required evidence.

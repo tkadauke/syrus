@@ -54,14 +54,6 @@ RSpec.describe Permissions::CoworkerDefaultPolicy do
       expect do
         McpToolRegistry.send(:entry, tool, surface: :coworker, descriptor: unsafe)
       end.to raise_error(ArgumentError, /not fully benign/)
-      expect { McpToolRegistry.send(:entry, tool, surface: :coworker, mutation: true, required_roles: described_class::ROLES) }.not_to raise_error
-    end
-
-    it "gives legacy mutating coworker registrations the ask default" do
-      tool = Class.new(MCP::Tool) { tool_name "future_mutating_coworker_tool" }
-      entry = McpToolRegistry.send(:entry, tool, surface: :coworker, mutation: true, required_roles: described_class::ROLES)
-
-      expect(entry.descriptor.defaults.values.uniq).to eq([ :ask ])
     end
   end
 

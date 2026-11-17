@@ -1,4 +1,12 @@
 class McpToolRegistry
+  ARTIFACT_WORKFLOW_ROLES = [
+    AgentRole::WORKFLOW_IMPLEMENT,
+    AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+    AgentRole::WORKFLOW_REBASE_CONFLICT,
+    AgentRole::WORKFLOW_MANUAL
+  ].freeze
+  ARTIFACT_DESCRIPTOR_ROLES = (AgentRole::CHAT_ROLES + ARTIFACT_WORKFLOW_ROLES).freeze
+
   Entry = Data.define(
     :tool,
     :surface,
@@ -15,8 +23,7 @@ class McpToolRegistry
     :ungated,
     :approval_effect,
     :descriptor,
-    :explicit_descriptor,
-    :compatibility_descriptor
+    :explicit_descriptor
   ) do
     def initialize(available_if: nil, approval_effect: false, **attributes)
       super(available_if: available_if, approval_effect: approval_effect, **attributes)
@@ -29,8 +36,6 @@ class McpToolRegistry
     def read_only?
       !mutation
     end
-
-    def compatibility_descriptor? = compatibility_descriptor
 
     def to_h
       {
@@ -50,7 +55,6 @@ class McpToolRegistry
         approval_effect: approval_effect,
         descriptor: descriptor,
         explicit_descriptor: explicit_descriptor,
-        compatibility_descriptor: compatibility_descriptor,
         read_only: read_only?
       }
     end
@@ -223,13 +227,13 @@ class McpToolRegistry
       [
         ingestion_chat(Mcp::Tools::AttachRepositoryTool, mutation: true),
         ingestion_chat(Mcp::Tools::DetachRepositoryTool, mutation: true),
-        legacy_chat(Mcp::Tools::ProposeEpicTool, mutation: true),
-        legacy_chat(Mcp::Tools::ProposeJobTool, mutation: true),
-        legacy_chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true),
-        legacy_chat(Mcp::Tools::ListProposalsTool),
-        legacy_chat(Mcp::Tools::DeleteProposalTool, mutation: true),
-        legacy_chat(Mcp::Tools::ListPendingActionsTool),
-        legacy_chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::ProposeEpicTool, mutation: true),
+        mutation_chat(Mcp::Tools::ProposeJobTool, mutation: true),
+        mutation_chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true),
+        read_chat(Mcp::Tools::ListProposalsTool),
+        mutation_chat(Mcp::Tools::DeleteProposalTool, mutation: true),
+        read_chat(Mcp::Tools::ListPendingActionsTool),
+        mutation_chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true, default_policy: :allow),
         permission_management_chat(Mcp::Tools::ListPermissionsTool),
         permission_management_chat(Mcp::Tools::RequestPermissionTool, mutation: true, ungated: true),
         permission_management_chat(Mcp::Tools::ExplainPermissionTool),
@@ -240,16 +244,16 @@ class McpToolRegistry
         permission_management_chat(Mcp::Tools::RevokePermissionLeaseTool, mutation: true),
         permission_management_chat(Mcp::Tools::ApplyPermissionPresetTool, mutation: true),
         permission_management_chat(Mcp::Tools::CancelAuthorizationRequestTool, mutation: true),
-        legacy_chat(Mcp::Tools::SetBookmarkTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::ListJobsTool),
-        legacy_chat(Mcp::Tools::SearchJobsTool),
-        legacy_chat(Mcp::Tools::ReadJobTool),
-        legacy_chat(Mcp::Tools::OverrideJobPlannedExecutionTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ReadProviderRoutingRulesTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ExplainProviderRoutingTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::MutateProviderRoutingRulesTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ListEpicsTool),
-        legacy_chat(Mcp::Tools::ReadEpicTool),
+        mutation_chat(Mcp::Tools::SetBookmarkTool, mutation: true, default_policy: :allow),
+        read_chat(Mcp::Tools::ListJobsTool),
+        read_chat(Mcp::Tools::SearchJobsTool),
+        read_chat(Mcp::Tools::ReadJobTool),
+        mutation_chat(Mcp::Tools::OverrideJobPlannedExecutionTool, tier: :deferred, mutation: true),
+        read_chat(Mcp::Tools::ReadProviderRoutingRulesTool, tier: :deferred),
+        read_chat(Mcp::Tools::ExplainProviderRoutingTool, tier: :deferred),
+        mutation_chat(Mcp::Tools::MutateProviderRoutingRulesTool, tier: :deferred, mutation: true),
+        read_chat(Mcp::Tools::ListEpicsTool),
+        read_chat(Mcp::Tools::ReadEpicTool),
         lifecycle_chat(Mcp::Tools::ApproveJobTool, mutation: true),
         lifecycle_chat(Mcp::Tools::CancelJobTool, mutation: true),
         lifecycle_chat(Mcp::Tools::UnlandJobTool, feature_flag: :unlanding, tier: :deferred, mutation: true),
@@ -257,21 +261,21 @@ class McpToolRegistry
         lifecycle_chat(Mcp::Tools::CloseJobSuccessfullyTool, mutation: true),
         lifecycle_chat(Mcp::Tools::RetryJobTool, mutation: true),
         lifecycle_chat(Mcp::Tools::BaseRefreshRetryJobTool, mutation: true),
-        legacy_chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
-        legacy_chat(Mcp::Tools::RepoInfoTool),
+        mutation_chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
+        read_chat(Mcp::Tools::RepoInfoTool),
         lifecycle_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true, approval_effect: true,
           capability: "syrus.jobs", descriptor_roles: AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
           descriptor_default_policies: AgentRole::CHAT_ROLES.index_with { :allow }),
-        legacy_chat(Mcp::Tools::RenameChatTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::PinChatTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::UnpinChatTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::SuggestNextStepTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::AskUserQuestionTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::MarkGoalCompletedTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::MarkGoalBlockedTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::ResetWorkspaceTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::CancelCodingCheckoutTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::CompleteImplementStepTool,
+        mutation_chat(Mcp::Tools::RenameChatTool, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::PinChatTool, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::UnpinChatTool, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::SuggestNextStepTool, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::AskUserQuestionTool, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::MarkGoalCompletedTool, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::MarkGoalBlockedTool, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::ResetWorkspaceTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::CancelCodingCheckoutTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::CompleteImplementStepTool,
           feature_flags_by_role: {
             AgentRole::CHAT_CODING => :coding_mode,
             AgentRole::CHAT_LOCAL => :local_mode
@@ -279,38 +283,38 @@ class McpToolRegistry
           required_roles: [ AgentRole::CHAT_CODING, AgentRole::CHAT_LOCAL ],
           mutation: true),
         operational_chat(Mcp::Tools::EmergencyLandTool, feature_flag: :emergency_land, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::OpenInCodingModeTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::SubmitCodingChangesTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeListSessionsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        legacy_chat(Mcp::Tools::RuntimeStartTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeStatusTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        legacy_chat(Mcp::Tools::RuntimeBuildOrReloadTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeLaunchTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeSnapshotTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeInspectTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        legacy_chat(Mcp::Tools::RuntimeWaitTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        legacy_chat(Mcp::Tools::RuntimeLogsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
-        legacy_chat(Mcp::Tools::RuntimeAcquireControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeReleaseControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeInputTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeCaptureArtifactTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::RuntimeStopTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        legacy_chat(Mcp::Tools::AdminOverviewTool, admin_only: true),
-        legacy_chat(Mcp::Tools::AdminStuckJobsTool, admin_only: true),
-        legacy_chat(Mcp::Tools::AdminQueueDetailTool, admin_only: true),
-        legacy_chat(Mcp::Tools::AdminListProcessesTool, admin_only: true),
-        legacy_chat(Mcp::Tools::AdminListRunsTool, admin_only: true),
-        legacy_chat(Mcp::Tools::AdminListUsersTool, admin_only: true),
-        legacy_chat(Mcp::Tools::AdminVersionTool, admin_only: true),
-        legacy_chat(Mcp::Tools::ReadWorkerHealthTool, admin_only: true),
-        legacy_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, admin_only: true),
-        legacy_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, admin_only: true),
-        legacy_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, admin_only: true),
-        legacy_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, admin_only: true),
-        legacy_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, admin_only: true),
-        legacy_chat(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, admin_only: true),
-        legacy_chat(Mcp::Tools::AdminReadOperationalLogsTool, admin_only: true),
-        legacy_chat(Mcp::Tools::AdminMcpToolUsageTool, admin_only: true),
+        mutation_chat(Mcp::Tools::OpenInCodingModeTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::SubmitCodingChangesTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        read_chat(Mcp::Tools::RuntimeListSessionsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
+        mutation_chat(Mcp::Tools::RuntimeStartTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        read_chat(Mcp::Tools::RuntimeStatusTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
+        mutation_chat(Mcp::Tools::RuntimeBuildOrReloadTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeLaunchTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeSnapshotTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        read_chat(Mcp::Tools::RuntimeInspectTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
+        read_chat(Mcp::Tools::RuntimeWaitTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
+        read_chat(Mcp::Tools::RuntimeLogsTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ]),
+        mutation_chat(Mcp::Tools::RuntimeAcquireControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeReleaseControlTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeInputTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeCaptureArtifactTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        mutation_chat(Mcp::Tools::RuntimeStopTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        read_chat(Mcp::Tools::AdminOverviewTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminStuckJobsTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminQueueDetailTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminListProcessesTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminListRunsTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminListUsersTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminVersionTool, admin_only: true),
+        read_chat(Mcp::Tools::ReadWorkerHealthTool, admin_only: true),
+        read_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, admin_only: true),
+        read_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, admin_only: true),
+        read_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, admin_only: true),
+        read_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, admin_only: true),
+        read_chat(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, admin_only: true),
+        read_chat(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminReadOperationalLogsTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminMcpToolUsageTool, admin_only: true),
         operational_chat(Mcp::Tools::AdminMaintenanceTasksTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::AdminKillProcessTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::AdminReapStaleRunsTool, admin_only: true, mutation: true),
@@ -324,7 +328,7 @@ class McpToolRegistry
         operational_chat(Mcp::Tools::AdminRetryStepTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::AdminCleanupWorkspaceTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::AdminRefreshInstallationsTool, admin_only: true, mutation: true),
-        legacy_chat(Mcp::Tools::AdminGithubAppInstallationDiagnosticTool, admin_only: true),
+        read_chat(Mcp::Tools::AdminGithubAppInstallationDiagnosticTool, admin_only: true),
         operational_chat(Mcp::Tools::ForceFailJobTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::ReconcileJobStateTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::ForceStateTransitionTool, admin_only: true, mutation: true),
@@ -344,80 +348,80 @@ class McpToolRegistry
         operational_chat(Mcp::Tools::MarkCiRepairNoopTool, admin_only: true, mutation: true),
         lifecycle_chat(Mcp::Tools::OverrideLandingBlockerOnceTool, admin_only: true, mutation: true),
         lifecycle_chat(Mcp::Tools::WakeLandingQueueTool, admin_only: true, mutation: true),
-        legacy_chat(Mcp::Tools::InspectProviderCircuitTool, admin_only: true),
+        read_chat(Mcp::Tools::InspectProviderCircuitTool, admin_only: true),
         operational_chat(Mcp::Tools::RepairProviderCircuitEvidenceTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::ClearProviderCircuitTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::WakeProviderAdmissionTool, admin_only: true, mutation: true),
-        legacy_chat(Mcp::Tools::ReadFileTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
+        read_chat(Mcp::Tools::ReadFileTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
         local_mode_chat(Mcp::Tools::WriteFileTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
-        legacy_chat(Mcp::Tools::ListFilesTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
+        read_chat(Mcp::Tools::ListFilesTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
         local_mode_chat(Mcp::Tools::RunCommandTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
-        legacy_chat(Mcp::Tools::GitDiffTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
-        legacy_chat(Mcp::Tools::GitStatusTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
-        legacy_chat(Mcp::Tools::OpenInLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
-        legacy_chat(Mcp::Tools::CancelLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
+        read_chat(Mcp::Tools::GitDiffTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
+        read_chat(Mcp::Tools::GitStatusTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
+        mutation_chat(Mcp::Tools::OpenInLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
+        mutation_chat(Mcp::Tools::CancelLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
         lifecycle_chat(Mcp::Tools::CreateCodingJobTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
-        legacy_chat(Mcp::Tools::UpdatePinnedContextTool, tier: :deferred, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::RemovePinnedContextTool, tier: :deferred, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::ListChatsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ListRepositoriesTool, tier: :deferred),
+        mutation_chat(Mcp::Tools::UpdatePinnedContextTool, tier: :deferred, mutation: true, default_policy: :allow),
+        mutation_chat(Mcp::Tools::RemovePinnedContextTool, tier: :deferred, mutation: true, default_policy: :allow),
+        read_chat(Mcp::Tools::ListChatsTool, tier: :deferred),
+        read_chat(Mcp::Tools::ListRepositoriesTool, tier: :deferred),
         ingestion_chat(Mcp::Tools::GetJobDiffTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::UpdateJobTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ListJobWorkflowsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ReadWorkflowTool, tier: :deferred),
+        mutation_chat(Mcp::Tools::UpdateJobTool, tier: :deferred, mutation: true),
+        read_chat(Mcp::Tools::ListJobWorkflowsTool, tier: :deferred),
+        read_chat(Mcp::Tools::ReadWorkflowTool, tier: :deferred),
         ingestion_chat(Mcp::Tools::ReadRunTranscriptTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ListArtifactsTool, tier: :deferred),
+        read_chat(Mcp::Tools::ListArtifactsTool, tier: :deferred),
         ingestion_chat(Mcp::Tools::ReadArtifactTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ExplainStuckJobTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::AssignJobToEpicTool, tier: :deferred, mutation: true),
+        read_chat(Mcp::Tools::ExplainStuckJobTool, tier: :deferred),
+        mutation_chat(Mcp::Tools::AssignJobToEpicTool, tier: :deferred, mutation: true),
         ingestion_chat(Mcp::Tools::ListOpenIssuesTool, tier: :deferred),
         ingestion_chat(Mcp::Tools::ListOpenPrsTool, tier: :deferred),
         ingestion_chat(Mcp::Tools::SearchChatsTool, tier: :deferred),
         ingestion_chat(Mcp::Tools::ReadChatMessagesTool, tier: :deferred),
         effect_chat(Mcp::Tools::SendChatMessageTool, tier: :deferred, mutation: true),
         effect_chat(Mcp::Tools::SpawnChatsTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ListTagsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::CreateTagTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::AddJobTagTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::RemoveJobTagTool, tier: :deferred, mutation: true),
+        read_chat(Mcp::Tools::ListTagsTool, tier: :deferred),
+        mutation_chat(Mcp::Tools::CreateTagTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::AddJobTagTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::RemoveJobTagTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::RebaseJobTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::ReopenJobTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::PollJobFeedbackTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::RunVisualReviewTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::RunVisualDiffTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::RunVisualReviewTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::RunVisualDiffTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::CheckJobMergeabilityTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::DelegateIssueTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::DelegateIssueTool, tier: :deferred, mutation: true),
         ingestion_chat(Mcp::Tools::ReadPrTool, tier: :deferred),
         lifecycle_chat(Mcp::Tools::UnapproveJobTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::RemoveJobFromEpicTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::RemoveJobFromEpicTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::StartEpicTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::MoveEpicToBacklogTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::ArchiveEpicTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::UpdateEpicTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::AddEpicDependencyTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::RemoveEpicDependencyTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::AddJobDependencyTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::RemoveJobDependencyTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ListRepoDocumentsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ReadRepoDocumentTool, tier: :deferred),
+        mutation_chat(Mcp::Tools::UpdateEpicTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::AddEpicDependencyTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::RemoveEpicDependencyTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::AddJobDependencyTool, tier: :deferred, mutation: true),
+        mutation_chat(Mcp::Tools::RemoveJobDependencyTool, tier: :deferred, mutation: true),
+        read_chat(Mcp::Tools::ListRepoDocumentsTool, tier: :deferred),
+        read_chat(Mcp::Tools::ReadRepoDocumentTool, tier: :deferred),
         effect_chat(Mcp::Tools::CreateRepoDocumentTool, tier: :deferred, mutation: true),
         effect_chat(Mcp::Tools::DeleteRepoDocumentTool, tier: :deferred, mutation: true),
         ingestion_chat(Mcp::Tools::ListChatMediaTool, tier: :deferred),
         effect_chat(Mcp::Tools::SubmitArtifactTool, tier: :deferred, mutation: true),
         effect_chat(Mcp::Tools::ScheduleWakeupTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ListWakeupsTool, tier: :deferred),
+        read_chat(Mcp::Tools::ListWakeupsTool, tier: :deferred),
         effect_chat(Mcp::Tools::CancelWakeupTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::PauseLandingQueueTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::ResumeLandingQueueTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ReadQueueTool, tier: :deferred, admin_only: true),
-        legacy_chat(Mcp::Tools::SearchSyrusDocsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ListDeliveryTracksTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ResolveDeliveryPolicyTool, tier: :deferred),
+        read_chat(Mcp::Tools::ReadQueueTool, tier: :deferred, admin_only: true),
+        read_chat(Mcp::Tools::SearchSyrusDocsTool, tier: :deferred),
+        read_chat(Mcp::Tools::ListDeliveryTracksTool, tier: :deferred),
+        read_chat(Mcp::Tools::ResolveDeliveryPolicyTool, tier: :deferred),
         operational_chat(Mcp::Tools::SelectJobDeliveryTrackTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ListRefMovementActionsTool, tier: :deferred),
+        read_chat(Mcp::Tools::ListRefMovementActionsTool, tier: :deferred),
         operational_chat(Mcp::Tools::DispatchRefMovementActionTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ReadRefMovementStatusTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ClassifyPullRequestTool, tier: :deferred),
+        read_chat(Mcp::Tools::ReadRefMovementStatusTool, tier: :deferred),
+        read_chat(Mcp::Tools::ClassifyPullRequestTool, tier: :deferred),
         ingestion_chat(Mcp::Tools::IngestPullRequestTool, tier: :deferred, mutation: true)
       ]
     end
@@ -479,12 +483,7 @@ class McpToolRegistry
         AgentRole::WORKFLOW_MANUAL
       ]
 
-      artifact_roles = [
-        AgentRole::WORKFLOW_IMPLEMENT,
-        AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-        AgentRole::WORKFLOW_REBASE_CONFLICT,
-        AgentRole::WORKFLOW_MANUAL
-      ]
+      artifact_roles = ARTIFACT_WORKFLOW_ROLES
 
       visual_artifact_roles = artifact_roles + [ AgentRole::WORKFLOW_VISUAL_REVIEWER ]
 
@@ -507,59 +506,61 @@ class McpToolRegistry
       ]
 
       [
-        legacy_workflow(Mcp::Tools::ReadLiveStateTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ReadLiveStateTool, required_roles: workflow_roles,
+          descriptor_roles: workflow_roles + [ AgentRole::AGENT_INSIGHT ]),
+        workflow_action(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles,
+          descriptor_roles: workflow_roles + [ AgentRole::AGENT_INSIGHT ]),
+        workflow_action(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
+        workflow_action(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
+        workflow_action(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
         # Reviewers only see a diff (and, for visual review, a running preview)
         # and cannot distinguish real main-branch regressions from transient
         # infrastructure failures, so granting these would produce false quorum
         # signals.
-        legacy_workflow(Mcp::Tools::ReportCannotProceedTool, capability: :report_cannot_proceed, required_roles: concern_reporting_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitReportTool, capability: :submit_report, required_roles: summary_roles, step_kinds: %w[submit_report], mutation: true),
-        legacy_workflow(Mcp::Tools::InvestigationProposeJobTool, capability: :propose_job, required_roles: [
+        workflow_action(Mcp::Tools::ReportCannotProceedTool, capability: :report_cannot_proceed, required_roles: concern_reporting_roles, mutation: true),
+        workflow_action(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
+        workflow_action(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
+        workflow_action(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
+        workflow_action(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
+        workflow_action(Mcp::Tools::SubmitReportTool, capability: :submit_report, required_roles: summary_roles, step_kinds: %w[submit_report], mutation: true),
+        workflow_action(Mcp::Tools::InvestigationProposeJobTool, capability: :propose_job, required_roles: [
           AgentRole::WORKFLOW_IMPLEMENT,
           AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
         ], step_kinds: %w[investigate submit_report], mutation: true),
-        legacy_workflow(Mcp::Tools::SearchJobsTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ListJobsTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ListOpenPrsTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ReadPrTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ListOpenIssuesTool, required_roles: workflow_roles),
-        legacy_workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
-        legacy_workflow(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
+        workflow_action(Mcp::Tools::SearchJobsTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ListJobsTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ListOpenPrsTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ReadPrTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ListOpenIssuesTool, required_roles: workflow_roles),
+        effect_workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
+        workflow_action(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
         # Only the implementing agent may add work to its own workflow, and
         # WorkflowPatch bounds what "add" means (workflow-engine-v3 A7).
-        legacy_workflow(SyrusMcp::PatchWorkflowTool, capability: :patch_workflow, required_roles: [
+        workflow_action(SyrusMcp::PatchWorkflowTool, capability: :patch_workflow, required_roles: [
           AgentRole::WORKFLOW_IMPLEMENT,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
-        legacy_workflow(SyrusMcp::SubmitVisualArtifactTool, capability: :submit_visual_artifact, required_roles: visual_artifact_roles, mutation: true),
-        legacy_workflow(SyrusMcp::ListArtifactsTool, required_roles: visual_artifact_roles),
-        legacy_workflow(SyrusMcp::ReadArtifactTool, required_roles: visual_artifact_roles),
-        legacy_workflow(Mcp::Tools::RuntimeInspectTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
-        legacy_workflow(Mcp::Tools::RuntimeWaitTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
-        legacy_workflow(Mcp::Tools::RuntimeAcquireControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::RuntimeReleaseControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::RuntimeInputTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::RuntimeSnapshotTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::RuntimeCaptureArtifactTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, step_kinds: %w[refresh_job_metadata], mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
+        workflow_action(SyrusMcp::SubmitVisualArtifactTool, capability: :submit_visual_artifact, required_roles: visual_artifact_roles, mutation: true),
+        workflow_action(SyrusMcp::ListArtifactsTool, required_roles: visual_artifact_roles),
+        workflow_action(SyrusMcp::ReadArtifactTool, required_roles: visual_artifact_roles),
+        workflow_action(Mcp::Tools::RuntimeInspectTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
+        workflow_action(Mcp::Tools::RuntimeWaitTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
+        workflow_action(Mcp::Tools::RuntimeAcquireControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::RuntimeReleaseControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::RuntimeInputTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::RuntimeSnapshotTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::RuntimeCaptureArtifactTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, step_kinds: %w[refresh_job_metadata], mutation: true),
+        workflow_action(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
           AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitSecurityReviewTool, capability: :submit_security_review, required_roles: [
+        workflow_action(Mcp::Tools::SubmitSecurityReviewTool, capability: :submit_security_review, required_roles: [
           AgentRole::WORKFLOW_SECURITY_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitVisualReviewTool, capability: :submit_visual_review, required_roles: [
+        workflow_action(Mcp::Tools::SubmitVisualReviewTool, capability: :submit_visual_review, required_roles: [
           AgentRole::WORKFLOW_VISUAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true)
@@ -567,9 +568,12 @@ class McpToolRegistry
     end
 
     def agent_insight_entries
+      shared_observer_roles = AgentRole::WORKFLOW_ROLES + [ AgentRole::AGENT_INSIGHT ]
       [
-        legacy_entry(Mcp::Tools::ReadLiveStateTool, surface: :agent_insight),
-        legacy_entry(Mcp::Tools::ReadRunWorkerHealthTool, surface: :agent_insight)
+        entry(Mcp::Tools::ReadLiveStateTool, surface: :agent_insight,
+          descriptor: Permissions::WorkflowActions.descriptor_for("read_live_state", required_roles: shared_observer_roles)),
+        entry(Mcp::Tools::ReadRunWorkerHealthTool, surface: :agent_insight,
+          descriptor: Permissions::WorkflowActions.descriptor_for("read_run_worker_health", required_roles: shared_observer_roles))
       ]
     end
 
@@ -579,6 +583,14 @@ class McpToolRegistry
 
     def workflow(tool, **metadata)
       entry(tool, surface: :workflow, **metadata)
+    end
+
+    def workflow_action(tool, **metadata)
+      descriptor_roles = metadata.delete(:descriptor_roles) || metadata.fetch(:required_roles)
+      descriptor = Permissions::WorkflowActions.descriptor_for(
+        tool_name_for(tool), required_roles: descriptor_roles
+      )
+      workflow(tool, **metadata, descriptor:)
     end
 
     # Core coworker tools take their descriptor, and therefore their default
@@ -624,13 +636,6 @@ class McpToolRegistry
       false
     end
 
-    # Compatibility is declared beside the registrations it covers so adding
-    # a new tool through the normal builders fails descriptor validation.
-    def legacy_chat(tool, **metadata) = chat(tool, **metadata, compatibility_descriptor: true)
-    def legacy_workflow(tool, **metadata) = workflow(tool, **metadata, compatibility_descriptor: true)
-    def legacy_coworker(tool, **metadata) = coworker(tool, **metadata, compatibility_descriptor: true)
-    def legacy_entry(tool, **metadata) = entry(tool, **metadata, compatibility_descriptor: true)
-
     def lifecycle_chat(tool, **metadata)
       roles = metadata.delete(:descriptor_roles) || metadata[:required_roles].presence || AgentRole::CHAT_ROLES
       shared_roles = (Array(roles) + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq
@@ -641,9 +646,21 @@ class McpToolRegistry
       chat(tool, **metadata, descriptor:)
     end
 
+    def mutation_chat(tool, **metadata)
+      roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      descriptor = Permissions::ChatMutationActions.descriptor_for(tool_name_for(tool), required_roles: roles)
+      chat(tool, **metadata, descriptor:)
+    end
+
     def operational_chat(tool, **metadata)
       roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
       descriptor = Permissions::OperationalActions.descriptor_for(tool_name_for(tool), required_roles: roles)
+      chat(tool, **metadata, descriptor:)
+    end
+
+    def read_chat(tool, **metadata)
+      roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      descriptor = Permissions::ChatReadActions.descriptor_for(tool_name_for(tool), required_roles: roles)
       chat(tool, **metadata, descriptor:)
     end
 
@@ -660,8 +677,16 @@ class McpToolRegistry
 
     def effect_chat(tool, **metadata)
       roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      roles = ARTIFACT_DESCRIPTOR_ROLES if tool_name_for(tool) == "submit_artifact"
       descriptor = Permissions::EffectActions.descriptor_for(tool_name_for(tool), required_roles: roles)
       chat(tool, **metadata, descriptor:)
+    end
+
+    def effect_workflow(tool, **metadata)
+      roles = metadata[:required_roles].presence || AgentRole::WORKFLOW_ROLES
+      roles = ARTIFACT_DESCRIPTOR_ROLES if tool_name_for(tool) == "submit_artifact"
+      descriptor = Permissions::EffectActions.descriptor_for(tool_name_for(tool), required_roles: roles)
+      workflow(tool, **metadata, descriptor:)
     end
 
     # `ungated` is read by Mcp::CoworkerToolCatalog but was never consulted on
@@ -684,20 +709,22 @@ class McpToolRegistry
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
               required_roles: [], step_kinds: [], capability: nil, available_if: nil, interactive_only: false, mutation: false, ungated: false,
               approval_effect: false,
-              descriptor: nil, compatibility_descriptor: false, default_policy: nil)
+              descriptor: nil, default_policy: nil)
       tool_name = tool_name_for(tool)
       explicit_descriptor = descriptor.present?
-      resolved_descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
-        tool_name: tool_name,
-        capability: capability,
-        mutation: mutation,
-        required_roles: required_roles,
-        admin_only: admin_only,
-        descriptor: descriptor,
-        default_policy: default_policy
-      )
+      resolved_descriptor = if descriptor
+        Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+          tool_name: tool_name,
+          capability: capability,
+          mutation: mutation,
+          required_roles: required_roles,
+          admin_only: admin_only,
+          descriptor: descriptor,
+          default_policy: default_policy
+        )
+      end
       # Invariant: a coworker tool can never silently inherit an unsafe `allow`.
-      Permissions::CoworkerDefaultPolicy.validate!(resolved_descriptor) if surface.to_sym == :coworker
+      Permissions::CoworkerDefaultPolicy.validate!(resolved_descriptor) if surface.to_sym == :coworker && resolved_descriptor
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
@@ -714,8 +741,7 @@ class McpToolRegistry
         ungated: ungated,
         approval_effect: approval_effect,
         descriptor: resolved_descriptor,
-        explicit_descriptor: explicit_descriptor,
-        compatibility_descriptor: compatibility_descriptor
+        explicit_descriptor: explicit_descriptor
       )
     end
 

@@ -56,6 +56,7 @@ import {
   pluginToolCardRendererFor,
   type ToolCardContext
 } from "../../pluginToolCards"
+import { usePluginContributions } from "../../hooks/usePluginContributions"
 import { pluginNamespacesFor } from "../../i18n"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { ProposalCard } from "./ProposalCards"
@@ -102,6 +103,7 @@ export const ChatMessage = memo(function ChatMessage({
   onRetry,
   onSelectWorkspaceTab
 }: ChatMessageProps) {
+  usePluginContributions()
   const { t } = useT("chat")
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
@@ -1182,6 +1184,7 @@ type ToolGroupProps = {
 }
 
 const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, payload, chatMedia, presentation: suppliedPresentation }: ToolGroupProps) {
+  usePluginContributions()
   const { t } = useT("chat")
   const { user: timeZone } = useTimeZones()
   const [open, setOpen] = useState(false)
@@ -1293,6 +1296,7 @@ function PluginToolCardLocaleGate({ namespaces, children }: { namespaces: string
 }
 
 export const ToolGroup = memo(function ToolGroup(props: ToolGroupProps) {
+  usePluginContributions()
   const namespaces = [...new Set(props.item.calls.flatMap((call) => pluginNamespacesFor(pluginToolCardOwnerFor(toolCardName(call)))))]
   if (namespaces.length === 0) return <ToolGroupContent {...props} />
 

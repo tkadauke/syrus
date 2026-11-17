@@ -2,52 +2,69 @@ module SyrusDev
   class PermissionProvider
     include Syrus::Plugin::PermissionProvider
 
-    ROLES = [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].freeze
     CAPABILITY = "syrus_dev.read_diagnostics@v1".freeze
+    WORKFLOW_DEFAULTS = {
+      AgentRole::WORKFLOW_IMPLEMENT => :allow,
+      AgentRole::AGENT_INSIGHT => :allow
+    }.freeze
+    DIAGNOSTIC_ROLES = [
+      AgentRole::WORKFLOW_IMPLEMENT,
+      AgentRole::AGENT_INSIGHT,
+      AgentRole::COWORKER_CHAT,
+      AgentRole::COWORKER
+    ].freeze
+    DIAGNOSTIC_DEFAULTS = WORKFLOW_DEFAULTS.merge(
+      AgentRole::COWORKER_CHAT => :ask,
+      AgentRole::COWORKER => :ask
+    ).freeze
 
     class << self
       def normalize_arguments(arguments)
-        case arguments
-        when Hash
-          arguments.to_h.sort_by { |key, _| key.to_s }
-            .to_h { |key, value| [ key.to_s, normalize_arguments(value) ] }
-        when Array then arguments.map { |value| normalize_arguments(value) }
-        else arguments
-        end
+        arguments.to_h.stringify_keys.slice(
+          "limit", "revision_scope", "include_events", "query", "since",
+          "level", "role", "hostname", "until_time"
+        )
       end
 
       def redact_arguments(arguments)
-        case arguments
-        when Hash
-          arguments.to_h do |key, value|
-            [ key, key.to_s.match?(Permissions::CapabilityDescriptorAdapter::REDACTED_KEYS) ? "[REDACTED]" : redact_arguments(value) ]
-          end
-        when Array then arguments.map { |value| redact_arguments(value) }
-        else arguments
+        normalize_arguments(arguments).tap do |normalized|
+          normalized["query"] = "[REDACTED LOG QUERY]" if normalized.key?("query")
         end
       end
 
-      def register_tool(tool_name)
-        operation = "syrus_dev.read_diagnostics/#{tool_name}@v1"
+      def classifier(operation)
+        ->(_arguments) do
+          { operation:, effects: %i[confidential_read], risk: :medium, confidence: :certain }
+        end
+      end
+
+      def register_read(operation:, roles:, defaults:)
         register_capability(
-          capability: CAPABILITY,
-          operation:,
+          capability: CAPABILITY, operation:,
           presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
-          effects: %i[confidential_read],
-          risk: :medium,
-          requestable_roles: ROLES,
-          defaults: ROLES.index_with { :ask },
-          maximum_autonomy: :permanent,
-          authority_durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
-          resource_scope: { type: :none },
-          classifier: ->(_arguments) { { operation:, effects: %i[confidential_read], risk: :medium, confidence: :certain } },
-          fingerprint_normalizer: method(:normalize_arguments),
+          effects: %i[confidential_read], risk: :medium,
+          requestable_roles: roles, defaults:, maximum_autonomy: :job,
+          authority_durations: %i[invocation chat_session job], resource_scope: { type: :none },
+          classifier: classifier(operation), fingerprint_normalizer: method(:normalize_arguments),
           redactor: method(:redact_arguments)
         )
       end
     end
 
-    register_tool "read_performance_diagnostics"
-    register_tool "read_syrus_logs"
+    register_read(
+      operation: "syrus_dev.performance/read@v1",
+      roles: [ AgentRole::WORKFLOW_IMPLEMENT, AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
+      defaults: DIAGNOSTIC_DEFAULTS.except(AgentRole::AGENT_INSIGHT)
+    )
+    register_read(
+      operation: "syrus_dev.logs/search@v1",
+      roles: DIAGNOSTIC_ROLES,
+      defaults: DIAGNOSTIC_DEFAULTS
+    )
+    register_read(
+      operation: "syrus_dev.workspace_reuse/read@v1",
+      roles: [ AgentRole::WORKFLOW_IMPLEMENT ],
+      defaults: WORKFLOW_DEFAULTS.except(AgentRole::AGENT_INSIGHT)
+    )
   end
 end

@@ -22,15 +22,37 @@ RSpec.describe Syrus::ViteEntrypoint do
     end
   end
 
+  it "maps the public plugin host modules to their content-hashed entries" do
+    sources = {
+      "app/frontend/main.tsx" => { "file" => "spa-entry-main.digested.js", "isEntry" => true },
+      "app/frontend/pluginHost/react.ts" => { "file" => "react.digested.js", "isEntry" => true },
+      "app/frontend/pluginHost/reactJsxRuntime.ts" => { "file" => "jsx.digested.js", "isEntry" => true },
+      "app/frontend/pluginHost/reactDom.ts" => { "file" => "dom.digested.js", "isEntry" => true },
+      "app/frontend/pluginHost/reactDomClient.ts" => { "file" => "dom-client.digested.js", "isEntry" => true },
+      "app/frontend/pluginHost/reactQuery.ts" => { "file" => "query.digested.js", "isEntry" => true },
+      "app/frontend/pluginHost/i18next.ts" => { "file" => "i18next.digested.js", "isEntry" => true },
+      "app/frontend/pluginHost/reactI18next.ts" => { "file" => "react-i18next.digested.js", "isEntry" => true },
+      "app/frontend/pluginHost/sdk.ts" => { "file" => "sdk.digested.js", "isEntry" => true }
+    }
+
+    with_manifest(sources.to_json) do |entrypoint|
+      expect(entrypoint.plugin_import_map.fetch("imports")).to include(
+        "react" => "/assets/react.digested.js",
+        "react/jsx-runtime" => "/assets/jsx.digested.js",
+        "@syrus/plugin-sdk" => "/assets/sdk.digested.js"
+      )
+    end
+  end
+
   it "explains how to produce the manifest when the SPA has not been built" do
     with_manifest(nil) do |entrypoint|
       expect { entrypoint.file }.to raise_error(described_class::Missing, /npm run build/)
     end
   end
 
-  it "refuses a manifest without exactly one entry" do
+  it "refuses a manifest without the application entry" do
     with_manifest({ "_vendor" => { "file" => "spa-vendor-Zz9_ab-c.digested.js" } }.to_json) do |entrypoint|
-      expect { entrypoint.file }.to raise_error(described_class::Missing, /0 entries/)
+      expect { entrypoint.file }.to raise_error(described_class::Missing, /does not list/)
     end
   end
 end

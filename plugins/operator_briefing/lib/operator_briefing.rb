@@ -6,7 +6,6 @@ module OperatorBriefing
   SEVERITIES = %w[informational fyi decision_required attention_debt].freeze
 
   syrus_plugin "operator_briefing" do
-    capability_descriptor_compatibility mcp_tool_set: "7faa47c5163c55fbf0bfab45e19b46b9392c2e01fbf83942d2f0bd6f63a91742"
     experimental true
     display_name "Operator Briefing"
     description "Per-repository operator briefings and blocked-on-you signals."
@@ -20,6 +19,7 @@ module OperatorBriefing
     depends_on [ "agent_memory", "design_docs" ]
 
     provides mcp_tool_set: "OperatorBriefing::McpToolSet",
+             permission_provider: "OperatorBriefing::PermissionProvider",
              workflow_kinds: "OperatorBriefing::WorkflowKinds",
              sidebar_page: "OperatorBriefing::SidebarPages",
              callbacks: "OperatorBriefing::Callbacks"

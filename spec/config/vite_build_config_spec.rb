@@ -25,7 +25,8 @@ RSpec.describe "Vite build config" do
         manifest: result.config.build.manifest,
         sourcemap: result.config.build.sourcemap,
         excalidrawAssetPath: fontsConfig.define.__EXCALIDRAW_ASSET_PATH__,
-        entryFileNames: output.entryFileNames,
+        entryFileNames: output.entryFileNames({ name: "main" }),
+        pluginHostEntryFileNames: output.entryFileNames({ name: "plugin-host-react" }),
         chunkFileNames: output.chunkFileNames,
         assetFileNames: output.assetFileNames,
         nonVendor: manualChunks("/repo/app/frontend/main.tsx") ?? null,
@@ -59,6 +60,7 @@ RSpec.describe "Vite build config" do
     expect(config.fetch("base")).to eq("/assets/")
     expect(config.fetch("manifest")).to be(true)
     expect(config.fetch("entryFileNames")).to eq("spa-entry-[hash].digested.js")
+    expect(config.fetch("pluginHostEntryFileNames")).to eq("spa-[name]-[hash].digested.js")
     expect(config.fetch("chunkFileNames")).to eq("spa-[name]-[hash].digested.js")
     expect(config.fetch("assetFileNames")).to eq("spa-[name]-[hash].digested[extname]")
   end
@@ -69,7 +71,7 @@ RSpec.describe "Vite build config" do
   # graph is only valid if Propshaft serves each file under the exact name
   # Vite wrote. Vite hashes are base64url, so they may contain `-` and `_`.
   it "names every Vite output so Propshaft publishes it unchanged" do
-    %w[entryFileNames chunkFileNames assetFileNames].each do |key|
+    %w[entryFileNames pluginHostEntryFileNames chunkFileNames assetFileNames].each do |key|
       [ "Ab-_9xYz", "DuQfn8Z1", "-_-_-_-_" ].each do |hash|
         logical_path = config.fetch(key)
           .gsub("[name]", "INSIGHT.InsightPreviewCard")

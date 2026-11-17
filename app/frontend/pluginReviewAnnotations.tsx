@@ -1,9 +1,12 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react"
 import type { DiffReviewAnnotation, DiffReviewAnnotationAction, DiffReviewAnnotationPanel } from "./api/jobs"
 import { Button, buttonClasses } from "./components/Button"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { useT } from "./hooks/useT"
 import { Markdown } from "./lib/Markdown"
 import { loadPluginModule } from "./i18n"
+import "./builtInPluginContributions"
+import { getPluginContribution, getPluginContributions, pluginContributionLoader } from "./pluginContributionRegistry"
 
 export type PluginReviewAnnotationComponentProps = {
   item: DiffReviewAnnotation | DiffReviewAnnotationPanel | DiffReviewAnnotationAction
@@ -16,25 +19,8 @@ type PluginModule = {
   default?: ComponentType<PluginReviewAnnotationComponentProps>
 }
 
-const annotationModules = import.meta.glob<PluginModule>([
-  "../../plugins/*/app/frontend/review_annotations/*.tsx",
-  "!../../plugins/*/app/frontend/review_annotations/*.test.tsx"
-])
-
-export const pluginReviewAnnotationComponentKeys = Object.keys(annotationModules)
-  .map((path) => path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/review_annotations\/([^/.]+)\.tsx$/))
-  .filter((match): match is RegExpMatchArray => Boolean(match))
-  .map((match) => `${match[1]}/${match[2]}`)
-
-const componentLoaders = Object.fromEntries(
-  Object.entries(annotationModules)
-    .map(([path, loader]) => {
-      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/review_annotations\/([^/.]+)\.tsx$/)
-      if (!match) return []
-
-      return [`${match[1]}/${match[2]}`, loader]
-    })
-    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
+export const pluginReviewAnnotationComponentKeys = getPluginContributions<PluginModule>("review_annotation").map(
+  ({ pluginName, key }) => `${pluginName}/${key}`
 )
 
 const componentCache = new Map<string, ComponentType<PluginReviewAnnotationComponentProps>>()
@@ -44,16 +30,18 @@ export function pluginReviewAnnotationComponentFor(key: string | null | undefine
   const cached = componentCache.get(key)
   if (cached) return cached
 
-  const loader = componentLoaders[key]
-  if (!loader) return null
+  const [pluginName, componentKey] = key.split("/", 2)
+  const contribution = getPluginContribution<PluginModule>("review_annotation", pluginName, componentKey)
+  if (!contribution) return null
 
   const Component = lazy(async () => {
-    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
+    const mod = await loadPluginModule(pluginName, pluginContributionLoader(contribution))
     if (!mod.default) throw new Error(`Plugin review annotation component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }
 
 export function renderPluginReviewAnnotation(

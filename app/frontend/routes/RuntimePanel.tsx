@@ -20,6 +20,7 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { Button } from "../components/Button"
 import { errorMessage } from "../lib/errorMessage"
 import { pluginRuntimeSessionViewComponentFor, runtimeSessionInputEnabled } from "../pluginRuntimeSessionViews"
+import { usePluginContributions } from "../hooks/usePluginContributions"
 
 const LOG_POLL_INTERVAL_MS = 4_000
 const SESSION_POLL_INTERVAL_MS = 5_000
@@ -447,6 +448,7 @@ function ControlPanel({
 }
 
 function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; session: RuntimeSession }) {
+  usePluginContributions()
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [myLease, setMyLease] = useState<RuntimeControlLease | null>(null)

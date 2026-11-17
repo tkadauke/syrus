@@ -1,6 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react"
 import { ChevronIcon } from "./components/ChevronIcon"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { loadPluginModule } from "./i18n"
+import "./builtInPluginContributions"
+import { getPluginContribution, getPluginContributions, pluginContributionLoader } from "./pluginContributionRegistry"
 
 type PluginModule = {
   default?: ComponentType<Record<string, unknown>>
@@ -18,29 +21,22 @@ export type UiSlotPanel = {
 }
 
 const corePanelModules = import.meta.glob<PluginModule>(["./ui_slots/*.tsx", "!./ui_slots/*.test.tsx"])
-const pluginPanelModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/ui_slots/*.tsx", "!../../plugins/*/app/frontend/ui_slots/*.test.tsx"])
 
-const componentLoaders = Object.fromEntries(
-  [
-    ...Object.entries(corePanelModules).map(([path, loader]) => {
+const coreComponentLoaders = Object.fromEntries(
+  Object.entries(corePanelModules)
+    .map(([path, loader]) => {
       const match = path.match(/^\.\/ui_slots\/([^/.]+)\.tsx$/)
       if (!match) return []
 
       return [`core/${match[1]}`, loader]
-    }),
-    ...Object.entries(pluginPanelModules).map(([path, loader]) => {
-      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/ui_slots\/([^/.]+)\.tsx$/)
-      if (!match) return []
-
-      return [`${match[1]}/${match[2]}`, loader]
     })
-  ].filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType<Record<string, unknown>>>()
 
 export function pluginUiSlotComponentKeys() {
-  return Object.keys(componentLoaders).sort()
+  return [...Object.keys(coreComponentLoaders), ...getPluginContributions<PluginModule>("ui_slot").map(({ pluginName, key }) => `${pluginName}/${key}`)].sort()
 }
 
 export function pluginUiSlotComponentFor(key: string | null | undefined) {
@@ -48,17 +44,19 @@ export function pluginUiSlotComponentFor(key: string | null | undefined) {
   const cached = componentCache.get(key)
   if (cached) return cached
 
-  const loader = componentLoaders[key]
-  if (!loader) return null
+  const [pluginName, componentKey] = key.split("/", 2)
+  const coreLoader = pluginName === "core" ? coreComponentLoaders[key] : undefined
+  const contribution = pluginName === "core" ? undefined : getPluginContribution<PluginModule>("ui_slot", pluginName, componentKey)
+  if (!coreLoader && !contribution) return null
 
   const Component = lazy(async () => {
-    const plugin = key.split("/", 1)[0]
-    const mod = plugin === "core" ? await loader() : await loadPluginModule(plugin, loader)
+    const mod = coreLoader ? await coreLoader() : await loadPluginModule(pluginName, pluginContributionLoader(contribution!))
     if (!mod.default) throw new Error(`Plugin UI slot component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = pluginName === "core" ? Component : withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }
 
 // Renders whatever core or plugin code contributed to one slot on a page. A panel

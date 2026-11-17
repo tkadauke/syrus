@@ -7,7 +7,7 @@ RSpec.describe Permissions::IngestionActions do
     described_class.tool_names.each do |tool_name|
       entry = chat_entries.fetch(tool_name)
 
-      expect(entry).to have_attributes(explicit_descriptor: true, compatibility_descriptor: false)
+      expect(entry).to have_attributes(explicit_descriptor: true)
       expect(entry.descriptor.classify({})).to include(confidence: :certain)
     end
   end

@@ -14,6 +14,8 @@ import { installStaleChunkRecovery } from "./lib/staleChunkRecovery"
 import { configureExcalidrawAssets } from "./lib/excalidrawAssets"
 import { StartupRenderMarker } from "./lib/StartupRenderMarker"
 import { createQueryClient } from "./queryClient"
+import "./builtInPluginContributions"
+import { loadExternalPluginFrontends } from "./externalPluginFrontends"
 
 installStaleChunkRecovery()
 configureExcalidrawAssets()
@@ -24,8 +26,14 @@ markStartupMilestone("react_module_evaluated")
 const root = document.getElementById("syrus-spa-root")
 const queryClient = createQueryClient()
 
-if (root) {
+async function renderApplication() {
   try {
+    await loadExternalPluginFrontends()
+    if (!root) {
+      reportStartupFailure("root_mount", new Error("SPA root element is missing"))
+      return
+    }
+
     createRoot(root).render(
       <StrictMode>
         <I18nextProvider i18n={i18n}>
@@ -45,6 +53,6 @@ if (root) {
   } catch (error) {
     reportStartupFailure("root_mount", error)
   }
-} else {
-  reportStartupFailure("root_mount", new Error("SPA root element is missing"))
 }
+
+void renderApplication()

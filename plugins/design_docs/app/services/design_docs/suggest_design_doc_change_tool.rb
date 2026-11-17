@@ -71,6 +71,8 @@ module DesignDocs
         success(suggestion_payload(result))
       rescue ActiveRecord::RecordNotFound
         invalid("design doc not found in this agent context: #{doc_ref}. Use DOC-<id> references from list_design_docs.")
+      rescue DesignDocs::CreateSuggestion::PendingOverlap => e
+        invalid(e.message)
       rescue ActiveRecord::RecordInvalid => e
         invalid(e.record.errors.full_messages.to_sentence)
       rescue Pundit::NotAuthorizedError

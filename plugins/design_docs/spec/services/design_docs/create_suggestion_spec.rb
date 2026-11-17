@@ -45,4 +45,29 @@ RSpec.describe DesignDocs::CreateSuggestion do
     expect(DesignDocs::CommentBroadcaster).to have_received(:call)
       .with(design_doc: doc, changed: [ "suggestions" ]).twice
   end
+
+  it "checks for a competing overlap only after acquiring the design doc lock" do
+    competing = described_class.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+    ).suggestion
+    locked_doc = doc.reload
+    service = described_class.new(
+      design_doc: locked_doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "gamma" }
+    )
+
+    expect(locked_doc).to receive(:lock!).ordered.and_call_original
+    expect(service).to receive(:validate_pending_overlap!).ordered.and_call_original
+
+    expect {
+      service.call
+    }.to raise_error(DesignDocs::CreateSuggestion::PendingOverlap) { |error|
+      expect(error.suggestion).to eq(competing)
+    }
+
+    expect(locked_doc.suggestions.where(state: "pending")).to contain_exactly(competing)
+  end
 end

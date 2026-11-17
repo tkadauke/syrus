@@ -15,6 +15,19 @@ const pluginLocaleModules = import.meta.glob<LocaleModule>("../../../plugins/*/a
 const localeLoaders = new Map<string, LocaleLoader>()
 const pluginNamespaces = new Map<string, Set<string>>()
 
+for (const frontend of readInitialBootstrap()?.app.external_plugin_frontends ?? []) {
+  for (const locale of frontend.locales ?? []) {
+    localeLoaders.set(`${locale.locale}:${locale.namespace}`, async () => {
+      const response = await fetch(locale.url, { credentials: "same-origin" })
+      if (!response.ok) throw new Error(`Could not load plugin locale ${locale.locale}:${locale.namespace}`)
+      return { default: (await response.json()) as ResourceLanguage }
+    })
+    const namespaces = pluginNamespaces.get(frontend.name) ?? new Set<string>()
+    namespaces.add(locale.namespace)
+    pluginNamespaces.set(frontend.name, namespaces)
+  }
+}
+
 for (const [path, loader] of Object.entries(coreLocaleModules)) {
   const match = path.match(/\/locales\/([^/]+)\/([^/.]+)\.json$/)
   if (match) localeLoaders.set(`${match[1]}:${match[2]}`, loader)

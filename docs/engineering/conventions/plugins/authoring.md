@@ -1057,11 +1057,8 @@ identity. Removing a key requires an alias, a scope migration, or a durable
 `retire_permission_identifier` declaration. Retired keys remain reserved and
 cannot later be reused as canonical identifiers or aliases.
 Diagnostics identify the plugin provider, surface, and tool when mappings or
-descriptor contracts conflict. A plugin with pre-contract definitions may
-temporarily declare frozen `capability_descriptor_compatibility` digests in its
-own manifest, keyed by `mcp_tool_set` or `chat_mcp_tool_set`. Changing that
-inventory requires migrating the affected definitions explicitly; core never
-names plugin providers or carries their compatibility inventories.
+descriptor contracts conflict. Missing and malformed explicit descriptors fail
+registry validation; plugin inventories have no compatibility bypass.
 Resource scopes use `Permissions::ResourceScopeSchema`. Providers own the
 resource-specific lookup and scope hooks, while core canonicalizes normalized
 JSON, runs validation, and exposes uniform label and comparison results. Every
@@ -1816,6 +1813,34 @@ provider can replace that implementation without moving persistence logic into
 the generic chat job.
 
 ## `workspace_tab`
+
+### External frontend bundles
+
+An installed plugin outside this repository may ship a prebuilt ESM frontend
+without rebuilding core. Declare paths relative to the plugin root:
+
+```ruby
+frontend bundle: "dist/frontend/plugin.js", css: "dist/frontend/plugin.css"
+```
+
+Run `bin/build-plugin-frontend <plugin-dir>` in a Syrus checkout to build the
+conventional `frontend/entry.tsx` entry. It emits `dist/frontend/plugin.js`,
+optional `plugin.css`, and `manifest.json` containing the declaration above.
+The entry registers components with `registerPluginContribution` from
+`@syrus/plugin-sdk`.
+
+The frontend host contract consists only of `react` (including
+`react/jsx-runtime`), `react-dom` (including `react-dom/client`),
+`@tanstack/react-query`, `i18next`, `react-i18next`, and
+`@syrus/plugin-sdk`. Plugin builds must externalize these imports so the host
+and plugin share one runtime instance. All other dependencies belong in the
+plugin bundle. External CSS is likewise plugin-owned; core does not compile a
+plugin's Tailwind classes.
+
+Only enabled, healthy plugins are advertised or served. Asset URLs carry a
+content hash and are immutable-cacheable. The browser loads external bundles
+before rendering and skips a bundle that throws, leaving the rest of the app
+available.
 
 Lets a plugin add a tab to the chat sidebar's workspace panel, generalizing
 what used to be a hardcoded closed union (`WorkspaceTab` in

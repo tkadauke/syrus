@@ -88,6 +88,21 @@ suppressed when there is no evidence or the plugin is already enabled.
 
 ## Where plugin documentation lives
 
+## External plugin frontends
+
+Plugins installed outside the Syrus repository can provide a prebuilt browser
+bundle and stylesheet. Syrus loads these assets at startup only while the
+plugin is enabled and healthy. A broken external bundle is logged and skipped;
+it does not prevent the application from opening. Plugin styles are
+self-contained and cannot rely on Syrus compiling plugin-specific Tailwind
+classes.
+
+Plugin authors build the conventional `frontend/entry.tsx` file with
+`bin/build-plugin-frontend <plugin-dir>`. The bundle may import the host's
+React, React DOM, TanStack Query, i18next, react-i18next, and
+`@syrus/plugin-sdk` modules; those dependencies must remain external rather
+than being copied into the plugin bundle.
+
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore
 removes its documentation too.

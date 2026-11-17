@@ -39,7 +39,8 @@ module AgentInsights
       {
         name: klass.tool_name,
         description: klass.description_value,
-        input_schema: klass.input_schema_value.to_h
+        input_schema: klass.input_schema_value.to_h,
+        capability_descriptor: PermissionProvider.capability_descriptor(PermissionProvider::OPERATIONS.fetch(klass.tool_name))
       }
     end
 

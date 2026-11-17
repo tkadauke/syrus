@@ -63,4 +63,55 @@ RSpec.describe Mcp::Tools::ReportCannotProceedTool do
     expect(workflow.reload.artifact("cannot_proceed").fetch("reason").length).to eq(Mcp::Tools::ReportCannotProceedTool::MAX_REASON_LENGTH)
     expect(job.reload.needs_attention_reason).to eq("agent_cannot_proceed")
   end
+
+  it "classifies timeout reports as retryable failures without attention-marking the Job" do
+    response = call(
+      reason: "The required grader timed out without reporting a failing example",
+      details: "All other graders passed."
+    )
+
+    expect(response.content.first[:text]).to include("retryable timeout failure")
+    expect(workflow.reload.artifact("cannot_proceed")).to include(
+      "disposition" => "failed",
+      "failure_classification" => "timeout",
+      "retryable" => true
+    )
+    expect(job.reload.needs_attention_reason).to be_nil
+    expect(WorkflowWarning.last).to have_attributes(kind: "agent_cannot_proceed")
+  end
+
+  it "classifies network reports as retryable failures" do
+    call(reason: "Dependency preparation failed with a network error", details: "proxy connection reset")
+
+    expect(workflow.reload.artifact("cannot_proceed")).to include(
+      "disposition" => "failed",
+      "failure_classification" => "provider_transient",
+      "retryable" => true
+    )
+    expect(job.reload.needs_attention_reason).to be_nil
+  end
+
+  it "does not reuse a previous retryable classification for a permanent blocker" do
+    previous_run = run.step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: run.trigger_kind,
+      state: "failed"
+    )
+    RunFailureClassification.create!(
+      run: previous_run,
+      classification: "timeout",
+      retryable: true,
+      classified_at: Time.current
+    )
+
+    call(reason: "A required binary is missing from the worker image")
+
+    expect(workflow.reload.artifact("cannot_proceed")).to include(
+      "disposition" => "blocked",
+      "failure_classification" => "application_error",
+      "retryable" => false
+    )
+    expect(job.reload.needs_attention_reason).to eq("agent_cannot_proceed")
+  end
 end

@@ -15,11 +15,12 @@ module SyrusRails
 
     def self.tool_definitions
       TOOL_CLASSES.map do |klass|
-        {
+        definition = {
           name: klass.tool_name,
           description: klass.description_value,
           input_schema: klass.input_schema_value.to_h
         }
+        definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
       end
     end
 

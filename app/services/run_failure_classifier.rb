@@ -243,14 +243,14 @@ class RunFailureClassifier
       # Steps::Grader now says so outright when it killed the grader on time.
       # The inferential signals below stay as the fallback for runs recorded
       # before that, and for kills it cannot see.
-      return true if text_match?(/grader \S+ timed out/i)
+      return true if text_match?(/grader \S+ timed out|no failing example (?:was )?reported|without reporting a failing example|slow[- ]but[- ]passing grader/i)
 
       return GraderFailureSignal.timeout_like_step?(run.step)
     end
 
     run.agent_outcome.to_s.match?(/timeout|timed_out/) ||
     diagnostic&.error_class.to_s.match?(/Timeout/) ||
-      text_match?(/timed out|timeout|execution expired/i) ||
+      text_match?(/timed out|timeout|execution expired|read timeout|connect timeout/i) ||
       spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
   end
 
