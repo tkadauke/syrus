@@ -10,6 +10,24 @@ same app and admin JSON APIs as the React UI, but keeps the common
 operator loop close to the checkout: chat with Syrus, review inbox items,
 open PRs, check out Job branches, and print test plans.
 
+## Plugin commands
+
+When a command is not built in, the CLI asks the configured Syrus instance
+for commands declared by its enabled, healthy plugins. Those declarations can
+add nested commands, positional arguments, typed flags, validation, defaults,
+and command help without rebuilding the CLI. The catalog is cached separately
+for each instance, refreshed after a short interval with HTTP ETags, and the
+last cached copy remains usable when the instance is temporarily offline.
+Built-in commands, including commands compiled into the current CLI release,
+always win if paths collide.
+
+For commands that need local behavior, the CLI next searches `PATH` for an
+executable named after the command path. For example, `syrus acme scan ./src`
+prefers `syrus-acme-scan` and then `syrus-acme`, passing the unmatched arguments
+to the executable. The child receives the selected instance and token as
+`SYRUS_URL` and `SYRUS_TOKEN`. Only install `syrus-*` executables you trust;
+they run with your normal local permissions and Syrus credentials.
+
 ## Installed with the desktop app
 
 If you run the [Syrus desktop app](/docs/desktop), you don't need a
