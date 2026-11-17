@@ -42,7 +42,8 @@ RSpec.describe "Coworkers plugin" do
       "20261104120818_migrate_coworker_grants_to_permission_rules.rb",
       "20261104140858_add_unsaved_workspace_to_coworker_chats.rb",
       "20261106105035_create_coworker_review_contexts.rb",
-      "20261117201026_add_mention_sessions_to_coworker_chats.rb"
+      "20261117201026_add_mention_sessions_to_coworker_chats.rb",
+      "20261117202643_add_mention_owner_destinations_and_after_reply.rb"
     )
   end
 

@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe Coworkers::MentionSession do
+  include ActiveJob::TestHelper
+
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:source_chat) { ChatSession.create!(user: owner, repository: repository, title: "Planning") }
@@ -92,7 +94,7 @@ RSpec.describe Coworkers::MentionSession do
     expect(coworker.received_chat_shares.reload).to be_empty
   end
 
-  it "delivers the final reply once as the coworker without waking the planner" do
+  it "delivers the final reply once and wakes the planner once by default" do
     source = source_message("@maya-mentions help")
     link = described_class.find_or_create!(coworker: coworker, source_chat: source_chat)
     incoming = described_class.deliver!(link: link, source_message: source)
@@ -103,7 +105,79 @@ RSpec.describe Coworkers::MentionSession do
     reply = source_chat.messages.where(role: "assistant").sole
     expect(reply.content).to include("text" => "Done.", "source" => "coworker_message")
     expect(reply.content.dig("coworker_message", "sender_id")).to eq(coworker.id)
+    wake = source_chat.messages.where(role: "system").find_by!("content ->> '$.source' = ?", Coworkers::AfterReplyPolicy::Wake::SOURCE)
+    expect(wake.content).to include("coworker_reply_message_id" => reply.id)
+    expect(source_chat.reload).to be_turn_in_flight
+    expect(enqueued_jobs.count { |job| job.fetch(:job) == ChatTurnJob && job.fetch(:args) == [ source_chat.id, wake.id ] }).to eq(1)
+  end
+
+  it "delivers a quiet reply without waking the planner" do
+    Coworkers::ChatAgent.find_by!(chat_session: source_chat, coworker: coworker).update!(after_reply: "quiet")
+    source = source_message("@maya-mentions help")
+    link = described_class.find_or_create!(coworker: coworker, source_chat: source_chat)
+    incoming = described_class.deliver!(link: link, source_message: source)
+    link.chat_session.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Done." } ])
+
+    Coworkers::MessageReply.after_chat_turn(chat_session: link.chat_session, user_message: incoming, turn_succeeded: true)
+
+    expect(source_chat.messages.where(role: "assistant").count).to eq(1)
+    expect(source_chat.messages.where(role: "system")).to be_empty
     expect(source_chat.reload).not_to be_turn_in_flight
+  end
+
+  it "does not wake beyond the shared coworker hop cap" do
+    source = source_chat.messages.create!(
+      role: "assistant",
+      content: {
+        "text" => "@maya-mentions final hop",
+        "source" => "coworker_message",
+        "coworker_message" => { "hop_count" => Coworkers::MessageDispatcher::MAX_HOPS - 1 }
+      },
+      skip_turn_trigger: true
+    )
+    link = described_class.find_or_create!(coworker: coworker, source_chat: source_chat)
+    incoming = described_class.deliver!(link: link, source_message: source)
+    link.chat_session.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Done." } ])
+
+    Coworkers::MessageReply.after_chat_turn(chat_session: link.chat_session, user_message: incoming, turn_succeeded: true)
+
+    expect(source_chat.messages.where(role: "system")).to be_empty
+    expect(source_chat.reload).not_to be_turn_in_flight
+  end
+
+  it "does not wake for an owner-facing question that is still waiting" do
+    source = source_message("@maya-mentions help")
+    link = described_class.find_or_create!(coworker: coworker, source_chat: source_chat)
+    incoming = described_class.deliver!(link: link, source_message: source)
+    Mcp::Tools::AskUserQuestionTool.call(
+      questions: [ { question: "Which option?", options: [ "A", "B" ] } ],
+      server_context: { chat_session: link.chat_session, current_message: incoming }
+    )
+    link.chat_session.messages.create!(
+      role: "assistant",
+      content: [ { "type" => "text", "text" => "Please answer the question." } ]
+    )
+
+    Coworkers::MessageReply.after_chat_turn(chat_session: link.chat_session, user_message: incoming, turn_succeeded: true)
+
+    question = source_chat.agent_questions.sole
+    expect(question.response_chat_session).to eq(link.chat_session)
+    expect(source_chat.messages.where(role: "assistant").sole.extract_text_from_content).to eq("Please answer the question.")
+    expect(source_chat.messages.where(role: "system")).to be_empty
+    expect(source_chat.reload).not_to be_turn_in_flight
+
+    question.answer_and_record!([ "A" ], sender_user: owner)
+    answer_message = link.chat_session.messages.where(role: "user").order(:id).last
+    link.chat_session.messages.create!(
+      role: "assistant",
+      content: [ { "type" => "text", "text" => "I used option A." } ]
+    )
+    Coworkers::MessageReply.after_chat_turn(
+      chat_session: link.chat_session, user_message: answer_message, turn_succeeded: true
+    )
+
+    expect(source_chat.messages.where(role: "assistant").order(:id).last.extract_text_from_content).to eq("I used option A.")
+    expect(source_chat.messages.where(role: "system").count).to eq(1)
   end
 
   it "posts one source-chat failure message" do

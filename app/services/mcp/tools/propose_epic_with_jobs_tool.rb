@@ -172,8 +172,9 @@ module Mcp::Tools
     class << self
       def call(epic:, jobs:, server_context:, for_active_goal: false)
         # Unattended coworker runs carry only a run; proposals land in the coworker's main chat.
-        chat_session = server_context[:chat_session] || McpToolContext.from_server_context(server_context).chat_session ||
-          server_context.fetch(:chat_session)
+        context = McpToolContext.from_server_context(server_context)
+        response_chat = context.chat_session
+        chat_session = context.owner_chat
         user = chat_session.user
 
         epic_attrs = normalize_hash(epic)
@@ -237,9 +238,9 @@ module Mcp::Tools
         proposal = nil
         ApplicationRecord.transaction do
           proposer = proposal_proposer(server_context)
-          proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic, target_epic, goal_attrs, proposer)
+          proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic, target_epic, goal_attrs, proposer, response_chat)
           replace_epic_dependency_edges(proposal, chat_session, normalized_epic[:depends_on])
-          child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs, goal_attrs, proposer)
+          child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs, goal_attrs, proposer, response_chat)
           replace_dependency_edges(chat_session, child_by_slug, normalized_jobs)
           chat_session.messages.create!(
             role: "assistant",
@@ -550,7 +551,7 @@ module Mcp::Tools
         Epic.accessible_to(user).includes(:repository).find_by(id: epic_id)
       end
 
-      def upsert_epic_proposal(chat_session, repository, epic, target_epic, goal_attrs, proposer)
+      def upsert_epic_proposal(chat_session, repository, epic, target_epic, goal_attrs, proposer, response_chat)
         proposal = chat_session.proposals.find_or_initialize_by(slug: epic[:slug])
         proposal.assign_attributes(
           repository: repository,
@@ -565,13 +566,14 @@ module Mcp::Tools
           state: "proposed",
           edited_at: proposal.persisted? ? Time.current : nil,
           proposer: proposer,
+          response_chat_session: (response_chat unless response_chat == chat_session),
           **goal_attrs
         )
         proposal.save!
         proposal
       end
 
-      def upsert_child_proposals(chat_session, parent, repositories_by_slug, jobs, goal_attrs, proposer)
+      def upsert_child_proposals(chat_session, parent, repositories_by_slug, jobs, goal_attrs, proposer, response_chat)
         child_by_slug = {}
         jobs.each_with_index do |job, index|
           child = chat_session.proposals.find_or_initialize_by(slug: job[:slug])
@@ -597,6 +599,7 @@ module Mcp::Tools
             state: "proposed",
             edited_at: child.persisted? ? Time.current : nil,
             proposer: proposer,
+            response_chat_session: (response_chat unless response_chat == chat_session),
             **goal_attrs
           )
           child.save!

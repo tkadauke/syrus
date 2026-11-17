@@ -227,6 +227,14 @@ module Api
           head :no_content
         end
 
+        def update_chat_agent
+          entry = Coworkers::ChatAgent.find_by!(chat_session: owned_chat, coworker: find_coworker)
+          entry.update!(after_reply: params.require(:after_reply))
+          render json: { agent: roster_json(entry) }
+        rescue ActiveRecord::RecordInvalid => error
+          render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
         def memory
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
@@ -417,7 +425,8 @@ module Api
         def roster_json(entry)
           coworker = entry.coworker
           { id: coworker.id, name: coworker.name, handle: coworker.handle, accent_hex: coworker.accent_hex,
-            avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url, removable: true }
+            avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url, removable: true,
+            after_reply: entry.after_reply }
         end
 
         def create_params

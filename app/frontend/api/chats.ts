@@ -79,7 +79,12 @@ export type ChatRecord = {
 }
 
 export type ChatAgentAppearance = { name: string; accent_hex: string; avatar_key: string | null; avatar_url: string | null }
-export type ChatAgentRosterItem = ChatAgentAppearance & { id: number; handle: string; removable: boolean }
+export type ChatAgentRosterItem = ChatAgentAppearance & {
+  id: number
+  handle: string
+  removable: boolean
+  after_reply: "wake" | "quiet"
+}
 
 export type ChatMentionable = {
   id: number | string
@@ -1181,6 +1186,10 @@ export function addChatAgent(chatId: number | string, coworkerId: number) {
 
 export function removeChatAgent(chatId: number | string, coworkerId: number) {
   return deleteJson<void>(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
+}
+
+export function updateChatAgent(chatId: number | string, coworkerId: number, afterReply: "wake" | "quiet") {
+  return patchJson<{ agent: ChatAgentRosterItem }>(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`, { after_reply: afterReply })
 }
 
 export function createChatShare(chatId: number | string, target: Pick<ChatShareTarget, "target_type" | "target_id">) {

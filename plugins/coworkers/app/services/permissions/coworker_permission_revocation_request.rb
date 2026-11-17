@@ -41,8 +41,8 @@ module Permissions
         raise CoworkerPermissionRequest::Rejected.new(:too_many_pending, "too many revocation requests are already waiting for the owner")
       end
 
-      pending = context.chat_session.pending_actions.create!(
-        action: ACTION, requested_by: "agent", subject: coworker,
+      pending = context.owner_chat.pending_actions.create!(
+        action: ACTION, requested_by: "agent", subject: coworker, origin: context.chat_session,
         payload: { "permission_rule_id" => rule.id, "capability" => rule.capability, "operation" => rule.operation,
                    "rationale" => rationale }.compact
       )
