@@ -1,26 +1,9 @@
 go 1.26.0
 
-// The CLI and the local executables that bundled plugins distribute beside it.
-//
-// Go has no usable dynamic plugin loading for a single static binary
-// (`plugin.Open` demands an identical toolchain and identical versions of
-// every shared dependency, and does not support Windows), so a plugin's
-// local executable lives in its own module here. Server-safe commands are
-// declared by plugin manifests and discovered from the configured instance.
-// `plugins/*/cli` keeps genuinely local behavior deletable with its plugin.
-//
-// Local plugin modules may import cli/pkg helpers to talk to the instance.
+// The standalone CLI. Plugin commands are discovered from the configured
+// instance or delegated to syrus-<name> executables on PATH; plugin modules
+// are deliberately not part of this workspace or the CLI module graph.
 use ./cli
-
-use ./plugins/scheduled_tasks/cli
-
-use ./plugins/credential_store/cli
-
-use ./plugins/global_search/cli
-
-use ./plugins/design_docs/cli
-
-use ./plugins/spending_insights/cli
 
 // Container sources a plugin owns. `plugins/*/container` is the service image
 // behind a container-backed plugin -- the runtime manager being the first --
