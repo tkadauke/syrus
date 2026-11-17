@@ -6,11 +6,9 @@ Use these rules for the Go CLI and the Electron desktop application.
   (`/api/v1/app/*`). Keep CLI commands, API serializers/controllers, and
   `website/src/content/docs/api.md` aligned when changing terminal-visible
   behavior; `cli/.syrus.yml` owns the core CLI project metadata, while the
-  root `.syrus.yml` keeps an executable Go-workspace backstop for core CLI
-  paths, plugin-owned CLI modules, and release/desktop packaging paths until
-  nested grader targets run directly. For local broad validation, run
-  `go test $(go list -m -f '{{.Dir}}/...')` from the repo root,
-  which covers the CLI module and every plugin-owned CLI module in `go.work`. The CLI covers
+  root `.syrus.yml` keeps repository-wide policy and release/desktop packaging
+  paths. Run `GOWORK=off go test ./...` from `cli/` for local validation. The
+  CLI module graph must not depend on plugin source; the CLI covers
   chat plus Job, Epic, repository, schedule, checkout, inbox, test-plan,
   approval, and identity workflows; repo-aware commands should detect `origin`,
   scope to that repo by default, and refuse checkout changes when the local repo
@@ -20,11 +18,11 @@ Use these rules for the Go CLI and the Electron desktop application.
   Server-safe plugin commands are declared in the plugin manifest and
   discovered from the configured instance at runtime. Commands that require
   local files, prompts, agents, or process execution use a `syrus-<name>`
-  executable distributed beside the CLI. Those local executables may live in a
-  plugin-owned Go module under `plugins/<name>/cli`; helpers shared with them
-  are exported from `cli/pkg/cliplugin` (and `cliplugintest` for the test
-  harness). Keep that surface small and add to it deliberately, since it is API
-  for plugin executables.
+  executable distributed beside the CLI. Such executables are independent
+  binary targets: they may depend on the small exported `cli/pkg/cliplugin`
+  contract (and `cliplugintest` test harness), but core must never import them
+  or include their modules in `go.work`. Keep that helper surface small and add
+  to it deliberately, since it is API for plugin executables.
 - **Desktop app** lives under `desktop/` as a separate Electron + React + Vite
   app. It uses Tailwind too, but it does not share the Rails web app's compiled
   CSS or components at runtime. Keep the desktop UI visually aligned with the

@@ -36,7 +36,7 @@ implementation. This machine has the ` + "`syrus`" + ` CLI installed and signed 
 - ` + "`syrus job log JOB-<id> --json`" + ` / ` + "`syrus job watch JOB-<id> --json`" + ` — run logs, once or live.
 - ` + "`syrus test-plan [JOB-<id>]`" + ` — the reviewer-facing test plan.
 - ` + "`syrus epic show EPIC-<number> --json`" + ` / ` + "`syrus epic list --json`" + ` — epics and their children.
-- ` + "`syrus repo list --json`" + ` / ` + "`syrus schedule list`" + ` — repositories and recurring tasks.
+- ` + "`syrus repo list --json`" + ` / ` + "`syrus jobs --json`" + ` — repositories and Jobs.
 
 ## Acting
 

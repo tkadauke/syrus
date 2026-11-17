@@ -7,8 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/config"
-	designdocs "github.com/tkadauke/syrus/plugins/design_docs/cli"
-	scheduledtasks "github.com/tkadauke/syrus/plugins/scheduled_tasks/cli"
 )
 
 const loginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
@@ -58,12 +56,6 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(NewEpicCommand())
 	rootCmd.AddCommand(NewRepoCommand())
 	rootCmd.AddCommand(NewWhoamiCommand())
-	// These plugin trees retain local-only behavior: schedule list/create/delete
-	// inspect the checkout or prompt interactively, while docs list/show inspect
-	// the checkout or launch $PAGER. Their server-safe siblings are discovered
-	// from the instance catalog.
-	rootCmd.AddCommand(scheduledtasks.NewScheduleCommand())
-	rootCmd.AddCommand(designdocs.NewDocsCommand())
 	rootCmd.AddCommand(NewInsightsCommand())
 	rootCmd.AddCommand(NewSkillCommand())
 	rootCmd.AddCommand(NewLocalCommand())
