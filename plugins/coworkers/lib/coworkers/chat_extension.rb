@@ -1,7 +1,20 @@
 module Coworkers
+  module MentionActivityProxy
+    def proxied_agent_activity_chat
+      link = Coworkers::Chat.where(source_chat_session_id: id, role: "mention")
+        .includes(:chat_session).order(updated_at: :desc).find do |candidate|
+        candidate.chat_session.turn_in_flight? || candidate.chat_session.agent_busy?
+      end
+      link&.chat_session
+    end
+  end
+
   module ChatExtension
     def self.install_into(scope)
       scope.effect("chat coworker resolver") do
+        ChatMessage.include(Coworkers::MentionMessageCallback) unless ChatMessage < Coworkers::MentionMessageCallback
+        ChatSession.prepend(Coworkers::MentionActivityProxy) unless ChatSession < Coworkers::MentionActivityProxy
+        ChatMessage.set_callback(:commit, :after, :delegate_coworker_mention, on: :create)
         unless ChatSession.reflect_on_association(:coworker_chat)
           ChatSession.has_one :coworker_chat,
             class_name: "Coworkers::Chat",
@@ -10,9 +23,7 @@ module Coworkers
         end
 
         ChatSession.define_method(:coworker) do
-          active = current_turn_message_id && messages.find_by(id: current_turn_message_id)
-          rostered = active && coworker_roster_mention(active)
-          rostered || coworker_chat&.coworker || ::Coworker::Syrus.for(user)
+          coworker_chat&.coworker || ::Coworker::Syrus.for(user)
         end
 
         ChatSession.define_method(:coworker_roster_mention) do |message|
@@ -23,8 +34,7 @@ module Coworkers
         end
 
         ChatSession.define_method(:agent_turn_context) do |message|
-          rostered = coworker_roster_mention(message)
-          rostered ? Coworkers::TurnChatContext.new(self, rostered) : self
+          coworker_chat ? Coworkers::TurnChatContext.new(self, coworker_chat.coworker) : self
         end
 
         ChatSession.define_method(:workspace_file_read_policy) do |relative_path|
@@ -63,6 +73,7 @@ module Coworkers
         end
 
         -> do
+          ChatMessage.skip_callback(:commit, :after, :delegate_coworker_mention, on: :create)
           %i[coworker coworker_roster_mention agent_turn_context workspace_file_read_policy coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end

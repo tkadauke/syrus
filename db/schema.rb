@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_17_180830) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1129,7 +1129,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.datetime "unsaved_workspace_retry_exhausted_at"
     t.datetime "unsaved_workspace_retry_scheduled_at"
     t.string "unsaved_workspace_retry_token"
+    t.integer "source_chat_session_id"
+    t.integer "last_delivered_message_id"
     t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
+    t.index ["coworker_id", "source_chat_session_id"], name: "idx_coworker_chats_mention_source", unique: true
     t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
     t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end

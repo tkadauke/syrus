@@ -5,12 +5,25 @@ class Coworkers::MessageReply
   NO_REPLY = "NO_REPLY"
 
   def self.after_chat_turn(chat_session:, user_message:, turn_succeeded: false)
+    if mention_metadata(user_message)
+      return new(chat_session:, user_message:).deliver_mention if turn_succeeded
+
+      new(chat_session:, user_message:).fail_mention
+      return
+    end
     return unless turn_succeeded
 
     new(chat_session:, user_message:).deliver
   end
 
   def self.chat_turn_orientation(chat_session:, message:, user_note:)
+    if (metadata = mention_metadata(message))
+      return <<~TEXT.strip
+        #{user_note}
+
+        Write the final, self-contained reply that the source chat will see. Your final assistant text is delivered there automatically; do not narrate that delivery.
+      TEXT
+    end
     metadata = incoming_metadata(message)
     return unless metadata
 
@@ -33,6 +46,13 @@ class Coworkers::MessageReply
     metadata if metadata.is_a?(Hash) && metadata["direction"] == "incoming"
   end
   private_class_method :incoming_metadata
+
+  def self.mention_metadata(message)
+    return unless message&.content.is_a?(Hash) && message.content["source"] == "coworker_mention"
+
+    message.content["coworker_mention"] if message.content["coworker_mention"].is_a?(Hash)
+  end
+  private_class_method :mention_metadata
 
   def initialize(chat_session:, user_message:)
     @chat_session = chat_session
@@ -67,6 +87,40 @@ class Coworkers::MessageReply
     )
   end
 
+  def deliver_mention
+    metadata = self.class.send(:mention_metadata, user_message)
+    return unless metadata && claim_mention_delivery!
+
+    reply = chat_session.messages.where(role: "assistant").where("id > ?", user_message.id).order(:id).last
+    text = reply&.extract_text_from_content.to_s.strip
+    return if text.blank?
+
+    link = Coworkers::Chat.includes(:coworker, :source_chat_session).find_by!(chat_session: chat_session, role: "mention")
+    source_chat = link.source_chat_session
+    source_chat.messages.create!(
+      role: "assistant",
+      content: {
+        "text" => text,
+        "source" => "coworker_message",
+        "origin_chat_session_id" => chat_session.id,
+        "coworker_message" => {
+          "direction" => "incoming", "sender_id" => link.coworker_id,
+          "sender_handle" => link.coworker.handle,
+          "origin_turn_id" => metadata["source_message_id"],
+          "hop_count" => metadata.fetch("hop_count", 0).to_i + 1
+        }
+      },
+      skip_turn_trigger: true
+    )
+    source_chat.touch(:last_message_at)
+    source_chat.broadcast_controls
+  end
+
+  def fail_mention
+    link = Coworkers::Chat.includes(:coworker, :source_chat_session).find_by(chat_session: chat_session, role: "mention")
+    Coworkers::MentionSession.fail!(source_message: ChatMessage.find_by(id: self.class.send(:mention_metadata, user_message)&.fetch("source_message_id", nil)), coworker: link&.coworker, error: RuntimeError.new("mention turn failed"))
+  end
+
   private
 
   attr_reader :chat_session, :user_message
@@ -75,6 +129,18 @@ class Coworkers::MessageReply
     user_message.with_lock do
       content = user_message.content.deep_dup
       metadata = content.fetch("coworker_message")
+      return false if metadata["auto_reply_claimed"]
+
+      metadata["auto_reply_claimed"] = true
+      user_message.update!(content: content)
+      true
+    end
+  end
+
+  def claim_mention_delivery!
+    user_message.with_lock do
+      content = user_message.content.deep_dup
+      metadata = content.fetch("coworker_mention")
       return false if metadata["auto_reply_claimed"]
 
       metadata["auto_reply_claimed"] = true

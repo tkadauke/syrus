@@ -518,15 +518,17 @@ sending or displaying an answer by replying with only `NO_REPLY`.
 
 Chat owners can also add their coworkers to a chat's agent roster from the
 coworker page or by choosing an autocomplete result marked "Add to chat."
-Rostered coworkers become addressable by every participant in that chat and
-an exact structured mention starts a coworker turn using the chat owner's
-settings. A coworker is also implicitly addressable in its own main and side
+Rostered coworkers become addressable by every participant in that chat. An
+exact structured mention delegates the message to a reusable hidden coworker
+session for that source chat; the coworker's final answer returns automatically
+as a named, colored coworker message, and the planner does not answer the
+mention. When one message names several rostered coworkers, only the first one
+answers. A coworker is also implicitly addressable in its own main and side
 chats without a roster entry. Coworkers that are neither the chat's implicit
 coworker nor on its roster remain plain text and do not start a turn. Rostered
 coworkers can be removed by the chat owner, and coworkers owned by anyone else
-cannot be added. The roster is shown beside the chat heading. Coworker turns
-share the chat's serialization lane, so two turns in one chat do not run at the
-same time.
+cannot be added. The roster is shown beside the chat heading. Removing a
+coworker also revokes its read-only share of that source chat.
 
 Profile pages render `SOUL.md` read-only. The Memory tab reads the coworker's
 home branch through the cached repository-content providers and presents daily,
