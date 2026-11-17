@@ -61,6 +61,17 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     checkout.join(relative).read
   end
 
+  def advance_home(relative, content, message: "scheduled update")
+    checkout = @root.join("advance-#{SecureRandom.hex(4)}")
+    run_git("clone", "--branch", "coworkers/maya", @remote.to_s, checkout.to_s)
+    write(checkout, relative, content)
+    run_git("add", "--all", chdir: checkout)
+    run_git("-c", "user.name=Scheduler", "-c", "user.email=scheduler@example.test",
+      "commit", "-m", message, chdir: checkout)
+    run_git("push", @remote.to_s, "HEAD:refs/heads/coworkers/maya", chdir: checkout)
+    run_git("rev-parse", "HEAD", chdir: checkout).strip
+  end
+
   it "merges disjoint and clean same-file edits from chats run in sequence" do
     first = chat
     first_lifecycle = lifecycle(first)
@@ -373,6 +384,84 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     expect(run_git("log", "-1", "--format=%an <%ae>", chdir: restored).strip)
       .to eq("Maya (@maya) <maya@coworkers.syrus.invalid>")
     expect(run_git("remote", "get-url", "origin", chdir: restored).strip).to eq(repository.remote_url)
+  end
+
+  it "refreshes an existing clean chat checkout from a persisted background commit before the turn uses it" do
+    session = chat
+    service = lifecycle(session)
+    path = service.prepare!
+    background_sha = advance_home("memory/scheduled.md", "durable memory\n")
+
+    prepared = lifecycle(session).prepare!
+
+    # ChatTurnJob invokes the agent only after prepare! returns this path.
+    expect(prepared.join("memory/scheduled.md").read).to eq("durable memory\n")
+    expect(run_git("rev-parse", "HEAD", chdir: prepared).strip).to eq(background_sha)
+    expect(run_git("rev-parse", "refs/heads/coworkers/chat/#{coworker.id}-#{session.id}", chdir: @remote).strip)
+      .to eq(background_sha)
+    expect(lifecycle(session).prepare!).to eq(path)
+    expect(run_git("rev-parse", "HEAD", chdir: path).strip).to eq(background_sha)
+  end
+
+  it "preserves uncommitted, rebasing, unmerged, and unresolved-conflict checkouts and warns that sync did not happen" do
+    scenarios = {
+      "uncommitted" => ->(path, _session) { write(path, "draft.md", "recover me\n") },
+      "rebasing" => ->(path, _session) { FileUtils.mkdir_p(path.join(".git/rebase-merge")) },
+      "unmerged" => lambda do |path, session|
+        branch = "coworkers/chat/#{coworker.id}-#{session.id}"
+        run_git("switch", "-c", "conflict-side", chdir: path)
+        write(path, "SOUL.md", "role: side\n")
+        run_git("add", "SOUL.md", chdir: path)
+        run_git("-c", "user.name=Maya", "-c", "user.email=maya@example.test", "commit", "-m", "side", chdir: path)
+        run_git("switch", branch, chdir: path)
+        write(path, "SOUL.md", "role: chat\n")
+        run_git("add", "SOUL.md", chdir: path)
+        run_git("-c", "user.name=Maya", "-c", "user.email=maya@example.test", "commit", "-m", "chat", chdir: path)
+        _stdout, _stderr, status = Open3.capture3("git", "merge", "conflict-side", chdir: path.to_s)
+        expect(status).not_to be_success
+      end,
+      "conflicted" => lambda do |_path, session|
+        Coworkers::WorkspaceConflict.create!(chat_session: session, repository:,
+          source_branch: "coworkers/run/#{coworker.id}-12", files: [ "SOUL.md" ], versions: { "SOUL.md" => "both" },
+          detail: "recovering", expires_at: 1.hour.from_now)
+      end
+    }
+
+    scenarios.each do |name, arrange|
+      session = chat
+      path = lifecycle(session).prepare!
+      arrange.call(path, session)
+      protected_sha = run_git("rev-parse", "HEAD", chdir: path).strip
+      advance_home("memory/#{name}.md", "background #{name}\n")
+
+      expect(lifecycle(session).prepare!).to eq(path)
+      expect(run_git("rev-parse", "HEAD", chdir: path).strip).to eq(protected_sha)
+      expect(path.join("draft.md").read).to eq("recover me\n") if name == "uncommitted"
+      warning = session.messages.last.content
+      expect(warning.fetch("text")).to include("background commit is persisted", "is stale")
+      expect(warning.fetch("coworker_workspace_sync_warning").fetch("reason")).to be_present
+    end
+  end
+
+  it "re-fetches when home advances concurrently and fast-forwards to the newer commit" do
+    session = chat
+    service = lifecycle(session)
+    path = service.prepare!
+    first_sha = advance_home("memory/first.md", "first\n")
+    second_sha = nil
+    checks = 0
+    allow(service).to receive(:remote_branch_sha).and_wrap_original do |original, branch|
+      checks += 1
+      second_sha = advance_home("memory/second.md", "second\n") if checks == 1
+      original.call(branch)
+    end
+
+    expect(service.prepare!).to eq(path)
+
+    expect(first_sha).not_to eq(second_sha)
+    expect(path.join("memory/first.md").read).to eq("first\n")
+    expect(path.join("memory/second.md").read).to eq("second\n")
+    expect(run_git("rev-parse", "HEAD", chdir: path).strip).to eq(second_sha)
   end
 
   it "preserves unsaved local work across a following turn and clears state after recovery" do
