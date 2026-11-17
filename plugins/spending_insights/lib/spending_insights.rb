@@ -21,7 +21,7 @@ module SpendingInsights
         flags: [
           { name: "since", type: :string },
           { name: "until", type: :string },
-          { name: "group-by", type: :enum, values: %w[repo user epic trigger_kind], default: "repo" },
+          { name: "group-by", type: :string, default: "repo" },
           { name: "json", type: :boolean, default: false }
         ]
       }
