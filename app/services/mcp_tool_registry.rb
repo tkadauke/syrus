@@ -507,59 +507,61 @@ class McpToolRegistry
       ]
 
       [
-        legacy_workflow(Mcp::Tools::ReadLiveStateTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ReadLiveStateTool, required_roles: workflow_roles,
+          descriptor_roles: workflow_roles + [ AgentRole::AGENT_INSIGHT ]),
+        workflow_action(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles,
+          descriptor_roles: workflow_roles + [ AgentRole::AGENT_INSIGHT ]),
+        workflow_action(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
+        workflow_action(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
+        workflow_action(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
         # Reviewers only see a diff (and, for visual review, a running preview)
         # and cannot distinguish real main-branch regressions from transient
         # infrastructure failures, so granting these would produce false quorum
         # signals.
-        legacy_workflow(Mcp::Tools::ReportCannotProceedTool, capability: :report_cannot_proceed, required_roles: concern_reporting_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitReportTool, capability: :submit_report, required_roles: summary_roles, step_kinds: %w[submit_report], mutation: true),
-        legacy_workflow(Mcp::Tools::InvestigationProposeJobTool, capability: :propose_job, required_roles: [
+        workflow_action(Mcp::Tools::ReportCannotProceedTool, capability: :report_cannot_proceed, required_roles: concern_reporting_roles, mutation: true),
+        workflow_action(Mcp::Tools::ReportMainConcernTool, required_roles: concern_reporting_roles, mutation: true),
+        workflow_action(Mcp::Tools::RecordIsolatedReproTool, required_roles: concern_reporting_roles, mutation: true),
+        workflow_action(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
+        workflow_action(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
+        workflow_action(Mcp::Tools::SubmitReportTool, capability: :submit_report, required_roles: summary_roles, step_kinds: %w[submit_report], mutation: true),
+        workflow_action(Mcp::Tools::InvestigationProposeJobTool, capability: :propose_job, required_roles: [
           AgentRole::WORKFLOW_IMPLEMENT,
           AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
         ], step_kinds: %w[investigate submit_report], mutation: true),
-        legacy_workflow(Mcp::Tools::SearchJobsTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ListJobsTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ListOpenPrsTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ReadPrTool, required_roles: workflow_roles),
-        legacy_workflow(Mcp::Tools::ListOpenIssuesTool, required_roles: workflow_roles),
-        legacy_workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
-        legacy_workflow(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
+        workflow_action(Mcp::Tools::SearchJobsTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ListJobsTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ListOpenPrsTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ReadPrTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ListOpenIssuesTool, required_roles: workflow_roles),
+        workflow_action(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
+        workflow_action(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
         # Only the implementing agent may add work to its own workflow, and
         # WorkflowPatch bounds what "add" means (workflow-engine-v3 A7).
-        legacy_workflow(SyrusMcp::PatchWorkflowTool, capability: :patch_workflow, required_roles: [
+        workflow_action(SyrusMcp::PatchWorkflowTool, capability: :patch_workflow, required_roles: [
           AgentRole::WORKFLOW_IMPLEMENT,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
-        legacy_workflow(SyrusMcp::SubmitVisualArtifactTool, capability: :submit_visual_artifact, required_roles: visual_artifact_roles, mutation: true),
-        legacy_workflow(SyrusMcp::ListArtifactsTool, required_roles: visual_artifact_roles),
-        legacy_workflow(SyrusMcp::ReadArtifactTool, required_roles: visual_artifact_roles),
-        legacy_workflow(Mcp::Tools::RuntimeInspectTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
-        legacy_workflow(Mcp::Tools::RuntimeWaitTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
-        legacy_workflow(Mcp::Tools::RuntimeAcquireControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::RuntimeReleaseControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::RuntimeInputTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::RuntimeSnapshotTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::RuntimeCaptureArtifactTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, step_kinds: %w[refresh_job_metadata], mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
+        workflow_action(SyrusMcp::SubmitVisualArtifactTool, capability: :submit_visual_artifact, required_roles: visual_artifact_roles, mutation: true),
+        workflow_action(SyrusMcp::ListArtifactsTool, required_roles: visual_artifact_roles),
+        workflow_action(SyrusMcp::ReadArtifactTool, required_roles: visual_artifact_roles),
+        workflow_action(Mcp::Tools::RuntimeInspectTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
+        workflow_action(Mcp::Tools::RuntimeWaitTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?)),
+        workflow_action(Mcp::Tools::RuntimeAcquireControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::RuntimeReleaseControlTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::RuntimeInputTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::RuntimeSnapshotTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::RuntimeCaptureArtifactTool, required_roles: [ AgentRole::WORKFLOW_VISUAL_REVIEWER ], available_if: method(:runtime_tools_available?), mutation: true),
+        workflow_action(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, step_kinds: %w[refresh_job_metadata], mutation: true),
+        workflow_action(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
           AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitSecurityReviewTool, capability: :submit_security_review, required_roles: [
+        workflow_action(Mcp::Tools::SubmitSecurityReviewTool, capability: :submit_security_review, required_roles: [
           AgentRole::WORKFLOW_SECURITY_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitVisualReviewTool, capability: :submit_visual_review, required_roles: [
+        workflow_action(Mcp::Tools::SubmitVisualReviewTool, capability: :submit_visual_review, required_roles: [
           AgentRole::WORKFLOW_VISUAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true)
@@ -567,9 +569,12 @@ class McpToolRegistry
     end
 
     def agent_insight_entries
+      shared_observer_roles = AgentRole::WORKFLOW_ROLES + [ AgentRole::AGENT_INSIGHT ]
       [
-        legacy_entry(Mcp::Tools::ReadLiveStateTool, surface: :agent_insight),
-        legacy_entry(Mcp::Tools::ReadRunWorkerHealthTool, surface: :agent_insight)
+        entry(Mcp::Tools::ReadLiveStateTool, surface: :agent_insight,
+          descriptor: Permissions::WorkflowActions.descriptor_for("read_live_state", required_roles: shared_observer_roles)),
+        entry(Mcp::Tools::ReadRunWorkerHealthTool, surface: :agent_insight,
+          descriptor: Permissions::WorkflowActions.descriptor_for("read_run_worker_health", required_roles: shared_observer_roles))
       ]
     end
 
@@ -579,6 +584,14 @@ class McpToolRegistry
 
     def workflow(tool, **metadata)
       entry(tool, surface: :workflow, **metadata)
+    end
+
+    def workflow_action(tool, **metadata)
+      descriptor_roles = metadata.delete(:descriptor_roles) || metadata.fetch(:required_roles)
+      descriptor = Permissions::WorkflowActions.descriptor_for(
+        tool_name_for(tool), required_roles: descriptor_roles
+      )
+      workflow(tool, **metadata, descriptor:)
     end
 
     # Core coworker tools take their descriptor, and therefore their default
