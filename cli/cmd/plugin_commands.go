@@ -400,6 +400,9 @@ func renderPluginResult(out io.Writer, result pluginCommandResult) error {
 	case "text":
 		_, err := fmt.Fprintln(out, result.Text)
 		return err
+	case "raw_text":
+		_, err := io.WriteString(out, result.Text)
+		return err
 	case "json":
 		var value any
 		if err := json.Unmarshal(result.Value, &value); err != nil {

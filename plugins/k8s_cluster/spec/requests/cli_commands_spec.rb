@@ -56,6 +56,7 @@ RSpec.describe "Kubernetes CLI commands", type: :request do
     end
 
     execute(%w[k8s logs], flags: { namespace: "default", tail: 200 }, args: [ "web-1" ])
+    expect(response.parsed_body.dig("result", "kind")).to eq("raw_text")
     expect(response.parsed_body.dig("result", "text")).to eq("hello\n")
     execute(%w[k8s overview])
     expect(response.parsed_body.dig("result", "text")).to eq("Nodes: unavailable (metrics unavailable)\nPods: unavailable (metrics unavailable)")

@@ -73,6 +73,8 @@ func TestRenderPluginResultKinds(t *testing.T) {
 		want   string
 	}{
 		{pluginCommandResult{Kind: "text", Text: "hello"}, "hello\n"},
+		{pluginCommandResult{Kind: "raw_text", Text: "hello\n"}, "hello\n"},
+		{pluginCommandResult{Kind: "raw_text", Text: "partial"}, "partial"},
 		{pluginCommandResult{Kind: "json", Value: json.RawMessage(`{"ok":true}`)}, "{\n  \"ok\": true\n}\n"},
 		{pluginCommandResult{Kind: "table", Columns: []string{"a", "b"}, Rows: [][]any{{"x", true}}}, "a  b\nx  true\n"},
 	}
