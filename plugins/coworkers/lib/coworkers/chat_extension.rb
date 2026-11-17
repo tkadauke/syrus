@@ -1,11 +1,34 @@
 module Coworkers
   module MentionActivityProxy
     def proxied_agent_activity_chat
-      link = Coworkers::Chat.where(source_chat_session_id: id, role: "mention")
-        .includes(:chat_session).order(updated_at: :desc).find do |candidate|
-        candidate.chat_session.turn_in_flight? || candidate.chat_session.agent_busy?
+      links = Coworkers::Chat.where(source_chat_session_id: id, role: "mention")
+        .includes(:chat_session).order(updated_at: :desc).to_a
+      sessions = links.map(&:chat_session)
+      busy_session_ids = live_mention_session_ids(sessions)
+      link = links.find do |candidate|
+        candidate.chat_session.turn_in_flight? || busy_session_ids.include?(candidate.chat_session_id)
       end
       link&.chat_session
+    end
+
+    private
+
+    def live_mention_session_ids(sessions)
+      return [] if sessions.empty?
+
+      session_ids = sessions.map(&:id)
+      session_ids_by_workdir = sessions.index_by { |session| session.workspace_root.to_s }
+      live_agents = SpawnedProcess.live_agent
+      processes = live_agents.where(chat_session_id: session_ids)
+        .or(live_agents.where(workdir: session_ids_by_workdir.keys))
+        .pluck(:chat_session_id, :workdir)
+
+      processes.flat_map do |chat_session_id, workdir|
+        [
+          session_ids.include?(chat_session_id) ? chat_session_id : nil,
+          session_ids_by_workdir[workdir]&.id
+        ]
+      end.compact.uniq
     end
   end
 
