@@ -232,4 +232,10 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     expect(coverage.dig(:effects, :network_read)).to eq(1)
     expect(coverage.dig(:effects, :destructive)).to eq(0)
   end
+
+  it "keeps bundled plugin legacy-descriptor coverage at zero" do
+    plugin_registrations = described_class.for_application.registrations.reject { |registration| registration.source == "core" }
+
+    expect(described_class.new(plugin_registrations).coverage.fetch(:legacy_descriptors)).to eq(0)
+  end
 end
