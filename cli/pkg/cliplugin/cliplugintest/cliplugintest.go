@@ -18,6 +18,11 @@ import (
 // writing a credentials file into a temporary HOME.
 func WithCredentials(t *testing.T, url string, token string) {
 	t.Helper()
+	// Workflow agents receive internal invocation credentials. Plugin command
+	// tests deliberately exercise the credentials-file path against their
+	// httptest server instead of leaking requests to the running instance.
+	t.Setenv("SYRUS_CLI_URL", "")
+	t.Setenv("SYRUS_CLI_INVOCATION_CONTEXT", "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	path := filepath.Join(home, ".syrus", "credentials")
