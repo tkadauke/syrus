@@ -1233,7 +1233,10 @@ module App
       retry_actions = ::App::JobRetryActions.for(@job)
       send_job_upstream_action = send_job_upstream_action_json
       active_runtime_work = job_has_active_runtime_work?
-      alternate_agent_options = @job.alternate_configured_agent_providers
+      configured_agent_providers = @job.user.configured_agent_providers
+      alternate_agent_options = @job.alternate_configured_agent_providers(
+        configured_agent_providers: configured_agent_providers
+      )
       visual_review_actionable = (@job.implemented? || @job.approved?) && !active_runtime_work
       visual_diff_actionable = (@job.implemented? || @job.approved? || @job.landing?) && !active_runtime_work
       visual_review_enabled = (visual_review_actionable || visual_diff_actionable) && visual_review_configured?
@@ -1310,7 +1313,9 @@ module App
         send_job_upstream_blocked_reason: send_job_upstream_action&.fetch(:blocked_reason),
         feedback_agent_options: alternate_agent_options,
         rebase_agent_options: alternate_agent_options,
-        retry_agent_options: @job.retry_with_agent_providers
+        retry_agent_options: @job.retry_with_agent_providers(
+          configured_agent_providers: configured_agent_providers
+        )
       }
     end
 

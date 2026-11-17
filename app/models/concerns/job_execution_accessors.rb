@@ -1,19 +1,20 @@
 module JobExecutionAccessors
   extend ActiveSupport::Concern
 
-  def retry_with_agent_providers
+  def retry_with_agent_providers(configured_agent_providers: nil)
     return [] unless open?
     return [] if active_runtime_work?
     return [] unless latest_workflow&.retry_as_new_workflow_available?
 
-    configured = user.configured_agent_providers
+    configured = configured_agent_providers || user.configured_agent_providers
     return [] unless configured.size > 1
 
     configured - [ current_run_agent_provider ]
   end
 
-  def alternate_configured_agent_providers
-    user.configured_agent_providers - [ workflow_agent_provider ]
+  def alternate_configured_agent_providers(configured_agent_providers: nil)
+    configured = configured_agent_providers || user.configured_agent_providers
+    configured - [ workflow_agent_provider ]
   end
 
   # The very first Run — the one that created the branch and PR.
