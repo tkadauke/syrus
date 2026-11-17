@@ -8,6 +8,11 @@ module SpendingInsights
         "user" => [ "user", :users ],
         "epic" => [ "epic", :epics ]
       }.freeze
+      GROUP_ALIASES = {
+        "repository" => "repo", "repositories" => "repo",
+        "users" => "user", "epics" => "epic",
+        "trigger-kind" => "trigger_kind", "trigger_kinds" => "trigger_kind"
+      }.freeze
 
       def call(args:, flags:, user:)
         params = {}
@@ -16,7 +21,7 @@ module SpendingInsights
         payload = SpendingInsights::Payload.new(user: user, params: params).as_json
         return self.class.text(JSON.generate(payload)) if flags["json"]
 
-        self.class.text(render(payload, flags.fetch("group-by", "repo")))
+        self.class.text(render(payload, normalize_group(flags.fetch("group-by", "repo"))))
       end
 
       private
@@ -25,6 +30,14 @@ module SpendingInsights
         Date.iso8601(value.to_s).iso8601
       rescue Date::Error
         raise ArgumentError, %(#{flag}: invalid date #{value.inspect}, expected YYYY-MM-DD)
+      end
+
+      def normalize_group(value)
+        group = value.to_s.strip.downcase
+        group = GROUP_ALIASES.fetch(group, group)
+        return group if GROUPS.key?(group) || group == "trigger_kind"
+
+        raise ArgumentError, %(unknown --group-by #{value.inspect}; must be one of repo, user, epic, trigger_kind)
       end
 
       def render(payload, group)

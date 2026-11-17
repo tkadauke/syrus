@@ -10,7 +10,7 @@ RSpec.describe "Spending Insights CLI commands", type: :request do
       cli_commands: [
         { path: %w[insights spending], summary: "Summarize agent spend", handler: "SpendingInsights::Cli::Spending", flags: [
           { name: "since", type: :string }, { name: "until", type: :string },
-          { name: "group-by", type: :enum, values: %w[repo user epic trigger_kind], default: "repo" },
+          { name: "group-by", type: :string, default: "repo" },
           { name: "json", type: :boolean, default: false }
         ] }
       ]
@@ -44,5 +44,20 @@ RSpec.describe "Spending Insights CLI commands", type: :request do
     post "/api/v1/app/cli_commands/execute", params: { plugin: "spending_insights", path: %w[insights spending], flags: { json: true } }, as: :json
 
     expect(JSON.parse(response.parsed_body.dig("result", "text"))).to eq(payload.deep_stringify_keys)
+  end
+
+  it "preserves the former group-by aliases" do
+    payload = {
+      scope: { admin: true, label: "All users" }, filters: { start_date: "2026-01-01", end_date: "2026-01-31" },
+      totals: { week_usd: 0, month_usd: 0, lifetime_usd: 0, workflow_lifetime_usd: 0, chat_lifetime_usd: 0, average_job_30d_usd: 0, average_merged_pr_30d_usd: 0 },
+      breakdowns: { repositories: [], users: [], epics: [], trigger_kinds: [] }
+    }
+    allow(SpendingInsights::Payload).to receive(:new).and_return(instance_double(SpendingInsights::Payload, as_json: payload))
+
+    { " Repository " => "By repository", "repositories" => "By repository", "users" => "By user", "epics" => "By epic", "TRIGGER-KIND" => "By trigger kind", "trigger_kinds" => "By trigger kind" }.each do |group, heading|
+      post "/api/v1/app/cli_commands/execute", params: { plugin: "spending_insights", path: %w[insights spending], flags: { "group-by" => group } }, as: :json
+      expect(response).to have_http_status(:ok), group
+      expect(response.parsed_body.dig("result", "text")).to include(heading), group
+    end
   end
 end
