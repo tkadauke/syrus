@@ -45,6 +45,34 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
   Incompatible external plugins are withheld and reported in plugin health;
   when the running release is unknown the check is skipped and health explains
   why. Bundled plugins ship with core and are not checked.
+- **Server-backed CLI commands** — A manifest may declare `cli_commands` as an
+  array of command objects. Each object has a `path` array (nested command
+  words), a one-line `summary`, a string `handler`, and optional `arguments`
+  and `flags`. Parameters have a `name`, a `type` (`string`, `boolean`,
+  `integer`, `enum`, or `repeatable_string`), and optional `required`,
+  `default`, and (for enums) `values`. Handler strings are resolved lazily and
+  must name a subclass of `Syrus::Plugin::CliCommandHandler`. Its
+  `call(args:, flags:, user:)` method receives validated values and the
+  authenticated API user; it must enforce normal policy authorization and
+  return `self.class.table(columns:, rows:)`, `self.class.text(value)`, or
+  `self.class.json(value)`. Commands cannot stream or prompt interactively.
+  Invalid declarations degrade the plugin in plugin health and withhold its
+  commands instead of preventing Syrus from booting.
+
+  ```ruby
+  cli_commands [
+    {
+      path: %w[docs list],
+      summary: "List design documents",
+      handler: "DesignDocs::Cli::List",
+      arguments: [ { name: "query", type: :string } ],
+      flags: [
+        { name: "state", type: :enum, values: %w[draft published] },
+        { name: "tag", type: :repeatable_string, default: [] }
+      ]
+    }
+  ]
+  ```
 - **Core specs must not enumerate plugin-provided things.** A bundled plugin is
   deletable — `bin/plugin-boundary-audit <name>` proves it by physically
   removing the plugin and running the suite in the copy — so a core spec that

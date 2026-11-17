@@ -25,6 +25,45 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::InputSource }
   end
 
+  describe "CLI command declarations" do
+    let(:valid_command) do
+      {
+        path: %w[docs list], summary: "List documents", handler: "Example::DocsCommand",
+        arguments: [ { name: "query", type: "string" } ],
+        flags: [ { name: "limit", type: "integer", default: 20 } ]
+      }
+    end
+
+    it "stores a valid declaration without resolving its handler" do
+      described_class.register(name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command ])
+
+      command = described_class.all_plugins.find { |plugin| plugin.name == "cli_plugin" }.cli_commands.first
+      expect(command.catalog_payload).to include(plugin: "cli_plugin", path: %w[docs list], summary: "List documents")
+      expect(described_class.health.status("cli_plugin")).to be_ok
+    end
+
+    it "reports a missing handler as degraded plugin health without raising" do
+      expect do
+        described_class.register(name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command.except(:handler) ])
+      end.not_to raise_error
+
+      expect(described_class.health.status("cli_plugin")).to have_attributes(state: :degraded, reasons: include("CLI command handler is required"))
+    end
+
+    it "reports duplicate command paths as degraded plugin health" do
+      described_class.register(name: "cli_plugin", version: "1.0.0", cli_commands: [ valid_command, valid_command ])
+
+      expect(described_class.health.status("cli_plugin").reasons).to include("duplicate CLI command path: docs list")
+    end
+
+    it "reports an unsupported flag type as degraded plugin health" do
+      invalid = valid_command.merge(flags: [ { name: "limit", type: "float" } ])
+      described_class.register(name: "cli_plugin", version: "1.0.0", cli_commands: [ invalid ])
+
+      expect(described_class.health.status("cli_plugin").reasons).to include("unsupported CLI command type: float")
+    end
+  end
+
   let(:test_result_parser_class) do
     Class.new { include TestInsights::Parser }
   end

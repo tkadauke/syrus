@@ -10,6 +10,14 @@ features.
 The complete installed inventory is available under **Admin → Plugins**. Plugin
 authors should use the engineering plugin-authoring reference (`docs/engineering/conventions/plugins/authoring.md` in the Syrus repository); this page describes behavior that operators and agents need when using plugins.
 
+Enabled, healthy plugins may also declare server-backed CLI commands. The CLI
+catalog exposes nested command paths, summaries, positional arguments, and
+flags in stable order. Execution uses the authenticated API user, so command
+handlers must apply the same authorization policies as other requests. These
+commands are non-interactive and non-streaming and return table, text, or JSON
+results. Disabling a plugin immediately removes its commands from the catalog
+and prevents execution.
+
 ## Per-origin Job visibility
 
 Repository membership remains the outer visibility boundary for Jobs. A plugin

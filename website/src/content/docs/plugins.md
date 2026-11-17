@@ -25,6 +25,7 @@ Plugins can contribute:
 - repository tabs,
 - React components bundled into the app,
 - MCP tools for chat and workflow agents,
+- server-backed CLI commands discovered by the `syrus` CLI,
 - prompt context injectors,
 - typed artifact renderers,
 - preview providers,
@@ -51,6 +52,12 @@ metadata-only: a name such as `k8s_cluster.kubeconfig`, plus optional safe label
 and description text. Credential storage, encryption, payload parsing,
 authorization, broker materialization, redaction, and credential-use callbacks
 remain outside this hook.
+
+Enabled plugins may publish non-interactive commands in the server command
+catalog. The CLI discovers nested paths such as `syrus docs list`, validates
+their declared positional arguments and flags, and asks Syrus to execute the
+plugin's Ruby handler as the authenticated API user. Commands return table,
+text, or JSON output; disabled or unhealthy plugins contribute no commands.
 
 The core app should keep behavior that is required for Syrus to function.
 Plugins should be things that can reasonably be disabled, replaced, or
