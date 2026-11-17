@@ -75,10 +75,11 @@ export function buildArtifactRendererRegistry(candidates: unknown[]): ArtifactRe
 function pluginCandidates(): ArtifactRendererEntry[] {
   return discoveredArtifactRendererEntries.map((discovered) => ({
     ...discovered.definition,
-    render: (artifact) => createElement(PluginRenderBoundary, {
-      pluginName: discovered.owner.pluginName!,
-      render: () => discovered.definition.render(artifact)
-    }),
+    render: (artifact) =>
+      createElement(PluginRenderBoundary, {
+        pluginName: discovered.owner.pluginName!,
+        render: () => discovered.definition.render(artifact)
+      }),
     ownerType: discovered.owner.ownerType,
     pluginName: discovered.owner.pluginName,
     examples: discovered.examples

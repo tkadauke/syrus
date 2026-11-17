@@ -26,11 +26,13 @@ export class PluginErrorBoundary extends Component<{ children: ReactNode; plugin
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    void recordBrowserError(buildBrowserErrorPayload(error, {
-      boundary: `plugin:${this.props.pluginName}`,
-      componentStack: info.componentStack ?? "",
-      fingerprint: computeBrowserErrorFingerprint(error)
-    })).catch(() => {
+    void recordBrowserError(
+      buildBrowserErrorPayload(error, {
+        boundary: `plugin:${this.props.pluginName}`,
+        componentStack: info.componentStack ?? "",
+        fingerprint: computeBrowserErrorFingerprint(error)
+      })
+    ).catch(() => {
       // Plugin isolation must remain usable when diagnostic delivery fails.
     })
   }

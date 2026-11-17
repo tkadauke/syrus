@@ -20,7 +20,7 @@ for (const frontend of readInitialBootstrap()?.app.external_plugin_frontends ?? 
     localeLoaders.set(`${locale.locale}:${locale.namespace}`, async () => {
       const response = await fetch(locale.url, { credentials: "same-origin" })
       if (!response.ok) throw new Error(`Could not load plugin locale ${locale.locale}:${locale.namespace}`)
-      return { default: await response.json() as ResourceLanguage }
+      return { default: (await response.json()) as ResourceLanguage }
     })
     const namespaces = pluginNamespaces.get(frontend.name) ?? new Set<string>()
     namespaces.add(locale.namespace)
