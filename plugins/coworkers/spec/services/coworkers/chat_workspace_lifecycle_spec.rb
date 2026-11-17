@@ -101,6 +101,26 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
       .to eq("Update @maya from chat #{session.id}")
   end
 
+  it "persists a workspace write from a native mention session to the home branch" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
+    source_chat = ChatSession.create!(user: owner, repository: repository, title: "Planning")
+    mention_link = Coworkers::MentionSession.find_or_create!(coworker:, source_chat:)
+    service = lifecycle(mention_link.chat_session)
+    service.prepare!
+
+    tools = Mcp::Sidecar.send(:plugin_tools_for, mention_link.chat_session, tier: :essential, policy: :coworker)
+    tool = tools.find { |candidate| McpToolRegistry.tool_name_for(candidate) == "write_coworker_file" }
+    expect(tool).to be_present
+    expect(tool.call(path: "mention-notes.md", content: "Delegated safely\n",
+      server_context: { chat_session: mention_link.chat_session })).not_to be_error
+
+    expect { service.finalize! }.not_to raise_error
+    expect(home_file("mention-notes.md")).to eq("Delegated safely\n")
+    expect(Coworkers::Chat.find_by!(chat_session: mention_link.chat_session)).to eq(mention_link)
+  end
+
   it "merges overlapping chat branches with disjoint files and union-merges concurrent memory appends" do
     first = chat
     second = chat

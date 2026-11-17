@@ -53,4 +53,29 @@ RSpec.describe Coworkers::MentionDeliveryJob do
       .not_to change { Coworkers::Chat.where(role: "mention").count }
     expect(source_chat.messages.last.extract_text_from_content).to include("hop limit")
   end
+
+  it "refuses a rate-limited relayed mention without creating a session or turn" do
+    sender = coworker("Maya", "maya-rate-limited")
+    receiver = coworker("Rin", "rin-rate-limited")
+    Coworkers::ChatAgent.create!(chat_session: source_chat, coworker: receiver, added_by_user: owner)
+    message = source_chat.messages.create!(
+      role: "assistant",
+      content: {
+        "text" => "@rin-rate-limited continue", "source" => "coworker_message",
+        "coworker_message" => { "sender_id" => sender.id, "hop_count" => 1 }
+      },
+      skip_turn_trigger: true
+    )
+    refusal = Coworkers::MessageRateLimiter::Result.new(allowed: false, retry_after_seconds: 37)
+    expect(Coworkers::MessageRateLimiter).to receive(:reserve).with(sender:, receiver:).and_return(refusal)
+    clear_enqueued_jobs
+
+    expect { described_class.perform_now(message.id, receiver.id) }
+      .not_to change { Coworkers::Chat.where(role: "mention").count }
+
+    expect(enqueued_jobs).not_to include(hash_including(job: ChatTurnJob))
+    refusals = source_chat.messages.where(role: "system")
+    expect(refusals.one?).to be(true)
+    expect(refusals.sole.extract_text_from_content).to include("rate limit reached", "37 seconds")
+  end
 end
