@@ -411,12 +411,17 @@ RSpec.describe "API: coworkers", type: :request do
       post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
     }.to change(Coworkers::ChatAgent, :count).by(1)
     expect(response).to have_http_status(:created)
-    expect(Coworkers::ChatAgent.last.added_by_user).to eq(owner)
+    expect(Coworkers::ChatAgent.last).to have_attributes(added_by_user: owner, after_reply: "wake")
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
     }.not_to change(Coworkers::ChatAgent, :count)
     expect(response).to have_http_status(:created)
+
+    patch "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}", params: { after_reply: "quiet" }
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig("agent", "after_reply")).to eq("quiet")
+    expect(Coworkers::ChatAgent.last.reload.after_reply).to eq("quiet")
 
     expect {
       delete "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"

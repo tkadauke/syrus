@@ -5,8 +5,17 @@ module ChatProposalOutcomeNotice
   private
 
   def notify_agent_of_proposal_outcome(message)
-    chat_session = message.chat_session
+    response_chat_id = message.content.to_h["response_chat_session_id"]
+    chat_session = response_chat_id ? ChatSession.find_by(id: response_chat_id) : message.chat_session
     return unless chat_session
+
+    if chat_session != message.chat_session
+      message = chat_session.messages.create!(
+        role: "system",
+        content: message.content.except("response_chat_session_id"),
+        skip_turn_trigger: false
+      )
+    end
 
     deferred = false
 
@@ -39,7 +48,8 @@ module ChatProposalOutcomeNotice
       "text" => text,
       "source" => ChatProposalOutcomeNotification::SOURCE,
       "outcome" => outcome.to_s,
-      "acknowledgment" => ChatProposalOutcomeNotification.acknowledgment(proposal, outcome: outcome)
-    }
+      "acknowledgment" => ChatProposalOutcomeNotification.acknowledgment(proposal, outcome: outcome),
+      "response_chat_session_id" => proposal.response_chat_session_id
+    }.compact
   end
 end

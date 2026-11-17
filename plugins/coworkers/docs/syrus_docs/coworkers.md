@@ -522,7 +522,15 @@ Rostered coworkers become addressable by every participant in that chat. An
 exact structured mention delegates the message to a reusable hidden coworker
 session for that source chat; the coworker's final answer returns automatically
 as a named, colored coworker message, and the planner does not answer the
-mention. When one message names several rostered coworkers, only the first one
+mention. Proposals, structured questions, permission requests, spawn requests,
+and confirmation cards created during the hidden turn appear directly in the
+source chat. Answering or confirming there resumes the hidden session; queued
+approval policies keep using their normal unattended behavior. Each roster row
+has an `after_reply` policy. The default `wake` starts one source-chat planner
+turn after a delivered reply, subject to the coworker hop cap and rate limit;
+`quiet` delivers the reply without waking the planner. A turn that only created
+an owner-facing item still awaiting a decision does not wake the planner. When
+one message names several rostered coworkers, only the first one
 answers. A coworker is also implicitly addressable in its own main and side
 chats without a roster entry. Coworkers that are neither the chat's implicit
 coworker nor on its roster remain plain text and do not start a turn. Rostered

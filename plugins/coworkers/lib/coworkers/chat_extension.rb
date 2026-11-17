@@ -60,6 +60,11 @@ module Coworkers
           coworker_chat ? Coworkers::TurnChatContext.new(self, coworker_chat.coworker) : self
         end
 
+        ChatSession.define_method(:owner_facing_chat_session) do
+          link = coworker_chat
+          link&.mention? ? link.source_chat_session : self
+        end
+
         ChatSession.define_method(:workspace_file_read_policy) do |relative_path|
           next unless coworker_chat
 
@@ -97,7 +102,7 @@ module Coworkers
 
         -> do
           ChatMessage.skip_callback(:commit, :after, :delegate_coworker_mention, on: :create)
-          %i[coworker coworker_roster_mention agent_turn_context workspace_file_read_policy coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
+          %i[coworker coworker_roster_mention agent_turn_context owner_facing_chat_session workspace_file_read_policy coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end

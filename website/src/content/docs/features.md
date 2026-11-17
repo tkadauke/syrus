@@ -967,7 +967,13 @@ roster before inserting the mention. Everyone participating in the chat can
 then address that coworker. An exact mention delegates the message to a reusable
 hidden session for that coworker and source chat. The coworker's final reply is
 delivered automatically as a named coworker message in the source chat, and the
-planner does not also answer the mention. If one message mentions several
+planner does not also answer the mention. Proposals, questions, permission and
+spawn requests, and other confirmation cards created in the hidden session
+appear in the source chat; answering or confirming them resumes the coworker.
+The roster control can either wake the planner once after each delivered reply
+(the default) or leave the reply quiet. Waiting owner-facing items do not wake
+the planner by themselves, and wake turns retain the normal hop and rate limits.
+If one message mentions several
 rostered coworkers, only the first rostered coworker answers. These working
 sessions stay out of the coworker's chat list and search by default but remain
 reachable by direct link. A coworker is also implicitly addressable in its own

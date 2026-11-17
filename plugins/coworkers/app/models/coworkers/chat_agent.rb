@@ -1,11 +1,13 @@
 class Coworkers::ChatAgent < ApplicationRecord
   self.table_name = "coworkers_chat_agents"
+  AFTER_REPLY_POLICIES = %w[wake quiet].freeze
 
   belongs_to :chat_session
   belongs_to :coworker, class_name: "Coworkers::Coworker"
   belongs_to :added_by_user, class_name: "User"
 
   validate :coworker_belongs_to_chat_owner
+  validates :after_reply, inclusion: { in: AFTER_REPLY_POLICIES }
 
   after_create_commit :grant_source_chat_access
   after_destroy_commit :revoke_source_chat_access

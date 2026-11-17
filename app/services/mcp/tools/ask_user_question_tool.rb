@@ -53,14 +53,17 @@ module Mcp::Tools
 
     class << self
       def call(questions:, server_context:)
-        chat_session = server_context.fetch(:chat_session)
+        context = McpToolContext.from_server_context(server_context)
+        response_chat = context.chat_session
+        chat_session = context.owner_chat
 
         normalized_questions = normalize_questions(questions)
         return normalized_questions if normalized_questions.is_a?(MCP::Tool::Response)
 
         record = chat_session.agent_questions.create!(
           questions: normalized_questions,
-          asked_at: Time.current
+          asked_at: Time.current,
+          response_chat_session: (response_chat unless response_chat == chat_session)
         )
 
         Mcp::Tools.success(
