@@ -2018,7 +2018,9 @@ function ChatAgentRoster({ payload, queryKey, onNotice }: { payload: ChatPayload
           key={agent.id}
         >
           <Avatar avatarKey={agent.avatar_key} avatarUrl={agent.avatar_url} accentHex={agent.accent_hex} name={agent.name} size="xs" />
-          <span className="max-w-[8rem] truncate">@{agent.handle}</span>
+          <span className="min-w-[4rem] max-w-[8rem] shrink-0 truncate" title={`@${agent.handle}`}>
+            @{agent.handle}
+          </span>
           {agent.removable ? (
             <Select
               aria-label={t("after_reply_for", { name: agent.name })}

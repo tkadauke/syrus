@@ -8082,7 +8082,8 @@ describe("chat agent roster", () => {
     const roster = await screen.findByTestId("mobile-chat-agent-roster")
     expect(roster).toHaveClass("mt-[var(--mobile-chrome-visible-top-inset,0px)]")
     expect(within(roster).getByText("Agents in this chat")).toBeInTheDocument()
-    expect(within(roster).getByText("@maya")).toBeInTheDocument()
+    expect(within(roster).getByText("@maya")).toHaveClass("min-w-[4rem]", "max-w-[8rem]", "shrink-0", "truncate")
+    expect(within(roster).getByText("@maya")).toHaveAttribute("title", "@maya")
     fireEvent.click(within(roster).getByRole("button", { name: "Remove Maya from chat" }))
 
     await waitFor(() => expect(screen.queryByTestId("mobile-chat-agent-roster")).not.toBeInTheDocument())
