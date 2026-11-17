@@ -81,7 +81,7 @@ module Syrus
         capability_descriptor_compatibility
       ].freeze
 
-      LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema].freeze
+      LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema cli_commands].freeze
 
       attr_reader :name, :namespace, :lib_dir
 
