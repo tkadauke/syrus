@@ -20,8 +20,17 @@ RSpec.describe RetentionArchiveSweepJob do
   end
 
   it "includes an enabled plugin-contributed definition without a policy-specific schedule" do
-    setting = instance_double(RetentionPolicySetting, archive_before_delete?: true)
-    definition = instance_double(RetentionPolicyRegistry::Definition, key: :plugin_archive, setting: setting)
+    definition = instance_double(
+      RetentionPolicyRegistry::Definition,
+      key: :plugin_archive,
+      default_seconds: 1.day.to_i,
+      archivable: true
+    )
+    RetentionPolicySetting.create!(
+      retention_key: "plugin_archive",
+      retention_seconds: 1.day.to_i,
+      archive_before_delete: true
+    )
     allow(RetentionPolicyRegistry).to receive(:definitions).and_return([ definition ])
 
     described_class.perform_now
