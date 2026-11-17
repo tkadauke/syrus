@@ -16,9 +16,6 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus chat list` | List chat sessions | `--all`, `--debug`, `--json`, `--profile`, `--repo` | yes |
 | `syrus chat new` | Create a chat session | `--debug`, `--json`, `--no-repo`, `--profile`, `--repo` | yes |
 | `syrus checkout JOB-ID\|EPIC-ID\|BRANCH` | Check out a Syrus Job branch, Epic branch, or plain git branch | `--complete`, `--debug`, `--no-hooks`, `--profile` | no |
-| `syrus docs` | Inspect Design Docs | `--debug`, `--profile` | no |
-| `syrus docs list` | List design docs | `--debug`, `--profile`, `--repo` | no |
-| `syrus docs show DOC-ID` | Show a design doc | `--debug`, `--profile` | no |
 | `syrus epic` | Inspect and manage Syrus epics | `--debug`, `--profile` | no |
 | `syrus epic create` | Create an epic in the current repository | `--body`, `--body-file`, `--debug`, `--epic-dependency-policy`, `--file`, `--github-issue-url`, `--profile`, `--prompt`, `--repo`, `--start`, `--title`, `--yes` | no |
 | `syrus epic list` | List epics | `--debug`, `--json`, `--limit`, `--profile`, `--proposer`, `--repo` | yes |
@@ -71,10 +68,6 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus review reply JOB-ID COMMENT-ID` | Reply to a diff review comment thread | `--body`, `--debug`, `--profile`, `--version` | no |
 | `syrus review resolve JOB-ID COMMENT-ID` | Resolve a diff review comment thread | `--debug`, `--profile`, `--version` | no |
 | `syrus review submit JOB-ID` | Submit pending diff review comments as job feedback | `--comment-id`, `--debug`, `--profile`, `--version` | no |
-| `syrus schedule` | Manage Syrus schedules | `--debug`, `--profile` | no |
-| `syrus schedule create` | Create a schedule in the current repository | `--debug`, `--profile`, `--yes` | no |
-| `syrus schedule delete ID` | Delete a schedule | `--debug`, `--profile` | no |
-| `syrus schedule list` | List schedules | `--debug`, `--profile` | no |
 | `syrus skill` | Manage the Claude Code skill for Syrus | `--debug`, `--profile` | no |
 | `syrus skill install` | Install the Syrus skill for Claude Code | `--debug`, `--dir`, `--profile` | no |
 | `syrus status` | Show which Syrus job is checked out here | `--debug`, `--json`, `--profile` | yes |

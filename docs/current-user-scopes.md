@@ -134,6 +134,7 @@ per-user/private:
   - app/controllers/api/v1/app/chat_shares_controller.rb
   - app/controllers/api/v1/app/chat_shell_commands_controller.rb
   - app/controllers/api/v1/app/chats_controller.rb
+  - app/controllers/api/v1/app/cli_commands_controller.rb
   - app/controllers/api/v1/app/chat_attachments_controller.rb
   - app/controllers/concerns/chat_message_params.rb
   - app/controllers/concerns/chat_goal_actions.rb

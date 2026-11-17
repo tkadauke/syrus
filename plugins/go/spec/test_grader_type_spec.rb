@@ -29,7 +29,7 @@ RSpec.describe Go::TestGraderType do
       default_failures: "strict"
     ).first
 
-    expect(step.run).to eq("mise exec go@1.26.5 -- sh -c 'cd plugins/example/cli && go test ./...'")
+    expect(step.run).to eq("GOWORK=off mise exec go@1.26.5 -- sh -c 'cd plugins/example/cli && go test ./...'")
     expect(step.when_files_changed).to eq([ "cli/**/*.go", "cli/go.mod", "cli/go.sum", "cli/Makefile" ])
   end
 

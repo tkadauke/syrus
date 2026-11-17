@@ -77,7 +77,7 @@ module Go
       prefix = "mise exec go@1.26.5 --"
       return "#{prefix} go test ./..." if root_module?
 
-      "#{prefix} sh -c #{single_quote("cd #{Shellwords.escape(root_relative_module_path)} && go test ./...")}"
+      "GOWORK=off #{prefix} sh -c #{single_quote("cd #{Shellwords.escape(root_relative_module_path)} && go test ./...")}"
     end
 
     def root_module?
