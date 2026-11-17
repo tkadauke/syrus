@@ -11,25 +11,41 @@ vi.mock("../api/browserErrors", () => ({
 import { recordBrowserError } from "../api/browserErrors"
 import { PluginErrorBoundary, PluginRenderBoundary } from "./PluginErrorBoundary"
 
-const Throw = () => { throw new Error("broken plugin") }
+const Throw = () => {
+  throw new Error("broken plugin")
+}
 
 describe("PluginErrorBoundary", () => {
   it("isolates render errors and reports the plugin name", async () => {
-    render(<PluginErrorBoundary pluginName="weather"><Throw /></PluginErrorBoundary>)
+    render(
+      <PluginErrorBoundary pluginName="weather">
+        <Throw />
+      </PluginErrorBoundary>
+    )
     expect(screen.getByRole("alert")).toHaveTextContent("weather")
     await waitFor(() => expect(recordBrowserError).toHaveBeenCalledWith(expect.objectContaining({ boundary: "plugin:weather" })))
   })
 
   it("isolates lazy-load rejections", async () => {
     const Rejected = lazy(() => Promise.reject(new Error("chunk missing")))
-    render(<PluginErrorBoundary pluginName="weather"><Suspense fallback="loading"><Rejected /></Suspense></PluginErrorBoundary>)
+    render(
+      <PluginErrorBoundary pluginName="weather">
+        <Suspense fallback="loading">
+          <Rejected />
+        </Suspense>
+      </PluginErrorBoundary>
+    )
     expect(await screen.findByRole("alert")).toHaveTextContent("weather")
   })
 
   it("offers recovery by reloading the application", () => {
     const reload = vi.fn()
     vi.stubGlobal("location", { ...window.location, reload })
-    render(<PluginErrorBoundary pluginName="weather"><Throw /></PluginErrorBoundary>)
+    render(
+      <PluginErrorBoundary pluginName="weather">
+        <Throw />
+      </PluginErrorBoundary>
+    )
     fireEvent.click(screen.getByRole("button"))
     expect(reload).toHaveBeenCalled()
     vi.unstubAllGlobals()
