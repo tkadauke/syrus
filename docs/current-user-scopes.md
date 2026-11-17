@@ -123,6 +123,7 @@ per-user/private:
   - app/controllers/api/v1/app/auth_controller.rb
   - app/controllers/api/v1/app/bootstrap_controller.rb
   - app/controllers/api/v1/app/bug_reports_controller.rb
+  - app/controllers/api/v1/app/cli_commands_controller.rb
   - app/controllers/api/v1/app/me_controller.rb
   - app/controllers/api/v1/app/browser_errors_controller.rb
   - app/controllers/api/v1/app/ui_engagement_samples_controller.rb

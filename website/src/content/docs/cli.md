@@ -10,6 +10,24 @@ same app and admin JSON APIs as the React UI, but keeps the common
 operator loop close to the checkout: chat with Syrus, review inbox items,
 open PRs, check out Job branches, and print test plans.
 
+## Plugin commands
+
+When a command is not built in, the CLI asks the configured Syrus instance
+for commands declared by its enabled, healthy plugins. Those declarations can
+add nested commands, positional arguments, typed flags, validation, defaults,
+and command help without rebuilding the CLI. The catalog is cached separately
+for each instance, refreshed after a short interval with HTTP ETags, and the
+last cached copy remains usable when the instance is temporarily offline.
+Built-in core commands always win if paths collide. Plugin commands are not
+compiled into the Syrus binary.
+
+For commands that need local behavior, the CLI next searches `PATH` for an
+executable named after the command path. For example, `syrus acme scan ./src`
+prefers `syrus-acme-scan` and then `syrus-acme`, passing the unmatched arguments
+to the executable. The child receives the selected instance and token as
+`SYRUS_URL` and `SYRUS_TOKEN`. Only install `syrus-*` executables you trust;
+they run with your normal local permissions and Syrus credentials.
+
 ## Installed with the desktop app
 
 If you run the [Syrus desktop app](/docs/desktop), you don't need a
@@ -659,9 +677,10 @@ repository-owned.
 
 ## Kubernetes clusters
 
-`syrus k8s` commands are contributed by the bundled `k8s_cluster` plugin
-and browse clusters registered from Admin -> Kubernetes Clusters, using
-the same admin API the web UI's cluster browser and the agent's
+`syrus k8s` commands are discovered from the configured instance and handled
+by the bundled `k8s_cluster` plugin. They browse clusters registered from
+Admin -> Kubernetes Clusters, using the same authorization and services as
+the web UI's cluster browser and the agent's
 `k8s_cluster_*` chat/workflow tools call:
 
 ```bash
@@ -690,7 +709,8 @@ CLI to call — the CLI does not duplicate them.
 
 ## Credential Store
 
-`syrus credential` is contributed by the bundled `credential_store` plugin.
+`syrus credential` metadata commands are discovered from the configured
+instance and handled by the bundled `credential_store` plugin.
 `syrus credential_store` remains an alias for older scripts. The command group
 provides safe discovery for credential type declarations and credential handles
 without printing encrypted payloads:
@@ -701,7 +721,8 @@ syrus credential credentials
 syrus credential credentials --type credential_store.url_token
 ```
 
-The command group also has a runtime lease client:
+The locally distributed `syrus-credential` executable supplies the runtime
+lease and process-wrapper commands:
 
 ```bash
 syrus credential lease deploy-token \

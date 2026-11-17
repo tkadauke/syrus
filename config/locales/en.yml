@@ -265,6 +265,14 @@ en:
 
   # API messages
   api:
+    cli_commands:
+      errors:
+        plugin_not_found: "That plugin is not installed."
+        plugin_disabled: "That plugin is disabled or unavailable."
+        command_not_found: "That plugin command was not found."
+        invalid_arguments: "The command arguments or flags are invalid."
+        forbidden: "You are not authorized to run that command."
+        handler_error: "The plugin command failed."
     approval_delegations:
       provider_unavailable: "The approval provider is not installed or enabled."
       unknown_capability: "Unknown permission capability."

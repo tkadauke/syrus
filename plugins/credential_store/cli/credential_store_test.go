@@ -33,54 +33,6 @@ func withCredentials(t *testing.T, url string) {
 	cliplugintest.WithCredentials(t, url, "secret-token")
 }
 
-func TestCredentialStoreCredentialsListsSafeHandles(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/app/credential_store/credentials" {
-			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"credentials":[{"id":7,"name":"deploy-token","credential_type":"credential_store.url_token","scope_type":"repository","scope_id":3,"scope_label":"acme/widgets","safe_metadata":{"host":"api.example.com"},"active":true}],"options":{"credential_types":[]}}`))
-	}))
-	defer server.Close()
-	withCredentials(t, server.URL)
-
-	command := NewCredentialStoreCommand()
-	output := &bytes.Buffer{}
-	command.SetOut(output)
-	command.SetArgs([]string{"credentials"})
-
-	if err := command.Execute(); err != nil {
-		t.Fatalf("Execute returned error: %v", err)
-	}
-	got := output.String()
-	if !strings.Contains(got, "deploy-token") || !strings.Contains(got, "api.example.com") {
-		t.Fatalf("output = %q", got)
-	}
-	if strings.Contains(got, "super-secret") || strings.Contains(got, "payload") {
-		t.Fatalf("output included secret-shaped data: %q", got)
-	}
-}
-
-func TestCredentialStoreTypesSurfacesPluginDisabled(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":{"code":"plugin_disabled","message":"Plugin credential_store is disabled."}}`))
-	}))
-	defer server.Close()
-	withCredentials(t, server.URL)
-
-	command := NewCredentialStoreCommand()
-	command.SetOut(&bytes.Buffer{})
-	command.SetArgs([]string{"types"})
-
-	err := command.Execute()
-	if err == nil || !strings.Contains(err.Error(), "credential_store is disabled") {
-		t.Fatalf("expected plugin_disabled error, got %v", err)
-	}
-}
-
 func TestCredentialStoreLeasePostsScopedRequestAndRedactsOutput(t *testing.T) {
 	var requestBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

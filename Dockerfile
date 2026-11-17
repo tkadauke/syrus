@@ -168,25 +168,14 @@ FROM docker.io/library/golang:1.26.5-bookworm AS cli-build
 
 WORKDIR /src
 
-COPY go.work go.work.sum ./
 COPY cli/go.mod cli/go.sum ./cli/
-COPY plugins/scheduled_tasks/cli/go.mod ./plugins/scheduled_tasks/cli/
-COPY plugins/k8s_cluster/cli/go.mod ./plugins/k8s_cluster/cli/
 COPY plugins/credential_store/cli/go.mod ./plugins/credential_store/cli/
-COPY plugins/global_search/cli/go.mod ./plugins/global_search/cli/
-COPY plugins/design_docs/cli/go.mod ./plugins/design_docs/cli/
-COPY plugins/spending_insights/cli/go.mod ./plugins/spending_insights/cli/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd cli && GOWORK=off go mod download
 
 COPY cli/ ./cli/
-COPY plugins/scheduled_tasks/cli/ ./plugins/scheduled_tasks/cli/
-COPY plugins/k8s_cluster/cli/ ./plugins/k8s_cluster/cli/
 COPY plugins/credential_store/cli/ ./plugins/credential_store/cli/
-COPY plugins/global_search/cli/ ./plugins/global_search/cli/
-COPY plugins/design_docs/cli/ ./plugins/design_docs/cli/
-COPY plugins/spending_insights/cli/ ./plugins/spending_insights/cli/
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -197,7 +186,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     target_arch="${TARGETARCH:-$(go env GOARCH)}"; \
     cd cli; \
     env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
-      go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .
+      go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .; \
+    cd ../plugins/credential_store/cli; \
+    env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
+      go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus-credential ./cmd/syrus-credential; \
+    cp /usr/local/bin/syrus-credential /usr/local/bin/syrus-credential_store
 
 # Final stage for app image
 FROM base AS app
@@ -207,6 +200,8 @@ USER 1000:1000
 
 # Copy built artifacts: gems, application
 COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-credential /usr/local/bin/syrus-credential
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-credential_store /usr/local/bin/syrus-credential_store
 RUN /usr/local/bin/syrus --help >/dev/null
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
@@ -630,6 +625,8 @@ RUN if [ -x /usr/local/bin/mull-runner ]; then \
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
 COPY --chown=root:root --from=cli-build /usr/local/bin/syrus /usr/local/bin/syrus
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-credential /usr/local/bin/syrus-credential
+COPY --chown=root:root --from=cli-build /usr/local/bin/syrus-credential_store /usr/local/bin/syrus-credential_store
 RUN /usr/local/bin/syrus --help >/dev/null
 
 # Bake the git SHA the image was built from. .git/ is excluded via

@@ -1,31 +1,9 @@
 go 1.26.0
 
-// The CLI and the command sets that bundled plugins contribute to it.
-//
-// Go has no usable dynamic plugin loading for a single static binary
-// (`plugin.Open` demands an identical toolchain and identical versions of
-// every shared dependency, and does not support Windows), so a plugin's
-// commands are compiled in from its own module here instead. `plugins/*/cli`
-// is where a plugin owns its CLI surface, which keeps it deletable with the
-// rest of the plugin.
-//
-// The module graph is intentionally cyclic -- the CLI imports the plugin to
-// register its commands, the plugin imports cli/pkg/api to talk to the
-// instance. Go allows that; only the *package* graph has to be acyclic, and
-// it is.
+// The standalone CLI. Plugin commands are discovered from the configured
+// instance or delegated to syrus-<name> executables on PATH; plugin modules
+// are deliberately not part of this workspace or the CLI module graph.
 use ./cli
-
-use ./plugins/scheduled_tasks/cli
-
-use ./plugins/k8s_cluster/cli
-
-use ./plugins/credential_store/cli
-
-use ./plugins/global_search/cli
-
-use ./plugins/design_docs/cli
-
-use ./plugins/spending_insights/cli
 
 // Container sources a plugin owns. `plugins/*/container` is the service image
 // behind a container-backed plugin -- the runtime manager being the first --

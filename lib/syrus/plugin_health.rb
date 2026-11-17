@@ -89,6 +89,11 @@ module Syrus
         return Status.new(name: manifest.name, state: state, reasons: reasons)
       end
 
+      if manifest.validation_errors.any?
+        state = :degraded
+        reasons.concat(manifest.validation_errors)
+      end
+
       if cycle_members.include?(manifest.name)
         state = :cycle
         cycle = cycles.find { |c| c.include?(manifest.name) }

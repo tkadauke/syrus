@@ -32,6 +32,17 @@ module ScheduledTasks
              "metrics_dashboard:tab" => "ScheduledTasks::MetricsDashboardTabs",
              "calendar:event_source" => "ScheduledTasks::CalendarEventSource"
 
+    cli_commands [
+      {
+        path: %w[schedule show], summary: "Show a schedule", handler: "ScheduledTasks::Cli::Show",
+        arguments: [ { name: "ID", type: :string, required: true } ]
+      },
+      {
+        path: %w[schedule run], summary: "Run a schedule now", handler: "ScheduledTasks::Cli::Run",
+        arguments: [ { name: "ID", type: :string, required: true } ]
+      }
+    ]
+
     route :get,    "/api/v1/app/cron_templates", to: "api/v1/app/cron_templates#index"
     route :post,   "/api/v1/app/cron_templates", to: "api/v1/app/cron_templates#create"
     route :post,   "/api/v1/app/cron_templates/preview_schedule", to: "api/v1/app/cron_templates#preview_schedule"

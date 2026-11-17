@@ -15,6 +15,17 @@ module SpendingInsights
     provides sidebar_page: "SpendingInsights::SidebarPages",
              chat_mcp_tool_set: "SpendingInsights::ChatToolSet",
              "metrics_dashboard:tab" => "SpendingInsights::MetricsDashboardTabs"
+    cli_commands [
+      {
+        path: %w[insights spending], summary: "Summarize agent spend", handler: "SpendingInsights::Cli::Spending",
+        flags: [
+          { name: "since", type: :string },
+          { name: "until", type: :string },
+          { name: "group-by", type: :string, default: "repo" },
+          { name: "json", type: :boolean, default: false }
+        ]
+      }
+    ]
     route :get, "/api/v1/app/insights/spending", to: "api/v1/app/insights/spending#show"
     frontend routes: {
           "spending_insights/SpendingInsights" => "app/frontend/routes/SpendingInsights.tsx"

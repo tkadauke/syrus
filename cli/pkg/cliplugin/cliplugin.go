@@ -1,9 +1,8 @@
-// Package cliplugin is the contract between the syrus CLI and the command
-// sets bundled plugins contribute to it.
+// Package cliplugin is the contract between the syrus CLI and local
+// executables distributed by bundled plugins.
 //
-// A plugin's commands live in its own Go module under plugins/<name>/cli and
-// are compiled into the one static binary (Go has no usable dynamic plugin
-// loading for that shape). Being a separate module, a plugin cannot reach
+// A plugin executable lives in its own Go module under plugins/<name>/cli.
+// Being a separate module, a plugin cannot reach
 // cli/internal/..., so everything a plugin command legitimately needs is
 // exported here -- deliberately as a small, named surface rather than by
 // promoting the CLI's internals wholesale.
@@ -19,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -71,6 +71,13 @@ func currentRepoSlug() string {
 
 // Client returns an authenticated client for the configured instance.
 func Client() (*api.Client, error) {
+	if !strings.EqualFold(strings.TrimSpace(os.Getenv("SYRUS_CLI_INTERNAL")), "true") && strings.TrimSpace(os.Getenv("SYRUS_CLI_INTERNAL")) != "1" {
+		url := strings.TrimSpace(os.Getenv("SYRUS_URL"))
+		token := strings.TrimSpace(os.Getenv("SYRUS_TOKEN"))
+		if url != "" && token != "" {
+			return api.NewClient(url, token)
+		}
+	}
 	creds, err := config.LoadDefaultCredentials()
 	if err != nil {
 		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {

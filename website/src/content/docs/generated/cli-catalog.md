@@ -16,15 +16,6 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus chat list` | List chat sessions | `--all`, `--debug`, `--json`, `--profile`, `--repo` | yes |
 | `syrus chat new` | Create a chat session | `--debug`, `--json`, `--no-repo`, `--profile`, `--repo` | yes |
 | `syrus checkout JOB-ID\|EPIC-ID\|BRANCH` | Check out a Syrus Job branch, Epic branch, or plain git branch | `--complete`, `--debug`, `--no-hooks`, `--profile` | no |
-| `syrus credential` | Inspect Credential Store records and run credential wrappers | `--debug`, `--profile` | no |
-| `syrus credential credentials` | List accessible credential handles | `--debug`, `--json`, `--profile`, `--type` | yes |
-| `syrus credential exec --credential <credential> --type <type> (--env-var NAME \| --file-env NAME \| --stdin) -- <command> [args...]` | Run a command with a brokered credential materialized in one explicit process-local mode | `--credential`, `--debug`, `--env-var`, `--expires-in`, `--file-env`, `--profile`, `--purpose`, `--stdin`, `--target-json`, `--tool`, `--type` | no |
-| `syrus credential lease <credential>` | Request a scoped runtime broker lease | `--debug`, `--expires-in`, `--json`, `--profile`, `--purpose`, `--target-json`, `--tool`, `--type` | yes |
-| `syrus credential ssh-agent --credential <credential> -- <command> [args...]` | Run a command with a brokered SSH key loaded into a temporary ssh-agent | `--credential`, `--debug`, `--expires-in`, `--profile`, `--purpose`, `--target-json`, `--tool` | no |
-| `syrus credential types` | List credential type names | `--debug`, `--json`, `--profile` | yes |
-| `syrus docs` | Inspect Design Docs | `--debug`, `--profile` | no |
-| `syrus docs list` | List design docs | `--debug`, `--profile`, `--repo` | no |
-| `syrus docs show DOC-ID` | Show a design doc | `--debug`, `--profile` | no |
 | `syrus epic` | Inspect and manage Syrus epics | `--debug`, `--profile` | no |
 | `syrus epic create` | Create an epic in the current repository | `--body`, `--body-file`, `--debug`, `--epic-dependency-policy`, `--file`, `--github-issue-url`, `--profile`, `--prompt`, `--repo`, `--start`, `--title`, `--yes` | no |
 | `syrus epic list` | List epics | `--debug`, `--json`, `--limit`, `--profile`, `--proposer`, `--repo` | yes |
@@ -33,7 +24,6 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus epic show EPIC-ID` | Show an epic | `--debug`, `--json`, `--profile` | yes |
 | `syrus inbox` | Review implemented and failed Syrus jobs | `--debug`, `--profile`, `--repo`, `--watch` | no |
 | `syrus insights` | Inspect operational insights | `--debug`, `--profile` | no |
-| `syrus insights spending` | Summarize agent spend | `--debug`, `--group-by`, `--json`, `--profile`, `--since`, `--until` | yes |
 | `syrus job` | Inspect Syrus jobs | `--debug`, `--profile` | no |
 | `syrus job accept-triage JOB-ID` | Accept a triaged job | `--debug`, `--profile` | no |
 | `syrus job approve JOB-ID` | Approve a job for landing | `--debug`, `--profile` | no |
@@ -68,17 +58,6 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus job unpause JOB-ID` | Unpause a job | `--debug`, `--profile` | no |
 | `syrus job watch JOB-ID` | Watch a job | `--debug`, `--json`, `--profile` | yes |
 | `syrus jobs` | List Syrus jobs | `--closed`, `--debug`, `--profile`, `--proposer`, `--repo` | no |
-| `syrus k8s` | Inspect registered Kubernetes clusters | `--debug`, `--profile` | no |
-| `syrus k8s clusters` | List registered Kubernetes clusters | `--debug`, `--profile` | no |
-| `syrus k8s deployments` | List deployments | `--cluster`, `--debug`, `--namespace`, `--profile` | no |
-| `syrus k8s events` | List recent cluster events | `--cluster`, `--debug`, `--namespace`, `--profile` | no |
-| `syrus k8s logs POD` | Show a pod's log tail | `--cluster`, `--container`, `--debug`, `--namespace`, `--profile`, `--tail` | no |
-| `syrus k8s namespaces` | List namespaces in a cluster | `--cluster`, `--debug`, `--profile` | no |
-| `syrus k8s nodes` | List cluster nodes | `--cluster`, `--debug`, `--profile` | no |
-| `syrus k8s overview` | Show aggregate node/pod CPU and memory usage | `--cluster`, `--debug`, `--profile` | no |
-| `syrus k8s pods` | List pods | `--cluster`, `--debug`, `--namespace`, `--profile` | no |
-| `syrus k8s pvcs` | List persistent volume claims | `--cluster`, `--debug`, `--namespace`, `--profile` | no |
-| `syrus k8s services` | List services | `--cluster`, `--debug`, `--namespace`, `--profile` | no |
 | `syrus local` | Connect this machine to a Syrus Local Mode chat session | `--chat`, `--debug`, `--dir`, `--profile`, `--token` | no |
 | `syrus login` | Log in to a Syrus instance | `--debug`, `--profile`, `--token`, `--url` | no |
 | `syrus repo` | Inspect Syrus repositories | `--debug`, `--profile` | no |
@@ -89,13 +68,6 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus review reply JOB-ID COMMENT-ID` | Reply to a diff review comment thread | `--body`, `--debug`, `--profile`, `--version` | no |
 | `syrus review resolve JOB-ID COMMENT-ID` | Resolve a diff review comment thread | `--debug`, `--profile`, `--version` | no |
 | `syrus review submit JOB-ID` | Submit pending diff review comments as job feedback | `--comment-id`, `--debug`, `--profile`, `--version` | no |
-| `syrus schedule` | Manage Syrus schedules | `--debug`, `--profile` | no |
-| `syrus schedule create` | Create a schedule in the current repository | `--debug`, `--profile`, `--yes` | no |
-| `syrus schedule delete ID` | Delete a schedule | `--debug`, `--profile` | no |
-| `syrus schedule list` | List schedules | `--debug`, `--profile` | no |
-| `syrus schedule run ID` | Run a schedule now | `--debug`, `--profile` | no |
-| `syrus schedule show ID` | Show a schedule | `--debug`, `--profile` | no |
-| `syrus search <query>` | Search Jobs, Epics, chats, and repositories | `--debug`, `--json`, `--limit`, `--profile`, `--type` | yes |
 | `syrus skill` | Manage the Claude Code skill for Syrus | `--debug`, `--profile` | no |
 | `syrus skill install` | Install the Syrus skill for Claude Code | `--debug`, `--dir`, `--profile` | no |
 | `syrus status` | Show which Syrus job is checked out here | `--debug`, `--json`, `--profile` | yes |

@@ -133,6 +133,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/chats/onboarding` | `api/v1/app/chats#onboarding` |
 | core | GET | `/api/v1/app/chats/search` | `api/v1/app/chats#search` |
 | core | GET | `/api/v1/app/chats/search/messages` | `api/v1/app/chats#search_messages` |
+| core | GET | `/api/v1/app/cli_commands` | `api/v1/app/cli_commands#index` |
+| core | POST | `/api/v1/app/cli_commands/execute` | `api/v1/app/cli_commands#create` |
 | core | POST | `/api/v1/app/client_metrics` | `api/v1/app/client_metrics#create` |
 | core | GET | `/api/v1/app/credentials` | `api/v1/app/credentials#show` |
 | core | PATCH | `/api/v1/app/credentials` | `api/v1/app/credentials#update` |

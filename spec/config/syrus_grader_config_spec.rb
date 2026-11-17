@@ -548,8 +548,9 @@ RSpec.describe "Syrus grader configuration" do
         expect(vitest).to be_nil
       end
 
-      # A plugin's Go lives in its CLI module (cli/) or, for a
-      # container-backed plugin, its service container (container/).
+      # A plugin's Go lives in an independently shipped executable module
+      # (cli/) or in its service container (container/). Neither is imported
+      # by the core CLI.
       go_tests = graph.target("//plugins/#{project.id}:grade/go-tests")
       go_dir = %w[cli container].find { |dir| Rails.root.join("plugins/#{project.id}/#{dir}/go.mod").exist? }
       if go_dir
@@ -703,15 +704,7 @@ RSpec.describe "Syrus grader configuration" do
   end
 
   def copy_cli_prepare_fixture(destination)
-    %w[go.work go.work.sum].each do |file|
-      FileUtils.cp(Rails.root.join(file), destination.join(file))
-    end
-
     copy_files(destination, "cli", %w[go.mod go.sum])
-
-    %w[scheduled_tasks k8s_cluster credential_store global_search design_docs spending_insights].each do |plugin|
-      copy_files(destination, "plugins/#{plugin}/cli", %w[go.mod])
-    end
   end
 
   def copy_files(destination, directory, filenames)

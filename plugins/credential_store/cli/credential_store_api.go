@@ -3,69 +3,15 @@ package credentialstore
 import (
 	"context"
 	"net/http"
-	"net/url"
-	"strconv"
 
 	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
-const credentialsPath = "/api/v1/app/credential_store/credentials"
 const leasesPath = "/api/v1/app/credential_store/leases"
 const execMaterialPath = "/api/v1/app/credential_store/exec_material"
 const execAuditPath = "/api/v1/app/credential_store/exec/audit"
 const sshAgentPath = "/api/v1/app/credential_store/ssh_agent"
 const sshAgentAuditPath = "/api/v1/app/credential_store/ssh_agent/audit"
-
-type CredentialType struct {
-	Name        string `json:"name"`
-	Label       string `json:"label"`
-	Description string `json:"description"`
-	Plugin      string `json:"plugin"`
-}
-
-type Credential struct {
-	ID                int64          `json:"id"`
-	Name              string         `json:"name"`
-	Description       string         `json:"description"`
-	CredentialType    string         `json:"credential_type"`
-	ScopeType         string         `json:"scope_type"`
-	ScopeID           int64          `json:"scope_id"`
-	ScopeLabel        string         `json:"scope_label"`
-	SafeMetadata      map[string]any `json:"safe_metadata"`
-	TargetConstraints map[string]any `json:"target_constraints"`
-	AllowedSurfaces   []string       `json:"allowed_surfaces"`
-	AllowedTools      []string       `json:"allowed_tools"`
-	ExpiresAt         string         `json:"expires_at"`
-	RevokedAt         string         `json:"revoked_at"`
-	Active            bool           `json:"active"`
-}
-
-type CredentialOptions struct {
-	CredentialTypes []CredentialType `json:"credential_types"`
-}
-
-type CredentialList struct {
-	Credentials []Credential      `json:"credentials"`
-	Options     CredentialOptions `json:"options"`
-}
-
-func ListCredentials(ctx context.Context, c *api.Client) (CredentialList, error) {
-	var out CredentialList
-	err := c.Do(ctx, http.MethodGet, credentialsPath, nil, &out)
-	return out, err
-}
-
-func GetCredential(ctx context.Context, c *api.Client, id string) (struct {
-	Credential Credential        `json:"credential"`
-	Options    CredentialOptions `json:"options"`
-}, error) {
-	var out struct {
-		Credential Credential        `json:"credential"`
-		Options    CredentialOptions `json:"options"`
-	}
-	err := c.Do(ctx, http.MethodGet, credentialsPath+"/"+url.PathEscape(id), nil, &out)
-	return out, err
-}
 
 type LeaseRequest struct {
 	Lease LeaseRequestBody `json:"lease"`
@@ -200,11 +146,4 @@ func RecordSSHAgentAudit(ctx context.Context, c interface {
 	Do(context.Context, string, string, any, any) error
 }, input SSHAgentAuditRequestBody) error {
 	return c.Do(ctx, http.MethodPost, sshAgentAuditPath, SSHAgentAuditRequest{SSHAgentAudit: input}, nil)
-}
-
-func credentialRef(credential Credential) string {
-	if credential.Name != "" {
-		return credential.Name
-	}
-	return strconv.FormatInt(credential.ID, 10)
 }

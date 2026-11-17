@@ -1,17 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/config"
-	credentialstore "github.com/tkadauke/syrus/plugins/credential_store/cli"
-	designdocs "github.com/tkadauke/syrus/plugins/design_docs/cli"
-	globalsearch "github.com/tkadauke/syrus/plugins/global_search/cli"
-	k8scluster "github.com/tkadauke/syrus/plugins/k8s_cluster/cli"
-	scheduledtasks "github.com/tkadauke/syrus/plugins/scheduled_tasks/cli"
-	spendinginsights "github.com/tkadauke/syrus/plugins/spending_insights/cli"
 )
 
 const loginMessage = "Run 'syrus login' to set up your Syrus instance URL and API token."
@@ -20,7 +15,12 @@ const invocationContextMessage = "Syrus internal CLI authentication is enabled, 
 var chatDebug bool
 
 func Execute() error {
-	return NewRootCommand().Execute()
+	root := NewRootCommand()
+	args := os.Args[1:]
+	if handled, err := resolvePluginCommand(context.Background(), root, args); handled || err != nil {
+		return err
+	}
+	return root.Execute()
 }
 
 func NewRootCommand() *cobra.Command {
@@ -31,6 +31,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:           "syrus",
 		Short:         "Syrus command line client",
+		Long:          "Syrus command line client. Commands may also be discovered from the configured instance or from syrus-<name> executables on PATH.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -55,19 +56,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(NewEpicCommand())
 	rootCmd.AddCommand(NewRepoCommand())
 	rootCmd.AddCommand(NewWhoamiCommand())
-	// Contributed by a bundled plugin. Its commands live in the plugin's own
-	// module (plugins/scheduled_tasks/cli) so they are deleted with it; Go has
-	// no usable dynamic loading for a single static binary, so they are
-	// compiled in here. No runtime gating: when the plugin is disabled the
-	// instance already answers its routes with a "plugin_disabled" error.
-	rootCmd.AddCommand(scheduledtasks.NewScheduleCommand())
-	rootCmd.AddCommand(k8scluster.NewK8sCommand())
-	rootCmd.AddCommand(credentialstore.NewCredentialStoreCommand())
-	rootCmd.AddCommand(globalsearch.NewSearchCommand())
-	rootCmd.AddCommand(designdocs.NewDocsCommand())
-	insightsCmd := NewInsightsCommand()
-	insightsCmd.AddCommand(spendinginsights.NewSpendingCommand())
-	rootCmd.AddCommand(insightsCmd)
+	rootCmd.AddCommand(NewInsightsCommand())
 	rootCmd.AddCommand(NewSkillCommand())
 	rootCmd.AddCommand(NewLocalCommand())
 	return rootCmd
