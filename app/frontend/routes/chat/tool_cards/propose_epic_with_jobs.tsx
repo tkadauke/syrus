@@ -17,7 +17,6 @@ type Execution = { project: string | null; target: string | null; capabilities: 
 type MaterializedJob = { id: string; title: string | null; state: string | null }
 type Media = { ref: string; title: string; subtitle: string | null; src: string | null; badge: string }
 type Child = {
-  id: string | null
   slug: string
   title: string | null
   description: string
@@ -34,7 +33,6 @@ type Child = {
   materialized: MaterializedJob | null
 }
 type Outcome = {
-  id: string | null
   slug: string
   title: string | null
   description: string
@@ -139,7 +137,6 @@ function parseChildren(value: unknown): Child[] {
     if (!slug || !state) return []
     return [
       {
-        id: displayValue(item.id),
         slug,
         title: displayValue(item.title),
         description: displayValue(item.description) || displayValue(item.body) || "",
@@ -167,7 +164,6 @@ function parse(context: ToolCardContext): Outcome | null {
   if (!slug || !state) return null
   const dependencies = strings(value.depends_on)
   return {
-    id: displayValue(value.id),
     slug,
     title: displayValue(value.title),
     description: displayValue(value.description) || displayValue(value.body) || "",
@@ -227,7 +223,6 @@ function ChildCard({ child, index }: { child: Child; index: number }) {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <EntityReference kind="proposal" slug={child.slug} />
             <StatePill state={child.state} />
-            {child.id ? <span className="text-2xs text-text-subtle">{i18n.t("chat:tool_card_proposal_number", { id: child.id })}</span> : null}
           </div>
           {child.title ? <div className="break-words text-sm font-semibold text-text-primary">{child.title}</div> : null}
           <MarkdownPreview
@@ -322,7 +317,6 @@ function renderExpanded(context: ToolCardContext) {
         <Badge>{i18n.t("chat:tool_card_epic")}</Badge>
         <StatePill state={outcome.state} />
         <EntityReference kind="proposal" slug={outcome.slug} />
-        {outcome.id ? <span className="text-2xs text-text-subtle">{i18n.t("chat:tool_card_proposal_number", { id: outcome.id })}</span> : null}
       </div>
       {outcome.title ? <div className="break-words text-sm font-semibold text-text-primary">{outcome.title}</div> : null}
       <MarkdownPreview
@@ -365,7 +359,7 @@ function renderExpanded(context: ToolCardContext) {
         {outcome.children.length ? (
           <ol className="mt-1 space-y-2">
             {outcome.children.map((child, index) => (
-              <ChildCard child={child} index={index} key={child.id || child.slug} />
+              <ChildCard child={child} index={index} key={child.slug} />
             ))}
           </ol>
         ) : (

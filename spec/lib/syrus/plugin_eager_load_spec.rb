@@ -6,6 +6,7 @@ require "rails_helper"
 RSpec.describe Syrus::PluginEagerLoad do
   let(:loader) { instance_double(Zeitwerk::Loader) }
   let(:root) { Pathname.new("/app") }
+  let(:plugin_roots) { instance_double(Syrus::PluginRoots) }
 
   def dirs(*paths)
     allow(loader).to receive(:dirs).and_return(paths)
@@ -15,7 +16,8 @@ RSpec.describe Syrus::PluginEagerLoad do
   it "excludes every directory under a disabled plugin" do
     dirs("/app/plugins/terminal/app/models", "/app/plugins/terminal/app/services", "/app/app/models")
 
-    excluded = described_class.apply!(loader: loader, root: root, names: [ "terminal" ])
+    allow(plugin_roots).to receive(:resolve).with("terminal").and_return(root.join("plugins/terminal"))
+    excluded = described_class.apply!(loader: loader, plugin_roots:, names: [ "terminal" ])
 
     expect(excluded).to contain_exactly("/app/plugins/terminal/app/models", "/app/plugins/terminal/app/services")
     expect(loader).to have_received(:do_not_eager_load).twice
@@ -24,7 +26,8 @@ RSpec.describe Syrus::PluginEagerLoad do
   it "leaves core and enabled plugins alone" do
     dirs("/app/app/models", "/app/plugins/mockups/app/services")
 
-    expect(described_class.apply!(loader: loader, root: root, names: [ "terminal" ])).to be_empty
+    allow(plugin_roots).to receive(:resolve).with("terminal").and_return(root.join("plugins/terminal"))
+    expect(described_class.apply!(loader: loader, plugin_roots:, names: [ "terminal" ])).to be_empty
     expect(loader).not_to have_received(:do_not_eager_load)
   end
 
@@ -32,13 +35,14 @@ RSpec.describe Syrus::PluginEagerLoad do
   it "does not match a plugin whose name merely prefixes the directory" do
     dirs("/app/plugins/terminal_extras/app/models")
 
-    expect(described_class.apply!(loader: loader, root: root, names: [ "terminal" ])).to be_empty
+    allow(plugin_roots).to receive(:resolve).with("terminal").and_return(root.join("plugins/terminal"))
+    expect(described_class.apply!(loader: loader, plugin_roots:, names: [ "terminal" ])).to be_empty
   end
 
   it "does nothing when every plugin is enabled" do
     allow(loader).to receive(:dirs)
 
-    expect(described_class.apply!(loader: loader, root: root, names: [])).to eq([])
+    expect(described_class.apply!(loader: loader, plugin_roots:, names: [])).to eq([])
     expect(loader).not_to have_received(:dirs)
   end
 

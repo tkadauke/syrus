@@ -1,10 +1,194 @@
 module PendingActions
-  # Shared exact-invocation executor. The established implementation also
-  # serves coworker compatibility requests while new actor surfaces use this
-  # neutral action key.
-  class AuthorizedToolCall < CoworkerToolCall
+  # The request was overtaken before anyone confirmed it -- the invocation was
+  # withdrawn or expired, its turn ended, or its authority no longer holds. It
+  # was withdrawn, not attempted: ChatPendingAction#fail_confirmation! records
+  # it as cancelled rather than failed.
+  class AuthorizationLapsed < ArgumentError; end
+
+  class AuthorizedToolCall < Base
     action_key "authorized_tool_call"
+    LAPSED_CLAIM_STATUSES = %i[unavailable non_resumable revalidation_failed].freeze
+    def authorize_execution!
+      return super unless @action.authorization_request?
+
+      unless @action.ready_for_authorized_invocation?
+        raise ArgumentError, "authorization request prerequisites are not approved"
+      end
+
+      operation = operation_item
+      descriptor = permission_descriptor
+      fingerprint = Permissions::InvocationFingerprint.call(
+        descriptor:, arguments: payload.fetch("arguments")
+      )
+      unless ActiveSupport::SecurityUtils.secure_compare(operation.invocation_fingerprint, fingerprint)
+        raise ArgumentError, "approved invocation no longer matches the requested arguments"
+      end
+    end
+
+    def execute
+      if action.origin.is_a?(ChatSession) && !chat_session&.persisted?
+        raise ArgumentError, "originating conversation is no longer available"
+      end
+
+      server_context = replay_server_context
+      context = McpToolContext.from_server_context(server_context)
+      descriptor = tool_descriptor(context)
+      tool_name = payload.fetch("tool_name")
+      callable = if coworker_context?(context)
+        if descriptor.respond_to?(:provider) && descriptor.provider
+          ->(server_context:, **arguments) { descriptor.provider.new.handle(descriptor.tool_name, arguments, server_context) }
+        else
+          Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier, agent_actor: action.subject)
+            .find { |candidate| McpToolRegistry.tool_name_for(candidate) == tool_name }
+        end
+      else
+        descriptor&.tool
+      end
+      raise ArgumentError, "tool is no longer available to this actor" unless callable
+
+      invocation = operation_item.authorized_invocation
+      raise ArgumentError, "authorized invocation is missing" unless invocation
+      fingerprint = Permissions::InvocationFingerprint.call(
+        descriptor: permission_descriptor, arguments: payload.fetch("arguments")
+      )
+      claim_key = "coworker-pending-action-#{@action.id}"
+      claim = invocation.claim!(
+        fingerprint:, claimant: action.subject, claim_key:,
+        origin_resumable: ->(_) { origin_resumable? },
+        revalidate: ->(_) { revalidate_authority(context) }
+      )
+      unless claim.claimed?
+        error = LAPSED_CLAIM_STATUSES.include?(claim.status) ? AuthorizationLapsed : ArgumentError
+        raise error, "authorized invocation is no longer available (#{claim.status})"
+      end
+
+      authorized_context = server_context.merge(
+        pending_action_id: action.id,
+        authorized_invocation_id: invocation.id,
+        authorized_invocation_claim_key: claim_key
+      )
+      response = callable.call(**payload.fetch("arguments").symbolize_keys, server_context: authorized_context)
+      if response.error?
+        invocation.complete!(claim_key:, status: :failed)
+        raise ArgumentError, response.content.first[:text].to_s
+      end
+      result_text = response.content.filter_map { |item| item[:text] || item["text"] }.join("\n")
+      raise ArgumentError, "tool returned no result to deliver to the originating chat" if result_text.blank?
+
+      invocation.complete!(claim_key:, status: :succeeded)
+      stored = result_text.byteslice(0, 64.kilobytes).scrub
+      @action.update!(payload: payload.merge("tool_result" => stored))
+      AuthorizationContinuations::Coordinator.call(request: action, outcome: "approved", tool_result: stored) if action.checkpoint_state.present?
+      Rails.logger.info(
+        "[coworker_tool_call] result stored pending_action=#{action.id} tool=#{payload['tool_name']} " \
+        "origin=#{action.origin_type}:#{action.origin_id} bytes=#{stored.bytesize} truncated=#{result_text.bytesize > stored.bytesize}"
+      )
+
+      nil
+    rescue StandardError => e
+      Rails.logger.warn("[coworker_tool_call] delivery failed pending_action=#{action.id} tool=#{payload['tool_name']} error=#{e.class}")
+      invocation&.complete!(claim_key:, status: :failed) if invocation&.claimed?
+      raise
+    end
+
+    def validate_payload(errors)
+      errors.add(:payload, "tool_name is required") unless payload["tool_name"].present?
+      errors.add(:payload, "arguments must be an object") unless payload["arguments"].is_a?(Hash)
+    end
 
     def presentation_label = "Approve agent action"
+    def presentation_detail = payload["tool_name"].to_s.humanize
+    def tool_card_review
+      {
+        tool_name: payload["tool_name"],
+        arguments: action.authorization_request? ? operation_item.normalized_arguments : payload["arguments"],
+        actor: payload["actor"]
+      }.compact
+    end
+
+    private
+
+    def operation_item
+      @operation_item ||= @action.authorization_items.detect { |item| item.kind == "operation" } ||
+        raise(ActiveRecord::RecordNotFound, "operation authorization item is missing")
+    end
+
+    def permission_descriptor
+      unless action.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        return actor_resolution&.descriptor || raise(ArgumentError, "tool is no longer available to this actor")
+      end
+
+      catalog_entry = Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session: chat_session)
+      raise ArgumentError, "tool is not available to coworkers" unless catalog_entry
+
+      descriptor = if catalog_entry.tool
+        McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == catalog_entry.tool }&.descriptor
+      else
+        Permissions::CapabilityDescriptorAdapter.for_plugin_definition(catalog_entry.definition)
+      end
+      descriptor || raise(ArgumentError, "tool has no permission descriptor")
+    end
+
+    def coworker_context?(context)
+      context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+    end
+
+    def tool_descriptor(context)
+      return Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session:) if coworker_context?(context)
+
+      actor_resolution
+    end
+
+    def actor_resolution
+      run = (Run.find_by(id: payload["run_id"]) if payload["run_id"].present?)
+      Mcp::ActorToolResolver.resolve(
+        tool_name: payload.fetch("tool_name"), chat_session: (chat_session unless run), run:
+      )
+    end
+
+    def replay_server_context
+      return { chat_session: chat_session, agent_actor: action.subject } if payload["run_id"].blank?
+
+      run = Run.find_by(id: payload["run_id"])
+      raise ArgumentError, "originating run is no longer available" unless run
+
+      { run: run }
+    end
+
+    def origin_resumable?
+      action.confirming? && action.origin.present? && action.subject.present?
+    end
+
+    # Must name the same subject selector the grant was issued under
+    # (CoworkerAuthorizationDecision#subject_selector); an operator chat is an
+    # "interactive_chat" subject, not a "workflow_role".
+    def subject_selector(context)
+      return [ "agent", context.agent_actor.id.to_s ] if context.agent_actor
+
+      matching = PermissionRule::SUBJECT_SELECTORS.find { |_type, metadata| metadata[:role] == context.role }
+      return [ matching.first, nil ] if matching
+
+      [ "workflow_role", context.role ]
+    end
+
+    def revalidate_authority(context)
+      selector_type, selector_id = subject_selector(context)
+      authorization = Permissions::Management.new(context.user).authorize(
+        descriptor: permission_descriptor,
+        role: context.role,
+        resource_scope: operation_item.resource_scope,
+        arguments: payload.fetch("arguments"),
+        context: {
+          role: context.role,
+          agent_id: context.agent_actor&.id,
+          subject_selector_type: selector_type,
+          subject_selector_id: selector_id,
+          subject_repository_id: context.repository&.id,
+          chat_session_id: context.chat_session&.id,
+          job_id: context.job&.id
+        }.compact
+      )
+      authorization.authorized? || authorization.decision.decisive_rule&.id || "permission_revalidation_failed"
+    end
   end
 end

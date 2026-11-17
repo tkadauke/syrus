@@ -30,10 +30,6 @@ module Api
           )
         end
 
-        def truthy?(value)
-          %w[true 1 yes].include?(value.to_s.downcase)
-        end
-
         # Reopens the workflow + the failed step, creates a fresh
         # Run on the failed step, lets the inline-chain dispatch
         # take it from there. Same semantics as the Job detail

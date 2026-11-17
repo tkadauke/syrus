@@ -10,6 +10,13 @@ available after restart; enabling a plugin makes its surfaces visible and its
 behavior active. In general, the plugin enable switch is the feature flag for
 that plugin.
 
+External plugins can declare a `requires_syrus` Ruby version requirement, such
+as `>= 0.1.16`. Syrus withholds a plugin whose requirement is not met and shows
+the required and running releases in plugin health. If the running release is
+unknown, Syrus loads the plugin and records that the compatibility check was
+skipped. Plugin authors should declare the oldest Syrus release they have
+actually tested.
+
 ## What Plugins Can Add
 
 Plugins can contribute:
@@ -93,6 +100,12 @@ multi-document cleanup. A single request can preview up to 100 `DOC-N`
 targets, report documents that are already archived, and present one operator
 confirmation with per-document results; the existing single-document archive
 tool remains available for one-off requests.
+
+Design Doc suggestions reserve their selected range while they are pending.
+Another suggestion may start or end at the same boundary, but cannot overlap
+that active range until the existing suggestion is accepted or rejected. When
+reviewing an unrelated suggestion, Syrus repairs damaged or colliding pending
+anchors by marking those suggestions stale instead of blocking the review.
 
 Whiteboard's high-level arrow tool creates connectors anchored to the visible
 edges of rectangles, stickies, ellipses, and diamonds. Optional arrow labels

@@ -37,7 +37,7 @@ module DirectJobs
       end
 
       payload = JSON.parse(response_text(response))
-      proposal = ChatProposal.find(payload.fetch("id"))
+      proposal = chat_session.proposals.find_by!(slug: payload.fetch("slug"))
 
       filed = ChatProposalFiler.new(
         user: user,

@@ -7,11 +7,18 @@ module DesignDocs
 
     Location = Data.define(:status, :start_offset, :end_offset, :selected_markdown, :prefix_context, :suffix_context)
     Inserted = Data.define(:markdown, :start_offset, :end_offset, :selected_markdown, :prefix_context, :suffix_context)
+    Projection = Data.define(:markdown, :locations, :stale_anchors)
+
+    LOCAL_SEARCH_RADIUS = 240
+    BLOCK_PREFIX_PATTERN = /\A(?: {0,3}(?:[-+*]\s+|\d+[.)]\s+|\#{1,6}\s+)|\s*\|)/.freeze
 
     module_function
 
     def strip(markdown)
-      markdown.to_s.gsub(ANY_PATTERN, "")
+      markdown.to_s
+        .gsub(/\A(?:[ \t]*#{ANY_PATTERN.source}[ \t]*\n)+/, "")
+        .gsub(/\n(?:[ \t]*#{ANY_PATTERN.source}[ \t]*\n)+/, "\n")
+        .gsub(ANY_PATTERN, "")
     end
 
     def point_marker(marker_id)
@@ -32,16 +39,15 @@ module DesignDocs
       start_offset = clamp_offset(start_offset, visible.length)
       end_offset = clamp_offset(end_offset, visible.length)
       start_offset, end_offset = end_offset, start_offset if end_offset < start_offset
-      raw_start_offset = raw_offset_for_visible_offset(raw, start_offset)
-      raw_end_offset = raw_offset_for_visible_offset(raw, end_offset)
-
       if anchor_kind.to_s == "point"
-        marker = point_marker(marker_id)
-        marked = raw.dup.insert(raw_start_offset, marker)
+        placement = block_safe_placement(visible, start_offset, point_marker(marker_id))
+        marked = raw.dup.insert(raw_offset_for_visible_offset(raw, placement[:offset]), placement[:marker])
       else
+        start_placement = block_safe_placement(visible, start_offset, range_start_marker(marker_id))
+        end_placement = block_safe_placement(visible, end_offset, range_end_marker(marker_id))
         marked = raw.dup
-        marked.insert(raw_end_offset, range_end_marker(marker_id))
-        marked.insert(raw_start_offset, range_start_marker(marker_id))
+        marked.insert(raw_offset_for_visible_offset(raw, end_placement[:offset]), end_placement[:marker])
+        marked.insert(raw_offset_for_visible_offset(raw, start_placement[:offset]), start_placement[:marker])
       end
 
       selected = visible[start_offset...end_offset].to_s
@@ -62,7 +68,7 @@ module DesignDocs
         return missing_location if matches.empty?
         return duplicated_location if matches.many?
 
-        stripped_before = strip(raw[0...matches.first]).length
+        stripped_before = logical_offset_for_marker(raw, matches.first)
         return context_location(raw, stripped_before, stripped_before)
       end
 
@@ -75,31 +81,32 @@ module DesignDocs
       end_match = end_matches.first
       return missing_location if end_match.begin(0) < start_match.end(0)
 
-      selected = strip(raw[start_match.end(0)...end_match.begin(0)])
-      start_offset = strip(raw[0...start_match.begin(0)]).length
-      context_location(raw, start_offset, start_offset + selected.length, selected)
+      start_offset = logical_offset_for_marker(raw, start_match.begin(0))
+      end_offset = logical_offset_for_marker(raw, end_match.begin(0))
+      return missing_location if end_offset < start_offset
+
+      context_location(raw, start_offset, end_offset, strip(raw)[start_offset...end_offset].to_s)
     end
 
     def replace_range(markdown:, marker_id:, proposed_markdown:)
       raw = markdown.to_s
-      start_regex = /<!--\s*syrus:range-start\s+id="#{Regexp.escape(marker_id)}"\s*-->/
-      end_regex = /<!--\s*syrus:range-end\s+id="#{Regexp.escape(marker_id)}"\s*-->/
-      start_match = start_regex.match(raw)
-      end_match = end_regex.match(raw)
-      return nil unless start_match && end_match && end_match.begin(0) >= start_match.end(0)
+      location = locate(markdown: raw, marker_id: marker_id, anchor_kind: "range")
+      return nil unless location.status == "active"
 
-      raw[0...start_match.begin(0)].to_s + proposed_markdown.to_s + raw[end_match.end(0)..].to_s
+      unmarked = remove(markdown: raw, marker_id: marker_id, anchor_kind: "range")
+      raw_start = raw_offset_for_visible_offset(unmarked, location.start_offset)
+      raw_end = raw_offset_for_visible_offset(unmarked, location.end_offset)
+      unmarked[0...raw_start].to_s + proposed_markdown.to_s + unmarked[raw_end..].to_s
     end
 
     def remove(markdown:, marker_id:, anchor_kind:)
       raw = markdown.to_s
       if anchor_kind.to_s == "point"
-        return raw.gsub(/<!--\s*syrus:anchor\s+id="#{Regexp.escape(marker_id)}"\s*-->/, "")
+        return remove_marker(raw, /<!--\s*syrus:anchor\s+id="#{Regexp.escape(marker_id)}"\s*-->/)
       end
 
-      raw
-        .gsub(/<!--\s*syrus:range-start\s+id="#{Regexp.escape(marker_id)}"\s*-->/, "")
-        .gsub(/<!--\s*syrus:range-end\s+id="#{Regexp.escape(marker_id)}"\s*-->/, "")
+      without_start = remove_marker(raw, /<!--\s*syrus:range-start\s+id="#{Regexp.escape(marker_id)}"\s*-->/)
+      remove_marker(without_start, /<!--\s*syrus:range-end\s+id="#{Regexp.escape(marker_id)}"\s*-->/)
     end
 
     def marker_counts(markdown)
@@ -113,34 +120,68 @@ module DesignDocs
     def project(markdown:, visible_markdown:, anchors:)
       raw = markdown.to_s
       next_visible = visible_markdown.to_s
-      return next_visible unless raw.match?(ANY_PATTERN)
+      return Projection.new(markdown: next_visible, locations: {}, stale_anchors: []) unless raw.match?(ANY_PATTERN)
 
-      old_visible = strip(raw)
-      projection = OffsetProjection.new(old_visible, next_visible)
-      insertions = anchors.filter_map do |anchor|
+      locations = {}
+      stale_anchors = []
+      anchors.each do |anchor|
         next unless anchor.status == "active"
-        next unless raw.include?(anchor.marker_id)
+        unless raw.include?(anchor.marker_id)
+          stale_anchors << anchor
+          next
+        end
 
         if anchor.anchor_kind.to_s == "point"
-          [ { offset: projection.point(anchor.last_known_start_offset || anchor.start_offset), marker: point_marker(anchor.marker_id), order: 0 } ]
+          offset = locate_point(next_visible, anchor)
+          if offset
+            locations[anchor.id] = [ offset, offset ]
+          else
+            stale_anchors << anchor
+          end
         else
-          projected_start, projected_end = projection.range(
-            anchor.last_known_start_offset || anchor.start_offset,
-            anchor.last_known_end_offset || anchor.end_offset,
-            selected_markdown: anchor.selected_markdown
-          )
+          range = locate_range(next_visible, anchor)
+          if range
+            locations[anchor.id] = range
+          else
+            stale_anchors << anchor
+          end
+        end
+      end
+
+      pending_ids = anchors.select { |anchor| anchor.suggestions.any? { |suggestion| suggestion.state == "pending" } }.map(&:id)
+      overlapping_ids = overlapping_anchor_ids(locations.slice(*pending_ids))
+      stale_anchors.concat(anchors.select { |anchor| overlapping_ids.include?(anchor.id) })
+      stale_ids = stale_anchors.map(&:id).to_set
+
+      # Marker placement is physical only. Offsets and selected text always refer
+      # to the marker-free Markdown, so block markers stay at the beginning of
+      # their lines and continue to parse as lists, headings, and tables.
+      insertions = anchors.filter_map do |anchor|
+        next if stale_ids.include?(anchor.id)
+        range = locations[anchor.id]
+        next unless range
+
+        if anchor.anchor_kind.to_s == "point"
+          placement = block_safe_placement(next_visible, range.first, point_marker(anchor.marker_id))
+          [ placement.merge(order: 0) ]
+        else
+          end_placement = block_safe_placement(next_visible, range.last, range_end_marker(anchor.marker_id))
+          start_placement = block_safe_placement(next_visible, range.first, range_start_marker(anchor.marker_id))
           [
-            { offset: projected_end, marker: range_end_marker(anchor.marker_id), order: 0 },
-            { offset: projected_start, marker: range_start_marker(anchor.marker_id), order: 1 }
+            end_placement.merge(order: 0),
+            start_placement.merge(order: 1)
           ]
         end
       end.flatten
 
-      insertions
+      marked = insertions
         .sort_by { |insertion| [ -insertion[:offset], insertion[:order] ] }
         .each_with_object(next_visible.dup) do |insertion, marked|
           marked.insert(clamp_offset(insertion[:offset], next_visible.length), insertion[:marker])
         end
+      raise "anchor projection changed visible Markdown" unless strip(marked) == next_visible
+
+      Projection.new(markdown: marked, locations: locations.except(*stale_ids.to_a), stale_anchors: stale_anchors.uniq(&:id))
     end
 
     def refresh_anchor!(anchor, markdown)
@@ -179,11 +220,9 @@ module DesignDocs
       offset.to_i.clamp(0, length)
     end
 
-    # Every occurrence of `selection` in `markdown`, by index. Shared by
-    # OffsetProjection's diff-based re-anchoring and ReviewSuggestion's
-    # reconciliation of anchors whose marker was overwritten -- both need to
-    # know whether an anchor's exact prior excerpt still exists exactly once
-    # (safe to re-point at) or not (ambiguous/missing, so it's left alone).
+    # Every occurrence of `selection` in `markdown`, by index. Offset
+    # projection and suggestion creation both use this to distinguish an
+    # unambiguous exact match from missing or repeated text.
     def exact_matches(markdown, selection)
       return [] if selection.blank?
 
@@ -196,6 +235,68 @@ module DesignDocs
       matches
     end
 
+    def locate_range(markdown, anchor)
+      selection = anchor.selected_markdown.to_s
+      matches = exact_matches(markdown, selection)
+      return [ matches.first, matches.first + selection.length ] if matches.one?
+
+      expected = anchor.last_known_start_offset || anchor.start_offset
+      local = matches.select { |offset| (offset - expected.to_i).abs <= LOCAL_SEARCH_RADIUS }
+      return [ local.first, local.first + selection.length ] if local.one?
+
+      nil
+    end
+
+    def locate_point(markdown, anchor)
+      expected = anchor.last_known_start_offset || anchor.start_offset
+      prefix = anchor.prefix_context.to_s
+      suffix = anchor.suffix_context.to_s
+      candidates = (0..markdown.length).select do |offset|
+        (offset - expected.to_i).abs <= LOCAL_SEARCH_RADIUS &&
+          (prefix.blank? || markdown[0...offset].to_s.end_with?(prefix)) &&
+          (suffix.blank? || markdown[offset..].to_s.start_with?(suffix))
+      end
+      candidates.one? ? candidates.first : nil
+    end
+
+    def overlapping_anchor_ids(locations)
+      locations.to_a.combination(2).each_with_object(Set.new) do |((left_id, left), (right_id, right)), ids|
+        left, right = right, left if right.first < left.first
+        next if left.last <= right.first
+
+        ids << left_id << right_id
+      end
+    end
+
+    def block_safe_placement(markdown, offset, marker)
+      value = clamp_offset(offset, markdown.length)
+      line_start = value.zero? ? 0 : (markdown.rindex("\n", value - 1)&.+(1) || 0)
+      leading = markdown[line_start...value].to_s
+      block_starts_here = leading.match?(/\A {0,3}\z/) && BLOCK_PREFIX_PATTERN.match?(markdown[line_start..].to_s)
+      return { offset: value, marker: marker } unless block_starts_here
+
+      # A marker-only line immediately before the block preserves CommonMark
+      # parsing. `strip` consumes that synthetic line, so visible offsets and
+      # the user's exact Markdown remain unchanged.
+      { offset: line_start, marker: "#{marker}\n" }
+    end
+
+    def logical_offset_for_marker(raw, raw_offset)
+      offset = strip(raw[0...raw_offset]).length
+      marker = ANY_PATTERN.match(raw, raw_offset)
+      return offset unless marker&.begin(0) == raw_offset && raw[marker.end(0)] == "\n"
+
+      indentation = raw[(marker.end(0) + 1)..].to_s[/\A {1,3}(?=(?:[-+*]\s+|\d+[.)]\s+|\#{1,6}\s+|\|))/, 0]
+      offset + indentation.to_s.length
+    end
+
+    def remove_marker(raw, pattern)
+      raw
+        .gsub(/\A[ \t]*#{pattern.source}[ \t]*\n/, "")
+        .gsub(/\n[ \t]*#{pattern.source}[ \t]*\n/, "\n")
+        .gsub(pattern, "")
+    end
+
     def raw_offset_for_visible_offset(markdown, visible_offset)
       raw_index = 0
       visible_index = 0
@@ -205,6 +306,7 @@ module DesignDocs
         marker = ANY_PATTERN.match(raw, raw_index)
         if marker&.begin(0) == raw_index
           raw_index = marker.end(0)
+          raw_index += 1 if (marker.begin(0).zero? || raw[marker.begin(0) - 1] == "\n") && raw[raw_index] == "\n"
         else
           raw_index += 1
           visible_index += 1
@@ -212,65 +314,6 @@ module DesignDocs
       end
 
       raw_index
-    end
-
-    class OffsetProjection
-      def initialize(old_visible, next_visible)
-        @old_visible = old_visible.to_s
-        @next_visible = next_visible.to_s
-        @prefix_length = common_prefix_length
-        @suffix_length = common_suffix_length
-      end
-
-      def start(offset)
-        project(offset, affinity: :start)
-      end
-
-      def end(offset)
-        project(offset, affinity: :end)
-      end
-
-      def range(start_offset, end_offset, selected_markdown:)
-        selected = selected_markdown.to_s
-        matches = AnchorMarkers.exact_matches(next_visible, selected)
-        return [ matches.first, matches.first + selected.length ] if matches.one?
-
-        [ start(start_offset), self.end(end_offset) ]
-      end
-
-      def point(offset)
-        project(offset, affinity: :start)
-      end
-
-      private
-
-      attr_reader :old_visible, :next_visible, :prefix_length, :suffix_length
-
-      def project(offset, affinity:)
-        old_offset = offset.to_i.clamp(0, old_visible.length)
-        old_change_end = old_visible.length - suffix_length
-        next_change_end = next_visible.length - suffix_length
-        delta = next_visible.length - old_visible.length
-
-        return old_offset if old_offset <= prefix_length
-        return (old_offset + delta).clamp(0, next_visible.length) if old_offset >= old_change_end
-
-        affinity == :end ? next_change_end : prefix_length
-      end
-
-      def common_prefix_length
-        limit = [ old_visible.length, next_visible.length ].min
-        index = 0
-        index += 1 while index < limit && old_visible[index] == next_visible[index]
-        index
-      end
-
-      def common_suffix_length
-        limit = [ old_visible.length - prefix_length, next_visible.length - prefix_length ].min
-        count = 0
-        count += 1 while count < limit && old_visible[old_visible.length - count - 1] == next_visible[next_visible.length - count - 1]
-        count
-      end
     end
   end
 end

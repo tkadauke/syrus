@@ -54,7 +54,6 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
     expect(response[:result][:isError]).to be_falsey
     expect(response_payload(response)[:proposals]).to eq([
       {
-        id: root.id,
         slug: "root",
         title: "Root",
         body: "Root body.",
@@ -80,7 +79,6 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
         materialized: nil
       },
       {
-        id: leaf.id,
         slug: "leaf",
         title: "Leaf",
         body: "Leaf body.",
@@ -147,13 +145,14 @@ RSpec.describe Mcp::Tools::ListProposalsTool do
     response = jsonrpc("tools/call", params: { name: "list_proposals", arguments: {} })
 
     proposals = response_payload(response).fetch(:proposals)
-    expect(proposals.find { |proposal| proposal[:id] == job_proposal.id }.fetch(:materialized)).to eq(
+    expect(proposals).to all(satisfy { |proposal| !proposal.key?(:id) })
+    expect(proposals.find { |proposal| proposal[:slug] == job_proposal.slug }.fetch(:materialized)).to eq(
       kind: "job",
       job_id: job.id,
       job_title: "Add inspection tools",
       job_state: "open"
     )
-    expect(proposals.find { |proposal| proposal[:id] == epic_proposal.id }.fetch(:materialized)).to eq(
+    expect(proposals.find { |proposal| proposal[:slug] == epic_proposal.slug }.fetch(:materialized)).to eq(
       kind: "epic",
       epic_id: epic.id,
       epic_title: "Chat-driven job feedback loop",

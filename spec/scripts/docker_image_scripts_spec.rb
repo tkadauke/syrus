@@ -256,10 +256,8 @@ RSpec.describe "Docker image scripts" do
   it "bakes the release version into published images via the shared helpers" do
     # The Dockerfile declares SYRUS_VERSION next to GIT_SHA in BOTH runnable
     # stages (app for web pods, worker-dev for the distribution image), the
-    # helpers always forward it (empty when absent — the Dockerfile default),
-    # and bin/publish-image passes the version it is publishing. Callers that
-    # never publish releases (deploy, compose-up, build-local-image) pass no
-    # --version and get dev images with an empty SYRUS_VERSION.
+    # helpers always forward it, and non-release build paths derive the nearest
+    # reachable release tag for plugin compatibility.
     dockerfile = File.read(File.join(root, "Dockerfile"))
     expect(dockerfile.scan('ARG SYRUS_VERSION=""').size).to eq(2)
     expect(dockerfile.scan("ENV SYRUS_VERSION=$SYRUS_VERSION").size).to eq(2)
@@ -270,8 +268,8 @@ RSpec.describe "Docker image scripts" do
     expect(publish_image.scan('--version="$VERSION"').size).to eq(3)
 
     build_local_image = File.read(File.join(root, "bin/build-local-image"))
-    expect(build_local_image).not_to include("--version=")
-    expect(deploy).not_to include("--version=")
+    expect(build_local_image).to include('--version="$SYRUS_RELEASE_VERSION"')
+    expect(File.read(File.join(root, "lib/deploy/images.rb"))).to include('"--version=#{repo.release_version}"')
   end
 
   it "bakes the build timestamp into published and locally built images" do
@@ -299,7 +297,7 @@ RSpec.describe "Docker image scripts" do
 
     build_local_image = File.read(File.join(root, "bin/build-local-image"))
     expect(build_local_image).to include('BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"')
-    expect(build_local_image).to include('syrus_build_local_backend_image "$IMAGE" "$GIT_SHA" --built-at="$BUILT_AT"')
+    expect(build_local_image).to include('--built-at="$BUILT_AT"')
     expect(deploy).not_to include("--built-at=")
   end
 

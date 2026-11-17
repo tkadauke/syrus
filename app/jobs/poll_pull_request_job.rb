@@ -5,6 +5,7 @@ class PollPullRequestJob < ApplicationJob
 
   queue_as :polling
   PR_CHECK_CACHE_REFRESH_INTERVAL = 5.minutes
+  PERSISTENCE_CONTENTION_CATCH_UP_DELAY = 30.seconds
   TRANSIENT_GITHUB_ERROR_CLASSES = [
     Octokit::ServerError,
     Faraday::TimeoutError,
@@ -344,39 +345,51 @@ class PollPullRequestJob < ApplicationJob
     latest = new_comments.map(&:created_at).compact.max
     workflow = nil
 
-    @job.with_lock do
-      @job.reload
-      fresh_cutoff = feedback_cutoff
-      still_new = new_comments.select do |comment|
-        fresh_cutoff.nil? || (comment.created_at && comment.created_at > fresh_cutoff)
-      end
-      next if still_new.empty?
-
-      clear_stale_approval!
-
-      # Stash the full comment payload + the cutoff timestamp on the
-      # workflow as a structured artifact; Steps::Respond reads it at
-      # run time and composes the Prompts::PrFeedback prompt itself.
-      # Polling job stays ignorant of prompt internals.
-      iteration = feedback_iteration_number
-      source_handle = qualifying_records.first&.github_handle
-
-      artifacts = {
-        "pr_comments" => all_comments.map { |c| serialize_comment(c) },
-        "feedback_cutoff" => fresh_cutoff&.iso8601,
-        "pr_feedback_iteration" => iteration,
-        "pr_feedback_auto" => true,
-        "pr_feedback_source_handle" => source_handle,
-        "pr_review_comment_ids" => qualifying_records.map(&:id)
-      }
-      workflow = WorkUnits::Launcher.instantiate(
-        kind: "pr_comment",
+    begin
+      PollingPersistenceRetry.call(
         job: @job,
-        artifacts: artifacts,
-        agent_provider: @agent_provider
-      )
+        boundary: "pr_comment_transaction",
+        context: { pr_number: @job.pr_number, pr_repository_id: @job.effective_pr_repository.id }
+      ) do |retry_number|
+        @job.reload if retry_number.positive?
+        @job.with_lock do
+          @job.reload
+          fresh_cutoff = feedback_cutoff
+          still_new = new_comments.select do |comment|
+            fresh_cutoff.nil? || (comment.created_at && comment.created_at > fresh_cutoff)
+          end
+          next if still_new.empty?
 
-      @job.update!(last_seen_comment_at: latest) if latest && (@job.last_seen_comment_at.nil? || latest > @job.last_seen_comment_at)
+          clear_stale_approval!
+
+          # Stash the full comment payload + the cutoff timestamp on the
+          # workflow as a structured artifact; Steps::Respond reads it at
+          # run time and composes the Prompts::PrFeedback prompt itself.
+          # Polling job stays ignorant of prompt internals.
+          iteration = feedback_iteration_number
+          source_handle = qualifying_records.first&.github_handle
+
+          artifacts = {
+            "pr_comments" => all_comments.map { |c| serialize_comment(c) },
+            "feedback_cutoff" => fresh_cutoff&.iso8601,
+            "pr_feedback_iteration" => iteration,
+            "pr_feedback_auto" => true,
+            "pr_feedback_source_handle" => source_handle,
+            "pr_review_comment_ids" => qualifying_records.map(&:id)
+          }
+          workflow = WorkUnits::Launcher.instantiate(
+            kind: "pr_comment",
+            job: @job,
+            artifacts: artifacts,
+            agent_provider: @agent_provider
+          )
+
+          @job.update!(last_seen_comment_at: latest) if latest && (@job.last_seen_comment_at.nil? || latest > @job.last_seen_comment_at)
+        end
+      end
+    rescue *PollingPersistenceRetry::RETRYABLE_ERRORS => e
+      schedule_persistence_contention_catch_up(error: e, boundary: "pr_comment_transaction")
+      return
     end
 
     return unless workflow
@@ -385,6 +398,23 @@ class PollPullRequestJob < ApplicationJob
     qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
   rescue WorkUnits::Launcher::LockConflict => e
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: pr_comment already locked by WorkUnit ##{e.work_unit.id}")
+  end
+
+  def schedule_persistence_contention_catch_up(error:, boundary:)
+    Rails.logger.warn(
+      {
+        event: "github_polling_persistence_catch_up_scheduled",
+        boundary: boundary,
+        job_id: @job.id,
+        job_slug: @job.slug,
+        repository_id: @job.repository_id,
+        pr_repository_id: @job.effective_pr_repository.id,
+        pr_number: @job.pr_number,
+        error_class: error.class.name,
+        error_message: error.message
+      }.to_json
+    )
+    retry_job(wait: PERSISTENCE_CONTENTION_CATCH_UP_DELAY, error: error)
   end
 
   def feedback_iteration_number

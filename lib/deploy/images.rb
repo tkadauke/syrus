@@ -181,6 +181,7 @@ module Deploy
     def build!(target, registry)
       result = shell.docker_lib(
         "syrus_docker_build_image", target, sha,
+        "--version=#{repo.release_version}", "--version-description=#{repo.version_description}",
         "--platform", "linux/amd64", "--provenance=false", "--sbom=false",
         *inline_cache_args("#{registry}:latest"),
         "-t", "#{registry}:#{sha}", "-t", "#{registry}:latest", "."

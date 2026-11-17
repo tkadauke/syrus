@@ -41,6 +41,27 @@ RSpec.describe ChatEventEvaluator do
     expect(calls.first.fetch(:transcript_jsonl)).to include("first request", "first answer", "latest request")
   end
 
+  it "identifies proposal events by slug and title without exposing the internal proposal id" do
+    proposal = chat_session.proposals.create!(
+      slug: "fix-proposal-references",
+      title: "Fix proposal references",
+      body: "Use operator-visible names."
+    )
+    event.update!(proposal: proposal)
+    calls = []
+    runner = lambda do |**kwargs|
+      calls << kwargs
+      Result.new(final_text: JSON.generate(decision: "no_op", reason: "covered", urgency: 0, confidence: 0.9))
+    end
+
+    described_class.new(event: event, chat_session: chat_session, runner: runner).call
+
+    prompt = calls.first.fetch(:prompt)
+    expect(prompt).to include(%("slug": "#{proposal.slug}"))
+    expect(prompt).to include(%("title": "#{proposal.title}"))
+    expect(prompt).not_to include(%("proposal_id": #{proposal.id}))
+  end
+
   it "excludes deleted messages from the cloned evaluator transcript" do
     message("user", "active request")
     message("assistant", "deleted secret", deleted_at: Time.current)

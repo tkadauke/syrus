@@ -57,6 +57,12 @@ RSpec.describe PendingActions::CoworkerToolCall do
     allow(McpToolRegistry).to receive(:entries).with(surface: :coworker).and_return([ entry ])
   end
 
+  it "keeps the plugin action key as a compatibility subclass of the core executor" do
+    expect(described_class.superclass).to eq(PendingActions::AuthorizedToolCall)
+    expect(PendingActions.for("coworker_tool_call")).to eq(described_class)
+    expect(PendingActions.for("authorized_tool_call")).to eq(PendingActions::AuthorizedToolCall)
+  end
+
   it "refuses execution until every authorization item is approved" do
     expect { described_class.new(request).authorize_execution! }
       .to raise_error(ArgumentError, /prerequisites are not approved/)

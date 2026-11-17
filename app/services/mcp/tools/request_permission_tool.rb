@@ -15,7 +15,7 @@ module Mcp::Tools
         resource_scope: { type: "object", description: "Normalized resource scope; omit for unscoped operations." },
         constraints: { type: "object", description: "Descriptor-supported constraints only (never secrets)." },
         purpose: { type: "string", maxLength: 1000, description: "Why you need this authority, shown to the owner." },
-        duration: { type: "string", enum: Permissions::CoworkerPermissionRequest::DURATIONS,
+        duration: { type: "string", enum: Permissions::PermissionRequest::DURATIONS,
           description: "Narrowest suitable duration. The owner policy and descriptor ceilings decide what is actually offered." }
       },
       required: %w[capability operation purpose]
@@ -35,7 +35,7 @@ module Mcp::Tools
           offered_durations: result.offered_durations, requested_duration: result.requested_duration,
           grants_authority: false, message: I18n.t("server.permissions.coworker_permission.#{message_key(result.status)}")
         )
-      rescue Permissions::CoworkerPermissionRequest::Rejected => error
+      rescue Permissions::PermissionRequest::Rejected => error
         Mcp::Tools.invalid(I18n.t("server.permissions.coworker_permission.rejected", reason: "#{error.code}: #{error.message}"))
       end
 

@@ -2,12 +2,17 @@ require_relative "boot"
 
 require "rails/all"
 
-# Plugin gems call Syrus::PluginApi.syrus_plugin at *load* time, which is
+# Plugin entry files call Syrus::PluginApi.syrus_plugin at *load* time, which is
 # before Rails initializes and therefore before Zeitwerk and $LOAD_PATH are
 # set up. It has to be on the load path and required by hand, and excluded
 # from autoloading below so Zeitwerk does not manage the same constant.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "syrus/plugin_api"
+require "syrus/plugin_roots"
+require "syrus/events"
+require "syrus/plugin/manifest"
+require "syrus/plugin_registry"
+require "syrus/plugin_loader"
 require "syrus/plugin/grade_detector"
 require "syrus/plugin/grader_type"
 require "syrus/plugin/focused_test_command"
@@ -19,6 +24,11 @@ require "syrus/server_time_zone"
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
+# Plugins are application components discovered from PluginRoots, not gems in
+# the bundle. Load their declarations after third-party dependencies exist and
+# before the application class is built so each Rails::Engine participates in
+# normal initialization.
+Syrus::PluginLoader.load!
 
 module Syrus
   class Application < Rails::Application
@@ -42,8 +52,17 @@ module Syrus
       g.test_framework :rspec, fixture: false, view_specs: false, helper_specs: false, routing_specs: false
     end
 
-    root.glob("plugins/*/db/migrate").sort_by(&:to_s).each do |path|
-      config.paths["db/migrate"] << path.to_s
+    plugin_roots = Syrus::PluginRoots.default
+    plugin_roots.plugin_directories.each do |plugin_dir|
+      migration_dir = plugin_dir.join("db/migrate")
+      config.paths["db/migrate"] << migration_dir.to_s if migration_dir.directory?
+
+      plugin_dir.glob("app/*").select { |path| path.directory? && path.glob("**/*.rb").any? }.each do |path|
+        config.autoload_paths << path.to_s
+        config.eager_load_paths << path.to_s
+      end
+
+      config.i18n.load_path.concat(plugin_dir.glob("config/locales/**/*.{rb,yml}").map(&:to_s))
     end
 
     initializer "syrus.plugin_migration_paths" do

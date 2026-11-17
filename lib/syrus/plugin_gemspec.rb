@@ -9,8 +9,6 @@ module Syrus
   #   require_relative "../../lib/syrus/plugin_gemspec"
   #   Syrus.plugin_gemspec(__FILE__)
   #
-  # Pass a block for anything genuinely per-plugin -- an extra runtime
-  # dependency is the only case among the bundled plugins.
   def self.plugin_gemspec(gemspec_path)
     root = File.dirname(gemspec_path)
     name = File.basename(gemspec_path, ".gemspec")
@@ -29,8 +27,6 @@ module Syrus
 
       spec.required_ruby_version = ">= 3.4"
       spec.add_dependency "rails", ">= 8.1"
-
-      yield spec if block_given?
     end
   end
 end

@@ -14,7 +14,11 @@ require_relative "../config/syrus_bundle_env"
 
 require "rubygems"
 require "bundler/setup"
+require_relative "../lib/syrus/plugin_roots"
 
-ARGV.concat(["spec", "plugins"]) if ARGV.empty?
+if ARGV.empty?
+  ARGV << "spec"
+  ARGV.concat(Syrus::PluginRoots.default.roots.select(&:directory?).map(&:to_s))
+end
 
 load Gem.bin_path("rspec-core", "rspec")

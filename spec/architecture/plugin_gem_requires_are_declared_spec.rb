@@ -9,8 +9,8 @@ require "rails_helper"
 #
 # That is exactly how a terminal screen service shipped a `require
 # "unicode/display_width"`: the gem arrives transitively via RuboCop, which is
-# development-only. The fix is to declare it in the plugin's own gemspec, which
-# is what `Syrus.plugin_gemspec`'s block argument exists for.
+# development-only. Built-in plugin dependencies belong in the root Gemfile;
+# external plugins cannot add gems to the already-resolved application bundle.
 RSpec.describe "plugin gem requires" do
   # Only runtime code. Spec files legitimately require test-only gems, and
   # plugins/*/spec never ships in the image.
@@ -68,13 +68,8 @@ RSpec.describe "plugin gem requires" do
       bundle (the image builds with BUNDLE_WITHOUT="development:test"), so
       enabling the plugin crashloops every pod at boot with LoadError.
 
-      Declare the gem in the plugin's gemspec:
-
-        Syrus.plugin_gemspec(__FILE__) do |spec|
-          spec.add_dependency "the-gem", "~> 1.0"
-        end
-
-      then run `bundle install` to update Gemfile.lock.
+      Declare the gem in the root Gemfile, then run `bundle install` to update
+      Gemfile.lock.
 
       #{offenders.join("\n")}
     MESSAGE
