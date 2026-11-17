@@ -7,7 +7,9 @@ import type { AdminPluginPage } from "./api/adminPluginPages"
 import { ThemeProvider } from "./contexts/ThemeContext"
 import { PluginAdminPageRoute, pluginAdminComponentFor, pluginAdminComponentKeys, usePluginAdminPage } from "./pluginAdminPages"
 
-beforeAll(async () => { await import("./builtInPluginContributions") })
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 import i18n from "./i18n"
 
 vi.mock("./api/adminPluginPages", () => ({ fetchAdminPluginPages: vi.fn() }))

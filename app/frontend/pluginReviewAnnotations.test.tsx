@@ -2,7 +2,9 @@ import { beforeAll, describe, expect, it } from "vitest"
 import { registerPluginContribution } from "./pluginContributionRegistry"
 import { pluginReviewAnnotationComponentFor, pluginReviewAnnotationComponentKeys } from "./pluginReviewAnnotations"
 
-beforeAll(async () => { await import("./builtInPluginContributions") })
+beforeAll(async () => {
+  await import("./builtInPluginContributions")
+})
 
 describe("plugin review annotation registry", () => {
   it("discovers installed plugin review annotation components", () => {
