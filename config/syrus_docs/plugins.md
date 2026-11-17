@@ -18,6 +18,14 @@ commands are non-interactive and non-streaming and return table, text, or JSON
 results. Disabling a plugin immediately removes its commands from the catalog
 and prevents execution.
 
+The CLI fetches this catalog only while resolving a command that is not already
+built in. It caches catalogs per instance with ETag revalidation and can use a
+stale cached catalog while offline. Built-in commands take precedence over
+catalog declarations. If neither matches, the CLI searches `PATH` from the
+longest command path to the first word for a trusted `syrus-<path>` executable,
+passes it the unmatched arguments, and exposes the configured instance and
+token as `SYRUS_URL` and `SYRUS_TOKEN`.
+
 ## Per-origin Job visibility
 
 Repository membership remains the outer visibility boundary for Jobs. A plugin
