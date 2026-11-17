@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react"
 import { ChevronIcon } from "./components/ChevronIcon"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { loadPluginModule } from "./i18n"
 import "./builtInPluginContributions"
 import { getPluginContribution, getPluginContributions, pluginContributionLoader } from "./pluginContributionRegistry"
@@ -53,8 +54,9 @@ export function pluginUiSlotComponentFor(key: string | null | undefined) {
     if (!mod.default) throw new Error(`Plugin UI slot component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = pluginName === "core" ? Component : withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }
 
 // Renders whatever core or plugin code contributed to one slot on a page. A panel

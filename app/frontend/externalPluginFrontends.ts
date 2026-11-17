@@ -1,4 +1,5 @@
 import { readInitialBootstrap, type ExternalPluginFrontend } from "./api/bootstrap"
+import { loadPluginLocales } from "./i18n"
 
 type ModuleImporter = (url: string) => Promise<unknown>
 
@@ -14,6 +15,7 @@ export async function loadExternalPluginFrontends(
     entries.map(async (entry) => {
       try {
         await importer(entry.bundle_url)
+        await loadPluginLocales(entry.name)
       } catch (error) {
         console.error(`[plugin frontend] Failed to load ${entry.name}`, error)
       }

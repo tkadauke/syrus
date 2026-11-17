@@ -281,6 +281,10 @@
     "match": "Tesserae congruunt",
     "mismatch": "Nondum congruunt"
   },
+  "plugin_error": {
+    "heading": "Plugin {{plugin}} ostendi non potuit.",
+    "reload": "Iterum onera"
+  },
   "route_error": {
     "heading": "Aliquid mali accidit",
     "go_back": "Redi",

@@ -1,6 +1,7 @@
 import { lazy, type ComponentType } from "react"
 import type { ChatPayload, ChatWorkspaceTab } from "./api/chats"
 import { loadPluginModule } from "./i18n"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import "./builtInPluginContributions"
 import { getPluginContribution, getPluginContributions, pluginContributionLoader } from "./pluginContributionRegistry"
 
@@ -45,6 +46,7 @@ export function pluginWorkspaceTabComponentFor(key: string | null | undefined) {
     if (!mod.default) throw new Error(`Plugin workspace tab component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }

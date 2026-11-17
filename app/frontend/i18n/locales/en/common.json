@@ -281,6 +281,10 @@
     "match": "Passwords match",
     "mismatch": "Doesn't match yet"
   },
+  "plugin_error": {
+    "heading": "The {{plugin}} plugin could not be displayed.",
+    "reload": "Reload"
+  },
   "route_error": {
     "heading": "Something went wrong",
     "go_back": "Go back",

@@ -4,6 +4,7 @@ import { useLocation, useParams } from "react-router-dom"
 import { fetchRepoPluginTabs } from "./api/repoPluginTabs"
 import { REPOSITORY_TABS_STALE_TIME } from "./components/RepositoryPageShell"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { useT } from "./hooks/useT"
 import { loadPluginModule } from "./i18n"
 import "./builtInPluginContributions"
@@ -35,8 +36,9 @@ export function pluginRepoComponentFor(key: string | null | undefined) {
     if (!mod.default) throw new Error(`Plugin repo tab component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }
 
 export function PluginRepoPageTabRoute() {

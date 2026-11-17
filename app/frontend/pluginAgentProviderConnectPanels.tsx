@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from "react"
 import { getEagerPluginContributions } from "./pluginContributionRegistry"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 
 export type AgentProviderConnectPanelProps = {
   autoFocus?: boolean
@@ -26,7 +27,7 @@ function registeredPanels() {
       return []
     }
 
-    return [panel]
+    return [{ ...panel, component: withPluginErrorBoundary(pluginName, panel.component) }]
   })
 }
 

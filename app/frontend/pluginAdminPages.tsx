@@ -3,6 +3,7 @@ import { lazy, Suspense, type ComponentType } from "react"
 import { matchPath, useLocation } from "react-router-dom"
 import { fetchAdminPluginPages } from "./api/adminPluginPages"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { useT } from "./hooks/useT"
 import { loadPluginModule } from "./i18n"
 import "./builtInPluginContributions"
@@ -34,8 +35,9 @@ export function pluginAdminComponentFor(key: string | null | undefined) {
     if (!mod.default) throw new Error(`Plugin admin component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }
 
 /**

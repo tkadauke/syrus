@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react"
 import "./builtInPluginContributions"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { getPluginContribution, pluginContributionLoader } from "./pluginContributionRegistry"
 
 export type ReviewContributionKind = "target_editor" | "evidence" | "audit" | "settings_summary"
@@ -31,8 +32,9 @@ export function reviewContributionComponentFor(key: string | null | undefined) {
     if (!module.default) throw new Error(`Plugin review contribution ${key} has no default export`)
     return { default: module.default }
   })
-  cache.set(key, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(pluginName, Component)
+  cache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }
 
 export function renderReviewContribution(contribution: ReviewContribution, payload: unknown, fallback: ReactNode = null, onChange?: (value: unknown) => void) {

@@ -21,6 +21,20 @@ the same registry external bundles use. Component keys keep the public
 `<plugin>/<Name>` format, and consumers continue loading plugin locales through
 `loadPluginModule` before resolving the component.
 
+Every plugin-contributed UI is rendered inside the shared plugin error boundary.
+Render failures and rejected lazy imports report through the browser-error API
+with the plugin name and show a compact localized reload action; they must not
+escape into the surrounding application. Tool-card failures use this isolation
+in expanded content and never change the design-locked one-line collapsed
+header geometry.
+
+External plugins declare locale JSON with `frontend.i18n` manifest patterns.
+Locale files use `app/frontend/i18n/locales/{en,de,la}/<namespace>.json`; the
+host advertises authenticated, content-hashed URLs and loads the active language
+on demand. English is the required default and is used when an active-language
+file is absent or fails to load. Bundled plugins retain the build-time locale
+glob and `loadPluginModule` contract.
+
 The currently registered contribution kinds are:
 
 - `workspace_tab` for `plugins/*/app/frontend/workspaceTabs/*.tsx`

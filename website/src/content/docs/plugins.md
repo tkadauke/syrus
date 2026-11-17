@@ -13,6 +13,13 @@ so installing UI contributions requires a restart but no rebuild of the core
 frontend. If one bundle fails, Syrus logs and skips it while the application
 continues loading.
 
+Every plugin UI contribution is isolated by an error boundary. A render error
+or rejected lazy import shows a compact plugin-named reload action and is sent
+through Syrus's browser error reporting without taking down the surrounding UI.
+External manifests may also declare `frontend.i18n` JSON files under
+`app/frontend/i18n/locales/{en,de,la}/`; Syrus loads the active language from
+content-hashed URLs and falls back to English if that locale cannot be loaded.
+
 Plugin bundles share the host's React, React DOM, TanStack Query, i18next, and
 react-i18next runtimes through the documented `@syrus/plugin-sdk` build
 contract. Their own CSS must be complete; core does not compile utility classes

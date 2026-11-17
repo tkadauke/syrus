@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react"
 import type { DiffReviewAnnotation, DiffReviewAnnotationAction, DiffReviewAnnotationPanel } from "./api/jobs"
 import { Button, buttonClasses } from "./components/Button"
+import { withPluginErrorBoundary } from "./components/PluginErrorBoundary"
 import { useT } from "./hooks/useT"
 import { Markdown } from "./lib/Markdown"
 import { loadPluginModule } from "./i18n"
@@ -38,8 +39,9 @@ export function pluginReviewAnnotationComponentFor(key: string | null | undefine
     if (!mod.default) throw new Error(`Plugin review annotation component ${key} has no default export`)
     return { default: mod.default }
   })
-  componentCache.set(key, Component)
-  return Component
+  const IsolatedComponent = withPluginErrorBoundary(pluginName, Component)
+  componentCache.set(key, IsolatedComponent)
+  return IsolatedComponent
 }
 
 export function renderPluginReviewAnnotation(

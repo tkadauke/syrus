@@ -112,6 +112,7 @@ export type ExternalPluginFrontend = {
   bundle_url: string
   css_url?: string
   hash: string
+  locales?: Array<{ locale: "en" | "de" | "la"; namespace: string; url: string }>
 }
 
 export type SlugReferenceType = {
