@@ -245,6 +245,8 @@ module Syrus
         end
 
         begin
+          return unless defined?(PluginRecord)
+
           upsert_plugin_record!(
             name: name,
             default_enabled: default_enabled,

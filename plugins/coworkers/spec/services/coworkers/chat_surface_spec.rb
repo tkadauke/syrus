@@ -125,7 +125,7 @@ RSpec.describe "Coworker chat surface" do
     )
 
     expect(response).not_to be_error
-    proposal = ChatProposal.find(response_payload(response).fetch("id"))
+    proposal = chat.proposals.find_by!(slug: response_payload(response).fetch("slug"))
     expect(proposal).to have_attributes(chat_session: chat, proposer: coworker, state: "proposed")
     expect(response_payload(response).fetch("proposer")).to eq(
       "type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya"
@@ -196,7 +196,7 @@ RSpec.describe "Coworker chat surface" do
     )
 
     expect(response).not_to be_error
-    proposal = ChatProposal.find(response_payload(response).fetch("id"))
+    proposal = chat.proposals.find_by!(slug: response_payload(response).fetch("slug"))
     expect(proposal).to have_attributes(chat_session: chat, proposer: coworker, state: "proposed")
     expect(response_payload(response).fetch("proposer")).to eq(
       "type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya"
