@@ -66,8 +66,7 @@ RSpec.describe McpToolRegistry do
         mutation: false,
         ungated: false,
         descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(name: "plugin_ping"),
-        explicit_descriptor: false,
-        compatibility_descriptor: false
+        explicit_descriptor: false
       )
 
       expect(entry.tool_name).to eq("plugin_ping")
@@ -119,7 +118,7 @@ RSpec.describe McpToolRegistry do
         "revoke_permission", "create_permission_lease", "revoke_permission_lease",
          "apply_permission_preset", "cancel_authorization_request", "request_permission"
       )
-      expect(entries).to all(have_attributes(explicit_descriptor: true, compatibility_descriptor: false, tier: :deferred))
+      expect(entries).to all(have_attributes(explicit_descriptor: true, tier: :deferred))
     end
 
     it "shares targeted Job feedback across chat and coworker surfaces without sharing reviewer verdicts" do

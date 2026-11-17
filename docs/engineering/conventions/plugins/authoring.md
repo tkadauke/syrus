@@ -1057,11 +1057,8 @@ identity. Removing a key requires an alias, a scope migration, or a durable
 `retire_permission_identifier` declaration. Retired keys remain reserved and
 cannot later be reused as canonical identifiers or aliases.
 Diagnostics identify the plugin provider, surface, and tool when mappings or
-descriptor contracts conflict. A plugin with pre-contract definitions may
-temporarily declare frozen `capability_descriptor_compatibility` digests in its
-own manifest, keyed by `mcp_tool_set` or `chat_mcp_tool_set`. Changing that
-inventory requires migrating the affected definitions explicitly; core never
-names plugin providers or carries their compatibility inventories.
+descriptor contracts conflict. Missing and malformed explicit descriptors fail
+registry validation; plugin inventories have no compatibility bypass.
 Resource scopes use `Permissions::ResourceScopeSchema`. Providers own the
 resource-specific lookup and scope hooks, while core canonicalizes normalized
 JSON, runs validation, and exposes uniform label and comparison results. Every

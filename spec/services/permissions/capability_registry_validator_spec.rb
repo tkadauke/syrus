@@ -18,11 +18,10 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     }.merge(overrides))
   end
 
-  def registration(name, descriptor:, surface: :chat, source: "ExamplePlugin", explicit_descriptor: descriptor.present?,
-    compatibility_descriptor: nil, ungated: false)
+  def registration(name, descriptor:, surface: :chat, source: "ExamplePlugin", explicit_descriptor: descriptor.present?, ungated: false)
     described_class::Registration.new(
       tool_name: name, surface: surface, source: source, descriptor: descriptor,
-      explicit_descriptor: explicit_descriptor, compatibility_descriptor: compatibility_descriptor, ungated:
+      explicit_descriptor: explicit_descriptor, ungated:
     )
   end
 
@@ -38,50 +37,12 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     expect(validator.validate!).to be(true)
   end
 
-  it "rejects compatibility descriptors outside the frozen migration baseline" do
+  it "rejects synthesized descriptors" do
     validator = described_class.new([
       registration("read_example", descriptor: descriptor, explicit_descriptor: false)
     ])
 
     expect(validator.findings.map(&:code)).to include(:missing_descriptor)
-  end
-
-  it "accepts compatibility only when the registration owner declares its exact inventory" do
-    digest = Digest::SHA256.hexdigest("read_example")
-    validator = described_class.new([
-      registration("read_example", descriptor: descriptor, explicit_descriptor: false, compatibility_descriptor: digest)
-    ])
-
-    expect(validator.findings).to be_empty
-
-    expanded = described_class.new([
-      registration("read_example", descriptor: descriptor, explicit_descriptor: false, compatibility_descriptor: digest),
-      registration("write_example", descriptor: descriptor(operation: "example.data/write@v1"), explicit_descriptor: false, compatibility_descriptor: digest)
-    ])
-    expect(expanded.findings.map(&:code)).to include(:missing_descriptor)
-  end
-
-  it "rejects compatibility metadata when every tool in the surface has an explicit descriptor" do
-    digest = Digest::SHA256.hexdigest("read_example")
-    validator = described_class.new([
-      registration("read_example", descriptor: descriptor, compatibility_descriptor: digest)
-    ])
-
-    finding = validator.findings.find { |candidate| candidate.code == :redundant_compatibility_metadata }
-
-    expect(finding.message).to include("ExamplePlugin", "chat")
-  end
-
-  it "preserves compatibility metadata while any tool in the surface still needs it" do
-    digest = Digest::SHA256.hexdigest("legacy_example")
-    validator = described_class.new([
-      registration("read_example", descriptor: descriptor, compatibility_descriptor: digest),
-      registration("legacy_example", descriptor: descriptor(operation: "example.data/legacy@v1"),
-        explicit_descriptor: false, compatibility_descriptor: digest)
-    ])
-
-    expect(validator.findings.map(&:code)).not_to include(:redundant_compatibility_metadata)
-    expect(validator.findings).to be_empty
   end
 
   it "rejects conflicting mappings for the same surface tool" do
@@ -102,7 +63,7 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     expect(described_class.new(registrations).findings).to be_empty
   end
 
-  it "does not report conflicts between compatibility descriptors" do
+  it "does not report contract conflicts between synthesized descriptors" do
     registrations = [
       registration("read_example", descriptor: descriptor, explicit_descriptor: false),
       registration("read_example", descriptor: descriptor(
@@ -183,38 +144,30 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     ))
   end
 
-
-  it "reads compatibility metadata from the plugin that owns the provider" do
-    provider = stub_const("BoundaryOwnedToolSet", Class.new)
-    digest = Digest::SHA256.hexdigest("read_plugin_data")
-    manifest = instance_double(Syrus::Plugin::Manifest,
-      provides: { mcp_tool_set: provider },
-      metadata: { capability_descriptor_compatibility: { mcp_tool_set: digest } })
-    allow(McpToolRegistry).to receive(:entries).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ manifest ])
-    allow(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([{ name: "read_plugin_data" }])
-
-    expect(described_class.for_application.findings).to be_empty
-  end
-
-  it "rejects plugin compatibility metadata that bypasses the frozen inventory digest" do
+  it "rejects a plugin definition without an explicit descriptor" do
     provider = stub_const("UnratchetedToolSet", Class.new)
-    manifest = instance_double(Syrus::Plugin::Manifest,
-      provides: { mcp_tool_set: provider },
-      metadata: { capability_descriptor_compatibility: { mcp_tool_set: true } })
     allow(McpToolRegistry).to receive(:entries).and_return([])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
-    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ manifest ])
     allow(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([{ name: "read_plugin_data" }])
 
     finding = described_class.for_application.findings.find { |candidate| candidate.code == :missing_descriptor }
 
     expect(finding.message).to include('UnratchetedToolSet mcp_tool_set tool "read_plugin_data"')
+  end
+
+  it "rejects a malformed explicit plugin descriptor" do
+    provider = stub_const("MalformedToolSet", Class.new)
+    allow(McpToolRegistry).to receive(:entries).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([ provider ])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_mcp_tool_set).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:permission_provider).and_return([])
+    allow(Syrus::PluginRegistry).to receive(:all_tool_definitions).with(provider).and_return([
+      { name: "read_plugin_data", capability_descriptor: { capability: "unversioned" } }
+    ])
+
+    expect { described_class.for_application }.to raise_error(ArgumentError)
   end
 
   it "keeps concrete plugin inventories out of the core validator" do
@@ -226,16 +179,28 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
   it "reports role defaults and effect coverage" do
     coverage = described_class.new([ registration("read_example", descriptor: descriptor) ]).coverage
 
-    expect(coverage).to include(tools: 1, described_tools: 1, explicit_descriptors: 1, legacy_descriptors: 0,
+    expect(coverage).to include(tools: 1, described_tools: 1, explicit_descriptors: 1,
       ungated_tools: 0, tool_set_bundles: { "knowledge@v1" => 1 })
     expect(coverage.dig(:roles, "chat_planner")).to eq(descriptors: 1, defaults: { allow: 1 })
     expect(coverage.dig(:effects, :network_read)).to eq(1)
     expect(coverage.dig(:effects, :destructive)).to eq(0)
   end
 
-  it "keeps bundled plugin legacy-descriptor coverage at zero" do
-    plugin_registrations = described_class.for_application.registrations.reject { |registration| registration.source == "core" }
+  it "keeps all bundled executable registrations explicit" do
+    registrations = described_class.for_application.registrations.reject(&:ungated)
 
-    expect(described_class.new(plugin_registrations).coverage.fetch(:legacy_descriptors)).to eq(0)
+    expect(registrations).not_to be_empty
+    expect(registrations).to all(have_attributes(explicit_descriptor: true))
+  end
+
+  it "keeps compatibility registry APIs removed" do
+    expect(described_class::Registration.members).not_to include(:compatibility_descriptor)
+    expect(McpToolRegistry::Entry.members).not_to include(:compatibility_descriptor)
+    %i[legacy_chat legacy_workflow legacy_coworker legacy_entry].each do |method_name|
+      expect(McpToolRegistry.respond_to?(method_name, true)).to be(false)
+    end
+
+    definition = Syrus::PluginApi::Definition.new(name: "example", namespace: Module.new, lib_dir: __dir__)
+    expect(definition).not_to respond_to(:capability_descriptor_compatibility)
   end
 end

@@ -29,7 +29,6 @@ de:
         conflicting_descriptor: "Operation %{operation} hat widersprüchliche Deskriptorverträge für Richtlinien/Effekte aus %{sources}"
         conflicting_identifier: "%{kind}-Kennung %{identifier} wird von %{targets} beansprucht; Aliasse müssen genau eine kanonische Kennung ergeben"
         missing_descriptor_detail: "hat keinen expliziten capability_descriptor"
-        redundant_compatibility_metadata: "%{source} %{surface}-Inventar ist vollständig explizit, deklariert aber weiterhin capability_descriptor_compatibility-Metadaten"
         registration_finding: "%{source} %{surface}-Tool %{tool_name} %{detail}"
     maintenance_tasks:
       chat_attachment_backfill:

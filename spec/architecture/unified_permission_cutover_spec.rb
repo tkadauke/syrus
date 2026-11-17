@@ -20,7 +20,6 @@ RSpec.describe "Unified permission cutover" do
 
     expect(core_registrations).not_to be_empty
     expect(core_registrations).to all(have_attributes(explicit_descriptor: true))
-    expect(Permissions::CapabilityRegistryValidator.new(core_registrations).coverage.fetch(:legacy_descriptors)).to eq(0)
   end
 
   it "has no observational shadow authority path" do

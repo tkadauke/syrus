@@ -7,7 +7,7 @@ RSpec.describe Permissions::OperationalActions do
     described_class.tool_names.each do |tool_name|
       entry = chat_entries.fetch(tool_name)
 
-      expect(entry).to have_attributes(explicit_descriptor: true, compatibility_descriptor: false)
+      expect(entry).to have_attributes(explicit_descriptor: true)
       expect(entry.descriptor.operation).to match(%r{\Asyrus\.(admin_repair|operations|delivery)/[a-z_]+@v1\z})
       expect(entry.descriptor.classify({})).to include(confidence: :certain)
     end

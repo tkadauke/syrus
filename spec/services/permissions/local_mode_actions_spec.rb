@@ -19,7 +19,7 @@ RSpec.describe Permissions::LocalModeActions do
     described_class.tool_names.each do |name|
       entry = chat_entries.fetch(name)
 
-      expect(entry).to have_attributes(explicit_descriptor: true, compatibility_descriptor: false)
+      expect(entry).to have_attributes(explicit_descriptor: true)
       expect(entry.descriptor).to have_attributes(
         capability: "syrus.local_mode@v1", maximum_autonomy: :chat_session,
         authority_durations: %i[invocation chat_session], defaults: { AgentRole::CHAT_LOCAL => :ask }
