@@ -112,6 +112,9 @@ func pluginResolutionArgs(args []string) []string {
 			config.ProfileFlag = value
 			continue
 		}
+		if args[i] == "--debug" || strings.HasPrefix(args[i], "--debug=") {
+			continue
+		}
 		cleaned = append(cleaned, args[i])
 	}
 	return cleaned
@@ -422,11 +425,27 @@ func renderPluginResult(out io.Writer, result pluginCommandResult) error {
 }
 
 func findPluginExecutable(words, originalArgs []string) (string, []string, bool) {
+	wordIndexes := make([]int, 0, len(words))
+	for index, arg := range originalArgs {
+		if !strings.HasPrefix(arg, "-") {
+			wordIndexes = append(wordIndexes, index)
+		}
+	}
 	for length := len(words); length >= 1; length-- {
 		name := "syrus-" + strings.Join(words[:length], "-")
 		path, err := exec.LookPath(name)
 		if err == nil {
-			return path, originalArgs[length:], true
+			consumed := make(map[int]struct{}, length)
+			for _, index := range wordIndexes[:length] {
+				consumed[index] = struct{}{}
+			}
+			remaining := make([]string, 0, len(originalArgs)-length)
+			for index, arg := range originalArgs {
+				if _, matchedWord := consumed[index]; !matchedWord {
+					remaining = append(remaining, arg)
+				}
+			}
+			return path, remaining, true
 		}
 	}
 	return "", nil, false
