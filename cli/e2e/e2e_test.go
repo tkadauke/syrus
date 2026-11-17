@@ -41,6 +41,17 @@ func TestCLIGoldenPathAgainstPreviewServer(t *testing.T) {
 
 	login := runCLI(t, binary, home, "", "login", "--url", baseURL, "--token", e2eToken)
 	assertContains(t, login, "Syrus credentials saved.")
+	if runtime.GOOS != "windows" {
+		pluginDir := t.TempDir()
+		plugin := filepath.Join(pluginDir, "syrus-e2e-local")
+		if err := os.WriteFile(plugin, []byte("#!/bin/sh\nprintf '%s|%s|%s\\n' \"$SYRUS_URL\" \"$SYRUS_TOKEN\" \"$*\"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		pluginOutput := runCLIWithPath(t, binary, home, pluginDir, "e2e", "local", "argument")
+		if pluginOutput != baseURL+"|"+e2eToken+"|argument\n" {
+			t.Fatalf("plugin executable output = %q", pluginOutput)
+		}
+	}
 
 	listJSON := runCLI(t, binary, home, "", "job", "list", "--repo", e2eRepoSlug, "--state", "all", "--json")
 	var list jobListPayload
@@ -122,6 +133,17 @@ func runCLI(t *testing.T, binary string, home string, dir string, args ...string
 		"NO_COLOR=1",
 		"TERM=dumb",
 	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("syrus %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
+	}
+	return string(output)
+}
+
+func runCLIWithPath(t *testing.T, binary string, home string, path string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command(binary, args...)
+	cmd.Env = append(os.Environ(), "HOME="+home, "PATH="+path+string(os.PathListSeparator)+os.Getenv("PATH"), "NO_COLOR=1", "TERM=dumb")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("syrus %s failed: %v\n%s", strings.Join(args, " "), err, string(output))
