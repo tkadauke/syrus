@@ -38,6 +38,13 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
   When adding a new agent provider or MCP tool set, implement it as a plugin
   gem that calls `Syrus::PluginRegistry.register` in its engine initializer;
   don't add the class directly to `app/services/agent_providers/`.
+- **Release compatibility** — External plugin gemspecs may declare
+  `spec.metadata["requires_syrus"] = ">= 0.1.16"`. The value is a Ruby
+  `Gem::Requirement` string and is validated before plugin code runs. Declare
+  the oldest Syrus release the plugin has actually been tested against.
+  Incompatible external plugins are withheld and reported in plugin health;
+  when the running release is unknown the check is skipped and health explains
+  why. Bundled plugins ship with core and are not checked.
 - **Core specs must not enumerate plugin-provided things.** A bundled plugin is
   deletable — `bin/plugin-boundary-audit <name>` proves it by physically
   removing the plugin and running the suite in the copy — so a core spec that

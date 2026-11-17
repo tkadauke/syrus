@@ -7,10 +7,6 @@ module Api
           payload = payload.slice(:total, :events) unless truthy?(params[:summary])
           render json: payload
         end
-
-        private
-
-        def truthy?(value) = %w[true 1 yes].include?(value.to_s.downcase)
       end
     end
   end

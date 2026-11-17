@@ -65,5 +65,45 @@ RSpec.describe ChatHistoryTranscriptRenderer do
       summary = renderer.send(:tool_result_summary, message)
       expect(summary).to include("error")
     end
+
+    it "removes proposal record ids from persisted legacy proposal tool results" do
+      proposal = chat.proposals.create!(slug: "visible-proposal", title: "Visible proposal", body: "Body")
+      message = chat.messages.create!(
+        role: "tool_result",
+        tool_name: "propose_epic_with_jobs",
+        tool_use_id: "tu_proposal",
+        proposal: proposal,
+        content: {
+          "content" => [{
+            "type" => "text",
+            "text" => JSON.generate(id: proposal.id, slug: proposal.slug, title: proposal.title,
+              child_jobs: [{ id: proposal.id + 1, slug: "child-proposal", title: "Child proposal" }])
+          }],
+          "is_error" => false
+        }
+      )
+
+      summary = renderer.send(:tool_result_summary, message)
+
+      expect(summary).to include(proposal.slug, proposal.title, "child-proposal", "Child proposal")
+      expect(summary).not_to include(%("id":#{proposal.id}))
+      expect(summary).not_to include(%("id":#{proposal.id + 1}))
+    end
+
+    it "falls back to the associated proposal identity for an unparseable legacy result" do
+      proposal = chat.proposals.create!(slug: "visible-proposal", title: "Visible proposal", body: "Body")
+      message = chat.messages.create!(
+        role: "tool_result",
+        tool_name: "propose_job",
+        tool_use_id: "tu_proposal_fallback",
+        proposal: proposal,
+        content: { "content" => [{ "type" => "text", "text" => "Proposal #{proposal.id} created" }], "is_error" => false }
+      )
+
+      summary = renderer.send(:tool_result_summary, message)
+
+      expect(summary).to include(proposal.slug, proposal.title)
+      expect(summary).not_to include(proposal.id.to_s)
+    end
   end
 end

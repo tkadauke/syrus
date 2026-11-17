@@ -40,7 +40,7 @@ RSpec.describe Deploy::Images do
     subject(:images) do
       described_class.new(
         config: Deploy::Config.new(env: {}),
-        repo: instance_double(Deploy::Repo, sha: "abc1234"),
+        repo: instance_double(Deploy::Repo, sha: "abc1234", release_version: "1.2.3", version_description: "1.2.3-4-gabc1234"),
         shell: shell, reporter: reporter
       )
     end
@@ -79,7 +79,7 @@ RSpec.describe Deploy::Images do
         token_file.flush
         images = described_class.new(
           config: Deploy::Config.new(env: { "SYRUS_GHCR_TOKEN_FILE" => token_file.path }, dry_run: true),
-          repo: instance_double(Deploy::Repo, sha: "abc1234"),
+          repo: instance_double(Deploy::Repo, sha: "abc1234", release_version: "1.2.3", version_description: "1.2.3-4-gabc1234"),
           shell: shell, reporter: reporter
         )
 

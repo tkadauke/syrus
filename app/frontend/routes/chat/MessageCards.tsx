@@ -82,6 +82,7 @@ type ChatMessageProps = {
   readOnly?: boolean
   retryText?: string | null
   retrying?: boolean
+  searchHighlight?: string
   onNotice: (message: string | null) => void
   onRetry?: (text: string) => void
   onSelectWorkspaceTab?: () => void
@@ -96,6 +97,7 @@ export const ChatMessage = memo(function ChatMessage({
   readOnly = false,
   retryText = null,
   retrying = false,
+  searchHighlight,
   onNotice,
   onRetry,
   onSelectWorkspaceTab
@@ -147,7 +149,7 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           ) : null}
           {item.chat_shell_command ? <ShellCommandCard shellCommand={item.chat_shell_command} /> : null}
-          {item.text.trim().length > 0 ? <UserMessageText item={item} payload={payload} /> : null}
+          {item.text.trim().length > 0 ? <UserMessageText item={item} payload={payload} searchHighlight={searchHighlight} /> : null}
           <MessageImageAttachments attachments={item.attachments} align="end" />
           <MessageFileAttachments attachments={item.attachments} align="end" />
         </div>
@@ -174,9 +176,9 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           ) : null}
           {backgroundRun(item.content) ? (
-            <BackgroundRunCard run={backgroundRun(item.content)!} text={item.text} onLinkClick={handleMarkdownLink} />
+            <BackgroundRunCard run={backgroundRun(item.content)!} text={item.text} searchHighlight={searchHighlight} onLinkClick={handleMarkdownLink} />
           ) : (
-            <ChatAssistantMarkdownSurface text={item.text} onLinkClick={handleMarkdownLink} />
+            <ChatAssistantMarkdownSurface highlightTerms={searchHighlight ? [searchHighlight] : undefined} text={item.text} onLinkClick={handleMarkdownLink} />
           )}
           <MessageImageAttachments attachments={item.attachments} />
           {!readOnly && item.proposal ? (
@@ -225,10 +227,12 @@ function backgroundRun(content: unknown): BackgroundRun | null {
 function BackgroundRunCard({
   run,
   text,
+  searchHighlight,
   onLinkClick
 }: {
   run: BackgroundRun
   text: string
+  searchHighlight?: string
   onLinkClick: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
 }) {
   const { t } = useT("chat")
@@ -255,11 +259,11 @@ function BackgroundRunCard({
           <details>
             <summary className="cursor-pointer text-sm text-text-muted">{t("background_run_show_result")}</summary>
             <div className="mt-2">
-              <ChatAssistantMarkdownSurface compact text={summary} onLinkClick={onLinkClick} />
+              <ChatAssistantMarkdownSurface compact highlightTerms={searchHighlight ? [searchHighlight] : undefined} text={summary} onLinkClick={onLinkClick} />
             </div>
           </details>
         ) : (
-          <ChatAssistantMarkdownSurface compact text={summary} onLinkClick={onLinkClick} />
+          <ChatAssistantMarkdownSurface compact highlightTerms={searchHighlight ? [searchHighlight] : undefined} text={summary} onLinkClick={onLinkClick} />
         )}
       </div>
       {[duration, cost, mergeLabel].filter(Boolean).length ? (
@@ -277,6 +281,7 @@ function sameChatMessageProps(previous: ChatMessageProps, next: ChatMessageProps
     previous.readOnly === next.readOnly &&
     previous.retryText === next.retryText &&
     previous.retrying === next.retrying &&
+    previous.searchHighlight === next.searchHighlight &&
     previous.onNotice === next.onNotice &&
     previous.onRetry === next.onRetry &&
     previous.onSelectWorkspaceTab === next.onSelectWorkspaceTab &&
@@ -377,12 +382,23 @@ export function humanMessageBubbleClass(item: Extract<ChatRenderItem, { type: "m
   return `${base} bg-brand text-on-brand`
 }
 
-function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload }) {
+function UserMessageText({
+  item,
+  payload,
+  searchHighlight
+}: {
+  item: Extract<ChatRenderItem, { type: "message" }>
+  payload: ChatPayload
+  searchHighlight?: string
+}) {
   const slugTone = isCurrentUserBubble(item, payload) ? "inverted" : "default"
   const characters = Array.from(item.text)
 
   if (shouldRenderUserMarkdown(item.text)) {
-    const highlightTerms = item.mentions?.map((mention) => characters.slice(mention.start, mention.end).join(""))
+    const highlightTerms = [
+      ...(item.mentions?.map((mention) => characters.slice(mention.start, mention.end).join("")) ?? []),
+      ...(searchHighlight ? [searchHighlight] : [])
+    ]
     return (
       <BoundedChatMarkdown
         className={humanMarkdownMessageBubbleClass(item, payload)}
@@ -414,7 +430,15 @@ function UserMessageText({ item, payload }: { item: Extract<ChatRenderItem, { ty
     return <div className={humanMessageBubbleClass(item, payload)}>{parts}</div>
   }
 
-  return <PlainText className={humanMessageBubbleClass(item, payload)} text={item.text} linkifyUrls slugTone={slugTone} />
+  return (
+    <PlainText
+      className={humanMessageBubbleClass(item, payload)}
+      highlightTerms={searchHighlight ? [searchHighlight] : undefined}
+      text={item.text}
+      linkifyUrls
+      slugTone={slugTone}
+    />
+  )
 }
 
 function humanMarkdownMessageBubbleClass(item: Extract<ChatRenderItem, { type: "message" }>, payload: ChatPayload) {
@@ -474,10 +498,12 @@ function isMarkdownTableDivider(line: string) {
 
 export function ChatAssistantMarkdownSurface({
   compact = false,
+  highlightTerms,
   text,
   onLinkClick
 }: {
   compact?: boolean
+  highlightTerms?: string[]
   text: string
   onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
 }) {
@@ -487,7 +513,13 @@ export function ChatAssistantMarkdownSurface({
 
   return (
     <div className={`min-w-0 max-w-full overflow-hidden ${compactClass}`}>
-      <BoundedChatMarkdown className="chat-prose break-words text-text-primary [overflow-wrap:anywhere]" text={text} linkifyUrls onLinkClick={onLinkClick} />
+      <BoundedChatMarkdown
+        className="chat-prose break-words text-text-primary [overflow-wrap:anywhere]"
+        highlightTerms={highlightTerms}
+        text={text}
+        linkifyUrls
+        onLinkClick={onLinkClick}
+      />
     </div>
   )
 }
@@ -1579,9 +1611,9 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
         {resultSummary ? (
           <span className="min-w-0 flex-1 break-words font-mono text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{resultSummary}</span>
         ) : null}
-        {tool?.proposal_id ? (
-          <span className="text-gray-600 dark:text-gray-400">
-            Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}
+        {tool?.proposal_reference ? (
+          <span className="min-w-0 truncate text-gray-600 dark:text-gray-400">
+            {tool.proposal_reference} {tool.proposal_state_label ? `(${tool.proposal_state_label})` : ""}
           </span>
         ) : null}
       </summary>

@@ -1,4 +1,5 @@
 class ChatHistoryTranscriptRenderer
+  PROPOSAL_TOOL_NAMES = %w[propose_job propose_epic_with_jobs list_proposals delete_proposal].freeze
   COMPACT_MESSAGE_LIMIT = 24
   COMPACT_MAX_BYTES = 12_000
   COMPACT_ENTRY_MAX_BYTES = 1_000
@@ -241,8 +242,8 @@ class ChatHistoryTranscriptRenderer
   def tool_result_summary(message)
     content = message.content.is_a?(Hash) ? message.content : {}
     result = content["content"].presence || content["result"]
-    text = tool_result_text(result)
     tool_name = message.tool_name.presence || "tool"
+    text = tool_result_text(result, tool_name: tool_name, proposal: message.proposal)
     status = content["is_error"] ? "error" : "ok"
 
     if text.present?
@@ -252,7 +253,9 @@ class ChatHistoryTranscriptRenderer
     end
   end
 
-  def tool_result_text(result)
+  def tool_result_text(result, tool_name: nil, proposal: nil)
+    return proposal_tool_result_text(result, proposal) if proposal_tool?(tool_name)
+
     case result
     when Array
       result.filter_map { |item| item["text"].to_s if item.is_a?(Hash) && item["type"] == "text" }.join("\n").presence
@@ -260,6 +263,45 @@ class ChatHistoryTranscriptRenderer
       result.slice("status", "message", "error", "slug", "id", "title").compact.to_json
     when String
       result
+    end
+  end
+
+  def proposal_tool?(tool_name)
+    name = tool_name.to_s
+    PROPOSAL_TOOL_NAMES.any? { |candidate| name == candidate || name.end_with?(".#{candidate}", "__#{candidate}") }
+  end
+
+  def proposal_tool_result_text(result, proposal)
+    parsed = case result
+    when Array
+      text = result.filter_map { |item| item["text"].to_s if item.is_a?(Hash) && item["type"] == "text" }.join("\n").presence
+      JSON.parse(text) if text
+    when Hash
+      result.deep_dup
+    when String
+      JSON.parse(result)
+    end
+
+    return JSON.generate(strip_proposal_record_ids(parsed)) if parsed
+    return JSON.generate(slug: proposal.slug, title: proposal.title) if proposal
+
+    nil
+  rescue JSON::ParserError
+    return JSON.generate(slug: proposal.slug, title: proposal.title) if proposal
+
+    nil
+  end
+
+  def strip_proposal_record_ids(value)
+    case value
+    when Array
+      value.map { |item| strip_proposal_record_ids(item) }
+    when Hash
+      sanitized = value.transform_values { |item| strip_proposal_record_ids(item) }
+      sanitized.except!(*[ "id", :id ]) if sanitized.key?("slug") || sanitized.key?(:slug)
+      sanitized
+    else
+      value
     end
   end
 end

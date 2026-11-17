@@ -508,14 +508,35 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(parse_body.dig("app", "built_at")).to eq("2026-07-07T14:32:00Z")
   end
 
-  it "returns nil version and built_at on dev/deploy builds (unset or empty env)" do
+  it "exposes the full build description for a non-release image" do
+    user = Factories.user
+    sign_in_as(user)
+
+    with_env(
+      "GIT_SHA" => "9c0f8d15",
+      "SYRUS_VERSION" => "0.1.2",
+      "SYRUS_VERSION_DESCRIPTION" => "0.1.2-7-g9c0f8d15"
+    ) do
+      get api_v1_app_bootstrap_path
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("app", "version")).to eq("0.1.2-7-g9c0f8d15")
+    expect(parse_body.dig("app", "revision")).to eq("9c0f8d15")
+  end
+
+  it "returns nil version and built_at when build metadata is empty" do
     user = Factories.user
     sign_in_as(user)
 
     # The Dockerfile defaults are empty strings — presence semantics must
-    # treat "" like unset so dev images fall back to the SHA badge with no
-    # build-time tooltip.
-    with_env("SYRUS_VERSION" => "", "SYRUS_BUILT_AT" => "") do
+    # treat "" like unset so dev images use the SHA with no build-time tooltip.
+    with_env(
+      "GIT_SHA" => "9c0f8d15",
+      "SYRUS_VERSION" => "",
+      "SYRUS_VERSION_DESCRIPTION" => "",
+      "SYRUS_BUILT_AT" => ""
+    ) do
       get api_v1_app_bootstrap_path
     end
 

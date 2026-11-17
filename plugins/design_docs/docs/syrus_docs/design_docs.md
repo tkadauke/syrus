@@ -72,12 +72,20 @@ accepted range's replacement can delete just one side of that anchor's
 start/end marker pair, leaving the other side dangling in the Markdown.
 Before deciding whether to re-project or mark such a candidate stale,
 `DesignDocs::ReviewSuggestion` clears any leftover marker fragment for it
-first, so neither path can leave an orphan marker behind for
-`NormalizeAnchorMarkers.assert_marker_pairs!` to trip over later. As a
-defensive backstop, `POST /api/v1/app/design_docs/:id/suggestions/:id/accept`
-also rescues `DesignDocs::NormalizeAnchorMarkers::InvariantError` and
-responds `409` with `error.code == "conflict"` instead of a 500 for any
-remaining invariant failure.
+first. Marker normalization also repairs unrelated duplicate, mixed, orphaned,
+or overlapping pending anchors by marking those anchors and suggestions stale,
+recording a conflict reason, and removing their marker fragments. Corruption
+on one suggestion therefore does not prevent accepting or rejecting a valid,
+unrelated suggestion. A problem with the suggestion being reviewed can still
+return `409` with `error.code == "conflict"`, and the failed review is rolled
+back.
+
+New range suggestions cannot overlap an active pending range on the same
+document. The app API returns `422` with
+`error.code == "pending_suggestion_overlap"`, and the message identifies the
+pending suggestion that must be accepted or rejected first. Ranges that only
+touch at a boundary remain valid. The suggestion MCP tool reports the same
+translated message through its normal invalid-request result.
 
 The current-document editor and Threads rail only render anchors with
 `status: "active"` (`buildAnchorHighlights`'s highlight filter and

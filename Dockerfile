@@ -38,8 +38,8 @@ WORKDIR /rails
 #     absent, so this is a speed optimization, not a hard dependency.
 ARG NODE_MAJOR=22
 ARG NODESOURCE_GPG_FINGERPRINT=6F71F525282841EEDAF851B42F59B5F99B1BE0B4
-ARG CLAUDE_CODE_VERSION=2.1.316
-ARG CODEX_CLI_VERSION=0.166.0
+ARG CLAUDE_CODE_VERSION=2.1.325
+ARG CODEX_CLI_VERSION=0.169.0
 ARG ANTIGRAVITY_CLI_VERSION=1.2.1
 ARG ANTIGRAVITY_CLI_BUILD=5123043593420800
 ARG ANTIGRAVITY_CLI_LINUX_AMD64_SHA512=0629fe69e6949b35707935ef35da016074ea29a5d989a05f740713e0a9e927bf52ff1eada0204d3338779a469c938b6b7c5c44de2d296e5e8db255d26568de38
@@ -107,14 +107,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # Install application gems
 COPY vendor/* ./vendor/
 COPY Gemfile Gemfile.lock ./
-COPY plugins/ ./plugins/
-# Every bundled plugin's gemspec is `Syrus.plugin_gemspec(__FILE__)`, which
-# require_relatives this file. Bundler evaluates every bundled plugin gemspec during
-# `bundle install`, so it has to be here before that runs -- long before
-# `COPY . .` brings the rest of lib/ in. Kept to the single file the gemspecs
-# need so the layer cache does not turn over on unrelated lib/ edits.
-# Guarded by spec/architecture/docker_gemspec_requires_spec.rb.
-COPY lib/syrus/plugin_gemspec.rb ./lib/syrus/plugin_gemspec.rb
 
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
@@ -145,6 +137,7 @@ RUN npm ci && \
     fi
 
 # Copy application code
+COPY plugins/ ./plugins/
 COPY . .
 
 # Build the React SPA bundle into app/assets/builds for Propshaft. Jemalloc is
@@ -230,6 +223,8 @@ ENV GIT_SHA=$GIT_SHA
 # payload then omits it and the UI falls back to the git SHA.
 ARG SYRUS_VERSION=""
 ENV SYRUS_VERSION=$SYRUS_VERSION
+ARG SYRUS_VERSION_DESCRIPTION=""
+ENV SYRUS_VERSION_DESCRIPTION=$SYRUS_VERSION_DESCRIPTION
 
 # And the build timestamp (UTC ISO-8601), so the UI's BuildBadge can show
 # WHEN this image was built — the fastest way to see which part of a
@@ -587,8 +582,8 @@ ENV PATH="/opt/muse/bin:${PATH}" \
 # needs (nss, libatk, libgtk, etc.); `@playwright/mcp` is Microsoft's own
 # MCP server, bundled as a stdio subprocess rather than hand-rolled —
 # SyrusBrowser::McpToolSet spawns it and re-exposes granular tools.
-ARG PLAYWRIGHT_VERSION=1.64.1
-ARG PLAYWRIGHT_MCP_VERSION=0.0.84
+ARG PLAYWRIGHT_VERSION=1.65.1
+ARG PLAYWRIGHT_MCP_VERSION=0.0.85
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 # Do not use BuildKit apt cache mounts here. Playwright's `install --with-deps`
 # drives apt internally, and a full/stale cache mount makes apt fail with
@@ -649,6 +644,8 @@ ENV GIT_SHA=$GIT_SHA
 # payload then omits it and the UI falls back to the git SHA.
 ARG SYRUS_VERSION=""
 ENV SYRUS_VERSION=$SYRUS_VERSION
+ARG SYRUS_VERSION_DESCRIPTION=""
+ENV SYRUS_VERSION_DESCRIPTION=$SYRUS_VERSION_DESCRIPTION
 
 # And the build timestamp (UTC ISO-8601), so the UI's BuildBadge can show
 # WHEN this image was built — the fastest way to see which part of a

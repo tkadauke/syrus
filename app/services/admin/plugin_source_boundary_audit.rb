@@ -122,10 +122,9 @@ module Admin
       scan_files(core_source_files, manifests).flat_map do |path, line_number, line, unquoted_line|
         relative_path = relative(path)
         manifests.filter_map do |manifest|
-          next if allowed_core_reference?(path, relative_path, manifest, line)
-
           reason = reference_reason(line, unquoted_line, manifest)
           next unless reason
+          next if allowed_core_reference?(path, relative_path, manifest, line)
 
           Violation.new(
             source: "core",
@@ -191,7 +190,7 @@ module Admin
     end
 
     def plugin_dirs
-      root.join("plugins").children.select(&:directory?)
+      Syrus::PluginRoots.new(application_root: root).plugin_directories
     end
 
     def manifest_for(dir)
@@ -362,7 +361,7 @@ module Admin
     def reference_reason(line, unquoted_line, manifest)
       return "plugin source path" if line.include?("plugins/#{manifest.dir_name}/")
       return "plugin frontend module key" if frontend_module_key_reference?(line, manifest)
-      return "plugin gem name" if manifest.gem_name.present? && line.match?(/gem\s+["']#{Regexp.escape(manifest.gem_name)}["']/)
+      return "plugin gem name" if gem_pattern_for(manifest)&.match?(line)
 
       return nil unless constant_pattern_for(manifest)&.match?(unquoted_line)
 
@@ -380,10 +379,22 @@ module Admin
       end
     end
 
+    def gem_pattern_for(manifest)
+      return if manifest.gem_name.blank?
+
+      @gem_patterns ||= {}
+      @gem_patterns[manifest.name] ||= /gem\s+["']#{Regexp.escape(manifest.gem_name)}["']/
+    end
+
+    def frontend_dir_pattern_for(manifest)
+      @frontend_dir_patterns ||= {}
+      @frontend_dir_patterns[manifest.name] ||= /(?<![A-Za-z0-9_])#{Regexp.escape(manifest.dir_name)}\//
+    end
+
     def frontend_module_key_reference?(line, manifest)
       return false unless line.match?(/component|route|workspace|sidebar/i)
 
-      line.match?(/(?<![A-Za-z0-9_])#{Regexp.escape(manifest.dir_name)}\//)
+      frontend_dir_pattern_for(manifest).match?(line)
     end
 
     def allowed_core_reference?(path, relative_path, manifest, line)
