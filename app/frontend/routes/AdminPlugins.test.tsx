@@ -1078,6 +1078,36 @@ describe("AdminPlugins", () => {
     })
   })
 
+  it("shows external plugin host API findings with file and line", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugin: {
+          name: "external",
+          display_name: "External",
+          disable_blockers: [],
+          version: "1.0.0",
+          enabled: true,
+          disableable: true,
+          extension_points: [],
+          health: {
+            state: "warning",
+            reasons: ["1 unsupported host API reference"],
+            host_surface: {
+              public: [],
+              legacy: [],
+              unlisted: [{ constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7 }]
+            }
+          }
+        }
+      })
+    )
+
+    renderDetailRoute("/admin/plugins/external")
+
+    expect(await screen.findByText("Host API findings")).toBeInTheDocument()
+    expect(screen.getByText(/InternalService.*lib\/external\.rb:7/)).toBeInTheDocument()
+  })
+
   it("renders detail empty states and hides enabled-only links while disabled", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({

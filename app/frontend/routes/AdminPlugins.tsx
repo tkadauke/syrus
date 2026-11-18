@@ -465,6 +465,18 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
             <RuntimeCircuits plugin={plugin} />
             <RuntimeFailures plugin={plugin} />
             <PluginJobHealth plugin={plugin} />
+            {plugin.health?.host_surface && (plugin.health.host_surface.legacy.length > 0 || plugin.health.host_surface.unlisted.length > 0) ? (
+              <div className="mt-3 max-w-3xl rounded border border-amber-300 p-3 text-sm dark:border-amber-700">
+                <div className="font-medium">{t("plugins.host_surface_details")}</div>
+                <ul className="mt-2 space-y-1 font-mono text-xs">
+                  {[...plugin.health.host_surface.legacy, ...plugin.health.host_surface.unlisted].map((finding) => (
+                    <li key={`${finding.path}:${finding.line}:${finding.constant}`}>
+                      {finding.constant} ({finding.tier}) — {finding.path}:{finding.line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{description}</p> : null}
             {longDescription ? (
               <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p>
