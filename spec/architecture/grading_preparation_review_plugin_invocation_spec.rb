@@ -3,12 +3,10 @@
 require "rails_helper"
 
 RSpec.describe "grading, preparation, and review plugin invocation boundaries" do
-  # These files only expose registered provider classes. They do not invoke
+  # These methods only expose registered provider classes. They do not invoke
   # provider behavior, so there is no runtime call for the boundary to wrap.
-  LOOKUP_ONLY_ALLOWLIST = %w[
-    app/services/adjudicators.rb
-  ].freeze
   LOOKUP_ONLY_METHOD_ALLOWLIST = {
+    "app/services/adjudicators.rb" => %w[all],
     "app/services/app/diff_review_annotations_payload.rb" => %w[providers],
     "app/services/main_branch_failure_classifier.rb" => %w[test_evidence_providers],
     "app/services/review_presentation_contributions.rb" => %w[providers],
@@ -53,8 +51,6 @@ RSpec.describe "grading, preparation, and review plugin invocation boundaries" d
   it "guards provider invocations in grading, preparation, and review services" do
     paths = ROOT_FILES + Dir["app/services/steps/**/*.rb", "app/services/workflows/**/*.rb"]
     offenders = paths.uniq.sort.filter_map do |path|
-      next if LOOKUP_ONLY_ALLOWLIST.include?(path)
-
       lines = File.readlines(Rails.root.join(path))
       unguarded = lines.each_index.select do |index|
         next false unless lines[index].include?("PluginRegistry.providers_for")
@@ -69,7 +65,7 @@ RSpec.describe "grading, preparation, and review plugin invocation boundaries" d
     expect(offenders).to be_empty, <<~MESSAGE
       Provider calls in grading, preparation, and review code must use
       Syrus::PluginInvocation.call. Add a deliberately documented lookup-only
-      exception to LOOKUP_ONLY_ALLOWLIST only when no provider behavior runs.
+      method exception only when no provider behavior runs.
       Offenders: #{offenders.join('; ')}
     MESSAGE
   end
