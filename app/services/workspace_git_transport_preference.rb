@@ -71,9 +71,9 @@ module WorkspaceGitTransportPreference
   # before trusting it, and otherwise falling back via `fallback` -- which
   # only runs when the mirror is unavailable, stale, or every attempt
   # failed.
-  def fetch_via_transport!(repository:, user:, refspec:, chdir:, verify_sha: nil, env: {}, &fallback)
+  def fetch_via_transport!(repository:, user:, refspec:, chdir:, verify_sha: nil, env: {}, fetch_args: [], &fallback)
     fetched = try_mirror_transport(repository: repository, user: user, verify_sha: verify_sha) do |url, mirror_env|
-      @git.run("fetch", url, refspec, chdir: chdir, env: env.merge(mirror_env))
+      @git.run("fetch", *fetch_args, url, refspec, chdir: chdir, env: env.merge(mirror_env))
     end
     return if fetched
 

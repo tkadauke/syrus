@@ -624,6 +624,68 @@ RSpec.describe Run, :ci_only do
       r
     end
 
+    def make_git_transport_run!(step, state: "failed")
+      r = step.runs.create!(job: job, trigger_kind: "initial", state: state, finished_at: state == "failed" ? Time.current : nil)
+      r.create_run_diagnostic!(
+        error_class: "WorkflowSourceSnapshots::InfrastructureStateError",
+        error_message: "immutable source checkout failed: Failed to connect to github.com port 443"
+      )
+      r
+    end
+
+    it "schedules a bounded delayed in-place retry for a transient immutable checkout failure" do
+      now = Time.zone.parse("2026-11-18 12:00:00 UTC")
+      travel_to(now) do
+        run = make_git_transport_run!(step, state: "running")
+
+        expect {
+          run.fail!
+          run.save!
+        }.to have_enqueued_job(AutoRetryJob).exactly(:once)
+
+        expect(step.reload).to be_running
+        attempt = AutoRetryAttempt.find_by!(run: run)
+        expect(attempt).to have_attributes(
+          failure_classification: "git_transport_transient",
+          retry_kind: "failed_step",
+          attempt_number: 1
+        )
+        expect(attempt.scheduled_at).to eq(now + AutoRetryAttempt::BACKOFFS.first + (run.id % 61).seconds)
+      end
+    end
+
+    it "fails normally after transient Git transport in-place retries are exhausted" do
+      AutoRetryAttempt::MAX_ATTEMPTS.times { make_git_transport_run!(step) }
+      run = make_git_transport_run!(step, state: "running")
+
+      run.fail!
+      run.save!
+
+      expect(step.reload).to be_failed
+      expect(AutoRetryAttempt.where(run: run)).to be_empty
+    end
+
+    it "does not replay an agentic step for a transient Git transport failure" do
+      agentic_step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
+      run = make_git_transport_run!(agentic_step, state: "running")
+
+      run.fail!
+      run.save!
+
+      expect(run.reload).to be_failed
+      expect(AutoRetryAttempt.where(run: run)).to be_empty
+    end
+
+    it "does not schedule an AutoRetryAttempt for non-idempotent in-place fanout replay" do
+      fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1, state: "running")
+      run = make_git_transport_run!(fanout, state: "running")
+
+      run.fail!
+      run.save!
+
+      expect(AutoRetryAttempt.where(run: run)).to be_empty
+    end
+
     it "schedules an auto-retry and keeps the step running on the first worker_died" do
       run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
 
