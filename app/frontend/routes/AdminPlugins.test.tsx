@@ -118,7 +118,9 @@ describe("AdminPlugins", () => {
             source: null,
             extension_points: [],
             disable_blockers: [],
-            health: { state: "quarantined", reasons: ["changed since last good boot"] },
+            // The recovery action must follow the explicit ledger capability,
+            // even if this process still has its pre-quarantine boot health.
+            health: { state: "ok", reasons: [] },
             quarantine_clearable: true
           }
         ]
