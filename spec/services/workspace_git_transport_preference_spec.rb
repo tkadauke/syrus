@@ -150,6 +150,27 @@ RSpec.describe WorkspaceGitTransportPreference do
     end
   end
 
+  it "re-registers and falls back when a caller verification rejects both mirror fetches" do
+    register_calls = []
+    register_transport(register_calls: register_calls)
+    includer.git = WorkspaceGitTransportPreferenceSpecFakeGit.new
+    fallback_calls = 0
+
+    includer.fetch_via_transport!(
+      repository: repository,
+      user: user,
+      refspec: "refs/heads/main:refs/remotes/origin/main",
+      chdir: "/tmp",
+      verify: -> { false }
+    ) do
+      fallback_calls += 1
+    end
+
+    expect(includer.git.calls.size).to eq(2)
+    expect(register_calls).to eq([ :called ])
+    expect(fallback_calls).to eq(1)
+  end
+
   describe "#clone_via_transport!" do
     let(:dest) { Pathname.new(Dir.mktmpdir("workspace-git-transport-clone")) }
 
