@@ -227,6 +227,8 @@ class McpToolUsageRecorder
 
       Array(tool_set.tool_definitions)
     end)
+  rescue NotImplementedError
+    []
   end
   private_class_method :tool_definitions
 
