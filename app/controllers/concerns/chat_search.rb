@@ -196,10 +196,8 @@ module ChatSearch
     messages = ChatMessage.where(id: ids).includes(:chat_session).index_by(&:id)
     presentations = ChatIdentityContributions.message_presentations(messages: messages.values)
     @chat_search_authors = presentations.to_h do |message_id, contribution|
-      appearance = contribution.dig("plugin_message", "data", "appearance") ||
-        contribution.dig(:plugin_message, :data, :appearance)
-      [ message_id, appearance&.slice("id", "name", "handle", "accent_hex", "avatar_key", "avatar_url") ||
-        appearance&.slice(:id, :name, :handle, :accent_hex, :avatar_key, :avatar_url) ]
+      appearance = contribution.dig("plugin_message", "data", "appearance")
+      [ message_id, appearance&.slice("id", "name", "handle", "accent_hex", "avatar_key", "avatar_url") ]
     end
   end
 
