@@ -586,6 +586,7 @@ DEPENDENCIES
   commonmarker
   debug
   docx
+  ed25519 (~> 1.4)
   faraday-http-cache
   faraday-retry
   image_processing (~> 2.2)
