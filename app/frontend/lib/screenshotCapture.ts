@@ -159,7 +159,10 @@ function viewportBounds(): Bounds {
 }
 
 function outside(rect: DOMRect, bounds: Bounds) {
-  return rect.bottom < bounds.top || rect.top > bounds.bottom || rect.right < bounds.left || rect.left > bounds.right
+  const above = rect.bottom < bounds.top
+  const below = rect.top > bounds.bottom
+  const beside = rect.right < bounds.left || rect.left > bounds.right
+  return above || below || beside
 }
 
 export type HollowPlan = {
