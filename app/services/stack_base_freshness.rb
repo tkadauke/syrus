@@ -127,7 +127,6 @@ class StackBaseFreshness
   # superseded parent history are not carried over. Without a usable prepared
   # SHA, falls back to a plain rebase onto the live head.
   def rebase_onto!(live, prepared, history)
-    drivers = GitMergeDrivers::Result.new({})
     drivers = GitMergeDrivers.register!(git: @git, path: @path)
     if prepared.present? && commit_available?(prepared) && descends_from?(prepared)
       @git.run("rebase", "--onto", live, prepared, chdir: @path)
