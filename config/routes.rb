@@ -488,6 +488,7 @@ Rails.application.routes.draw do
           post "macos_worker_update/clear", to: "macos_worker_updates#clear"
           post "macos_worker_update/force_terminate", to: "macos_worker_updates#force_terminate"
           get "plugins", to: "plugins#index"
+          get "plugin_convergence", to: "plugin_convergence#show"
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
           get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }

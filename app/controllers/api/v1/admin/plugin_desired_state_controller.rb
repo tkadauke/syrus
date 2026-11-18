@@ -21,7 +21,8 @@ module Api
                 desired_since: installation.desired_since
               }
             end,
-            restart: PluginDesiredState::RestartStatus.new.as_json
+            restart: PluginDesiredState::RestartStatus.new.as_json,
+            convergence: PluginDesiredState::Convergence.new.as_json
           }
         end
 
