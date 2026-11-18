@@ -28,6 +28,11 @@ module CredentialStore
           .with_env(env_key: env_key) { |env, metadata| yield env, metadata }
       end
 
+      def with_credential_payload(context:, credential:, type:, purpose:, tool_name:, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
+        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata)
+          .with_payload { |payload, metadata| yield payload, metadata }
+      end
+
       def redact(value, credentials: [], extra_secrets: [])
         Redaction.scrub_object(value, credentials: credentials, extra_secrets: extra_secrets)
       end
@@ -133,6 +138,16 @@ module CredentialStore
       yield_with_redaction(credential) { yield env, metadata_for(credential, lease) }
     ensure
       env&.clear
+    end
+
+    def with_payload
+      credential = authorized_credential!
+      lease = lease_for(credential)
+      lease_event = record_event!(credential, result: "allowed", metadata: lease.metadata)
+
+      yield_with_redaction(credential) { yield credential.payload.dup, metadata_for(credential, lease) }
+    ensure
+      record_release_event!(credential, lease, lease_event) if credential && lease && lease_event
     end
 
     private
@@ -267,6 +282,25 @@ module CredentialStore
         denial_reason: denial_reason,
         metadata: sanitized_metadata(credential, metadata),
         lease_id: result == "allowed" ? metadata[:lease_id] : nil
+      )
+    end
+
+    def record_release_event!(credential, lease, lease_event)
+      CredentialAccessEvent.record!(
+        credential: credential,
+        user: context.user,
+        repository: context.repository,
+        job: context.job,
+        workflow: context.workflow,
+        run: context.run,
+        chat_session: context.chat_session,
+        surface: event_surface,
+        tool_name: tool_name,
+        action: "revoke",
+        purpose: purpose,
+        result: "allowed",
+        metadata: sanitized_metadata(credential, lease.metadata.merge(released: true)),
+        completion_of_event: lease_event
       )
     end
 

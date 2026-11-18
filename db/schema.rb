@@ -1100,6 +1100,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_224806) do
     t.index ["workflow_id", "step_id"], name: "index_command_spans_on_workflow_id_and_step_id"
   end
 
+  create_table "connected_accounts_accounts", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "display_label", null: false
+    t.json "granted_scopes", null: false
+    t.string "status", null: false
+    t.boolean "read_only", null: false
+    t.json "scope_ceiling"
+    t.json "acting_modes", null: false
+    t.integer "owner_user_id", null: false
+    t.integer "credential_store_credential_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["credential_store_credential_id"], name: "idx_on_credential_store_credential_id_7b6d26bf18"
+    t.index ["owner_user_id", "provider"], name: "idx_connected_accounts_owner_provider"
+    t.index ["owner_user_id"], name: "index_connected_accounts_accounts_on_owner_user_id"
+  end
+
   create_table "coverage_snapshots", force: :cascade do |t|
     t.integer "repository_id", null: false
     t.integer "workflow_id", null: false
