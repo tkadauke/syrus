@@ -31,6 +31,7 @@ RSpec.describe "Vite build config" do
         assetFileNames: output.assetFileNames,
         nonVendor: manualChunks("/repo/app/frontend/main.tsx") ?? null,
         appEvents: manualChunks("/repo/app/frontend/lib/appEvents.ts") ?? null,
+        eagerPluginContribution: manualChunks("/repo/plugins/terminal/app/frontend/runtimeSessionViews/TerminalSession.tsx") ?? null,
         react: manualChunks("/repo/node_modules/react/index.js"),
         tanstack: manualChunks("/repo/node_modules/@tanstack/react-query/build/index.js"),
         d3: manualChunks("/repo/node_modules/d3-scale/src/index.js") ?? null,
@@ -96,6 +97,7 @@ RSpec.describe "Vite build config" do
     expect(config).to include(
       "nonVendor" => nil,
       "appEvents" => "app-events",
+      "eagerPluginContribution" => "builtin-plugin-contributions",
       "react" => "vendor-react",
       "tanstack" => "vendor-query",
       "d3" => nil,
