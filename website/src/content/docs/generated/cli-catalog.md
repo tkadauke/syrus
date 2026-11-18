@@ -60,6 +60,9 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus jobs` | List Syrus jobs | `--closed`, `--debug`, `--profile`, `--proposer`, `--repo` | no |
 | `syrus local` | Connect this machine to a Syrus Local Mode chat session | `--chat`, `--debug`, `--dir`, `--profile`, `--token` | no |
 | `syrus login` | Log in to a Syrus instance | `--debug`, `--profile`, `--token`, `--url` | no |
+| `syrus plugin` | Develop and inspect Syrus plugins | `--debug`, `--profile` | no |
+| `syrus plugin test [DIR]` | Validate and test a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
+| `syrus plugin validate [DIR]` | Validate a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
 | `syrus repo` | Inspect Syrus repositories | `--debug`, `--profile` | no |
 | `syrus repo list` | List repositories | `--debug`, `--json`, `--profile` | yes |
 | `syrus review` | Review job diffs from scripts | `--debug`, `--profile` | no |

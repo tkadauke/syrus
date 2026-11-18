@@ -43,6 +43,21 @@ minimum Syrus release required by the host APIs in use. Computed dynamic
 constant names cannot be detected. The tested release may be
 newer, but must not be older than that derived floor.
 
+## Validate and test a plugin
+
+Run `syrus plugin validate [DIR]` to check the manifest, Ruby dependencies,
+release compatibility, host API usage, prebuilt frontend hash, and English,
+German, and Latin locale parity. Run `syrus plugin test [DIR]` for the same
+validation followed by the plugin's own RSpec suite. Both commands default to
+the current directory and run against the connected instance's release when it
+is available, otherwise the CLI release. Use `--syrus-version X.Y.Z` to select
+a release explicitly and `--json` for the stable summary object.
+
+The CLI pulls the matching `ghcr.io/tkadauke/syrus-plugin-test` companion image
+and mounts only the plugin directory; no instance credentials enter the
+container. Syrus contributors can use `--checkout PATH` to execute the same
+runner from a local Syrus checkout without Docker.
+
 ## Hand-install an external plugin
 
 External plugins are trusted, in-process code. Review the source before
