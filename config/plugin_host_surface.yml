@@ -4,7 +4,7 @@
 # Public entries require a `since` release; legacy entries are a shrinking
 # compatibility inventory and must never be used by external plugins.
 ---
-legacy_baseline: 477
+legacy_baseline: 440
 constants:
 - name: Admin::JobStateSerializer
   tier: legacy
@@ -29,7 +29,10 @@ constants:
 - name: AgentInvocation::MAX_EVENT_BYTES
   tier: legacy
 - name: AgentInvocation::Result
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Result value returned by plugin agent and chat provider invocations. Construction and the listed outcome, transcript, usage, process, and success readers are supported; invocation engine internals are not.
+  members: { class: [new], instance: [turns, exit_status, timed_out, is_error, outcome, final_text, session_id, transcript_jsonl, transcript_path, cost_usd, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens, process_outcome, spawned_process_id, silent_timed_out, stopped, operator_killed, aliveness_failed, success?] }
 - name: AgentInvocation::SILENT_TIMEOUT_SECONDS
   tier: legacy
 - name: AgentProviderCatalogOptions
@@ -75,11 +78,20 @@ constants:
 - name: AgentSidecarEnvironment
   tier: legacy
 - name: Api::V1::Admin::BaseController
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Base controller for plugin-owned administrative API routes. Subclasses may use inherited authentication, params, render, and policy helpers; filters and implementation details are not promised.
+  members: { instance: [params, render] }
 - name: Api::V1::App::Admin::BaseController
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Base controller for authenticated plugin routes in the app admin namespace. Only inherited request, rendering, and authorization behavior is supported.
+  members: { instance: [params, render] }
 - name: Api::V1::App::BaseController
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Base controller for authenticated plugin routes mounted in the application API. Only inherited request, rendering, and authorization behavior is supported.
+  members: { instance: [params, render] }
 - name: App::AdversarialReviewProjects
   tier: legacy
 - name: App::JobDiscussionChatResolver
@@ -103,13 +115,19 @@ constants:
 - name: ApplicationCable::Channel
   tier: legacy
 - name: ApplicationJob
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Base class for plugin-owned Active Job classes and the host operational-log context hook. Core queue topology and execution callbacks are not public.
+  members: { class: [queue_as], instance: [operational_log_context] }
 - name: ApplicationPolicy
   tier: legacy
 - name: ApplicationPolicy::Scope
   tier: legacy
 - name: ApplicationRecord
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Active Record base for plugin-owned models using the Syrus primary database. Database internals and private core helpers are not promised.
+  members: { class: [belongs_to, has_many] }
 - name: AuthorizationCheckpointOrigin
   tier: legacy
 - name: AuthorizedInvocation
@@ -157,7 +175,10 @@ constants:
 - name: ChatResultBadges
   tier: legacy
 - name: ChatSession
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Read access to a chat's identity, title, owner, repository, and messages. Turn orchestration, broadcasts, artifacts, and mutation helpers are not public.
+  members: { instance: [id, title, user, repository, messages] }
 - name: ChatSession::CrossChatMessage
   tier: legacy
 - name: ChatSession::CrossChatMessage::ClosedThreadError
@@ -217,7 +238,10 @@ constants:
 - name: CredentialProbe::TIMEOUT_SECONDS
   tier: legacy
 - name: Current
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Request-local access to the authenticated user and API user for plugin handlers. All other current attributes are internal and plugins must not assign these accessors.
+  members: { class: [user, api_user] }
 - name: DiffReviewComment
   tier: legacy
 - name: DiffReviewVersion
@@ -349,7 +373,10 @@ constants:
 - name: IssueImageExtractor
   tier: legacy
 - name: Job
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Read access to a work item's identity, state, title, repository, owner, and workflows, plus visibility-scoped queries. State transitions, callbacks, and unlisted persistence APIs are not public.
+  members: { class: [visible_to, accessible_to], instance: [id, state, title, repository, user, workflows] }
 - name: Job::Kind
   tier: legacy
 - name: Job::Origin
@@ -391,7 +418,10 @@ constants:
 - name: Mcp::Pagination
   tier: legacy
 - name: Mcp::Tools
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Base module and response helpers for plugin MCP tools. Only the listed connection and response helpers are supported; core tool implementations are not.
+  members: { class: [with_database_connection, success, invalid] }
 - name: Mcp::Tools::AdminPendingActionToolSupport
   tier: legacy
 - name: Mcp::Tools::AgentPreviewRegistry
@@ -415,7 +445,10 @@ constants:
 - name: McpSidecarLog
   tier: legacy
 - name: McpToolContext
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Immutable authorization and request context passed to plugin tool handlers. Plugins may inspect the listed scope objects and predicates but must not construct or mutate contexts.
+  members: { instance: [surface, role, user, repository, job, workflow, run, chat_session, run?, chat?, interactive] }
 - name: McpToolPayloads::WorkflowPayload
   tier: legacy
 - name: McpToolPolicy
@@ -447,7 +480,10 @@ constants:
 - name: OperationalLogSearch::INPUT_SCHEMA_PROPERTIES
   tier: legacy
 - name: OperationalLogging
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Structured operational event sink for plugin diagnostics. Plugins may emit bounded events through ingest; subscriber installation and storage internals are not public.
+  members: { class: [ingest] }
 - name: Paginatable
   tier: legacy
 - name: PendingActionItem
@@ -461,7 +497,10 @@ constants:
 - name: PerformanceLogEvent
   tier: legacy
 - name: PerformanceLogging
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Performance instrumentation helper for timing plugin work through named phases. Event storage, thresholds, and request instrumentation are not public.
+  members: { class: [phase] }
 - name: PerformanceLogging::BROWSER_TRACE_EVENT
   tier: legacy
 - name: PerformanceLogging::FEATURE_SLUG
@@ -547,7 +586,10 @@ constants:
 - name: PreviewProcessLauncher
   tier: legacy
 - name: ProcessRunner
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Managed subprocess runner for plugin commands with host cancellation, timeout, confinement, and attribution. Plugins may use new, run, capture, start, mounts, and forwarded_env; backend and process-record internals are not public.
+  members: { class: [new, mounts, forwarded_env], instance: [run, capture, start] }
 - name: Prompts::AdversarialReview
   tier: legacy
 - name: Prompts::ChatSystem
@@ -589,7 +631,10 @@ constants:
 - name: RepoDeploymentStagesReader
   tier: legacy
 - name: Repository
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Read access to repository identity, owner/name, archival state, and jobs, with active and user-scoped readable/writable queries. Credential fields, synchronization internals, callbacks, and unlisted mutations are not public.
+  members: { class: [active, accessible_to, writable_by], instance: [id, owner, name, archived_at, jobs] }
 - name: RepositoryBareClone
   tier: legacy
 - name: RepositoryContent
@@ -653,7 +698,10 @@ constants:
 - name: ReviewerTargets::TargetUnavailable
   tier: legacy
 - name: Run
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Read access to an execution attempt's identity, state, step, workflow, and job. Dispatch, lifecycle transitions, agent metadata mutation, and unlisted associations are not public.
+  members: { instance: [id, state, step, workflow, job] }
 - name: Run::ACTIVE_STATES
   tier: legacy
 - name: RunDiff
@@ -729,27 +777,42 @@ constants:
 - name: Syrus::Memory
   tier: legacy
 - name: Syrus::Metrics
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Non-blocking metrics facade for plugin-declared counters, gauges, and histograms. Plugins may fetch declared instruments; registry mutation and core metric declarations are not public.
+  members: { class: [counter, gauge, histogram] }
 - name: Syrus::PathJail
   tier: legacy
 - name: Syrus::PathJail::PathEscape
   tier: legacy
 - name: Syrus::Plugin::AdminPage
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for providers contributing administrative SPA pages through admin_pages metadata. Core navigation and route rendering internals are not public.
+  members: {}
 - name: Syrus::Plugin::AgentProvider
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Interface mixed into registered agent providers, including model catalog and configuration hooks documented by the module. Provider orchestration and evidence internals are not public.
+  members: { class: [available_models, configured_for_user?] }
 - name: Syrus::Plugin::AgentProvider::ModelInfo
   tier: legacy
 - name: Syrus::Plugin::AgenticConnection
   tier: legacy
 - name: Syrus::Plugin::Callbacks
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Lifecycle callbacks for registered plugin providers and cleanup effects. Plugins may implement the documented on_boot, on_shutdown, on_enable, on_disable, on_tick, and on_metrics_scrape callbacks.
+  members: { instance: [on_boot, on_shutdown, on_enable, on_disable, on_tick, on_metrics_scrape, effect] }
 - name: Syrus::Plugin::ChatIdentityProvider
   tier: legacy
 - name: Syrus::Plugin::ChatJobStatusExtension
   tier: legacy
 - name: Syrus::Plugin::ChatMcpToolSet
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for chat MCP tool sets implementing tool_definitions, available_for?, and handle as documented by the interface. Core tool policy implementation is not public.
+  members: {}
 - name: Syrus::Plugin::ChatMediaSource
   tier: legacy
 - name: Syrus::Plugin::ChatPayloadContributor
@@ -757,7 +820,10 @@ constants:
 - name: Syrus::Plugin::ChatPromptInjector
   tier: legacy
 - name: Syrus::Plugin::ChatProvider
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for interactive chat providers implementing the documented provider metadata, constructor, and invoke interface. Host session orchestration is not public.
+  members: {}
 - name: Syrus::Plugin::ChatTurnFinalizer
   tier: legacy
 - name: Syrus::Plugin::ChatTurnLifecycle
@@ -767,17 +833,26 @@ constants:
 - name: Syrus::Plugin::ChatWorkspaceLifecycle
   tier: legacy
 - name: Syrus::Plugin::CliCommandHandler
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Base class for server-backed plugin CLI commands. Subclasses implement call and return values built with table, text, raw_text, or json; transport internals are not public.
+  members: { class: [table, text, raw_text, json], instance: [call] }
 - name: Syrus::Plugin::DiffReviewAnnotationProvider
   tier: legacy
 - name: Syrus::Plugin::DomainSubscriber
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for providers declaring domain-event subscriptions and handlers. Delivery scheduling and core event persistence are not public.
+  members: {}
 - name: Syrus::Plugin::ExecutionBackend
   tier: legacy
 - name: Syrus::Plugin::FocusedTestCommand
   tier: legacy
 - name: Syrus::Plugin::GatedToolSet
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Shared implementation for plugin tool sets gated by plugin availability and coworker grants. Only the documented declaration, definition, lookup, availability, and handle methods are supported.
+  members: { class: [gated_by, gated?, tool_definitions, find_tool_class, available_for_context?], instance: [handle] }
 - name: Syrus::Plugin::GradeDetector
   tier: legacy
 - name: Syrus::Plugin::GraderFailureSummarizer
@@ -785,7 +860,10 @@ constants:
 - name: Syrus::Plugin::GraderType
   tier: legacy
 - name: Syrus::Plugin::InputSource
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for plugin input-source classes implementing poll!, validate_credentials!, config_schema, and dedup_key. Host polling internals are not public.
+  members: {}
 - name: Syrus::Plugin::JobOrigin
   tier: legacy
 - name: Syrus::Plugin::JobVisibilityRestriction
@@ -793,11 +871,17 @@ constants:
 - name: Syrus::Plugin::McpRunContextContributor
   tier: legacy
 - name: Syrus::Plugin::McpToolSet
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for workflow MCP tool sets implementing tool_definitions, available_for?, and handle as documented by the interface. Core tool implementations are not public.
+  members: {}
 - name: Syrus::Plugin::MemoryStore
   tier: legacy
 - name: Syrus::Plugin::PermissionProvider
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Declaration contract for plugin capabilities, resource scopes, presets, authorization adapters, migrations, and retired identifiers. Core permission evaluation and storage are not public.
+  members: { class: [register_authorization_adapter, register_resource_scope, register_capability, register_permission_preset, migrate_permission_scope, retire_permission_identifier] }
 - name: Syrus::Plugin::PlatformDelivery
   tier: legacy
 - name: Syrus::Plugin::PostImplementationReviewProvider
@@ -807,11 +891,17 @@ constants:
 - name: Syrus::Plugin::PurgeContributor
   tier: legacy
 - name: Syrus::Plugin::RepoPageTab
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for providers contributing repository tabs through repo_page_tabs metadata scoped to a repository and user. Host navigation internals are not public.
+  members: {}
 - name: Syrus::Plugin::RepositoryConfiguration
   tier: legacy
 - name: Syrus::Plugin::RepositoryContentProvider
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Interface for immutable repository-content providers, including provider metadata and the documented resolve, tree, read, changes, refs, relation, history, commits, tree_sha, and divergence operations. Cache and fallback orchestration are not public.
+  members: { class: [provider_key, display_name, role, available_for?, build], instance: [resolve, tree, read, changes, refs, relation, history, commits, tree_sha, divergence] }
 - name: Syrus::Plugin::RepositoryFilter
   tier: legacy
 - name: Syrus::Plugin::RepositoryRecommendation
@@ -829,7 +919,10 @@ constants:
 - name: Syrus::Plugin::RuntimeSessionProvider
   tier: legacy
 - name: Syrus::Plugin::SidebarPage
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for providers contributing sidebar pages through sidebar_pages metadata. Host navigation rendering and polling internals are not public.
+  members: {}
 - name: Syrus::Plugin::SlugType
   tier: legacy
 - name: Syrus::Plugin::SourceControlProvider
@@ -841,21 +934,33 @@ constants:
 - name: Syrus::Plugin::TestEvidence
   tier: legacy
 - name: Syrus::Plugin::UiSlot
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Interface for panels contributed to named host UI slots through ui_slots metadata. Plugins may rely on SLOTS and valid_slot?; page rendering internals are not public.
+  members: { class: [valid_slot?] }
 - name: Syrus::Plugin::WorkerCapabilityProbe
   tier: legacy
 - name: Syrus::Plugin::WorkflowArtifactContributor
   tier: legacy
 - name: Syrus::Plugin::WorkflowKinds
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Marker contract for providers contributing trigger, step, job, and work-definition entries through the documented optional methods. Registry compilation and dispatch internals are not public.
+  members: {}
 - name: Syrus::Plugin::WorkspaceGitTransport
   tier: legacy
 - name: Syrus::Plugin::WorkspaceTab
   tier: legacy
 - name: Syrus::PluginApi
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Primary plugin manifest DSL for declaring a plugin and installing its definition. Plugins may call syrus_plugin, syrus_plugin_definition, register!, enabled?, and default_version; Definition internals are not public.
+  members: { class: [default_version], instance: [syrus_plugin, syrus_plugin_definition, register!, enabled?] }
 - name: Syrus::PluginRegistry
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Registry boundary for plugin manifests and extension-point providers. Plugins may register manifests and query providers for declared extension points; mutation, reset, health, and cache internals are not public.
+  members: { class: [register, providers_for, extension_point?] }
 - name: Syrus::PluginSettings
   tier: legacy
 - name: SyrusMcp
@@ -913,7 +1018,10 @@ constants:
 - name: UiEngagementSample
   tier: legacy
 - name: User
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Read access to user identity, handle, display name, administrator status, repositories, and jobs. Credentials, preferences, callbacks, and unlisted persistence methods are not public.
+  members: { instance: [id, handle, display_name, admin?, repositories, jobs] }
 - name: User::DASHBOARD_OPTIONAL_COLUMNS
   tier: legacy
 - name: User::DASHBOARD_REQUIRED_COLUMNS
@@ -941,7 +1049,10 @@ constants:
 - name: WorkerStorageIdentity
   tier: legacy
 - name: Workflow
-  tier: legacy
+  tier: public
+  since: 0.1.16
+  contract: Read access to a workflow attempt's identity, state, owning job, steps, and runs. Scheduling, transitions, repair behavior, and unlisted mutations are not public.
+  members: { instance: [id, state, job, steps, runs] }
 - name: Workflow::TriggerKind
   tier: legacy
 - name: WorkflowActivityEvent
