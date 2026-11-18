@@ -20,11 +20,24 @@ module Mcp
       submit_coworker_review
     ].freeze
 
+    PERMISSION_ADMIN_TOOL_NAMES = %w[
+      list_permissions
+      explain_permission
+      grant_permission
+      deny_permission
+      revoke_permission
+      create_permission_lease
+      revoke_permission_lease
+      apply_permission_preset
+      cancel_authorization_request
+    ].freeze
+
     class << self
       def core_entry?(entry)
         !entry.admin_only &&
           (entry.required_roles & DEDICATED_CHAT_ROLES).empty? &&
-          !WORKFLOW_ROLE_TOOL_NAMES.include?(entry.tool_name)
+          !WORKFLOW_ROLE_TOOL_NAMES.include?(entry.tool_name) &&
+          !PERMISSION_ADMIN_TOOL_NAMES.include?(entry.tool_name)
       end
 
       def plugin_provider?(provider)

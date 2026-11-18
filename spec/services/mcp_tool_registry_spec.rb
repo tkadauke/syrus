@@ -151,7 +151,8 @@ RSpec.describe McpToolRegistry do
       )
       expect(coworker_names).not_to include(
         "admin_overview", "force_fail_job", "run_command", "runtime_start", "submit_coding_changes",
-        *Mcp::CoworkerToolExposure::WORKFLOW_ROLE_TOOL_NAMES
+        *Mcp::CoworkerToolExposure::WORKFLOW_ROLE_TOOL_NAMES,
+        *Mcp::CoworkerToolExposure::PERMISSION_ADMIN_TOOL_NAMES
       )
     end
   end
