@@ -99,7 +99,10 @@ repository/team membership, allowed repository scope, MCP surface, allowed
 tool name, expected credential type, target constraints, revocation, and
 expiry. A successful call issues a short-lived local lease, materializes the
 payload only inside the block as either a restrictive temporary file or a
-per-call env hash, and cleans that local material in `ensure`.
+per-call env hash, and cleans that local material in `ensure`. Registered typed
+consumers may instead use `with_credential` for an in-process payload lease.
+That API rejects raw or legacy tool names; the typed consumer must keep the
+material out of environments, command arguments, files, and returned results.
 
 An owning plugin can refresh its credential atomically with
 `CredentialStore::Broker.refresh_credential!`. The broker locks the database

@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_035759) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1082,6 +1082,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.index ["run_id", "sequence"], name: "index_command_spans_on_run_id_and_sequence", unique: true
     t.index ["spawned_process_id"], name: "index_command_spans_on_spawned_process_id"
     t.index ["workflow_id", "step_id"], name: "index_command_spans_on_workflow_id_and_step_id"
+  end
+
+  create_table "connected_accounts", force: :cascade do |t|
+    t.string "provider_key", null: false
+    t.string "display_label", null: false
+    t.json "granted_scopes", null: false
+    t.string "status", null: false
+    t.json "scope_ceiling", null: false
+    t.json "acting_modes", null: false
+    t.bigint "owner_user_id", null: false
+    t.bigint "credential_store_credential_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["credential_store_credential_id"], name: "idx_connected_accounts_credential", unique: true
+    t.index ["owner_user_id", "provider_key"], name: "idx_connected_accounts_owner_provider"
+    t.index ["owner_user_id"], name: "index_connected_accounts_on_owner_user_id"
   end
 
   create_table "coverage_snapshots", force: :cascade do |t|

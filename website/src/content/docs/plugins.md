@@ -145,7 +145,7 @@ keeps cluster identity and access settings intact. OIDC auth-provider
 kubeconfigs with refresh credentials renew automatically shortly before
 expiry; failures appear as a degraded credential state without exposing
 secret material.
-| Collaboration and UI | Agent Activity, Review Notes, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
+| Collaboration and UI | Agent Activity, Review Notes, Connected Accounts, Credential Store, Discord, Mockups, Team Directory, Theming Tools, Whiteboard |
 | Data and admin tools | Admin MySQL, MySQL DB Browser, Alertmanager Investigations, Syrus Dev, Whisper speech-to-text |
 
 The Design Docs plugin gives chat agents a grouped archive tool for

@@ -2032,6 +2032,14 @@ Each user owns their own profile, credentials, defaults, and preferences:
   avatar, message, mention, and presence preview. A non-persisted preview is
   available under Agent Settings until coworker profile editing is available.
 - **Credentials** stores GitHub PAT fallback, Claude credentials, Codex credentials, and the admin API token panel for admins.
+- **Connected Accounts** is an experimental, default-disabled foundation for
+  external account integrations. It records user-owned account identity,
+  connection status, granted scopes, scope ceilings, and eligible acting modes,
+  while OAuth material stays encrypted in Credential Store. Integration tools
+  receive access only through a permission-authorized, audited, short-lived
+  in-process lease; tokens are scrubbed from results and never materialized in
+  command arguments, environments, or workspace files. Provider-specific
+  connection flows and service tools are supplied separately.
 - **Credential Store** is the management surface for generic scoped credentials
   owned by the bundled `credential_store` plugin. It stores payload material as
   encrypted write-only blobs, exposes only safe metadata and last-used audit

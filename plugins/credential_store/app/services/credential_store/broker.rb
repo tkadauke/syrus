@@ -28,6 +28,14 @@ module CredentialStore
           .with_env(env_key: env_key) { |env, metadata| yield env, metadata }
       end
 
+      def with_credential(context:, credential:, type:, purpose:, tool_name:, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
+        consumer = ConsumerRegistry.find(tool_name)
+        raise Denied, "programmatic payload leases require a typed consumer" unless consumer&.kind == :typed
+
+        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata)
+          .with_payload { |payload, metadata| yield payload, metadata }
+      end
+
       def redact(value, credentials: [], extra_secrets: [])
         Redaction.scrub_object(value, credentials: credentials, extra_secrets: extra_secrets)
       end
@@ -133,6 +141,13 @@ module CredentialStore
       yield_with_redaction(credential) { yield env, metadata_for(credential, lease) }
     ensure
       env&.clear
+    end
+
+    def with_payload
+      credential = authorized_credential!
+      lease = lease_for(credential)
+      record_event!(credential, result: "allowed", metadata: lease.metadata)
+      yield credential.payload, metadata_for(credential, lease)
     end
 
     private

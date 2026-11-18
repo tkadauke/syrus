@@ -8,7 +8,7 @@ module Syrus
       # :reset_plugin_registry instead.
       TEST_ENABLED_PLUGIN_NAMES = %w[
         claude_agent codex_agent agy_agent
-        build_cache credential_store design_docs django java kotlin
+        build_cache connected_accounts credential_store design_docs django java kotlin
         sdlc_pipeline spending_insights team_directory
       ].freeze
       EXAMPLE_ENABLED_PLUGIN_PATHS = {
