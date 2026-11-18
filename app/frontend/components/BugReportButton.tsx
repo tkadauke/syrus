@@ -16,8 +16,10 @@ import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
 import { formatBytes } from "../lib/format"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { mergeOptionalAttachments } from "../lib/bugReportOptionalAttachments"
+import { captureFullPage, captureViewport, installScreenshotCaptureDebugHook, loadHtml2Canvas } from "../lib/screenshotCapture"
 
-type Html2Canvas = typeof import("html2canvas-pro").default
+installScreenshotCaptureDebugHook()
+
 type ScreenshotChoice = "viewport" | "fullPage" | "none"
 type CapturedScreenshotChoice = Exclude<ScreenshotChoice, "none">
 type ScreenshotCapture = {
@@ -40,7 +42,6 @@ type BugReportContext = {
   enabled_features?: Record<string, boolean>
 }
 
-const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
 const MAX_EXTRA_ATTACHMENTS = 9
 const OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS = 300
@@ -863,76 +864,6 @@ function selectedScreenshot(captures: ScreenshotCaptures, choice: ScreenshotChoi
   if (choice === "none") return null
 
   return captures[choice]?.file || null
-}
-
-let html2canvasPromise: Promise<Html2Canvas> | null = null
-
-function loadHtml2Canvas() {
-  html2canvasPromise ||= import("html2canvas-pro").then((module) => module.default)
-  return html2canvasPromise
-}
-
-function normalizeCloneForCapture(clonedDoc: Document, captureMode: CapturedScreenshotChoice) {
-  // html2canvas resets scrollTop/scrollLeft to 0 in the cloned document. To capture
-  // the current visible state of inner scroll containers (e.g. the chat message stream,
-  // which uses overflow-y-auto and doesn't scroll the window), we mirror the original
-  // scroll positions onto the cloned elements so html2canvas renders from the right offset.
-  clonedDoc.querySelectorAll<HTMLDetailsElement>("details:not([open])").forEach((details) => {
-    Array.from(details.children).forEach((child) => {
-      if (child.tagName.toLowerCase() === "summary") return
-      if (child instanceof HTMLElement) child.style.setProperty("display", "none", "important")
-    })
-  })
-
-  const originalEls = Array.from(document.querySelectorAll<HTMLElement>("*"))
-
-  clonedDoc.querySelectorAll<HTMLElement>("*").forEach((clonedEl, i) => {
-    // Viewport captures need the browser's current sticky placement. Full-page
-    // captures render the document from its origin, where sticky elements should
-    // participate in normal flow instead of pinning over content farther down.
-    if (captureMode === "fullPage" && getComputedStyle(clonedEl).position === "sticky") {
-      clonedEl.style.position = "relative"
-    }
-
-    const originalEl = originalEls[i]
-    if (originalEl) {
-      if (originalEl.scrollTop !== 0) clonedEl.scrollTop = originalEl.scrollTop
-      if (originalEl.scrollLeft !== 0) clonedEl.scrollLeft = originalEl.scrollLeft
-    }
-  })
-}
-
-function captureViewport(html2canvas: Html2Canvas) {
-  return html2canvas(document.body, {
-    x: window.scrollX,
-    y: window.scrollY,
-    width: window.innerWidth,
-    height: window.innerHeight,
-    windowWidth: window.innerWidth,
-    windowHeight: window.innerHeight,
-    useCORS: true,
-    onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument, "viewport")
-  })
-}
-
-function captureFullPage(html2canvas: Html2Canvas) {
-  const width = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth, window.innerWidth)
-  const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, window.innerHeight)
-  const scale = Math.min(1, Math.sqrt(MAX_FULL_PAGE_SCREENSHOT_PIXELS / (width * height)))
-
-  return html2canvas(document.body, {
-    x: 0,
-    y: 0,
-    width,
-    height,
-    scrollX: 0,
-    scrollY: 0,
-    scale,
-    windowWidth: window.innerWidth,
-    windowHeight: window.innerHeight,
-    useCORS: true,
-    onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument, "fullPage")
-  })
 }
 
 function canvasToCapture(canvas: HTMLCanvasElement, filename: string) {
