@@ -7,7 +7,10 @@ sandbox: install only code you trust with the same data and credentials as the
 Syrus process.
 
 For every extension-point interface and lifecycle hook, see the full
-[plugin-authoring reference](authoring.md). The tested
+[plugin-authoring reference](authoring.md). The generated
+[host API reference](host-api.md) defines the supported core calls, and the
+[single-file plugin specification](plugin-spec.md) is designed to be pasted
+whole into an LLM context. The tested
 [`relocatable_plugin`](../../../../spec/fixtures/relocatable_plugin/)
 fixture is the smallest end-to-end example. `bin/test-plugin-relocation`
 copies it outside the checkout and proves its provider, route, migration,

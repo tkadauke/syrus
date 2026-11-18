@@ -3,7 +3,7 @@ require "rubygems/version"
 
 module Syrus
   class PluginHostSurface
-    Entry = Data.define(:name, :tier, :since, :contract, :members)
+    Entry = Data.define(:name, :tier, :since, :category, :contract, :members)
     TIERS = %w[public legacy].freeze
     DEFAULT_PATH = Pathname.new(File.expand_path("../../config/plugin_host_surface.yml", __dir__))
 
@@ -31,6 +31,7 @@ module Syrus
         name: attributes.fetch("name").to_s,
         tier: attributes.fetch("tier").to_s,
         since: attributes["since"]&.to_s,
+        category: attributes.fetch("category", category_for(attributes.fetch("name"))).to_s,
         contract: attributes["contract"]&.to_s,
         members: normalize_members(attributes["members"])
       )
@@ -64,6 +65,19 @@ module Syrus
 
       duplicates = @entries.group_by(&:name).select { |_name, entries| entries.many? }.keys
       raise ArgumentError, "duplicate names: #{duplicates.join(', ')}" if duplicates.any?
+    end
+
+    def category_for(name)
+      value = name.to_s
+      return "Controllers" if value.start_with?("Api::")
+      return "Records" if %w[ApplicationRecord ChatSession Job Repository Run User Workflow].include?(value)
+      return "Jobs" if value == "ApplicationJob"
+      return "Plugin framework" if value.start_with?("Syrus::Plugin")
+      return "Tools" if value.start_with?("Mcp")
+      return "Logging" if %w[OperationalLogging PerformanceLogging].include?(value)
+      return "Execution" if %w[ProcessRunner AgentInvocation::Result].include?(value)
+
+      "Application context"
     end
   end
 end

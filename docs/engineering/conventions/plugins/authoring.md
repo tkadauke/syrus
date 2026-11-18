@@ -3,6 +3,9 @@
 This is the complete contributor reference for authoring Syrus plugins. The
 short [operator and agent guide](../../../../config/syrus_docs/plugins.md)
 documents supported runtime behavior without exposing implementation details.
+For generated contracts that stay synchronized with code, use the
+[host API reference](host-api.md) or paste the complete
+[single-file plugin specification](plugin-spec.md) into an LLM context.
 
 ## Review extension contracts
 
@@ -25,45 +28,9 @@ unhealthy plugins contribute no live providers, while stored safe snapshots
 remain readable without plugin code.
 
 Syrus plugins are Rails Engine gems that register extension point providers at
-boot through `Syrus::PluginRegistry`. The registry currently supports:
-
-- `agent_provider`
-- `chat_provider`
-- `mcp_tool_set`
-- `input_source`
-- `test_result_parser`
-- `coverage_analyzer`
-- `ci_log_parser`
-- `preview_provider`
-- `admin_page`
-- `repo_page_tab`
-- `sidebar_page`
-- `chat_mcp_tool_set`
-- `source_control_provider`
-- `prompt_injector`
-- `artifact_renderer`
-- `grader_augmentor`
-- `grader_failure_summarizer`
-- `callbacks`
-- `prepare_detector`
-- `review_criteria_provider`
-- `post_implementation_review_provider`
-- `diff_review_annotation_provider`
-- `autofix_command`
-- `dependency_audit_command`
-- `affected_test_analyzer`
-- `build_system_graph_provider`
-- `workspace_tab`
-- `retention_policy`
-- `repository_content_provider`
-- `repository_configuration`
-- `review_gate`
-- `execution_backend`
-- `workspace_git_transport`
-- `purge_contributor`
-- `slug_type`
-- `job_visibility_restriction`
-- `repository_filter`
+boot through `Syrus::PluginRegistry`. The generated
+[single-file plugin specification](plugin-spec.md#extension-points) lists every
+current extension point and links to its interface contract.
 
 `repository_filter` providers receive an accessible Repository relation and
 the current user through `apply(scope:, user:)`. They may narrow

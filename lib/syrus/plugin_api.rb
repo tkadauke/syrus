@@ -74,6 +74,50 @@ module Syrus
     # from it. Every setter is a plain reader when called with no argument, so
     # the definition can be introspected by specs and by the plugin itself.
     class Definition
+      # This is the authoring schema as well as the allow-list for generated
+      # plugin documentation. Keep a field here when adding a declaration so
+      # the single-file specification can explain every accepted key.
+      MANIFEST_SCHEMA = {
+        name: "Stable plugin identifier passed to syrus_plugin; use lowercase snake_case.",
+        version: "Plugin version. Bundled plugins may use the host default; external plugins should match their gem version.",
+        display_name: "Human-readable plugin name.",
+        display_name_i18n_key: "Rails I18n key used instead of a literal display name.",
+        description: "Short human-readable summary.",
+        description_i18n_key: "Rails I18n key used instead of a literal summary.",
+        long_description: "Longer operator-facing explanation.",
+        long_description_i18n_key: "Rails I18n key used instead of a literal long description.",
+        homepage: "Plugin documentation or project URL.",
+        icon_url: "Plugin icon URL or packaged icon path.",
+        author: "Author name used by the plugin inventory.",
+        category: "Functional category from Syrus::Plugin::Category.",
+        default_enabled: "Whether a newly discovered plugin starts enabled.",
+        disableable: "Whether an operator may disable the plugin.",
+        experimental: "Whether the plugin is gated as an experimental capability.",
+        home_queue: "Default Solid Queue queue for plugin-owned work.",
+        tick_interval: "Optional interval for lifecycle tick callbacks.",
+        prepare_priority: "Ordering priority for prepare contributions.",
+        depends_on: "Required plugin manifest names.",
+        optionally_depends_on: "Optional plugin manifest names used when present.",
+        conflicts_with: "Plugin manifest names that cannot be enabled together.",
+        hosts: "Extension points this plugin makes available for other plugins.",
+        config_schema: "Operator-editable configuration field declarations.",
+        provides: "Map of extension-point names to provider class-name strings (or arrays of them).",
+        route: "Repeatable HTTP route declaration: verb, path, and controller target.",
+        frontend: "Frontend assets relative to the plugin root: bundle, optional css, and i18n locale globs.",
+        events: "Map of plugin event names to event declarations.",
+        link: "Repeatable operator-facing link with label, URL, description, kind, and enabled-only behavior.",
+        links: "Array form of link declarations.",
+        metrics: "Block declaring plugin-owned counters, histograms, gauges, and samplers.",
+        credential_types: "Credential type declarations with stable names and optional safe display text.",
+        credential_type_names: "Shorthand list of credential type names without display metadata.",
+        cli_commands: "Non-interactive server-backed CLI command declarations.",
+        while_enabled: "Lifecycle effect block installed only while the plugin is enabled and healthy.",
+        always: "Cleanup/lifecycle effect block retained after a once-enabled plugin is disabled.",
+        suggests_enabling: "Evidence block and reason used to recommend an installed disabled plugin.",
+        on_boot: "Re-entrant process-level boot hook for work that is not a scoped registration.",
+        requires_syrus: "External gemspec metadata containing a Ruby Gem::Requirement for compatible Syrus releases."
+      }.freeze
+
       SCALARS = %i[
         display_name display_name_i18n_key description description_i18n_key
         long_description long_description_i18n_key homepage icon_url author category
