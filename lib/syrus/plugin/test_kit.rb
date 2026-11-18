@@ -140,7 +140,9 @@ module Syrus
           match do |plugin|
             path = plugin.root.join("db/migrate")
             @error = nil
-            ActiveRecord::MigrationContext.new([ path.to_s ]).up
+            context = ActiveRecord::MigrationContext.new([ path.to_s ])
+            context.migrations.each { |migration| context.schema_migration.delete_version(migration.version.to_s) }
+            context.up
             @paths = ActiveRecord::Migrator.migrations_paths
             @paths.include?(path.to_s)
           rescue StandardError => e
