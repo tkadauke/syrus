@@ -30,6 +30,19 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
   end
 
+  it "clears one local plugin quarantine and requires a restart" do
+    sign_in_as(admin)
+    safety = instance_double(Syrus::PluginBootSafety)
+    allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+    allow(safety).to receive(:clear!).with("weather")
+
+    post "/api/v1/app/admin/plugins/weather/clear_quarantine"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("ok" => true, "plugin" => "weather", "restart_required" => true)
+    expect(safety).to have_received(:clear!).with("weather")
+  end
+
   it "returns slim registered-plugin rows" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!

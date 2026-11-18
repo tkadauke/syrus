@@ -488,6 +488,7 @@ Rails.application.routes.draw do
           get "plugin_convergence", to: "plugin_convergence#show"
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
+          post "plugins/:name/clear_quarantine", to: "plugins#clear_quarantine", constraints: { name: /[^\/]+/ }
           get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
           patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
           get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }

@@ -178,6 +178,28 @@ Divergence older than `SYRUS_PLUGIN_DIVERGENCE_THRESHOLD_SECONDS` (default:
 300) is highlighted and emits the standard system alarm linked to the Plugins
 page.
 
+## Safe-mode recovery
+
+`SYRUS_SAFE_MODE=third_party` withholds every hand-placed and synced plugin.
+`recent` withholds external plugins whose content differs from the last good
+boot, and `all` withholds every plugin; Syrus currently requires no plugin to
+boot. The loader records every withheld plugin and reason in Admin → Plugins.
+
+Boot attempts are stored in `$SYRUS_DATA_ROOT/plugin-boot-safety.json`, without
+using the database. Three incomplete boots in ten minutes automatically
+quarantine external plugins changed since the last good boot on the following
+start. Override these defaults with `SYRUS_BOOT_FAILURE_LIMIT`,
+`SYRUS_BOOT_FAILURE_WINDOW_SECONDS`, and `SYRUS_BOOT_SUCCESS_AFTER_SECONDS`.
+A fleet quarantine in desired state is also applied at the next restart.
+
+When the UI is available, the global warning links to Admin → Plugins; correct
+the plugin and use **Re-enable after restart** for one plugin at a time. When
+Rails cannot boot, run `bin/plugin-recovery list`, then
+`bin/plugin-recovery quarantine NAME` or `bin/plugin-recovery clear NAME`.
+Restart the affected processes after each change. Fleet quarantine must be
+cleared in desired state rather than locally. Remove `SYRUS_SAFE_MODE` only
+after the instance stays healthy, and reintroduce plugins one at a time.
+
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore
 removes its documentation too.

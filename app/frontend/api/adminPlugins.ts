@@ -49,6 +49,7 @@ export type AdminPlugin = {
 }
 
 export type AdminPluginsPayload = {
+  recovery?: { safe_mode: string | null; quarantines: Record<string, string> }
   beta_mode_enabled?: boolean
   convergence?: PluginConvergencePayload
   plugins: AdminPlugin[]
@@ -104,6 +105,12 @@ export function disableAdminPlugin(name: string, confirmCascade = false) {
   return postJson<AdminPluginTogglePayload | AdminPluginDisableConfirmation>(
     `/api/v1/app/admin/plugins/${encodeURIComponent(name)}/disable`,
     confirmCascade ? { confirm_cascade: true } : undefined
+  )
+}
+
+export function clearAdminPluginQuarantine(name: string) {
+  return postJson<{ ok: true; plugin: string; restart_required: boolean }>(
+    `/api/v1/app/admin/plugins/${encodeURIComponent(name)}/clear_quarantine`
   )
 }
 

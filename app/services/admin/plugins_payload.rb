@@ -27,6 +27,7 @@ module Admin
         # that fell outside the query.
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
         payload = {
+          recovery: recovery_payload,
           beta_mode_enabled: AppSetting.beta_mode_enabled?,
           convergence: PluginDesiredState::Convergence.new.as_json,
           plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph) }
@@ -53,6 +54,11 @@ module Admin
     end
 
     private
+
+    def recovery_payload
+      safety = Syrus::PluginBootSafety.default
+      { safe_mode: safety.mode, quarantines: safety.quarantines }
+    end
 
     def filter
       @filter ||= ::Admin::Plugins::Filter.from_params(@params || {}, user: @user)
