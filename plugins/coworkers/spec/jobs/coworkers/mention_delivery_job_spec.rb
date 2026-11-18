@@ -6,12 +6,18 @@ RSpec.describe Coworkers::MentionDeliveryJob do
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:source_chat) { ChatSession.create!(user: owner, repository: repository, title: "Source") }
+  let(:scope) { Syrus::EffectScope.new(label: "mention delivery job spec") }
 
   def coworker(name, handle)
     Coworkers::Coworker.create!(owner_user: owner, name:, handle:, workspace_repo: repository.remote_url)
   end
 
-  before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
+  before do
+    Coworkers::ChatExtension.install_into(scope)
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+  end
+
+  after { scope.dispose }
 
   it "queues only the first rostered mention and starts its hidden session turn" do
     first = coworker("Maya", "maya-delivery")
