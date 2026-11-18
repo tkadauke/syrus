@@ -14,28 +14,11 @@ RSpec.describe Syrus::PluginHostSurface do
     surface = load_surface(<<~YAML)
       legacy_baseline: 1
       constants:
-        - name: StableApi
-          tier: public
-          since: 1.2.0
-          notes: The stable entry point.
         - name: OldApi
-          tier: legacy
     YAML
 
-    expect(surface.lookup("StableApi")).to have_attributes(tier: "public", since: "1.2.0")
+    expect(surface.lookup("OldApi")).to have_attributes(name: "OldApi")
     expect(surface.legacy_entries.map(&:name)).to eq([ "OldApi" ])
-  end
-
-  it "rejects unknown tiers" do
-    expect do
-      load_surface("legacy_baseline: 0\nconstants:\n  - name: HiddenApi\n    tier: internal\n")
-    end.to raise_error(ArgumentError, /unknown tier.*HiddenApi/)
-  end
-
-  it "requires since for public entries" do
-    expect do
-      load_surface("legacy_baseline: 0\nconstants:\n  - name: StableApi\n    tier: public\n")
-    end.to raise_error(ArgumentError, /public entries require since.*StableApi/)
   end
 
   it "rejects duplicate names" do
@@ -44,9 +27,7 @@ RSpec.describe Syrus::PluginHostSurface do
         legacy_baseline: 2
         constants:
           - name: OldApi
-            tier: legacy
           - name: OldApi
-            tier: legacy
       YAML
     end.to raise_error(ArgumentError, /duplicate names.*OldApi/)
   end

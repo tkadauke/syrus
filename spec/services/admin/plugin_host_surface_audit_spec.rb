@@ -1,19 +1,19 @@
 require "rails_helper"
 
 RSpec.describe Admin::PluginHostSurfaceAudit do
-  def entry(name, tier = "legacy")
-    Syrus::PluginHostSurface::Entry.new(name:, tier:, since: nil, notes: nil)
+  def entry(name)
+    Syrus::PluginHostSurface::Entry.new(name:)
   end
 
   it "gives an actionable failure for an unlisted plugin reference" do
     result = Admin::PluginHostSurfaceInventory::Result.new(
-      constant: "InternalService", tier: "unlisted", plugins: { "fixture_plugin" => 1 }, count: 1
+      constant: "InternalService", tier: "internal", plugins: { "fixture_plugin" => 1 }, count: 1
     )
     inventory = instance_double(Admin::PluginHostSurfaceInventory, results: [ result ])
     surface = instance_double(Syrus::PluginHostSurface, legacy_entries: [], legacy_baseline: 0)
 
     expect(described_class.new(inventory:, surface:).findings).to contain_exactly(
-      "InternalService is referenced by fixture_plugin but is not in the plugin host surface; list it as public with a documented contract, or stop using it"
+      "InternalService is referenced by fixture_plugin but is internal; add a facade under Syrus::Host with an API contract, or stop using it"
     )
   end
 
@@ -38,7 +38,7 @@ RSpec.describe Admin::PluginHostSurfaceAudit do
     inventory = instance_double(Admin::PluginHostSurfaceInventory, results:)
 
     expect(described_class.new(inventory:, surface:).findings).to include(
-      "legacy plugin host surface grew from 1 to 2; list new APIs as public with a documented contract, or stop using them"
+      "legacy plugin host surface grew from 1 to 2; add facades under Syrus::Host with API contracts, or stop using the new references"
     )
   end
 
