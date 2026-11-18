@@ -43,13 +43,15 @@ module Mcp::Tools
 
     class << self
       def call(chats:, reason: nil, server_context:)
-        chat_session = server_context.fetch(:chat_session)
+        context = McpToolContext.from_server_context(server_context)
+        execution_chat = context.chat_session
+        chat_session = context.owner_chat
         entries = Array(chats)
         return Mcp::Tools.invalid("chats must not be empty") if entries.empty?
         return Mcp::Tools.invalid("chats cannot contain more than #{MAX_CHATS} entries") if entries.size > MAX_CHATS
 
         payloads = entries.each_with_index.map do |entry, index|
-          normalized_entry(entry, index: index, chat_session: chat_session, batch_size: entries.size)
+          normalized_entry(entry, index: index, chat_session: execution_chat, batch_size: entries.size)
         end
         error = payloads.find { |payload| payload.is_a?(String) }
         return Mcp::Tools.invalid(error) if error
@@ -57,7 +59,9 @@ module Mcp::Tools
         group = create_pending_action_group!(
           server_context: server_context,
           chat_session: chat_session,
-          member_attributes: payloads.map { |payload| { action: "spawn_chat", payload: payload, requested_by: "agent" } },
+          member_attributes: payloads.map do |payload|
+            { action: "spawn_chat", payload: payload, requested_by: "agent", origin: execution_chat }
+          end,
           reason: reason
         )
         bulk_action_response(group: group, message: "Spawn #{entries.size} #{'chat'.pluralize(entries.size)}?")

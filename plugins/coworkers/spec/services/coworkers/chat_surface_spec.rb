@@ -387,7 +387,7 @@ RSpec.describe "Coworker chat surface" do
     expect(names).to include("ask_user_question", "suggest_next_step")
   end
 
-  it "delegates the owner's accessible chats to list, search, and read without widening to other users" do
+  it "limits chat discovery and reads to native and explicitly shared chats" do
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
     [ Mcp::Tools::ListChatsTool, Mcp::Tools::SearchChatsTool, Mcp::Tools::ReadChatMessagesTool ].each { |tool| allow_tool(tool) }
     owner_chat = ChatSession.create!(user: owner, title: "Owner chat")
@@ -405,16 +405,16 @@ RSpec.describe "Coworker chat surface" do
     context = { chat_session: chat }
     list_response = Mcp::Tools::ListChatsTool.call(server_context: context)
     listed_ids = JSON.parse(list_response.content.first[:text]).fetch("chats").pluck("id")
-    expect(listed_ids).to contain_exactly(chat.id, owner_chat.id, other_coworker_chat.id, owner_accessible_chat.id)
+    expect(listed_ids).to contain_exactly(chat.id)
 
     Mcp::Tools::AuthorizationSupport.with_server_context(context) do
       expect(Mcp::Tools::SearchChatsTool.send(:searchable_chat_session_ids))
-        .to match_array([ chat.id, owner_chat.id, other_coworker_chat.id, owner_accessible_chat.id ])
+        .to match_array([ chat.id ])
     end
 
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_chat.id)).not_to be_error
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: other_coworker_chat.id)).not_to be_error
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_chat.id)).to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: other_coworker_chat.id)).to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).to be_error
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: inaccessible_chat.id)).to be_error
     expect(names(tier: :deferred)).not_to include("send_chat_message")
 

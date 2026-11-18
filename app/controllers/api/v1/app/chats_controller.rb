@@ -807,6 +807,10 @@ module Api
         def answer_agent_question
           chat_session = find_chat_session
           question = chat_session.agent_questions.find(params[:agent_question_id])
+          if question.response_chat_session_id
+            return unless require_chat_owner(chat_session, action: "answer delegated questions")
+          end
+
           answers = agent_question_answers_param
           if answers.blank?
             render_error("validation_failed", t("api.chats.errors.answers_blank"), status: :unprocessable_content)
@@ -1129,7 +1133,8 @@ module Api
                 proposal.reload,
                 text: proposal_confirmation_text(proposal, result, epic_started: epic_started),
                 outcome: :confirmed
-              )
+              ),
+              skip_turn_trigger: true
             )
           end
           notify_agent_of_proposal_outcome(confirmation_message)
@@ -1169,7 +1174,8 @@ module Api
                 proposal,
                 text: proposal_rejection_text(proposal),
                 outcome: :rejected
-              )
+              ),
+              skip_turn_trigger: true
             )
             notify_agent_of_proposal_outcome(rejection_message)
             broadcast_proposal_updated(chat_session, proposal.reload)

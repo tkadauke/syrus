@@ -10,6 +10,7 @@ import { ChevronIcon } from "../components/ChevronIcon"
 import { FilterBar, type FilterChip, type FilterLinkBuilder, type FilterOption, type FilterSchemaField } from "../components/FilterBar"
 import { Page } from "../components/ui"
 import { TonePill } from "../components/StatusPill"
+import { Avatar } from "../components/Avatar"
 
 type FilterOptionsPayload = {
   options?: FilterOption[]
@@ -145,7 +146,10 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
         ) : (
           <span className="h-6 w-6 shrink-0" aria-hidden="true" />
         )}
-        <Snippet className="min-w-0 text-sm leading-6 text-gray-700 dark:text-gray-300" html={topMatches[0]?.snippet || t("search.no_snippet")} />
+        <div className="min-w-0 flex-1">
+          {topMatches[0]?.author ? <MessageAuthor author={topMatches[0].author} /> : null}
+          <Snippet className="min-w-0 text-sm leading-6 text-gray-700 dark:text-gray-300" html={topMatches[0]?.snippet || t("search.no_snippet")} />
+        </div>
       </div>
       {expanded ? (
         <div className="ml-8 mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
@@ -176,11 +180,24 @@ function MatchRow({ chatSessionId, match }: { chatSessionId: number; match: Chat
       <span className="inline-flex w-fit shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 dark:bg-gray-800 dark:text-gray-200">
         {match.role.replace(/_/g, " ")}
       </span>
-      <Snippet className="min-w-0 flex-1 text-gray-700 dark:text-gray-300" html={match.snippet || ""} />
+      <div className="min-w-0 flex-1">
+        {match.author ? <MessageAuthor author={match.author} /> : null}
+        <Snippet className="text-gray-700 dark:text-gray-300" html={match.snippet || ""} />
+      </div>
       <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
         <RelativeTimestamp value={match.created_at} />
       </span>
     </button>
+  )
+}
+
+function MessageAuthor({ author }: { author: NonNullable<ChatSearchMatch["author"]> }) {
+  return (
+    <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-text-muted">
+      <Avatar avatarKey={author.avatar_key} avatarUrl={author.avatar_url} accentHex={author.accent_hex} name={author.name} size="xs" />
+      <span>{author.name}</span>
+      {author.handle ? <span>@{author.handle}</span> : null}
+    </div>
   )
 }
 
