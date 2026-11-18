@@ -18,7 +18,9 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
       write(root, "plugins/alpha/lib/alpha.rb", <<~RUBY)
         module Alpha
           class Local; end
-          Local.call
+          module Nested
+            Local.call
+          end
           OtherPlugin.call
           Rails.logger.info(JSON.generate({}))
           CoreThing.call
@@ -26,17 +28,21 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
           ::Core::Nested.call
           ::SharedName.call
         end
+        module Alpha::Nested
+          Local.call
+        end
       RUBY
       write(root, "plugins/beta/lib/beta.rb", "module OtherPlugin; end\nclass SharedName; end\n")
       surface = instance_double(Syrus::PluginHostSurface, lookup: nil)
 
       results = described_class.new(root:, surface:).results
 
-      expect(results.map(&:constant)).to eq(%w[Core::Nested CoreThing SharedName])
+      expect(results.map(&:constant)).to eq(%w[Core::Nested CoreThing Local SharedName])
       expect(results.find { |result| result.constant == "Core::Nested" }).to have_attributes(
         tier: "unlisted", plugins: { "alpha" => 2 }, count: 2
       )
       expect(results.find { |result| result.constant == "CoreThing" }.plugins).to eq({ "alpha" => 1 })
+      expect(results.find { |result| result.constant == "Local" }.plugins).to eq({ "alpha" => 1 })
       expect(results.find { |result| result.constant == "SharedName" }.plugins).to eq({ "alpha" => 1 })
     end
   end
