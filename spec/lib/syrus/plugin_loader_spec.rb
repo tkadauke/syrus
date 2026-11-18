@@ -123,9 +123,7 @@ RSpec.describe Syrus::PluginLoader do
     expected_names = entry_files.map { |file| file.read.match(/syrus_plugin\s+["']([^"']+)/)[1] }
     manifests = Syrus::PluginRegistry.all_plugins
     definitions = ObjectSpace.each_object(Module).filter_map do |namespace|
-      next unless namespace.respond_to?(:syrus_plugin_definition)
-
-      definition = namespace.syrus_plugin_definition
+      definition = namespace.instance_variable_get(:@syrus_plugin_definition)
       [ definition.name, definition ] if definition
     end.to_h
 
