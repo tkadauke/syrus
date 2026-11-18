@@ -8,9 +8,11 @@ module App
       klass = PerformanceLogging.phase("presentation.agent_provider_label.lookup", provider: provider) do
         Syrus::PluginRegistry.providers_for(:agent_provider)
           .find do |p|
-            PerformanceLogging.plugin_call(extension_point: :agent_provider, provider: p, operation: :provider_key) do
+            Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+              extension_point: :agent_provider, provider: p, operation: :provider_key, on_decline: false
+            ) do
               p.provider_key == provider.to_s
-            end
+            end)
           end
       end
       klass&.display_name || provider.to_s.titleize

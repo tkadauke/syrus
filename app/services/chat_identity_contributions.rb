@@ -4,13 +4,14 @@ class ChatIdentityContributions
   class << self
     def identities(chat_session:, user:)
       providers.flat_map do |provider|
-        Array(provider.chat_identities(chat_session:, user:)).map { |identity| normalize_identity(identity, provider:) }
+        invoke(provider, :chat_identities, []) { Array(provider.chat_identities(chat_session:, user:)) }
+          .map { |identity| normalize_identity(identity, provider:) }
       end
     end
 
     def turn_identity(chat_session:, message:)
       providers.each do |provider|
-        identity = provider.chat_turn_identity(chat_session:, message:)
+        identity = invoke(provider, :chat_turn_identity, nil) { provider.chat_turn_identity(chat_session:, message:) }
         return normalize_identity(identity, provider:) if identity
       end
       nil
@@ -18,7 +19,7 @@ class ChatIdentityContributions
 
     def trigger_decision(chat_session:, message:, mentions:)
       providers.each do |provider|
-        decision = provider.chat_turn_trigger(chat_session:, message:, mentions:)
+        decision = invoke(provider, :chat_turn_trigger, nil) { provider.chat_turn_trigger(chat_session:, message:, mentions:) }
         return normalize_trigger_decision(decision, provider:) if decision
       end
       nil
@@ -46,6 +47,12 @@ class ChatIdentityContributions
       Syrus::PluginRegistry.providers_for(:chat_identity_provider)
     end
 
+    def invoke(provider, operation, decline, &block)
+      Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :chat_identity_provider, provider:, operation:, on_decline: decline, &block
+      ))
+    end
+
     def normalize_identity(identity, provider:)
       value = hash(identity, provider:, surface: "identity")
       required_strings!(value, %w[provider kind id], provider:, surface: "identity")
@@ -71,7 +78,7 @@ class ChatIdentityContributions
     def collect_unique(method, **kwargs)
       seen = {}
       providers.filter_map do |provider|
-        contribution = provider.public_send(method, **kwargs)
+        contribution = invoke(provider, method, nil) { provider.public_send(method, **kwargs) }
         next unless contribution
 
         value = hash(contribution, provider:, surface: method)
@@ -87,7 +94,7 @@ class ChatIdentityContributions
     def merge_indexed(method, records, **kwargs)
       allowed_ids = records.to_h { |record| [ record.id.to_i, true ] }
       providers.each_with_object({}) do |provider, merged|
-        value = hash(provider.public_send(method, **kwargs), provider:, surface: method)
+        value = hash(invoke(provider, method, {}) { provider.public_send(method, **kwargs) }, provider:, surface: method)
         value.each do |record_id, contribution|
           id = Integer(record_id, exception: false)
           invalid!(provider, "#{method} returned an unknown id") unless id && allowed_ids[id]

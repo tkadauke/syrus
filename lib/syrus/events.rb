@@ -85,19 +85,17 @@ module Syrus
     def subscriptions_for(provider)
       return {} unless provider.respond_to?(:subscriptions)
 
-      Array(provider.subscriptions).to_h.transform_keys(&:to_s)
-    rescue StandardError => e
-      Rails.logger.error("[Syrus::Events] #{provider} raised resolving subscriptions: #{e.class}: #{e.message}")
-      {}
+      result = Syrus::PluginInvocation.call(
+        extension_point: :domain_subscriber, provider:, operation: :subscriptions, on_decline: {}
+      ) { Array(provider.subscriptions).to_h.transform_keys(&:to_s) }
+      Syrus::PluginInvocation.value(result)
     end
 
     def deliver_inline(event)
       subscribers_for(event.name).each do |provider, method_name|
-        PerformanceLogging.plugin_call(extension_point: :domain_subscriber, provider: provider, operation: event.name) do
+        Syrus::PluginInvocation.call(extension_point: :domain_subscriber, provider:, operation: event.name, on_decline: nil) do
           provider.public_send(method_name, event)
         end
-      rescue StandardError => e
-        Rails.logger.error("[Syrus::Events] #{provider}##{method_name} failed on #{event.name}: #{e.class}: #{e.message}")
       end
     end
 

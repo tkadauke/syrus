@@ -3,6 +3,10 @@ require "rails_helper"
 RSpec.describe ChatPayloadContributions do
   let(:repo) { Factories.repository }
   let(:chat) { ChatSession.create!(repository: repo, user: repo.user) }
+  let(:health) { Syrus::PluginRuntimeHealth.new }
+
+  before { Syrus::PluginInvocation.runtime_health = health }
+  after { Syrus::PluginInvocation.runtime_health = Syrus::PluginRuntimeHealth.new }
 
   def contributor(payload)
     Class.new do
@@ -43,5 +47,17 @@ RSpec.describe ChatPayloadContributions do
 
     expect(klass.chat_payload_paths(chat_session: chat)).to eq({})
     expect(klass.chat_payload_counts(chat_session: chat)).to eq({})
+  end
+
+  it "omits a failing contributor and records plugin health" do
+    klass = contributor({}).tap do |provider|
+      provider.define_singleton_method(:chat_payload) { |**| raise "payload exploded" }
+    end
+    register(klass)
+
+    expect(described_class.payload(chat_session: chat, context: {}, existing_keys: [])).not_to have_key(:failed_payload)
+    expect(health.failures.last).to have_attributes(
+      extension_point: "chat_payload_contributor", operation: "chat_payload"
+    )
   end
 end
