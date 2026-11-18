@@ -67,4 +67,16 @@ RSpec.describe Adjudicators do
     expect(described_class.call(problem: Problem[:timeout])).to be_inconclusive
     expect(Rails.logger).to have_received(:warn).with(/broken raised RuntimeError/)
   end
+
+  it "continues past a raising built-in adjudicator" do
+    broken = described_class::BUILT_INS.first
+    allow(broken).to receive(:adjudicate).and_raise("boom")
+    allow(Rails.logger).to receive(:warn)
+
+    result = described_class.call(problem: Problem[:timeout])
+
+    expect(result).to be_inconclusive
+    expect(result.evidence[:consulted]).to include(broken.name)
+    expect(Rails.logger).to have_received(:warn).with(/#{Regexp.escape(broken.name)} raised RuntimeError/)
+  end
 end
