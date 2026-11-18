@@ -16,6 +16,7 @@ module CredentialStore
       end
     end
     class ExecutionError < Error; end
+    class InvalidPayload < Error; end
 
     class << self
       def with_credential_file(context:, credential:, type:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
@@ -257,6 +258,8 @@ module CredentialStore
 
     def yield_with_redaction(credential)
       Redaction.scrub_object(yield, credentials: [ credential ])
+    rescue Denied, NotFound, InvalidPayload
+      raise
     rescue StandardError => e
       raise ExecutionError, Redaction.scrub(e.message, credentials: [ credential ])
     end
