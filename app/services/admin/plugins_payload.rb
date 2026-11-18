@@ -207,9 +207,20 @@ module Admin
     # behavior vanished.
     def health_payload(manifest)
       status = plugin_health.status(manifest.name)
-      return { state: "ok", reasons: [] } if status.nil?
-
-      { state: status.state.to_s, reasons: status.reasons }
+      runtime = Syrus::PluginInvocation.runtime_health
+      failures = runtime.failures(plugin: manifest.name).map(&:to_h)
+      circuits = runtime.circuits(plugin: manifest.name, cooldown: Syrus::PluginInvocation::DEFAULT_COOLDOWN).map(&:to_h)
+      state = if circuits.any?
+        "circuit_open"
+      elsif failures.any? && (status.nil? || status.ok?)
+        "degraded"
+      else
+        status&.state&.to_s || "ok"
+      end
+      payload = { state: state, reasons: status&.reasons || [] }
+      payload[:failures] = failures if failures.any?
+      payload[:circuits] = circuits if circuits.any?
+      payload
     end
 
     def plugin_health

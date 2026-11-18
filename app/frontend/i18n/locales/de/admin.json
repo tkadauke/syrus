@@ -497,6 +497,8 @@
     "version": "Version",
     "source": "Quelle",
     "health": "Zustand",
+    "circuit_open_detail": "Schutzschaltung für {{extensionPoint}} nach {{count}} Fehlern geöffnet; nächster Versuch nach {{retryAt}}.",
+    "runtime_failure_detail": "{{extensionPoint}}.{{operation}} ist {{count}}-mal fehlgeschlagen: {{exceptionClass}}: {{message}} (zuletzt um {{lastAt}}).",
     "health_states": {
       "ok": "Fehlerfrei",
       "failed": "Laden fehlgeschlagen",
@@ -504,6 +506,7 @@
       "duplicate_name": "Doppelter Name",
       "skipped_dependency": "Übersprungen — Abhängigkeit fehlgeschlagen",
       "degraded": "Beeinträchtigt",
+      "circuit_open": "Schutzschaltung offen",
       "cycle": "Abhängigkeitszyklus"
     },
     "disableable": "Deaktivierbar",

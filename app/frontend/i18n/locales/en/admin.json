@@ -663,6 +663,8 @@
     "version": "Version",
     "source": "Source",
     "health": "Health",
+    "circuit_open_detail": "{{extensionPoint}} circuit opened after {{count}} failures; next trial after {{retryAt}}.",
+    "runtime_failure_detail": "{{extensionPoint}}.{{operation}} failed {{count}} time(s): {{exceptionClass}}: {{message}} (last at {{lastAt}}).",
     "health_states": {
       "ok": "Healthy",
       "failed": "Failed to load",
@@ -670,6 +672,7 @@
       "duplicate_name": "Duplicate name",
       "skipped_dependency": "Skipped — dependency failed",
       "degraded": "Degraded",
+      "circuit_open": "Circuit open",
       "cycle": "Dependency cycle"
     },
     "disableable": "Disableable",
