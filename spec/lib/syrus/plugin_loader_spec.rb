@@ -46,6 +46,18 @@ RSpec.describe Syrus::PluginLoader do
     end
   end
 
+  it "validates requires_syrus in a synced manifest" do
+    Dir.mktmpdir do |temporary|
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      synced_root = Pathname.new(temporary).join("synced").tap(&:mkpath)
+      write_plugin(synced_root, directory_name: "fixture", gem_name: "synced_loader_fixture", requires_syrus: "definitely invalid (")
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: nil, synced_path: synced_root)
+
+      expect { described_class.new(plugin_roots: roots).ordered_plugins }
+        .to raise_error(Syrus::PluginLoader::Error, /malformed requires_syrus/)
+    end
+  end
+
   it "skips and reports an external plugin requiring a newer Syrus release" do
     Dir.mktmpdir do |temporary|
       snapshot = Syrus::PluginRegistry.snapshot
