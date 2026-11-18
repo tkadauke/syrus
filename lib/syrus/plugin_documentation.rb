@@ -65,11 +65,11 @@ module Syrus
 
           ## Package and manifest
 
-          A plugin is a Ruby gem loaded as trusted in-process code and requires a Syrus restart after installation or upgrade. Its gemspec must set a Ruby requirement string such as `metadata["requires_syrus"] = ">= 0.1.16"`; Syrus parses it as a `Gem::Requirement`. The requirement must cover the oldest tested Syrus release and be no lower than the newest host API `since` version the plugin uses. The entry file extends `Syrus::PluginApi` and declares one `syrus_plugin` block. Accepted keys:
+          A plugin is a gem loaded as trusted in-process code and requires a Syrus restart after installation or upgrade. Its gemspec must set a requirement string such as `metadata["requires_syrus"] = ">= 0.1.16"`; Syrus parses it as a `Gem::Requirement`. The requirement must cover the oldest tested Syrus release and be no lower than the newest host API `since` version the plugin uses. The entry file extends `Syrus::PluginApi` and declares one `syrus_plugin` block. Accepted keys:
 
           #{fields}
 
-          `frontend` declares the prebuilt JavaScript entry plus `i18n` patterns for locale JSON. English (`en`) is required; user-visible copy must also ship German (`de`) and Latin (`la`). `cli_commands` handlers subclass `Syrus::Plugin::CliCommandHandler`; commands are validated, non-interactive, and server-backed.
+          `frontend` declares the prebuilt browser entry plus `i18n` patterns for locale JSON. English (`en`) is required; user-visible copy must also ship German (`de`) and Latin (`la`). `cli_commands` handlers subclass `Syrus::Plugin::CliCommandHandler`; commands are validated, non-interactive, and server-backed.
 
           ## Extension points
 
