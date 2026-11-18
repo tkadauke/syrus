@@ -35,6 +35,9 @@ module Syrus
       def api_name(name)
         value = name.respond_to?(:name) ? name.name : name.to_s
         raise ArgumentError, "plugin host API name is required" if value.to_s.empty?
+        unless value.to_s.start_with?("Syrus::Host::")
+          raise ArgumentError, "plugin host API must live under Syrus::Host: #{value}"
+        end
 
         value.to_s
       end

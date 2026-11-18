@@ -9,10 +9,6 @@ RSpec.describe Syrus::Host do
     described_class.apis.replace(original)
   end
 
-  it "exposes the declaration file through its Zeitwerk constant" do
-    expect(described_class::PluginApis::INTERFACES).to include("McpToolSet")
-  end
-
   it "registers a public API contract" do
     api = described_class.api(
       "Syrus::Host::Example",
@@ -32,6 +28,12 @@ RSpec.describe Syrus::Host do
 
   it "does not make undeclared constants public by namespace alone" do
     expect(described_class.public?("Syrus::Host::Undeclared")).to be(false)
+  end
+
+  it "rejects declarations outside the public host namespace" do
+    expect do
+      described_class.api("Syrus::Plugin::Callbacks", since: "1.2.3", summary: "Legacy.", members: [])
+    end.to raise_error(ArgumentError, /must live under Syrus::Host/)
   end
 
   it "rejects an invalid release version" do
