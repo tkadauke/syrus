@@ -64,7 +64,7 @@ class PluginDesiredState::Convergence
 
   def convergence_state(process, heartbeat, revision)
     return "unreachable" if heartbeat.blank? || heartbeat < now - InstanceVersion::HEARTBEAT_STALE_THRESHOLD
-    return "converged" if state.revision.zero? && PluginInstallation.where(enabled_for_sync: true).none?
+    return "converged" if state.revision.zero? && enabled_installations.empty?
     return "converged" if value(process, :plugin_set_digest).present? && value(process, :plugin_set_digest) == desired_digest(value(process, :role))
     return "ahead" if revision.present? && revision.to_i > state.revision
     return "pending_restart" if state.apply_revision == state.revision && state.apply_requested_at.present? && revision.to_i < state.revision
@@ -99,8 +99,8 @@ class PluginDesiredState::Convergence
   end
 
   def desired_entries(role)
-    installations.filter_map do |installation|
-      next unless installation.enabled_for_sync? && !installation.fleet_quarantined?
+    enabled_installations.filter_map do |installation|
+      next if installation.fleet_quarantined?
       next if installation.roles.any? && !installation.roles.include?(role)
       release = installation.plugin_release
       { "name" => installation.plugin_name, "version" => release.version, "digest" => release.content_digest, "size" => release.size_bytes }
@@ -109,6 +109,10 @@ class PluginDesiredState::Convergence
 
   def installations
     @installations ||= PluginInstallation.includes(:plugin_release).order(:plugin_name).to_a
+  end
+
+  def enabled_installations
+    @enabled_installations ||= installations.select(&:enabled_for_sync?)
   end
 
   def value(process, attribute)
