@@ -179,16 +179,16 @@ class McpToolUsageRecorder
       CHAT_TOOL_TIERS.flat_map do |tier|
         next [] unless plugin_chat_tool_set_available?(tool_set, chat_session: chat_session, tier: tier)
 
-        tool_definitions(tool_set, tier: tier, chat_session: chat_session)
+        tool_definitions(tool_set, extension_point: :chat_mcp_tool_set, tier: tier, chat_session: chat_session)
       end
     end.filter_map { |definition| definition[:name].presence&.to_s }
   end
   private_class_method :plugin_chat_tool_names
 
   def self.plugin_chat_tool_set_available?(tool_set, chat_session:, tier:)
-    tool_set.available_for?(chat_session, tier: tier)
-  rescue StandardError, NoMethodError
-    false
+    Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+      extension_point: :chat_mcp_tool_set, provider: tool_set, operation: :available_for, on_decline: false
+    ) { tool_set.available_for?(chat_session, tier: tier) })
   end
   private_class_method :plugin_chat_tool_set_available?
 
@@ -196,7 +196,7 @@ class McpToolUsageRecorder
     Syrus::PluginRegistry.providers_for(:mcp_tool_set).flat_map do |tool_set|
       next [] unless plugin_workflow_tool_set_available?(tool_set, repository: repository)
 
-      tool_definitions(tool_set)
+      tool_definitions(tool_set, extension_point: :mcp_tool_set)
     end.filter_map { |definition| definition[:name].presence&.to_s }
   end
   private_class_method :plugin_workflow_tool_names
@@ -204,27 +204,29 @@ class McpToolUsageRecorder
   def self.plugin_workflow_tool_set_available?(tool_set, repository:)
     return false unless tool_set.respond_to?(:available_for?)
 
-    tool_set.available_for?(repository)
-  rescue StandardError, NoMethodError
-    false
+    Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+      extension_point: :mcp_tool_set, provider: tool_set, operation: :available_for, on_decline: false
+    ) { tool_set.available_for?(repository) })
   end
   private_class_method :plugin_workflow_tool_set_available?
 
-  def self.tool_definitions(tool_set, tier: nil, chat_session: nil)
+  def self.tool_definitions(tool_set, extension_point:, tier: nil, chat_session: nil)
     return [] unless tool_set.respond_to?(:tool_definitions)
 
-    method = tool_set.method(:tool_definitions)
-    keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
-    if keywords.include?(:tier)
-      args = { tier: tier }
-      args[:chat_session] = chat_session if keywords.include?(:chat_session)
-      return Array(tool_set.tool_definitions(**args))
-    end
-    return Array(tool_set.tool_definitions(context: nil)) if keywords.include?(:context)
+    Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+      extension_point:, provider: tool_set, operation: :tool_definitions, on_decline: []
+    ) do
+      method = tool_set.method(:tool_definitions)
+      keywords = method.parameters.select { |type, _name| type == :key || type == :keyreq }.map(&:last)
+      if keywords.include?(:tier)
+        args = { tier: tier }
+        args[:chat_session] = chat_session if keywords.include?(:chat_session)
+        next Array(tool_set.tool_definitions(**args))
+      end
+      next Array(tool_set.tool_definitions(context: nil)) if keywords.include?(:context)
 
-    Array(tool_set.tool_definitions)
-  rescue StandardError, NotImplementedError
-    []
+      Array(tool_set.tool_definitions)
+    end)
   end
   private_class_method :tool_definitions
 

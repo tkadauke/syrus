@@ -186,9 +186,11 @@ module Prompts
     # meant core's prompt described tools core does not own.
     def plugin_guidance
       Syrus::PluginRegistry.providers_for(:chat_prompt_injector).filter_map do |provider|
-        PerformanceLogging.plugin_call(extension_point: :chat_prompt_injector, provider: provider, operation: :chat_prompt_section) do
+        Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+          extension_point: :chat_prompt_injector, provider:, operation: :chat_prompt_section, on_decline: nil
+        ) do
           provider.chat_prompt_section(chat_session: @chat_session, repository: @repository, message: @current_message)
-        end.presence
+        end).presence
       end.join("\n\n")
     end
 

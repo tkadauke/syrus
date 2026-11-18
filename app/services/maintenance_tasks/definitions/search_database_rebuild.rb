@@ -110,9 +110,12 @@ module MaintenanceTasks
         source = source_for(item.fetch("entity"))
         return mark_done(task, item.fetch("entity"), "#{item.fetch('entity').humanize} index is unavailable.") unless source
 
-        PerformanceLogging.plugin_call(extension_point: "global_search:source", provider: source, operation: :search_database_rebuild_batch) do
+        Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+          extension_point: "global_search:source", provider: source, operation: :search_database_rebuild_batch,
+          on_decline: ->(_reason) { mark_done(task, item.fetch("entity"), "#{item.fetch('entity').humanize} index could not be rebuilt.") }
+        ) do
           source.search_database_rebuild_batch(task: task, reason: item.fetch("reason"))
-        end
+        end)
       end
 
       def mark_done(task, key, message)

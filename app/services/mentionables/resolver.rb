@@ -23,7 +23,7 @@ module Mentionables
         return core if core
 
         ::Syrus::PluginRegistry.providers_for(:mentionable).filter_map do |provider|
-          provider.find_mentionable(kind: kind, id: id)
+          invoke(provider, :find_mentionable, nil) { provider.find_mentionable(kind: kind, id: id) }
         end.first
       end
 
@@ -35,14 +35,14 @@ module Mentionables
         return human if human
 
         ::Syrus::PluginRegistry.providers_for(:mentionable).filter_map do |provider|
-          provider.find_mentionable_by_handle(handle: normalized) if provider.respond_to?(:find_mentionable_by_handle)
+          invoke(provider, :find_mentionable_by_handle, nil) { provider.find_mentionable_by_handle(handle: normalized) } if provider.respond_to?(:find_mentionable_by_handle)
         end.first
       end
 
       def filter_candidates(user:)
         humans = User.joins(:handle_record).includes(:handle_record)
         plugin = ::Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
-          provider.respond_to?(:share_candidates) ? Array(provider.share_candidates(user: user)) : []
+          provider.respond_to?(:share_candidates) ? invoke(provider, :share_candidates, []) { Array(provider.share_candidates(user: user)) } : []
         end
 
         (humans.to_a + plugin).uniq { |mentionable| [ mentionable.kind, mentionable.mentionable_id ] }
@@ -60,13 +60,19 @@ module Mentionables
         end
         core = [ Mentionables::Syrus.new, *humans ]
         plugin = ::Syrus::PluginRegistry.providers_for(:mentionable).flat_map do |provider|
-          Array(provider.mentionables(chat: chat))
+          invoke(provider, :mentionables, []) { Array(provider.mentionables(chat: chat)) }
         end
         (core + plugin).index_by { |mentionable| mentionable.handle.to_s.downcase }
       end
 
       def find_core(kind:, id:)
         CORE_FINDERS[kind.to_s]&.call(id)
+      end
+
+      def invoke(provider, operation, decline, &block)
+        ::Syrus::PluginInvocation.value(::Syrus::PluginInvocation.call(
+          extension_point: :mentionable, provider:, operation:, on_decline: decline, &block
+        ))
       end
 
       def serialize(mentionable, match)

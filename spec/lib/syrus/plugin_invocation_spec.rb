@@ -85,4 +85,23 @@ RSpec.describe Syrus::PluginInvocation do
   it "does not rescue exceptions outside StandardError" do
     expect { invoke { raise Interrupt } }.to raise_error(Interrupt)
   end
+
+  it "records unimplemented provider operations as failures" do
+    result = invoke { raise NotImplementedError, "optional operation" }
+
+    expect(result).to be_a(described_class::Failed)
+    expect(health.failures.last).to have_attributes(
+      operation: "call", exception_class: "NotImplementedError", message: "optional operation"
+    )
+  end
+
+  it "keeps successful hot-path invocation overhead below ten milliseconds per call" do
+    20.times { invoke { nil } }
+
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    1_000.times { invoke { nil } }
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+
+    expect(elapsed / 1_000).to be < 0.01
+  end
 end

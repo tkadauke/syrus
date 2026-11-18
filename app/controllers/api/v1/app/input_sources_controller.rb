@@ -126,7 +126,9 @@ module Api
 
         def input_source_schema(provider)
           @input_source_schemas ||= {}
-          @input_source_schemas[provider] ||= PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :config_schema) { provider.new.config_schema }
+          @input_source_schemas[provider] ||= Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+            extension_point: :input_source, provider:, operation: :config_schema, on_decline: []
+          ) { provider.new.config_schema })
         end
 
         def source_type_key(provider)

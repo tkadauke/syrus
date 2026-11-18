@@ -15,8 +15,16 @@ class ChatTurnLifecycles
 
   def self.for(chat_session:, user_message:)
     provider = Syrus::PluginRegistry.providers_for(:chat_turn_lifecycle).find do |candidate|
-      candidate.applies_to?(chat_session:, user_message:)
+      Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :chat_turn_lifecycle, provider: candidate, operation: :applies_to,
+        on_decline: false
+      ) { candidate.applies_to?(chat_session:, user_message:) })
     end
-    (provider || Default).new(chat_session:, user_message:)
+    return Default.new(chat_session:, user_message:) unless provider
+
+    lifecycle = Syrus::PluginInvocation.call(
+      extension_point: :chat_turn_lifecycle, provider:, operation: :initialize, on_decline: nil
+    ) { provider.new(chat_session:, user_message:) }
+    Syrus::PluginInvocation.value(lifecycle) || Default.new(chat_session:, user_message:)
   end
 end

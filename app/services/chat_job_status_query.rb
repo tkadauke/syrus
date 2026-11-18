@@ -25,7 +25,10 @@ class ChatJobStatusQuery
   def extension_payload
     jobs = ChatAssociatedJobs.scope(@chat_session).includes(:repository).to_a
     Syrus::PluginRegistry.providers_for(:chat_job_status_extension).each_with_object({}) do |provider, payload|
-      payload.merge!(provider.payload(chat_session: @chat_session, jobs: jobs))
+      contribution = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :chat_job_status_extension, provider:, operation: :payload, on_decline: {}
+      ) { provider.payload(chat_session: @chat_session, jobs: jobs) })
+      payload.merge!(contribution)
     end
   end
 
