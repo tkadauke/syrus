@@ -71,7 +71,7 @@ RSpec.describe Syrus::PluginBootSafety do
     end
   end
 
-  it "preserves same-timestamp overlapping starts through successive promotions" do
+  it "preserves same-timestamp overlapping starts when they promote out of start order" do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
       current_time = Time.utc(2026, 1, 1)
@@ -86,12 +86,12 @@ RSpec.describe Syrus::PluginBootSafety do
       expect(ledger.skip_reason(candidate)).to be_nil
 
       current_time += 60
-      ledger.mark_good!([ candidate ], attempt_id: first)
+      ledger.mark_good!([ candidate ], attempt_id: second)
       state = JSON.parse(root.join("state.json").read)
-      expect(state.fetch("attempts").map { |attempt| attempt.fetch("id") }).to eq([ second ])
+      expect(state.fetch("attempts").map { |attempt| attempt.fetch("id") }).to eq([ first ])
 
       third = ledger.begin_boot!([ candidate ])
-      ledger.mark_good!([ candidate ], attempt_id: second)
+      ledger.mark_good!([ candidate ], attempt_id: first)
       state = JSON.parse(root.join("state.json").read)
       expect(state.fetch("attempts").map { |attempt| attempt.fetch("id") }).to eq([ third ])
     end
