@@ -22,8 +22,11 @@ assert!(failed&.state == :failed, "raising plugin was not isolated as failed")
 assert!(manifest.loaded, "a raising neighbor prevented the healthy plugin from loading")
 
 migration_path = expected_root.join("db/migrate").to_s
-assert!(Rails.application.paths["db/migrate"].to_a.include?(migration_path), "external migration path is absent")
-assert!(ActiveRecord::Migrator.migrations_paths.include?(migration_path), "migrator does not include the external path")
+# Compare resolved paths: on macOS the temp root is /var/..., a symlink to
+# /private/var/..., and Rails keeps the path it was given.
+resolved = ->(paths) { paths.map { |path| File.exist?(path) ? File.realpath(path) : path } }
+assert!(resolved.(Rails.application.paths["db/migrate"].to_a).include?(migration_path), "external migration path is absent")
+assert!(resolved.(ActiveRecord::Migrator.migrations_paths).include?(migration_path), "migrator does not include the external path")
 migration = ActiveRecord::MigrationContext.new([ migration_path ])
 migration.migrations.each { |candidate| migration.schema_migration.delete_version(candidate.version.to_s) }
 migration.up
