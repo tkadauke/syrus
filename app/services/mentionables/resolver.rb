@@ -70,7 +70,7 @@ module Mentionables
       end
 
       def invoke(provider, operation, decline, &block)
-        Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        ::Syrus::PluginInvocation.value(::Syrus::PluginInvocation.call(
           extension_point: :mentionable, provider:, operation:, on_decline: decline, &block
         ))
       end
