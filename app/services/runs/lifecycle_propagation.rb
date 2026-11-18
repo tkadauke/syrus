@@ -77,7 +77,7 @@ module Runs
 
     def cascade_failure_to_step!
       return unless step
-      return if scheduled_worker_died_step_retry?
+      return if scheduled_in_place_step_retry?
 
       if step.may_fail?
         step.fail!
@@ -86,34 +86,34 @@ module Runs
       StepDispatcher.fail_from(step.reload) if step.failed?
     end
 
-    def scheduled_worker_died_step_retry?
-      return false if step.agentic?
-      return false if step.kind.in?(Run::NON_IDEMPOTENT_IN_PLACE_RETRY_STEP_KINDS)
-
+    def scheduled_in_place_step_retry?
       classification = RunFailureClassifier.classify(run)
-      return false unless classification.classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+      return false unless in_place_retry_classification?(classification)
+      return false unless Step::Kind.fetch(step.kind).deterministic_idempotent_repair?
+      return false if step.kind.in?(Run::NON_IDEMPOTENT_IN_PLACE_RETRY_STEP_KINDS)
 
       workflow = step.workflow
       return false unless workflow
 
       attempt = nil
-      scheduled_at = Time.current + worker_died_step_retry_jitter
       workflow.with_lock do
         workflow.reload
         return false if workflow.auto_retry_attempts.unskipped.where(run: run).exists?
 
         attempt_number = [
-          prior_worker_died_step_attempts(workflow),
-          prior_worker_died_step_failures
+          prior_in_place_step_attempts(workflow, classification.classification),
+          prior_in_place_step_failures(classification.classification)
         ].max + 1
-        return false if attempt_number > Run::WORKER_DIED_STEP_MAX_RETRIES
+        return false if attempt_number > in_place_step_retry_limit(classification.classification)
+
+        scheduled_at = Time.current + in_place_step_retry_delay(attempt_number, classification.classification)
 
         attempt = AutoRetryAttempt.create!(
           job: job,
           workflow: workflow,
           run: run,
           agent_provider: run.agent_provider.presence || workflow.agent_provider || job.agent_provider,
-          failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION,
+          failure_classification: classification.classification,
           retry_kind: "failed_step",
           attempt_number: attempt_number,
           scheduled_at: scheduled_at
@@ -121,35 +121,47 @@ module Runs
       end
 
       WorkUnits::AutoRetryBackoff.record!(attempt)
-      AutoRetryJob.set(wait_until: scheduled_at, priority: job.solid_queue_priority).perform_later(attempt.id)
+      AutoRetryJob.set(wait_until: attempt.scheduled_at, priority: job.solid_queue_priority).perform_later(attempt.id)
       Rails.logger.info(
-        "[Run##{run.id}] worker_died step retry #{attempt.attempt_number}/#{Run::WORKER_DIED_STEP_MAX_RETRIES}: " \
-        "scheduled auto-retry attempt #{attempt.id} for step #{step.id} (#{step.kind}) at #{scheduled_at.iso8601}"
+        "[Run##{run.id}] #{classification.classification} in-place step retry " \
+        "#{attempt.attempt_number}/#{in_place_step_retry_limit(classification.classification)}: " \
+        "scheduled auto-retry attempt #{attempt.id} for step #{step.id} (#{step.kind}) at #{attempt.scheduled_at.iso8601}"
       )
       true
     rescue StandardError => e
-      Rails.logger.warn("[Run##{run.id}] worker_died step retry scheduling failed: #{e.class}: #{e.message}")
+      Rails.logger.warn("[Run##{run.id}] in-place step retry scheduling failed: #{e.class}: #{e.message}")
       false
     end
 
-    def worker_died_step_retry_jitter
-      (run.id % (Run::WORKER_DIED_STEP_RETRY_JITTER_SECONDS + 1)).seconds
+    def in_place_retry_classification?(classification)
+      classification.retryable && classification.classification.in?(AutoRetryAttempt::IN_PLACE_STEP_CLASSIFICATIONS)
     end
 
-    def prior_worker_died_step_failures
+    def in_place_step_retry_limit(classification)
+      return Run::WORKER_DIED_STEP_MAX_RETRIES if classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+
+      AutoRetryAttempt::MAX_ATTEMPTS
+    end
+
+    def in_place_step_retry_delay(attempt_number, classification)
+      backoff = classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? 0.seconds : AutoRetryAttempt::BACKOFFS.fetch(attempt_number - 1)
+      backoff + (run.id % (Run::WORKER_DIED_STEP_RETRY_JITTER_SECONDS + 1)).seconds
+    end
+
+    def prior_in_place_step_failures(classification)
       step.runs
         .where.not(id: run.id)
         .where(state: "failed")
         .joins(:run_failure_classification)
-        .where(run_failure_classifications: { classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION })
+        .where(run_failure_classifications: { classification: classification })
         .count
     end
 
-    def prior_worker_died_step_attempts(workflow)
+    def prior_in_place_step_attempts(workflow, classification)
       AutoRetryAttempt.budget_scope_for(
         job: job,
         agent_provider: run.agent_provider.presence || workflow.agent_provider || job.agent_provider,
-        failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+        failure_classification: classification
       ).where(run_id: step.runs.select(:id)).count
     end
 
