@@ -291,7 +291,18 @@ function NewCoworker() {
   )
 }
 
-function Field({ label, ...props }: { label: string; name: string; required?: boolean; pattern?: string; type?: string; placeholder?: string; defaultValue?: string }) {
+function Field({
+  label,
+  ...props
+}: {
+  label: string
+  name: string
+  required?: boolean
+  pattern?: string
+  type?: string
+  placeholder?: string
+  defaultValue?: string
+}) {
   return (
     <label className="block text-sm font-medium">
       {label}
@@ -348,38 +359,74 @@ function EditCoworker({ id }: { id: string }) {
   return (
     <Page.Root gutter="responsive" size="narrow">
       <Page.Header>
-        <Link className="text-sm text-brand" to={`${prefix}/coworkers/${id}`}>{coworker.name}</Link>
+        <Link className="text-sm text-brand" to={`${prefix}/coworkers/${id}`}>
+          {coworker.name}
+        </Link>
         <PageHeading>{t("edit.title")}</PageHeading>
       </Page.Header>
       <form className="space-y-5 rounded border border-border bg-surface p-5" onSubmit={submit}>
         <Field defaultValue={coworker.name} label={t("fields.name")} name="name" required />
         <Field defaultValue={coworker.handle} label={t("fields.handle")} name="handle" pattern="[a-z0-9_-]{3,32}" required />
-        <label className="block text-sm font-medium">{t("fields.model")}
+        <label className="block text-sm font-medium">
+          {t("fields.model")}
           <Select className="mt-1" defaultValue={selectedModel} name="model">
             <option value="">{t("detail.account_default")}</option>
             {(options.data?.model_options || []).map((provider) => (
               <optgroup key={provider.provider} label={provider.provider_label}>
-                {provider.models.map((model) => <option key={model.id} value={`${provider.provider}:${model.id}`}>{model.label}</option>)}
+                {provider.models.map((model) => (
+                  <option key={model.id} value={`${provider.provider}:${model.id}`}>
+                    {model.label}
+                  </option>
+                ))}
               </optgroup>
             ))}
           </Select>
         </label>
-        <label className="block text-sm font-medium">{t("fields.remote")}
+        <label className="block text-sm font-medium">
+          {t("fields.remote")}
           <Input className="mt-1" disabled value={coworker.workspace_repo} />
         </label>
         <div className="relative">
           <label className="mb-2 block text-sm font-medium">{t("fields.color")}</label>
-          <button aria-expanded={colorPopupOpen} aria-haspopup="dialog" className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm" onClick={() => setColorPopupOpen((open) => !open)} type="button">
-            <span className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: color.accentHex }} />{color.accentHex}
+          <button
+            aria-expanded={colorPopupOpen}
+            aria-haspopup="dialog"
+            className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm"
+            onClick={() => setColorPopupOpen((open) => !open)}
+            type="button"
+          >
+            <span className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: color.accentHex }} />
+            {color.accentHex}
           </button>
-          {colorPopupOpen ? <div aria-label={t("fields.color")} className="absolute z-20 mt-2 w-[min(90vw,36rem)] rounded border border-border bg-surface p-3 shadow-lg" role="dialog">
-            <ColorPicker accentRef={color.accentRef} ariaLabel={t("fields.color")} mode="light" name={coworker.name} onChange={setColor} value={color.accentHex} />
-          </div> : null}
+          {colorPopupOpen ? (
+            <div
+              aria-label={t("fields.color")}
+              className="absolute z-20 mt-2 w-[min(90vw,36rem)] rounded border border-border bg-surface p-3 shadow-lg"
+              role="dialog"
+            >
+              <ColorPicker
+                accentRef={color.accentRef}
+                ariaLabel={t("fields.color")}
+                mode="light"
+                name={coworker.name}
+                onChange={setColor}
+                value={color.accentHex}
+              />
+            </div>
+          ) : null}
         </div>
-        <div><label className="mb-2 block text-sm font-medium">{t("fields.avatar")}</label><AvatarPicker ariaLabel={t("fields.avatar")} onChange={setAvatar} value={avatar} /></div>
-        <label className="block text-sm font-medium">{t("fields.about")}<Textarea className="mt-1 min-h-28" defaultValue={coworker.about || ""} name="about" /></label>
+        <div>
+          <label className="mb-2 block text-sm font-medium">{t("fields.avatar")}</label>
+          <AvatarPicker ariaLabel={t("fields.avatar")} onChange={setAvatar} value={avatar} />
+        </div>
+        <label className="block text-sm font-medium">
+          {t("fields.about")}
+          <Textarea className="mt-1 min-h-28" defaultValue={coworker.about || ""} name="about" />
+        </label>
         {mutation.isError ? <PanelMessage>{mutation.error.message}</PanelMessage> : null}
-        <button className="rounded bg-brand px-4 py-2 font-medium text-white disabled:opacity-60" disabled={mutation.isPending}>{mutation.isPending ? t("edit.saving") : t("edit.save")}</button>
+        <button className="rounded bg-brand px-4 py-2 font-medium text-white disabled:opacity-60" disabled={mutation.isPending}>
+          {mutation.isPending ? t("edit.saving") : t("edit.save")}
+        </button>
       </form>
     </Page.Root>
   )
@@ -405,10 +452,7 @@ function CoworkerPage({ id }: { id: string }) {
   const sideChat = useMutation({
     mutationFn: () => createSideChat(Number(id)),
     onSuccess: async (data) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }),
-        queryClient.invalidateQueries({ queryKey: ["chats"] })
-      ])
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }), queryClient.invalidateQueries({ queryKey: ["chats"] })])
       navigate(withRoutePrefix(data.chat_path, prefix))
     }
   })

@@ -87,8 +87,32 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     const fetchSpy = vi.fn(async () => jsonResponse({ chat_path: "/chats/44" }, 201))
     vi.stubGlobal("fetch", fetchSpy)
     const { queryClient } = renderSidebar([
-      chatNav({ id: 1, title: "Maya", agent_appearance: { name: "Maya", accent_hex: "#B6492E", avatar_key: null, avatar_url: null, coworker_id: 7, coworker_chat_role: "main", side_chat_action_path: "/api/v1/app/coworkers/7/chats" } }),
-      chatNav({ id: 2, title: "Maya side", agent_appearance: { name: "Maya", accent_hex: "#B6492E", avatar_key: null, avatar_url: null, coworker_id: 7, coworker_chat_role: "side", side_chat_action_path: "/api/v1/app/coworkers/7/chats" } })
+      chatNav({
+        id: 1,
+        title: "Maya",
+        agent_appearance: {
+          name: "Maya",
+          accent_hex: "#B6492E",
+          avatar_key: null,
+          avatar_url: null,
+          coworker_id: 7,
+          coworker_chat_role: "main",
+          side_chat_action_path: "/api/v1/app/coworkers/7/chats"
+        }
+      }),
+      chatNav({
+        id: 2,
+        title: "Maya side",
+        agent_appearance: {
+          name: "Maya",
+          accent_hex: "#B6492E",
+          avatar_key: null,
+          avatar_url: null,
+          coworker_id: 7,
+          coworker_chat_role: "side",
+          side_chat_action_path: "/api/v1/app/coworkers/7/chats"
+        }
+      })
     ])
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries")
 
@@ -105,9 +129,26 @@ describe("RecentChatsSidebar active chat highlighting", () => {
 
   it("reports side-chat creation errors and restores the action", async () => {
     const onNotice = vi.fn()
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ error: { message: "Side chat unavailable" } }, 422)))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ error: { message: "Side chat unavailable" } }, 422))
+    )
     renderSidebar(
-      [chatNav({ id: 1, title: "Maya", agent_appearance: { name: "Maya", accent_hex: "#B6492E", avatar_key: null, avatar_url: null, coworker_id: 7, coworker_chat_role: "main", side_chat_action_path: "/api/v1/app/coworkers/7/chats" } })],
+      [
+        chatNav({
+          id: 1,
+          title: "Maya",
+          agent_appearance: {
+            name: "Maya",
+            accent_hex: "#B6492E",
+            avatar_key: null,
+            avatar_url: null,
+            coworker_id: 7,
+            coworker_chat_role: "main",
+            side_chat_action_path: "/api/v1/app/coworkers/7/chats"
+          }
+        })
+      ],
       { onNotice }
     )
 
