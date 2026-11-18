@@ -5,15 +5,30 @@ require "optparse"
 
 options = { json: false }
 parser = OptionParser.new do |opts|
-  opts.banner = "Usage: bin/plugin-host-surface inventory [--json]"
+  opts.banner = "Usage: bin/plugin-host-surface inventory [--json]\n       bin/plugin-host-surface scan DIR [--json]"
   opts.on("--json", "Print machine-readable JSON") { options[:json] = true }
 end
 parser.parse!
-abort parser.to_s unless ARGV == [ "inventory" ]
+command = ARGV.shift
+abort parser.to_s unless command == "inventory" ? ARGV.empty? : command == "scan" && ARGV.one?
 
 ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "json"
+
+if command == "scan"
+  result = Syrus::PluginHostSurface::Scanner.new(ARGV.first).call
+  if options[:json]
+    puts JSON.pretty_generate(result.to_h.merge(
+      public: result.public.map(&:to_h), legacy: result.legacy.map(&:to_h), unlisted: result.unlisted.map(&:to_h)
+    ))
+  else
+    puts "Minimum Syrus version: #{result.minimum_syrus_version || 'none'}"
+    result.findings.each { |finding| puts "#{finding.tier.upcase.ljust(8)} #{finding.constant}  #{finding.path}:#{finding.line}" }
+    puts "No core API references found." if result.findings.empty?
+  end
+  exit(result.violations? ? 1 : 0)
+end
 
 results = Admin::PluginHostSurfaceInventory.new.results
 if options[:json]

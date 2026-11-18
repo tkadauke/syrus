@@ -909,6 +909,11 @@ la:
       route_not_found: "Iter plugin non inventum est."
       quarantine_not_locally_clearable: "Haec segregatio apud fontem suum tollenda est."
       route_failed: "Plugin %{plugin} hanc petitionem perficere non potuit."
+      host_surface:
+        scan_failed: "Inspectio API hospitis defecit: %{error}"
+        unsupported: "%{count} relatio API hospitis non sustentata"
+        legacy: "%{count} relatio API hospitis prisca"
+        minimum: "requires_syrus a %{declared} incipit, infra minimum deductum %{derived}"
 
     job_lifecycle:
       direct_only: "Sola opera directa manu incipi possunt."

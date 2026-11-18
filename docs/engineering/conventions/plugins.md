@@ -128,6 +128,12 @@ The currently registered contribution kinds are:
   Incompatible external plugins are withheld and reported in plugin health;
   when the running release is unknown the check is skipped and health explains
   why. Bundled plugins ship with core and are not checked.
+  Run `bin/plugin-host-surface scan PATH` (optionally with `--json`) against an
+  external plugin before publishing it. The scanner parses Ruby without
+  executing it, reports legacy and unsupported core references, and derives
+  the newest `since` release among the public APIs in use. Declare the oldest
+  release actually tested as `requires_syrus`, but never below that derived
+  floor.
 - **Server-backed CLI commands** — A manifest may declare `cli_commands` as an
   array of command objects. Each object has a `path` array (nested command
   words), a one-line `summary`, a string `handler`, and optional `arguments`

@@ -713,8 +713,10 @@
       "skipped_role": "Skipped — process role not selected",
       "degraded": "Degraded",
       "circuit_open": "Circuit open",
-      "cycle": "Dependency cycle"
+      "cycle": "Dependency cycle",
+      "warning": "Warning"
     },
+    "host_surface_details": "Host API findings",
     "disableable": "Disableable",
     "yes": "Yes",
     "no": "No",
