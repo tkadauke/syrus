@@ -227,6 +227,26 @@ RSpec.describe AgentInsights::RunStep do
         expect(prompt).to include("Scheduled dependency sweep")
       end
 
+      # Regression: the recent-job context preloaded workflows' Steps and Runs
+      # with `includes`, which orders both across an IN list of ids that no
+      # index can serve. MySQL filesorted whole step and run rows, and every
+      # insight run failed with `Out of sort memory`.
+      it "builds the recent-job context without sorting whole Step or Run rows" do
+        jobs = 3.times.map do |index|
+          completed_job(kind: "direct", issue_number: nil, issue_title: "Context job #{index}",
+            completed_at: Time.utc(2026, 7, 22, 9, index, 0), step_kind: "grader")
+        end
+
+        offenders = wide_row_sort_statements { handler.call }
+
+        expect(offenders).to be_empty
+        prompt = run.reload.prompt
+        jobs.each do |recent|
+          expect(prompt).to include("WF-#{recent.latest_workflow.id}")
+          expect(prompt).to include("RUN-#{recent.latest_workflow.steps.first.runs.first.id}")
+        end
+      end
+
       it "includes workflow and run identifiers for evidence lookup" do
         direct = completed_job(
           kind: "direct",
