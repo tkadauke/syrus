@@ -33,6 +33,15 @@ the plugin's RSpec suite. `--syrus-version` selects a release, `--json` emits
 the stable final summary, and `--checkout PATH` runs the identical entrypoint
 from a contributor checkout. The test container never receives instance
 credentials.
+
+`syrus plugin new NAME` creates a complete external plugin project in `./NAME`
+or the empty directory selected by `--path`. It rejects invalid Ruby namespace
+names and names that collide with installed or CLI-bundled plugins. The
+baseline includes a provider, three matching locales, host-contract specs, and
+CI that runs `syrus plugin test`. `--frontend`, `--model`, and `--cli` add the
+corresponding examples; `--syrus-version` overrides the generated
+`requires_syrus` requirement.
+
 ## Per-origin Job visibility
 
 Repository membership remains the outer visibility boundary for Jobs. A plugin

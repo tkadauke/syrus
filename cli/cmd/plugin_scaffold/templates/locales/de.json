@@ -1,0 +1,4 @@
+{
+  "plugin": { "display_name": "{{DISPLAY_NAME}}", "description": "Syrus-Plugin {{DISPLAY_NAME}}." },
+  "admin": { "title": "{{DISPLAY_NAME}}", "message": "Dein Plugin ist bereit." }
+}
