@@ -2,7 +2,9 @@ require "rails_helper"
 
 RSpec.describe Admin::PluginHostSurfaceAudit do
   def entry(name, tier = "legacy")
-    Syrus::PluginHostSurface::Entry.new(name:, tier:, since: nil, notes: nil)
+    Syrus::PluginHostSurface::Entry.new(
+      name:, tier:, since: nil, category: "Test fixtures", contract: nil, members: {}
+    )
   end
 
   it "gives an actionable failure for an unlisted plugin reference" do
