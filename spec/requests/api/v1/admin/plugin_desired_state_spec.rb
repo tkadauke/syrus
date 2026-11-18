@@ -23,5 +23,16 @@ RSpec.describe "API: plugin desired state", type: :request do
     body = JSON.parse(response.body)
     expect(body).to include("revision" => 0)
     expect(body.fetch("plugins").sole).to include("name" => "weather", "version" => "1.0.0", "roles" => [ "web" ])
+    expect(body).to have_key("restart")
+  end
+
+  it "applies the current revision and starts the restart state machine" do
+    allow_any_instance_of(Admin::RestartService).to receive(:request)
+
+    post "/api/v1/admin/plugin_desired_state/apply", headers: headers
+
+    expect(response).to have_http_status(:accepted)
+    expect(PluginDesiredState.current.apply_revision).to eq(0)
+    expect(PluginDesiredState.current.apply_requested_at).to be_present
   end
 end

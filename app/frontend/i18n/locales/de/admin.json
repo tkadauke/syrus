@@ -507,6 +507,7 @@
       "incompatible": "Inkompatibel",
       "duplicate_name": "Doppelter Name",
       "skipped_dependency": "Übersprungen — Abhängigkeit fehlgeschlagen",
+      "skipped_role": "Übersprungen — Prozessrolle nicht ausgewählt",
       "degraded": "Beeinträchtigt",
       "cycle": "Abhängigkeitszyklus"
     },

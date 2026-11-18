@@ -59,6 +59,18 @@ RSpec.describe "plugin-sync" do
     File.join(data, "plugin-sync/current", name, "lib", "#{name}.rb")
   end
 
+  it "is a no-op when an entrypoint has no desired-state configuration" do
+    Dir.mktmpdir do |directory|
+      data = File.join(directory, "data")
+      env = { "SYRUS_DATA_ROOT" => data, "BUNDLE_GEMFILE" => File.expand_path("../../Gemfile", __dir__) }
+
+      _stdout, stderr, status = Open3.capture3(env, "bundle", "exec", "ruby", script, "--if-configured")
+
+      expect(status).to be_success, stderr
+      expect(File).not_to exist(File.join(data, "plugin-sync"))
+    end
+  end
+
   it "syncs, no-ops, upgrades, downgrades, quarantines, and retains last-good" do
     require "ed25519"
     Dir.mktmpdir do |directory|

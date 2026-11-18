@@ -51,7 +51,7 @@ module SyrusVersion
   def server_command?
     program = File.basename($PROGRAM_NAME.to_s)
     argv = ARGV.map(&:to_s)
-    return true if program.in?(%w[jobs puma pumactl thrust])
+    return true if program.in?(%w[jobs preview puma pumactl thrust])
     return true if program == "rails" && argv.first == "server"
     return true if program == "bin/rails" && argv.first == "server"
     return true if argv.include?("server") && argv.any? { |arg| arg.end_with?("bin/rails", "/rails") }

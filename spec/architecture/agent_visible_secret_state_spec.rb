@@ -96,7 +96,7 @@ RSpec.describe "agent-visible sidecar configuration" do
       "SYRUS_PLUGIN_SET_DIGEST" => "abc123", "SYRUS_PLUGIN_SET_REVISION" => "7"
     ))
 
-    expect(env).to include("SYRUS_PLUGIN_SET_DIGEST" => "abc123", "SYRUS_PLUGIN_SET_REVISION" => "7")
+    expect(env).to include("SYRUS_PLUGIN_SET_DIGEST" => "abc123", "SYRUS_PLUGIN_SET_REVISION" => "7", "SYRUS_ROLE" => "sidecar")
   end
 
   it "keeps the public allowlist disjoint from instance secret keys" do

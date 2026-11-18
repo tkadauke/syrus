@@ -45,7 +45,7 @@ class InstanceVersionSupervisor
 
       data_root_snapshot = data_root_usage_snapshot
       capability_snapshot = WorkerCapabilities.current
-      attrs = { last_heartbeat_at: now }.merge(data_root_usage_attrs(data_root_snapshot)).merge(capability_attrs(capability_snapshot))
+      attrs = { last_heartbeat_at: now }.merge(plugin_set_attrs).merge(data_root_usage_attrs(data_root_snapshot)).merge(capability_attrs(capability_snapshot))
       rows = heartbeat_scope(instance, now: now).update_all(attrs)
       record_worker_host_health_sample(instance, observed_at: now, data_root_snapshot: data_root_snapshot, capability_snapshot: capability_snapshot) if rows == 1
       return if rows == 1
@@ -89,6 +89,13 @@ class InstanceVersionSupervisor
       {
         capabilities: snapshot.fetch(:capabilities),
         capability_diagnostics: snapshot.fetch(:diagnostics)
+      }
+    end
+
+    def plugin_set_attrs
+      {
+        plugin_set_revision: ENV["SYRUS_PLUGIN_SET_REVISION"].presence&.to_i,
+        plugin_set_digest: ENV["SYRUS_PLUGIN_SET_DIGEST"].presence
       }
     end
 
@@ -136,6 +143,7 @@ class InstanceVersionSupervisor
           last_heartbeat_at: now,
           finished_at: nil,
           outcome: nil,
+          **plugin_set_attrs,
           **capability_attrs(WorkerCapabilities.current)
         )
         return existing
@@ -147,6 +155,7 @@ class InstanceVersionSupervisor
         version: version,
         started_at: now,
         last_heartbeat_at: now,
+        **plugin_set_attrs,
         **capability_attrs(WorkerCapabilities.current)
       )
     rescue ActiveRecord::RecordNotUnique
