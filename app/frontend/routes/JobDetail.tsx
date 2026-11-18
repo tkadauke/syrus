@@ -2832,13 +2832,11 @@ function AttachmentsTab({
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
-  const [googleDocUrl, setGoogleDocUrl] = useState("")
   const add = useMutation({
-    mutationFn: () => createJobAttachments(payload.paths.app_attachments_path, { files, googleDocUrl }),
+    mutationFn: () => createJobAttachments(payload.paths.app_attachments_path, { files }),
     onSuccess: (result) => {
       onNotice(result.message || null)
       setFiles([])
-      setGoogleDocUrl("")
       void queryClient.invalidateQueries({ queryKey })
       void queryClient.invalidateQueries({ queryKey: ["jobs", String(payload.job.id)] })
     }
@@ -2861,22 +2859,12 @@ function AttachmentsTab({
     <section className="space-y-4">
       <form className="rounded border border-border bg-surface p-4" onSubmit={submit}>
         <SectionHeading>{t("attachment_add_title")}</SectionHeading>
-        <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+        <div className="mt-3 flex items-end gap-3">
           <label className="text-sm font-medium text-text-secondary">
             {t("attachment_files_label")}
             <Input className="mt-1 text-sm" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} type="file" />
           </label>
-          <label className="text-sm font-medium text-text-secondary">
-            {t("attachment_google_doc_label")}
-            <Input
-              className="mt-1"
-              onChange={(event) => setGoogleDocUrl(event.target.value)}
-              placeholder={t("attachment_google_doc_placeholder")}
-              type="url"
-              value={googleDocUrl}
-            />
-          </label>
-          <Button disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">
+          <Button disabled={add.isPending || files.length === 0} type="submit">
             {t("attachment_add_button")}
           </Button>
         </div>

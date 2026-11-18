@@ -68,7 +68,6 @@ module Api
             id: document.id,
             kind: document.kind,
             title: document.title,
-            google_doc_url: document.google_docs_url,
             filename: document.filename,
             content_type: document.content_type,
             byte_size: document.byte_size,
@@ -88,7 +87,7 @@ module Api
         end
 
         def document_params
-          params.require(document_param_key).permit(:kind, :title, :google_doc_url, :google_docs_url, :file)
+          params.require(document_param_key).permit(:kind, :title, :file)
         end
 
         def document_param_key

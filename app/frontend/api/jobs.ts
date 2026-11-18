@@ -554,7 +554,6 @@ export type JobAttachment = {
   filename: string | null
   content_type: string | null
   byte_size: number | null
-  google_doc_url: string | null
   uploaded_file: boolean
   file_path: string | null
   content_path: string | null
@@ -2113,11 +2112,9 @@ export function updateJobProviderSetting(path: string, values: { jobProviderSett
   })
 }
 
-export function createJobAttachments(path: string, values: { files: File[]; googleDocUrl: string }) {
+export function createJobAttachments(path: string, values: { files: File[] }) {
   const formData = new FormData()
   values.files.forEach((file) => formData.append("job_attachment[files][]", file))
-  formData.append("job_attachment[google_doc_url]", values.googleDocUrl)
-
   return postForm<JobCommandPayload>(path, formData)
 }
 

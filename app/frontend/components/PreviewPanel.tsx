@@ -233,7 +233,6 @@ export function PreviewPanel({
         priority: "high",
         createMore: false,
         files: [],
-        googleDocUrl: ""
       }),
     onSuccess: (created) => navigate(withRoutePrefix(created.redirect_to, routePrefix(location.pathname))),
     onError: (err) => setError(errorMessage(err, t("preview_fix_error")))

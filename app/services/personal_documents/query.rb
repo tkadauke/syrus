@@ -1,7 +1,7 @@
 module PersonalDocuments
   class Query
     PER_PAGE = 25
-    SORT_COLUMNS = %w[title filename kind content_type byte_size source_url content_cache_state content_cached_at created_at updated_at].freeze
+    SORT_COLUMNS = %w[title filename kind content_type byte_size source_url created_at updated_at].freeze
     SORT_DIRECTIONS = %w[ascending descending].freeze
 
     Result = Data.define(:documents, :page, :per_page, :total, :total_pages)
@@ -51,15 +51,13 @@ module PersonalDocuments
       value = filter_value(document, chip.field)
       return text_match?(search_text(document), chip) if chip.field == "query"
       return number_match?(value, chip) if chip.field == "byte_size"
-      return date_match?(value, chip) if chip.field.in?(%w[content_cached_at created_at updated_at])
+      return date_match?(value, chip) if chip.field.in?(%w[created_at updated_at])
 
       text_match?(value.to_s, chip)
     end
 
     def filter_value(document, field)
       return document_title(document) if field == "title"
-      return document.content_cache.present? ? "cached" : "empty" if field == "content_cache_state"
-      return document.google_doc_url || document.source_url if field == "source_url"
       return document.public_send(field) if SORT_COLUMNS.include?(field)
 
       ""
@@ -116,12 +114,11 @@ module PersonalDocuments
     end
 
     def document_title(document)
-      document.google_doc? ? document.google_doc_url.to_s : document.filename.to_s
+      document.filename.to_s
     end
 
     def search_text(document)
-      [ document_title(document), document.filename, document.kind, document.content_type, document.source_url,
-       document.google_doc_url, filter_value(document, "content_cache_state") ].compact.join(" ")
+      [ document_title(document), document.filename, document.kind, document.content_type, document.source_url ].compact.join(" ")
     end
   end
 end

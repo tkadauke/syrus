@@ -20,15 +20,6 @@ module Api
             end
           end
 
-          if google_doc_url.present?
-            document = Current.user.documents.build(kind: "google_doc", google_doc_url: google_doc_url, user: Current.user)
-            if document.save
-              created << document
-            else
-              errors.concat(document.errors.full_messages)
-            end
-          end
-
           if created.any? && errors.empty?
             render json: { documents: created.map { |document| document_json(document) }, message: I18n.t("api.credentials.documents.added") }, status: :created
           elsif created.any?
@@ -66,9 +57,6 @@ module Api
           Array(params.dig(:document, :files)).compact_blank
         end
 
-        def google_doc_url
-          params.dig(:document, :google_doc_url).to_s.strip
-        end
       end
     end
   end

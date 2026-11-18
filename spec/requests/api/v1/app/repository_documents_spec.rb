@@ -27,9 +27,9 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     sign_in_as(user)
     repository.repository_documents.create!(
       user: user,
-      kind: "google_doc",
+      kind: "file",
       title: "Launch plan",
-      google_docs_url: "https://docs.google.com/document/d/launch/edit"
+      file: upload_file
     )
 
     get "/api/v1/app/repositories/#{repository.id}/documents"
@@ -41,9 +41,9 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(body).not_to have_key("tabs")
     expect(body["documents"]).to contain_exactly(
       include(
-        "kind" => "google_doc",
+        "kind" => "file",
         "title" => "Launch plan",
-        "google_doc_url" => "https://docs.google.com/document/d/launch/edit",
+        "filename" => "notes.md",
         "uploaded_by" => user.display_name
       )
     )
@@ -128,7 +128,7 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
   end
 
-  it "creates a Google Docs link document" do
+  it "rejects the removed Google Doc kind" do
     sign_in_as(user)
 
     expect {
@@ -139,12 +139,10 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
           google_docs_url: "https://docs.google.com/document/d/design/edit"
         }
       }
-    }.to change(Document, :count).by(1)
+    }.not_to change(Document, :count)
 
-    expect(response).to have_http_status(:created)
-    expect(repository.repository_documents.last.google_docs_url).to eq("https://docs.google.com/document/d/design/edit")
-    expect(parse_body.dig("document", "title")).to eq("Design brief")
-    expect(parse_body.dig("document", "file_path")).to be_nil
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
   end
 
   it "returns validation errors" do
@@ -190,9 +188,9 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
     document = other_repo.repository_documents.create!(
       user: other_user,
-      kind: "google_doc",
+      kind: "file",
       title: "Private",
-      google_docs_url: "https://docs.google.com/document/d/private/edit"
+      file: upload_file
     )
 
     get "/api/v1/app/repositories/#{other_repo.id}/documents"
@@ -275,9 +273,9 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect {
       post "/api/v1/app/repositories/#{repository.id}/documents", params: {
         repository_document: {
-          kind: "google_doc",
+          kind: "file",
           title: "Read-only mutation",
-          google_docs_url: "https://docs.google.com/document/d/read-only/edit"
+          file: upload_file
         }
       }
     }.not_to change(Document, :count)
@@ -295,9 +293,9 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect {
       post "/api/v1/app/repositories/#{repository.id}/documents", params: {
         repository_document: {
-          kind: "google_doc",
+          kind: "file",
           title: "Writer notes",
-          google_docs_url: "https://docs.google.com/document/d/writer/edit"
+          file: upload_file
         }
       }
     }.to change(Document, :count).by(1)

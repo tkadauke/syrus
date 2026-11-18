@@ -886,29 +886,22 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect {
       post "/api/v1/app/credentials/documents", params: {
-        document: {
-          files: [ upload_file ],
-          google_doc_url: "https://docs.google.com/document/d/user/edit"
-        }
+        document: { files: [ upload_file ] }
       }
-    }.to change(Document, :count).by(2)
+    }.to change(Document, :count).by(1)
 
     expect(response).to have_http_status(:created)
     body = parse_body
-    expect(body["documents"].map { |document| document["kind"] }).to contain_exactly("file", "google_doc")
+    expect(body["documents"].map { |document| document["kind"] }).to contain_exactly("file")
 
     file_document = body["documents"].find { |document| document["kind"] == "file" }
     expect(file_document["file_path"]).to eq("/api/v1/app/credentials/documents/#{file_document['id']}/file")
     expect(file_document).to include(
       "source_url" => nil,
-      "content_cache_state" => "empty",
-      "content_cached_at" => nil,
       "updated_at" => be_present
     )
-    google_doc_document = body["documents"].find { |document| document["kind"] == "google_doc" }
-    expect(google_doc_document["file_path"]).to be_nil
 
-    document = user.documents.find_by!(kind: "google_doc")
+    document = user.documents.find_by!(kind: "file")
     delete "/api/v1/app/credentials/documents/#{document.id}"
 
     expect(response).to have_http_status(:ok)
@@ -924,7 +917,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     post "/api/v1/app/credentials/documents", params: { document: {} }
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Wähle eine Datei oder gib eine Google-Doc-URL ein.")
+    expect(parse_body.dig("error", "message")).to eq("Wähle eine Datei.")
   end
 
   it "downloads a personal document's non-previewable raw file with restrictive browser headers" do

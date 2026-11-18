@@ -496,7 +496,7 @@ module ChatSerialization
       return nil unless document
 
       repository = document.repository
-      url = document.file.attached? ? "/api/v1/app/repository_documents/#{document.id}/file" : document.google_docs_url
+      url = "/api/v1/app/repository_documents/#{document.id}/file"
       {
         resource_title: document.title,
         resource_url: url,

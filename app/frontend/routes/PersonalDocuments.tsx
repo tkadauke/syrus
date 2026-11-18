@@ -33,8 +33,7 @@ import { routePrefix } from "../lib/routing"
 const queryKey = ["personal-documents"] as const
 const DOCUMENTS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.settings.personal_documents.visible_columns"
 
-type DocumentSortColumn =
-  "title" | "filename" | "kind" | "content_type" | "byte_size" | "source_url" | "content_cache_state" | "content_cached_at" | "created_at" | "updated_at"
+type DocumentSortColumn = "title" | "filename" | "kind" | "content_type" | "byte_size" | "source_url" | "created_at" | "updated_at"
 type SortDirection = "ascending" | "descending"
 type DocumentSortState = { column: DocumentSortColumn; direction: SortDirection }
 const DEFAULT_DOCUMENT_SORT: DocumentSortState = { column: "created_at", direction: "descending" }
@@ -81,7 +80,6 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
-  const [googleDocUrl, setGoogleDocUrl] = useState("")
   const [previewDocument, setPreviewDocument] = useState<PersonalDocument | null>(null)
   const searchParams = new URLSearchParams(location.search)
   const sortState: DocumentSortState = {
@@ -90,11 +88,10 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   }
   const filterSchema = buildDocumentFilterSchema(t)
   const upload = useMutation({
-    mutationFn: () => addCredentialDocuments(files, googleDocUrl),
+    mutationFn: () => addCredentialDocuments(files),
     onSuccess: (updated) => {
       void queryClient.invalidateQueries({ queryKey })
       setFiles([])
-      setGoogleDocUrl("")
       onNotice(updated.message || t("personal_documents.added"))
     }
   })
@@ -113,10 +110,6 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   }
 
   function openDocument(document: PersonalDocument) {
-    if (document.kind === "google_doc") {
-      if (document.google_doc_url) window.open(document.google_doc_url, "_blank", "noopener")
-      return
-    }
     if (!document.file_path) return
     if (isPreviewableContentType(document.content_type)) {
       setPreviewDocument(document)
@@ -224,14 +217,6 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
         <Field label={t("personal_documents.upload_files")}>
           <Form.Input multiple onChange={(event) => setFiles(Array.from(event.currentTarget.files || []))} type="file" />
         </Field>
-        <Field label={t("personal_documents.google_doc_url")}>
-          <Form.Input
-            onChange={(event) => setGoogleDocUrl(event.target.value)}
-            placeholder="https://docs.google.com/document/d/..."
-            type="url"
-            value={googleDocUrl}
-          />
-        </Field>
         <button
           className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400"
           disabled={upload.isPending}
@@ -265,30 +250,11 @@ function buildDocumentFilterSchema(t: (key: string, options?: Record<string, unk
       label: t("personal_documents.col_kind"),
       bucket: "text",
       operators: ["is", "is_not"],
-      values: [
-        { value: "file", label: t("personal_documents.file") },
-        { value: "google_doc", label: t("personal_documents.google_doc") }
-      ]
+      values: [{ value: "file", label: t("personal_documents.file") }]
     },
     { field: "content_type", label: t("personal_documents.col_content_type"), bucket: "text", operators: ["contains", "is", "is_set", "is_unset"] },
     { field: "byte_size", label: t("personal_documents.col_size"), bucket: "number", operators: ["is", "gt", "lt", "gte", "lte"] },
     { field: "source_url", label: t("personal_documents.col_source_url"), bucket: "text", operators: ["contains", "is", "is_set", "is_unset"] },
-    {
-      field: "content_cache_state",
-      label: t("personal_documents.col_content_cache_state"),
-      bucket: "text",
-      operators: ["is", "is_not"],
-      values: [
-        { value: "cached", label: t("personal_documents.cache_cached") },
-        { value: "empty", label: t("personal_documents.cache_empty") }
-      ]
-    },
-    {
-      field: "content_cached_at",
-      label: t("personal_documents.col_content_cached_at"),
-      bucket: "date",
-      operators: ["before", "after", "between", "is_set", "is_unset"]
-    },
     { field: "created_at", label: t("personal_documents.col_created"), bucket: "date", operators: ["before", "after", "between"] },
     { field: "updated_at", label: t("personal_documents.col_updated"), bucket: "date", operators: ["before", "after", "between"] }
   ]
@@ -328,7 +294,7 @@ function buildDocumentColumns({
       key: "kind",
       label: t("personal_documents.col_kind"),
       sortKey: "kind",
-      renderCell: (document) => (document.kind === "google_doc" ? t("personal_documents.google_doc") : t("personal_documents.file"))
+      renderCell: () => t("personal_documents.file")
     },
     {
       key: "content_type",
@@ -356,21 +322,7 @@ function buildDocumentColumns({
       sortKey: "source_url",
       defaultVisible: false,
       cellClassName: "max-w-xs truncate text-xs text-gray-500 dark:text-gray-400",
-      renderCell: (document) => document.source_url || document.google_doc_url || "-"
-    },
-    {
-      key: "content_cache_state",
-      label: t("personal_documents.col_content_cache_state"),
-      sortKey: "content_cache_state",
-      defaultVisible: false,
-      renderCell: (document) => (document.content_cache_state === "cached" ? t("personal_documents.cache_cached") : t("personal_documents.cache_empty"))
-    },
-    {
-      key: "content_cached_at",
-      label: t("personal_documents.col_content_cached_at"),
-      sortKey: "content_cached_at",
-      defaultVisible: false,
-      renderCell: (document) => (document.content_cached_at ? new Date(document.content_cached_at).toLocaleString() : "-")
+      renderCell: (document) => document.source_url || "-"
     },
     {
       key: "created",
@@ -460,15 +412,6 @@ function pageSearch(search: string, page: number) {
 
 function DocumentSummary({ document }: { document: PersonalDocument }) {
   const { t } = useT("settings")
-  if (document.kind === "google_doc" && document.google_doc_url) {
-    return (
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-brand dark:text-brand-emphasis">{document.google_doc_url}</div>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("personal_documents.google_doc")}</div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-w-0">
       <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{document.filename || <>{t("personal_documents.file")}</>}</div>
@@ -487,7 +430,7 @@ function toggleSort<TColumn extends string>(current: { column: TColumn; directio
 function isDocumentSortColumn(value: string | null): value is DocumentSortColumn {
   return (
     value != null &&
-    ["title", "filename", "kind", "content_type", "byte_size", "source_url", "content_cache_state", "content_cached_at", "created_at", "updated_at"].includes(
+    ["title", "filename", "kind", "content_type", "byte_size", "source_url", "created_at", "updated_at"].includes(
       value
     )
   )

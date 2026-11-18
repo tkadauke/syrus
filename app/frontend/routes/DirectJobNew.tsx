@@ -28,7 +28,6 @@ type DirectJobFormState = {
   prompt: string
   priority: string
   createMore: boolean
-  googleDocUrl: string
 }
 
 const EMPTY_PROVIDER_ROUTING_OPTIONS: ProviderRoutingOptions = { agent_providers: [], effort_levels: [] }
@@ -96,7 +95,6 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         prompt: "",
         priority: "medium",
         createMore: true,
-        googleDocUrl: ""
       }))
     }
   })
@@ -333,15 +331,6 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           {files.length > 0 ? <span className="text-sm text-gray-600 dark:text-gray-400">{files.map((file) => file.name).join(", ")}</span> : null}
         </div>
 
-        <Field label={t("attachment_google_doc_label")}>
-          <Form.Input
-            name="job_attachment_google_doc_url"
-            onChange={(event) => setValues({ ...values, googleDocUrl: event.target.value })}
-            placeholder={t("attachment_google_doc_placeholder")}
-            type="url"
-            value={values.googleDocUrl}
-          />
-        </Field>
       </section>
 
       <Checkbox
@@ -378,7 +367,6 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
     prompt: "",
     priority: "medium",
     createMore: payload.create_more,
-    googleDocUrl: ""
   }
 }
 

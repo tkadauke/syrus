@@ -724,7 +724,8 @@ describe("App settings routes", () => {
 
     expect(await screen.findByRole("main", { name: "Personal documents" })).toBeInTheDocument()
     expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Documents" })).toHaveClass("bg-brand/10")
-    fireEvent.change(await screen.findByLabelText("Google Doc URL"), { target: { value: "https://docs.google.com/document/d/user/edit" } })
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" })
+    fireEvent.change(await screen.findByLabelText("Upload files"), { target: { files: [file] } })
     fireEvent.click(screen.getByRole("button", { name: "Add document" }))
 
     await waitFor(() => {
