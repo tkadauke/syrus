@@ -541,7 +541,7 @@ ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
 # Muse is an agent-only tool, so keep it out of the web image. Both the
 # launcher and the native binary it dispatches to are immutable build inputs.
 ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh
-ARG MUSE_LAUNCHER_SHA256=c6db294799a190ca380da274beb3b9c0e160e0da9681a3d364ce8b0e5fa3a4bc
+ARG MUSE_LAUNCHER_SHA256=ffb95b823e2a71f49ce98f9ddcb7cd7c731b77615aae9f5f253819c69453079f
 ARG MUSE_VERSION=1.4.9-R6297.1
 ARG MUSE_LINUX_AMD64_SHA256=a228010021276e112aa8422eb56ae82c0375405701950f6529bed4c9fe8abe05
 ARG MUSE_LINUX_ARM64_SHA256=d64c61f4357b246fb46ab4f01332b36066bb4ac17541a88f520680354a32e06a
