@@ -1,0 +1,33 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+require_relative "../lib/syrus/plugin_roots"
+require_relative "../lib/syrus/plugin_boot_safety"
+
+command = ARGV.shift
+name = ARGV.shift
+ledger = Syrus::PluginBootSafety.default
+roots = Syrus::PluginRoots.default
+
+case command
+when "list"
+  quarantines = ledger.quarantines
+  roots.plugin_directories.each do |directory|
+    plugin = directory.basename.to_s
+    puts [ plugin, (quarantines[plugin] || "available") ].join("\t")
+  end
+  (quarantines.keys - roots.plugin_directories.map { |directory| directory.basename.to_s }).sort.each do |plugin|
+    puts [ plugin, quarantines.fetch(plugin) ].join("\t")
+  end
+when "quarantine"
+  abort "usage: bin/plugin-recovery quarantine NAME" if name.to_s.empty?
+  ledger.quarantine!(name)
+  puts "Quarantined #{name}. Restart Syrus to apply."
+when "clear"
+  abort "usage: bin/plugin-recovery clear NAME" if name.to_s.empty?
+  ledger.clear!(name)
+  puts "Cleared local quarantine for #{name}. Restart Syrus to apply."
+else
+  abort "usage: bin/plugin-recovery list | quarantine NAME | clear NAME"
+end

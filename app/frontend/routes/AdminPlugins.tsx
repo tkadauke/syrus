@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   disableAdminPlugin,
+  clearAdminPluginQuarantine,
   enableBetaModeForInstance,
   enableAdminPlugin,
   fetchAdminPlugin,
@@ -49,6 +50,18 @@ export function AdminPlugins() {
       </Page.Header>
 
       <PluginConvergencePanel data={plugins.data?.convergence} loading={plugins.isPending} />
+
+      {plugins.data?.recovery && (plugins.data.recovery.safe_mode || Object.keys(plugins.data.recovery.quarantines).length > 0) ? (
+        <Surface role="alert">
+          <SectionHeading>{t("plugins.recovery_active")}</SectionHeading>
+          <p className="mt-2 text-sm text-text-secondary">
+            {t("plugins.recovery_active_body", {
+              mode: plugins.data.recovery.safe_mode || t("plugins.none"),
+              count: Object.keys(plugins.data.recovery.quarantines).length
+            })}
+          </p>
+        </Surface>
+      ) : null}
 
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
       {plugins.isError ? <PanelMessage tone="error">{errorMessage(plugins.error, t("plugins.error_load"))}</PanelMessage> : null}
@@ -192,6 +205,12 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
     }
   })
   const { disableBlocked, disableBlockers } = toggleState
+  const queryClient = useQueryClient()
+  const clearQuarantine = useMutation({
+    mutationFn: () => clearAdminPluginQuarantine(plugin.name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "plugins"] })
+  })
+  const quarantined = plugin.health?.state === "quarantined"
 
   return (
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -253,6 +272,11 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
           <PluginToggleButton plugin={plugin} state={toggleState} />
+          {quarantined ? (
+            <Button disabled={clearQuarantine.isPending} onClick={() => clearQuarantine.mutate()} type="button" variant="secondary">
+              {clearQuarantine.isPending ? t("plugins.clearing_quarantine") : t("plugins.clear_quarantine")}
+            </Button>
+          ) : null}
         </div>
       </div>
 

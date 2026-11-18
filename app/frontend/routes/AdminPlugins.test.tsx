@@ -96,6 +96,46 @@ describe("AdminPlugins", () => {
     await i18n.changeLanguage("en")
   })
 
+  it("shows recovery state and clears one quarantined plugin", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        recovery: { safe_mode: "recent", quarantines: { weather: "changed since last good boot" } },
+        plugins: [
+          {
+            name: "weather",
+            display_name: "Weather",
+            version: "1.0.0",
+            enabled: false,
+            default_enabled: true,
+            disableable: true,
+            experimental: false,
+            category: null,
+            category_label: null,
+            description: "Forecasts",
+            homepage: null,
+            icon_url: null,
+            author: null,
+            source: null,
+            extension_points: [],
+            disable_blockers: [],
+            health: { state: "quarantined", reasons: ["changed since last good boot"] }
+          }
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+    expect(await screen.findByRole("alert")).toHaveTextContent("Plugin recovery mode is active")
+    fireEvent.click(screen.getByRole("button", { name: "Re-enable after restart" }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/app/admin/plugins/weather/clear_quarantine",
+        expect.objectContaining({ method: "POST" })
+      )
+    )
+  })
+
   it("shows process and per-plugin convergence states", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({
