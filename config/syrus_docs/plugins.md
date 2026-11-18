@@ -131,6 +131,24 @@ container, move its directory out of the shared root, and restart all
 containers. Uninstalling retains plugin data and migrations for rollback;
 purging data is a separate destructive operation.
 
+For fleet-managed plugins, set `SYRUS_PLUGIN_SYNC_ENABLED=1` and distribute
+the control plane's `SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY` to every Rails process.
+The pre-boot sync reads the signed desired-state manifest and content-addressed
+archives from the configured S3-compatible attachment bucket. In single-node
+mode, `SYRUS_PLUGIN_SYNC_STORAGE_PATH` may point to the local attachment root.
+It verifies the Ed25519 signature plus every archive's size and SHA-256 digest,
+then atomically switches `$SYRUS_DATA_ROOT/plugin-sync/current`. The preceding
+set remains at `last-good`, and hand-placed plugins in `SYRUS_PLUGIN_PATH`
+continue to take precedence when a name occurs in both roots.
+
+Storage, signature, manifest, and artifact failures print one error, retain the
+last-good set, and allow boot. `SYRUS_PLUGIN_SYNC_STRICT=1` changes failures to
+a nonzero exit for diagnostic or explicitly fail-closed processes.
+`SYRUS_PLUGIN_SYNC_RETENTION` sets the number of additional inactive sets to
+keep (default `2`). Fleet-quarantined and revoked entries are removed from the
+activated set. Rails and spawned sidecars receive `SYRUS_PLUGIN_SET_DIGEST` and
+`SYRUS_PLUGIN_SET_REVISION` for the active set.
+
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore
 removes its documentation too.
