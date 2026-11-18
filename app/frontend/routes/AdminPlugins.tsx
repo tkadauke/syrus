@@ -210,7 +210,7 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
     mutationFn: () => clearAdminPluginQuarantine(plugin.name),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "plugins"] })
   })
-  const quarantineClearable = plugin.health?.state === "quarantined" && plugin.quarantine_clearable
+  const quarantineClearable = plugin.quarantine_clearable === true
 
   return (
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">

@@ -57,10 +57,11 @@ module Admin
 
     def recovery_payload
       safety = boot_safety
-      { safe_mode: safety.mode, quarantines: safety.quarantines, locally_clearable: clearable_quarantine_names.to_a }
+      { safe_mode: safety.mode, quarantines:, locally_clearable: clearable_quarantine_names.to_a }
     end
 
     def boot_safety = @boot_safety ||= Syrus::PluginBootSafety.default
+    def quarantines = @quarantines ||= boot_safety.quarantines
     def local_quarantines = @local_quarantines ||= boot_safety.local_quarantines
 
     def clearable_quarantine_names
@@ -225,6 +226,10 @@ module Admin
     # operator fix a degraded instance instead of guessing why a plugin's
     # behavior vanished.
     def health_payload(manifest)
+      if (reason = quarantines[manifest.name])
+        return { state: "quarantined", reasons: [ reason ] }
+      end
+
       status = plugin_health.status(manifest.name)
       return { state: "ok", reasons: [] } if status.nil?
 

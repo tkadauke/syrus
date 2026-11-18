@@ -55,6 +55,32 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body.dig("error", "code")).to eq("quarantine_not_locally_clearable")
   end
 
+  it "shows a newly recorded local quarantine before the process restarts" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "weather", version: "1.0.0")
+    safety = instance_double(
+      Syrus::PluginBootSafety,
+      mode: nil,
+      quarantines: { "weather" => "manually quarantined by an administrator" },
+      local_quarantines: { "weather" => "manually quarantined by an administrator" },
+      fleet_quarantines: {}
+    )
+    allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+
+    get "/api/v1/app/admin/plugins"
+
+    plugin = parse_body.fetch("plugins").sole
+    expect(plugin).to include(
+      "name" => "weather",
+      "health" => {
+        "state" => "quarantined",
+        "reasons" => [ "manually quarantined by an administrator" ]
+      },
+      "quarantine_clearable" => true
+    )
+  end
+
   it "returns slim registered-plugin rows" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
