@@ -127,6 +127,7 @@ la:
       file_too_large: "non maius quam %{size} MB esse debet"
       unsupported_file_type: "fasciculus textus, PDF, Office, vel imaginis sustentatus esse debet"
       must_be_blank_for_file: "documentis fasciculi vacuum esse debet"
+      content_cache_too_large: "non maius quam %{size} KB esse debet"
       too_many_job_attachments: "Jobs non plus quam %{count} adiuncta habere possunt"
       already_recorded: "huic fonti et ancorae iam relatum est"
       required_for_range_anchor: "ancoris intervalli adesse debet"

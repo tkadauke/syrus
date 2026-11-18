@@ -127,6 +127,7 @@ de:
       file_too_large: "darf höchstens %{size} MB groß sein"
       unsupported_file_type: "muss eine unterstützte Text-, PDF-, Office- oder Bilddatei sein"
       must_be_blank_for_file: "muss bei Dateidokumenten leer sein"
+      content_cache_too_large: "darf höchstens %{size} KB groß sein"
       too_many_job_attachments: "Jobs dürfen höchstens %{count} Anhänge haben"
       already_recorded: "wurde für diese Quelle und Verankerung bereits erfasst"
       required_for_range_anchor: "muss bei Bereichsverankerungen vorhanden sein"

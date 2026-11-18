@@ -157,6 +157,7 @@ en:
       file_too_large: "must be %{size} MB or smaller"
       unsupported_file_type: "must be a supported text, PDF, Office, or image file"
       must_be_blank_for_file: "must be blank for file documents"
+      content_cache_too_large: "must be %{size} KB or smaller"
       too_many_job_attachments: "Jobs can have at most %{count} attachments"
       already_recorded: "has already been recorded for this source and anchor"
       required_for_range_anchor: "must be present for range anchors"
