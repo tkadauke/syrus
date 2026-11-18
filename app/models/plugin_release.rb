@@ -28,7 +28,6 @@ class PluginRelease < ApplicationRecord
 
     errors.add(:base, "plugin release artifact identity is immutable after storage or selection")
   end
-
   def publish_if_desired
     PluginDesiredState::Publisher.publish! if plugin_installations.exists?
   end
