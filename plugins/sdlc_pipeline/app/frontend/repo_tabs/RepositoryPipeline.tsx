@@ -729,7 +729,10 @@ function PipelineOverview({
         </div>
       ) : null}
       <HistoryStatusNotice onRetry={onRetryHistory} status={historyStatus} />
-      <div className={`relative flex min-h-0 border-y border-border bg-surface-subtle ${embedded ? "flex-1" : "h-[calc(100dvh-14rem)] min-h-[32rem]"}`} data-testid="pipeline-with-time-rail">
+      <div
+        className={`relative flex min-h-0 border-y border-border bg-surface-subtle ${embedded ? "flex-1" : "h-[calc(100dvh-14rem)] min-h-[32rem]"}`}
+        data-testid="pipeline-with-time-rail"
+      >
         <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden py-3">
           {edges.left ? (
             <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-surface-subtle to-transparent" />
@@ -783,29 +786,25 @@ function PipelineOverview({
           </div>
         </div>
         <HistoryRail
-            currentTick={currentTick}
-            eventMarks={eventMarks}
-            historical={historical}
-            historicalAt={historicalAt}
-            history={history}
-            incompleteEvidenceCount={payload.evidence.status === "partial" ? payload.evidence.incomplete_count : 0}
-            onRangeChange={(days) => {
-              const params = new URLSearchParams(search)
-              const end = new Date(history.to)
-              params.set("range_end", end.toISOString())
-              params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
-              navigate({ search: params.toString() })
-            }}
-            onSelect={setAt}
-            playing={playing}
-            setPlaying={setPlaying}
-          />
+          currentTick={currentTick}
+          eventMarks={eventMarks}
+          historical={historical}
+          historicalAt={historicalAt}
+          history={history}
+          incompleteEvidenceCount={payload.evidence.status === "partial" ? payload.evidence.incomplete_count : 0}
+          onRangeChange={(days) => {
+            const params = new URLSearchParams(search)
+            const end = new Date(history.to)
+            params.set("range_end", end.toISOString())
+            params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
+            navigate({ search: params.toString() })
+          }}
+          onSelect={setAt}
+          playing={playing}
+          setPlaying={setPlaying}
+        />
       </div>
-      {!embedded ? (
-        <div className="space-y-2 py-3">
-          {!deploymentStages.length ? <Notice tone="warning">{t("no_deployment_config")}</Notice> : null}
-        </div>
-      ) : null}
+      {!embedded ? <div className="space-y-2 py-3">{!deploymentStages.length ? <Notice tone="warning">{t("no_deployment_config")}</Notice> : null}</div> : null}
       {selected && !historical ? <DrillDown onClose={() => setSelected(null)} repositoryId={repositoryId} search={search} stage={selected} /> : null}
     </>
   )
@@ -941,13 +940,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
                 suggestionSearch={{ surface: "sdlc_pipeline", subject: "sdlc_pipeline" }}
               />
             </div>
-            <a
-              aria-label={t("open_presentation")}
-              className={PRESENTATION_LINK_CLASSES}
-              href={presentationHref}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
+            <a aria-label={t("open_presentation")} className={PRESENTATION_LINK_CLASSES} href={presentationHref} rel="noopener noreferrer" target="_blank">
               <span aria-hidden>↗</span>
               <span className="sr-only sm:not-sr-only sm:ml-1">{t("open_presentation")}</span>
             </a>
