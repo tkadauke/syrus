@@ -151,10 +151,7 @@ describe("App chat search and bookmarks", () => {
       expect(screen.getByText(/ago$/)).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "Show 1 more match" }))
-      const secondMatch = await screen.findByText(
-        (_content, element) => element?.textContent === "Second needle",
-        { selector: "p" }
-      )
+      const secondMatch = await screen.findByText((_content, element) => element?.textContent === "Second needle", { selector: "p" })
       expect(screen.getByText("Showing the first 4 matches.")).toBeInTheDocument()
       fireEvent.click(secondMatch.closest("button") as HTMLButtonElement)
 
