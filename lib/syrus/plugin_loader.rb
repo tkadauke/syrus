@@ -254,15 +254,23 @@ module Syrus
       tokens.each_with_index do |(_position, type, text, _state), index|
         next unless type == :on_ident && declarations.include?(text)
 
-        bracket = ((index + 1)...tokens.length).find { |candidate| tokens[candidate][1] == :on_lbracket }
-        next unless bracket
+        list_start = ((index + 1)...tokens.length).find { |candidate| tokens[candidate][1] != :on_sp }
+        next unless list_start
 
-        depth = 0
-        tokens.drop(bracket).each do |_position, token_type, token_text, _state|
-          depth += 1 if token_type == :on_lbracket
-          depth -= 1 if token_type == :on_rbracket
-          dependencies << token_text if depth.positive? && token_type == :on_tstring_content
-          break if depth.zero?
+        case tokens[list_start][1]
+        when :on_lbracket
+          depth = 0
+          tokens.drop(list_start).each do |_position, token_type, token_text, _state|
+            depth += 1 if token_type == :on_lbracket
+            depth -= 1 if token_type == :on_rbracket
+            dependencies << token_text if depth.positive? && token_type == :on_tstring_content
+            break if depth.zero?
+          end
+        when :on_qwords_beg
+          tokens.drop(list_start + 1).each do |_position, token_type, token_text, _state|
+            break if token_type == :on_tstring_end
+            dependencies << token_text if token_type == :on_tstring_content
+          end
         end
       end
       dependencies.uniq
