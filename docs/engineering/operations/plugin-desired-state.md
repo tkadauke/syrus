@@ -21,6 +21,10 @@ Generate an Ed25519 key with `PluginDesiredState::SigningKey.generate!` from a
 Rails console. The private key is encrypted in the singleton application
 settings record. Distribute the returned PEM public key to every pre-boot sync
 process as `SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY`; never distribute the private key.
+Generate and distribute the key before adding the first desired installation.
+Committed desired-state changes enqueue publication on the `control_plane`
+queue, so a missing key or storage outage is recorded as a failed, retryable job
+instead of making the already-committed database write appear to have failed.
 
 To verify a download, base64-decode the `.sig` object and verify it as an
 Ed25519 signature over the exact `manifest.json` bytes. Reject the desired set

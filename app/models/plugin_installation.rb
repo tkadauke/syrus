@@ -33,6 +33,6 @@ class PluginInstallation < ApplicationRecord
   end
 
   def publish_desired_state
-    PluginDesiredState::Publisher.publish!
+    PluginDesiredStatePublishJob.perform_later
   end
 end

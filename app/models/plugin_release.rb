@@ -19,6 +19,6 @@ class PluginRelease < ApplicationRecord
   private
 
   def publish_desired_state
-    PluginDesiredState::Publisher.publish! if plugin_installations.exists?
+    PluginDesiredStatePublishJob.perform_later if plugin_installations.exists?
   end
 end
