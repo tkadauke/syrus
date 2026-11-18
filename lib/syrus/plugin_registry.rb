@@ -1006,6 +1006,7 @@ module Syrus
         ssh_private_key
         token
       ].freeze
+      RESERVED_CREDENTIAL_CONSUMER_NAMES = %w[credential.exec credential.ssh-agent].freeze
       CREDENTIAL_TYPE_NAME_PATTERN = /\A[a-z0-9_]+(?:\.[a-z0-9_]+)*\z/
 
       def normalize_credential_types!(plugin_name:, credential_types:, credential_type_names:)
@@ -1092,13 +1093,17 @@ module Syrus
           end
         end
         consumer_collisions = credential_types.filter_map { |entry| entry.dig("typed_consumer", "name") } & existing_consumers.keys
-        return if collisions.empty? && consumer_collisions.empty?
+        reserved_consumer_collisions = credential_types.filter_map { |entry| entry.dig("typed_consumer", "name") } & RESERVED_CREDENTIAL_CONSUMER_NAMES
+        return if collisions.empty? && consumer_collisions.empty? && reserved_consumer_collisions.empty?
 
         details = collisions.map do |credential_type_name|
           "#{credential_type_name.inspect} already declared by #{existing[credential_type_name].inspect}"
         end
         details.concat(consumer_collisions.map do |consumer_name|
           "typed consumer #{consumer_name.inspect} already declared by #{existing_consumers[consumer_name].inspect}"
+        end)
+        details.concat(reserved_consumer_collisions.map do |consumer_name|
+          "typed consumer #{consumer_name.inspect} is reserved by credential_store"
         end)
         raise RegistrationError,
           "Plugin #{plugin_name.inspect} declares duplicate credential type name(s): #{details.join(', ')}"

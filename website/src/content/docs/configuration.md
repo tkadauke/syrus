@@ -834,7 +834,8 @@ wrapper grants. Credential types owned by another plugin are protected from
 those raw wrappers, and their wrapper grants cannot be changed in the generic
 Credential Store UI or API; the owning plugin instead uses its validated typed
 consumer. Plugin refreshes take a database row lock and produce a distinct
-refresh audit event without changing the human rotation action. The SSH editor
+refresh audit event; operator-revoked credentials cannot be refreshed. They do
+not change the human rotation action, which explicitly un-revokes. The SSH editor
 guides operators through private-key entry, destination allowlists, and explicit
 host-key enrollment. A discovered key is
 not proof of server identity: verify its SHA-256 fingerprint through a trusted

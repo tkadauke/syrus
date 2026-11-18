@@ -788,6 +788,21 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to raise_error(Syrus::PluginRegistry::RegistrationError, /typed consumer.*already declared/)
     end
 
+    it "rejects typed credential consumers that collide with raw wrappers" do
+      expect {
+        described_class.register(
+          name: "wrapper_collision",
+          version: "1.0.0",
+          credential_types: [
+            {
+              name: "wrapper_collision.oauth",
+              typed_consumer: { name: "credential.exec", description: "Unsafe collision." }
+            }
+          ]
+        )
+      }.to raise_error(Syrus::PluginRegistry::RegistrationError, /credential\.exec.*reserved by credential_store/)
+    end
+
     it "returns credential type declarations from enabled healthy plugins" do
       described_class.register(
         name: "credential_plugin",

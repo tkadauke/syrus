@@ -104,8 +104,10 @@ per-call env hash, and cleans that local material in `ensure`.
 An owning plugin can refresh its credential atomically with
 `CredentialStore::Broker.refresh_credential!`. The broker locks the database
 row, yields the current payload to the plugin, writes the replacement, updates
-the rotation timestamp, and records a separate `refresh` audit action. Human
-rotation through the management page remains the existing `rotate` action.
+the rotation timestamp, and records a separate `refresh` audit action. An
+operator-revoked credential cannot be refreshed. Human rotation through the
+management page remains the existing `rotate` action and explicitly un-revokes
+the credential.
 The safe-metadata key `refreshable` remains display metadata only; refresh
 authority comes from ownership of the plugin-declared credential type, not
 from an operator-editable metadata flag.

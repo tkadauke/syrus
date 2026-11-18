@@ -286,7 +286,27 @@ RSpec.describe CredentialStore::Broker do
     expect(CredentialStore::CredentialAccessEvent.last.metadata).to include("provider" => "cluster", "payload_replaced" => true)
   end
 
-  it "discovers plugin-declared typed consumers without allowing runtime mutation" do
+  it "refuses to refresh an operator-revoked plugin-managed credential" do
+    revoked_at = Time.current
+    credential = create_credential(
+      credential_type: "k8s_cluster.kubeconfig",
+      payload: "old-payload",
+      revoked_at: revoked_at
+    )
+
+    expect {
+      described_class.refresh_credential!(
+        credential: credential,
+        plugin_name: "k8s_cluster",
+        purpose: "renew provider session"
+      ) { "new-payload" }
+    }.to raise_error(CredentialStore::Broker::Denied, /credential revoked/)
+
+    expect(credential.reload).to have_attributes(payload: "old-payload", revoked_at: be_within(1.second).of(revoked_at))
+    expect(credential.access_events.where(action: "refresh")).to be_empty
+  end
+
+  it "discovers plugin-declared typed consumers without allowing runtime mutation", :reset_plugin_registry do
     Syrus::PluginRegistry.register(
       name: "mail_plugin",
       version: "1.0.0",

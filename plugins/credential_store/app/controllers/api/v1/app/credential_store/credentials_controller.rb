@@ -238,9 +238,10 @@ module Api
               return true
             end
             return false unless ::CredentialStore::ConsumerRegistry.plugin_managed_type?(credential_type)
+            requested = Array(attrs[:allowed_tools]).map(&:to_s)
+            return false if credential.nil? && requested.empty?
             return false if credential && !attrs.key?(:allowed_tools)
 
-            requested = Array(attrs[:allowed_tools]).map(&:to_s)
             existing = Array(credential&.allowed_tools).map(&:to_s)
             return false if credential && credential_type == credential.credential_type && requested == existing
 

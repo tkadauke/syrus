@@ -133,9 +133,13 @@ describe("CredentialStoreAdmin", () => {
   })
 
   it("does not offer raw wrappers for a plugin-managed credential type", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(payload({ credentials: [], options: { credential_types: [{ name: "connected_accounts.oauth", label: "Connected account", plugin: "connected_accounts" }] } }))
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/credentials") && init?.method === "POST")
+        return Promise.resolve(jsonResponse({ credential: credential({ credential_type: "connected_accounts.oauth", allowed_tools: [] }), message: "Credential created." }))
+      return Promise.resolve(
+        jsonResponse(payload({ credentials: [], options: { credential_types: [{ name: "connected_accounts.oauth", label: "Connected account", plugin: "connected_accounts" }] } }))
+      )
+    })
 
     renderRoute(<CredentialStoreAdmin />)
     fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
@@ -144,6 +148,13 @@ describe("CredentialStoreAdmin", () => {
 
     expect(within(dialog).queryByRole("checkbox", { name: /credential\.exec/ })).not.toBeInTheDocument()
     expect(within(dialog).getByText(/managed by its plugin/)).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Connected account" } })
+    fireEvent.change(within(dialog).getByLabelText("Scope target"), { target: { value: "1" } })
+    fireEvent.change(within(dialog).getByLabelText("Payload"), { target: { value: "oauth-payload" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create credential" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credential_store/credentials", expect.objectContaining({ method: "POST" })))
+    expect(requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials", "POST").allowed_tools).toEqual([])
   })
 
   it("previews a discovered fingerprint and requires explicit confirmation", async () => {

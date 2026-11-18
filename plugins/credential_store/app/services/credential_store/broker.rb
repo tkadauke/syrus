@@ -65,12 +65,13 @@ module CredentialStore
           locked = Credential.lock.find(credential_id)
           owner = Syrus::PluginRegistry.credential_type_owner(locked.credential_type)
           raise Denied, "credential type is not managed by #{plugin_name}" unless owner == plugin_name.to_s
+          raise Denied, "credential revoked" if locked.revoked?
 
           previous_payload = locked.payload
           replacement = yield previous_payload
           raise ArgumentError, "refreshed credential payload cannot be blank" if replacement.blank?
 
-          locked.update!(payload: replacement, last_rotated_at: Time.current, revoked_at: nil)
+          locked.update!(payload: replacement, last_rotated_at: Time.current)
           CredentialAccessEvent.record!(
             credential: locked,
             user: user,
