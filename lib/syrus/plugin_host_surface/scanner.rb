@@ -1,14 +1,16 @@
 require "digest"
+require "syrus/host"
 require "syrus/plugin_host_surface"
 
 module Syrus
   class PluginHostSurface
     class Scanner
       Finding = Data.define(:constant, :tier, :path, :line)
-      Result = Data.define(:public, :legacy, :unlisted, :minimum_syrus_version, :content_hash, :error) do
+      StringFinding = Data.define(:constant, :tier, :path, :line, :method)
+      Result = Data.define(:public, :legacy, :unlisted, :dynamic, :minimum_syrus_version, :content_hash, :error) do
         def violations? = unlisted.any?
-        def warnings? = legacy.any?
-        def findings = [ *public, *legacy, *unlisted ]
+        def warnings? = legacy.any? || dynamic.any?
+        def findings = [ *public, *legacy, *unlisted, *dynamic ]
       end
 
       def initialize(directory, surface: PluginHostSurface.new, inventory: Admin::PluginHostSurfaceInventory.new(surface:))
@@ -23,13 +25,17 @@ module Syrus
       end
 
       def call
-        grouped = @inventory.references_for(@directory).map do |reference|
-          entry = @surface.lookup(reference.constant)
-          Finding.new(constant: reference.constant, tier: entry&.tier || "unlisted", path: reference.path, line: reference.line)
-        end.group_by(&:tier)
+        grouped = @inventory.references_for(@directory).filter_map do |reference|
+          tier = tier_for(reference.constant)
+          next if tier == "namespace"
+
+          finding_tier = tier == "legacy" ? "non-public" : tier
+          [ tier, Finding.new(constant: reference.constant, tier: finding_tier, path: reference.path, line: reference.line) ]
+        end.group_by(&:first).transform_values { |pairs| pairs.map(&:last) }
         public_findings = sorted(grouped.fetch("public", []))
         Result.new(public: public_findings, legacy: sorted(grouped.fetch("legacy", [])),
-          unlisted: sorted(grouped.fetch("unlisted", [])), minimum_syrus_version: minimum_version(public_findings),
+          unlisted: sorted(grouped.fetch("unlisted", [])), dynamic: dynamic_findings,
+          minimum_syrus_version: minimum_version(public_findings),
           content_hash: content_hash, error: nil)
       end
 
@@ -47,9 +53,36 @@ module Syrus
 
       def sorted(findings) = findings.sort_by { |item| [ item.path, item.line, item.constant ] }
 
+      def tier_for(constant)
+        return "namespace" if constant == "Syrus::Host"
+        return "public" if public_api_for(constant)
+        return "legacy" if @surface.lookup(constant)
+
+        "unlisted"
+      end
+
+      def dynamic_findings
+        sorted(@inventory.string_references_for(@directory).filter_map do |reference|
+          next if reference.constant == "Syrus::Host" || public_api_for(reference.constant)
+
+          StringFinding.new(constant: reference.constant, tier: "dynamic", path: reference.path,
+            line: reference.line, method: reference.method)
+        end)
+      end
+
       def minimum_version(findings)
-        findings.filter_map { |finding| @surface.lookup(finding.constant)&.since }
+        findings.filter_map { |finding| public_api_for(finding.constant)&.since }
           .map { |version| Gem::Version.new(version) }.max&.to_s
+      end
+
+      def public_api_for(constant)
+        Syrus::Host.apis.select { |api| public_names(api).any? { |name| constant == name || constant.start_with?("#{name}::") } }
+          .max_by { |api| api.name.length }
+      end
+
+      def public_names(api)
+        target_name = api.name.safe_constantize&.name
+        [ api.name, target_name ].compact.uniq
       end
     end
   end

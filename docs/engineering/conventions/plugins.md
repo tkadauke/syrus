@@ -112,10 +112,13 @@ The currently registered contribution kinds are:
   why. Bundled plugins ship with core and are not checked.
   Run `bin/plugin-host-surface scan PATH` (optionally with `--json`) against an
   external plugin before publishing it. The scanner parses Ruby without
-  executing it, reports legacy and unsupported core references, and derives
-  the newest `since` release among the public APIs in use. Declare the oldest
+  executing it, allows APIs registered beneath `Syrus::Host`, reports legacy
+  and unsupported core references, and derives the newest `since` release
+  among the registered host APIs in use. Declare the oldest
   release actually tested as `requires_syrus`, but never below that derived
-  floor.
+  floor. Static analysis cannot follow arbitrary dynamic constant lookup; it
+  warns when literal core names are passed through `class_name`, `constantize`,
+  `safe_constantize`, or `const_get`, but computed strings remain invisible.
 - **Server-backed CLI commands** — A manifest may declare `cli_commands` as an
   array of command objects. Each object has a `path` array (nested command
   words), a one-line `summary`, a string `handler`, and optional `arguments`
