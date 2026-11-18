@@ -17,7 +17,9 @@ RSpec.describe Syrus::PluginHostSurface do
         - name: StableApi
           tier: public
           since: 1.2.0
-          notes: The stable entry point.
+          contract: The stable entry point. Other behavior is internal.
+          members:
+            class: [build]
         - name: OldApi
           tier: legacy
     YAML
@@ -36,6 +38,16 @@ RSpec.describe Syrus::PluginHostSurface do
     expect do
       load_surface("legacy_baseline: 0\nconstants:\n  - name: StableApi\n    tier: public\n")
     end.to raise_error(ArgumentError, /public entries require since.*StableApi/)
+  end
+
+  it "requires a valid since version and a non-empty contract for public entries" do
+    expect do
+      load_surface("legacy_baseline: 0\nconstants:\n  - name: StableApi\n    tier: public\n    since: next\n    contract: Stable.\n")
+    end.to raise_error(ArgumentError, /public entries require valid since.*StableApi/)
+
+    expect do
+      load_surface("legacy_baseline: 0\nconstants:\n  - name: StableApi\n    tier: public\n    since: 1.2.0\n")
+    end.to raise_error(ArgumentError, /public entries require contract.*StableApi/)
   end
 
   it "rejects duplicate names" do

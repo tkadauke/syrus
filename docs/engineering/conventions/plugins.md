@@ -7,6 +7,30 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
 [plugin-authoring reference](plugins/authoring.md). To build a plugin outside
 this repository, start with [Authoring an external plugin](plugins/external.md).
 
+## Choosing the public host API
+
+The machine-readable host contract is `config/plugin_host_surface.yml`. A core
+constant belongs in its `public` tier only when a typical external plugin needs
+it, its useful contract is small enough to describe and test, and core can keep
+that contract stable through a deprecation period. Cross-plugin usage is useful
+evidence, but frequency alone never makes an API public.
+
+A referenced constant stays `legacy` when bundled plugins still need it but the
+API is too broad, mutable, specialized, or coupled to a core subsystem to
+support externally. Constants that plugins do not need, including incidental
+implementation classes behind a public entry point, remain unlisted and
+internal. Prefer a narrow public member list over promising an entire class;
+anything not named by an entry's contract and `members` is deliberately not
+supported, even though Ruby makes it callable.
+
+Every public entry records the release where its contract became supported, a
+short purpose and boundary statement, and any class or instance methods that
+external plugins may rely on. Public Active Record models are read contracts:
+only the listed attributes, associations, scopes, and query methods are stable;
+their callbacks, validations, persistence helpers, and unlisted relations are
+not host API. Inheriting from the public record and job bases is supported for
+plugin-owned classes, but their core implementation hooks remain internal.
+
 ## Frontend contribution registry
 
 Plugin frontend components are registered through
