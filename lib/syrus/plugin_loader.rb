@@ -15,7 +15,7 @@ module Syrus
     RESCUED_ERRORS = [ LoadError, StandardError, ScriptError ].freeze
 
     class << self
-      attr_reader :plugins_by_name
+      attr_reader :plugins_by_name, :boot_attempt_id
 
       def install_definition!(definition)
         plugin = @plugins_by_name&.fetch(definition.name, nil)
@@ -61,6 +61,10 @@ module Syrus
       def remember_plugins(plugins)
         @plugins_by_name = plugins.index_by(&:name)
       end
+
+      def remember_boot_attempt(id)
+        @boot_attempt_id = id
+      end
     end
 
     def self.load!(plugin_roots: Syrus::PluginRoots.default)
@@ -77,7 +81,7 @@ module Syrus
 
     def load!
       plugins = safely_discovered_plugins
-      boot_safety&.begin_boot!(plugins) if @record_boot
+      self.class.remember_boot_attempt(boot_safety.begin_boot!(plugins)) if @record_boot
       self.class.remember_plugins(plugins)
       record_absent_fleet_quarantines(plugins)
       failed = Set.new

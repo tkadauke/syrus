@@ -132,6 +132,26 @@ RSpec.describe "plugin-sync" do
     end
   end
 
+  it "keeps fleet quarantine state when a desired artifact fails validation" do
+    require "ed25519"
+    Dir.mktmpdir do |directory|
+      storage = File.join(directory, "storage")
+      data = File.join(directory, "data")
+      key = Ed25519::SigningKey.generate
+      plugin = add_plugin(storage, name: "weather", version: "good", fleet_quarantined: true)
+      publish(storage, key, revision: 1, plugins: [ plugin ])
+      expect(run_sync(storage:, data:, verify_key: key.verify_key).last).to be_success
+
+      replacement = add_plugin(storage, name: "weather", version: "bad", fleet_quarantined: false)
+      File.binwrite(File.join(storage, "plugins/artifacts", replacement.fetch(:digest)), "tampered")
+      publish(storage, key, revision: 2, plugins: [ replacement ])
+      expect(run_sync(storage:, data:, verify_key: key.verify_key).last).to be_success
+
+      expect(JSON.parse(File.read(File.join(data, "plugin-sync/fleet-quarantines.json"))))
+        .to eq("weather" => "fleet quarantine in desired plugin state")
+    end
+  end
+
   it "writes the active identity to an env file and retains it after a failed sync" do
     require "ed25519"
     Dir.mktmpdir do |directory|

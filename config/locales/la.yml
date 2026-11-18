@@ -898,6 +898,7 @@ la:
     plugins:
       disabled: "Plugin %{plugin} deactivatum est."
       route_not_found: "Iter plugin non inventum est."
+      quarantine_not_locally_clearable: "Haec segregatio apud fontem suum tollenda est."
 
     job_lifecycle:
       direct_only: "Sola opera directa manu incipi possunt."

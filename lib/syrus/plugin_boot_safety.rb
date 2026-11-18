@@ -16,6 +16,10 @@ module Syrus
 
     attr_reader :path
 
+    class << self
+      def attempt_leases = @attempt_leases ||= {}
+    end
+
     def self.default(env: ENV, clock: -> { Time.now.utc })
       data_root = env.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus"))
       new(path: File.join(data_root, "plugin-boot-safety.json"), env:, clock:)
@@ -28,22 +32,36 @@ module Syrus
     end
 
     def begin_boot!(plugins)
+      attempt_id = SecureRandom.uuid
+      hold_attempt_lease(attempt_id)
       update do |state|
         prune_attempts!(state)
         changed = changed_external_plugins(plugins, state)
-        if state.fetch("attempts", []).length >= failure_limit
+        if failed_attempts(state).length >= failure_limit
           changed.each { |plugin| state["quarantines"][plugin.name] ||= "changed since the last good boot after a crash loop" }
         end
-        state["attempts"] << { "id" => SecureRandom.uuid, "at" => now.iso8601 }
+        state["attempts"] << { "id" => attempt_id, "at" => now.iso8601 }
       end
+      attempt_id
+    rescue StandardError
+      release_attempt_lease(attempt_id)
+      raise
     end
 
-    def mark_good!(plugins)
+    def mark_good!(plugins, attempt_id: nil)
       update do |state|
-        state["attempts"] = []
+        successful_attempt = Array(state["attempts"]).find { |attempt| attempt["id"] == attempt_id } if attempt_id
+        if successful_attempt
+          successful_at = parse_time(successful_attempt["at"])
+          state["attempts"] = Array(state["attempts"]).select { |attempt| parse_time(attempt["at"]) > successful_at }
+        else
+          state["attempts"] = []
+        end
         state["last_good_at"] = now.iso8601
         state["last_good_plugins"] = plugins.to_h { |plugin| [ plugin.name, fingerprint(plugin.directory) ] }
       end
+    ensure
+      release_attempt_lease(attempt_id) if attempt_id
     end
 
     def skip_reason(plugin)
@@ -62,14 +80,21 @@ module Syrus
       value unless value.empty?
     end
     def quarantines = state.fetch("quarantines", {}).merge(fleet_quarantines)
+    def local_quarantines = state.fetch("quarantines", {})
     def last_good_fingerprint(name) = state.fetch("last_good_plugins", {})[name]
+
+    def locally_clearable?(name)
+      mode.to_s.empty? && !fleet_quarantines.key?(name.to_s) && local_quarantines.key?(name.to_s)
+    end
 
     def quarantine!(name, reason: "manually quarantined by an administrator")
       update { |value| value["quarantines"][name.to_s] = reason }
     end
 
     def clear!(name)
-      update { |value| value["quarantines"].delete(name.to_s) }
+      removed = false
+      update { |value| removed = !!value["quarantines"].delete(name.to_s) }
+      removed
     end
 
     def fleet_quarantines
@@ -103,6 +128,37 @@ module Syrus
     def now = @clock.call.utc
     def failure_limit = Integer(@env.fetch("SYRUS_BOOT_FAILURE_LIMIT", "3"), 10)
     def failure_window = Integer(@env.fetch("SYRUS_BOOT_FAILURE_WINDOW_SECONDS", "600"), 10)
+    def failed_attempts(value)
+      Array(value["attempts"]).reject { |attempt| attempt_active?(attempt.fetch("id")) }
+    end
+
+    def attempt_lease_path(id) = Pathname.new("#{path}.attempt-#{id}.lock")
+
+    def hold_attempt_lease(id)
+      lease = File.open(attempt_lease_path(id), File::RDWR | File::CREAT, 0o600)
+      lease.flock(File::LOCK_EX)
+      self.class.attempt_leases[[ path.to_s, id ]] = lease
+    end
+
+    def release_attempt_lease(id)
+      lease = self.class.attempt_leases.delete([ path.to_s, id ])
+      lease&.close
+      FileUtils.rm_f(attempt_lease_path(id))
+    end
+
+    def attempt_active?(id)
+      File.open(attempt_lease_path(id), File::RDWR | File::CREAT, 0o600) do |lease|
+        acquired = lease.flock(File::LOCK_EX | File::LOCK_NB)
+        lease.flock(File::LOCK_UN) if acquired
+        !acquired
+      end
+    end
+
+    def parse_time(value)
+      Time.iso8601(value.to_s)
+    rescue ArgumentError
+      Time.at(0).utc
+    end
 
     def prune_attempts!(value)
       cutoff = now - failure_window
@@ -117,11 +173,15 @@ module Syrus
 
     def update
       FileUtils.mkdir_p(path.dirname)
-      value = state
-      yield value
-      temporary = Pathname.new("#{path}.tmp-#{Process.pid}")
-      File.write(temporary, JSON.pretty_generate(value) + "\n")
-      File.rename(temporary, path)
+      temporary = nil
+      File.open("#{path}.lock", File::RDWR | File::CREAT, 0o600) do |lock|
+        lock.flock(File::LOCK_EX)
+        value = state
+        yield value
+        temporary = Pathname.new("#{path}.tmp-#{Process.pid}-#{SecureRandom.hex(4)}")
+        File.write(temporary, JSON.pretty_generate(value) + "\n")
+        File.rename(temporary, path)
+      end
     ensure
       FileUtils.rm_f(temporary) if temporary&.exist?
     end
