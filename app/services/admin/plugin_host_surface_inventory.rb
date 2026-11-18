@@ -117,6 +117,21 @@ module Admin
       end.sort_by(&:constant)
     end
 
+    def references_for(directory)
+      directory = Pathname.new(directory).expand_path
+      files = SOURCE_GLOBS.flat_map { |glob| Dir.glob(directory.join(glob)).sort }.map { |path| Pathname.new(path) }
+      collectors = files.to_h { |path| [ path, parse(path) ] }
+      owned = collectors.values.each_with_object(Set.new) { |collector, constants| constants.merge(collector.definitions) }
+      collectors.flat_map do |path, collector|
+        collector.references.filter_map do |reference|
+          resolved = resolve(reference, core_constants, owned)
+          next unless resolved
+          Reference.new(constant: resolved, plugin: directory.basename.to_s,
+            path: path.relative_path_from(directory).to_s, line: reference.line)
+        end
+      end
+    end
+
     def core_constants
       @core_constants ||= core_files.each_with_object(Set.new) do |path, constants|
         constants.merge(parse(path).definitions)
