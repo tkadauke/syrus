@@ -450,6 +450,7 @@ class Workflow < ApplicationRecord
 
     return :succeeded if terminal_step&.succeeded?
     return :failed if terminal_step&.failed?
+    return :failed if terminal_step&.cancelled?
 
     nil
   end
