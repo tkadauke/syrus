@@ -217,9 +217,7 @@ describe("RepositoryIssuesTab", () => {
   it("keeps the configurable desktop table at the medium breakpoint", async () => {
     restoreViewport = mockViewportWidth(768)
     const longLabel = "a-label-that-must-not-force-the-desktop-issue-column-to-collapse"
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(issuesPayload({ issues: [issue({ labels: [{ name: longLabel, color: "d73a4a" }] })] }))
-    )
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({ issues: [issue({ labels: [{ name: longLabel, color: "d73a4a" }] })] })))
     renderRoute()
 
     const table = await screen.findByRole("table")
