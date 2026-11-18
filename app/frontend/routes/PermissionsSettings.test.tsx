@@ -8,6 +8,29 @@ import { PermissionsSettingsRoute } from "./PermissionsSettings"
 describe("PermissionsSettingsRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("shows loading progress and responds to mode changes before permissions arrive", async () => {
+    let resolvePermissions!: () => void
+    const permissionsResponse = new Promise<void>((resolve) => {
+      resolvePermissions = resolve
+    })
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/permission_hub_preferences")) return Promise.resolve(jsonResponse({ mode: "advanced" }))
+      await permissionsResponse
+      return jsonResponse(payload())
+    })
+    renderRoute()
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading permissions…")
+    expect(screen.getByRole("status").querySelector(".animate-spin")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }))
+    expect(screen.getByRole("button", { name: "Advanced", pressed: true })).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Permission views" })).not.toBeInTheDocument()
+
+    resolvePermissions()
+    expect(await screen.findByRole("navigation", { name: "Permission views" })).toBeInTheDocument()
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  })
+
   it("defaults a new operator to Simple with only the permission profile", async () => {
     const data = payload()
     data.permission_hub_mode = "simple"

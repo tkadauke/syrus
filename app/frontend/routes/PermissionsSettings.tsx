@@ -53,10 +53,11 @@ export function PermissionsSettingsRoute() {
   const [searchParams, setSearchParams] = useSearchParams()
   const linkedView = parseView(searchParams.get("view"))
   const [view, setView] = useState<View>(linkedView ?? "matrix")
+  const [selectedMode, setSelectedMode] = useState<PermissionHubMode | null>(null)
   const forcedAdvanced = Boolean(
     linkedView || searchParams.get("request") || searchParams.get("item") || searchParams.get("rule") || searchParams.get("capability")
   )
-  const mode: PermissionHubMode = forcedAdvanced ? "advanced" : (query.data?.permission_hub_mode ?? "simple")
+  const mode: PermissionHubMode = forcedAdvanced ? "advanced" : (selectedMode ?? query.data?.permission_hub_mode ?? "simple")
   const historySearch = permissionHistorySearch(searchParams)
   const updateMode = useMutation({
     mutationFn: updatePermissionHubPreferences,
@@ -67,7 +68,8 @@ export function PermissionsSettingsRoute() {
     onSuccess: (preferences) =>
       queryClient.setQueryData(queryKey, (current: Awaited<ReturnType<typeof fetchPermissions>> | undefined) =>
         current ? { ...current, permission_hub_mode: preferences.mode } : current
-      )
+      ),
+    onError: () => setSelectedMode(null)
   })
   const historyQuery = useQuery({
     queryKey: ["permission_history", historySearch],
@@ -205,6 +207,7 @@ export function PermissionsSettingsRoute() {
   }
   const previewRevokes = () => bulkPreview.mutate(selectedRuleIds.map((id) => ({ action: "revoke" as const, id })))
   const selectMode = (nextMode: PermissionHubMode) => {
+    setSelectedMode(nextMode)
     if (nextMode === "simple") {
       const next = new URLSearchParams(searchParams)
       ;["view", "request", "item", "rule", "capability", "operation"].forEach((key) => next.delete(key))
@@ -243,6 +246,12 @@ export function PermissionsSettingsRoute() {
           </button>
         ))}
       </nav>
+      {query.isPending ? (
+        <div aria-live="polite" className="flex items-center gap-2 text-sm text-text-secondary" role="status">
+          <span aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-border border-t-brand" />
+          {t("permissions.loading")}
+        </div>
+      ) : null}
       {mode === "simple" && query.data ? (
         <section aria-labelledby="permission-profile-heading" className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -302,7 +311,7 @@ export function PermissionsSettingsRoute() {
         <PanelMessage tone="error">{errorMessage(bulkPreview.error || bulkApply.error, t("permissions.create_error"))}</PanelMessage>
       ) : null}
       {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("permissions.revoke_error"))}</PanelMessage> : null}
-      {mode === "advanced" ? (
+      {mode === "advanced" && query.data ? (
         <>
           <nav aria-label={t("permissions.views_label")} className="scroll-fade-x flex min-w-0 overflow-x-auto border-b border-border">
             {advancedViews.map((item) => (
