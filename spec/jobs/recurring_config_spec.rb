@@ -54,13 +54,18 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
-  it "runs one registry-driven database retention sweep every ten minutes" do
+  it "runs separate registry-driven delete-only and archive retention sweeps" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
 
     expect(config.fetch("default").fetch("database_retention_sweep")).to include(
       "class" => "RetentionSweepJob",
       "queue" => "cleanup",
       "schedule" => "every 10 minutes"
+    )
+    expect(config.fetch("default").fetch("database_retention_archive_sweep")).to include(
+      "class" => "RetentionArchiveSweepJob",
+      "queue" => "cleanup",
+      "schedule" => "every day at 3:10am"
     )
     retention_classes = RetentionPolicyRegistry::CORE_DEFINITIONS.filter_map(&:executor_class)
     configured_classes = config.fetch("default").values.filter_map { |entry| entry["class"] }

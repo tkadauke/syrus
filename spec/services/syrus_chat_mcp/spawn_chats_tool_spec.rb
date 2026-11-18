@@ -27,6 +27,24 @@ RSpec.describe Mcp::Tools::SpawnChatsTool, :full_chat_access do
     }.not_to change(ChatSession, :count)
   end
 
+  it "renders a delegated spawn request in the owner chat and returns its outcome to the execution chat" do
+    owner_chat = ChatSession.create!(user: user, repository: repository)
+    chat_session.define_singleton_method(:owner_facing_chat_session) { owner_chat }
+    response = call_tool(chats: [ { prompt: "Find bugs" } ])
+    group = PendingActionGroup.find(body(response).fetch(:pending_action_group_id))
+
+    expect(group.chat_session).to eq(owner_chat)
+    expect(group.chat_pending_actions.sole.origin).to eq(chat_session)
+
+    group.confirm_all!(user: user)
+
+    expect(owner_chat.messages.where(role: "system").count).to eq(1)
+    response_message = chat_session.messages.where(role: "system").sole
+    expect(response_message.content).to include("source" => "pending_action_group_notification", "outcome" => "confirmed")
+    expect(ChatTurnJob).to have_been_enqueued.with(chat_session.id, response_message.id)
+    expect(ChatTurnJob).not_to have_been_enqueued.with(owner_chat.id, kind_of(Integer))
+  end
+
   it "rejects invalid batches before creating pending actions" do
     inaccessible = Factories.repository(user: Factories.user, owner: "private", name: "repo")
     invalid_batches = [

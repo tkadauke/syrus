@@ -137,6 +137,10 @@ default: &default
     class: RetentionSweepJob
     queue: cleanup
     schedule: every 10 minutes
+  database_retention_archive_sweep:
+    class: RetentionArchiveSweepJob
+    queue: cleanup
+    schedule: every day at 3:10am
   refresh_workflow_step_resource_profiles:
     class: WorkflowStepResourceProfileRefreshJob
     queue: low_priority_maintenance

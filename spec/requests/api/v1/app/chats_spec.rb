@@ -4322,6 +4322,25 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
   end
 
+  it "lets the owner answer a delegated agent question in its response chat" do
+    sign_in_as(user)
+    owner_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    response_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    question = owner_chat.agent_questions.create!(
+      questions: [ { "question" => "Which branch?", "options" => [ "main", "release" ], "multiple" => false } ],
+      asked_at: Time.current,
+      response_chat_session: response_chat
+    )
+
+    post "/api/v1/app/chats/#{owner_chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ "release" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(question.reload.answers).to eq([ "release" ])
+    answer = response_chat.messages.where(role: "user").sole
+    expect(answer).to have_attributes(sender_user_id: user.id)
+    expect(ChatTurnJob).to have_been_enqueued.with(response_chat.id, answer.id)
+  end
+
   it "answers a batch of questions atomically, including a multi-select entry" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -6401,6 +6420,32 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       "acknowledgment" => "Rejected proposal cleanup."
     )
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, rejection_message.id)
+  end
+
+  it "confirms an owner-chat proposal and notifies its delegated response chat" do
+    sign_in_as(user)
+    owner_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    response_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = owner_chat.proposals.create!(
+      slug: "delegated-auth-map", title: "Map delegated auth", body: "Map it.",
+      response_chat_session: response_chat
+    )
+    owner_chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    expect {
+      post "/api/v1/app/chats/#{owner_chat.id}/proposals/#{proposal.id}/confirm"
+    }.to change(Job, :count).by(1)
+      .and change { owner_chat.messages.reload.where(role: "system").count }.by(1)
+      .and change { response_chat.messages.reload.where(role: "system").count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).with(response_chat.id, kind_of(Integer))
+
+    response_message = response_chat.messages.where(role: "system").sole
+    expect(response_message.content).to include(
+      "source" => "proposal_notification",
+      "outcome" => "confirmed",
+      "acknowledgment" => "Confirmed #{proposal.reload.job.slug}."
+    )
+    expect(ChatTurnJob).not_to have_been_enqueued.with(owner_chat.id, kind_of(Integer))
   end
 
   it "confirms a backlog-routed direct proposal without creating initial workflow work" do
@@ -8517,6 +8562,43 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       message = owner_chat.messages.where(role: "user").last
       expect(message.sender_user_id).to eq(participant.id)
+    end
+
+    it "does not let a participant answer a delegated agent question" do
+      response_chat = ChatSession.create!(user: owner, repository: owner_repository)
+      question = owner_chat.agent_questions.create!(
+        questions: [ { "question" => "Continue?", "options" => [ "yes", "no" ], "multiple" => false } ],
+        asked_at: Time.current,
+        response_chat_session: response_chat
+      )
+      sign_in_as(participant)
+
+      expect {
+        post "/api/v1/app/chats/#{owner_chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ "yes" ] }
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(question.reload.answers).to be_nil
+      expect(response_chat.messages).to be_empty
+    end
+
+    it "does not let a chat-share recipient answer a delegated agent question" do
+      owner_chat.chat_shares.create!(target: stranger, shared_by_user: owner)
+      response_chat = ChatSession.create!(user: owner, repository: owner_repository)
+      question = owner_chat.agent_questions.create!(
+        questions: [ { "question" => "Continue?", "options" => [ "yes", "no" ], "multiple" => false } ],
+        asked_at: Time.current,
+        response_chat_session: response_chat
+      )
+      sign_in_as(stranger)
+
+      expect {
+        post "/api/v1/app/chats/#{owner_chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ "yes" ] }
+      }.not_to have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(question.reload.answers).to be_nil
+      expect(response_chat.messages).to be_empty
     end
 
     it "does not let a participant reject the owner's pending action" do

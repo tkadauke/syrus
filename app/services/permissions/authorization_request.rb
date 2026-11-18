@@ -63,7 +63,7 @@ module Permissions
 
       ChatPendingAction.transaction do
         request = ChatPendingAction.create_or_find_authorization_request!(
-          chat_session: context.chat_session, repository: context.repository, user: context.user,
+          chat_session: context.owner_chat, repository: context.repository, user: context.user,
           origin:, subject:, runtime_role: context.role, action:, state: "pending",
           requested_by: "agent", deduplication_key: key, purpose:, payload:
         )

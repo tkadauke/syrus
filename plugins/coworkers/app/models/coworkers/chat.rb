@@ -1,15 +1,20 @@
 class Coworkers::Chat < ApplicationRecord
   self.table_name = "coworker_chats"
-  ROLES = %w[main side].freeze
+  ROLES = %w[main side mention].freeze
 
   belongs_to :coworker, inverse_of: :coworker_chats
   belongs_to :chat_session
+  belongs_to :source_chat_session, class_name: "ChatSession", optional: true
   validates :chat_session_id, uniqueness: true
   validates :role, inclusion: { in: ROLES }
+  validates :source_chat_session_id, presence: true, if: :mention?
+  validates :source_chat_session_id, absence: true, unless: :mention?
+  validates :coworker_id, uniqueness: { scope: :source_chat_session_id }, if: :mention?
   validates :coworker_id, uniqueness: { conditions: -> { where(role: "main") } }, if: :main?
   validate :chat_and_coworker_share_owner
 
   def main? = role == "main"
+  def mention? = role == "mention"
   def unsaved_workspace? = unsaved_workspace_branch.present?
 
   def unsaved_workspace_json

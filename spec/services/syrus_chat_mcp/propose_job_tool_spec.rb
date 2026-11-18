@@ -62,6 +62,18 @@ RSpec.describe Mcp::Tools::ProposeJobTool, :full_chat_access do
     expect(ChatProposal.find_by!(slug: response_payload(default_response).fetch(:slug))).to have_attributes(priority: "medium")
   end
 
+  it "creates a delegated proposal in the owner chat with the execution chat as its response destination" do
+    owner_chat = ChatSession.create!(user: user, repository: repository)
+    chat_session.define_singleton_method(:owner_facing_chat_session) { owner_chat }
+
+    response = call_tool(repo: repository.slug, title: "Delegated work", description: "Build it.")
+    proposal = owner_chat.proposals.find_by!(slug: response_payload(response).fetch(:slug))
+
+    expect(proposal.response_chat_session).to eq(chat_session)
+    expect(chat_session.proposals).to be_empty
+    expect(owner_chat.messages.where(proposal: proposal).count).to eq(1)
+  end
+
   it "rejects an unknown priority before creating a proposal" do
     response = call_tool(
       repo: repository.slug,

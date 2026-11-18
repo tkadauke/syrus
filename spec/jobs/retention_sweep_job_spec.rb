@@ -6,7 +6,7 @@ RSpec.describe RetentionSweepJob do
     expect(RetentionPolicyPruneJob.queue_name).to eq("cleanup")
   end
 
-  it "fans out one stable-key job for every active definition" do
+  it "fans out one stable-key job for every delete-only definition" do
     definitions = [
       RetentionPolicyRegistry.fetch(:notification),
       RetentionPolicyRegistry.fetch(:run_diagnostic)
@@ -16,8 +16,21 @@ RSpec.describe RetentionSweepJob do
 
     described_class.perform_now
 
-    expect(RetentionPolicyPruneJob).to have_been_enqueued.with("notification").once
-    expect(RetentionPolicyPruneJob).to have_been_enqueued.with("run_diagnostic").once
+    expect(RetentionPolicyPruneJob).to have_been_enqueued.with("notification", false).once
+    expect(RetentionPolicyPruneJob).to have_been_enqueued.with("run_diagnostic", false).once
+  end
+
+  it "excludes policies whose archive setting is enabled" do
+    set_retention_archive(:run_diagnostic, true)
+    allow(RetentionPolicyRegistry).to receive(:definitions).and_return(
+      [ RetentionPolicyRegistry.fetch(:notification), RetentionPolicyRegistry.fetch(:run_diagnostic) ]
+    )
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+
+    described_class.perform_now
+
+    expect(RetentionPolicyPruneJob).to have_been_enqueued.with("notification", false).once
+    expect(RetentionPolicyPruneJob).not_to have_been_enqueued.with("run_diagnostic", false)
   end
 
   it "does not enqueue policies contributed by a disabled plugin" do
@@ -26,7 +39,7 @@ RSpec.describe RetentionSweepJob do
 
     described_class.perform_now
 
-    expect(RetentionPolicyPruneJob).not_to have_been_enqueued.with("metrics_dashboard_sample")
+    expect(RetentionPolicyPruneJob).not_to have_been_enqueued.with("metrics_dashboard_sample", false)
   end
 
   it "still schedules core policies when a plugin policy provider is broken" do
@@ -48,6 +61,6 @@ RSpec.describe RetentionSweepJob do
 
     described_class.perform_now
 
-    expect(RetentionPolicyPruneJob).to have_been_enqueued.with("notification").once
+    expect(RetentionPolicyPruneJob).to have_been_enqueued.with("notification", false).once
   end
 end

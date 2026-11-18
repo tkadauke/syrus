@@ -182,7 +182,8 @@ class PendingActionGroup < ApplicationRecord
       unless message
         message = chat_session.messages.create!(
           role: "system",
-          content: { "text" => text, "source" => "pending_action_group_notification", "outcome" => outcome, "pending_action_group_id" => id }
+          content: { "text" => text, "source" => "pending_action_group_notification", "outcome" => outcome, "pending_action_group_id" => id },
+          skip_turn_trigger: true
         )
         chat_session.update!(last_message_at: Time.current)
         chat_session.pin_chat_provider!
@@ -190,7 +191,14 @@ class PendingActionGroup < ApplicationRecord
       update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id
 
       if !legacy_outcome_record? && outcome_wake_enqueued_at.blank?
-        ChatTurnJob.perform_later(chat_session_id, message.id)
+        origins = chat_pending_actions.filter_map { |action| action.origin if action.origin.is_a?(ChatSession) }.uniq
+        wake_chat = origins.one? && origins.sole.id != chat_session_id ? origins.sole : nil
+        wake_message = if wake_chat
+          wake_chat.messages.create!(role: "system", content: message.content, skip_turn_trigger: false)
+        else
+          message
+        end
+        ChatTurnJob.perform_later(wake_message.chat_session_id, wake_message.id)
         update_columns(outcome_wake_enqueued_at: Time.current, updated_at: Time.current)
       end
     end
