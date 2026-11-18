@@ -810,7 +810,9 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       get "/api/v1/app/admin/plugins"
 
       entry = response.parsed_body["plugins"].find { |p| p["name"] == "github_source" }
-      expect(entry["health"]).to eq({ "state" => "ok", "reasons" => [] })
+      expect(entry["health"]).to eq(
+        "state" => "ok", "reasons" => [], "request_count" => 0, "last_error_at" => nil
+      )
     end
 
     it "reports the unmet dependency for a degraded plugin" do
@@ -839,7 +841,8 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
       entry = response.parsed_body["plugins"].find { |plugin| plugin["name"] == "broken_external" }
       expect(entry["health"]).to eq(
-        "state" => "failed", "reasons" => [ "SyntaxError: unexpected end-of-input" ]
+        "state" => "failed", "reasons" => [ "SyntaxError: unexpected end-of-input" ],
+        "request_count" => 0, "last_error_at" => nil
       )
     end
   end
