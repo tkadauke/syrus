@@ -3074,6 +3074,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_164147) do
     t.datetime "updated_at", null: false
     t.integer "apply_revision"
     t.datetime "apply_requested_at"
+    t.json "apply_processes"
     t.index ["singleton_key"], name: "index_plugin_desired_states_on_singleton_key", unique: true
   end
 
