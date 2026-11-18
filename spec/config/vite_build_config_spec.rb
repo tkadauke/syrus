@@ -30,6 +30,7 @@ RSpec.describe "Vite build config" do
         chunkFileNames: output.chunkFileNames,
         assetFileNames: output.assetFileNames,
         nonVendor: manualChunks("/repo/app/frontend/main.tsx") ?? null,
+        eagerPluginContribution: manualChunks("/repo/plugins/terminal/app/frontend/runtimeSessionViews/TerminalSession.tsx") ?? null,
         react: manualChunks("/repo/node_modules/react/index.js"),
         tanstack: manualChunks("/repo/node_modules/@tanstack/react-query/build/index.js"),
         d3: manualChunks("/repo/node_modules/d3-scale/src/index.js") ?? null,
@@ -37,6 +38,7 @@ RSpec.describe "Vite build config" do
         diagrams: manualChunks("/repo/node_modules/mermaid/dist/mermaid.js") ?? null,
         editor: manualChunks("/repo/node_modules/@shikijs/core/dist/index.js") ?? null,
         math: manualChunks("/repo/node_modules/katex/dist/katex.mjs") ?? null,
+        xterm: manualChunks("/repo/node_modules/xterm/lib/xterm.js") ?? null,
         fallbackPackage: manualChunks("/repo/node_modules/lodash-es/lodash.js"),
         windowsReact: manualChunks("C:\\\\repo\\\\node_modules\\\\react-dom\\\\index.js")
       }));
@@ -93,6 +95,7 @@ RSpec.describe "Vite build config" do
   it "splits heavyweight dependencies out of the startup bundle" do
     expect(config).to include(
       "nonVendor" => nil,
+      "eagerPluginContribution" => "builtin-plugin-contributions",
       "react" => "vendor-react",
       "tanstack" => "vendor-query",
       "d3" => nil,
@@ -100,6 +103,7 @@ RSpec.describe "Vite build config" do
       "diagrams" => nil,
       "editor" => nil,
       "math" => nil,
+      "xterm" => "vendor-xterm",
       "fallbackPackage" => "vendor-lodash-es",
       "windowsReact" => "vendor-react"
     )
