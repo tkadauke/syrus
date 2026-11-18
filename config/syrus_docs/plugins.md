@@ -25,7 +25,6 @@ catalog declarations. If neither matches, the CLI searches `PATH` from the
 longest command path to the first word for a trusted `syrus-<path>` executable,
 passes it the unmatched arguments, and exposes the configured instance and
 token as `SYRUS_URL` and `SYRUS_TOKEN`.
-
 ## Per-origin Job visibility
 
 Repository membership remains the outer visibility boundary for Jobs. A plugin
@@ -102,6 +101,35 @@ Plugin authors build the conventional `frontend/entry.tsx` file with
 React, React DOM, TanStack Query, i18next, react-i18next, and
 `@syrus/plugin-sdk` modules; those dependencies must remain external rather
 than being copied into the plugin bundle.
+
+## Installing an external plugin
+
+An external plugin is trusted code that runs inside the Syrus process with its
+database, filesystem, network, and credential access. Install only reviewed
+plugin directories from trusted sources. Dropped-in plugins cannot add
+third-party Ruby gems; they may depend on Rails and use Syrus's plugin APIs.
+
+Set `SYRUS_PLUGIN_PATH` to a root whose immediate children are complete plugin
+directories. Mount identical contents read-only at that path in every web,
+worker, setup, preview, and other container that boots Rails. Stage a complete
+directory, stop the Syrus processes, swap the directory into the shared root,
+run the normal deployment migrations, and restart every Syrus container.
+Plugin migration directories are discovered automatically and run even when a
+plugin is disabled. Installing, replacing, or removing a plugin always requires
+a full restart; enabling or disabling an already installed healthy plugin does
+not.
+
+After restart, open **Admin → Plugins** to check the plugin's version, health,
+dependencies, routes, and load failures before enabling it. `incompatible`
+means its `requires_syrus` range excludes the running release. `failed` means
+discovery or loading raised an error, and `skipped_dependency` means a required
+plugin did not load. Syrus isolates those plugins and withholds their routes
+and providers so other plugins and core can continue booting.
+
+To remove a plugin, disable it and resolve any in-use blockers, stop every
+container, move its directory out of the shared root, and restart all
+containers. Uninstalling retains plugin data and migrations for rollback;
+purging data is a separate destructive operation.
 
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore

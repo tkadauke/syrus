@@ -82,3 +82,6 @@ jobs:
 
       - name: Run React tests and typecheck
         run: bin/test-react
+
+      - name: Run external plugin relocation acceptance
+        run: bin/test-plugin-relocation

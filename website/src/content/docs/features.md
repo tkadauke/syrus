@@ -2185,8 +2185,10 @@ pickers and next to a Workflow's detected-language list. The page lists each
 registered plugin's version, enabled state, default enabled policy,
 disableability, category, extension point classes, and basic author/source
 metadata when available. Disableable
-installed plugins can be toggled live for new requests and sidecars. Installing
-or removing plugins still requires changing the Gemfile and restarting Syrus.
+installed plugins can be toggled live for new requests and sidecars. Bundled
+plugin installation changes the application bundle; external plugins are
+placed under `SYRUS_PLUGIN_PATH`. Installing or removing either kind requires
+restarting Syrus.
 Disabled bundled plugins with their own operator docs, such as Review Notes,
 withhold their routes and extension-point providers while retaining
 previously written plugin records for when they are re-enabled.

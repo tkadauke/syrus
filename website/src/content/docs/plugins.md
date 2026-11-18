@@ -37,6 +37,32 @@ unknown, Syrus loads the plugin and records that the compatibility check was
 skipped. Plugin authors should declare the oldest Syrus release they have
 actually tested.
 
+## Hand-install an external plugin
+
+External plugins are trusted, in-process code. Review the source before
+installing it: the plugin receives the same database, filesystem, network, and
+credential access as Syrus. A dropped-in plugin directory may depend on Rails
+but cannot bring additional Ruby gems; its browser dependencies must be bundled
+into its prebuilt frontend output.
+
+Set `SYRUS_PLUGIN_PATH` to a shared root whose immediate children are complete
+plugin directories. Mount the same contents read-only in every container that
+boots Rails, including web, workers, setup/migration, and preview processes.
+Stage a complete plugin directory outside the live root, stop Syrus, atomically
+place or replace the directory, run the normal deployment migrations, and
+restart every Syrus container. Syrus discovers the plugin's `db/migrate`
+directory automatically, and migrations run even while the plugin is disabled.
+
+After restart, inspect **Admin → Plugins** before enabling the plugin. The page
+shows dependency problems, compatibility, and retained load failures. An
+incompatible or failed plugin contributes no routes or providers and does not
+stop healthy plugins or core from loading.
+
+To uninstall, disable the plugin and resolve any usage blockers, stop every
+container, move its directory out of the shared root, and restart all
+containers. Keep its data for rollback; destructive purge is a separate,
+explicit operation.
+
 ## What Plugins Can Add
 
 Plugins can contribute:
