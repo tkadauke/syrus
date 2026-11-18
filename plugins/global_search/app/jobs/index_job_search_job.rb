@@ -1,4 +1,5 @@
-class IndexJobSearchJob < ApplicationJob
+class IndexJobSearchJob < PluginJob
+  plugin_name "global_search"
   queue_as :indexing
 
   def perform(job_id)

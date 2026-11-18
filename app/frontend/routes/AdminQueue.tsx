@@ -1,5 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
-import { Button, DataTable, DescriptionList, Input, Notice, Page, SectionHeading, Text, buttonClasses } from "../components/ui"
+import { Button, Card, DataTable, DescriptionList, Input, Notice, Page, SectionHeading, Text, buttonClasses } from "../components/ui"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useColorTokens } from "../lib/colorTokens"
@@ -219,6 +219,20 @@ function QueueContent({
         ) : null
       }
     >
+      {(payload.plugin_queues ?? []).length > 0 ? (
+        <section aria-label={t("queue.plugin_queues")} className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {(payload.plugin_queues ?? []).map((queue) => (
+            <Card className="px-3 py-2 text-sm" key={queue.plugin}>
+              <div className="font-medium text-text-primary">{queue.plugin}</div>
+              <div className="font-mono text-xs text-text-muted">{queue.queue_name}</div>
+              <div className="mt-1 text-text-secondary">
+                {t("queue.plugin_queue_health", { depth: queue.depth, failures: queue.failure_count })}
+              </div>
+              {queue.last_error ? <div className="mt-1 truncate text-xs text-warning-text">{queue.last_error}</div> : null}
+            </Card>
+          ))}
+        </section>
+      ) : null}
       <QueueTabPanel onNavigate={onNavigate} pathname={pathname} payload={payload} search={search} tab={tab} />
     </AdminFiltersLayout>
   )

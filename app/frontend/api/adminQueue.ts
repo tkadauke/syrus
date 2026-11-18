@@ -84,21 +84,32 @@ export type QueuePagination = {
   next_page: number | null
 }
 
-export type ActiveQueuePayload = AdminFilteredPayload & {
+export type PluginQueue = {
+  plugin: string
+  queue_name: string
+  depth: number
+  failure_count: number
+  last_failed_at: string | null
+  last_error: string | null
+}
+
+type PluginQueuesPayload = { plugin_queues?: PluginQueue[] }
+
+export type ActiveQueuePayload = AdminFilteredPayload & PluginQueuesPayload & {
   jobs: QueueJob[]
   total: number
   pagination: QueuePagination
   sort: QueueSort
 }
 
-export type PendingQueuePayload = AdminFilteredPayload & {
+export type PendingQueuePayload = AdminFilteredPayload & PluginQueuesPayload & {
   jobs: QueueJob[]
   total: number
   pagination: QueuePagination
   sort: QueueSort
 }
 
-export type FailedQueuePayload = AdminFilteredPayload & {
+export type FailedQueuePayload = AdminFilteredPayload & PluginQueuesPayload & {
   since: string
   failures: QueueFailure[]
   total: number
@@ -106,12 +117,12 @@ export type FailedQueuePayload = AdminFilteredPayload & {
   sort: QueueSort
 }
 
-export type RecurringQueuePayload = {
+export type RecurringQueuePayload = PluginQueuesPayload & {
   tasks: QueueRecurringTask[]
   sort: QueueSort
 }
 
-export type WorkersQueuePayload = {
+export type WorkersQueuePayload = PluginQueuesPayload & {
   workers: QueueWorker[]
   all_processes: QueueProcess[]
   sort: QueueSort

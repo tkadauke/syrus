@@ -497,6 +497,7 @@
     "version": "Version",
     "source": "Quelle",
     "health": "Zustand",
+    "queue_health": "{{queue}}: {{depth}} wartend, {{failures}} verworfene Fehler, Parallelität {{concurrency}}.",
     "circuit_open_detail": "Schutzschaltung für {{extensionPoint}} nach {{count}} Fehlern geöffnet; nächster Versuch nach {{retryAt}}.",
     "runtime_failure_detail": "{{extensionPoint}}.{{operation}} ist {{count}}-mal fehlgeschlagen: {{exceptionClass}}: {{message}} (zuletzt um {{lastAt}}).",
     "health_states": {
@@ -916,6 +917,8 @@
     "reaper_running": "Läuft...",
     "reaper_error": "Reaper für veraltete Läufe konnte nicht ausgeführt werden.",
     "all_queue": "Gesamte Warteschlange",
+    "plugin_queues": "Plugin-Warteschlangen",
+    "plugin_queue_health": "{{depth}} wartend · {{failures}} verworfene Fehler",
     "queues": "Warteschlangen",
     "tab_active": "Aktiv",
     "tab_pending": "Ausstehend",

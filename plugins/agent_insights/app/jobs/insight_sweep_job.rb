@@ -1,4 +1,5 @@
-class InsightSweepJob < ApplicationJob
+class InsightSweepJob < PluginJob
+  plugin_name "agent_insights"
   queue_as :low_priority_maintenance
 
   def perform

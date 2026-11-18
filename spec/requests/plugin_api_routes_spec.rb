@@ -147,6 +147,19 @@ RSpec.describe "Plugin API routes", type: :request do
     expect(Syrus::PluginInvocation.runtime_health.circuits(plugin: record.name)).to be_empty
   end
 
+  it "includes plugin queue health in the admin plugin payload" do
+    record = PluginRecord.find_by!(name: "raising_route_fixture")
+    record.update!(plugin_job_failure_count: 2, plugin_job_last_error: "RuntimeError: exhausted")
+
+    queue = Admin::PluginsPayload.new.show(record.name).dig(:plugin, :queue)
+
+    expect(queue).to include(
+      name: "plugin_raising_route_fixture",
+      failure_count: 2,
+      last_error: "RuntimeError: exhausted"
+    )
+  end
+
   it "rate-limits persistent last-error writes while aggregating failures" do
     allow(Rails.env).to receive(:production?).and_return(true)
 

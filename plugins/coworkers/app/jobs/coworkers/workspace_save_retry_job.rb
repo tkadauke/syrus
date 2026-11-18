@@ -1,4 +1,5 @@
-class Coworkers::WorkspaceSaveRetryJob < ApplicationJob
+class Coworkers::WorkspaceSaveRetryJob < PluginJob
+  plugin_name "coworkers"
   queue_as :chat
 
   def perform(link_id, token)

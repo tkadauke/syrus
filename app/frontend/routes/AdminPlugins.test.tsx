@@ -96,6 +96,37 @@ describe("AdminPlugins", () => {
     await i18n.changeLanguage("en")
   })
 
+  it("renders plugin queue depth, concurrency, and discarded failures", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "queue_fixture",
+            display_name: "Queue fixture",
+            description: null,
+            disable_blockers: [],
+            disableable: true,
+            version: "1.0.0",
+            enabled: true,
+            extension_points: [],
+            queue: {
+              name: "plugin_queue_fixture",
+              depth: 4,
+              concurrency: 3,
+              failure_count: 2,
+              last_error: "RuntimeError: exhausted"
+            }
+          }
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText(/plugin_queue_fixture: 4 queued, 2 discarded failures, concurrency 3/)).toBeInTheDocument()
+    expect(screen.getByText("RuntimeError: exhausted")).toBeInTheDocument()
+  })
+
   it("localizes plugin metadata on cards", async () => {
     i18n.addResourceBundle(
       "en",

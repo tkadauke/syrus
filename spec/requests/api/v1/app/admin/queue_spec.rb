@@ -65,6 +65,27 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "reports plugin queue depth and durable discarded failure counts" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.register(name: "queue_health_fixture", version: "1.0.0")
+    PluginRecord.find_by!(name: "queue_health_fixture").update!(
+      plugin_job_failure_count: 3,
+      plugin_job_last_failed_at: Time.current,
+      plugin_job_last_error: "RuntimeError: exhausted"
+    )
+    solid_queue_job(class_name: "ExternalPluginJob", queue_name: "plugin_queue_health_fixture")
+
+    get "/api/v1/app/admin/queue/pending"
+
+    row = parse_body.fetch("plugin_queues").find { |queue| queue["plugin"] == "queue_health_fixture" }
+    expect(row).to include(
+      "queue_name" => "plugin_queue_health_fixture",
+      "depth" => 1,
+      "failure_count" => 3,
+      "last_error" => "RuntimeError: exhausted"
+    )
+  end
+
   it "truncates large job arguments unless full arguments are requested" do
     sign_in_as(admin)
     process = solid_queue_process(hostname: "worker-a", pid: 101)

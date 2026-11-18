@@ -1,4 +1,5 @@
-class Coworkers::BranchRetentionSweepJob < ApplicationJob
+class Coworkers::BranchRetentionSweepJob < PluginJob
+  plugin_name "coworkers"
   queue_as :cleanup
   retry_on StandardError, wait: :polynomially_longer, attempts: 5
 

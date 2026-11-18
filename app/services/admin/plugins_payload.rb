@@ -119,6 +119,7 @@ module Admin
           conflicts_with: Array(manifest.conflicts_with),
           dependents: dependency_graph.dependents_for(manifest.name),
           health: health_payload(manifest, record),
+          queue: plugin_queue_payload(manifest, record),
           recommendation: recommendation_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
@@ -226,6 +227,27 @@ module Admin
       payload[:failures] = failures if failures.any?
       payload[:circuits] = circuits if circuits.any?
       payload
+    end
+
+    def plugin_queue_payload(manifest, record)
+      queue_name = PluginJob.queue_name_for(manifest.name)
+      {
+        name: queue_name,
+        depth: plugin_queue_depths.fetch(queue_name, 0),
+        concurrency: manifest.job_concurrency,
+        failure_count: record&.plugin_job_failure_count.to_i,
+        last_failed_at: record&.plugin_job_last_failed_at&.iso8601,
+        last_error: record&.plugin_job_last_error
+      }
+    end
+
+    def plugin_queue_depths
+      @plugin_queue_depths ||= SolidQueue::Job.where(finished_at: nil)
+        .where("queue_name LIKE ? ESCAPE '!'", "#{SolidQueue::Job.sanitize_sql_like(Admin::PluginQueuesSnapshot::PREFIX, '!')}%")
+        .pluck(:queue_name)
+        .tally
+    rescue ActiveRecord::StatementInvalid, ActiveRecord::ConnectionNotEstablished
+      {}
     end
 
     def plugin_health

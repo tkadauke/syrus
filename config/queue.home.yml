@@ -88,6 +88,12 @@ default: &default
       threads: 1
       processes: 1
       polling_interval: 1
+    # Trailing wildcards are prefix matches in Solid Queue, so external
+    # plugins are consumed without being known when this file is deployed.
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("PLUGIN_QUEUE_THREADS", 5) %>
+      processes: 1
+      polling_interval: 0.5
 
 development:
   <<: *default

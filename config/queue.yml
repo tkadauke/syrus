@@ -114,6 +114,13 @@ default: &default
       threads: 1
       processes: 1
       polling_interval: 1
+    # Solid Queue supports a trailing prefix wildcard. This consumes queues
+    # from bundled and external PluginJob subclasses without deploy-time
+    # enumeration; PluginJob's semaphore applies the per-plugin cap.
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("PLUGIN_QUEUE_THREADS", 5) %>
+      processes: 1
+      polling_interval: 0.5
 
 development:
   dispatchers:
@@ -172,6 +179,10 @@ development:
       threads: 1
       processes: 1
       polling_interval: 1
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("DEV_PLUGIN_QUEUE_THREADS", 1) %>
+      processes: 1
+      polling_interval: 0.5
 
 test:
   <<: *default

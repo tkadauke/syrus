@@ -68,6 +68,7 @@ module Admin
           }
 
           smart_folder_payload(:active, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queues,
             jobs: PerformanceLogging.phase("admin_queue.active.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, claimed_at: job.claimed_execution&.created_at) } },
             total: total,
             pagination: pagination_payload(total),
@@ -87,6 +88,7 @@ module Admin
           jobs = PerformanceLogging.phase("admin_queue.pending.query") { apply_sql_sort(filtered, :pending).offset(offset).limit(@per_page).to_a }
 
           smart_folder_payload(:pending, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queues,
             jobs: PerformanceLogging.phase("admin_queue.pending.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, ready_at: job.ready_execution&.created_at) } },
             total: total,
             pagination: pagination_payload(total),
@@ -113,6 +115,7 @@ module Admin
           }
 
           smart_folder_payload(:failed, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queues,
             since: since.iso8601,
             failures: PerformanceLogging.phase("admin_queue.failed.serialize", count: failures.size) { failures.map { |failure| serialize_failure(failure) } },
             total: total,
@@ -143,7 +146,7 @@ module Admin
             }
           end
 
-          { tasks: sort_hash_rows(tasks, :recurring), sort: sort_payload(:recurring) }
+          { tasks: sort_hash_rows(tasks, :recurring), sort: sort_payload(:recurring), plugin_queues: plugin_queues }
         end
       end
 
@@ -167,6 +170,7 @@ module Admin
           process_rows = PerformanceLogging.phase("admin_queue.processes.serialize", count: processes.size) { processes.map { |process| serialize_process(process) } }
 
           {
+            plugin_queues: plugin_queues,
             workers: sort_hash_rows(worker_rows, :workers),
             all_processes: sort_hash_rows(process_rows, :processes),
             sort: sort_payload(:workers),
@@ -178,6 +182,10 @@ module Admin
       private
 
       attr_reader :params, :user
+
+      def plugin_queues
+        @plugin_queues ||= Admin::PluginQueuesSnapshot.call
+      end
 
       def page
         [ params[:page].to_i, 1 ].max

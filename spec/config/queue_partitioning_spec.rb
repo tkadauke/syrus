@@ -36,6 +36,7 @@ RSpec.describe "queue partitioning" do
     cleanup
     low_priority_maintenance
     connectivity
+    plugin_*
   ].freeze
   CAPABILITY_COMPUTE_QUEUES = %w[
     runs-linux-amd64
@@ -54,6 +55,7 @@ RSpec.describe "queue partitioning" do
     cleanup
     low_priority_maintenance
     connectivity
+    plugin_*
   ].freeze
   LINUX_COMPUTE_QUEUES = %w[
     runs
@@ -166,6 +168,11 @@ RSpec.describe "queue partitioning" do
   it "keeps queue.yml a complete single-worker config (Compose / single-host)" do
     expect(queues_for("config/queue.yml", capabilities: "os:linux")[:regular].uniq)
       .to match_array(HOME_QUEUES + LINUX_COMPUTE_QUEUES)
+  end
+
+  it "uses Solid Queue's trailing wildcard to consume external plugin queues" do
+    expect(queues_for("config/queue.yml")[:regular]).to include("plugin_*")
+    expect(queues_for("config/queue.home.yml")[:regular]).to include("plugin_*")
   end
 
   it "does not leave job classes on queues no worker consumes" do

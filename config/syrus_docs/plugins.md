@@ -206,6 +206,14 @@ is allowed after the cool-down. A successful trial closes the circuit, while a
 failed trial opens it again. Because circuit state is process-local, different
 web and worker processes can show different runtime histories.
 
+Plugin background jobs use `PluginJob` and declare their plugin name. They run
+on `plugin_<plugin name>` by default, with at most two jobs per plugin executing
+at once. A plugin can raise that cap with `job_concurrency` in its declaration,
+or a job can deliberately select a specialized queue with `queue_as`. Ordinary
+failures retry five times with polynomial backoff; a job that still fails is
+discarded and its failure count, latest error, queue depth, and timestamp appear
+under **Admin → Plugins** and **Admin → Queue**.
+
 Operators can tune the breaker for every process at startup:
 
 | Environment variable | Default | Meaning |

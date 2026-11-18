@@ -21,6 +21,14 @@ export type AdminPlugin = {
     failures?: Array<{ extension_point: string; operation: string; exception_class: string; message: string; count: number; last_at: string }>
     circuits?: Array<{ extension_point: string; state: string; failure_count: number; opened_at: string; retry_at: string }>
   }
+  queue?: {
+    name: string
+    depth: number
+    concurrency: number
+    failure_count: number
+    last_failed_at?: string | null
+    last_error?: string | null
+  }
   name: string
   display_name: string
   display_name_i18n_key?: string | null

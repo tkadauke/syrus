@@ -663,6 +663,7 @@
     "version": "Version",
     "source": "Source",
     "health": "Health",
+    "queue_health": "{{queue}}: {{depth}} queued, {{failures}} discarded failures, concurrency {{concurrency}}.",
     "circuit_open_detail": "{{extensionPoint}} circuit opened after {{count}} failures; next trial after {{retryAt}}.",
     "runtime_failure_detail": "{{extensionPoint}}.{{operation}} failed {{count}} time(s): {{exceptionClass}}: {{message}} (last at {{lastAt}}).",
     "health_states": {
@@ -1073,6 +1074,8 @@
     "reaper_running": "Running...",
     "reaper_error": "Unable to run stale-run reaper.",
     "all_queue": "All queue",
+    "plugin_queues": "Plugin queues",
+    "plugin_queue_health": "{{depth}} queued · {{failures}} discarded failures",
     "queues": "Queues",
     "tab_active": "Active",
     "tab_pending": "Pending",

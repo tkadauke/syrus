@@ -15,7 +15,8 @@
 # the issue screenshots (attached to the chat turn) persist — they're the
 # durable value. "Archive" here means the record survives, the media doesn't.
 # Runs daily on `cleanup`.
-class VideoWalkthroughs::PruneJob < ApplicationJob
+class VideoWalkthroughs::PruneJob < PluginJob
+  plugin_name "video_walkthroughs"
   queue_as :cleanup
 
   # Only videos from SETTLED walkthroughs are candidates — never purge one

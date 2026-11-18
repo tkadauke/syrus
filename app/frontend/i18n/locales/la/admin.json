@@ -497,6 +497,7 @@
     "version": "Versio",
     "source": "Fons",
     "health": "Status",
+    "queue_health": "{{queue}}: {{depth}} exspectant, {{failures}} errores reiecti, concurrentia {{concurrency}}.",
     "circuit_open_detail": "Circuitus {{extensionPoint}} post {{count}} errores apertus est; proximum experimentum post {{retryAt}}.",
     "runtime_failure_detail": "{{extensionPoint}}.{{operation}} {{count}} vicibus defecit: {{exceptionClass}}: {{message}} (novissime {{lastAt}}).",
     "health_states": {
@@ -916,6 +917,8 @@
     "reaper_running": "Currens...",
     "reaper_error": "Reapitor cursuum obsoletorum exsequi non potuit.",
     "all_queue": "Totum agmen",
+    "plugin_queues": "Agmina pluginorum",
+    "plugin_queue_health": "{{depth}} exspectant · {{failures}} errores reiecti",
     "queues": "Agmina",
     "tab_active": "Activa",
     "tab_pending": "Pendentia",
