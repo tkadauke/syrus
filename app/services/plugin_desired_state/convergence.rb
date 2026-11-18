@@ -29,11 +29,22 @@ class PluginDesiredState::Convergence
 
   def cohort
     live = InstanceVersion.running.index_by { |process| [ process.hostname, process.role ] }
-    Array(state.apply_processes).each do |recorded|
-      key = [ recorded["hostname"] || recorded[:hostname], recorded["role"] || recorded[:role] ]
-      live[key] ||= InstanceVersion.find_by(hostname: key.first, role: key.last) || recorded
+    recorded_by_key = recorded_processes.index_by { |process| [ process.hostname, process.role ] }
+    Array(state.apply_processes).each do |recorded_process|
+      key = [ value(recorded_process, :hostname), value(recorded_process, :role) ]
+      live[key] ||= recorded_by_key[key] || recorded_process
     end
     live.values
+  end
+
+  def recorded_processes
+    cohort = Array(state.apply_processes)
+    return InstanceVersion.none if cohort.empty?
+
+    InstanceVersion.where(
+      hostname: cohort.filter_map { |process| value(process, :hostname) }.uniq,
+      role: cohort.filter_map { |process| value(process, :role) }.uniq
+    )
   end
 
   def serialize(process)
@@ -70,7 +81,7 @@ class PluginDesiredState::Convergence
 
   def plugin_rows(process)
     running = value(process, :plugin_set_details).to_h.fetch("plugins", []).index_by { |plugin| plugin["name"] }
-    PluginInstallation.includes(:plugin_release).order(:plugin_name).map do |installation|
+    installations.map do |installation|
       plugin = running[installation.plugin_name]
       {
         name: installation.plugin_name,
@@ -83,12 +94,21 @@ class PluginDesiredState::Convergence
   end
 
   def desired_digest(role)
-    entries = PluginInstallation.includes(:plugin_release).where(enabled_for_sync: true, fleet_quarantined: false).filter_map do |installation|
+    @desired_digests ||= {}
+    @desired_digests[role] ||= Digest::SHA256.hexdigest(JSON.generate(desired_entries(role)))
+  end
+
+  def desired_entries(role)
+    installations.filter_map do |installation|
+      next unless installation.enabled_for_sync? && !installation.fleet_quarantined?
       next if installation.roles.any? && !installation.roles.include?(role)
       release = installation.plugin_release
       { "name" => installation.plugin_name, "version" => release.version, "digest" => release.content_digest, "size" => release.size_bytes }
     end.sort_by { |entry| entry.fetch("name") }
-    Digest::SHA256.hexdigest(JSON.generate(entries))
+  end
+
+  def installations
+    @installations ||= PluginInstallation.includes(:plugin_release).order(:plugin_name).to_a
   end
 
   def value(process, attribute)
