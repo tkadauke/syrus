@@ -39,6 +39,12 @@ actually tested.
 
 ## Hand-install an external plugin
 
+Fleet deployments can also keep external plugin releases as content-addressed
+archives in the configured attachment storage. Syrus publishes the enabled set
+as a revisioned JSON manifest with a detached Ed25519 signature; pre-boot sync
+processes must verify the configured public key, archive size, and SHA-256
+before activating it, and retain their last-known-good set on failure.
+
 External plugins are trusted, in-process code. Review the source before
 installing it: the plugin receives the same database, filesystem, network, and
 credential access as Syrus. A dropped-in plugin directory may depend on Rails

@@ -25,6 +25,8 @@ recovering Syrus itself. Operator feature instructions remain in
   macOS workers, storage remediation, and capacity sizing.
 - [External plugin operations](external-plugins.md) — install, replace,
   diagnose, and remove a dropped-in plugin directory.
+- [Plugin desired-state artifacts](plugin-desired-state.md) — artifact keys,
+  manifest signing, publication ordering, and verification.
 - [Metrics operations](metrics.md) — scrape authentication, readiness, alert
   rules, and the operator metric catalog.
 - [Observability operations](observability.md) — on-demand process diagnostics

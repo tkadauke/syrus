@@ -627,6 +627,7 @@ Rails.application.routes.draw do
         get "backend_exceptions", to: "backend_exceptions#index"
         get "worker_health", to: "worker_health#show"
         get "plugins",  to: "plugins#index"
+        get "plugin_desired_state", to: "plugin_desired_states#show"
         post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
         post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
         get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
