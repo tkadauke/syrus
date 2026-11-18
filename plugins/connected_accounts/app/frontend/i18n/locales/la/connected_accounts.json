@@ -1,1 +1,27 @@
-{"admin":{"nav":"Praebitores OAuth","title":"Praebitores OAuth rationum conexarum","description":"Praebitores OAuth 2 ordinarios configura. Credentialia clientis tantum scribuntur et in Credential Store servantur.","configured":"Praebitores configurati","loading":"Praebitores onerantur…","load_error":"Praebitores onerari non potuerunt.","save_error":"Praebitor servari non potuit.","empty":"Nullus praebitor OAuth generalis configuratus est.","delete":"Dele","add":"Praebitorem adde","create":"Praebitorem crea","fields":{"key":"Clavis stabilis","display_name":"Nomen exhibitum","authorize_url":"URL auctoritatis","token_url":"URL tesserae","revoke_url":"URL revocationis (facultativum)","identity_url":"URL identitatis (facultativum)","client_id":"ID clientis","client_secret":"Secretum clientis","scopes":"Ambitus spatiis separati","api_origins":"Origines API permissae"}}}
+{
+  "admin": {
+    "nav": "Praebitores OAuth",
+    "title": "Praebitores OAuth rationum conexarum",
+    "description": "Praebitores OAuth 2 ordinarios configura. Credentialia clientis tantum scribuntur et in Credential Store servantur.",
+    "configured": "Praebitores configurati",
+    "loading": "Praebitores onerantur…",
+    "load_error": "Praebitores onerari non potuerunt.",
+    "save_error": "Praebitor servari non potuit.",
+    "empty": "Nullus praebitor OAuth generalis configuratus est.",
+    "delete": "Dele",
+    "add": "Praebitorem adde",
+    "create": "Praebitorem crea",
+    "fields": {
+      "key": "Clavis stabilis",
+      "display_name": "Nomen exhibitum",
+      "authorize_url": "URL auctoritatis",
+      "token_url": "URL tesserae",
+      "revoke_url": "URL revocationis (facultativum)",
+      "identity_url": "URL identitatis (facultativum)",
+      "client_id": "ID clientis",
+      "client_secret": "Secretum clientis",
+      "scopes": "Ambitus spatiis separati",
+      "api_origins": "Origines API permissae"
+    }
+  }
+}
