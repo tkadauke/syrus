@@ -674,6 +674,7 @@
       "warning": "Warning"
     },
     "host_surface_details": "Host API findings",
+    "host_surface_minimum": "Derived minimum Syrus version",
     "disableable": "Disableable",
     "yes": "Yes",
     "no": "No",
