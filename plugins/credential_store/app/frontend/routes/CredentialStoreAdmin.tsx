@@ -381,7 +381,11 @@ function CredentialForm({
         <Input value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} />
       </Field>
       <Field label={t("credential_type")}>
-        <Select disabled={Boolean(draft.id && pluginManaged)} value={draft.credential_type} onChange={(event) => onChange({ ...draft, credential_type: event.target.value })}>
+        <Select
+          disabled={Boolean(draft.id && pluginManaged)}
+          value={draft.credential_type}
+          onChange={(event) => onChange({ ...draft, credential_type: event.target.value })}
+        >
           <option value="">{t("choose_type")}</option>
           {typeOptions.map((type) => (
             <option key={type.name} value={type.name}>
@@ -464,37 +468,41 @@ function CredentialForm({
           values={splitList(draft.allowed_surfaces)}
           onChange={(values) => onChange({ ...draft, allowed_surfaces: values.join(", ") })}
         />
-        {!pluginManaged ? <div className="space-y-1.5">
-          <span className="text-sm font-medium text-text-primary">{t("allowed_credential_wrappers")}</span>
-          <div className="space-y-2">
-            {wrapperOptions.map((wrapper) => (
-              <Checkbox
-                checked={selectedWrappers.includes(wrapper.name)}
-                className="mt-0.5"
-                key={wrapper.name}
-                label={
-                  <span>
-                    <span className="font-medium">{wrapper.name}</span>
-                    <span className="block text-xs text-text-secondary">{wrapper.description}</span>
-                  </span>
-                }
-                onChange={(event) => {
-                  const values = event.target.checked ? [...selectedWrappers, wrapper.name] : selectedWrappers.filter((value) => value !== wrapper.name)
-                  onChange({ ...draft, allowed_tools: values.join(", ") })
-                }}
-              />
-            ))}
-          </div>
-          <Text muted variant="caption">
-            {t("allowed_credential_wrappers_hint")}
-          </Text>
-          {draft.credential_type === "ssh_private_key" ? (
+        {!pluginManaged ? (
+          <div className="space-y-1.5">
+            <span className="text-sm font-medium text-text-primary">{t("allowed_credential_wrappers")}</span>
+            <div className="space-y-2">
+              {wrapperOptions.map((wrapper) => (
+                <Checkbox
+                  checked={selectedWrappers.includes(wrapper.name)}
+                  className="mt-0.5"
+                  key={wrapper.name}
+                  label={
+                    <span>
+                      <span className="font-medium">{wrapper.name}</span>
+                      <span className="block text-xs text-text-secondary">{wrapper.description}</span>
+                    </span>
+                  }
+                  onChange={(event) => {
+                    const values = event.target.checked ? [...selectedWrappers, wrapper.name] : selectedWrappers.filter((value) => value !== wrapper.name)
+                    onChange({ ...draft, allowed_tools: values.join(", ") })
+                  }}
+                />
+              ))}
+            </div>
             <Text muted variant="caption">
-              {t("typed_ssh_consumer_hint")}
+              {t("allowed_credential_wrappers_hint")}
             </Text>
-          ) : null}
-        </div> : (
-          <Text muted variant="caption">{t("managed_credential_wrappers_hint")}</Text>
+            {draft.credential_type === "ssh_private_key" ? (
+              <Text muted variant="caption">
+                {t("typed_ssh_consumer_hint")}
+              </Text>
+            ) : null}
+          </div>
+        ) : (
+          <Text muted variant="caption">
+            {t("managed_credential_wrappers_hint")}
+          </Text>
         )}
       </div>
       <Field label={t("expires_at")}>
