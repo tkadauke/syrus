@@ -29,6 +29,12 @@ RSpec.describe Syrus::Plugin::TestKit do
     end
   end
 
+  it "supports explicit inclusion without registering shared examples twice" do
+    host = Class.new { include Syrus::Plugin::TestKit }
+
+    expect(host.ancestors).to include(Syrus::Plugin::TestKit::Helpers, Syrus::Plugin::TestKit::Matchers)
+  end
+
   it "loads a plugin directory into an isolated registry and restores the host registry" do
     original_names = Syrus::PluginRegistry.all_plugins.map(&:name)
     Dir.mktmpdir("test-kit-external") do |parent|
@@ -150,6 +156,23 @@ RSpec.describe Syrus::Plugin::TestKit do
       .to raise_error(RSpec::Expectations::ExpectationNotMetError, /CLI command plugin missing to be present/)
   end
 
+  it "executes a catalogued CLI command and reports handler failures" do
+    command = instance_double(Syrus::Plugin::CliCommand, plugin: "broken", path: %w[plugin ping], handler: "TestPluginCliHandler")
+    handler = Class.new do
+      def call(args:, flags:, user:)
+        { text: user.email_address }
+      end
+    end
+    stub_const("TestPluginCliHandler", handler)
+    allow(PluginCliCommands).to receive(:catalog).and_return([ command ])
+    user = build_plugin_user
+    expect(plugin).to have_plugin_cli_command("plugin", "ping").executable_with(user)
+
+    allow_any_instance_of(handler).to receive(:call).and_raise("handler exploded")
+    expect { expect(plugin).to have_plugin_cli_command("plugin", "ping").executable_with(user) }
+      .to raise_error(RSpec::Expectations::ExpectationNotMetError, /handler exploded/)
+  end
+
   it "accepts a valid manifest and reports validation errors" do
     specification = Gem::Specification.new("broken", "1.0.0")
     allow(plugin).to receive(:specification).and_return(specification)
@@ -161,7 +184,8 @@ RSpec.describe Syrus::Plugin::TestKit do
   end
 
   it "accepts a clean host surface and reports unsupported constants" do
-    clean = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], minimum_syrus_version: nil, content_hash: "clean", error: nil)
+    clean = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [],
+      minimum_syrus_version: nil, content_hash: "clean", error: nil)
     finding = Syrus::PluginHostSurface::Scanner::Finding.new(constant: "Syrus::PrivateApi", tier: "unlisted", path: "lib/broken.rb", line: 1)
     dirty = clean.with(unlisted: [ finding ])
     scanner = instance_double(Syrus::PluginHostSurface::Scanner, call: clean)
