@@ -80,6 +80,14 @@ event instead of rebuilding a partial report from the visible stack. The
 fallback UI shows the captured browser error ID so an operator can correlate a
 visible crash with the admin event stream.
 
+React recoverable errors use the same reporter. Their diagnostics include the
+component stack (or a reason React did not provide one), a correlation ID, the
+last sanitized interaction, and up to eight nearby script or stylesheet
+resource timings. Interaction targets contain only semantic attributes such as
+tag, role, test identifier, or control type; values and text are never read.
+Identical recoverable errors from the same user, revision, and path within a
+30-second burst are stored as one event with an occurrence count and duration.
+
 The initial SPA loading shell also becomes a retryable recovery surface when
 bundle evaluation, root mounting, the initial bootstrap request, or route
 initialization fails to complete. Its displayed startup reference correlates

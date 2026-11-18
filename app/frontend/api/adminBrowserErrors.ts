@@ -14,6 +14,10 @@ export type BrowserErrorEventRow = {
   path?: string | null
   route_id?: string | null
   trace_id?: string | null
+  correlation_id?: string | null
+  occurrence_count: number
+  burst_duration_ms: number
+  last_occurred_at: string
   user: {
     id: number
     display_name?: string | null
@@ -24,6 +28,11 @@ export type BrowserErrorEventRow = {
 export type BrowserErrorDetail = {
   stack?: string | null
   component_stack?: string | null
+  component_stack_unavailable_reason?: string | null
+  error_cause: Record<string, unknown>
+  last_interaction: Record<string, unknown>
+  resource_timings: Array<Record<string, unknown>>
+  recoverable: boolean
   url?: string | null
   route_params: Record<string, unknown>
   user_agent?: string | null

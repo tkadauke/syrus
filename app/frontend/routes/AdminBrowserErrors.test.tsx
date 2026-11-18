@@ -92,6 +92,15 @@ describe("AdminBrowserErrors", () => {
         return jsonResponse({
           stack: "TypeError: broken at App.tsx:12",
           component_stack: null,
+          component_stack_unavailable_reason: "React did not supply a component stack",
+          error_cause: { name: "ChunkError" },
+          last_interaction: { event_type: "click", target: { tag: "button" } },
+          resource_timings: [{ name: "/assets/lazy.js", duration_ms: 450 }],
+          correlation_id: "correlation-123",
+          occurrence_count: 4,
+          burst_duration_ms: 19_000,
+          last_occurred_at: "2026-08-17T20:46:54Z",
+          recoverable: true,
           recent_api_requests: [],
           recent_errors: [],
           viewport: {},
@@ -124,6 +133,10 @@ describe("AdminBrowserErrors", () => {
     fireEvent.click(screen.getByRole("button", { name: "Details" }))
 
     expect(await screen.findByText("TypeError: broken at App.tsx:12")).toBeInTheDocument()
+    expect(screen.getByText("React did not supply a component stack")).toBeInTheDocument()
+    expect(screen.getByText(/ChunkError/)).toBeInTheDocument()
+    expect(screen.getByText(/lazy\.js/)).toBeInTheDocument()
+    expect(screen.getByText(/correlation-123/)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Hide" })).toBeInTheDocument()
   })
 })
@@ -143,6 +156,10 @@ function browserErrorEvent(overrides: Record<string, unknown> = {}) {
     route_id: "job",
     route_params: {},
     trace_id: null,
+    correlation_id: null,
+    occurrence_count: 1,
+    burst_duration_ms: 0,
+    last_occurred_at: "2026-08-17T20:46:35Z",
     user_agent: "Safari",
     viewport: {},
     feature_flags: {},
