@@ -29,6 +29,14 @@ module Api
             render json: ::Admin::PluginConfigPayload.new(manifest, record).as_json
           end
 
+          def clear_quarantine
+            safety = Syrus::PluginBootSafety.default
+            unless safety.locally_clearable?(params[:name]) && safety.clear!(params[:name])
+              return render_error("quarantine_not_locally_clearable", I18n.t("api.plugins.quarantine_not_locally_clearable"), status: :unprocessable_content)
+            end
+            render json: { ok: true, plugin: params[:name], restart_required: true }
+          end
+
           private
 
           def find_plugin_record

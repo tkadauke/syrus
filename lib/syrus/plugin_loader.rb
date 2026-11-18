@@ -1,5 +1,6 @@
 require "pathname"
 require "ripper"
+require "syrus/plugin_boot_safety"
 
 module Syrus
   # Discovers plugin declarations before loading their Ruby entry files. This
@@ -14,7 +15,7 @@ module Syrus
     RESCUED_ERRORS = [ LoadError, StandardError, ScriptError ].freeze
 
     class << self
-      attr_reader :plugins_by_name
+      attr_reader :plugins_by_name, :boot_attempt_id
 
       def install_definition!(definition)
         plugin = @plugins_by_name&.fetch(definition.name, nil)
@@ -60,21 +61,36 @@ module Syrus
       def remember_plugins(plugins)
         @plugins_by_name = plugins.index_by(&:name)
       end
+
+      def remember_boot_attempt(id)
+        @boot_attempt_id = id
+      end
     end
 
     def self.load!(plugin_roots: Syrus::PluginRoots.default)
-      new(plugin_roots:).load!
+      new(plugin_roots:, boot_safety: Syrus::PluginBootSafety.default, record_boot: true).load!
     end
 
-    def initialize(plugin_roots:)
+    attr_reader :boot_safety
+
+    def initialize(plugin_roots:, boot_safety: nil, record_boot: false)
       @plugin_roots = plugin_roots
+      @boot_safety = boot_safety
+      @record_boot = record_boot
     end
 
     def load!
       plugins = safely_discovered_plugins
+      self.class.remember_boot_attempt(boot_safety.begin_boot!(plugins)) if @record_boot
       self.class.remember_plugins(plugins)
+      record_absent_fleet_quarantines(plugins)
       failed = Set.new
       order_plugins(plugins).each do |plugin|
+        if (reason = boot_safety&.skip_reason(plugin))
+          self.class.record_failure(plugin, RuntimeError.new(reason), state: :quarantined, message: reason)
+          failed << plugin.name
+          next
+        end
         unless role_allowed?(plugin)
           self.class.record_failure(plugin, RuntimeError.new("not enabled for process role #{process_role}"),
             state: :skipped_role, message: "skipped because process role #{process_role} is not listed in #{plugin.roles.join(', ')}")
@@ -132,6 +148,19 @@ module Syrus
     end
 
     private
+
+    def record_absent_fleet_quarantines(plugins)
+      return unless boot_safety
+
+      present = plugins.map(&:name).to_set
+      boot_safety.fleet_quarantines.each do |name, reason|
+        next if present.include?(name)
+
+        plugin = Plugin.new(name:, directory: Pathname.new("."), entry_file: Pathname.new("."), dependencies: [],
+          required_dependencies: [], external: true, version: "unknown", requires_syrus: nil, roles: [])
+        self.class.record_failure(plugin, RuntimeError.new(reason), state: :quarantined, message: reason)
+      end
+    end
 
     def safely_discovered_plugins
       inspected = @plugin_roots.plugin_directories.filter_map do |directory|

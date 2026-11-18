@@ -99,6 +99,8 @@ RSpec.describe "plugin-sync" do
       publish(storage, key, revision: 4, plugins: [ v1.merge(fleet_quarantined: true) ])
       run_sync(storage:, data:, verify_key: key.verify_key)
       expect(File).not_to exist(active(data, "weather"))
+      expect(JSON.parse(File.read(File.join(data, "plugin-sync/fleet-quarantines.json"))))
+        .to eq("weather" => "fleet quarantine in desired plugin state")
     end
   end
 
@@ -127,6 +129,26 @@ RSpec.describe "plugin-sync" do
       expect(run_sync(storage:, data:, verify_key: key.verify_key).last).to be_success
       expect(run_sync(storage:, data:, verify_key: key.verify_key, strict: true).last).not_to be_success
       expect(File.read(active(data, "weather"))).to eq("good")
+    end
+  end
+
+  it "keeps fleet quarantine state when a desired artifact fails validation" do
+    require "ed25519"
+    Dir.mktmpdir do |directory|
+      storage = File.join(directory, "storage")
+      data = File.join(directory, "data")
+      key = Ed25519::SigningKey.generate
+      plugin = add_plugin(storage, name: "weather", version: "good", fleet_quarantined: true)
+      publish(storage, key, revision: 1, plugins: [ plugin ])
+      expect(run_sync(storage:, data:, verify_key: key.verify_key).last).to be_success
+
+      replacement = add_plugin(storage, name: "weather", version: "bad", fleet_quarantined: false)
+      File.binwrite(File.join(storage, "plugins/artifacts", replacement.fetch(:digest)), "tampered")
+      publish(storage, key, revision: 2, plugins: [ replacement ])
+      expect(run_sync(storage:, data:, verify_key: key.verify_key).last).to be_success
+
+      expect(JSON.parse(File.read(File.join(data, "plugin-sync/fleet-quarantines.json"))))
+        .to eq("weather" => "fleet quarantine in desired plugin state")
     end
   end
 

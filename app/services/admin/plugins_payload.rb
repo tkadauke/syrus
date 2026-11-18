@@ -27,6 +27,7 @@ module Admin
         # that fell outside the query.
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
         payload = {
+          recovery: recovery_payload,
           beta_mode_enabled: AppSetting.beta_mode_enabled?,
           convergence: PluginDesiredState::Convergence.new.as_json,
           plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph) }
@@ -53,6 +54,23 @@ module Admin
     end
 
     private
+
+    def recovery_payload
+      safety = boot_safety
+      { safe_mode: safety.mode, quarantines:, locally_clearable: clearable_quarantine_names.to_a }
+    end
+
+    def boot_safety = @boot_safety ||= Syrus::PluginBootSafety.default
+    def quarantines = @quarantines ||= boot_safety.quarantines
+    def local_quarantines = @local_quarantines ||= boot_safety.local_quarantines
+
+    def clearable_quarantine_names
+      @clearable_quarantine_names ||= if boot_safety.mode.to_s.empty?
+        (local_quarantines.keys - boot_safety.fleet_quarantines.keys).to_set
+      else
+        Set.new
+      end
+    end
 
     def filter
       @filter ||= ::Admin::Plugins::Filter.from_params(@params || {}, user: @user)
@@ -120,6 +138,7 @@ module Admin
           conflicts_with: Array(manifest.conflicts_with),
           dependents: dependency_graph.dependents_for(manifest.name),
           health: health_payload(manifest),
+          quarantine_clearable: clearable_quarantine_names.include?(manifest.name),
           recommendation: recommendation_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
@@ -207,6 +226,10 @@ module Admin
     # operator fix a degraded instance instead of guessing why a plugin's
     # behavior vanished.
     def health_payload(manifest)
+      if (reason = quarantines[manifest.name])
+        return { state: "quarantined", reasons: [ reason ] }
+      end
+
       status = plugin_health.status(manifest.name)
       return { state: "ok", reasons: [] } if status.nil?
 
