@@ -50,10 +50,11 @@ module Syrus
 
     def mark_good!(plugins, attempt_id: nil)
       update do |state|
-        successful_attempt = Array(state["attempts"]).find { |attempt| attempt["id"] == attempt_id } if attempt_id
-        if successful_attempt
-          successful_at = parse_time(successful_attempt["at"])
-          state["attempts"] = Array(state["attempts"]).select { |attempt| parse_time(attempt["at"]) > successful_at }
+        attempts = Array(state["attempts"])
+        if attempt_id && (successful_index = attempts.index { |attempt| attempt["id"] == attempt_id })
+          state["attempts"] = attempts.drop(successful_index + 1)
+        elsif attempt_id
+          state["attempts"] = attempts
         else
           state["attempts"] = []
         end
@@ -152,12 +153,6 @@ module Syrus
         lease.flock(File::LOCK_UN) if acquired
         !acquired
       end
-    end
-
-    def parse_time(value)
-      Time.iso8601(value.to_s)
-    rescue ArgumentError
-      Time.at(0).utc
     end
 
     def prune_attempts!(value)
