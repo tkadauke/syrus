@@ -42,7 +42,7 @@ RSpec.describe "plugin-sync" do
     File.binwrite(path, body)
   end
 
-  def run_sync(storage:, data:, verify_key:, strict: false)
+  def run_sync(storage:, data:, verify_key:, strict: false, env_file: nil)
     env = {
       "SYRUS_PLUGIN_SYNC_STORAGE_PATH" => storage,
       "SYRUS_DATA_ROOT" => data,
@@ -51,6 +51,7 @@ RSpec.describe "plugin-sync" do
     }
     command = [ "bundle", "exec", "ruby", script ]
     command << "--strict" if strict
+    command.push("--env-file", env_file) if env_file
     Open3.capture3(env, *command)
   end
 
@@ -114,6 +115,28 @@ RSpec.describe "plugin-sync" do
       expect(run_sync(storage:, data:, verify_key: key.verify_key).last).to be_success
       expect(run_sync(storage:, data:, verify_key: key.verify_key, strict: true).last).not_to be_success
       expect(File.read(active(data, "weather"))).to eq("good")
+    end
+  end
+
+  it "writes the active identity to an env file and retains it after a failed sync" do
+    require "ed25519"
+    Dir.mktmpdir do |directory|
+      storage = File.join(directory, "storage")
+      data = File.join(directory, "data")
+      env_file = File.join(directory, "process.env")
+      key = Ed25519::SigningKey.generate
+      plugin = add_plugin(storage, name: "weather", version: "good")
+      publish(storage, key, revision: 7, plugins: [ plugin ])
+
+      expect(run_sync(storage:, data:, verify_key: key.verify_key, env_file:).last).to be_success
+      expected = File.read(File.join(data, "plugin-sync/active.env"))
+      expect(File.read(env_file)).to eq(expected)
+      expect(expected).to match(/\ASYRUS_PLUGIN_SET_DIGEST=[0-9a-f]{64}\nSYRUS_PLUGIN_SET_REVISION=7\n\z/)
+
+      File.write(env_file, "stale\n")
+      FileUtils.rm_rf(storage)
+      expect(run_sync(storage:, data:, verify_key: key.verify_key, env_file:).last).to be_success
+      expect(File.read(env_file)).to eq(expected)
     end
   end
 
