@@ -203,4 +203,108 @@ RSpec.describe "remaining runtime plugin invocation sites", :reset_plugin_regist
     expect(Syrus::PluginPurge.new("absent_plugin").other_data.sole).to include("could not report")
     expect_failure(:purge_contributor, :purge_report)
   end
+
+  it "omits a failing chat prompt injector" do
+    provider = Class.new do
+      def self.chat_prompt_section(**) = raise("prompt failed")
+    end
+    providers_for(:chat_prompt_injector, [ provider ])
+
+    prompt = Prompts::ChatSystem.new(repository: nil)
+
+    expect(prompt.send(:plugin_guidance)).to eq("")
+    expect_failure(:chat_prompt_injector, :chat_prompt_section)
+  end
+
+  it "omits a failing admin page provider" do
+    provider = Class.new do
+      def self.admin_pages = raise("admin pages failed")
+    end
+    providers_for(:admin_page, [ provider ])
+
+    expect(Admin::PluginPagesPayload.new.as_json).to eq(pages: [])
+    expect_failure(:admin_page, :admin_pages)
+  end
+
+  it "omits a failing sidebar page provider" do
+    provider = Class.new do
+      def self.sidebar_pages = raise("sidebar pages failed")
+    end
+    providers_for(:sidebar_page, [ provider ])
+
+    expect(App::SidebarPagesPayload.new.as_json).to eq(pages: [])
+    expect_failure(:sidebar_page, :sidebar_pages)
+  end
+
+  it "omits a failing UI slot provider" do
+    provider = Class.new do
+      def self.ui_slots(**) = raise("UI slots failed")
+    end
+    providers_for(:ui_slot, [ provider ])
+
+    expect(App::UiSlotsPayload.panels_for(slot: "repository.detail")).to eq([])
+    expect_failure(:ui_slot, :ui_slots)
+  end
+
+  it "falls back to the provider key when presentation lookup fails" do
+    provider = Class.new do
+      def self.provider_key = raise("presentation failed")
+    end
+    providers_for(:agent_provider, [ provider ])
+
+    expect(App::Presentation.agent_provider_label("custom_agent")).to eq("Custom Agent")
+    expect_failure(:agent_provider, :provider_key)
+  end
+
+  it "omits a failing repository page-tab provider" do
+    provider = Class.new do
+      def self.repo_page_tabs(**) = raise("repository tabs failed")
+    end
+    providers_for(:repo_page_tab, [ provider ])
+
+    tabs = Repositories::PluginRepoTabsPayload.plugin_tabs_for(repository: double, user: double)
+
+    expect(tabs).to eq([])
+    expect_failure(:repo_page_tab, :repo_page_tabs)
+  end
+
+  it "omits a failing workspace-tab provider" do
+    provider = Class.new do
+      def self.workspace_tabs(_) = raise("workspace tabs failed")
+    end
+    providers_for(:workspace_tab, [ provider ])
+
+    expect(WorkspaceTabsPayload.new(double).as_json).to eq([])
+    expect_failure(:workspace_tab, :workspace_tabs)
+  end
+
+  it "omits a failing chat job-status extension" do
+    provider = Class.new do
+      def self.payload(**) = raise("job status failed")
+    end
+    providers_for(:chat_job_status_extension, [ provider ])
+    relation = double
+    allow(relation).to receive(:includes).and_return(relation)
+    allow(relation).to receive(:to_a).and_return([])
+    allow(ChatAssociatedJobs).to receive(:scope).and_return(relation)
+
+    payload = ChatJobStatusQuery.new(double).send(:extension_payload)
+
+    expect(payload).to eq({})
+    expect_failure(:chat_job_status_extension, :payload)
+  end
+
+  [
+    Api::V1::App::InputSourcesController,
+    Api::V1::App::RepositoriesController
+  ].each do |controller_class|
+    it "omits a failing input-source schema in #{controller_class.name}" do
+      provider = Class.new do
+        def config_schema = raise("schema failed")
+      end
+
+      expect(controller_class.new.send(:input_source_schema, provider)).to eq([])
+      expect_failure(:input_source, :config_schema)
+    end
+  end
 end
