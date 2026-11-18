@@ -10,7 +10,7 @@ class Coworkers::ChatWorkspaceLifecycle
 
   class << self
     def applies_to?(chat_session:)
-      chat_session.respond_to?(:coworker) && chat_session.coworker.kind == "coworker"
+      Coworkers::Chat.exists?(chat_session_id: chat_session.id)
     end
 
     def prepare!(chat_session:)
@@ -25,7 +25,8 @@ class Coworkers::ChatWorkspaceLifecycle
   def initialize(chat_session, git: GitRunner.new, remote_url: nil, repository: nil, resolver: nil)
     @chat = chat_session
     @resolver = resolver
-    @coworker = chat_session.coworker
+    @link = Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: chat_session.id)
+    @coworker = @link.coworker
     @repository = repository || workspace_repository
     @git = git
     @remote_url = remote_url || @repository.authenticated_url(user: @coworker.owner_user)

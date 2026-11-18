@@ -544,6 +544,23 @@ RSpec.describe "API: coworkers", type: :request do
     expect(chat.reload).not_to be_turn_in_flight
   end
 
+  it "keeps the host chat repository when adding a coworker to its roster" do
+    host_repository = Factories.repository(user: owner, owner: "acme", name: "host")
+    workspace_repository = Factories.repository(user: owner, owner: "acme", name: "coworker-home")
+    chat = ChatSession.create!(user: owner, repository: host_repository, title: "Planning")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-host-repository",
+      workspace_repo: workspace_repository.remote_url
+    )
+    sign_in_as(owner)
+
+    post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
+
+    expect(response).to have_http_status(:created)
+    expect(chat.reload.repository).to eq(host_repository)
+    expect(chat.coworker_chat).to be_nil
+  end
+
   it "does not address or leave a turn in flight for an unrostered coworker in a group chat" do
     Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-private", workspace_repo: "https://github.com/acme/workspace.git"

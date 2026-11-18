@@ -74,6 +74,34 @@ RSpec.describe Coworkers::ChatIdentityProvider do
       .to include(handle: "maya-identity")
   end
 
+  it "decorates two delivered mention replies with their own authors and working sessions" do
+    other = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Rin", handle: "rin-identity",
+      workspace_repo: "git@example.com:workspaces.git", accent_hex: "#663399"
+    )
+    maya_session = ChatSession.create!(user: owner, title: "Maya work")
+    rin_session = ChatSession.create!(user: owner, title: "Rin work")
+    Coworkers::Chat.create!(coworker:, chat_session: maya_session, source_chat_session: chat, role: "mention")
+    Coworkers::Chat.create!(coworker: other, chat_session: rin_session, source_chat_session: chat, role: "mention")
+    messages = [ [ coworker, maya_session ], [ other, rin_session ] ].map do |author, session|
+      chat.messages.create!(
+        role: "assistant", skip_turn_trigger: true,
+        content: { "text" => "Reply from #{author.name}", "source" => "coworker_message",
+          "origin_chat_session_id" => session.id,
+          "coworker_message" => { "direction" => "incoming", "sender_id" => author.id, "sender_handle" => author.handle } }
+      )
+    end
+
+    presentations = described_class.chat_message_presentations(messages: messages)
+
+    expect(presentations.dig(messages.first.id, :plugin_message, :data)).to include(
+      appearance: include(name: "Maya"), working_chat_id: maya_session.id
+    )
+    expect(presentations.dig(messages.second.id, :plugin_message, :data)).to include(
+      appearance: include(name: "Rin"), working_chat_id: rin_session.id
+    )
+  end
+
   it "decorates an inbound historical bridge without a legacy payload writer" do
     source_chat = ChatSession.create!(user: owner, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: source_chat, role: "main")
