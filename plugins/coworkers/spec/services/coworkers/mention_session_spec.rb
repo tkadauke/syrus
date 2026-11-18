@@ -104,11 +104,23 @@ RSpec.describe Coworkers::MentionSession do
 
     reply = source_chat.messages.where(role: "assistant").sole
     expect(reply.content).to include("text" => "Done.", "source" => "coworker_message")
+    expect(reply.content).to include("origin_chat_session_id" => link.chat_session_id)
     expect(reply.content.dig("coworker_message", "sender_id")).to eq(coworker.id)
     wake = source_chat.messages.where(role: "system").find_by!("content ->> '$.source' = ?", Coworkers::AfterReplyPolicy::Wake::SOURCE)
     expect(wake.content).to include("coworker_reply_message_id" => reply.id)
     expect(source_chat.reload).to be_turn_in_flight
     expect(enqueued_jobs.count { |job| job.fetch(:job) == ChatTurnJob && job.fetch(:args) == [ source_chat.id, wake.id ] }).to eq(1)
+  end
+
+  it "never runs workspace lifecycle against the unlinked source chat" do
+    source = source_message("@maya-mentions help")
+    link = described_class.find_or_create!(coworker: coworker, source_chat: source_chat)
+
+    expect(Coworkers::ChatWorkspaceLifecycle.applies_to?(chat_session: source_chat)).to be(false)
+    expect(Coworkers::ChatWorkspaceLifecycle.applies_to?(chat_session: link.chat_session)).to be(true)
+    expect { Coworkers::Workspace.new(source_chat) }
+      .to raise_error(Coworkers::Workspace::InvalidPath, "coworker workspace is unavailable")
+    expect { Coworkers::Workspace.new(link.chat_session) }.not_to raise_error
   end
 
   it "delivers a quiet reply without waking the planner" do

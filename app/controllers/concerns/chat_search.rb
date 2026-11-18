@@ -35,10 +35,15 @@ module ChatSearch
       .preload(repository_attachments: :attachable)
       .index_by(&:id)
     badges_by_chat_id = ChatResultBadges.for(sessions_by_id.values)
+    match_message_ids = matches_by_chat.values.flatten.map { |row| row.fetch(:chat_message_id).to_i }
+    match_messages = ChatMessage.where(id: match_message_ids).includes(:chat_session).index_by(&:id)
+    match_authors = ChatIdentityContributions.message_presentations(messages: match_messages.values)
+      .transform_values { |presentation| presentation["author"] }
 
     {
       results: paged_chat_ids.filter_map do |chat_session_id|
-        chat_search_result_json(sessions_by_id[chat_session_id], matches_by_chat.fetch(chat_session_id), badges_by_chat_id: badges_by_chat_id)
+        chat_search_result_json(sessions_by_id[chat_session_id], matches_by_chat.fetch(chat_session_id),
+          badges_by_chat_id: badges_by_chat_id, authors_by_message_id: match_authors)
       end,
       total: session_page.fetch(:total),
       page: page,
@@ -158,10 +163,10 @@ module ChatSearch
     )
   end
 
-  def chat_search_result_json(chat_session, rows, badges_by_chat_id: {})
+  def chat_search_result_json(chat_session, rows, badges_by_chat_id: {}, authors_by_message_id: {})
     return unless chat_session
 
-    top_matches = rows.first(SEARCH_TOP_MATCHES).map { |row| chat_search_match_json(row) }
+    top_matches = rows.first(SEARCH_TOP_MATCHES).map { |row| chat_search_match_json(row, author: authors_by_message_id[row.fetch(:chat_message_id).to_i]) }
     {
       chat_session_id: chat_session.id,
       chat_title: chat_search_title(chat_session),
@@ -180,13 +185,14 @@ module ChatSearch
     }
   end
 
-  def chat_search_match_json(row)
+  def chat_search_match_json(row, author: nil)
     {
       message_id: row.fetch(:chat_message_id).to_i,
       role: row.fetch(:role),
       snippet: row.fetch(:snippet),
-      created_at: row.fetch(:created_at)
-    }
+      created_at: row.fetch(:created_at),
+      author: author
+    }.compact
   end
 
   def chat_search_title(chat_session)

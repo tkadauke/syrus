@@ -1,5 +1,16 @@
 # Coworkers
 
+## Mentions in ordinary chats
+
+Adding a coworker to an ordinary chat makes that coworker addressable without
+changing the chat's repository or workspace. Mentioning a rostered coworker
+delegates the message to a reusable hidden coworker-owned working session; the
+ordinary chat never becomes a coworker workspace. The coworker's final reply is
+delivered back as a colored, attributed bubble with a link to that working
+session. If several coworkers are mentioned in one message, only the first
+rostered mention answers in this version. Removing the coworker revokes access
+to the source chat.
+
 ## Automated review contributions
 
 When Coworkers is enabled and healthy, it contributes an opaque reviewer
