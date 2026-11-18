@@ -210,7 +210,7 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
     mutationFn: () => clearAdminPluginQuarantine(plugin.name),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "plugins"] })
   })
-  const quarantined = plugin.health?.state === "quarantined"
+  const quarantineClearable = plugin.health?.state === "quarantined" && plugin.quarantine_clearable
 
   return (
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -272,7 +272,7 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
           <PluginToggleButton plugin={plugin} state={toggleState} />
-          {quarantined ? (
+          {quarantineClearable ? (
             <Button disabled={clearQuarantine.isPending} onClick={() => clearQuarantine.mutate()} type="button" variant="secondary">
               {clearQuarantine.isPending ? t("plugins.clearing_quarantine") : t("plugins.clear_quarantine")}
             </Button>

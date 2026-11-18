@@ -30,7 +30,10 @@ module Api
           end
 
           def clear_quarantine
-            Syrus::PluginBootSafety.default.clear!(params[:name])
+            safety = Syrus::PluginBootSafety.default
+            unless safety.locally_clearable?(params[:name]) && safety.clear!(params[:name])
+              return render_error("quarantine_not_locally_clearable", I18n.t("api.plugins.quarantine_not_locally_clearable"), status: :unprocessable_content)
+            end
             render json: { ok: true, plugin: params[:name], restart_required: true }
           end
 

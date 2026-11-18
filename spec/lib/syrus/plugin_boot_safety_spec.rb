@@ -37,13 +37,17 @@ RSpec.describe Syrus::PluginBootSafety do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
       current_time = Time.utc(2026, 1, 1)
-      env = { "SYRUS_BOOT_FAILURE_LIMIT" => "3", "SYRUS_BOOT_FAILURE_WINDOW_SECONDS" => "600" }
+      env = { "SYRUS_BOOT_FAILURE_LIMIT" => "3", "SYRUS_BOOT_FAILURE_WINDOW_SECONDS" => "600", "SYRUS_BOOT_SUCCESS_AFTER_SECONDS" => "0" }
       ledger = described_class.new(path: root.join("state.json"), env:, clock: -> { current_time })
       candidate = plugin(root, "weather")
       ledger.mark_good!([ candidate ])
       candidate.directory.join("plugin.rb").write("changed")
 
-      3.times { ledger.begin_boot!([ candidate ]); current_time += 1 }
+      3.times do
+        attempt_id = ledger.begin_boot!([ candidate ])
+        ledger.send(:release_attempt_lease, attempt_id)
+        current_time += 1
+      end
       expect(ledger.skip_reason(candidate)).to be_nil
       ledger.begin_boot!([ candidate ])
       expect(ledger.skip_reason(candidate)).to include("crash loop")
@@ -58,12 +62,34 @@ RSpec.describe Syrus::PluginBootSafety do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
       current_time = Time.utc(2026, 1, 1)
-      ledger = described_class.new(path: root.join("state.json"), env: { "SYRUS_BOOT_FAILURE_LIMIT" => "1", "SYRUS_BOOT_FAILURE_WINDOW_SECONDS" => "10" }, clock: -> { current_time })
+      ledger = described_class.new(path: root.join("state.json"), env: { "SYRUS_BOOT_FAILURE_LIMIT" => "1", "SYRUS_BOOT_FAILURE_WINDOW_SECONDS" => "10", "SYRUS_BOOT_SUCCESS_AFTER_SECONDS" => "0" }, clock: -> { current_time })
       candidate = plugin(root, "weather")
       ledger.begin_boot!([ candidate ])
       current_time += 11
       ledger.begin_boot!([ candidate ])
       expect(ledger.skip_reason(candidate)).to be_nil
+    end
+  end
+
+  it "does not count overlapping healthy starts as failed boots and preserves newer attempts on promotion" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      current_time = Time.utc(2026, 1, 1)
+      env = { "SYRUS_BOOT_FAILURE_LIMIT" => "1", "SYRUS_BOOT_FAILURE_WINDOW_SECONDS" => "600", "SYRUS_BOOT_SUCCESS_AFTER_SECONDS" => "60" }
+      ledger = described_class.new(path: root.join("state.json"), env:, clock: -> { current_time })
+      candidate = plugin(root, "weather")
+      ledger.mark_good!([ candidate ])
+      candidate.directory.join("plugin.rb").write("changed")
+
+      first = ledger.begin_boot!([ candidate ])
+      current_time += 1
+      second = ledger.begin_boot!([ candidate ])
+      expect(ledger.skip_reason(candidate)).to be_nil
+
+      current_time += 59
+      ledger.mark_good!([ candidate ], attempt_id: first)
+      state = JSON.parse(root.join("state.json").read)
+      expect(state.fetch("attempts").map { |attempt| attempt.fetch("id") }).to eq([ second ])
     end
   end
 
@@ -74,6 +100,24 @@ RSpec.describe Syrus::PluginBootSafety do
       ledger = described_class.new(path: root.join("state.json"), env: { "SYRUS_SAFE_MODE" => "typo" })
 
       expect { expect(ledger.skip_reason(candidate)).to be_nil }.to output(/Invalid SYRUS_SAFE_MODE/).to_stderr
+    end
+  end
+
+  it "only marks local quarantine as clearable when safe mode and fleet quarantine are absent" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      path = root.join("plugin-boot-safety.json")
+      local = described_class.new(path:, env: {})
+      local.quarantine!("weather")
+      expect(local.locally_clearable?("weather")).to be(true)
+
+      safe_mode = described_class.new(path:, env: { "SYRUS_SAFE_MODE" => "recent" })
+      expect(safe_mode.locally_clearable?("weather")).to be(false)
+
+      fleet_path = root.join("plugin-sync/fleet-quarantines.json")
+      fleet_path.dirname.mkpath
+      fleet_path.write(JSON.generate("weather" => "fleet quarantine"))
+      expect(local.locally_clearable?("weather")).to be(false)
     end
   end
 end
