@@ -49,9 +49,28 @@ module SystemAlerts
   private_class_method :alerts_for
 
   def self.admin_alerts
-    [ data_root_disk_usage, *no_progress_main_branch_repairs, *stuck_main_branch_repairs ].compact
+    [ plugin_fleet_divergence, data_root_disk_usage, *no_progress_main_branch_repairs, *stuck_main_branch_repairs ].compact
   end
   private_class_method :admin_alerts
+
+  def self.plugin_fleet_divergence
+    convergence = PluginDesiredState::Convergence.new
+    return unless convergence.prolonged_divergence?
+
+    Alert.new(
+      id: "plugin_fleet_divergence",
+      dismissal_key: "plugin_fleet_divergence:#{PluginDesiredState.current.revision}",
+      severity: :alarm,
+      title: "Plugin fleet has not converged.",
+      message: "One or more Syrus processes have run a different plugin set beyond the configured divergence threshold.",
+      action_steps: [ "Open Plugins, identify behind or unreachable processes, and restart or restore them before applying further plugin changes." ],
+      cta: { text: "Review plugin convergence", path: "/admin/plugins" },
+      actions: []
+    )
+  rescue ActiveRecord::StatementInvalid
+    nil
+  end
+  private_class_method :plugin_fleet_divergence
 
   def self.sort_alerts(alerts)
     alerts
