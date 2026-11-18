@@ -224,9 +224,7 @@ describe("RepositoryPipelineRoute", () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter
-          initialEntries={[
-            "/repositories/1/plugin/sdlc-pipeline?q=encoded-tree&at=2026-10-31T10%3A00%3A00Z&range_start=2026-10-01&range_end=2026-10-31"
-          ]}
+          initialEntries={["/repositories/1/plugin/sdlc-pipeline?q=encoded-tree&at=2026-10-31T10%3A00%3A00Z&range_start=2026-10-01&range_end=2026-10-31"]}
         >
           <RepositoryPipelineRoute repositoryId="1" prefix="" />
         </MemoryRouter>
