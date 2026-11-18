@@ -95,8 +95,26 @@ class InstanceVersionSupervisor
     def plugin_set_attrs
       {
         plugin_set_revision: ENV["SYRUS_PLUGIN_SET_REVISION"].presence&.to_i,
-        plugin_set_digest: ENV["SYRUS_PLUGIN_SET_DIGEST"].presence
+        plugin_set_digest: ENV["SYRUS_PLUGIN_SET_DIGEST"].presence,
+        plugin_set_details: plugin_set_details
       }
+    end
+
+    def plugin_set_details
+      health = Syrus::PluginRegistry.health
+      plugins = Syrus::PluginRegistry.all_plugins.map do |manifest|
+        status = health.status(manifest.name)
+        {
+          "name" => manifest.name,
+          "version" => manifest.version.to_s,
+          "state" => status.state.to_s,
+          "reasons" => status.reasons
+        }
+      end
+      { "plugins" => plugins }
+    rescue StandardError => e
+      Rails.logger.warn("[InstanceVersionSupervisor] plugin-set report failed: #{e.class}: #{e.message}")
+      { "plugins" => [] }
     end
 
     def heartbeat_scope(instance, now:)

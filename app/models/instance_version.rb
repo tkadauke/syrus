@@ -140,6 +140,7 @@ class InstanceVersion < ApplicationRecord
     self.capability_diagnostics ||= {}
     self.desired_version ||= {}
     self.macos_updater_status ||= {}
+    self.plugin_set_details ||= {}
   end
 
   def parse_updater_time(value)
