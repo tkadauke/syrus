@@ -3,11 +3,14 @@
 module Syrus
   # Process-local runtime failure and circuit state for plugin providers.
   class PluginRuntimeHealth
+    MAX_FAILURES_PER_PLUGIN = 100
+
     Failure = Data.define(:plugin, :extension_point, :operation, :exception_class, :message, :backtrace, :count, :last_at)
     Circuit = Data.define(:plugin, :extension_point, :state, :failure_count, :opened_at, :retry_at)
 
-    def initialize(clock: -> { Time.current })
+    def initialize(clock: -> { Time.current }, max_failures_per_plugin: MAX_FAILURES_PER_PLUGIN)
       @clock = clock
+      @max_failures_per_plugin = max_failures_per_plugin
       @mutex = Mutex.new
       @failures = {}
       @circuits = {}
@@ -41,6 +44,7 @@ module Syrus
           exception_class: exception.class.name, message: exception.message.to_s,
           backtrace: Array(exception.backtrace).first(12), count: previous.to_h.fetch(:count, 0) + 1, last_at: timestamp
         }
+        prune_failures(plugin.to_s)
 
         next unless circuit
 
@@ -93,5 +97,15 @@ module Syrus
 
     def now = @clock.call
     def circuit_key(plugin, extension_point) = [ plugin.to_s, extension_point.to_s ]
+
+    def prune_failures(plugin)
+      plugin_failures = @failures.select { |key, _failure| key.first == plugin }
+      overflow = plugin_failures.size - @max_failures_per_plugin
+      return unless overflow.positive?
+
+      plugin_failures
+        .min_by(overflow) { |_key, failure| failure.fetch(:last_at) }
+        .each { |key, _failure| @failures.delete(key) }
+    end
   end
 end
