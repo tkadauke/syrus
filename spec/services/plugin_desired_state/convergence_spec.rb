@@ -41,7 +41,7 @@ RSpec.describe PluginDesiredState::Convergence do
 
   it "loads process and plugin data in a fixed number of queries for a cohort" do
     state = PluginDesiredState.current
-    state.update!(revision: 2, apply_processes: 4.times.map { |index| { "hostname" => "recorded-#{index}", "role" => "web" } })
+    state.update!(revision: 0, apply_processes: 4.times.map { |index| { "hostname" => "recorded-#{index}", "role" => "web" } })
     4.times do |index|
       process = create_process("recorded-#{index}", 1, now - 3.minutes)
       process.update!(finished_at: now - 1.minute)
