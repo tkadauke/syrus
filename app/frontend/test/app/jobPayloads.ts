@@ -69,15 +69,15 @@ export function jobDetailPayload(overrides: Record<string, unknown> = {}) {
     attachments: [
       {
         id: 8,
-        kind: "google_doc",
-        attachment_type: "google_doc_link",
+        kind: "file",
+        attachment_type: "uploaded_file",
         title: "Hydraulic notes",
-        filename: null,
-        content_type: null,
-        byte_size: null,
-        google_doc_url: "https://docs.google.com/document/d/aqueduct/edit",
-        uploaded_file: false,
-        file_path: null,
+        filename: "hydraulic-notes.md",
+        content_type: "text/markdown",
+        byte_size: 42,
+        uploaded_file: true,
+        file_path: "/api/v1/app/jobs/42/attachments/8/file",
+        content_path: "/api/v1/app/jobs/42/attachments/8/content",
         created_at: "2026-05-30T10:02:00Z",
         app_delete_path: "/api/v1/app/jobs/42/attachments/8"
       }

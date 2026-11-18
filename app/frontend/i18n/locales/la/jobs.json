@@ -897,7 +897,7 @@
   "form_title_placeholder": "e.g. Versionem Ruby ad 3.3 promove",
   "form_prompt_placeholder": "Describe quid agens facere debeat...",
   "form_priority_label": "Prioritas",
-  "form_attachments_description": "Fasciculi et vincula documentorum optionalia agenti ut contextus operis traduntur.",
+  "form_attachments_description": "Fasciculi optionales agenti ut contextus operis traduntur.",
   "form_drop_files": "Fasciculos hic depone",
   "form_file_types_hint": "PNG, JPG, GIF, WebP, PDF, textus vel Markdown. Maximum 20 MB.",
   "form_choose_files": "Fasciculos elige",

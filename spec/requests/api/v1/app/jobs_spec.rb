@@ -766,12 +766,9 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     job.job_tags.create!(tag: tag)
     target = Factories.job(repository: repo, issue_number: 41, issue_title: "Build hill")
     dependency = job.dependencies.create!(depends_on_job: target, source: "manual", created_by_user: user)
-    attachment = job.job_attachments.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Roman hydraulics",
-      google_doc_url: "https://docs.google.com/document/d/aqueduct/edit"
-    )
+    attachment = job.job_attachments.build(user: user, kind: "file", title: "Roman hydraulics")
+    attachment.file.attach(io: StringIO.new("hydraulics"), filename: "hydraulics.txt", content_type: "text/plain")
+    attachment.save!
     run = job.initial_run
     run.start!
     run.save!
@@ -853,7 +850,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(body["attachments"]).to contain_exactly(include(
       "id" => attachment.id,
       "title" => "Roman hydraulics",
-      "google_doc_url" => "https://docs.google.com/document/d/aqueduct/edit",
+      "filename" => "hydraulics.txt",
       "app_delete_path" => "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}"
     ))
     expect(body.dig("actions", "can_poll_feedback")).to eq(true)

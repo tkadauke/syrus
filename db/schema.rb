@@ -1546,6 +1546,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_164147) do
     t.integer "attachable_id", null: false
     t.string "attachable_type", null: false
     t.bigint "byte_size"
+    t.text "content_cache", limit: 65536
     t.string "content_type"
     t.datetime "created_at", null: false
     t.string "filename"

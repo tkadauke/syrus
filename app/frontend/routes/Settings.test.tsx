@@ -684,11 +684,12 @@ describe("App settings routes", () => {
   it("uploads a personal document from the documents settings route", async () => {
     const uploadedDocument = {
       id: 8,
-      kind: "google_doc",
-      google_doc_url: "https://docs.google.com/document/d/user/edit",
-      filename: null,
-      content_type: null,
-      byte_size: null,
+      kind: "file",
+      filename: "notes.txt",
+      content_type: "text/plain",
+      byte_size: 5,
+      source_url: null,
+      file_path: "/api/v1/app/credentials/documents/8/file",
       created_at: "2026-05-30T12:00:00Z"
     }
     let documents: Array<Record<string, unknown>> = []
@@ -739,6 +740,6 @@ describe("App settings routes", () => {
       )
     })
     expect(await screen.findByText("Document added.")).toBeInTheDocument()
-    expect(screen.getByText("https://docs.google.com/document/d/user/edit")).toBeInTheDocument()
+    expect(screen.getByText("notes.txt")).toBeInTheDocument()
   })
 })

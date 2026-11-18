@@ -13,13 +13,10 @@ function documentsPayload(overrides: Record<string, unknown> = {}) {
       {
         id: 30,
         kind: "file",
-        google_doc_url: null,
         filename: "notes.pdf",
         content_type: "application/pdf",
         byte_size: 2048,
         source_url: null,
-        content_cache_state: "empty",
-        content_cached_at: null,
         created_at: "2026-01-01T00:00:00Z",
         updated_at: "2026-01-01T00:00:00Z",
         file_path: "/api/v1/app/credentials/documents/30/file",
@@ -92,7 +89,7 @@ function renderRouteWithDocumentsAt(documents: Record<string, unknown>[], entry 
     }
     const sort = url.searchParams.get("sort") || "created_at"
     const direction = url.searchParams.get("direction") || "descending"
-    const value = (document: Record<string, unknown>) => (sort === "title" ? document.google_doc_url || document.filename || "" : document[sort] || "")
+    const value = (document: Record<string, unknown>) => (sort === "title" ? document.filename || "" : document[sort] || "")
     result.sort((left, right) => String(value(left)).localeCompare(String(value(right))) * (direction === "ascending" ? 1 : -1))
     return Promise.resolve(jsonResponse(documentsPayload({ documents: result })))
   })
@@ -116,11 +113,10 @@ function testFilterMatches(document: Record<string, unknown>, node: FilterNode):
       ? Object.values(document)
           .filter((value) => typeof value === "string")
           .join(" ")
-      : node.field === "source_url"
-        ? document.source_url || document.google_doc_url || ""
-        : document[node.field]
+      : document[node.field]
   if (node.op === "before") return Date.parse(String(raw)) < Date.parse(String(node.value))
   if (node.op === "is") return String(raw) === String(node.value)
+  if (node.op === "is_set") return raw != null && raw !== ""
   return String(raw || "")
     .toLowerCase()
     .includes(String(node.value || "").toLowerCase())
@@ -148,13 +144,10 @@ const TABLE_DOCUMENTS = [
   {
     id: 41,
     kind: "file",
-    google_doc_url: null,
     filename: "z-notes.md",
     content_type: "text/markdown",
     byte_size: 1024,
     source_url: null,
-    content_cache_state: "empty",
-    content_cached_at: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     file_path: "/api/v1/app/credentials/documents/41/file"
@@ -162,30 +155,13 @@ const TABLE_DOCUMENTS = [
   {
     id: 42,
     kind: "file",
-    google_doc_url: null,
     filename: "screenshot.png",
     content_type: "image/png",
     byte_size: 512,
     source_url: "https://example.test/screenshot.png",
-    content_cache_state: "empty",
-    content_cached_at: null,
     created_at: "2026-01-02T00:00:00Z",
     updated_at: "2026-01-03T00:00:00Z",
     file_path: "/api/v1/app/credentials/documents/42/file"
-  },
-  {
-    id: 43,
-    kind: "google_doc",
-    google_doc_url: "https://docs.google.com/document/d/a-plan/edit",
-    filename: null,
-    content_type: null,
-    byte_size: null,
-    source_url: "https://docs.google.com/document/d/a-plan/edit",
-    content_cache_state: "cached",
-    content_cached_at: "2026-01-04T00:00:00Z",
-    created_at: "2025-12-31T00:00:00Z",
-    updated_at: "2026-01-04T00:00:00Z",
-    file_path: null
   }
 ]
 
@@ -268,27 +244,24 @@ describe("PersonalDocumentsRoute table controls", () => {
   })
 
   it("honors negated FilterBar groups when filtering documents", async () => {
-    const q = encodeFilterTree({ and: [{ not: { field: "kind", op: "is", value: "file" } }] })
+    const q = encodeFilterTree({ and: [{ not: { field: "source_url", op: "is_set" } }] })
     renderRouteWithDocumentsAt(TABLE_DOCUMENTS, `/documents?q=${q}`)
 
-    expect(await screen.findByRole("button", { name: /Google Doc/ })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /z-notes\.md/ })).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /z-notes\.md/ })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /screenshot\.png/ })).not.toBeInTheDocument()
   })
 
-  it("filters documents by cache state, source URL, and created date fields", async () => {
+  it("filters documents by source URL and created date fields", async () => {
     const q = encodeFilterTree({
       and: [
-        { field: "content_cache_state", op: "is", value: "cached" },
-        { field: "source_url", op: "contains", value: "docs.google.com" },
-        { field: "created_at", op: "before", value: "2026-01-01" }
+        { field: "source_url", op: "contains", value: "example.test" },
+        { field: "created_at", op: "before", value: "2026-01-03" }
       ]
     })
     renderRouteWithDocumentsAt(TABLE_DOCUMENTS, `/documents?q=${q}`)
 
-    expect(await screen.findByRole("button", { name: /Google Doc/ })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /screenshot\.png/ })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /z-notes\.md/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /screenshot\.png/ })).not.toBeInTheDocument()
   })
 
   it("sorts documents by an eligible column", async () => {
@@ -297,9 +270,10 @@ describe("PersonalDocumentsRoute table controls", () => {
     expect((await screen.findByRole("button", { name: /screenshot\.png/ })).closest("tr")).toBe(documentRowsElements()[0])
 
     fireEvent.click(screen.getByRole("button", { name: /Document/ }))
+    fireEvent.click(await screen.findByRole("button", { name: /Document/ }))
 
     await waitFor(() => {
-      expect(documentRows()[0]).toContain("https://docs.google.com/document/d/a-plan/edit")
+      expect(documentRows()[0]).toContain("z-notes.md")
     })
   })
 
@@ -379,13 +353,10 @@ describe("PersonalDocumentsRoute preview", () => {
         {
           id: 31,
           kind: "file",
-          google_doc_url: null,
           filename: "notes.md",
           content_type: "text/markdown",
           byte_size: 12,
           source_url: null,
-          content_cache_state: "empty",
-          content_cached_at: null,
           created_at: "2026-01-01T00:00:00Z",
           updated_at: "2026-01-01T00:00:00Z",
           file_path: "/api/v1/app/credentials/documents/31/file"
@@ -405,13 +376,10 @@ describe("PersonalDocumentsRoute preview", () => {
       {
         id: 32,
         kind: "file",
-        google_doc_url: null,
         filename: "screenshot.png",
         content_type: "image/png",
         byte_size: 512,
         source_url: null,
-        content_cache_state: "empty",
-        content_cached_at: null,
         created_at: "2026-01-01T00:00:00Z",
         updated_at: "2026-01-01T00:00:00Z",
         file_path: "/api/v1/app/credentials/documents/32/file"
@@ -431,13 +399,10 @@ describe("PersonalDocumentsRoute preview", () => {
       {
         id: 33,
         kind: "file",
-        google_doc_url: null,
         filename: "notes.pdf",
         content_type: "application/pdf",
         byte_size: 2048,
         source_url: null,
-        content_cache_state: "empty",
-        content_cached_at: null,
         created_at: "2026-01-01T00:00:00Z",
         updated_at: "2026-01-01T00:00:00Z",
         file_path: "/api/v1/app/credentials/documents/33/file"
@@ -452,30 +417,4 @@ describe("PersonalDocumentsRoute preview", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
-  it("opens Google Docs directly in a new tab instead of the preview modal", async () => {
-    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null)
-    renderRouteWithDocuments([
-      {
-        id: 34,
-        kind: "google_doc",
-        google_doc_url: "https://docs.google.com/document/d/personal/edit",
-        filename: null,
-        content_type: null,
-        byte_size: null,
-        source_url: "https://docs.google.com/document/d/personal/edit",
-        content_cache_state: "cached",
-        content_cached_at: "2026-01-01T00:00:00Z",
-        created_at: "2026-01-01T00:00:00Z",
-        updated_at: "2026-01-01T00:00:00Z",
-        file_path: null
-      }
-    ])
-
-    fireEvent.click(await screen.findByRole("button", { name: /Google Doc/ }))
-
-    await waitFor(() => {
-      expect(openSpy).toHaveBeenCalledWith("https://docs.google.com/document/d/personal/edit", "_blank", "noopener")
-    })
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-  })
 })

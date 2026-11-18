@@ -2,6 +2,7 @@ class Document < ApplicationRecord
   KINDS = %w[file pending_snapshot].freeze
   MAX_FILE_SIZE = 20.megabytes
   MAX_PREVIEW_SIZE = 500.kilobytes
+  MAX_CONTENT_CACHE_SIZE = 64.kilobytes
   MAX_ATTACHMENTS_PER_JOB = 10
   ACCEPTED_FILE_CONTENT_TYPES = [
     "text/plain",
@@ -33,6 +34,8 @@ class Document < ApplicationRecord
   validates :source_url, uniqueness: { scope: %i[attachable_type attachable_id] }, allow_blank: true
   validates :byte_size, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :file_document_has_valid_file
+  validate :file_document_has_no_content_cache
+  validate :content_cache_within_limit
   validate :job_document_count_within_limit, on: :create
 
   scope :newest_first, -> { order(created_at: :desc, id: :desc) }
@@ -123,6 +126,17 @@ class Document < ApplicationRecord
     return if accepted_file_content_type?(file.blob.content_type)
 
     errors.add(:file, :unsupported_file_type)
+  end
+
+  def file_document_has_no_content_cache
+    errors.add(:content_cache, :must_be_blank_for_file) if file? && content_cache.present?
+  end
+
+  def content_cache_within_limit
+    return if content_cache.blank?
+    return if content_cache.to_s.bytesize <= MAX_CONTENT_CACHE_SIZE
+
+    errors.add(:content_cache, :content_cache_too_large, size: 64)
   end
 
   def job_document_count_within_limit

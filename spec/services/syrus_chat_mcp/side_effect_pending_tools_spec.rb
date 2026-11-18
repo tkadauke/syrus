@@ -198,12 +198,9 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
   end
 
   it "creates and confirms a delete_repo_document action" do
-    document = repository.repository_documents.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Old notes",
-      google_docs_url: "https://docs.google.com/document/d/old/edit"
-    )
+    document = repository.repository_documents.build(user: user, kind: "file", title: "Old notes")
+    document.file.attach(io: StringIO.new("old"), filename: "old.txt", content_type: "text/plain")
+    document.save!
 
     action = pending_action_from(call_tool("delete_repo_document", document_id: document.id))
 
@@ -388,12 +385,9 @@ RSpec.describe "Mcp::Tools side-effect pending tools" do
   it "rejects cross-user documents at tool call time" do
     other_user = Factories.user
     other_repository = Factories.repository(user: other_user)
-    other_document = other_repository.repository_documents.create!(
-      user: other_user,
-      kind: "google_doc",
-      title: "Other notes",
-      google_docs_url: "https://docs.google.com/document/d/other/edit"
-    )
+    other_document = other_repository.repository_documents.build(user: other_user, kind: "file", title: "Other notes")
+    other_document.file.attach(io: StringIO.new("other"), filename: "other.txt", content_type: "text/plain")
+    other_document.save!
 
     response = call_tool("delete_repo_document", document_id: other_document.id)
 

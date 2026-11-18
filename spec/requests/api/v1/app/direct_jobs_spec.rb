@@ -517,7 +517,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", :full_chat_access, type: :request
     )
   end
 
-  it "creates file and Google Doc attachments for the new job" do
+  it "creates file attachments for the new job" do
     sign_in_as(user)
 
     expect {
@@ -525,17 +525,15 @@ RSpec.describe "API: /api/v1/app/direct_jobs", :full_chat_access, type: :request
         repository_id: repository.id,
         prompt: "Read the context and update the app.",
         job_attachment: {
-          files: [ upload_file ],
-          google_doc_url: "https://docs.google.com/document/d/context/edit"
+          files: [ upload_file ]
         }
       }
-    }.to change(Document, :count).by(2)
+    }.to change(Document, :count).by(1)
 
     new_job = Job.order(:created_at).last
     attachments = new_job.job_attachments.includes(file_attachment: :blob)
-    expect(attachments.map(&:kind)).to contain_exactly("file", "google_doc")
+    expect(attachments.map(&:kind)).to contain_exactly("file")
     expect(attachments.detect(&:file?)&.filename).to eq("notes.md")
-    expect(attachments.detect(&:google_doc?)&.google_doc_url).to eq("https://docs.google.com/document/d/context/edit")
   end
 
   it "keeps Depends-on text in the direct prompt without parsing dependencies" do
