@@ -57,12 +57,18 @@ module Steps
     def matching_providers(files)
       basenames = files.map { |f| File.basename(f) }
       Syrus::PluginRegistry.providers_for(:dependency_audit_command).select do |provider|
-        Array(provider.lockfiles).any? { |lockfile| basenames.include?(lockfile) }
+        result = Syrus::PluginInvocation.call(
+          extension_point: :dependency_audit_command, provider:, operation: :lockfiles, on_decline: []
+        ) { provider.lockfiles }
+        Array(Syrus::PluginInvocation.value(result)).any? { |lockfile| basenames.include?(lockfile) }
       end
     end
 
     def run_provider(provider)
-      cmd = provider.audit_command(workspace_path: workspace.path)
+      result = Syrus::PluginInvocation.call(
+        extension_point: :dependency_audit_command, provider:, operation: :audit_command, on_decline: nil
+      ) { provider.audit_command(workspace_path: workspace.path) }
+      cmd = Syrus::PluginInvocation.value(result)
       return nil if cmd.blank?
 
       ecosystem = ecosystem_name(provider)

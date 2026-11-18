@@ -107,12 +107,21 @@ class RepoPrepPlan
   # detect? matches, in prepare_priority order (see PluginRegistry).
   def plugin_detector_matches
     Syrus::PluginRegistry.providers_for(:prepare_detector).filter_map do |detector|
-      next unless detector.detect?(@path.to_s)
+      detected = Syrus::PluginInvocation.call(
+        extension_point: :prepare_detector, provider: detector, operation: :detect?, on_decline: false
+      ) { detector.detect?(@path.to_s) }
+      next unless Syrus::PluginInvocation.value(detected)
 
-      commands = Array(detector.prepare_commands(@path.to_s))
+      result = Syrus::PluginInvocation.call(
+        extension_point: :prepare_detector, provider: detector, operation: :prepare_commands, on_decline: []
+      ) { detector.prepare_commands(@path.to_s) }
+      commands = Array(Syrus::PluginInvocation.value(result))
       next if commands.empty?
 
-      [ detector.name, commands ]
+      name = Syrus::PluginInvocation.call(
+        extension_point: :prepare_detector, provider: detector, operation: :name, on_decline: detector.to_s
+      ) { detector.name }
+      [ Syrus::PluginInvocation.value(name), commands ]
     end
   end
 end

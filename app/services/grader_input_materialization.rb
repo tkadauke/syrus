@@ -36,11 +36,12 @@ class GraderInputMaterialization
     end
 
     providers.each do |provider|
-      PerformanceLogging.plugin_call(extension_point: :grader_input_materializer, provider: provider, operation: :materialize_grader_inputs) do
+      result = Syrus::PluginInvocation.call(
+        extension_point: :grader_input_materializer, provider:, operation: :materialize_grader_inputs, on_decline: nil
+      ) do
         provider.materialize_grader_inputs(context)
       end
-    rescue StandardError => e
-      warn("#{provider} failed: #{e.class}: #{e.message}")
+      warn("#{provider} failed: #{result.exception_class}: #{result.message}") if result.is_a?(Syrus::PluginInvocation::Failed)
     end
   end
 
