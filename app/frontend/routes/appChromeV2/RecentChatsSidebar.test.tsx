@@ -81,6 +81,24 @@ function withMatchMedia(matches: boolean) {
 }
 
 describe("RecentChatsSidebar active chat highlighting", () => {
+  it("creates one side chat action only on a coworker's main-chat row", async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse({ chat_path: "/chats/44" }, 201))
+    vi.stubGlobal("fetch", fetchSpy)
+    renderSidebar([
+      chatNav({ id: 1, title: "Maya", agent_appearance: { name: "Maya", accent_hex: "#B6492E", avatar_key: null, avatar_url: null, coworker_id: 7, coworker_chat_role: "main", side_chat_action_path: "/api/v1/app/coworkers/7/chats" } }),
+      chatNav({ id: 2, title: "Maya side", agent_appearance: { name: "Maya", accent_hex: "#B6492E", avatar_key: null, avatar_url: null, coworker_id: 7, coworker_chat_role: "side", side_chat_action_path: "/api/v1/app/coworkers/7/chats" } })
+    ])
+
+    const action = screen.getByRole("button", { name: "New side chat with Maya" })
+    fireEvent.click(action)
+    expect(action).toBeDisabled()
+    fireEvent.click(action)
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+    expect(await screen.findByTestId("location")).toHaveTextContent("/chats/44")
+    expect(screen.getAllByRole("button", { name: "New side chat with Maya" })).toHaveLength(1)
+  })
+
   it("shows a red usage-limit warning for affected chats", () => {
     renderSidebar(
       [

@@ -151,6 +151,7 @@ function renderRoute(path: string) {
           <Route path="/coworkers" element={<CoworkersRoute />} />
           <Route path="/coworkers/new" element={<CoworkersRoute />} />
           <Route path="/coworkers/:id" element={<CoworkersRoute />} />
+          <Route path="/coworkers/:id/edit" element={<CoworkersRoute />} />
           <Route path="/chats/:id" element={<div>Chat destination</div>} />
         </Routes>
       </MemoryRouter>
@@ -308,29 +309,6 @@ it("shows remote-test and creation errors without navigating", async () => {
   expect(screen.getByRole("heading", { name: "New coworker" })).toBeInTheDocument()
 })
 
-it("adds a coworker to a selected chat from the coworker page", async () => {
-  const requests: string[] = []
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input)
-      if (init?.method === "POST") requests.push(path)
-      if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
-      if (path.endsWith("/chats")) {
-        return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
-      }
-      return jsonResponse({ agent: { id: 7 } }, 201)
-    })
-  )
-
-  renderRoute("/coworkers/7")
-  const selector = await screen.findByRole("combobox", { name: "Add to chat" })
-  fireEvent.change(selector, { target: { value: "22" } })
-  fireEvent.click(screen.getByRole("button", { name: "Add to chat" }))
-
-  await waitFor(() => expect(requests).toContain("/api/v1/app/chats/22/agents/7"))
-})
-
 it("shows sent and received message traffic on the Activity tab", async () => {
   vi.stubGlobal(
     "fetch",
@@ -387,26 +365,6 @@ it("loads older activity through the returned cursors", async () => {
   expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("runs_cursor=NTE"))).toBe(true)
 })
 
-it("does not offer removal for the coworker's implicit own chat", async () => {
-  const payload = {
-    coworker: {
-      ...detailPayload.coworker,
-      available_chats: [{ id: 12, title: "Maya", rostered: false, implicit: true }]
-    }
-  }
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => jsonResponse(payload))
-  )
-
-  renderRoute("/coworkers/7")
-  const selector = await screen.findByRole("combobox", { name: "Add to chat" })
-  fireEvent.change(selector, { target: { value: "12" } })
-
-  expect(screen.getByRole("button", { name: "Add to chat" })).toBeDisabled()
-  expect(screen.queryByRole("button", { name: "Remove from chat" })).not.toBeInTheDocument()
-})
-
 it("renders the custom profile, editable capabilities, and creates side chats", async () => {
   vi.stubGlobal(
     "fetch",
@@ -431,6 +389,37 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   fireEvent.click(screen.getByRole("button", { name: "Chat" }))
   fireEvent.click(screen.getByRole("button", { name: "New side chat" }))
   expect(await screen.findByText("Chat destination")).toBeInTheDocument()
+})
+
+it("prevents duplicate side-chat submissions and shows API failures", async () => {
+  let rejectRequest!: (reason: Error) => void
+  const sideChatRequest = new Promise<Response>((_resolve, reject) => { rejectRequest = reject })
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith("/chats") && init?.method === "POST") return sideChatRequest
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+
+  const button = await screen.findByRole("button", { name: "New side chat" })
+  fireEvent.click(button)
+  expect(await screen.findByRole("button", { name: "Creating side chat…" })).toBeDisabled()
+  fireEvent.click(button)
+  expect(fetchSpy.mock.calls.filter(([input, init]) => String(input).endsWith("/chats") && init?.method === "POST")).toHaveLength(1)
+  rejectRequest(new Error("Side chat unavailable"))
+  expect(await screen.findByText("Side chat unavailable")).toBeInTheDocument()
+})
+
+it("edits ordinary profile fields while keeping the workspace remote read-only", async () => {
+  const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => jsonResponse(detailPayload, init?.method === "PATCH" ? 200 : 200))
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7/edit")
+
+  expect(await screen.findByRole("heading", { name: "Edit coworker" })).toBeInTheDocument()
+  expect(screen.getByDisplayValue("https://github.com/acme/workspace.git")).toBeDisabled()
+  fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: "Maya Updated" } })
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+  await waitFor(() => expect(fetchSpy.mock.calls.some(([, init]) => init?.method === "PATCH" && String(init.body).includes("Maya Updated"))).toBe(true))
 })
 
 it("confirms grant escalation and refreshes the live tool surface", async () => {

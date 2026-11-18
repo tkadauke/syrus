@@ -364,7 +364,10 @@ RSpec.describe "API: coworkers", type: :request do
 
     group = JSON.parse(response.body).fetch("groups").find { |candidate| candidate["key"] == "coworkers" }
     expect(group.fetch("chats")).to contain_exactly(include("id" => chat.id))
-    expect(JSON.parse(response.body).dig("agent_appearances", chat.id.to_s)).to include("name" => "Maya", "avatar_key" => "comet")
+    expect(JSON.parse(response.body).dig("agent_appearances", chat.id.to_s)).to include(
+      "name" => "Maya", "avatar_key" => "comet", "coworker_id" => coworker.id,
+      "coworker_chat_role" => "main", "side_chat_action_path" => "/api/v1/app/coworkers/#{coworker.id}/chats"
+    )
   end
 
   it "scopes mention autocomplete without leaking the user or coworker directory" do
@@ -610,8 +613,28 @@ RSpec.describe "API: coworkers", type: :request do
 
     expect(response).to have_http_status(:created)
     chat = coworker.coworker_chats.find_by!(role: "side").chat_session
+    expect(response.parsed_body).to include("chat_path" => "/chats/#{chat.id}")
     expect(chat).to have_attributes(
       repository: repository, chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
+    )
+    expect(owner.accessible_chat_sessions.find(chat.id)).to eq(chat)
+  end
+
+  it "updates editable profile fields without changing the workspace remote" do
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-profile", workspace_repo: "https://github.com/acme/workspace.git"
+    )
+    sign_in_as(owner)
+
+    patch "/api/v1/app/coworkers/#{coworker.id}", params: {
+      name: "Maya Updated", handle: coworker.handle, about: "Updated profile", accent_hex: "#B6492E", avatar_key: "orbit",
+      chat_provider: "codex", chat_model: "gpt-6.1-sol", workspace_repo: "https://github.com/evil/ignored.git"
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(coworker.reload).to have_attributes(
+      name: "Maya Updated", role_summary: "Updated profile", accent_hex: "#B6492E", avatar_key: "orbit",
+      chat_provider: "codex", chat_model: "gpt-6.1-sol", workspace_repo: "https://github.com/acme/workspace.git"
     )
   end
 

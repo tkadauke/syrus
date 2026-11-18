@@ -78,7 +78,15 @@ export type ChatRecord = {
   agent_appearance?: ChatAgentAppearance
 }
 
-export type ChatAgentAppearance = { name: string; accent_hex: string; avatar_key: string | null; avatar_url: string | null }
+export type ChatAgentAppearance = {
+  name: string
+  accent_hex: string
+  avatar_key: string | null
+  avatar_url: string | null
+  coworker_id?: number
+  coworker_chat_role?: "main" | "side" | "mention"
+  side_chat_action_path?: string
+}
 export type ChatAgentRosterItem = ChatAgentAppearance & {
   id: number
   handle: string
@@ -1382,6 +1390,10 @@ export function fetchMoreChatsForGroup(
   search.set("group_key", groupValue)
   search.set("before_id", String(beforeChatId))
   return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?${search.toString()}`).then(withChatNavAppearances)
+}
+
+export function createChatFromAction(path: string) {
+  return postJson<{ chat_path: string }>(path)
 }
 
 function withChatNavAppearances<

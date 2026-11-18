@@ -527,8 +527,8 @@ limit, origin turn, and three-hop cap as `message_coworker`; a refusal is
 recorded in the replier's main chat. A coworker can end the exchange without
 sending or displaying an answer by replying with only `NO_REPLY`.
 
-Chat owners can also add their coworkers to a chat's agent roster from the
-coworker page or by choosing an autocomplete result marked "Add to chat."
+Chat owners add their coworkers to a chat's agent roster by choosing an
+autocomplete result marked "Add to chat."
 Rostered coworkers become addressable by every participant in that chat. An
 exact structured mention delegates the message to a reusable hidden coworker
 session for that source chat; the coworker's final answer returns automatically
