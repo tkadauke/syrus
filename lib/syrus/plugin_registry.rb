@@ -355,7 +355,7 @@ module Syrus
         return [] if plugins.empty?
 
         records = records_for(plugins)
-        plugins.reject { |manifest| plugin_enabled?(manifest, records[manifest.name]) }.map(&:name)
+        plugins.reject { |manifest| manifest.loaded && plugin_enabled?(manifest, records[manifest.name]) }.map(&:name)
       rescue StandardError => e
         Rails.logger.warn("[PluginRegistry] eager-load skip disabled: #{e.class}: #{e.message}") if defined?(Rails.logger)
         []

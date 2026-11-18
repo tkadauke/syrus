@@ -49,9 +49,25 @@ module SystemAlerts
   private_class_method :alerts_for
 
   def self.admin_alerts
-    [ plugin_fleet_divergence, data_root_disk_usage, *no_progress_main_branch_repairs, *stuck_main_branch_repairs ].compact
+    [ plugin_recovery_mode, plugin_fleet_divergence, data_root_disk_usage, *no_progress_main_branch_repairs, *stuck_main_branch_repairs ].compact
   end
   private_class_method :admin_alerts
+
+  def self.plugin_recovery_mode
+    safety = Syrus::PluginBootSafety.default
+    return unless safety.active?
+
+    Alert.new(
+      id: "plugin_recovery_mode",
+      dismissal_key: "plugin_recovery_mode:#{safety.mode}:#{safety.quarantines.keys.sort.join(',')}",
+      severity: :warn,
+      title: "Plugin recovery mode is active.",
+      message: "Safe mode or plugin quarantine is withholding one or more plugins. Recovery changes take effect after restart.",
+      action_steps: [ "Open Plugins, review each withheld plugin, and clear quarantines one at a time after correcting the cause." ],
+      cta: { text: "Review plugins", path: "/admin/plugins" }, actions: []
+    )
+  end
+  private_class_method :plugin_recovery_mode
 
   def self.plugin_fleet_divergence
     convergence = PluginDesiredState::Convergence.new
