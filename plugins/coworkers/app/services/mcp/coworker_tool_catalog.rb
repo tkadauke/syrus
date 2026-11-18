@@ -33,12 +33,7 @@ module Mcp
           grants = grant_definitions.transform_values { |grant| grant.fetch("tools") }
           granted_names = grants.values.flatten.to_set
           unclassified = definitions.select do |definition|
-            value(definition, :coworker_safe) == true && value(definition, :ungated) != true &&
-              !granted_names.include?(value(definition, :name).to_s)
-          end
-          if unclassified.any?
-            name = value(unclassified.first, :name).to_s
-            raise ArgumentError, "coworker tool #{name.inspect} has no resolvable grant and is not ungated"
+            value(definition, :ungated) != true && !granted_names.include?(value(definition, :name).to_s)
           end
 
           granted = grants.flat_map do |capability, names|
@@ -54,8 +49,37 @@ module Mcp
                 grant: grant_definitions.fetch(capability))
             end
           end
+          unclassified_descriptors = unclassified.to_h do |definition|
+            [ value(definition, :name).to_s,
+              Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition) ]
+          end
+          unclassified_defaults = unclassified_descriptors.values.group_by(&:capability).transform_values do |descriptors|
+            descriptors.all? do |descriptor|
+              descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask) == :allow &&
+                Permissions::CoworkerDefaultPolicy.descriptor_auto_allowable?(descriptor)
+            end ? :allow : :ask
+          end
+          shared = unclassified.map do |definition|
+            name = value(definition, :name).to_s
+            descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
+              unclassified_descriptors.fetch(name),
+              default_policy: unclassified_defaults.fetch(unclassified_descriptors.fetch(name).capability)
+            )
+            capability = descriptor.capability.delete_suffix("@v1")
+            grant = {
+              "name" => capability, "label" => descriptor.presentation.capability_name,
+              "description" => descriptor.presentation.capability_description,
+              "tools" => [ name ], "default_policy" => "confirm", "maximum_policy" => "auto"
+            }
+            Descriptor.new(tool_name: name, capability: capability, ungated: false,
+              approval_effect: value(definition, :approval_effect) == true,
+              tier: definition_tier(provider, name, chat_session: chat_session), tool: nil, provider: provider,
+              availability_state: provider_state(provider, plugin_state, chat_session:),
+              description: value(definition, :description),
+              definition: definition.merge(capability_descriptor: descriptor), grant: grant)
+          end
           ungated = definitions.filter_map do |definition|
-            next unless value(definition, :coworker_safe) == true && value(definition, :ungated) == true
+            next unless value(definition, :ungated) == true
 
             name = value(definition, :name).to_s
             Descriptor.new(tool_name: name, capability: value(definition, :capability)&.to_s, ungated: true,
@@ -64,7 +88,7 @@ module Mcp
               availability_state: provider_state(provider, plugin_state, chat_session:),
               description: value(definition, :description), definition: definition)
           end
-          granted + ungated
+          granted + shared + ungated
         end
       end
 
@@ -80,7 +104,8 @@ module Mcp
             :available
           end
           providers = manifest.provides[:chat_mcp_tool_set] || manifest.provides["chat_mcp_tool_set"]
-          Array(providers).map { |provider| [ provider, state ] }
+          Array(providers).select { |provider| Mcp::CoworkerToolExposure.plugin_provider?(provider) }
+            .map { |provider| [ provider, state ] }
         end
       end
 
@@ -96,9 +121,13 @@ module Mcp
       def definitions_for(provider, chat_session: nil)
         parameters = provider.method(:tool_definitions).parameters
         accepts_chat = parameters.any? { |type, name| [ :key, :keyreq ].include?(type) && name == :chat_session }
-        return provider.tool_definitions(tier: nil) unless chat_session && accepts_chat
+        definitions = if !chat_session || !accepts_chat
+          provider.tool_definitions(tier: nil)
+        else
+          %i[essential deferred].flat_map { |tier| provider.tool_definitions(tier: tier, chat_session: chat_session) }
+        end
 
-        %i[essential deferred].flat_map { |tier| provider.tool_definitions(tier: tier, chat_session: chat_session) }
+        Array(definitions).select { |definition| Mcp::CoworkerToolExposure.plugin_definition?(definition) }
       rescue StandardError => error
         Rails.logger.warn("[CoworkerToolCatalog] #{provider} definitions unavailable: #{error.class}: #{error.message}")
         []
