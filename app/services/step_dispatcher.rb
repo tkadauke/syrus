@@ -2303,6 +2303,15 @@ class StepDispatcher
   def finish_workflow!
     return if workflow_finish_blocked_by_live_descendants?
 
+    cancelled_step_ids = @workflow.steps.where(state: "cancelled").pluck(:id)
+    if cancelled_step_ids.any? && @workflow.terminal_descendant_outcome.nil?
+      @workflow.artifacts = (@workflow.artifacts || {}).merge(
+        "failure_reason" => "no_runnable_steps_after_cancellation",
+        "no_runnable_cancelled_step_ids" => cancelled_step_ids
+      )
+      return hard_fail_workflow!("no_runnable_steps_after_cancellation")
+    end
+
     if @workflow.uncleared_retry_until_barrier?
       return hard_fail_workflow!("uncleared_retry_until_barrier_after_success")
     end

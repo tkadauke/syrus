@@ -1163,6 +1163,14 @@ module WorkEngine
             else
               return skipped("Workflow cannot transition to failed") unless workflow.may_fail?
 
+              cancelled_step_ids = workflow.steps.where(state: "cancelled").pluck(:id)
+              if cancelled_step_ids.any? && workflow.failure_reason.blank?
+                workflow.failure_reason = "no_runnable_steps_after_cancellation"
+                workflow.artifacts = (workflow.artifacts || {}).merge(
+                  "failure_reason" => workflow.failure_reason,
+                  "no_runnable_cancelled_step_ids" => cancelled_step_ids
+                )
+              end
               workflow.fail!
               workflow.save!
             end

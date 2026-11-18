@@ -305,6 +305,8 @@ RSpec.describe WorkEngine::RepairExecutor do
     expect(result.first).to have_attributes(status: "applied")
     expect(result.first.message).to include("marked #{workflow.slug} failed")
     expect(workflow.reload).to be_failed
+    expect(workflow.failure_reason).to eq("no_runnable_steps_after_cancellation")
+    expect(workflow.artifact("no_runnable_cancelled_step_ids")).to eq([ collect.id ])
   end
 
   it "uses normal completion guards when terminal descendants appear successful" do

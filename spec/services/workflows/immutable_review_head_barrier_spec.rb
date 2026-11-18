@@ -136,6 +136,40 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
     expect(created.first.next_step).to eq(waiting_gate)
   end
 
+  it "supersedes an in-flight panel member at commit, rematerializes its gate, and preserves the chain" do
+    stale_gate = Step.create!(workflow: workflow, kind: "adversarial_review", position: 1, state: "running",
+      loop_id: "adversarial-loop", started_at: 2.minutes.ago,
+      details: { "panel_member" => true, "reviewed_head_sha" => "head-a", "required" => true })
+    stale_run = stale_gate.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running",
+      started_at: 2.minutes.ago)
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 2, state: "succeeded",
+      loop_id: "adversarial-loop")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-c")
+    sibling = Step.create!(workflow: workflow, kind: "security_review", position: 3,
+      loop_id: "security-loop", details: { "reviewed_head_sha" => "head-a", "required" => true })
+    collect = Step.create!(workflow: workflow, kind: "review_panel_collect", position: 4,
+      details: { "panel_review_kind" => "security_review", "reviewed_head_sha" => "head-a", "required" => true })
+    grader = Step.create!(workflow: workflow, kind: "grader_fanout", position: 5)
+    pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 6)
+    repair.update!(next_step: sibling)
+    sibling.update!(next_step: collect)
+    collect.update!(next_step: grader)
+    grader.update!(next_step: pr_open)
+
+    created = described_class.refresh_required_reviews!(workflow, repair)
+
+    expect(stale_gate.reload).to be_cancelled
+    expect(stale_run.reload).to be_cancelled
+    expect(created.map(&:kind)).to eq([ "adversarial_review" ])
+    expect(created.first).to have_attributes(next_step_id: sibling.id)
+    expect(sibling.reload).to be_queued
+    expect(sibling.details["reviewed_head_sha"]).to eq("head-c")
+    expect(collect.reload).to be_queued
+    expect(grader.reload).to be_queued
+    expect(pr_open.reload).to be_queued
+    expect(workflow.reload).not_to be_failed
+  end
+
   it "idempotently rematerializes every missing required review for a repaired HEAD" do
     adversarial = collect(kind: "adversarial_review", position: 1, sha: "head-a")
     security = collect(kind: "security_review", position: 2, sha: "head-a", state: "running")

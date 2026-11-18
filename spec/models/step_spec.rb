@@ -284,6 +284,46 @@ RSpec.describe Step do
       expect(step_c.reload.state).to eq("cancelled")
     end
 
+    it "attributes downstream cancellations and logs one cascade summary" do
+      allow(Rails.logger).to receive(:info)
+
+      step_a.cancel!
+      step_a.save!
+
+      [ step_b.reload, step_c.reload ].each do |cancelled|
+        expect(cancelled.cancellation_reason).to eq("upstream_step_cancelled")
+        expect(cancelled.details).to include(
+          "cancelled_source_step_id" => step_a.id,
+          "cancelled_source_step_kind" => step_a.kind
+        )
+      end
+      expect(Rails.logger).to have_received(:info).with(
+        a_string_including(
+          "cancellation cascade",
+          "workflow_id=#{workflow.id}",
+          "source_step_id=#{step_a.id}",
+          "reason=upstream_step_cancelled",
+          "cancelled_step_count=2",
+          "path=cancelled!"
+        )
+      ).once
+    end
+
+    it "retains cascade suppression until an enclosing transaction commits" do
+      Step.transaction do
+        Step.suppress_cancel_cascade do
+          step_a.cancel!
+          step_a.save!
+        end
+
+        expect(step_b.reload).to be_queued
+      end
+
+      expect(step_b.reload).to be_queued
+      expect(step_c.reload).to be_queued
+      expect(workflow.reload).to be_running
+    end
+
     it "cancels the workflow when no active steps remain" do
       step_a.cancel!
       step_a.save!

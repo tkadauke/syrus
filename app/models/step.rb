@@ -171,6 +171,21 @@ class Step < ApplicationRecord
     Thread.current[:syrus_step_suppress_cancel_cascade] = prior
   end
 
+  # Cancellation propagation runs from after_update_commit, which may fire
+  # after the suppress_cancel_cascade block (and its thread-local flag) has
+  # exited. Snapshot the flag on the record while the cancelled transition is
+  # being persisted so the commit callback retains the orchestration intent.
+  before_update :retain_cancel_cascade_suppression,
+    if: :saved_change_to_state_to_cancelled?
+
+  def cancel_cascade_suppressed?
+    @cancel_cascade_suppressed == true
+  end
+
+  def retain_cancel_cascade_suppression
+    @cancel_cascade_suppressed = true if Thread.current[:syrus_step_suppress_cancel_cascade]
+  end
+
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
     state :queued, initial: true
