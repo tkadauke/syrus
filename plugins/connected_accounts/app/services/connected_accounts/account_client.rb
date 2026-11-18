@@ -29,6 +29,7 @@ module ConnectedAccounts
       account = resolve_account!
       validate_owner!(account)
       validate_invocation!
+      access_yielded = false
 
       CredentialStore::Broker.with_credential_payload(
         context: context,
@@ -45,13 +46,17 @@ module ConnectedAccounts
         tokens = refresh_tokens!(account, tokens) if token_expired?(tokens)
         secrets |= token_secrets(tokens)
         access = Access.new(tokens.fetch("access_token"))
+        access_yielded = true
         result = yield access
         CredentialStore::Broker.redact(result, extra_secrets: secrets)
       rescue StandardError => e
         raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: secrets || token_secrets(tokens))
       end
-    rescue CredentialStore::Broker::Denied, CredentialStore::Broker::NotFound,
-      CredentialStore::Broker::InvalidPayload => e
+    rescue CredentialStore::Broker::Denied, CredentialStore::Broker::NotFound => e
+      raise Denied, e.message
+    rescue CredentialStore::Broker::ExecutionError => e
+      raise if access_yielded || !e.cause.is_a?(CredentialStore::Broker::InvalidPayload)
+
       raise Denied, e.message
     end
 

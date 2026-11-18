@@ -258,8 +258,6 @@ module CredentialStore
 
     def yield_with_redaction(credential)
       Redaction.scrub_object(yield, credentials: [ credential ])
-    rescue InvalidPayload
-      raise
     rescue StandardError => e
       raise ExecutionError, Redaction.scrub(e.message, credentials: [ credential ])
     end
