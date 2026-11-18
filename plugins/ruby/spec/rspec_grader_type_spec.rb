@@ -188,6 +188,53 @@ RSpec.describe Ruby::RspecGraderType do
     expect(status).to be_success
   end
 
+  # A repository commit where the changed file has no same-named spec.
+  def commit_uncovered_change(dir, referencing_spec: nil)
+    run_git = ->(*args) { Open3.capture3("git", "-C", dir, *args) }
+    run_git.call("init", "-q", "-b", "main")
+    run_git.call("config", "user.email", "test@example.com")
+    run_git.call("config", "user.name", "Test")
+    run_git.call("config", "commit.gpgsign", "false")
+    FileUtils.mkdir_p(File.join(dir, ".syrus"))
+    FileUtils.mkdir_p(File.join(dir, "spec/services"))
+    File.write(File.join(dir, "spec/services/unrelated_spec.rb"), "RSpec.describe(Unrelated) {}\n")
+    File.write(File.join(dir, "spec/services/caller_spec.rb"), referencing_spec) if referencing_spec
+    run_git.call("add", "-A")
+    run_git.call("commit", "-q", "-m", "base")
+    run_git.call("checkout", "-q", "-b", "feature")
+    FileUtils.mkdir_p(File.join(dir, "app/services/billing"))
+    File.write(File.join(dir, "app/services/billing/invoice_mailer.rb"), "module Billing; class InvoiceMailer; end; end\n")
+    run_git.call("add", "-A")
+    run_git.call("commit", "-q", "-m", "change without a same-named spec")
+  end
+
+  it "selects specs that reference a changed constant when no same-named spec exists" do
+    command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+
+    Dir.mktmpdir do |dir|
+      commit_uncovered_change(dir, referencing_spec: "RSpec.describe(Billing::InvoiceMailer) {}\n")
+      stdout, stderr, status = Open3.capture3({ "SYRUS_BASE_REF" => "main" }, "ruby", "-e", focused_selector_from(command),
+        chdir: dir)
+
+      expect(status).to be_success, stderr
+      expect(stdout.lines.map(&:strip)).to eq([ "spec/services/caller_spec.rb" ])
+    end
+  end
+
+  # Regression: a change with no covering spec fell back to the full suite
+  # under the 10-minute focused budget, which it can never finish -- the
+  # grader timed out on every attempt and failed the workflow.
+  it "skips the focused run instead of running the full suite when no spec covers the change" do
+    command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+
+    stdout, _stderr, status = run_generated_rspec_command(command, parallel_status: 7, serial_status: 7,
+      extra_env: { "SYRUS_BASE_REF" => "main" }) { |dir| commit_uncovered_change(dir) }
+
+    expect(stdout).to include("No RSpec files cover the changed Ruby files; skipping the focused run")
+    expect(stdout).not_to include("falling back to full RSpec suite")
+    expect(status).to be_success
+  end
+
   it "expands to typed focused review, full landing, and ci graders" do
     steps = described_class.grade_steps(config: {}, default_failures: "strict")
 

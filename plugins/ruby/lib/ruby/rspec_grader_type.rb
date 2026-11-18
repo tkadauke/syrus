@@ -306,6 +306,9 @@ module Ruby
         if grep -qx '__SYRUS_NO_SCOPED_RUBY_CHANGES__' .syrus/rspec-focused-files; then
           echo "No changed Ruby files matched this RSpec grader's scope; skipping";
           : > .syrus/rspec-focused-files;
+        elif grep -qx '__SYRUS_NO_FOCUSED_SPECS__' .syrus/rspec-focused-files; then
+          echo "No RSpec files cover the changed Ruby files; skipping the focused run (the full RSpec graders cover it before landing)";
+          : > .syrus/rspec-focused-files;
         elif [ ! -s .syrus/rspec-focused-files ]; then
           echo "No focused RSpec files matched changed Ruby files; falling back to full RSpec suite";
           #{fallback_command}
@@ -823,7 +826,30 @@ module Ruby
             ].compact.map { |candidate| prefixed.call(candidate) }
           end
         end
-        puts specs.uniq.sort.select { |path| File.exist?(path) }
+        selected = specs.uniq.sort.select { |path| File.exist?(path) }
+        if selected.empty?
+          # No spec shares a changed file's name: look for specs that mention
+          # the changed constants instead (app/services/foo/bar_baz.rb ->
+          # Foo::BarBaz, and the bare BarBaz).
+          constants = scoped_changed.flat_map do |path|
+            rel = relative.call(path).sub(/\A(?:app\/[^\/]+|lib)\//, "").sub(/\.rb\z/, "")
+            camel = rel.split("/").map { |part| part.split("_").map(&:capitalize).join }
+            [ camel.join("::"), camel.last ]
+          end.uniq.reject { |name| name.length < 4 }
+          spec_root = prefixed.call("spec")
+          if Dir.exist?(spec_root) && constants.any?
+            pattern = Regexp.union(constants.map { |name| /\b#{Regexp.escape(name)}\b/ })
+            selected = Dir.glob(File.join(spec_root, "**", "*_spec.rb")).sort.select do |spec|
+              File.read(spec).match?(pattern)
+            rescue StandardError
+              false
+            end
+          end
+        end
+        # The base is known and Ruby changed, but no spec covers it. The full
+        # suite cannot finish inside a focused grader's budget, so say so and
+        # leave it to the full RSpec graders that run before landing.
+        puts(selected.empty? ? "__SYRUS_NO_FOCUSED_SPECS__" : selected)
       RUBY
     end
 
