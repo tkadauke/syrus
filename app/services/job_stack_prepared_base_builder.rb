@@ -106,6 +106,7 @@ class JobStackPreparedBaseBuilder
   end
 
   def merge_dependencies
+    GitMergeDrivers.register!(git: @git, path: clone_path)
     dependency_jobs.each do |dependency|
       @git.run(
         "merge",

@@ -144,6 +144,7 @@ class MergeTrainFixReplay
   end
 
   def replay!(source_train, repair_commits)
+    GitMergeDrivers.register!(git: @git, path: @chdir)
     pre_replay_sha = @git.run("rev-parse", "HEAD", chdir: @chdir).strip
     repair_commits.each do |sha|
       @git.run("cherry-pick", sha, chdir: @chdir)

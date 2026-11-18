@@ -7,7 +7,8 @@
 # conflicts surface. The driver itself is registered per-clone via
 # bin/setup (Git refuses to run merge drivers from .gitattributes
 # alone — registration in .git/config is required, by design, since
-# drivers execute arbitrary code).
+# drivers execute arbitrary code). Driver names use underscores in attributes;
+# their executable uses the hyphenated bin/merge-<name> spelling.
 db/schema.rb merge=ruby_schema
 
 # Deploy assets that get byte-stamped by the installers must stay LF on every
