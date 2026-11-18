@@ -1139,6 +1139,140 @@ RSpec.describe StepDispatcher, :ci_only do
   end
 
   describe ".advance_from" do
+    it "rematerializes an in-flight stale review and advances the preserved chain through PR publication" do
+      review_workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        started_at: 2.minutes.ago,
+        artifacts: {
+          "review_gate_contributions" => [
+            {
+              "step_kind" => "adversarial_review",
+              "verdict_artifact" => "adversarial_review_iterations",
+              "exit_verdicts" => %w[approved skipped],
+              "required" => true
+            },
+            {
+              "step_kind" => "security_review",
+              "verdict_artifact" => "security_review_iterations",
+              "exit_verdicts" => %w[approved skipped],
+              "required" => true
+            }
+          ]
+        }
+      )
+      stale_gate = Step.create!(
+        workflow: review_workflow,
+        kind: "adversarial_review",
+        position: 0,
+        state: "running",
+        loop_id: "adversarial-loop",
+        started_at: 2.minutes.ago,
+        details: {
+          "panel_member" => true,
+          "reviewed_head_sha" => "head-a",
+          "required" => true
+        }
+      )
+      stale_run = stale_gate.runs.create!(
+        job: job,
+        trigger_kind: review_workflow.trigger_kind,
+        state: "running",
+        started_at: 2.minutes.ago
+      )
+      repair = Step.create!(
+        workflow: review_workflow,
+        kind: "implement",
+        position: 1,
+        state: "succeeded",
+        loop_id: "adversarial-loop"
+      )
+      repair.runs.create!(
+        job: job,
+        trigger_kind: review_workflow.trigger_kind,
+        state: "succeeded",
+        head_sha: "head-c"
+      )
+      sibling = Step.create!(
+        workflow: review_workflow,
+        kind: "security_review",
+        position: 2,
+        loop_id: "security-loop",
+        details: { "reviewed_head_sha" => "head-a", "required" => true }
+      )
+      collect = Step.create!(
+        workflow: review_workflow,
+        kind: "review_panel_collect",
+        position: 3,
+        details: {
+          "panel_review_kind" => "security_review",
+          "panel_id" => "security-panel",
+          "reviewed_head_sha" => "head-a",
+          "required" => true
+        }
+      )
+      grader_fanout = Step.create!(workflow: review_workflow, kind: "grader_fanout", position: 4)
+      grader_collect = Step.create!(workflow: review_workflow, kind: "grader_collect", position: 5)
+      pr_open = Step.create!(workflow: review_workflow, kind: "pr_open", position: 6)
+      repair.update!(next_step: sibling)
+      sibling.update!(next_step: collect)
+      collect.update!(next_step: grader_fanout)
+      grader_fanout.update!(next_step: grader_collect)
+      grader_collect.update!(next_step: pr_open)
+
+      described_class.advance_from(repair)
+
+      fresh_gate = review_workflow.steps.where(kind: "adversarial_review").where.not(id: stale_gate.id).take!
+      expect(fresh_gate.details).to include(
+        "reviewed_head_sha" => "head-c",
+        "required" => true,
+        "review_barrier_rematerialized" => true
+      )
+      expect(stale_gate.reload).to be_cancelled
+      expect(stale_run.reload).to be_cancelled
+      expect(fresh_gate.runs.count).to eq(1)
+      expect(fresh_gate.next_step).to eq(sibling)
+      expect([ sibling, collect, grader_fanout, grader_collect, pr_open ].map { |step| step.reload.state }).to all(eq("queued"))
+
+      succeed_and_advance = lambda do |step|
+        step.runs.update_all(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+        step.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+        described_class.advance_from(step.reload)
+      end
+
+      review_workflow.set_artifact!(
+        "adversarial_review_iterations",
+        [ { "reviewed_head_sha" => "head-c", "verdict" => "approved" } ]
+      )
+      succeed_and_advance.call(fresh_gate)
+      expect(sibling.reload.runs.count).to eq(1)
+
+      succeed_and_advance.call(sibling)
+      expect(collect.reload.runs.count).to eq(1)
+
+      review_workflow.set_artifact!(
+        "security_review_iterations",
+        [
+          {
+            "aggregate" => true,
+            "panel_id" => "security-panel",
+            "reviewed_head_sha" => "head-c",
+            "verdict" => "approved"
+          }
+        ]
+      )
+      succeed_and_advance.call(collect)
+      expect(grader_fanout.reload.runs.count).to eq(1)
+
+      succeed_and_advance.call(grader_fanout)
+      expect(grader_collect.reload.runs.count).to eq(1)
+
+      succeed_and_advance.call(grader_collect)
+      expect(pr_open.reload.runs.count).to eq(1)
+      expect(review_workflow.reload).to be_running
+    end
+
     it "finishes the current step and then stops before the next step while manually paused" do
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
