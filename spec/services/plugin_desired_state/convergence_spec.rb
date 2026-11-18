@@ -28,6 +28,23 @@ RSpec.describe PluginDesiredState::Convergence do
     )
   end
 
+  it "uses the fleet artifact digest for every process role" do
+    release = PluginRelease.create!(name: "sidecar_tools", version: "2.0.0", content_digest: "b" * 64,
+      source: "bundled", trust_label: "reviewed", size_bytes: 0)
+    PluginInstallation.create!(plugin_name: "sidecar_tools", plugin_release: release, roles: [ "sidecar" ])
+    desired_digest = Digest::SHA256.hexdigest(JSON.generate([
+      { "name" => "sidecar_tools", "version" => "2.0.0", "digest" => "b" * 64, "size" => 0 },
+      { "name" => "weather", "version" => "1.0.0", "digest" => "a" * 64, "size" => 0 }
+    ]))
+    state = PluginDesiredState.current
+    state.update!(revision: 2)
+    create_process("worker", 2, now, digest: desired_digest, role: "worker")
+
+    row = described_class.new(state:, now:).as_json.fetch(:processes).sole
+
+    expect(row).to include(role: "worker", state: "converged")
+  end
+
   it "marks divergence beyond the configurable threshold" do
     state = PluginDesiredState.current
     state.update!(revision: 2, apply_requested_at: nil)
@@ -82,8 +99,8 @@ RSpec.describe PluginDesiredState::Convergence do
     expect(SystemAlertNotification.find_by!(alert_id: "plugin_fleet_divergence").payload.dig("cta", "url")).to end_with("/admin/plugins")
   end
 
-  def create_process(hostname, revision, heartbeat, digest: nil, started_at: now - 5.minutes)
-    InstanceVersion.create!(hostname:, role: "web", version: "sha", started_at:, last_heartbeat_at: heartbeat,
+  def create_process(hostname, revision, heartbeat, digest: nil, started_at: now - 5.minutes, role: "web")
+    InstanceVersion.create!(hostname:, role:, version: "sha", started_at:, last_heartbeat_at: heartbeat,
       plugin_set_revision: revision, plugin_set_digest: digest, plugin_set_details: { "plugins" => [] })
   end
 end

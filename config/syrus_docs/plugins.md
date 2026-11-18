@@ -140,6 +140,9 @@ It verifies the Ed25519 signature plus every archive's size and SHA-256 digest,
 then atomically switches `$SYRUS_DATA_ROOT/plugin-sync/current`. The preceding
 set remains at `last-good`, and hand-placed plugins in `SYRUS_PLUGIN_PATH`
 continue to take precedence when a name occurs in both roots.
+The activated set contains every desired plugin artifact so processes sharing a
+data root and sidecars spawned after boot all see the same files. Each process's
+plugin loader still enforces the manifest's `roles` declaration.
 
 Storage, signature, manifest, and artifact failures print one error, retain the
 last-good set, and allow boot. `SYRUS_PLUGIN_SYNC_STRICT=1` changes failures to
@@ -165,7 +168,7 @@ tested with Docker Compose restart policies; native macOS workers and external
 plugin distribution on Kubernetes are not supported by this flow.
 
 Admin → Plugins also shows fleet convergence. A process is **converged** when
-its role-specific plugin-set digest matches desired state. **Pending restart**
+its fleet plugin-set digest matches desired state. **Pending restart**
 means an applied revision has not started there; **behind** means an older set
 without a current restart request; **ahead** usually indicates the process is
 connected to the wrong control plane or manifest store; and **unreachable**

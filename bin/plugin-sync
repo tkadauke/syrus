@@ -27,7 +27,6 @@ class PluginSync
     @if_configured = if_configured
     @data_root = Pathname.new(env.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")))
     @root = Pathname.new(env.fetch("SYRUS_PLUGIN_SYNC_ROOT", @data_root.join("plugin-sync").to_s))
-    @role = env["SYRUS_ROLE"].to_s
     @retain = Integer(env.fetch("SYRUS_PLUGIN_SYNC_RETENTION", "2"), 10)
   end
 
@@ -96,8 +95,6 @@ class PluginSync
     manifest.fetch("plugins").filter_map do |entry|
       validate_entry!(entry)
       next if entry["fleet_quarantined"] || entry["revoked"]
-      roles = Array(entry["roles"])
-      next if roles.any? && !@role.empty? && !roles.include?(@role)
       entry.slice("name", "version", "digest", "size")
     end.sort_by { |entry| entry.fetch("name") }
   end

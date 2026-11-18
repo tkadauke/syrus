@@ -42,17 +42,34 @@ RSpec.describe "plugin-sync" do
     File.binwrite(path, body)
   end
 
-  def run_sync(storage:, data:, verify_key:, strict: false, env_file: nil)
+  def run_sync(storage:, data:, verify_key:, strict: false, env_file: nil, role: nil)
     env = {
       "SYRUS_PLUGIN_SYNC_STORAGE_PATH" => storage,
       "SYRUS_DATA_ROOT" => data,
       "SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY" => Base64.strict_encode64(verify_key.to_bytes),
       "BUNDLE_GEMFILE" => File.expand_path("../../Gemfile", __dir__)
     }
+    env["SYRUS_ROLE"] = role if role
     command = [ "bundle", "exec", "ruby", script ]
     command << "--strict" if strict
     command.push("--env-file", env_file) if env_file
     Open3.capture3(env, *command)
+  end
+
+  it "materializes plugins for every role so shared roots and spawned sidecars see one fleet set" do
+    require "ed25519"
+    Dir.mktmpdir do |directory|
+      storage = File.join(directory, "storage")
+      data = File.join(directory, "data")
+      key = Ed25519::SigningKey.generate
+      web = add_plugin(storage, name: "web_ui", version: "v1", roles: [ "web" ])
+      sidecar = add_plugin(storage, name: "sidecar_tools", version: "v1", roles: [ "sidecar" ])
+      publish(storage, key, revision: 1, plugins: [ web, sidecar ])
+
+      expect(run_sync(storage:, data:, verify_key: key.verify_key, role: "worker").last).to be_success
+      expect(File.read(active(data, "web_ui"))).to eq("v1")
+      expect(File.read(active(data, "sidecar_tools"))).to eq("v1")
+    end
   end
 
   def active(data, name)

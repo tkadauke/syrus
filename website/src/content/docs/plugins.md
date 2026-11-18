@@ -92,7 +92,9 @@ still takes precedence over a same-named synced plugin and the collision is
 reported by plugin health.
 
 Plugin authors may limit loading with `roles %w[web worker preview sidecar]`;
-the default is every role. After changing desired plugins, **Apply changes**
+the default is every role. Sync still places every desired artifact in the
+activated set so shared data roots and sidecars see one fleet set; each process
+loader enforces the declared roles. After changing desired plugins, **Apply changes**
 drains web, worker, and preview processes and lets the container restart policy
 rerun pre-boot sync. The status identifies processes still pending or stuck.
 Setup and web apply plugin migrations normally, while workers stop at boot if
@@ -101,7 +103,7 @@ any migration remains pending.
 ### Reading fleet convergence
 
 **Admin → Plugins** compares the desired revision with every process heartbeat.
-`Converged` means the process reports the role-specific desired digest. `Pending
+`Converged` means the process reports the fleet desired digest. `Pending
 restart` means an applied revision has not started there yet; restart that
 process. `Behind` means it is running an older set without a current restart
 request; verify sync configuration and restart it. `Ahead` means the process is
