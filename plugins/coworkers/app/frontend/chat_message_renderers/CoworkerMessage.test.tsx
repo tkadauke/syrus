@@ -21,11 +21,32 @@ describe("Coworkers chat message contribution", () => {
 
   it("renders two delivered replies with distinct author bubbles and working-session links", () => {
     const payload = { chat: { id: 10, conversation_kind: "direct" } }
-    const item = (id: number, text: string) => ({ id, type: "message", role: "assistant", text, content: {}, attachments: [], created_at: "2026-11-17T00:00:00Z" })
+    const item = (id: number, text: string) => ({
+      id,
+      type: "message",
+      role: "assistant",
+      text,
+      content: {},
+      attachments: [],
+      created_at: "2026-11-17T00:00:00Z"
+    })
     const props = (id: number, name: string, handle: string, accent: string, workingChatId: number) => ({
-      item: item(id, `${name} answered`), payload,
-      presentation: { component: "coworkers/CoworkerMessage", data: { appearance: { name, handle, accent_hex: accent, avatar_key: null, avatar_url: null }, direction: "incoming", handle, working_chat_id: workingChatId } },
-      prefix: "", queryKey: ["chat", "10"], readOnly: true, entranceClass: "", onNotice: vi.fn()
+      item: item(id, `${name} answered`),
+      payload,
+      presentation: {
+        component: "coworkers/CoworkerMessage",
+        data: {
+          appearance: { name, handle, accent_hex: accent, avatar_key: null, avatar_url: null },
+          direction: "incoming",
+          handle,
+          working_chat_id: workingChatId
+        }
+      },
+      prefix: "",
+      queryKey: ["chat", "10"],
+      readOnly: true,
+      entranceClass: "",
+      onNotice: vi.fn()
     })
     const maya = props(1, "Maya", "maya", "#b6492e", 101) as unknown as PluginChatMessageProps
     const rin = props(2, "Rin", "rin", "#663399", 102) as unknown as PluginChatMessageProps
@@ -39,7 +60,7 @@ describe("Coworkers chat message contribution", () => {
 
     expect(screen.getByText("Maya")).toBeInTheDocument()
     expect(screen.getByText("Rin")).toBeInTheDocument()
-    expect(screen.getAllByText("View working session").map((link) => link.getAttribute("href"))).toEqual([ "/chats/101", "/chats/102" ])
+    expect(screen.getAllByText("View working session").map((link) => link.getAttribute("href"))).toEqual(["/chats/101", "/chats/102"])
     expect(screen.getAllByTestId("coworker-incoming-message")).toHaveLength(2)
   })
 })
