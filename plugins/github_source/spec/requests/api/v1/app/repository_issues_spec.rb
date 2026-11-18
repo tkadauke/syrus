@@ -175,6 +175,25 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
   end
 
 
+  it "filters out delegated issues regardless of JSON label formatting" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
+    delegated = fake_issue(repository: repository, number: 1, title: "Delegated", labels: [ "syrus" ])
+    available = fake_issue(repository: repository, number: 2, title: "Available", labels: [])
+    formatted_labels = '[{"name": "syrus", "color": "0075ca"}]'
+    GithubSource::Issue.connection.execute(
+      "UPDATE github_source_issues SET labels = #{GithubSource::Issue.connection.quote(formatted_labels)} WHERE id = #{delegated.id}"
+    )
+
+    q = encoded_filter([ { "field" => "delegated", "op" => "is", "value" => "false" } ])
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "all", q: q }
+
+    body = parse_body
+    expect(body["issues"].map { |issue| issue["number"] }).to eq([ available.number ])
+    expect(body["folder_counts"]["delegated"]).to eq(1)
+  end
+
+
   it "sorts issues by requested columns before pagination" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
