@@ -3,7 +3,7 @@ require "prism"
 module Admin
   class PluginHostSurfaceInventory
     Reference = Data.define(:constant, :plugin, :path, :line)
-    CollectedReference = Data.define(:name, :namespace, :absolute, :line)
+    CollectedReference = Data.define(:name, :nesting, :absolute, :line)
     Result = Data.define(:constant, :tier, :plugins, :count)
 
     SOURCE_GLOBS = %w[app/**/*.rb lib/**/*.rb].freeze
@@ -15,18 +15,18 @@ module Admin
       def initialize
         @references = []
         @definitions = []
-        @namespace = []
+        @nesting = []
       end
 
       def visit_class_node(node)
         record_definition(node.constant_path)
         visit(node.superclass) if node.superclass
-        with_namespace(node.constant_path) { visit(node.body) if node.body }
+        with_nesting(node.constant_path) { visit(node.body) if node.body }
       end
 
       def visit_module_node(node)
         record_definition(node.constant_path)
-        with_namespace(node.constant_path) { visit(node.body) if node.body }
+        with_nesting(node.constant_path) { visit(node.body) if node.body }
       end
 
       def visit_constant_path_node(node)
@@ -48,7 +48,7 @@ module Admin
       def record_reference(name, line)
         @references << CollectedReference.new(
           name: name.delete_prefix("::"),
-          namespace: @namespace.dup,
+          nesting: @nesting.dup,
           absolute: name.start_with?("::"),
           line:
         )
@@ -59,13 +59,13 @@ module Admin
         @definitions << qualify(name) if name
       end
 
-      def with_namespace(node)
+      def with_nesting(node)
         name = constant_name(node)
-        previous = @namespace
-        @namespace = name&.start_with?("::") ? name.delete_prefix("::").split("::") : previous + name.to_s.split("::")
+        previous = @nesting
+        @nesting = [ qualify(name), *previous ]
         yield
       ensure
-        @namespace = previous
+        @nesting = previous
       end
 
       def constant_name(node)
@@ -75,9 +75,9 @@ module Admin
       end
 
       def qualify(name)
-        return name.delete_prefix("::") if name.start_with?("::") || @namespace.empty?
+        return name.delete_prefix("::") if name.start_with?("::") || @nesting.empty?
 
-        ([ *@namespace, name ]).join("::")
+        "#{@nesting.first}::#{name}"
       end
     end
 
@@ -149,9 +149,9 @@ module Admin
     def candidates(reference)
       return [ [ reference.name, 0 ] ] if reference.absolute
 
-      reference.namespace.length.downto(0).map do |length|
-        [ [ *reference.namespace.first(length), reference.name ].join("::"), length ]
-      end
+      reference.nesting.map do |namespace|
+        [ "#{namespace}::#{reference.name}", namespace.split("::").length ]
+      end + [ [ reference.name, 0 ] ]
     end
 
     def longest_constant_prefix(name, constants)
