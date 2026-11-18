@@ -18,6 +18,10 @@ RSpec.describe PluginJob, :reset_plugin_registry do
     expect(InsightSweepJob.plugin_owner).to eq("agent_insights")
   end
 
+  it "preserves an explicit queue on a bundled plugin job" do
+    expect(InsightSweepJob.new.queue_name).to eq("low_priority_maintenance")
+  end
+
   it "allows a job to override the plugin queue" do
     stub_const("UrgentExternalReportsJob", Class.new(described_class) do
       owned_by_plugin "external_reports"
@@ -75,5 +79,22 @@ RSpec.describe PluginJob, :reset_plugin_registry do
     expect { StaleExternalReportsJob.perform_now }
       .not_to change { Syrus::PluginInvocation.runtime_health.failures(plugin: "external_reports").size }
     expect(PluginRecord.find_by!(name: "external_reports").last_error_at).to be_nil
+  end
+
+  it "redacts credentials from discarded failure health and logs" do
+    error = RuntimeError.new("request failed for https://x-access-token:github_pat_secret123@github.com/example/repo")
+    logs = StringIO.new
+
+    allow(Rails).to receive(:logger).and_return(ActiveSupport::Logger.new(logs))
+    ExternalReportsJob.record_discard(error)
+
+    failure = Syrus::PluginInvocation.runtime_health
+      .failures(plugin: "external_reports")
+      .find { |item| item.operation == "ExternalReportsJob" }
+    expect(failure.exception_class).to eq("RuntimeError")
+    expect(failure.message).to include(CommandRedactor::REDACTED)
+    expect(failure.message).not_to include("github_pat_secret123")
+    expect(logs.string).to include(CommandRedactor::REDACTED)
+    expect(logs.string).not_to include("github_pat_secret123")
   end
 end

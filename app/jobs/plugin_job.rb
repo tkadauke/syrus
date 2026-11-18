@@ -45,20 +45,27 @@ class PluginJob < ApplicationJob
     def record_discard(error)
       return if plugin_owner.blank?
 
+      redacted_message = CommandRedactor.redact(error.message)
+      redacted_error = error.dup
+      redacted_error.define_singleton_method(:message) { redacted_message }
+
       PluginRecord.where(name: plugin_owner).update_all(last_error_at: Time.current)
       Syrus::PluginInvocation.runtime_health.record_failure(
         plugin: plugin_owner,
         extension_point: :background_job,
         operation: name,
-        exception: error,
+        exception: redacted_error,
         threshold: 1,
         window: 1.hour,
         cooldown: 1.hour,
         circuit: false
       )
-      Rails.logger.error("[PluginJob] discarded #{name} for #{plugin_owner} after #{MAX_ATTEMPTS} attempts: #{error.class}: #{error.message}")
+      Rails.logger.error("[PluginJob] discarded #{name} for #{plugin_owner} after #{MAX_ATTEMPTS} attempts: #{error.class}: #{redacted_message}")
     rescue StandardError => recording_error
-      Rails.logger.error("[PluginJob] failed to record discarded #{name}: #{recording_error.class}: #{recording_error.message}")
+      Rails.logger.error(
+        "[PluginJob] failed to record discarded #{name}: " \
+        "#{recording_error.class}: #{CommandRedactor.redact(recording_error.message)}"
+      )
     end
 
     private
