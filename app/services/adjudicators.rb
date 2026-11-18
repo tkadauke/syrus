@@ -67,9 +67,12 @@ module Adjudicators
   # path, and a broken cheap check must not stop the expensive rungs from
   # getting their turn.
   def self.adjudicate_one(adjudicator, problem:, **context)
-    adjudicator.adjudicate(problem: problem, **context)
-  rescue StandardError => e
-    Rails.logger.warn("[Adjudicators] #{adjudicator.name} raised #{e.class}: #{e.message}")
-    Adjudication.inconclusive(adjudicator: adjudicator.name, reason: "adjudicator_error")
+    return adjudicator.adjudicate(problem: problem, **context) if BUILT_INS.include?(adjudicator)
+
+    fallback = ->(_reason) { Adjudication.inconclusive(adjudicator: adjudicator.name, reason: "adjudicator_error") }
+    result = Syrus::PluginInvocation.call(
+      extension_point: :adjudicator, provider: adjudicator, operation: :adjudicate, on_decline: fallback
+    ) { adjudicator.adjudicate(problem: problem, **context) }
+    Syrus::PluginInvocation.value(result)
   end
 end

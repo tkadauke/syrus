@@ -10,10 +10,13 @@ module ReviewPresentationContributions
   def payload
     result = providers.each_with_object(COLLECTIONS.to_h { |collection| [ collection, [] ] }) do |provider, collections|
       COLLECTIONS.each do |collection|
-        collections[collection].concat(normalize(provider.public_send(collection), collection:))
+        result = invoke(provider, collection, []) { provider.public_send(collection) }
+        collections[collection].concat(normalize(result, collection:))
       end
     end
-    result[:translation_namespaces] = providers.flat_map { |provider| Array(provider.translation_namespaces) }.map(&:to_s).uniq
+    result[:translation_namespaces] = providers.flat_map do |provider|
+      Array(invoke(provider, :translation_namespaces, []) { provider.translation_namespaces })
+    end.map(&:to_s).uniq
     result
   end
 
@@ -31,6 +34,13 @@ module ReviewPresentationContributions
   end
 
   def providers = Syrus::PluginRegistry.providers_for(:review_presentation_contributor)
+
+  def invoke(provider, operation, decline, &block)
+    result = Syrus::PluginInvocation.call(
+      extension_point: :review_presentation_contributor, provider:, operation:, on_decline: decline, &block
+    )
+    Syrus::PluginInvocation.value(result)
+  end
 
   def normalize(entries, collection:)
     Array(entries).map do |entry|

@@ -8,7 +8,8 @@ module ReviewContextContributions
 
   def prepare(target:, run:, evidence:, criteria:)
     provider = provider_for(target)
-    result = provider.prepare(target: target.deep_stringify_keys, run:, evidence:, criteria:)
+    result = invoke(provider, :prepare, nil) { provider.prepare(target: target.deep_stringify_keys, run:, evidence:, criteria:) }
+    raise Unavailable, "review context provider failed" if result.nil?
     normalize_context(result)
   end
 
@@ -18,26 +19,39 @@ module ReviewContextContributions
 
   def persist(target:, run:, context:, verdict:, update:)
     provider = provider_for(target)
-    receipt = provider.persist(target: target.deep_stringify_keys, run:, context:, verdict:, update:)
+    receipt = invoke(provider, :persist, nil) { provider.persist(target: target.deep_stringify_keys, run:, context:, verdict:, update:) }
+    raise Unavailable, "review context provider failed" if receipt.nil?
     normalize_receipt(receipt)
   end
 
   def tool_set(target)
-    provider_for(target).tool_set(target.deep_stringify_keys)
+    provider = provider_for(target)
+    invoke(provider, :tool_set, nil) { provider.tool_set(target.deep_stringify_keys) }
   end
 
   def tool_capability(target)
-    provider_for(target).tool_capability(target.deep_stringify_keys)&.to_sym
+    provider = provider_for(target)
+    invoke(provider, :tool_capability, nil) { provider.tool_capability(target.deep_stringify_keys) }&.to_sym
   end
 
   def operator_links(target:, run:, user:)
-    provider_for(target).operator_links(target: target.deep_stringify_keys, run:, user:)
+    provider = provider_for(target)
+    invoke(provider, :operator_links, []) { provider.operator_links(target: target.deep_stringify_keys, run:, user:) }
   end
 
   def provider_for(target)
     type = target.to_h.deep_stringify_keys.fetch("type")
-    Syrus::PluginRegistry.providers_for(:review_context_contributor).find { |candidate| candidate.target_type == type } ||
+    Syrus::PluginRegistry.providers_for(:review_context_contributor).find do |candidate|
+      invoke(candidate, :target_type, nil) { candidate.target_type } == type
+    end ||
       raise(Unavailable, "review context provider is unavailable")
+  end
+
+  def invoke(provider, operation, decline, &block)
+    result = Syrus::PluginInvocation.call(
+      extension_point: :review_context_contributor, provider:, operation:, on_decline: decline, &block
+    )
+    Syrus::PluginInvocation.value(result)
   end
 
   def normalize_context(value)
