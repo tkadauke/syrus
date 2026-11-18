@@ -14,6 +14,31 @@ module ConnectedAccounts
     default_enabled false
     disableable true
     depends_on [ "credential_store" ]
+    hosts :provider
+    provides "connected_accounts:provider" => [
+      {
+        provider: "ConnectedAccounts::FakeProvider",
+        key: "fake",
+        display_name: "Fake service",
+        capabilities: %w[authorization exchange_code refresh revoke identity validate events],
+        callback_route: "/connected_accounts/callback/fake",
+        supports_read_only: true,
+        scopes: [
+          {
+            key: "fake.read",
+            label: "Read fake records",
+            risk: "low",
+            syrus_capabilities: [ "records.read@v1" ]
+          },
+          {
+            key: "fake.write",
+            label: "Change fake records",
+            risk: "high",
+            syrus_capabilities: [ "records.write@v1" ]
+          }
+        ]
+      }
+    ]
     credential_types [
       {
         name: "connected_accounts.oauth",
@@ -25,5 +50,9 @@ module ConnectedAccounts
         }
       }
     ]
+    while_enabled("provider contract") do
+      ConnectedAccounts::ProviderRegistry.load!
+      nil
+    end
   end
 end
