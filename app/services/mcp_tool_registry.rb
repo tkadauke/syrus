@@ -426,11 +426,26 @@ class McpToolRegistry
       ]
     end
 
-    # Coworker chats are deliberately deny-by-default. Every entry here names
-    # the persisted grant required to advertise it; ordinary chat/admin status
-    # never widens this surface.
     def coworker_entries
-      [
+      shared_chat_entries = chat_entries.select { |entry| Mcp::CoworkerToolExposure.core_entry?(entry) }
+      family_defaults = shared_chat_entries.group_by { |entry| entry.descriptor.capability }.transform_values do |entries|
+        entries.all? do |entry|
+          entry.descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask) == :allow &&
+            Permissions::CoworkerDefaultPolicy.descriptor_auto_allowable?(entry.descriptor)
+        end ? :allow : :ask
+      end
+      shared = shared_chat_entries.map do |entry|
+        descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
+          entry.descriptor, default_policy: family_defaults.fetch(entry.descriptor.capability)
+        )
+        coworker(entry.tool, tier: entry.tier, feature_flag: entry.feature_flag,
+          feature_flags_by_role: entry.feature_flags_by_role, available_if: entry.available_if,
+          interactive_only: entry.interactive_only, mutation: entry.mutation, ungated: entry.ungated,
+          approval_effect: entry.approval_effect || pending_action_tool?(entry.tool),
+          capability: entry.capability || descriptor.capability.delete_suffix("@v1"), descriptor: descriptor)
+      end
+
+      coworker_specific = [
         coworker_action(Mcp::Tools::AttachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
         coworker_action(Mcp::Tools::DetachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
         coworker_action(Mcp::Tools::ListRepositoryFilesTool, capability: "code.read"),
@@ -451,7 +466,6 @@ class McpToolRegistry
         coworker_action(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
-        *coworker_job_lifecycle_entries,
         # Proposal tools only create the owner's real confirmation cards. A
         # generic coworker gate here would ask once before asking again on the
         # proposal itself.
@@ -472,6 +486,7 @@ class McpToolRegistry
         coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, capability: "ops.read_logs"),
         coworker_action(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, capability: "ops.read_logs")
       ]
+      (coworker_specific + shared).uniq(&:tool_name)
     end
 
     def workflow_entries
@@ -605,36 +620,18 @@ class McpToolRegistry
       entry(tool, surface: :coworker, tier: tier, **metadata)
     end
 
-    # Coworkers receive only cancellation and feedback submission from the
-    # shared Job lifecycle capability. Both retain their canonical pending
-    # actions instead of being wrapped in a generic coworker confirmation.
-    COWORKER_JOB_LIFECYCLE_TOOLS = [
-      Mcp::Tools::CancelJobTool,
-      Mcp::Tools::SubmitChatFeedbackTool
-    ].freeze
-
-    def coworker_job_lifecycle_entries
-      chat_entries.filter_map do |chat_entry|
-        next unless COWORKER_JOB_LIFECYCLE_TOOLS.include?(chat_entry.tool)
-
-        coworker(
-          chat_entry.tool,
-          tier: chat_entry.tier || :essential,
-          feature_flag: chat_entry.feature_flag,
-          capability: Permissions::JobLifecycle::JOBS.delete_suffix("@v1"),
-          mutation: chat_entry.mutation,
-          approval_effect: pending_action_tool?(chat_entry.tool),
-          descriptor: chat_entry.descriptor
-        )
-      end
-    end
-
     def pending_action_tool?(tool)
       PendingActions.for(tool_name_for(tool))
       true
     rescue PendingActions::UnknownAction
       false
     end
+    # Compatibility is declared beside the registrations it covers so adding
+    # a new tool through the normal builders fails descriptor validation.
+    def legacy_chat(tool, **metadata) = chat(tool, **metadata, compatibility_descriptor: true)
+    def legacy_workflow(tool, **metadata) = workflow(tool, **metadata, compatibility_descriptor: true)
+    def legacy_coworker(tool, **metadata) = coworker(tool, **metadata, compatibility_descriptor: true)
+    def legacy_entry(tool, **metadata) = entry(tool, **metadata, compatibility_descriptor: true)
 
     def lifecycle_chat(tool, **metadata)
       roles = metadata.delete(:descriptor_roles) || metadata[:required_roles].presence || AgentRole::CHAT_ROLES

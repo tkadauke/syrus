@@ -14,6 +14,10 @@ RSpec.describe AdminMysql::ChatToolSet do
     )
   end
 
+  it "excludes its admin-only surface from coworker chats" do
+    expect(described_class.coworker_excluded?).to be(true)
+  end
+
   it "is unavailable outside MySQL even for admins" do
     allow(AdminMysql).to receive(:mysql?).and_return(false)
 

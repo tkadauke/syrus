@@ -168,13 +168,10 @@ module Mcp
       end
     end
 
-    # Applies the policy flags a plugin tool definition may declare. Nothing
-    # to apply for an ordinary chat: a plugin that says nothing keeps every
-    # tool it advertises.
     def self.filter_by_policy(definitions, policy)
       case policy
       when :evaluator  then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
-      when :coworker   then definitions.select { |defn| defn[:coworker_safe] || defn["coworker_safe"] }
+      when :coworker   then definitions.select { |defn| Mcp::CoworkerToolExposure.plugin_definition?(defn) }
       else definitions
       end
     end
@@ -188,8 +185,7 @@ module Mcp
         .select do |tool_set|
           PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set, operation: :available_for) do
             if policy == :coworker
-              tool_set.respond_to?(:available_for_coworker?) &&
-                tool_set.available_for_coworker?(chat_session, tier: tier)
+              Mcp::CoworkerToolExposure.plugin_provider_available?(tool_set, chat_session, tier: tier)
             else
               tool_set.available_for?(chat_session, tier: tier)
             end
@@ -222,7 +218,23 @@ module Mcp
           definition.merge(coworker_default_policy: defaults_by_tool[name.to_s])
         end
       end
-      definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
+      normalized = definitions.map do |definition|
+        [ definition, Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition) ]
+      end
+      family_defaults = normalized.group_by { |_definition, descriptor| descriptor.capability }.transform_values do |pairs|
+        pairs.all? do |_definition, descriptor|
+          descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask) == :allow &&
+            Permissions::CoworkerDefaultPolicy.descriptor_auto_allowable?(descriptor)
+        end ? :allow : :ask
+      end
+      definitions = normalized.map do |definition, descriptor|
+        if policy == :coworker
+          descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
+            descriptor, default_policy: family_defaults.fetch(descriptor.capability)
+          )
+        end
+        definition.merge(capability_descriptor: descriptor)
+      end
       definitions.map do |defn|
         tool = MCP::Tool.define(
           name: defn[:name],
