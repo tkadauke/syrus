@@ -15,7 +15,7 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
       write(root, "app/services/local.rb", "class Local; end\n")
       write(root, "app/services/shared_name.rb", "class SharedName; end\n")
       write(root, "app/services/core/nested.rb", "module Core; class Nested; end; end\n")
-      write(root, "lib/syrus/host/facade.rb", "module Syrus::Host::Facade; end\n")
+      write(root, "lib/syrus/host/undeclared.rb", "module Syrus::Host::Undeclared; end\n")
       write(root, "plugins/alpha/lib/alpha.rb", <<~RUBY)
         module Alpha
           class Local; end
@@ -25,7 +25,7 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
           OtherPlugin.call
           Rails.logger.info(JSON.generate({}))
           CoreThing.call
-          Syrus::Host::Facade.call
+          Syrus::Host::Undeclared.call
           Core::Nested.call
           ::Core::Nested.call
           ::SharedName.call
@@ -41,13 +41,13 @@ RSpec.describe Admin::PluginHostSurfaceInventory do
 
       results = described_class.new(root:, surface:).results
 
-      expect(results.map(&:constant)).to eq(%w[Core::Nested CoreThing Local SharedName Syrus::Host::Facade])
+      expect(results.map(&:constant)).to eq(%w[Core::Nested CoreThing Local SharedName Syrus::Host::Undeclared])
       expect(results.find { |result| result.constant == "Core::Nested" }).to have_attributes(
         tier: "internal", plugins: { "alpha" => 2 }, count: 2
       )
       expect(results.find { |result| result.constant == "CoreThing" }.plugins).to eq({ "alpha" => 1 })
       expect(results.find { |result| result.constant == "CoreThing" }.tier).to eq("legacy")
-      expect(results.find { |result| result.constant == "Syrus::Host::Facade" }.tier).to eq("public")
+      expect(results.find { |result| result.constant == "Syrus::Host::Undeclared" }.tier).to eq("internal")
       expect(results.find { |result| result.constant == "Local" }.plugins).to eq({ "alpha" => 1 })
       expect(results.find { |result| result.constant == "SharedName" }.plugins).to eq({ "alpha" => 1 })
     end

@@ -26,6 +26,10 @@ RSpec.describe Syrus::Host do
     expect(described_class.public?("Syrus::Host::Example::Result")).to be(true)
   end
 
+  it "does not make undeclared constants public by namespace alone" do
+    expect(described_class.public?("Syrus::Host::Undeclared")).to be(false)
+  end
+
   it "rejects an invalid release version" do
     expect do
       described_class.api("Syrus::Host::Example", since: "next", summary: "Example.", members: [])
