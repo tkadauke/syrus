@@ -25,7 +25,7 @@ module Syrus
 
       def public?(name)
         candidate = name.to_s
-        candidate.start_with?("Syrus::Host::") || apis.any? do |api|
+        apis.any? do |api|
           candidate == api.name || candidate.start_with?("#{api.name}::")
         end
       end
