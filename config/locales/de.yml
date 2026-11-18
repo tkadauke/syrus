@@ -898,6 +898,7 @@ de:
     plugins:
       disabled: "Das Plugin %{plugin} ist deaktiviert."
       route_not_found: "Plugin-Route nicht gefunden."
+      route_failed: "Das Plugin %{plugin} konnte diese Anfrage nicht abschließen."
 
     job_lifecycle:
       direct_only: "Nur direkte Jobs können manuell gestartet werden."

@@ -189,6 +189,16 @@ Bundled plugins remain
 strict in development and test so defects are immediately visible; production
 isolates and reports their failures in the same way as external plugins.
 
+Plugin-owned routes follow the same environment rule. In development and test,
+an unhandled controller exception propagates so the defect remains visible. In
+production, Syrus contains the exception to that plugin, returns a structured
+error naming it, and records the failure under **Admin → Plugins**. Plugin
+health also shows each plugin's request count and the time of its latest route
+error. Timestamp writes are rate-limited so a hot failing route does not create
+unbounded health traffic. Each process retains at most 100 distinct recent
+failure signatures per plugin, bounding both runtime memory and the Admin
+health payload; a healthy plugin continues serving requests normally.
+
 Runtime provider failures are isolated from core work and recorded under
 **Admin → Plugins**. Repeated failures open a process-local circuit for that
 plugin capability; calls decline without invoking the provider until one trial

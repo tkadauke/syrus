@@ -898,6 +898,7 @@ la:
     plugins:
       disabled: "Plugin %{plugin} deactivatum est."
       route_not_found: "Iter plugin non inventum est."
+      route_failed: "Plugin %{plugin} hanc petitionem perficere non potuit."
 
     job_lifecycle:
       direct_only: "Sola opera directa manu incipi possunt."

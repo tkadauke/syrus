@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_140118) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3063,6 +3063,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.text "extension_points"
     t.boolean "ever_enabled", default: false, null: false
     t.boolean "experimental", default: false, null: false
+    t.bigint "request_count", default: 0, null: false
+    t.datetime "last_error_at"
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
   end
 
