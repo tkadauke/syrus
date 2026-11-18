@@ -33,4 +33,16 @@ RSpec.describe CredentialStore::Broker, ".with_credential_payload" do
     expect([ lease.action, release.action ]).to eq(%w[lease revoke])
     expect(release.completion_of_event).to eq(lease)
   end
+
+  it "preserves broker errors raised while validating a payload" do
+    expect {
+      described_class.with_credential_payload(
+        context: context,
+        credential: credential.id,
+        type: "connected_accounts.oauth",
+        purpose: "broker",
+        tool_name: "connected_accounts.broker"
+      ) { raise described_class::InvalidPayload, "invalid payload" }
+    }.to raise_error(described_class::InvalidPayload, "invalid payload")
+  end
 end
