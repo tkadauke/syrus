@@ -63,6 +63,7 @@ export type TeamProfileActivity = {
 }
 
 export type TeamProfileDetail = Omit<TeamProfileSummary, "bio_excerpt"> & {
+  is_current_user: boolean
   role_label: string
   profile_bio: string | null
   profile_location: string | null
