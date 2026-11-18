@@ -23,3 +23,19 @@ Start with `lib/syrus/plugin_registry.rb`, `lib/syrus/plugin_api.rb`,
 manifests under `plugins/`. Mandatory implementation and deletion-audit
 rules are in [Plugin conventions](../conventions/plugins.md); operator-facing
 plugin docs remain under `plugins/<name>/docs/`.
+
+## Core host surface
+
+`config/plugin_host_surface.yml` is the machine-readable inventory of core
+Ruby constants that plugins may reference. YAML keeps the contract usable by
+static and external tooling without evaluating application code. `public`
+entries are supported plugin APIs and declare the Syrus release in `since`;
+`legacy` entries record dependencies of built-in plugins that are tolerated
+only while they are being removed. Unlisted constants are internal.
+
+`bin/plugin-host-surface inventory` uses Prism to scan built-in plugin Ruby
+code and reports each referenced core constant, its tier, and per-plugin
+reference counts; `--json` provides the same inventory for tooling. The
+plugin-boundary check rejects unlisted references, prevents the legacy count
+from growing beyond its committed baseline, and requires legacy entries to be
+deleted when their last reference disappears.
