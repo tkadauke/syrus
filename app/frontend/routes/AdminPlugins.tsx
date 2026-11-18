@@ -24,7 +24,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { DataTable, Page } from "../components/ui"
+import { DataTable, Page, Surface } from "../components/ui"
 
 export function AdminPlugins() {
   const { t } = useT("admin")
@@ -48,6 +48,8 @@ export function AdminPlugins() {
         </Page.HeadingGroup>
       </Page.Header>
 
+      <PluginConvergencePanel data={plugins.data?.convergence} loading={plugins.isPending} />
+
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
       {plugins.isError ? <PanelMessage tone="error">{errorMessage(plugins.error, t("plugins.error_load"))}</PanelMessage> : null}
       {plugins.isSuccess ? (
@@ -65,6 +67,65 @@ export function AdminPlugins() {
         </AdminFiltersLayout>
       ) : null}
     </Page.Root>
+  )
+}
+
+function PluginConvergencePanel({ data, loading }: { data?: import("../api/adminPlugins").PluginConvergencePayload; loading: boolean }) {
+  const { t } = useT("admin")
+  return (
+    <Surface aria-label={t("plugins.convergence_aria")} role="region">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <SectionHeading>{t("plugins.convergence_heading")}</SectionHeading>
+        {data ? <span className="text-xs text-text-secondary">{t("plugins.desired_revision", { revision: data.desired_revision })}</span> : null}
+      </div>
+      {loading ? <p className="mt-3 text-sm text-text-secondary">{t("plugins.convergence_loading")}</p> : null}
+      {data && data.processes.length === 0 ? <p className="mt-3 text-sm text-text-secondary">{t("plugins.no_processes")}</p> : null}
+      {data && data.processes.length > 0 ? (
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs uppercase text-text-secondary">
+                <th className="py-2 pr-4">{t("plugins.process")}</th>
+                <th className="py-2 pr-4">{t("plugins.convergence_state")}</th>
+                <th className="py-2 pr-4">{t("plugins.running_revision")}</th>
+                <th className="py-2">{t("plugins.running_plugins")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.processes.map((process) => (
+                <tr
+                  className={process.diverged_too_long ? "border-b border-danger/30 bg-danger/5" : "border-b border-border"}
+                  key={`${process.role}-${process.hostname}`}
+                >
+                  <td className="py-3 pr-4">
+                    <span className="font-medium">{process.role}</span>
+                    <br />
+                    <span className="font-mono text-xs text-text-secondary">{process.hostname}</span>
+                  </td>
+                  <td className="py-3 pr-4">
+                    <span className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">{t(`plugins.convergence_states.${process.state}`)}</span>
+                    {process.diverged_too_long ? <p className="mt-1 text-xs text-danger">{t("plugins.diverged_too_long")}</p> : null}
+                  </td>
+                  <td className="py-3 pr-4 font-mono">{process.running_revision ?? "—"}</td>
+                  <td className="py-3">
+                    <ul className="space-y-1">
+                      {process.plugins.map((plugin) => (
+                        <li key={plugin.name}>
+                          <span className="font-mono">{plugin.name}</span> {plugin.running_version ?? "—"}{" "}
+                          <span className="text-xs text-text-secondary">
+                            ({t(`plugins.process_plugin_states.${plugin.state}`, { defaultValue: plugin.state })})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </Surface>
   )
 }
 

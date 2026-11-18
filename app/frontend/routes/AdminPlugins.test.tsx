@@ -96,6 +96,38 @@ describe("AdminPlugins", () => {
     await i18n.changeLanguage("en")
   })
 
+  it("shows process and per-plugin convergence states", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [],
+        convergence: {
+          desired_revision: 7,
+          divergence_threshold_seconds: 300,
+          processes: [
+            {
+              hostname: "worker-a",
+              role: "worker",
+              state: "pending_restart",
+              running_revision: 6,
+              running_digest: "old",
+              last_heartbeat_at: "2026-11-18T12:00:00Z",
+              diverged_since: "2026-11-18T11:50:00Z",
+              diverged_too_long: true,
+              plugins: [{ name: "weather", desired_version: "2.0.0", running_version: "1.0.0", state: "ok", reasons: [] }]
+            }
+          ]
+        }
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText("worker-a")).toBeInTheDocument()
+    expect(screen.getByText("Pending restart")).toBeInTheDocument()
+    expect(screen.getByText("Diverged beyond the configured threshold")).toBeInTheDocument()
+    expect(screen.getByText("weather")).toBeInTheDocument()
+  })
+
   it("localizes plugin metadata on cards", async () => {
     i18n.addResourceBundle(
       "en",

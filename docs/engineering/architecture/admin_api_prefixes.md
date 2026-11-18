@@ -79,6 +79,8 @@ without a deliberate migration choice:
 - overview and stuck queues
 - permission parity diagnostics
 - plugin enablement/configuration
+- plugin desired-state convergence (the UI reads the page-shaped convergence
+  payload; operator automation reads desired state and applies changes)
 - process inventory and kill
 - provider-routing hold release
 - queue introspection and stale-run reaping

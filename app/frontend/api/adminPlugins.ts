@@ -50,12 +50,29 @@ export type AdminPlugin = {
 
 export type AdminPluginsPayload = {
   beta_mode_enabled?: boolean
+  convergence?: PluginConvergencePayload
   plugins: AdminPlugin[]
   // Present on the index response (filtered by the FilterBar chip tree);
   // absent from the enable/disable cascade responses, which always return
   // the full unfiltered plugin list.
   filter?: Record<string, unknown>
   controls?: { filter_schema: FilterSchemaField[] }
+}
+
+export type PluginConvergencePayload = {
+  desired_revision: number
+  divergence_threshold_seconds: number
+  processes: Array<{
+    hostname: string
+    role: string
+    state: "converged" | "pending_restart" | "behind" | "ahead" | "unreachable"
+    running_revision: number | null
+    running_digest: string | null
+    last_heartbeat_at: string | null
+    diverged_since: string | null
+    diverged_too_long: boolean
+    plugins: Array<{ name: string; desired_version: string; running_version: string | null; state: string; reasons: string[] }>
+  }>
 }
 
 export type AdminPluginTogglePayload = { ok: true; plugin: { name: string; enabled: boolean } }

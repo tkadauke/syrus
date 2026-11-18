@@ -164,6 +164,20 @@ pending. Status reports each process as pending, restarted, or stuck. This is
 tested with Docker Compose restart policies; native macOS workers and external
 plugin distribution on Kubernetes are not supported by this flow.
 
+Admin → Plugins also shows fleet convergence. A process is **converged** when
+its role-specific plugin-set digest matches desired state. **Pending restart**
+means an applied revision has not started there; **behind** means an older set
+without a current restart request; **ahead** usually indicates the process is
+connected to the wrong control plane or manifest store; and **unreachable**
+means its heartbeat is stale. Restart pending/behind processes after verifying
+sync configuration, investigate the control-plane connection for ahead
+processes, and restore or replace unreachable processes. Per-plugin rows show
+running versions plus local skips, failures, missing entries, and quarantine.
+
+Divergence older than `SYRUS_PLUGIN_DIVERGENCE_THRESHOLD_SECONDS` (default:
+300) is highlighted and emits the standard system alarm linked to the Plugins
+page.
+
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore
 removes its documentation too.
