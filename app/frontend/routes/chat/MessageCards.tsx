@@ -3,7 +3,6 @@ import { memo, useRef, useState } from "react"
 import type { ComponentProps, ReactNode } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
-import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import {
@@ -1292,7 +1291,7 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
 }, sameToolGroupProps)
 
 function PluginToolCardLocaleGate({ namespaces, children }: { namespaces: string[]; children: ReactNode }) {
-  const { ready } = useTranslation(namespaces, { useSuspense: false })
+  const { ready } = useT(namespaces, { useSuspense: false })
   return ready ? children : null
 }
 
