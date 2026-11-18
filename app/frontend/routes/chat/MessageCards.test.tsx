@@ -405,6 +405,46 @@ describe("coworker messages", () => {
     expect(message.closest("article")).not.toHaveClass("justify-end")
   })
 
+  it("renders two delivered mention replies with their own authors and working-session links", () => {
+    const maya = userMessage("Maya's answer", {
+      plugin_message: {
+        component: "coworkers/CoworkerMessage",
+        data: {
+          direction: "incoming",
+          handle: "maya",
+          working_session_id: 301,
+          appearance: { id: 8, name: "Maya", handle: "maya", accent_hex: "#0090FF", avatar_key: "comet", avatar_url: null }
+        }
+      }
+    })
+    const rin = userMessage("Rin's answer", {
+      id: maya.id + 1,
+      plugin_message: {
+        component: "coworkers/CoworkerMessage",
+        data: {
+          direction: "incoming",
+          handle: "rin",
+          working_session_id: 302,
+          appearance: { id: 9, name: "Rin", handle: "rin", accent_hex: "#E5484D", avatar_key: "spark", avatar_url: null }
+        }
+      }
+    })
+
+    renderChatMessageItem(maya)
+    renderChatMessageItem(rin)
+
+    const bubbles = screen.getAllByTestId("coworker-incoming-message")
+    expect(bubbles).toHaveLength(2)
+    expect(bubbles[0]).toHaveTextContent("Maya")
+    expect(bubbles[0]).toHaveStyle({ borderLeftColor: "#0090FF" })
+    expect(bubbles[1]).toHaveTextContent("Rin")
+    expect(bubbles[1]).toHaveStyle({ borderLeftColor: "#E5484D" })
+    expect(screen.getAllByRole("link", { name: "chat.view_working_session" }).map((link) => link.getAttribute("href"))).toEqual([
+      "/chats/301",
+      "/chats/302"
+    ])
+  })
+
   it("renders a coworker cross-chat bridge with the standard coworker identity and bubble color", () => {
     const item = userMessage("Approved direction.", {
       cross_chat_bridge: {

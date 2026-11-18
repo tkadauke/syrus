@@ -38,4 +38,12 @@ RSpec.describe Coworkers::ChatTurnLifecycle do
     expect(described_class.new(chat_session: chat, user_message: message).admission)
       .to include(outcome: "blocked", message: I18n.t("coworkers.confinement_unavailable", locale: user.locale))
   end
+
+  it "does not own an ordinary chat merely because a coworker is rostered" do
+    ordinary = ChatSession.create!(user:, repository: nil)
+    Coworkers::ChatAgent.create!(chat_session: ordinary, coworker:, added_by_user: user)
+
+    expect(described_class).not_to be_applies_to(chat_session: ordinary, user_message: nil)
+    expect(ordinary.reload.repository).to be_nil
+  end
 end

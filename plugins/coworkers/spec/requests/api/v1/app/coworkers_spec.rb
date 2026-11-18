@@ -297,7 +297,7 @@ RSpec.describe "API: coworkers", type: :request do
       action: "create_coworker", requested_by: "agent",
       payload: { "name" => "Maya", "handle" => "maya", "workspace_repo" => "https://github.com/acme/homes.git", "about" => "Old role" }
     )
-    chat.messages.create!(
+    message = chat.messages.create!(
       role: "tool_use", tool_name: "propose_coworker", tool_use_id: "coworker-1", pending_action: action,
       content: { "type" => "tool_use", "id" => "coworker-1", "name" => "propose_coworker", "input" => {} }
     )
@@ -518,6 +518,33 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/chats/#{chat.id}/mentionables"
     expect(response.parsed_body.fetch("mentionables").find { |row| row["kind"] == "coworker" && row["id"] == coworker.id }).to include("add_to_chat" => false)
     expect(chat.resolve_mentions("Ask @maya-roster")).to include(include("kind" => "coworker", "id" => coworker.id))
+  end
+
+  it "attributes delivered coworker replies in chat search snippets" do
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-search-author",
+      workspace_repo: "https://github.com/acme/workspace.git"
+    )
+    chat = ChatSession.create!(user: owner, title: "Plans")
+    delivered = chat.messages.create!(
+      role: "assistant",
+      content: {
+        "text" => "The deployment needle is ready", "source" => "coworker_message",
+        "origin_chat_session_id" => 432,
+        "coworker_message" => { "direction" => "incoming", "sender_id" => coworker.id, "sender_handle" => coworker.handle }
+      },
+      skip_turn_trigger: true
+    )
+    allow_any_instance_of(Api::V1::App::ChatsController).to receive(:chat_search_rows).and_return([ {
+      chat_session_id: chat.id, chat_message_id: delivered.id, role: delivered.role,
+      snippet: "The deployment <b>needle</b> is ready", created_at: delivered.created_at.iso8601
+    } ])
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/search/messages", params: { chat_session_id: chat.id, q: "needle" }
+
+    match = response.parsed_body.fetch("matches").sole
+    expect(match.fetch("author")).to include("name" => "Maya", "handle" => "maya-search-author", "accent_hex" => coworker.accent_hex)
   end
 
   it "delegates the exact roster-mentioned coworker without starting a source-chat turn" do

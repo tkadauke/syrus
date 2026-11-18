@@ -2015,8 +2015,8 @@ function ChatAgentRoster({ payload, queryKey, onNotice }: { payload: ChatPayload
           key={agent.id}
         >
           <Avatar avatarKey={agent.avatar_key} avatarUrl={agent.avatar_url} accentHex={agent.accent_hex} name={agent.name} size="xs" />
-          <span className="min-w-[4rem] max-w-[8rem] shrink-0 truncate" title={`@${agent.handle}`}>
-            @{agent.handle}
+          <span className="min-w-[4rem] max-w-[10rem] shrink-0 truncate" title={`${agent.name} (@${agent.handle})`}>
+            {agent.name} <span className="text-text-muted">@{agent.handle}</span>
           </span>
           {agent.removable ? (
             <Select

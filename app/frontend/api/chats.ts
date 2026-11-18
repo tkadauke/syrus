@@ -1205,6 +1205,7 @@ export type ChatSearchMatch = {
   role: "user" | "assistant" | "tool_use" | "tool_result" | "system" | string
   snippet: string | null
   created_at: string | null
+  author?: (ChatAgentAppearance & { id?: number; handle?: string }) | null
 }
 
 export type ChatSearchResult = {

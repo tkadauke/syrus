@@ -30,6 +30,7 @@ module ChatSearch
       snippet_end: "</b>",
       snippet_tokens: 50
     ).group_by { |row| row.fetch(:chat_session_id).to_i }
+    prepare_chat_search_authors(matches_by_chat.values.flatten)
     sessions_by_id = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
       .where(id: paged_chat_ids)
       .preload(repository_attachments: :attachable)
@@ -185,8 +186,21 @@ module ChatSearch
       message_id: row.fetch(:chat_message_id).to_i,
       role: row.fetch(:role),
       snippet: row.fetch(:snippet),
-      created_at: row.fetch(:created_at)
-    }
+      created_at: row.fetch(:created_at),
+      author: @chat_search_authors&.fetch(row.fetch(:chat_message_id).to_i, nil)
+    }.compact
+  end
+
+  def prepare_chat_search_authors(rows)
+    ids = rows.map { |row| row.fetch(:chat_message_id).to_i }
+    messages = ChatMessage.where(id: ids).includes(:chat_session).index_by(&:id)
+    presentations = ChatIdentityContributions.message_presentations(messages: messages.values)
+    @chat_search_authors = presentations.to_h do |message_id, contribution|
+      appearance = contribution.dig("plugin_message", "data", "appearance") ||
+        contribution.dig(:plugin_message, :data, :appearance)
+      [ message_id, appearance&.slice("id", "name", "handle", "accent_hex", "avatar_key", "avatar_url") ||
+        appearance&.slice(:id, :name, :handle, :accent_hex, :avatar_key, :avatar_url) ]
+    end
   end
 
   def chat_search_title(chat_session)

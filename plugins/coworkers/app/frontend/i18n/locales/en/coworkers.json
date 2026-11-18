@@ -5,6 +5,7 @@
   "error": "Coworkers could not be loaded.",
   "built_in": "Built-in · engineer",
   "card": { "weekly_spend": "${{amount}} this week" },
+  "chat": { "view_working_session": "View working session" },
   "coming_later": "Coming later",
   "provisioning": {
     "title": "Provisioning cleanup",

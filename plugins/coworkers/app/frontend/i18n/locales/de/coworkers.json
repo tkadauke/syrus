@@ -5,6 +5,7 @@
   "error": "Mitarbeiter konnten nicht geladen werden.",
   "built_in": "Integriert · Entwickler",
   "card": { "weekly_spend": "${{amount}} diese Woche" },
+  "chat": { "view_working_session": "Arbeitssitzung anzeigen" },
   "coming_later": "Kommt später",
   "provisioning": {
     "title": "Bereinigung der Bereitstellung",

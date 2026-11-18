@@ -61,6 +61,16 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     checkout.join(relative).read
   end
 
+  it "applies only to chats with a coworker chat link" do
+    ordinary = ChatSession.create!(user: owner, repository: nil, title: "Planning")
+    Coworkers::ChatAgent.create!(chat_session: ordinary, coworker:, added_by_user: owner)
+
+    expect(described_class).not_to be_applies_to(chat_session: ordinary)
+    expect { described_class.new(ordinary, remote_url: @remote.to_s, repository: repository) }
+      .to raise_error(ActiveRecord::RecordNotFound)
+    expect(ordinary.reload.repository).to be_nil
+  end
+
   it "merges disjoint and clean same-file edits from chats run in sequence" do
     first = chat
     first_lifecycle = lifecycle(first)

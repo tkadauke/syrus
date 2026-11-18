@@ -15,7 +15,7 @@ import {
 import { withRoutePrefix } from "@app/routes/chat/utils"
 
 type Appearance = { name: string; handle?: string; accent_hex: string; avatar_key: string | null; avatar_url: string | null }
-type Presentation = { appearance?: Appearance | null; direction?: "incoming" | "outgoing"; handle?: string }
+type Presentation = { appearance?: Appearance | null; direction?: "incoming" | "outgoing"; handle?: string; working_session_id?: number }
 
 export function withoutMessagePrefix(text: string, direction: "from" | "to", handle?: string) {
   if (!handle) return text
@@ -51,6 +51,11 @@ export default function CoworkerMessage({ item, payload, presentation, prefix, q
           <span className="truncate">{label}</span>
           {outgoing && data.handle ? <span className="truncate font-normal text-text-muted">{t("chat.message_to", { handle: data.handle })}</span> : null}
         </div>
+        {data.working_session_id ? (
+          <Link className="inline-block text-xs text-text-muted underline hover:no-underline" to={withRoutePrefix(`/chats/${data.working_session_id}`, prefix)}>
+            {t("chat.view_working_session")}
+          </Link>
+        ) : null}
         {item.cross_chat_bridge?.direction === "inbound" ? (
           <div className="flex items-center gap-2 text-xs font-normal text-text-muted" data-testid="cross-chat-bridge-chip">
             <span aria-hidden="true">🔗</span>

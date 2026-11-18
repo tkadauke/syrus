@@ -145,7 +145,14 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
         ) : (
           <span className="h-6 w-6 shrink-0" aria-hidden="true" />
         )}
-        <Snippet className="min-w-0 text-sm leading-6 text-gray-700 dark:text-gray-300" html={topMatches[0]?.snippet || t("search.no_snippet")} />
+        {topMatches[0]?.author ? (
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-text-muted">{topMatches[0].author.name}</p>
+            <Snippet className="text-sm leading-6 text-gray-700 dark:text-gray-300" html={topMatches[0]?.snippet || t("search.no_snippet")} />
+          </div>
+        ) : (
+          <Snippet className="min-w-0 flex-1 text-sm leading-6 text-gray-700 dark:text-gray-300" html={topMatches[0]?.snippet || t("search.no_snippet")} />
+        )}
       </div>
       {expanded ? (
         <div className="ml-8 mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
@@ -176,7 +183,14 @@ function MatchRow({ chatSessionId, match }: { chatSessionId: number; match: Chat
       <span className="inline-flex w-fit shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 dark:bg-gray-800 dark:text-gray-200">
         {match.role.replace(/_/g, " ")}
       </span>
-      <Snippet className="min-w-0 flex-1 text-gray-700 dark:text-gray-300" html={match.snippet || ""} />
+      {match.author ? (
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-text-muted">{match.author.name}</p>
+          <Snippet className="text-gray-700 dark:text-gray-300" html={match.snippet || ""} />
+        </div>
+      ) : (
+        <Snippet className="min-w-0 flex-1 text-gray-700 dark:text-gray-300" html={match.snippet || ""} />
+      )}
       <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
         <RelativeTimestamp value={match.created_at} />
       </span>

@@ -147,7 +147,7 @@ RSpec.describe "Coworkers plugin" do
   end
 
 
-  it "delegates a roster mention without taking over the source chat turn context" do
+  it "keeps a rostered source chat out of every coworker workspace path" do
     repository = Factories.repository(user: owner, owner: "acme", name: "coworker-workspace")
     coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-turn", workspace_repo: repository.remote_url,
@@ -155,20 +155,17 @@ RSpec.describe "Coworkers plugin" do
     )
     chat = ChatSession.create!(user: owner, title: "Planning")
     Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
-    message = chat.messages.build(
-      role: "user", content: { "text" => "Ask @maya-turn" },
-      mentions: [ { "kind" => "coworker", "id" => coworker.id, "handle" => coworker.handle, "start" => 4, "end" => 14 } ]
-    )
-    message.skip_turn_trigger = true
-    message.save!
     scope = Syrus::EffectScope.new(label: "rostered coworker turn spec")
     Coworkers::ChatExtension.install_into(scope)
 
-    context = chat.reload.agent_turn_context(message)
-
     expect(chat.coworker).to be_a(Coworker::Syrus)
-    expect(context).to eq(chat)
-    expect(chat.coworker_roster_mention(message)).to eq(coworker)
+    expect(chat).not_to respond_to(:agent_turn_context)
+    expect(chat).not_to respond_to(:coworker_roster_mention)
+    expect(chat).not_to be_coworker_workspace
+    expect(chat.workspace_file_read_policy("memory/note.md")).to be_nil
+    expect(Coworkers::ChatWorkspaceLifecycle).not_to be_applies_to(chat_session: chat)
+    expect(Coworkers::ChatTurnLifecycle).not_to be_applies_to(chat_session: chat, user_message: nil)
+    expect(chat.repository).to be_nil
   ensure
     scope&.dispose
   end

@@ -49,7 +49,10 @@ module Coworkers
         if bridge_link
           decorated[:plugin_message] = message_presentation(appearance: appearance_json(bridge_link.coworker), direction: "incoming", handle: bridge_link.coworker.handle)
         elsif entry&.fetch("direction", nil) == "incoming" && (coworker = coworkers[[ owner_id, entry["sender_id"].to_i ]])
-          decorated[:plugin_message] = message_presentation(appearance: appearance_json(coworker), direction: "incoming", handle: entry["sender_handle"])
+          decorated[:plugin_message] = message_presentation(
+            appearance: appearance_json(coworker), direction: "incoming", handle: entry["sender_handle"],
+            working_session_id: content["origin_chat_session_id"]
+          )
         elsif entry&.fetch("direction", nil) == "outgoing" && (coworker = coworkers[[ owner_id, entry["receiver_id"].to_i ]])
           decorated[:plugin_message] = message_presentation(appearance: appearance_json(coworker), direction: "outgoing", handle: entry["receiver_handle"])
         elsif entry
@@ -73,8 +76,10 @@ module Coworkers
       }
     end
 
-    def self.message_presentation(appearance:, direction:, handle:)
-      { component: "coworkers/CoworkerMessage", data: { appearance: appearance, direction: direction, handle: handle } }
+    def self.message_presentation(appearance:, direction:, handle:, working_session_id: nil)
+      data = { appearance: appearance, direction: direction, handle: handle }
+      data[:working_session_id] = working_session_id if working_session_id
+      { component: "coworkers/CoworkerMessage", data: data }
     end
   end
 end

@@ -30,7 +30,7 @@ RSpec.describe Coworkers::ChatIdentityProvider do
     )
   end
 
-  it "delegates the first roster-mentioned coworker instead of selecting it for the source turn" do
+  it "does not claim a roster-mentioned source chat turn" do
     Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
     message = chat.messages.create!(
       role: "user", content: { "text" => "@maya-identity help" },
@@ -39,8 +39,7 @@ RSpec.describe Coworkers::ChatIdentityProvider do
     )
 
     expect(described_class.chat_turn_identity(chat_session: chat, message: message)).to be_nil
-    expect(described_class.chat_turn_trigger(chat_session: chat, message: message, mentions: message.resolved_mentions))
-      .to include(trigger: false, reason: "delegated coworker mention")
+    expect(described_class.chat_turn_trigger(chat_session: chat, message: message, mentions: message.resolved_mentions)).to be_nil
   end
 
   it "preserves direct and group-chat turn trigger decisions" do
@@ -72,6 +71,21 @@ RSpec.describe Coworkers::ChatIdentityProvider do
 
     expect(described_class.chat_message_presentations(messages: [ message ]).dig(message.id, :plugin_message, :data, :appearance))
       .to include(handle: "maya-identity")
+  end
+
+  it "links delivered mention replies back to their working session" do
+    message = chat.messages.create!(
+      role: "assistant",
+      content: {
+        "text" => "Done", "source" => "coworker_message", "origin_chat_session_id" => 321,
+        "coworker_message" => { "direction" => "incoming", "sender_id" => coworker.id, "sender_handle" => coworker.handle }
+      },
+      skip_turn_trigger: true
+    )
+
+    data = described_class.chat_message_presentations(messages: [ message ]).dig(message.id, :plugin_message, :data)
+
+    expect(data).to include(appearance: include(name: "Maya"), working_session_id: 321)
   end
 
   it "decorates an inbound historical bridge without a legacy payload writer" do

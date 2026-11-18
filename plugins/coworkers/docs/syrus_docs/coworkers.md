@@ -170,6 +170,15 @@ Coworkers is an experimental, instance-local capability for persistent named
 agents. It is disabled by default and requires beta mode before an administrator
 can enable it.
 
+Adding a coworker to an ordinary chat makes that coworker addressable without
+changing the chat's repository or workspace. Mentioning a rostered coworker
+delegates the message to a hidden, reusable working session owned by that
+coworker; the ordinary chat never becomes a coworker workspace. The completed
+reply returns as a colored coworker bubble with the coworker's name and avatar
+and a link to the working session. When several coworkers reply in one chat,
+each reply keeps its own author appearance. The first rostered coworker named
+in one message handles that message.
+
 The initial foundation stores user-owned coworker identities, globally unique
 handles, model preferences, workspace remotes, appearance, explicit capability
 grants, and main or side chat links. Existing chats remain Syrus chats unless a
