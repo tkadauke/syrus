@@ -21,6 +21,11 @@ last cached copy remains usable when the instance is temporarily offline.
 Built-in core commands always win if paths collide. Plugin commands are not
 compiled into the Syrus binary.
 
+Local plugin SDK commands are built in. `syrus plugin new NAME` creates a
+tested external plugin project; `--frontend`, `--model`, and `--cli` add
+optional examples. `syrus plugin validate` and `syrus plugin test` exercise a
+project against a release-matched Syrus test host.
+
 For commands that need local behavior, the CLI next searches `PATH` for an
 executable named after the command path. For example, `syrus acme scan ./src`
 prefers `syrus-acme-scan` and then `syrus-acme`, passing the unmatched arguments

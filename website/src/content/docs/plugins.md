@@ -45,6 +45,20 @@ newer, but must not be older than that derived floor.
 
 ## Validate and test a plugin
 
+Create a project with `syrus plugin new NAME`. The command writes `./NAME` by
+default; use `--path DIR` to choose another empty directory. The generated
+project includes a gemspec and manifest, a callback-provider example, English,
+German, and Latin locales, host-contract specs, a README, and a GitHub Actions
+workflow that runs `syrus plugin test`.
+
+Add `--frontend` for an admin-page source example and prebuilt bundle,
+`--model` for a namespaced model and migration, or `--cli` for a server-backed
+CLI command. `requires_syrus` defaults to the connected instance release and
+falls back to the CLI release; override it with `--syrus-version X.Y.Z`.
+Names must be lower-case Ruby-compatible snake case and cannot collide with a
+plugin known to the instance or bundled into the CLI. Existing non-empty
+directories are never overwritten.
+
 Run `syrus plugin validate [DIR]` to check the manifest, Ruby dependencies,
 release compatibility, host API usage, prebuilt frontend hash, and English,
 German, and Latin locale parity. Run `syrus plugin test [DIR]` for the same
