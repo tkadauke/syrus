@@ -290,6 +290,9 @@ jobs:
           IMAGE="ghcr.io/tkadauke/syrus-backend"
           OLD="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
           echo "old_latest=$OLD" >> "$GITHUB_OUTPUT"
+          PLUGIN_TEST_IMAGE="ghcr.io/tkadauke/syrus-plugin-test"
+          PLUGIN_TEST_OLD="$(docker buildx imagetools inspect "$PLUGIN_TEST_IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          echo "plugin_test_old_latest=$PLUGIN_TEST_OLD" >> "$GITHUB_OUTPUT"
           echo "current :latest = ${OLD:-<none>}"
 
       # Build the release as a DRAFT: uploads every asset and generates notes,
@@ -365,6 +368,8 @@ jobs:
           set -euo pipefail
           IMAGE="ghcr.io/tkadauke/syrus-backend"
           docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
+          PLUGIN_TEST_IMAGE="ghcr.io/tkadauke/syrus-plugin-test"
+          docker buildx imagetools create -t "$PLUGIN_TEST_IMAGE:latest" "$PLUGIN_TEST_IMAGE:$VERSION"
 
       # The plugin service images follow the backend's :latest. Their previous
       # :latest is snapshotted first so a failed promotion can put it back.
@@ -413,6 +418,7 @@ jobs:
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           OLD_LATEST: ${{ steps.snap.outputs.old_latest }}
+          PLUGIN_TEST_OLD_LATEST: ${{ steps.snap.outputs.plugin_test_old_latest }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IMAGE="ghcr.io/tkadauke/syrus-backend"
@@ -421,6 +427,9 @@ jobs:
           gh release delete "$TAG" --yes --cleanup-tag || true
           if [ -n "${OLD_LATEST:-}" ]; then
             docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE@$OLD_LATEST" || true
+          fi
+          if [ -n "${PLUGIN_TEST_OLD_LATEST:-}" ]; then
+            docker buildx imagetools create -t "ghcr.io/tkadauke/syrus-plugin-test:latest" "ghcr.io/tkadauke/syrus-plugin-test@$PLUGIN_TEST_OLD_LATEST" || true
           fi
           if [ -f "$RUNNER_TEMP/plugin-latest-before" ]; then
             while read -r plugin_image old; do
