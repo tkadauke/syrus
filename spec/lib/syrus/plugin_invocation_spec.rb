@@ -113,13 +113,13 @@ RSpec.describe Syrus::PluginInvocation do
     expect(bounded_health.failures(plugin: "sibling").map(&:message)).to eq([ "sibling failure" ])
   end
 
-  it "keeps successful hot-path invocation overhead below ten milliseconds per call" do
+  it "keeps successful hot-path invocation overhead below one millisecond per call" do
     20.times { invoke { nil } }
 
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     1_000.times { invoke { nil } }
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
 
-    expect(elapsed / 1_000).to be < 0.01
+    expect(elapsed / 1_000).to be < 0.001
   end
 end
