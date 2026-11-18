@@ -69,8 +69,10 @@ Plugin-owned routes use the same production-isolation policy. An unhandled
 route exception returns a structured error that names the plugin, records the
 latest error under **Admin → Plugins**, and does not prevent a healthy sibling
 plugin from serving requests. The health view also shows each plugin's request
-count and latest route-error time. Development and test keep raising these
-exceptions through Syrus's normal error handling so plugin defects stay visible.
+count and latest route-error time. Each process retains at most 100 distinct
+recent failure signatures per plugin, bounding both runtime memory and the Admin
+health payload. Development and test keep raising these exceptions through
+Syrus's normal error handling so plugin defects stay visible.
 
 The runtime breaker defaults to five failures within 60 seconds and a 30-second
 cool-down. Set `SYRUS_PLUGIN_CIRCUIT_FAILURE_THRESHOLD`,
