@@ -56,6 +56,28 @@ RSpec.describe Syrus::PluginLoader do
     end
   end
 
+  it "loads roles declared with the documented percent-word syntax" do
+    Dir.mktmpdir do |temporary|
+      snapshot = Syrus::PluginRegistry.snapshot
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      directory = write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture")
+      entry_file = directory.join("lib/external_loader_fixture.rb")
+      entry_file.write(entry_file.read.sub("provides callbacks:", "roles %w[preview]\n    provides callbacks:"))
+      original_role = ENV["SYRUS_ROLE"]
+      ENV["SYRUS_ROLE"] = "web"
+
+      described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)).load!
+
+      expect(defined?(ExternalLoaderFixture)).to be_nil
+      expect(Syrus::PluginRegistry.health.status("external_loader_fixture").reasons.join).to include("web", "preview")
+    ensure
+      ENV["SYRUS_ROLE"] = original_role
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+      Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+    end
+  end
+
   it "skips plugins not listed for the process role and records plugin health" do
     Dir.mktmpdir do |temporary|
       snapshot = Syrus::PluginRegistry.snapshot
