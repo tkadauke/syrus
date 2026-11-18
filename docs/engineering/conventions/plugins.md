@@ -7,6 +7,30 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
 [plugin-authoring reference](plugins/authoring.md). To build a plugin outside
 this repository, start with [Authoring an external plugin](plugins/external.md).
 
+## Choosing the public host API
+
+Public host APIs live under `Syrus::Host` and declare their contract beside the
+facade with `Syrus::Host.api(name, since:, summary:, members:)`.
+`Syrus::Host.apis` is the authoritative registry. A facade belongs there when
+a typical external plugin needs it, its useful contract is small enough to
+describe and smoke-test, and core can preserve it through a deprecation period.
+Usage across bundled plugins is evidence for that choice, never the decision.
+
+A core constant stays in the legacy inventory when bundled plugins still use
+it but it is too broad, mutable, specialized, or coupled to a core subsystem
+to support externally. The inventory is tolerated only for bundled plugins and
+must shrink. Everything outside a declared host facade or the legacy inventory
+is internal by default.
+
+Alias a core constant into `Syrus::Host` only when the declared members are the
+entire surface plugins should use and can be kept stable. Domain records are
+never aliased: expose a read-oriented facade that wraps records and related
+facades, names each supported lookup, attribute, and association, and does not
+leak persistence, callbacks, credentials, state transitions, or unlisted
+relations. Keep each summary short enough to state both its purpose and what it
+deliberately does not promise; APIs needing a longer contract are not ready to
+be public.
+
 ## Frontend contribution registry
 
 Plugin frontend components are registered through
