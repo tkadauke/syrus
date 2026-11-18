@@ -28,6 +28,7 @@ end
 
 failures.concat(audit.core_violations.map(&:message))
 failures.concat(audit.plugin_violations.map(&:message))
+failures.concat(Admin::PluginHostSurfaceAudit.new.findings)
 
 enforce_ownership = ENV["PLUGIN_OWNERSHIP_ENFORCE"] == "1"
 ownership_findings = []
