@@ -268,20 +268,39 @@ class ImmutableSourceCheckout
   def fetch_remote_branch!(remote, branch, destination_ref:)
     repository = remote_repository(remote)
     refspec = "+refs/heads/#{branch}:#{destination_ref}"
+    unless WorkspaceGitTransports.for(repository, user: @job.user)
+      return authenticated_base_fetch!(repository, refspec)
+    end
+
+    expected_sha = RepositoryContent.for(repository, user: @job.user).resolve(branch, max_age: 0).id
     log("[immutable_source_checkout] trying preferred workspace Git transport for #{remote}/#{branch}")
     fetch_via_transport!(
       repository: repository,
       user: @job.user,
       refspec: refspec,
       chdir: path.to_s,
+      verify: -> { git_ref_sha(destination_ref) == expected_sha },
       env: @env,
       fetch_args: [ "--no-tags" ]
     ) do
-      log("[immutable_source_checkout] preferred transport unavailable; falling back to authenticated hosting fetch for #{remote}/#{branch}")
-      authenticated_git_for(repository, "git_immutable_source_base_fetch") do |url|
-        @git.run("fetch", "--no-tags", url, refspec, chdir: path.to_s, env: @env)
-      end
+      log("[immutable_source_checkout] preferred transport unavailable or stale; falling back to authenticated hosting fetch for #{remote}/#{branch}")
+      authenticated_base_fetch!(repository, refspec)
     end
+  rescue RepositoryContent::Error => e
+    log("[immutable_source_checkout] could not verify preferred transport freshness for #{remote}/#{branch}: #{e.class}; using authenticated hosting fetch")
+    authenticated_base_fetch!(repository, refspec)
+  end
+
+  def authenticated_base_fetch!(repository, refspec)
+    authenticated_git_for(repository, "git_immutable_source_base_fetch") do |url|
+      @git.run("fetch", "--no-tags", url, refspec, chdir: path.to_s, env: @env)
+    end
+  end
+
+  def git_ref_sha(ref)
+    @git.run("rev-parse", "--verify", ref, chdir: path.to_s).strip
+  rescue GitRunner::GitError
+    nil
   end
 
   def git_object_present?(revision)

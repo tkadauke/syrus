@@ -110,6 +110,57 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(sh("git -C #{checkout.path} rev-parse HEAD").strip).to eq(main_sha)
   end
 
+  it "falls back when the mirror fetches a stale base branch" do
+    mirror = Pathname.new(Dir.mktmpdir("syrus-immutable-source-stale-base"))
+    sh("git clone -q --bare #{bare_remote_dir} #{mirror}")
+    expected_base_sha = advance_remote_main("new-base.txt")
+    snapshot.update!(source_ref: "refs/syrus/source-snapshots/runs/123", source_sha: feature_sha, tree_sha: feature_tree_sha)
+    register_workspace_transport(url: "file://#{mirror}")
+    content = instance_double(RepositoryContent::Reader)
+    allow(RepositoryContent).to receive(:for).with(repository, user: user).and_return(content)
+    allow(content).to receive(:resolve).with("main", max_age: 0)
+      .and_return(RepositoryContent::Revision.new(id: expected_base_sha, ref: "main", observed_at: Time.current))
+    expect(GithubAuthenticatedGit).to receive(:run).at_least(:once) do |repository:, user:, git:, operation_type:, log:, &block|
+      block.call("file://#{bare_remote_dir}")
+    end
+
+    checkout = described_class.new(step)
+    checkout.setup
+
+    expect(sh("git -C #{checkout.path} rev-parse refs/remotes/origin/main").strip).to eq(expected_base_sha)
+  ensure
+    FileUtils.rm_rf(mirror) if mirror
+  end
+
+  it "verifies a fork upstream base against the upstream repository before accepting its mirror" do
+    upstream = Factories.repository(user: user, owner: "upstream", name: "widgets", default_branch: "main")
+    repository.update!(upstream_repository: upstream)
+    stale_upstream_mirror = Pathname.new(Dir.mktmpdir("syrus-immutable-source-stale-upstream"))
+    sh("git clone -q --bare #{bare_remote_dir} #{stale_upstream_mirror}")
+    expected_base_sha = advance_remote_main("new-upstream-base.txt")
+    snapshot.update!(source_ref: "refs/syrus/source-snapshots/runs/123", source_sha: feature_sha, tree_sha: feature_tree_sha)
+    register_workspace_transports(
+      repository.id => "file://#{bare_remote_dir}",
+      upstream.id => "file://#{stale_upstream_mirror}"
+    )
+    content = instance_double(RepositoryContent::Reader)
+    allow(RepositoryContent).to receive(:for).with(upstream, user: user).and_return(content)
+    allow(content).to receive(:resolve).with("main", max_age: 0)
+      .and_return(RepositoryContent::Revision.new(id: expected_base_sha, ref: "main", observed_at: Time.current))
+    expect(GithubAuthenticatedGit).to receive(:run).at_least(:once) do |repository:, user:, git:, operation_type:, log:, &block|
+      expect(repository).to eq(upstream)
+      block.call("file://#{bare_remote_dir}")
+    end
+
+    checkout = described_class.new(step)
+    checkout.setup
+
+    expect(checkout.base_ref).to eq("upstream/main")
+    expect(sh("git -C #{checkout.path} rev-parse refs/remotes/upstream/main").strip).to eq(expected_base_sha)
+  ensure
+    FileUtils.rm_rf(stale_upstream_mirror) if stale_upstream_mirror
+  end
+
   # A grader is routinely the first thing a worker runs for a workflow whose
   # workspace was cloned on a different node. While this scratch lived under
   # the workspace, materializing the checkout created the workspace path as a
@@ -1144,6 +1195,32 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       define_singleton_method(:available_for?) { |_repository| true }
       define_singleton_method(:build) { |repository:, user:| transport }
     end)
+  end
+
+  def register_workspace_transports(urls_by_repository_id)
+    Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+      include Syrus::Plugin::WorkspaceGitTransport
+      define_singleton_method(:available_for?) { |repository| urls_by_repository_id.key?(repository.id) }
+      define_singleton_method(:build) do |repository:, user:|
+        url = urls_by_repository_id.fetch(repository.id)
+        Object.new.tap do |transport|
+          transport.define_singleton_method(:url) { url }
+          transport.define_singleton_method(:env) { {} }
+          transport.define_singleton_method(:register!) { nil }
+        end
+      end
+    end)
+  end
+
+  def advance_remote_main(filename)
+    Dir.mktmpdir("syrus-immutable-source-advance-main") do |seed|
+      sh("git clone -q --branch main #{bare_remote_dir} #{seed}")
+      File.write(File.join(seed, filename), "new base\n")
+      sh("git -C #{seed} add #{filename}")
+      sh("git -C #{seed} commit -q -m 'advance base' --author='Seed <s@e>'")
+      sh("git -C #{seed} push -q origin HEAD:main")
+      return sh("git -C #{seed} rev-parse HEAD").strip
+    end
   end
 
   def update_remote_config(contents)
