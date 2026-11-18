@@ -2230,8 +2230,9 @@ Coworkers is installed but disabled by default. A self-hosted instance must
 enable beta mode before an administrator can enable it from **Admin →
 Plugins**. When enabled, it exposes a Coworkers page for creating named agents,
 choosing their appearance and capabilities, opening their main and side chats,
-and viewing their read-only identity profile. Every new coworker opens its main
-chat itself. Custom-coworker turns require the Container Execution plugin and
+and viewing or editing their identity profile while keeping the workspace
+remote read-only. Every new coworker opens its main chat itself. Custom-coworker
+turns require the Container Execution plugin and
 a configured Docker-compatible launch environment. They fail closed instead
 of falling back to the worker host. Each Codex, Claude, Muse, or Agy turn runs
 in a disposable, non-root container with only its coworker checkout, that

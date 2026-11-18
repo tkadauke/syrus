@@ -15,6 +15,7 @@ mv "$external_root/future_plugin/relocatable_plugin.gemspec" "$external_root/fut
 ruby -pi -e 'gsub("relocatable_plugin", "future_plugin"); gsub(">= 0.1.0", ">= 999.0")' \
   "$external_root/future_plugin/future_plugin.gemspec" "$external_root/future_plugin/lib/relocatable_plugin.rb"
 mv "$external_root/future_plugin/lib/relocatable_plugin.rb" "$external_root/future_plugin/lib/future_plugin.rb"
+rm -rf "$external_root/future_plugin/db/migrate"
 
 mkdir -p "$external_root/exploding_plugin/lib"
 cp "$plugin_root/relocatable_plugin.gemspec" "$external_root/exploding_plugin/exploding_plugin.gemspec"

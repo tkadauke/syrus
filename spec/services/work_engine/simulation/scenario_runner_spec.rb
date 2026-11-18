@@ -84,6 +84,14 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
     allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+
+    # Scenario assertions cover persisted state-machine convergence. Building
+    # realtime presentation payloads for every committed Workflow, Step, and
+    # Run transition is orthogonal and accounts for substantial suite time.
+    [ Workflow, Step, Run ].each do |model|
+      allow_any_instance_of(model).to receive(:broadcast_job_progress_event)
+    end
+    allow(App::ProviderAvailability).to receive(:broadcast_changed)
   end
 
   def run_scenario(name, max_ticks: 50)

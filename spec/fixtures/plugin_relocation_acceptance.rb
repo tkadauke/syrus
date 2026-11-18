@@ -25,6 +25,7 @@ migration_path = expected_root.join("db/migrate").to_s
 assert!(Rails.application.paths["db/migrate"].to_a.include?(migration_path), "external migration path is absent")
 assert!(ActiveRecord::Migrator.migrations_paths.include?(migration_path), "migrator does not include the external path")
 migration = ActiveRecord::MigrationContext.new([ migration_path ])
+migration.migrations.each { |candidate| migration.schema_migration.delete_version(candidate.version.to_s) }
 migration.up
 assert!(ActiveRecord::Base.connection.table_exists?(:relocatable_plugin_probes), "external migration did not apply")
 

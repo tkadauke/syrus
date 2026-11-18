@@ -1657,6 +1657,22 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(workflow.artifact("failure_reason")).to eq("pr_publication_missing_after_success")
     end
 
+    it "records cancelled step ids when a cancelled tail leaves no runnable work" do
+      workflow.start!; workflow.save!
+      s3.update!(kind: "format")
+      Step.suppress_cancel_cascade do
+        s2.update!(state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)
+        s3.update!(state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)
+      end
+
+      described_class.advance_from(s1)
+
+      expect(workflow.reload).to be_failed
+      expect(workflow.failure_reason).to eq("no_runnable_steps_after_cancellation")
+      expect(workflow.artifact("no_runnable_steps_after_cancellation"))
+        .to eq("cancelled_step_ids" => [ s2.id, s3.id ])
+    end
+
     it "transitions the Workflow to succeeded after the last step in the chain" do
       workflow.start!; workflow.save!
       s3.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)

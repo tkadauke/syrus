@@ -163,6 +163,15 @@ class Step < ApplicationRecord
   # cascade suppressed. New benign no-op paths should use :skipped instead;
   # this suppression remains for real cancellation propagation that must not
   # fan out further.
+  #
+  # Audited callers: Workflow terminal cleanup and the immutable-review
+  # barrier cancel Steps and therefore depend on suppression surviving until
+  # commit. LifecyclePropagation uses it while cancelling an entire tail so
+  # each descendant does not start a second cascade. StepDispatcher's
+  # post-loop cancellation has the same requirement. Steps::Base, RunJob,
+  # MergeTrainRebase, MergeTrainReconcile, and MergeabilityPreflight now only
+  # skip descendants; their blocks are harmless but retained to make the
+  # orchestration boundary explicit.
   def self.suppress_cancel_cascade
     prior = Thread.current[:syrus_step_suppress_cancel_cascade]
     Thread.current[:syrus_step_suppress_cancel_cascade] = true
@@ -170,6 +179,12 @@ class Step < ApplicationRecord
   ensure
     Thread.current[:syrus_step_suppress_cancel_cascade] = prior
   end
+
+  # `cancel_workflow_chain!` runs after the surrounding transaction commits,
+  # which may be later than the suppress_cancel_cascade block that saved this
+  # record. Capture the suppression on the record while the transition is
+  # being persisted so the commit callback observes the intended behavior.
+  before_update :capture_cancel_cascade_suppression
 
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
@@ -337,12 +352,27 @@ class Step < ApplicationRecord
   end
 
   def cancel_workflow_chain!
+    return if cancel_cascade_suppressed?
+
     Steps::LifecyclePropagation.cancelled!(self)
+  ensure
+    @cancel_cascade_suppressed = nil
+  end
+
+  def cancel_cascade_suppressed?
+    @cancel_cascade_suppressed == true
   end
 
   def block_workflow!
     Steps::LifecyclePropagation.blocked!(self)
   end
+
+  def capture_cancel_cascade_suppression
+    return unless will_save_change_to_state? && state == "cancelled"
+
+    @cancel_cascade_suppressed = true if Thread.current[:syrus_step_suppress_cancel_cascade]
+  end
+  private :capture_cancel_cascade_suppression
 
   # The most recently created Run on this Step — i.e. the latest
   # attempt. Failed retries become previous Runs; the latest Run

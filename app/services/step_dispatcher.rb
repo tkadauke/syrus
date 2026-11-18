@@ -2311,6 +2311,10 @@ class StepDispatcher
       return hard_fail_workflow!("pr_publication_missing_after_success")
     end
 
+    if @workflow.terminal_descendant_outcome == :failed && @workflow.steps.cancelled.exists?
+      return fail_for_cancelled_tail!
+    end
+
     return unless @workflow.may_succeed?
 
     @workflow.succeed!
@@ -2318,6 +2322,14 @@ class StepDispatcher
     StackRebaseCoordinator.parent_amended(@workflow.job) if pushed_workflow? && @workflow.trigger_kind != "stack_rebase"
     schedule_mergeability_recheck
     schedule_auto_merge_recheck
+  end
+
+  def fail_for_cancelled_tail!
+    cancelled_ids = @workflow.steps.cancelled.order(:position).pluck(:id)
+    @workflow.set_artifact!("no_runnable_steps_after_cancellation", {
+      "cancelled_step_ids" => cancelled_ids
+    })
+    hard_fail_workflow!("no_runnable_steps_after_cancellation")
   end
 
   def workflow_finish_blocked_by_live_descendants?

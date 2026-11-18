@@ -47,7 +47,10 @@ module Coworkers
         links = Coworkers::Chat.includes(coworker: { avatar_attachment: :blob })
           .joins(:coworker).where(coworkers: { owner_user_id: user.id })
         metadata = links.index_with do |link|
-          { agent_appearance: appearance(link.coworker) }
+          { agent_appearance: appearance(link.coworker).merge(
+            coworker_id: link.coworker_id, coworker_chat_role: link.role,
+            side_chat_action_path: "/api/v1/app/coworkers/#{link.coworker_id}/chats"
+          ) }
         end.transform_keys(&:chat_session_id)
         {
           key: "coworkers",

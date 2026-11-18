@@ -47,6 +47,30 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     end
   end
 
+  it "records an explicit failure when only cancelled steps remain runnable" do
+    workflow.steps.delete_all
+    workflow.update!(
+      state: "running",
+      started_at: (described_class::ORPHAN_RUN_GRACE_PERIOD * 2).ago
+    )
+    completed = workflow.steps.create!(kind: "implement", position: 0, state: "succeeded")
+    cancelled = workflow.steps.create!(
+      kind: "pr_open",
+      position: 1,
+      state: "cancelled",
+      cancellation_reason: "upstream_step_cancelled"
+    )
+    completed.update!(next_step: cancelled)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_workflow_without_active_descendants)).to be_present
+    expect(workflow.reload).to be_failed
+    expect(workflow.failure_reason).to eq("no_runnable_steps_after_cancellation")
+    expect(workflow.artifact("no_runnable_steps_after_cancellation"))
+      .to eq("cancelled_step_ids" => [ cancelled.id ])
+  end
+
   it "cancels a persisted queued downstream Run while a required review barrier is unresolved" do
     workflow.steps.delete_all
     workflow.update!(state: "running", started_at: 2.minutes.ago)
