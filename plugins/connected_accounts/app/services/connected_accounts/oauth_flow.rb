@@ -33,12 +33,14 @@ module ConnectedAccounts
       expires_at = normalize_expiry!(tokens)
       identity = resolved.call("identity", Provider::IdentityContext.new(access_token: tokens.fetch("access_token")))
 
-      credential = CredentialMaterial.store_account!(user: flow.owner_user, provider: flow.provider,
-        tokens: tokens, api_origins: resolved.api_origins)
-      Account.create!(owner_user: flow.owner_user, provider: flow.provider,
-        display_label: identity.fetch(:label).to_s, granted_scopes: flow.requested_scopes,
-        status: "connected", read_only: flow.read_only, acting_modes: [ "as_owner" ],
-        credential_store_credential: credential, token_expires_at: expires_at)
+      Account.transaction do
+        credential = CredentialMaterial.store_account!(user: flow.owner_user, provider: flow.provider,
+          tokens: tokens, api_origins: resolved.api_origins)
+        Account.create!(owner_user: flow.owner_user, provider: flow.provider,
+          display_label: identity.fetch(:label).to_s, granted_scopes: flow.requested_scopes,
+          status: "connected", read_only: flow.read_only, acting_modes: [ "as_owner" ],
+          credential_store_credential: credential, token_expires_at: expires_at)
+      end
     end
 
     def self.normalize_expiry!(tokens)

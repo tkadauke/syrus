@@ -27,6 +27,7 @@ provides "connected_accounts:provider" => [
     capabilities: %w[authorization exchange_code refresh revoke identity validate events],
     callback_route: "/connected_accounts/callback/example",
     supports_read_only: true,
+    api_origins: [ "https://api.example.com/" ],
     scopes: [
       { key: "records.read", label: "Read records", risk: "low", syrus_capabilities: [ "records.read@v1" ] }
     ]
@@ -48,6 +49,6 @@ The capability contexts and results are:
 | `validate` | `access_token` | A health result containing boolean `healthy` and a safe, non-secret `message`. |
 | `events` | Request `headers` and raw request `body` | After verifying authenticity, a normalized hash containing `event_id`, `event_type`, and `data`. Invalid signatures must fail closed. |
 
-Token-bearing `exchange_code` and `refresh` results are returned only to the Connected Accounts broker. Providers must not log token material or include it in exceptions, user-visible output, or other external results. The manifest scope catalog constrains `requested_scopes`: each entry has a provider scope `key`, a human `label`, its `risk`, and the `syrus_capabilities` that scope enables. `callback_route` must be an absolute path owned by the contributing plugin, and `supports_read_only` states whether the authorization flow can limit the resulting connection to read-only access.
+Token-bearing `exchange_code` and `refresh` results are returned only to the Connected Accounts broker. Providers must not log token material or include it in exceptions, user-visible output, or other external results. The manifest scope catalog constrains `requested_scopes`: each entry has a provider scope `key`, a human `label`, its `risk`, and the `syrus_capabilities` that scope enables. `callback_route` must be an absolute path owned by the contributing plugin, and `supports_read_only` states whether the authorization flow can limit the resulting connection to read-only access. `api_origins` is a non-empty list of HTTPS URL prefixes; brokered credentials are restricted to requests under those provider API origins.
 
 Provider gems can require `connected_accounts/provider_test_kit` and run the shared `"a connected accounts provider"` examples with their declaration and provider. The fake provider bundled with Connected Accounts is the executable reference implementation.

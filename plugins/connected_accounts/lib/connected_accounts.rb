@@ -27,6 +27,7 @@ module ConnectedAccounts
         capabilities: %w[authorization exchange_code refresh revoke identity validate events],
         callback_route: "/connected_accounts/callback/fake",
         supports_read_only: true,
+        api_origins: [ "https://fake.example/" ],
         scopes: [
           {
             key: "fake.read",

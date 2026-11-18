@@ -10,6 +10,7 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
       capabilities: ConnectedAccounts::Provider::REQUIRED_CAPABILITIES,
       callback_route: "/connected_accounts/callback/example",
       supports_read_only: true,
+      api_origins: [ "https://api.example/" ],
       scopes: [
         { key: "records.read", label: "Read records", risk: "low", syrus_capabilities: [ "records.read@v1" ] }
       ]
@@ -21,9 +22,17 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
 
     expect(declaration).to have_attributes(
       plugin_name: "example_plugin", key: "example", display_name: "Example",
-      callback_route: "/connected_accounts/callback/example", supports_read_only: true
+      callback_route: "/connected_accounts/callback/example", supports_read_only: true,
+      api_origins: [ "https://api.example/" ]
     )
     expect(declaration.scopes.first).to include("label" => "Read records", "risk" => "low")
+  end
+
+  it "requires HTTPS API origins for broker target constraints" do
+    expect { described_class.build(plugin_name: "broken", attributes: valid_attributes.merge(api_origins: [])) }
+      .to raise_error(ArgumentError, /at least one API origin is required/)
+    expect { described_class.build(plugin_name: "broken", attributes: valid_attributes.merge(api_origins: [ "http://api.example/" ])) }
+      .to raise_error(ArgumentError, /API origins must be HTTPS URLs/)
   end
 
   it "rejects missing capabilities and malformed manifest fields" do

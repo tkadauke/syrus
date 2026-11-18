@@ -17,4 +17,16 @@ RSpec.describe "connected account callback", type: :request do
     expect(response).to redirect_to("/settings/connected_accounts?oauth_error=invalid_state")
     expect(response.body).not_to include("attacker-state-secret", "authorization-code-secret")
   end
+
+  it "logs only the error class when callback processing fails" do
+    allow(ConnectedAccounts::OauthFlow).to receive(:complete!)
+      .and_raise(RuntimeError, "provider exposed access-secret and refresh-secret")
+    expect(Rails.logger).to receive(:warn).with("Connected account OAuth callback failed: RuntimeError")
+
+    get "/api/v1/app/connected_accounts/callback/fake", params: {
+      state: "attacker-state-secret", code: "authorization-code-secret"
+    }
+
+    expect(response).to redirect_to("/settings/connected_accounts?oauth_error=connection_failed")
+  end
 end

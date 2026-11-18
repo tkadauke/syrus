@@ -45,6 +45,16 @@ RSpec.describe "Connected Accounts OAuth lifecycle" do
       .to raise_error(ConnectedAccounts::OauthFlow::InvalidState)
   end
 
+  it "rolls back credential material when account creation fails" do
+    state = state_from(start_flow)
+    credential_count = CredentialStore::Credential.count
+    allow(ConnectedAccounts::Account).to receive(:create!).and_raise(ActiveRecord::RecordInvalid)
+
+    expect { ConnectedAccounts::OauthFlow.complete!(state: state, code: "code-1") }
+      .to raise_error(ActiveRecord::RecordInvalid)
+    expect(CredentialStore::Credential.count).to eq(credential_count)
+  end
+
   it "rejects a mismatched state without contacting the token endpoint" do
     start_flow
     expect { ConnectedAccounts::OauthFlow.complete!(state: "wrong", code: "code-1") }
@@ -74,6 +84,17 @@ RSpec.describe "Connected Accounts OAuth lifecycle" do
     expect(Notification.where(user: user, dedupe_key: "connected-account-reauth-#{account.id}").count).to eq(1)
   end
 
+  it "re-raises refresh rate limits without requiring reauthorization" do
+    account = ConnectedAccounts::OauthFlow.complete!(state: state_from(start_flow), code: "code-1")
+    stub_request(:post, "https://oauth.example/token").to_return(status: 429,
+      headers: { "Retry-After" => "45" }, body: "temporarily limited")
+
+    expect { ConnectedAccounts::RefreshJob.perform_now(account.id) }
+      .to raise_error(ConnectedAccounts::Problem) { |error| expect(error.retry_after).to eq(45) }
+    expect(account.reload).to be_connected
+    expect(Notification.where(user: user, dedupe_key: "connected-account-reauth-#{account.id}")).to be_empty
+  end
+
   it "revokes remotely, erases token material, retains account history, and marks it revoked" do
     account = ConnectedAccounts::OauthFlow.complete!(state: state_from(start_flow), code: "code-1")
     stub_request(:post, "https://oauth.example/revoke").to_return(status: 200, body: "{}")
@@ -83,6 +104,18 @@ RSpec.describe "Connected Accounts OAuth lifecycle" do
     expect(account.reload).to be_revoked
     expect(account.credential_store_credential.reload.payload).to eq({ revoked: true }.to_json)
     expect(account.credential_store_credential).to be_revoked
+  end
+
+  it "rolls back credential erasure when the revoked status cannot be persisted" do
+    account = ConnectedAccounts::OauthFlow.complete!(state: state_from(start_flow), code: "code-1")
+    original_payload = account.credential_store_credential.payload
+    stub_request(:post, "https://oauth.example/revoke").to_return(status: 200, body: "{}")
+    allow(account).to receive(:update!).and_raise(ActiveRecord::RecordInvalid)
+
+    expect { ConnectedAccounts::Disconnector.call(account: account, user: user) }
+      .to raise_error(ActiveRecord::RecordInvalid)
+    expect(account.credential_store_credential.reload.payload).to eq(original_payload)
+    expect(account.reload).to be_connected
   end
 
   it "updates health status and exposes rate limit retry-after without leaking response bodies" do

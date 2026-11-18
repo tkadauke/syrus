@@ -26,7 +26,7 @@ module ConnectedAccounts
     end
 
     def api_origins
-      configuration ? configuration.api_origins : [ "https://fake.example" ]
+      configuration ? configuration.api_origins : @implementation.api_origins
     end
 
     def scope_keys

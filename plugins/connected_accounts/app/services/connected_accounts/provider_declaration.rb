@@ -1,7 +1,7 @@
 module ConnectedAccounts
   ProviderDeclaration = Data.define(
     :plugin_name, :provider, :key, :display_name, :capabilities, :callback_route,
-    :scopes, :supports_read_only
+    :scopes, :supports_read_only, :api_origins
   ) do
     RISK_LEVELS = %w[low medium high critical].freeze
 
@@ -15,7 +15,8 @@ module ConnectedAccounts
         capabilities: Array(values["capabilities"]).map(&:to_s).freeze,
         callback_route: values["callback_route"].to_s,
         scopes: Array(values["scopes"]).map { |scope| scope.to_h.stringify_keys.freeze }.freeze,
-        supports_read_only: values["supports_read_only"]
+        supports_read_only: values["supports_read_only"],
+        api_origins: Array(values["api_origins"]).map(&:to_s).freeze
       ).tap(&:validate!)
     end
 
@@ -30,6 +31,8 @@ module ConnectedAccounts
       errors << "unknown capabilities: #{unknown.join(', ')}" if unknown.any?
       errors << "callback_route must be an absolute path" unless callback_route.start_with?("/")
       errors << "supports_read_only must be true or false" unless [ true, false ].include?(supports_read_only)
+      errors << "at least one API origin is required" if api_origins.empty?
+      errors << "API origins must be HTTPS URLs" unless api_origins.all? { |origin| https_url?(origin) }
       errors.concat(scope_errors)
       raise ArgumentError, errors.join("; ") if errors.any?
 
@@ -73,6 +76,13 @@ module ConnectedAccounts
         errors << "scope #{key.inspect} requires Syrus capabilities" if Array(scope["syrus_capabilities"]).empty?
       end
       errors
+    end
+
+    def https_url?(value)
+      uri = URI.parse(value)
+      uri.is_a?(URI::HTTPS) && uri.host.present?
+    rescue URI::InvalidURIError
+      false
     end
   end
 end

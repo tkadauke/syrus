@@ -8,8 +8,10 @@ module ConnectedAccounts
         tokens = JSON.parse(account.credential_store_credential.payload)
         ResolvedProvider.fetch(account.provider).call("revoke", Provider::RevokeContext.new(tokens: tokens))
       ensure
-        CredentialMaterial.erase!(account.credential_store_credential, user: user)
-        account.update!(status: "revoked", token_expires_at: nil)
+        Account.transaction do
+          CredentialMaterial.erase!(account.credential_store_credential, user: user)
+          account.update!(status: "revoked", token_expires_at: nil)
+        end
       end
       account
     end

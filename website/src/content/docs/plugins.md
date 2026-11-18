@@ -397,6 +397,7 @@ provides "connected_accounts:provider" => [
     capabilities: %w[authorization exchange_code refresh revoke identity validate events],
     callback_route: "/connected_accounts/callback/example",
     supports_read_only: true,
+    api_origins: [ "https://api.example.com/" ],
     scopes: [
       {
         key: "records.read",
@@ -428,7 +429,9 @@ with a trivial `authorization` implementation. Providers that declare
 `events` must verify authenticity and fail closed before normalizing a push.
 Token-bearing `exchange_code` and `refresh` results are returned only to the
 Connected Accounts broker. Providers must not log token material or include it
-in exceptions, user-visible output, or other external results.
+in exceptions, user-visible output, or other external results. Every declaration
+must list at least one HTTPS URL prefix in `api_origins`; the broker restricts
+the provider's credential to requests under those API origins.
 
 Syrus rejects malformed declarations and providers with missing or invalid
 method signatures at load time, with the reason visible in plugin health.
