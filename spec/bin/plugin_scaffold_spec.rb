@@ -13,9 +13,9 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
     binary
   end
 
-  def generate(binary, directory, *flags)
+  def generate(binary, directory, *flags, version: "0.1.0")
     output, status = Open3.capture2e(binary.to_s, "plugin", "new", "sample_plugin", "--path", directory.to_s,
-      "--syrus-version", "0.1.0", *flags)
+      "--syrus-version", version, *flags)
     raise output unless status.success?
   end
 
@@ -35,7 +35,8 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
           Rails.root.join("bin/plugin-test").to_s, plugin.to_s, chdir: Rails.root.to_s
         )
         expect(status).to be_success, output
-        expect(JSON.parse(output.lines.last)).to include("validation" => "passed", "tests" => "passed")
+        json_line = output.lines.reverse_each.find { |line| line.strip.present? }
+        expect(JSON.parse(json_line)).to include("validation" => "passed", "tests" => "passed")
       end
     end
   end
@@ -45,11 +46,12 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
       root = Pathname.new(temporary)
       cli_plugin = root.join("cli/sample_plugin")
       rails_root = root.join("rails")
-      generate(build_cli(temporary), cli_plugin, "--frontend", "--model", "--cli")
+      generate(build_cli(temporary), cli_plugin, "--frontend", "--model", "--cli", version: "v1.2.3")
       described_class = Syrus::Plugin::PluginGenerator
-      described_class.start([ "sample_plugin", "--frontend", "--model", "--cli", "--syrus-version", "0.1.0" ], destination_root: rails_root)
+      described_class.start([ "sample_plugin", "--frontend", "--model", "--cli", "--syrus-version", "v1.2.3" ], destination_root: rails_root)
 
       expect(files(rails_root.join("plugins/sample_plugin"))).to eq(files(cli_plugin))
+      expect(cli_plugin.join("sample_plugin.gemspec").read).to include('requires_syrus"] = ">= 1.2.3"')
     end
   end
 end
