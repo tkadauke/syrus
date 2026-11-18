@@ -139,8 +139,7 @@ module Api
         end
 
         def delegated_sql(repository)
-          label = ActiveRecord::Base.sanitize_sql_like(repository.trigger_label)
-          [ "CAST(labels AS CHAR) LIKE ?", "%\"name\":\"#{label}\"%" ]
+          GithubSource::IssueDelegationQuery.for(GithubSource::Issue.connection).condition(repository.trigger_label)
         end
 
         def issue_folder_counts(repository, scope)
