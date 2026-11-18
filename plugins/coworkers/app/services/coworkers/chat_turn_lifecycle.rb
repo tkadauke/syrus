@@ -25,5 +25,7 @@ class Coworkers::ChatTurnLifecycle
 
   private
 
-  def coworker = Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: @chat_session.id).coworker
+  def coworker
+    @coworker ||= Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: @chat_session.id).coworker
+  end
 end

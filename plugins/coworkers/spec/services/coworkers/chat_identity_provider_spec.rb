@@ -30,7 +30,7 @@ RSpec.describe Coworkers::ChatIdentityProvider do
     )
   end
 
-  it "delegates the first roster-mentioned coworker instead of selecting it for the source turn" do
+  it "leaves roster mentions outside its source-chat turn ownership" do
     Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
     message = chat.messages.create!(
       role: "user", content: { "text" => "@maya-identity help" },
@@ -40,7 +40,8 @@ RSpec.describe Coworkers::ChatIdentityProvider do
 
     expect(described_class.chat_turn_identity(chat_session: chat, message: message)).to be_nil
     expect(described_class.chat_turn_trigger(chat_session: chat, message: message, mentions: message.resolved_mentions))
-      .to include(trigger: false, reason: "delegated coworker mention")
+      .to be_nil
+    expect(chat.should_trigger_agent?(message.resolved_mentions)).to be(false)
   end
 
   it "preserves direct and group-chat turn trigger decisions" do
