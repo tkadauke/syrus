@@ -128,15 +128,25 @@ RSpec.describe ConnectedAccounts::AccountClient do
     }.to_json
     record = account
     record.credential.update!(payload: expired_payload)
-    allow(ConnectedAccounts::TokenRefresher).to receive(:call)
+    provider = double("account provider", key: "example")
+    allow(provider).to receive(:refresh)
       .with(account: record, payload: expired_payload)
       .and_return(replacement_payload)
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for)
+      .with("connected_accounts:provider")
+      .and_return([ provider ])
 
-    observed_header = with_invocation do
-      call_client(record) { |access| access.authorization_header }
+    observed_header = nil
+    with_invocation do
+      call_client(record) do |access|
+        observed_header = access.authorization_header
+        "ok"
+      end
     end
 
-    expect(observed_header).to eq("Bearer #{CredentialStore::Redaction::REDACTION}")
+    expect(observed_header).to eq("Bearer #{replacement_access_token}")
+    expect(provider).to have_received(:refresh)
     expect(record.credential.reload.payload).to eq(replacement_payload)
     expect(CredentialStore::CredentialAccessEvent.where(credential: record.credential).pluck(:action))
       .to contain_exactly("lease", "refresh")

@@ -13,6 +13,7 @@ module ConnectedAccounts
     default_enabled false
     disableable true
     depends_on [ "credential_store" ]
+    hosts :provider
     credential_types [
       {
         name: "connected_accounts.oauth",
