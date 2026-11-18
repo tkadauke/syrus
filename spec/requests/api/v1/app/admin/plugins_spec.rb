@@ -34,13 +34,25 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     sign_in_as(admin)
     safety = instance_double(Syrus::PluginBootSafety)
     allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
-    allow(safety).to receive(:clear!).with("weather")
+    allow(safety).to receive(:locally_clearable?).with("weather").and_return(true)
+    allow(safety).to receive(:clear!).with("weather").and_return(true)
 
     post "/api/v1/app/admin/plugins/weather/clear_quarantine"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("ok" => true, "plugin" => "weather", "restart_required" => true)
     expect(safety).to have_received(:clear!).with("weather")
+  end
+
+  it "rejects clearing a quarantine controlled by safe mode or fleet state" do
+    sign_in_as(admin)
+    safety = instance_double(Syrus::PluginBootSafety, locally_clearable?: false)
+    allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+
+    post "/api/v1/app/admin/plugins/weather/clear_quarantine"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("quarantine_not_locally_clearable")
   end
 
   it "returns slim registered-plugin rows" do

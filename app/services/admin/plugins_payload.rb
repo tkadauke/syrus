@@ -56,8 +56,19 @@ module Admin
     private
 
     def recovery_payload
-      safety = Syrus::PluginBootSafety.default
-      { safe_mode: safety.mode, quarantines: safety.quarantines }
+      safety = boot_safety
+      { safe_mode: safety.mode, quarantines: safety.quarantines, locally_clearable: clearable_quarantine_names.to_a }
+    end
+
+    def boot_safety = @boot_safety ||= Syrus::PluginBootSafety.default
+    def local_quarantines = @local_quarantines ||= boot_safety.local_quarantines
+
+    def clearable_quarantine_names
+      @clearable_quarantine_names ||= if boot_safety.mode.to_s.empty?
+        (local_quarantines.keys - boot_safety.fleet_quarantines.keys).to_set
+      else
+        Set.new
+      end
     end
 
     def filter
@@ -126,6 +137,7 @@ module Admin
           conflicts_with: Array(manifest.conflicts_with),
           dependents: dependency_graph.dependents_for(manifest.name),
           health: health_payload(manifest),
+          quarantine_clearable: clearable_quarantine_names.include?(manifest.name),
           recommendation: recommendation_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
