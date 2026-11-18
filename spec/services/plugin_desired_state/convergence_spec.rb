@@ -39,6 +39,30 @@ RSpec.describe PluginDesiredState::Convergence do
     expect(row).to include(state: "behind", diverged_too_long: true)
   end
 
+  it "loads process and plugin data in a fixed number of queries for a cohort" do
+    state = PluginDesiredState.current
+    state.update!(revision: 2, apply_processes: 4.times.map { |index| { "hostname" => "recorded-#{index}", "role" => "web" } })
+    4.times do |index|
+      process = create_process("recorded-#{index}", 1, now - 3.minutes)
+      process.update!(finished_at: now - 1.minute)
+    end
+
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql].to_s if payload[:sql].to_s.match?(/\ASELECT/i)
+    end
+
+    ActiveRecord::Base.uncached do
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        described_class.new(state:, now:).as_json
+      end
+    end
+
+    expect(queries.grep(/\binstance_versions\b/i).size).to eq(2)
+    expect(queries.grep(/\bplugin_installations\b/i).size).to eq(1)
+    expect(queries.grep(/\bplugin_releases\b/i).size).to eq(1)
+  end
+
   it "emits the existing operational alert record when divergence persists" do
     state = PluginDesiredState.current
     state.update!(revision: 2)
