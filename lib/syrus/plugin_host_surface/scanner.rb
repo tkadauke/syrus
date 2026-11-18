@@ -21,7 +21,7 @@ module Syrus
 
       def self.cached(directory, **options)
         scanner = new(directory, **options)
-        Rails.cache.fetch("plugin-host-surface/v1/#{scanner.content_hash}") { scanner.call }
+        Rails.cache.fetch("plugin-host-surface/v2/#{scanner.content_hash}/#{scanner.contract_hash}") { scanner.call }
       end
 
       def call
@@ -36,6 +36,13 @@ module Syrus
 
       def content_hash
         @content_hash ||= Digest::SHA256.hexdigest(ruby_files.flat_map { |path| [ path.relative_path_from(@directory).to_s, path.binread ] }.join("\0"))
+      end
+
+      def contract_hash
+        @contract_hash ||= Digest::SHA256.hexdigest([
+          @apis.map { |api| [ api.name, api.since ] }.sort,
+          @surface.entries.map(&:name).sort
+        ].to_json)
       end
 
       private

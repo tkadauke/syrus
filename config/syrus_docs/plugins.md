@@ -182,8 +182,9 @@ At discovery, Syrus statically scans an external plugin's Ruby files without
 executing them. Legacy or unsupported core API references, scan errors, and a
 `requires_syrus` floor below the minimum derived from public APIs appear as a
 non-blocking warning in plugin health. The admin plugin detail page lists each
-finding with its source file and line. Results are cached by Ruby content, so
-unchanged plugins are not rescanned on every boot.
+finding with its source file and line. Results are cached by Ruby content and
+the current host contracts, so unchanged plugins are not rescanned on every
+boot but are rescanned when the supported or legacy surface changes.
 
 External plugin discovery, entry loading, engine construction, and provider
 registration are isolated per plugin. A load error, syntax error, or other
