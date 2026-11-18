@@ -135,9 +135,16 @@ describe("CredentialStoreAdmin", () => {
   it("does not offer raw wrappers for a plugin-managed credential type", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input).endsWith("/credentials") && init?.method === "POST")
-        return Promise.resolve(jsonResponse({ credential: credential({ credential_type: "connected_accounts.oauth", allowed_tools: [] }), message: "Credential created." }))
+        return Promise.resolve(
+          jsonResponse({ credential: credential({ credential_type: "connected_accounts.oauth", allowed_tools: [] }), message: "Credential created." })
+        )
       return Promise.resolve(
-        jsonResponse(payload({ credentials: [], options: { credential_types: [{ name: "connected_accounts.oauth", label: "Connected account", plugin: "connected_accounts" }] } }))
+        jsonResponse(
+          payload({
+            credentials: [],
+            options: { credential_types: [{ name: "connected_accounts.oauth", label: "Connected account", plugin: "connected_accounts" }] }
+          })
+        )
       )
     })
 
