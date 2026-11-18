@@ -8,6 +8,8 @@ require "rails/all"
 # from autoloading below so Zeitwerk does not manage the same constant.
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 require "syrus/plugin_api"
+require "syrus/host"
+require "syrus/host/plugin_apis"
 require "syrus/plugin_roots"
 require "syrus/events"
 require "syrus/plugin/manifest"
