@@ -282,6 +282,49 @@ RSpec.describe Step do
 
       expect(step_b.reload.state).to eq("cancelled")
       expect(step_c.reload.state).to eq("cancelled")
+      expect(step_b.cancellation_reason).to eq("upstream_step_cancelled")
+      expect(step_b.details).to include(
+        "cancelled_source_step_id" => step_a.id,
+        "cancelled_source_step_kind" => "implement"
+      )
+    end
+
+    it "logs one structured event for the full downstream cascade" do
+      messages = []
+      allow(Rails.logger).to receive(:info).and_wrap_original do |method, message|
+        messages << message
+        method.call(message)
+      end
+
+      step_a.cancel!
+      step_a.save!
+
+      cascades = messages.filter_map do |message|
+        JSON.parse(message)
+      rescue JSON::ParserError
+        nil
+      end.select { |payload| payload["event"] == "step_cancellation_cascade" }
+      expect(cascades).to contain_exactly(include(
+        "workflow_id" => workflow.id,
+        "source_step_id" => step_a.id,
+        "reason" => "upstream_step_cancelled",
+        "cancelled_step_count" => 2,
+        "code_path" => "Steps::LifecyclePropagation#cancelled!"
+      ))
+    end
+
+    it "keeps suppression through an enclosing transaction's commit callbacks" do
+      described_class.transaction do
+        described_class.suppress_cancel_cascade do
+          step_a.cancel!
+          step_a.save!
+        end
+        expect(step_b.reload).to be_queued
+      end
+
+      expect(step_b.reload).to be_queued
+      expect(step_c.reload).to be_queued
+      expect(workflow.reload).to be_running
     end
 
     it "cancels the workflow when no active steps remain" do
