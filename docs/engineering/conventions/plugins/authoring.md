@@ -3,6 +3,9 @@
 This is the complete contributor reference for authoring Syrus plugins. The
 short [operator and agent guide](../../../../config/syrus_docs/plugins.md)
 documents supported runtime behavior without exposing implementation details.
+For generated contracts, use the [host API reference](host-api.md) and the
+[single-file plugin specification](plugin-spec.md). The latter is designed to
+be pasted whole into an LLM context and records its generated size.
 
 ## Review extension contracts
 
