@@ -28,6 +28,7 @@ RSpec.describe "grading, preparation, and review plugin invocation boundaries" d
     app/services/grader_input_materialization.rb
     app/services/isolated_repro_recorder.rb
     app/services/main_branch_failure_classifier.rb
+    app/services/merge_train_multisect.rb
     app/services/post_implementation_review_required_mcp_tools.rb
     app/services/repo_grade_signals.rb
     app/services/repo_prep_plan.rb
