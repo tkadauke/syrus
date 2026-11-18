@@ -299,6 +299,7 @@ jobs:
           IMAGE: ghcr.io/tkadauke/syrus-backend
           VERSION: ${{ inputs.image_primary_tag }}
           VERSION_TAG: ${{ inputs.image_extra_tag }}
+          APP_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -314,6 +315,9 @@ jobs:
           )
           plugin_tags=(-t "ghcr.io/tkadauke/syrus-plugin-test:$VERSION")
           if [ -n "$VERSION_TAG" ]; then plugin_tags+=(-t "ghcr.io/tkadauke/syrus-plugin-test:$VERSION_TAG"); fi
+          if [ "$APP_VERSION" != "$VERSION" ] && [ "$APP_VERSION" != "$VERSION_TAG" ]; then
+            plugin_tags+=(-t "ghcr.io/tkadauke/syrus-plugin-test:$APP_VERSION")
+          fi
           docker buildx imagetools create "${plugin_tags[@]}" "${plugin_refs[@]}"
 
       - name: Verify the pushed manifest(s) exist
@@ -321,6 +325,7 @@ jobs:
           IMAGE: ghcr.io/tkadauke/syrus-backend
           VERSION: ${{ inputs.image_primary_tag }}
           VERSION_TAG: ${{ inputs.image_extra_tag }}
+          APP_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           . ./bin/docker-image-lib
@@ -328,6 +333,9 @@ jobs:
           if [ -n "$VERSION_TAG" ]; then syrus_verify_pushed "$IMAGE" "$VERSION_TAG"; fi
           syrus_verify_pushed "ghcr.io/tkadauke/syrus-plugin-test" "$VERSION"
           if [ -n "$VERSION_TAG" ]; then syrus_verify_pushed "ghcr.io/tkadauke/syrus-plugin-test" "$VERSION_TAG"; fi
+          if [ "$APP_VERSION" != "$VERSION" ] && [ "$APP_VERSION" != "$VERSION_TAG" ]; then
+            syrus_verify_pushed "ghcr.io/tkadauke/syrus-plugin-test" "$APP_VERSION"
+          fi
 
   # ---------------------------------------------------------------------------
   # Cross-compile the CLI and stage the tarballs + checksums.

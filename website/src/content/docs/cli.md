@@ -231,7 +231,8 @@ The CLI uses the connected instance's release when available, otherwise its own
 release, and pulls `ghcr.io/tkadauke/syrus-plugin-test`. The directory is mounted
 read-only and the runner creates an isolated SQLite test database; it never uses
 instance credentials. Syrus contributors can use the identical checkout runner
-with `--checkout /path/to/syrus`.
+with `--checkout /path/to/syrus`. Pass `--json` to suppress progress output and
+print only the stable `syrus.plugin-test.v1` summary.
 
 ## Repository Detection
 

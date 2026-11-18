@@ -123,8 +123,8 @@ Validate a plugin directory with `syrus plugin validate [DIR]`, or run both
 validation and its RSpec suite with `syrus plugin test [DIR]`. The commands use
 a release-matched test image and an isolated SQLite database; the runner never
 needs credentials for a real instance. `--syrus-version VERSION` selects a
-release, `--checkout PATH` uses a contributor checkout, and `--json` leaves a
-stable `syrus.plugin-test.v1` summary as the final output line.
+release, `--checkout PATH` uses a contributor checkout, and `--json` suppresses
+progress output and prints only the stable `syrus.plugin-test.v1` summary.
 
 After restart, open **Admin → Plugins** to check the plugin's version, health,
 dependencies, routes, and load failures before enabling it. `incompatible`

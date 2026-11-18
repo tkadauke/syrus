@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tkadauke/syrus/cli/pkg/cliplugin"
 )
@@ -28,8 +31,18 @@ func TestPluginProcessHelper(t *testing.T) {
 	if strings.HasPrefix(args, "pull ") && strings.Contains(args, "pull-fail") {
 		os.Exit(9)
 	}
+	if strings.HasPrefix(args, "pull ") {
+		fmt.Fprintln(os.Stdout, "pull progress")
+	}
 	if strings.HasPrefix(args, "run ") && strings.Contains(args, "runner-fail") {
 		os.Exit(7)
+	}
+	jsonRequested := os.Getenv("SYRUS_PLUGIN_TEST_JSON") == "1" || strings.Contains(args, "SYRUS_PLUGIN_TEST_JSON=1")
+	if jsonRequested {
+		fmt.Fprintln(os.Stdout, `{"schema":"syrus.plugin-test.v1","status":"passed"}`)
+	} else if !strings.HasPrefix(args, "pull ") {
+		fmt.Fprintln(os.Stdout, "runner progress")
+		fmt.Fprintln(os.Stdout, `{"schema":"syrus.plugin-test.v1","status":"passed"}`)
 	}
 	os.Exit(0)
 }
@@ -139,5 +152,41 @@ func TestContainerPluginRunnerPropagatesExitStatus(t *testing.T) {
 	status, ok := err.(cliplugin.ExitStatusError)
 	if !ok || status.ExitStatus() != 7 {
 		t.Fatalf("error = %#v", err)
+	}
+}
+
+func TestContainerPluginRunnerRequestsJSONOnlyCheckoutOutput(t *testing.T) {
+	oldCommand := pluginLocalCommand
+	pluginLocalCommand = pluginHelperCommand
+	t.Cleanup(func() { pluginLocalCommand = oldCommand })
+	assertJSONOnlyPluginOutput(t, t.TempDir())
+}
+
+func TestContainerPluginRunnerRequestsJSONOnlyDockerOutput(t *testing.T) {
+	oldLook, oldCommand := pluginLookPath, pluginLocalCommand
+	pluginLookPath = func(string) (string, error) { return "/docker", nil }
+	pluginLocalCommand = pluginHelperCommand
+	t.Cleanup(func() { pluginLookPath, pluginLocalCommand = oldLook, oldCommand })
+	assertJSONOnlyPluginOutput(t, "")
+}
+
+func assertJSONOnlyPluginOutput(t *testing.T, checkout string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	err := (containerPluginRunner{}).Run(context.Background(), &stdout, &stderr, "test", t.TempDir(), "1.0", checkout, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := stdout.String(), "{\"schema\":\"syrus.plugin-test.v1\",\"status\":\"passed\"}\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestPluginVersionHTTPClientHasTimeout(t *testing.T) {
+	if pluginVersionHTTPClient.Timeout != 5*time.Second {
+		t.Fatalf("timeout = %s", pluginVersionHTTPClient.Timeout)
 	}
 }

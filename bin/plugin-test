@@ -19,15 +19,24 @@ export DATABASE_URL="sqlite3:$work/plugin-test.sqlite3"
 export SYRUS_PLUGIN_PATH="$(dirname "$plugin_root")"
 export SYRUS_PLUGIN_TEST_ROOT="$plugin_root"
 export SYRUS_PLUGIN_TEST_MODE="$mode"
+json_output="${SYRUS_PLUGIN_TEST_JSON:-0}"
+
+run_step() {
+  if [[ "$json_output" == "1" ]]; then
+    "$@" >/dev/null 2>&1
+  else
+    "$@"
+  fi
+}
 
 ./bin/rails db:schema:load >/dev/null 2>&1
 validation_status=$?
 if [[ $validation_status -eq 0 ]]; then
-  ./bin/rails runner 'ActiveRecord.dump_schema_after_migration = false; ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths).migrate'
+  run_step ./bin/rails runner 'ActiveRecord.dump_schema_after_migration = false; ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths).migrate'
   validation_status=$?
 fi
 if [[ $validation_status -eq 0 ]]; then
-  bundle exec rspec --format progress spec/plugin_test_runner/validation_spec.rb
+  run_step bundle exec rspec --format progress spec/plugin_test_runner/validation_spec.rb
   validation_status=$?
 fi
 
@@ -35,10 +44,12 @@ test_status=0
 if [[ "$mode" == "test" && $validation_status -eq 0 ]]; then
   mapfile -t specs < <(find "$plugin_root/spec" -type f -name '*_spec.rb' -print 2>/dev/null | sort)
   if [[ ${#specs[@]} -eq 0 ]]; then
-    echo "No plugin specs found under $plugin_root/spec" >&2
+    if [[ "$json_output" != "1" ]]; then
+      echo "No plugin specs found under $plugin_root/spec" >&2
+    fi
     test_status=1
   else
-    SYRUS_HOST_ROOT="$(pwd)" bundle exec rspec --format progress "${specs[@]}"
+    run_step env SYRUS_HOST_ROOT="$(pwd)" bundle exec rspec --format progress "${specs[@]}"
     test_status=$?
   fi
 fi

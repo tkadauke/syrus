@@ -323,6 +323,14 @@ RSpec.describe "Docker image scripts" do
     expect(build_yml).not_to include('SYRUS_BUILT_AT=${SYRUS_BUILT_AT:-}')
   end
 
+  it "publishes the plugin test image under the version reported by test instances" do
+    build_yml = File.read(File.join(root, ".github/workflows/_build-app.yml"))
+
+    expect(build_yml).to include('APP_VERSION: ${{ inputs.version }}')
+    expect(build_yml).to include('plugin_tags+=(-t "ghcr.io/tkadauke/syrus-plugin-test:$APP_VERSION")')
+    expect(build_yml).to include('syrus_verify_pushed "ghcr.io/tkadauke/syrus-plugin-test" "$APP_VERSION"')
+  end
+
   it "verifies pushes through imagetools, not a hand-rolled base64 bearer token" do
     # Regression: syrus_verify_pushed used to base64-encode the token into an
     # `Authorization: Bearer` header for a raw curl. GNU `base64` wraps at 76

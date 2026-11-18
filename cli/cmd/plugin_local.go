@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/config"
@@ -32,17 +33,30 @@ func (containerPluginRunner) Run(ctx context.Context, stdout, stderr io.Writer, 
 	var command *exec.Cmd
 	if checkout != "" {
 		command = pluginLocalCommand(ctx, filepath.Join(checkout, "bin/plugin-test"), mode, dir)
+		jsonValue := "0"
+		if jsonOutput {
+			jsonValue = "1"
+		}
+		command.Env = append(os.Environ(), "SYRUS_PLUGIN_TEST_JSON="+jsonValue)
 	} else {
 		if _, err := pluginLookPath("docker"); err != nil {
 			return errors.New("Docker is required to test plugins; install Docker or use --checkout PATH")
 		}
 		image := pluginTestImage + ":" + version
 		pull := pluginLocalCommand(ctx, "docker", "pull", image)
-		pull.Stdout, pull.Stderr = stdout, stderr
+		if jsonOutput {
+			pull.Stdout, pull.Stderr = io.Discard, io.Discard
+		} else {
+			pull.Stdout, pull.Stderr = stdout, stderr
+		}
 		if err := pull.Run(); err != nil {
 			return fmt.Errorf("could not pull plugin test image %s: %w", image, err)
 		}
-		command = pluginLocalCommand(ctx, "docker", "run", "--rm", "-v", dir+":/plugin:ro", image, mode, "/plugin")
+		jsonValue := "0"
+		if jsonOutput {
+			jsonValue = "1"
+		}
+		command = pluginLocalCommand(ctx, "docker", "run", "--rm", "-v", dir+":/plugin:ro", "-e", "SYRUS_PLUGIN_TEST_JSON="+jsonValue, image, mode, "/plugin")
 	}
 	command.Stdout, command.Stderr = stdout, stderr
 	if err := command.Run(); err != nil {
@@ -56,7 +70,7 @@ func (containerPluginRunner) Run(ctx context.Context, stdout, stderr io.Writer, 
 }
 
 var localPluginRunner pluginRunner = containerPluginRunner{}
-var pluginVersionHTTPClient = &http.Client{}
+var pluginVersionHTTPClient = &http.Client{Timeout: 5 * time.Second}
 
 type localPluginOptions struct {
 	syrusVersion, checkout string

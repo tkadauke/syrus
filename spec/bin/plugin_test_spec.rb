@@ -4,7 +4,7 @@ require "rails_helper"
 require "open3"
 
 RSpec.describe "bin/plugin-test", :requires_git_checkout do
-  def run_plugin(mode, mutate: nil)
+  def run_plugin(mode, mutate: nil, json: false)
     Dir.mktmpdir("plugin-test-runner") do |directory|
       root = Pathname(directory).join("relocatable_plugin")
       FileUtils.cp_r(Rails.root.join("spec/fixtures/relocatable_plugin"), root)
@@ -22,7 +22,8 @@ RSpec.describe "bin/plugin-test", :requires_git_checkout do
         gemspec = root.join("relocatable_plugin.gemspec")
         File.write(gemspec, File.read(gemspec).sub("end\n", "  spec.add_dependency \"not_shipped_by_syrus\"\nend\n"))
       end
-      Open3.capture3(Rails.root.join("bin/plugin-test").to_s, mode, root.to_s, chdir: Rails.root.to_s)
+      environment = json ? { "SYRUS_PLUGIN_TEST_JSON" => "1" } : {}
+      Open3.capture3(environment, Rails.root.join("bin/plugin-test").to_s, mode, root.to_s, chdir: Rails.root.to_s)
     end
   end
 
@@ -42,5 +43,13 @@ RSpec.describe "bin/plugin-test", :requires_git_checkout do
     stdout, stderr, status = run_plugin("test", mutate: :failing_spec)
     expect(status).not_to be_success
     expect(JSON.parse(stdout.lines.last)).to include("validation" => "passed", "tests" => "failed", "status" => "failed"), stderr
+  end
+
+  it "prints only the summary in JSON mode" do
+    stdout, stderr, status = run_plugin("test", json: true)
+    expect(status).to be_success, stderr
+    expect(stdout.lines.size).to eq(1)
+    expect(JSON.parse(stdout)).to include("schema" => "syrus.plugin-test.v1", "status" => "passed")
+    expect(stderr).to be_empty
   end
 end
