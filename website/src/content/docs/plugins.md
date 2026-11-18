@@ -63,6 +63,14 @@ container, move its directory out of the shared root, and restart all
 containers. Keep its data for rollback; destructive purge is a separate,
 explicit operation.
 
+Multi-process installations can also publish external plugin releases as a
+signed desired set in the configured attachment storage. Archives are addressed
+by SHA-256, and each manifest revision names the exact release, size, process
+roles, and quarantine state. Pre-boot consumers verify the detached Ed25519
+signature and every artifact digest before activating a set. Operators
+distribute only the public verification key; Syrus keeps the signing key
+encrypted with its other application credentials.
+
 ## What Plugins Can Add
 
 Plugins can contribute:
