@@ -105,7 +105,6 @@ module Mcp::Tools
       def image_content_type?(content_type)
         IMAGE_CONTENT_TYPES.include?(content_type)
       end
-
     end
   end
 end

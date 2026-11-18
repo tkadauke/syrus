@@ -60,20 +60,13 @@ RSpec.describe "Mcp::Tools repository document tools" do
     pdf
   end
 
-  it "lists file and Google Doc documents for the chat repository" do
+  it "lists file documents for the chat repository" do
     file_document = repository.repository_documents.create!(
       user: user,
       kind: "file",
       title: "API spec",
       file: upload(filename: "api.md", content_type: "text/markdown", content: "# API")
     )
-    google_document = repository.repository_documents.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Architecture notes",
-      google_docs_url: "https://docs.google.com/document/d/abc/edit"
-    )
-
     response = call_tool("list_repo_documents")
     payload = JSON.parse(text_content(response), symbolize_names: true)
 
@@ -87,15 +80,6 @@ RSpec.describe "Mcp::Tools repository document tools" do
         repository: repository.slug,
         content_type: "text/markdown",
         size_bytes: 5
-      },
-      {
-        id: google_document.id,
-        kind: "google_doc",
-        title: "Architecture notes",
-        status: "linked",
-        repository_id: repository.id,
-        repository: repository.slug,
-        url: "https://docs.google.com/document/d/abc/edit"
       }
     ])
   end
@@ -105,9 +89,9 @@ RSpec.describe "Mcp::Tools repository document tools" do
     job = Factories.job_record(user: user, repository: other)
     document = other.repository_documents.create!(
       user: user,
-      kind: "google_doc",
+      kind: "file",
       title: "Job context",
-      google_docs_url: "https://docs.google.com/document/d/job/edit"
+      file: upload(filename: "job.txt", content_type: "text/plain", content: "Job context")
     )
     chat_session.chat_attachments.create!(attachable: job)
 
@@ -116,12 +100,13 @@ RSpec.describe "Mcp::Tools repository document tools" do
 
     expect(payload).to include(
       id: document.id,
-      kind: "google_doc",
+      kind: "file",
       title: "Job context",
-      status: "linked",
+      status: "attached",
       repository_id: other.id,
       repository: other.slug,
-      url: "https://docs.google.com/document/d/job/edit"
+      content_type: "text/plain",
+      size_bytes: 11
     )
   end
 
@@ -129,9 +114,9 @@ RSpec.describe "Mcp::Tools repository document tools" do
     other = Factories.repository(user: user)
     document = other.repository_documents.create!(
       user: user,
-      kind: "google_doc",
+      kind: "file",
       title: "Elsewhere",
-      google_docs_url: "https://docs.google.com/document/d/other/edit"
+      file: upload(filename: "elsewhere.txt", content_type: "text/plain", content: "Elsewhere")
     )
 
     response = call_tool("read_repo_document", id: document.id)
@@ -182,76 +167,5 @@ RSpec.describe "Mcp::Tools repository document tools" do
     response = call_tool("read_repo_document", id: document.id)
 
     expect(text_content(response)).to include("Hello PDF")
-  end
-
-  it "fetches Google Doc text and caches it for one hour" do
-    document = repository.repository_documents.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Architecture",
-      google_docs_url: "https://docs.google.com/document/d/abc/edit"
-    )
-    export_url = "https://docs.google.com/document/d/abc/export?format=txt"
-    stub = stub_request(:get, export_url).to_return(status: 200, body: "Fresh notes")
-
-    first = call_tool("read_repo_document", id: document.id)
-    second = call_tool("read_repo_document", id: document.id)
-
-    expect(text_content(first)).to eq("Fresh notes")
-    expect(text_content(second)).to eq("Fresh notes")
-    expect(stub).to have_been_requested.once
-    expect(document.reload.content_cache).to eq("Fresh notes")
-    expect(document.content_cached_at).to be_within(5.seconds).of(Time.current)
-  end
-
-  it "uses fresh Google Doc cache entries without fetching" do
-    document = repository.repository_documents.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Architecture",
-      google_docs_url: "https://docs.google.com/document/d/abc/edit",
-      content_cache: "Cached notes",
-      content_cached_at: 30.minutes.ago
-    )
-
-    response = call_tool("read_repo_document", id: document.id)
-
-    expect(text_content(response)).to eq("Cached notes")
-    expect(a_request(:get, "https://docs.google.com/document/d/abc/export?format=txt")).not_to have_been_made
-  end
-
-  it "refetches expired Google Doc cache entries" do
-    document = repository.repository_documents.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Architecture",
-      google_docs_url: "https://docs.google.com/document/d/abc/edit",
-      content_cache: "Old notes",
-      content_cached_at: 2.hours.ago
-    )
-    stub_request(:get, "https://docs.google.com/document/d/abc/export?format=txt")
-      .to_return(status: 200, body: "New notes")
-
-    response = call_tool("read_repo_document", id: document.id)
-
-    expect(text_content(response)).to eq("New notes")
-    expect(document.reload.content_cache).to eq("New notes")
-  end
-
-  it "returns a tool error when Google Doc export fails" do
-    document = repository.repository_documents.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Private Architecture",
-      google_docs_url: "https://docs.google.com/document/d/private/edit"
-    )
-    stub_request(:get, "https://docs.google.com/document/d/private/export?format=txt")
-      .to_return(status: 403, body: "nope")
-
-    response = call_tool("read_repo_document", id: document.id)
-
-    expect(response.dig(:result, :isError)).to be true
-    expect(text_content(response)).to include("Could not fetch Google Doc text")
-    expect(text_content(response)).to include("shared publicly or with anyone who has the link")
   end
 end

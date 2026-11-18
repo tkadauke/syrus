@@ -428,12 +428,7 @@ function toggleSort<TColumn extends string>(current: { column: TColumn; directio
 }
 
 function isDocumentSortColumn(value: string | null): value is DocumentSortColumn {
-  return (
-    value != null &&
-    ["title", "filename", "kind", "content_type", "byte_size", "source_url", "created_at", "updated_at"].includes(
-      value
-    )
-  )
+  return value != null && ["title", "filename", "kind", "content_type", "byte_size", "source_url", "created_at", "updated_at"].includes(value)
 }
 
 function filterTreeFromSearch(search: string): FilterTree {
