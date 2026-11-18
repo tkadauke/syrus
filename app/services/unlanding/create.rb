@@ -279,9 +279,10 @@ module Unlanding
       return files if files.empty?
 
       extras = Syrus::PluginRegistry.providers_for(:affected_test_analyzer).flat_map do |analyzer|
-        Array(analyzer.affected_files(repo_path: repo_path.to_s, changed_files: files))
-      rescue StandardError
-        []
+        result = Syrus::PluginInvocation.call(
+          extension_point: :affected_test_analyzer, provider: analyzer, operation: :affected_files, on_decline: []
+        ) { analyzer.affected_files(repo_path: repo_path.to_s, changed_files: files) }
+        Array(Syrus::PluginInvocation.value(result))
       end
       (files + extras).uniq
     end

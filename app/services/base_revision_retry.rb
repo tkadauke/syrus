@@ -232,17 +232,16 @@ class BaseRevisionRetry
     return files_as_args_command if config.fetch("strategy") == "files_as_args"
 
     Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
-      command = Syrus::Plugin::FocusedTestCommand.invoke(
-        provider,
-        grader_name: grader_name,
-        grader_command: @grader_step.details.to_h["command"],
-        failed_cases: @failed_cases,
-        base_retry: config,
-        project_path: @grader_step.details.to_h["project_path"]
-      )
+      result = Syrus::PluginInvocation.call(
+        extension_point: :focused_test_command, provider:, operation: :focused_test_command, on_decline: nil
+      ) do
+        Syrus::Plugin::FocusedTestCommand.invoke(
+          provider, grader_name: grader_name, grader_command: @grader_step.details.to_h["command"],
+          failed_cases: @failed_cases, base_retry: config, project_path: @grader_step.details.to_h["project_path"]
+        )
+      end
+      command = Syrus::PluginInvocation.value(result)
       return command.to_s.strip if command.to_s.strip.present?
-    rescue StandardError => e
-      @log.call("[brr:#{grader_name}] focused_test_command #{provider} declined with #{e.class}: #{e.message}")
     end
     nil
   end
@@ -326,11 +325,16 @@ class BaseRevisionRetry
       file.flush
 
       Syrus::PluginRegistry.providers_for("test_insights:parser").each do |provider|
-        next unless provider.can_parse?(output_path: file.path, format_hint: nil)
+        match = Syrus::PluginInvocation.call(
+          extension_point: "test_insights:parser", provider:, operation: :can_parse?, on_decline: false
+        ) { provider.can_parse?(output_path: file.path, format_hint: nil) }
+        next unless Syrus::PluginInvocation.value(match)
 
-        return provider.call(output_path: file.path, format_hint: nil)
-      rescue StandardError
-        next
+        result = Syrus::PluginInvocation.call(
+          extension_point: "test_insights:parser", provider:, operation: :call, on_decline: nil
+        ) { provider.call(output_path: file.path, format_hint: nil) }
+        parsed = Syrus::PluginInvocation.value(result)
+        return parsed if parsed
       end
 
       begin

@@ -118,9 +118,12 @@ module Steps
 
     def try_plugin_parsers(artifact_path, format)
       Syrus::PluginRegistry.providers_for(:coverage_analyzer).each do |provider|
-        result = PerformanceLogging.plugin_call(extension_point: :coverage_analyzer, provider: provider, operation: :call) do
+        result = Syrus::PluginInvocation.call(
+          extension_point: :coverage_analyzer, provider:, operation: :call, on_decline: nil
+        ) do
           provider.call(artifact_path: artifact_path, format_hint: format)
         end
+        result = Syrus::PluginInvocation.value(result)
         return result if result
       end
       nil

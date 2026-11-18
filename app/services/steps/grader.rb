@@ -760,10 +760,12 @@ module Steps
 
     def run_grader_augmentors!(name:, command:)
       Syrus::PluginRegistry.providers_for(:grader_augmentor).each do |provider|
-        lines = PerformanceLogging.plugin_call(extension_point: :grader_augmentor, provider: provider, operation: :augment_grader_failure) do
+        lines = Syrus::PluginInvocation.call(
+          extension_point: :grader_augmentor, provider:, operation: :augment_grader_failure, on_decline: []
+        ) do
           provider.augment_grader_failure(name: name, command: command, workspace_path: workspace.path)
         end
-        Array(lines).each { |line| log(line, kind: "grade_log") }
+        Array(Syrus::PluginInvocation.value(lines)).each { |line| log(line, kind: "grade_log") }
       end
     end
 

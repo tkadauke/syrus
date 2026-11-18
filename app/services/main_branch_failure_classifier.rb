@@ -217,7 +217,10 @@ class MainBranchFailureClassifier
     return 0 unless run
 
     test_evidence_providers.sum do |provider|
-      provider.test_case_count(run: run, grader_name: grader_name).to_i
+      result = Syrus::PluginInvocation.call(
+        extension_point: :test_evidence, provider:, operation: :test_case_count, on_decline: 0
+      ) { provider.test_case_count(run: run, grader_name: grader_name) }
+      Syrus::PluginInvocation.value(result).to_i
     end
   end
 
@@ -231,7 +234,10 @@ class MainBranchFailureClassifier
     return [] unless run
 
     test_evidence_providers.flat_map do |provider|
-      Array(provider.failed_test_identities(run: run, grader_name: grader_name))
+      result = Syrus::PluginInvocation.call(
+        extension_point: :test_evidence, provider:, operation: :failed_test_identities, on_decline: []
+      ) { provider.failed_test_identities(run: run, grader_name: grader_name) }
+      Array(Syrus::PluginInvocation.value(result))
     end.uniq.sort
   end
 

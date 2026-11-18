@@ -73,13 +73,16 @@ module Steps
 
     def plugin_default_commands(files)
       Syrus::PluginRegistry.providers_for(:autofix_command).filter_map do |provider|
-        PerformanceLogging.plugin_call(extension_point: :autofix_command, provider: provider, operation: :autofix_command) do
+        result = Syrus::PluginInvocation.call(
+          extension_point: :autofix_command, provider:, operation: :autofix_command, on_decline: nil
+        ) do
           method = provider.method(:autofix_command)
           supports_changed_files = method.parameters.any? { |kind, name| kind == :keyrest || name == :changed_files }
           kwargs = { workspace_path: workspace.path }
           kwargs[:changed_files] = files if supports_changed_files
           method.call(**kwargs)
         end
+        Syrus::PluginInvocation.value(result)
       end
     end
   end

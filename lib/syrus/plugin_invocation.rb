@@ -42,6 +42,7 @@ module Syrus
       end
 
       def decline(value = nil) = Declined.new(value: value)
+      def value(result) = result.is_a?(Declined) || result.is_a?(Failed) ? result.value : result
       def runtime_health = @runtime_health ||= PluginRuntimeHealth.new
 
       private
