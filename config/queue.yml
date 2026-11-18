@@ -114,6 +114,13 @@ default: &default
       threads: 1
       processes: 1
       polling_interval: 1
+    # Solid Queue 1.7 QueueSelector treats a trailing `*` as a literal prefix
+    # match, so this consumes plugin queues discovered after deployment too.
+    # PluginJob's shared semaphore enforces each manifest's job_concurrency.
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("PLUGIN_JOB_THREADS", 10) %>
+      processes: 1
+      polling_interval: 0.2
 
 development:
   dispatchers:
@@ -172,6 +179,11 @@ development:
       threads: 1
       processes: 1
       polling_interval: 1
+
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("DEV_PLUGIN_JOB_THREADS", 1) %>
+      processes: 1
+      polling_interval: 0.5
 
 test:
   <<: *default

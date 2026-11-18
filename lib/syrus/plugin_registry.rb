@@ -173,7 +173,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, job_concurrency: 2, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -187,6 +187,7 @@ module Syrus
         validate_author!(metadata[:author])
         validate_category!(category)
         validate_experimental_default!(name, experimental, default_enabled)
+        raise RegistrationError, "job_concurrency must be a positive integer" unless job_concurrency.is_a?(Integer) && job_concurrency.positive?
         links = normalize_links!(links)
         credential_types = normalize_credential_types!(
           plugin_name: name,
@@ -234,6 +235,7 @@ module Syrus
             experimental:     experimental,
             category:        category,
             home_queue:      home_queue,
+            job_concurrency: job_concurrency,
             tick_interval:   tick_interval,
             config_schema:   config_schema,
             depends_on:      Array(depends_on).map(&:to_s),

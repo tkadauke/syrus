@@ -4,6 +4,31 @@ This is the complete contributor reference for authoring Syrus plugins. The
 short [operator and agent guide](../../../../config/syrus_docs/plugins.md)
 documents supported runtime behavior without exposing implementation details.
 
+## Background jobs
+
+Plugin-owned Active Job classes inherit from `PluginJob`. The base class derives
+the owner from bundled or registered external plugin roots and routes jobs to
+`plugin_<name>` by default. A job may use `queue_as` when its workload genuinely
+belongs on a specialized host queue. Plugin queues share neither worker threads
+nor concurrency semaphores with core queues: the default per-plugin cap is two,
+and a manifest may raise it with `job_concurrency:`. The base policy retries
+ordinary failures five times with polynomial backoff, then discards the job and
+records the exhausted failure in plugin health.
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "reports",
+  version: "1.0.0",
+  job_concurrency: 4
+)
+
+class Reports::RefreshJob < PluginJob
+  def perform(report_id)
+    Reports::Refresh.call(report_id)
+  end
+end
+```
+
 ## Review extension contracts
 
 Review plugins may register `reviewer_target_provider`,

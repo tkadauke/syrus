@@ -1,5 +1,5 @@
 module Terminal
-  class OrphanReaperJob < ApplicationJob
+  class OrphanReaperJob < PluginJob
     queue_as :cleanup
 
     def perform

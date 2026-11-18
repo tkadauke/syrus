@@ -1,4 +1,4 @@
-class Throughput::RefreshRepositorySnapshotJob < ApplicationJob
+class Throughput::RefreshRepositorySnapshotJob < PluginJob
   queue_as :polling
 
   limits_concurrency to: 1, key: ->(repository_id) { "throughput-snapshot:#{repository_id}" }

@@ -23,7 +23,7 @@ require "tempfile"
 # Failure contract: NOTHING may strand a walkthrough in "analyzing" — every
 # exit path either marks it analyzed or failed (the retry endpoint only
 # accepts failed rows, and the chat chip spins until a terminal broadcast).
-class VideoWalkthroughs::AnalysisJob < ApplicationJob
+class VideoWalkthroughs::AnalysisJob < PluginJob
   queue_as :videos
 
   # Test seam, mirroring RunJob.agent_runner: specs swap in a fake client

@@ -1,4 +1,4 @@
-class BackfillTestIdentitiesJob < ApplicationJob
+class BackfillTestIdentitiesJob < PluginJob
   queue_as :indexing
 
   limits_concurrency to: 1,

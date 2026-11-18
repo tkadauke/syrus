@@ -1,5 +1,5 @@
 module Coworkers
-  class JournalingCatchUpJob < ApplicationJob
+  class JournalingCatchUpJob < PluginJob
     queue_as :control_plane
     retry_on WorkUnits::Launcher::LockConflict, wait: 30.seconds, attempts: 10
 

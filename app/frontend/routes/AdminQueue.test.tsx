@@ -21,6 +21,16 @@ function renderAdminQueue(initialEntry = "/admin/queue/workers") {
 }
 
 describe("AdminQueue worker health charts", () => {
+  it("shows depth and failures for each plugin queue", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(activeQueuePayload({ plugin_queues: [{ plugin: "reports", queue_name: "plugin_reports", depth: 4, failure_count: 2 }] }))
+    )
+
+    renderAdminQueue("/admin/queue/active")
+
+    expect(await screen.findByText("reports: 4 queued · 2 failed")).toBeInTheDocument()
+  })
+
   it("preserves active queue empty states", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({ jobs: [] })))
 

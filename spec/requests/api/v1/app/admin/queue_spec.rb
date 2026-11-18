@@ -697,6 +697,8 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     match do |queries|
       queries.any? do |sql|
         normalized = sql.squish.downcase
+        next false if normalized.include?("plugin_queue_stats")
+
         normalized.include?("from \"solid_queue_failed_executions\"") &&
           normalized.match?(/\bjob_id\b.*\bin\s*\(\s*(?:\?|\d|'|")/)
       end
@@ -705,6 +707,8 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
 
   def grouped_queue_count_query?(sql)
     normalized = sql.squish.downcase
+    return false if normalized.include?("plugin_queue_stats")
+
     normalized.include?("count") &&
       normalized.include?("solid_queue_jobs") &&
       normalized.include?("queue_name") &&

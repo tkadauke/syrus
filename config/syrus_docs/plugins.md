@@ -10,6 +10,14 @@ features.
 The complete installed inventory is available under **Admin → Plugins**. Plugin
 authors should use the engineering plugin-authoring reference (`docs/engineering/conventions/plugins/authoring.md` in the Syrus repository); this page describes behavior that operators and agents need when using plugins.
 
+Plugin background jobs use a queue named `plugin_<name>` by default. Each
+plugin gets a concurrency cap of two across its job classes; a plugin manifest
+can raise that cap with `job_concurrency`. Individual jobs may opt into a
+specialized queue explicitly. Ordinary failures retry five times with
+increasing backoff, then the job is discarded and the exhausted failure is
+reported in plugin health. **Admin → Queue** and **Admin → Plugins** show each
+plugin queue's current depth and failure count.
+
 Enabled, healthy plugins may also declare server-backed CLI commands. The CLI
 catalog exposes nested command paths, summaries, positional arguments, and
 flags in stable order. Execution uses the authenticated API user, so command

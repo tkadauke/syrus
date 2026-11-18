@@ -219,8 +219,25 @@ function QueueContent({
         ) : null
       }
     >
+      {payload.plugin_queues ? <PluginQueueSummary queues={payload.plugin_queues} /> : null}
       <QueueTabPanel onNavigate={onNavigate} pathname={pathname} payload={payload} search={search} tab={tab} />
     </AdminFiltersLayout>
+  )
+}
+
+function PluginQueueSummary({ queues }: { queues: NonNullable<AdminQueuePayload["plugin_queues"]> }) {
+  const { t } = useT("admin")
+  return (
+    <section aria-label={t("queue.plugin_queues")}>
+      <SectionHeading>{t("queue.plugin_queues")}</SectionHeading>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {queues.map((queue) => (
+          <Text as="span" className="rounded border border-border px-2 py-1" key={queue.plugin} variant="small">
+            {queue.plugin}: {t("queue.plugin_queue_counts", { depth: queue.depth, failures: queue.failure_count })}
+          </Text>
+        ))}
+      </div>
+    </section>
   )
 }
 

@@ -7,7 +7,7 @@
 # deployment it either wrote to the wrong node's database or failed and got
 # swallowed as an enrichment warning. Routing it through `indexing` like every
 # other index write puts it back on the node that owns the file.
-class IndexTestIdentitiesJob < ApplicationJob
+class IndexTestIdentitiesJob < PluginJob
   queue_as :indexing
 
   def perform(test_identity_ids)

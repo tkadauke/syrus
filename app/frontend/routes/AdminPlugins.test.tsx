@@ -263,6 +263,7 @@ describe("AdminPlugins", () => {
             homepage: "https://example.test/codex",
             author: "OpenAI",
             source: "/app/plugins/codex_agent",
+            queue: { plugin: "codex_agent", queue_name: "plugin_codex_agent", depth: 3, failure_count: 1 },
             extension_points: [
               {
                 extension_point: "agent_provider",
@@ -284,6 +285,7 @@ describe("AdminPlugins", () => {
     expect(within(list).getByRole("link", { name: "Codex Agent" })).toHaveAttribute("href", "/admin/plugins/codex_agent")
     expect(within(list).queryByText("AgentProviders::Codex")).not.toBeInTheDocument()
     expect(within(list).queryByText("OpenAI")).not.toBeInTheDocument()
+    expect(within(list).getByText("Queue plugin_codex_agent · 3 queued · 1 failed")).toBeInTheDocument()
   })
 
   it("renders the plugin icon at the expected size", async () => {

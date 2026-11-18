@@ -1,5 +1,5 @@
 module DesignDocs
-  class IndexSearchJob < ApplicationJob
+  class IndexSearchJob < PluginJob
     queue_as :indexing
 
     def perform(design_doc_id)

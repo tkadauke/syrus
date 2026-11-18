@@ -120,6 +120,7 @@ module Admin
           dependents: dependency_graph.dependents_for(manifest.name),
           health: health_payload(manifest, record),
           recommendation: recommendation_payload(manifest),
+          queue: plugin_queue_stats.fetch(manifest.name),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
         unless detail
@@ -199,6 +200,10 @@ module Admin
       @recommendations ||= PerformanceLogging.phase("admin_plugins_payload.recommendations") do
         Syrus::PluginRecommendations.call.index_by(&:plugin)
       end
+    end
+
+    def plugin_queue_stats
+      @plugin_queue_stats ||= Admin::PluginQueueStats.call.index_by { |stats| stats.fetch(:plugin) }
     end
 
     # An unhealthy plugin is enabled but inert - its providers are withheld.

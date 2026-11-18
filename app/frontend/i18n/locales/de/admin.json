@@ -497,6 +497,7 @@
     "version": "Version",
     "source": "Quelle",
     "health": "Zustand",
+    "queue_health": "Warteschlange {{queue}} · {{depth}} wartend · {{failures}} fehlgeschlagen",
     "circuit_open_detail": "Schutzschaltung für {{extensionPoint}} nach {{count}} Fehlern geöffnet; nächster Versuch nach {{retryAt}}.",
     "runtime_failure_detail": "{{extensionPoint}}.{{operation}} ist {{count}}-mal fehlgeschlagen: {{exceptionClass}}: {{message}} (zuletzt um {{lastAt}}).",
     "health_states": {
@@ -922,6 +923,8 @@
     "tab_failed": "Fehlgeschlagen",
     "tab_recurring": "Wiederkehrend",
     "tab_workers": "Worker",
+    "plugin_queues": "Plugin-Warteschlangen",
+    "plugin_queue_counts": "{{depth}} in Warteschlange · {{failures}} fehlgeschlagen",
     "showing_of": "{{shown}} von {{total}} angezeigt",
     "showing_items": "{{first}}-{{last}} von {{total}} Elementen angezeigt",
     "pagination_aria": "Warteschlangen-Paginierung",

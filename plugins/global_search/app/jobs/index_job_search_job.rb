@@ -1,4 +1,4 @@
-class IndexJobSearchJob < ApplicationJob
+class IndexJobSearchJob < PluginJob
   queue_as :indexing
 
   def perform(job_id)

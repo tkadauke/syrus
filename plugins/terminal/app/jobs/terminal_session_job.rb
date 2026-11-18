@@ -1,4 +1,4 @@
-class TerminalSessionJob < ApplicationJob
+class TerminalSessionJob < PluginJob
   queue_as :chat
 
   def perform(terminal_session_id, runtime_session_id: nil, provider_key: nil)

@@ -1,4 +1,4 @@
-class InsightSweepJob < ApplicationJob
+class InsightSweepJob < PluginJob
   queue_as :low_priority_maintenance
 
   def perform

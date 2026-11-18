@@ -36,6 +36,7 @@ RSpec.describe "queue partitioning" do
     cleanup
     low_priority_maintenance
     connectivity
+    plugin_*
   ].freeze
   CAPABILITY_COMPUTE_QUEUES = %w[
     runs-linux-amd64
@@ -54,6 +55,7 @@ RSpec.describe "queue partitioning" do
     cleanup
     low_priority_maintenance
     connectivity
+    plugin_*
   ].freeze
   LINUX_COMPUTE_QUEUES = %w[
     runs
@@ -102,6 +104,16 @@ RSpec.describe "queue partitioning" do
         end
       end
     end
+  end
+
+  it "uses Solid Queue's trailing wildcard syntax for external plugin queues" do
+    expect(queues_for("config/queue.yml")[:regular]).to include("plugin_*")
+
+    relation = instance_double(ActiveRecord::Relation)
+    allow(relation).to receive(:sanitize_sql_like).with("plugin_*", "!").and_return("plugin!_*")
+    selector = SolidQueue::QueueSelector.new([ "plugin_*" ], relation)
+
+    expect(selector.send(:prefixes)).to eq([ "plugin!_%" ])
   end
 
   it "renders queue config ERB before Rails and Active Support are loaded" do

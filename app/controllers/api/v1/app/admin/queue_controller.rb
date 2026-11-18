@@ -10,7 +10,8 @@ module Api
             return render_error("not_found", "Unknown queue tab: #{tab}", status: :not_found) unless TABS.include?(tab)
 
             with_queue_tables do
-              render json: ::Admin::Queue::Payload.new(params: params, user: Current.user).public_send(tab)
+              payload = ::Admin::Queue::Payload.new(params: params, user: Current.user).public_send(tab)
+              render json: payload.merge(plugin_queues: ::Admin::PluginQueueStats.call)
             end
           end
 

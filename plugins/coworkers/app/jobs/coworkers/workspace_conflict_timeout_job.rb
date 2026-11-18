@@ -1,4 +1,4 @@
-class Coworkers::WorkspaceConflictTimeoutJob < ApplicationJob
+class Coworkers::WorkspaceConflictTimeoutJob < PluginJob
   queue_as :control_plane
   retry_on StandardError, wait: :polynomially_longer, attempts: 5
   discard_on ActiveRecord::RecordNotFound

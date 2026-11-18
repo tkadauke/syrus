@@ -1,4 +1,4 @@
-class K8sCluster::RefreshCredentialsJob < ApplicationJob
+class K8sCluster::RefreshCredentialsJob < PluginJob
   queue_as :low_priority_maintenance
 
   def perform

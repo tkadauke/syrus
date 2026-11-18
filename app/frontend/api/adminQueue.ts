@@ -74,6 +74,10 @@ export type QueueSort = {
   direction: "asc" | "desc"
 }
 
+export type PluginQueueStats = { plugin: string; queue_name: string; depth: number; failure_count: number }
+
+type WithPluginQueues = { plugin_queues?: PluginQueueStats[] }
+
 export type QueuePagination = {
   page: number
   per_page: number
@@ -118,7 +122,7 @@ export type WorkersQueuePayload = {
   worker_health?: QueueWorkerHealthPayload
 }
 
-export type AdminQueuePayload = ActiveQueuePayload | PendingQueuePayload | FailedQueuePayload | RecurringQueuePayload | WorkersQueuePayload
+export type AdminQueuePayload = WithPluginQueues & (ActiveQueuePayload | PendingQueuePayload | FailedQueuePayload | RecurringQueuePayload | WorkersQueuePayload)
 
 export function isQueueTab(value: string | undefined): value is QueueTab {
   return queueTabs.includes(value as QueueTab)

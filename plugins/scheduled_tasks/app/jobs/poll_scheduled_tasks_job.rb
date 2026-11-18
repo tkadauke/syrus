@@ -1,4 +1,4 @@
-class PollScheduledTasksJob < ApplicationJob
+class PollScheduledTasksJob < PluginJob
   include SkipIfPending
 
   queue_as :control_plane
