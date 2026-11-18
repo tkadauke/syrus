@@ -114,7 +114,6 @@ describe("AttachmentCard", () => {
 
     expect(await screen.findByTestId("source-preview-code")).toHaveTextContent("# Notes")
   })
-
 })
 
 describe("EpicSummaryLink", () => {
