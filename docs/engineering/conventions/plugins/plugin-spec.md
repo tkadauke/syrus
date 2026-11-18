@@ -5,7 +5,7 @@ Paste this whole file into an LLM context when authoring a plugin.
 
 ## Package and manifest
 
-A plugin is a Ruby gem loaded as trusted in-process code and requires a Syrus restart after installation or upgrade. Its gemspec must set a Ruby requirement string such as `metadata["requires_syrus"] = ">= 0.1.16"`; Syrus parses it as a `Gem::Requirement`. The requirement must cover the oldest tested Syrus release and be no lower than the newest host API `since` version the plugin uses. The entry file extends `Syrus::PluginApi` and declares one `syrus_plugin` block. Accepted keys:
+A plugin is a gem loaded as trusted in-process code and requires a Syrus restart after installation or upgrade. Its gemspec must set a requirement string such as `metadata["requires_syrus"] = ">= 0.1.16"`; Syrus parses it as a `Gem::Requirement`. The requirement must cover the oldest tested Syrus release and be no lower than the newest host API `since` version the plugin uses. The entry file extends `Syrus::PluginApi` and declares one `syrus_plugin` block. Accepted keys:
 
 - `always` — Reversible effects retained after a previously enabled plugin is disabled.
 - `author` — Plugin author.
@@ -44,7 +44,7 @@ A plugin is a Ruby gem loaded as trusted in-process code and requires a Syrus re
 - `version` — Plugin version; normally read from the gem.
 - `while_enabled` — Reversible installation effects active only while enabled.
 
-`frontend` declares the prebuilt JavaScript entry plus `i18n` patterns for locale JSON. English (`en`) is required; user-visible copy must also ship German (`de`) and Latin (`la`). `cli_commands` handlers subclass `Syrus::Plugin::CliCommandHandler`; commands are validated, non-interactive, and server-backed.
+`frontend` declares the prebuilt browser entry plus `i18n` patterns for locale JSON. English (`en`) is required; user-visible copy must also ship German (`de`) and Latin (`la`). `cli_commands` handlers subclass `Syrus::Plugin::CliCommandHandler`; commands are validated, non-interactive, and server-backed.
 
 ## Extension points
 
@@ -175,4 +175,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 31731 bytes (UTF-8, including this line).
+Size: 31718 bytes (UTF-8, including this line).
