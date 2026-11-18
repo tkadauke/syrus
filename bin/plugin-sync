@@ -38,8 +38,8 @@ class PluginSync
     manifest_body = storage.read(MANIFEST_KEY)
     verify_manifest!(manifest_body, storage.read(SIGNATURE_KEY))
     manifest = parse_manifest(manifest_body)
-    write_fleet_quarantines(manifest)
     entries = active_entries(manifest)
+    quarantines = fleet_quarantines(manifest)
     identity = Digest::SHA256.hexdigest(JSON.generate(entries))
 
     unless current_identity == identity
@@ -47,6 +47,7 @@ class PluginSync
       activate(identity)
       prune
     end
+    write_fleet_quarantines(quarantines)
     write_state(identity, manifest.fetch("revision"))
     0
   rescue StandardError => e
@@ -101,9 +102,12 @@ class PluginSync
     end.sort_by { |entry| entry.fetch("name") }
   end
 
-  def write_fleet_quarantines(manifest)
+  def fleet_quarantines(manifest)
     quarantines = manifest.fetch("plugins").select { |entry| entry["fleet_quarantined"] }
       .to_h { |entry| [ entry.fetch("name"), "fleet quarantine in desired plugin state" ] }
+  end
+
+  def write_fleet_quarantines(quarantines)
     write_atomic(@root.join("fleet-quarantines.json"), JSON.pretty_generate(quarantines) + "\n")
   end
 

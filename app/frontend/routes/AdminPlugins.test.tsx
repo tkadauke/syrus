@@ -99,7 +99,7 @@ describe("AdminPlugins", () => {
   it("shows recovery state and clears one quarantined plugin", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({
-        recovery: { safe_mode: "recent", quarantines: { weather: "changed since last good boot" } },
+        recovery: { safe_mode: null, quarantines: { weather: "changed since last good boot" }, locally_clearable: ["weather"] },
         plugins: [
           {
             name: "weather",
@@ -118,7 +118,8 @@ describe("AdminPlugins", () => {
             source: null,
             extension_points: [],
             disable_blockers: [],
-            health: { state: "quarantined", reasons: ["changed since last good boot"] }
+            health: { state: "quarantined", reasons: ["changed since last good boot"] },
+            quarantine_clearable: true
           }
         ]
       })
@@ -134,6 +135,40 @@ describe("AdminPlugins", () => {
         expect.objectContaining({ method: "POST" })
       )
     )
+  })
+
+  it("does not offer local recovery for fleet quarantine", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        recovery: { safe_mode: null, quarantines: { weather: "fleet quarantine" }, locally_clearable: [] },
+        plugins: [
+          {
+            name: "weather",
+            display_name: "Weather",
+            version: "1.0.0",
+            enabled: false,
+            default_enabled: true,
+            disableable: true,
+            experimental: false,
+            category: null,
+            category_label: null,
+            description: "Forecasts",
+            homepage: null,
+            icon_url: null,
+            author: null,
+            source: null,
+            extension_points: [],
+            disable_blockers: [],
+            health: { state: "quarantined", reasons: ["fleet quarantine"] },
+            quarantine_clearable: false
+          }
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+    expect(await screen.findByRole("alert")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Re-enable after restart" })).not.toBeInTheDocument()
   })
 
   it("shows process and per-plugin convergence states", async () => {
