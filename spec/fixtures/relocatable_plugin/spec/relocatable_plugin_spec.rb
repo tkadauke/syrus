@@ -2,7 +2,6 @@ host_root = ENV.fetch("SYRUS_HOST_ROOT")
 require File.join(host_root, "spec/spec_helper")
 require File.join(host_root, "config/environment")
 require "rspec/rails"
-require File.join(host_root, "spec/support/factories")
 require "syrus/plugin/test_kit"
 
 RSpec.describe "relocatable plugin host contract" do

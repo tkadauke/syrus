@@ -5,6 +5,7 @@ require "fileutils"
 require "json"
 require "pathname"
 require "set"
+require "securerandom"
 require "tmpdir"
 require "syrus/plugin_loader"
 
@@ -68,17 +69,41 @@ module Syrus
           FileUtils.remove_entry(application_root) if application_root && File.exist?(application_root)
         end
 
-        # Stable wrappers keep the host's factory implementation private.
-        def build_plugin_user(**attributes) = Factories.user(**attributes)
-        def build_plugin_repository(**attributes) = Factories.repository(**attributes)
-        def build_plugin_job(**attributes) = Factories.job(**attributes)
+        # Stable, deliberately small builders keep repository-only factories
+        # out of the public test-kit contract and packaged host images.
+        def build_plugin_user(**attributes)
+          User.create!({
+            email_address: "plugin-test-#{SecureRandom.hex(4)}@example.com",
+            password: "supersecret"
+          }.merge(attributes))
+        end
+
+        def build_plugin_repository(**attributes)
+          user = attributes.delete(:user) || build_plugin_user
+          Repository.create!({
+            user:,
+            owner: "plugin-test",
+            name: "repository-#{SecureRandom.hex(6)}"
+          }.merge(attributes))
+        end
+
+        def build_plugin_job(**attributes)
+          repository = attributes.delete(:repository) || build_plugin_repository(user: attributes[:user] || build_plugin_user)
+          user = attributes.delete(:user) || repository.user
+          Job.create!({ user:, owner_user: user, repository:, issue_number: 42 }.merge(attributes))
+        end
       end
 
       module Matchers
         extend RSpec::Matchers::DSL
 
         matcher :be_plugin_loaded do
-          match { |plugin| plugin.manifest&.loaded && Pathname.new(plugin.manifest.plugin_root).realpath == plugin.root.realpath }
+          match do |plugin|
+            plugin.manifest&.loaded && plugin.manifest.plugin_root.present? &&
+              Pathname.new(plugin.manifest.plugin_root).realpath == plugin.root.realpath
+          rescue Errno::ENOENT
+            false
+          end
           failure_message { |plugin| "expected #{plugin.name} to be loaded from #{plugin.root}, but manifest was #{plugin.manifest.inspect}" }
         end
 
@@ -100,12 +125,15 @@ module Syrus
           chain(:using) { |session| @session = session }
           chain(:with_status) { |status| @status = status }
           match do |_plugin|
-            raise ArgumentError, "have_plugin_route requires .using(an integration session)" unless @session
+            unless @session
+              @configuration_error = "requires .using(an integration session)"
+              next false
+            end
             @session.get(path)
             @actual_status = @session.response.status
             @actual_status == (@status || 200)
           end
-          failure_message { "expected GET #{path} to respond with #{@status || 200}, got #{@actual_status}" }
+          failure_message { "expected GET #{path} to respond with #{@status || 200}#{@configuration_error ? ", but #{@configuration_error}" : ", got #{@actual_status}"}" }
         end
 
         matcher :have_applicable_plugin_migrations do
@@ -221,7 +249,6 @@ module Syrus
       def self.included(base)
         base.include Helpers
         base.include Matchers
-        SharedExamples.install!
       end
     end
   end
