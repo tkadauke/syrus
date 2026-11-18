@@ -16,7 +16,14 @@ const vendorChunkPackages = {
   "vendor-ui": ["/@floating-ui/", "/react-joyride/"]
 } as const
 
-const lazyVendorPackagePaths = ["/@excalidraw/", "/mermaid/", "/cytoscape", "/d3", "/@shikijs/", "/katex/", "/@xterm/", "/xterm/"] as const
+const lazyVendorPackagePaths = ["/@excalidraw/", "/mermaid/", "/cytoscape", "/d3", "/@shikijs/", "/katex/"] as const
+const eagerPluginContributionPaths = [
+  "/tool_cards/",
+  "/chat_message_renderers/",
+  "/artifact_renderers/",
+  "/agentProviderConnectPanels/",
+  "/runtimeSessionViews/"
+] as const
 
 function packageChunkName(normalizedId: string) {
   const modulePath = normalizedId.split("/node_modules/").at(-1)
@@ -29,6 +36,9 @@ function packageChunkName(normalizedId: string) {
 
 function manualVendorChunk(id: string) {
   const normalizedId = id.replaceAll("\\", "/")
+  if (normalizedId.includes("/plugins/") && eagerPluginContributionPaths.some((path) => normalizedId.includes(path))) {
+    return "builtin-plugin-contributions"
+  }
   if (!normalizedId.includes("/node_modules/")) return undefined
   // Leave route-only packages to Rollup's dynamic-import graph. Assigning a
   // manual chunk here can make a lazy package eager through a shared module
