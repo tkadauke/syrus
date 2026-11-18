@@ -12,6 +12,7 @@ module Syrus
   #
   # States:
   #   :ok        satisfied; providers active
+  #   :warning   diagnostic finding; providers remain active
   #   :degraded  enabled, but a hard dependency is missing or disabled, or it
   #              conflicts with another enabled plugin. Providers withheld;
   #              data, admin row, and settings survive.
@@ -22,7 +23,7 @@ module Syrus
   class PluginHealth
     Status = Data.define(:name, :state, :reasons) do
       def ok? = state == :ok
-      def healthy? = ok?
+      def healthy? = %i[ok warning].include?(state)
     end
 
     UNHEALTHY_STATES = %i[degraded cycle incompatible failed duplicate_name skipped_dependency skipped_role quarantined].freeze
@@ -44,11 +45,11 @@ module Syrus
 
     def healthy?(name)
       status = statuses[name]
-      status.nil? || status.ok?
+      status.nil? || status.healthy?
     end
 
     def unhealthy
-      statuses.values.reject(&:ok?)
+      statuses.values.select { |status| UNHEALTHY_STATES.include?(status.state) }
     end
 
     # Cycles are reported over the whole installed set, not just the enabled
@@ -78,6 +79,21 @@ module Syrus
         elsif !manifest.requires_syrus.satisfied_by?(SyrusVersion.release)
           state = :incompatible
           reasons << "requires Syrus #{manifest.requires_syrus}; running release is #{SyrusVersion.release}"
+        end
+      end
+
+      if manifest.external && (scan = manifest.metadata.to_h[:plugin_host_surface_scan])
+        scan_reasons = []
+        scan_reasons << I18n.t("api.plugins.host_surface.scan_failed", error: scan.error) if scan.error
+        scan_reasons << I18n.t("api.plugins.host_surface.unsupported", count: scan.unlisted.size) if scan.unlisted.any?
+        scan_reasons << I18n.t("api.plugins.host_surface.legacy", count: scan.legacy.size) if scan.legacy.any?
+        declared = declared_minimum(manifest.requires_syrus)
+        if scan.minimum_syrus_version && declared && declared < Gem::Version.new(scan.minimum_syrus_version)
+          scan_reasons << I18n.t("api.plugins.host_surface.minimum", declared:, derived: scan.minimum_syrus_version)
+        end
+        unless scan_reasons.empty?
+          state = :warning if state == :ok
+          reasons.concat(scan_reasons)
         end
       end
 
@@ -136,6 +152,12 @@ module Syrus
       Array(@by_name[name].depends_on).each do |dependency|
         walk_for_cycles(dependency, [ *path, name ], found)
       end
+    end
+
+    def declared_minimum(requirement)
+      return unless requirement
+
+      requirement.requirements.filter_map { |operator, version| version if %w[>= > = ~>].include?(operator) }.max
     end
 
     def canonical_cycle_key(cycle)
