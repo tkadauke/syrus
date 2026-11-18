@@ -968,6 +968,7 @@ en:
       disabled: "The %{plugin} plugin is disabled."
       route_not_found: "Plugin route not found."
       quarantine_not_locally_clearable: "This quarantine must be cleared at its source."
+      route_failed: "The %{plugin} plugin could not complete this request."
 
     job_lifecycle:
       direct_only: "Only direct Jobs can be started manually."

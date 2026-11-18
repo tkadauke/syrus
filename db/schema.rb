@@ -3100,6 +3100,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_142023) do
     t.text "extension_points"
     t.boolean "ever_enabled", default: false, null: false
     t.boolean "experimental", default: false, null: false
+    t.bigint "request_count", default: 0, null: false
+    t.datetime "last_error_at"
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
   end
 
