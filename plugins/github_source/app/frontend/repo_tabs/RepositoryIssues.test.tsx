@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import RepositoryIssuesTab from "./RepositoryIssues"
 import type { RepositoryIssue, RepositoryIssuesPayload } from "../api/issues"
 import type { RepositoryDetailRecord } from "@app/api/repositories"
+import { mockViewportWidth } from "@app/test/app/viewport"
+
+let restoreViewport: (() => void) | undefined
 
 function repository() {
   return { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets", trigger_label: "syrus" } as unknown as RepositoryDetailRecord
@@ -138,7 +141,95 @@ function findRowContaining(text: string) {
 }
 
 describe("RepositoryIssuesTab", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    restoreViewport?.()
+    restoreViewport = undefined
+    vi.restoreAllMocks()
+  })
+
+  it.each([320, 375, 402])("renders mobile issue cards without the desktop table at %ipx", async (width) => {
+    restoreViewport = mockViewportWidth(width)
+    const longLabel = "a-label-that-must-remain-inside-the-mobile-card"
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({
+          issues: [issue({ labels: [{ name: longLabel, color: "d73a4a" }], title: "A very long issue title that must remain inside the viewport" })]
+        })
+      )
+    )
+    renderRoute()
+
+    const list = await screen.findByTestId("mobile-issue-list")
+    expect(list.className).toContain("min-w-0")
+    expect(within(list).getByRole("link", { name: /A very long issue title/ })).toHaveClass("break-words")
+    expect(within(list).getByText(longLabel)).toHaveClass("break-all", "max-w-full")
+    expect(screen.queryByRole("table")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Select issues" })).toBeInTheDocument()
+  })
+
+  it("supports individual, select-all, and bulk actions in mobile selection mode", async () => {
+    restoreViewport = mockViewportWidth(375)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).includes("/issues/bulk") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(issuesPayload({ issues: [], issue_count: 0, message: "2 issues delegated to Syrus." })))
+      }
+      return Promise.resolve(jsonResponse(issuesPayload({ issues: [issue(), issue({ number: 8, title: "Second issue" })], issue_count: 2 })))
+    })
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select issues" }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select issue #7" }))
+    expect(screen.getByRole("button", { name: "Close selected" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all issues" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delegate selected" }))
+
+    await screen.findByText("2 issues delegated to Syrus.")
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/repositories/1/issues/bulk",
+      expect.objectContaining({ body: expect.stringContaining('"issue_numbers":[7,8]') })
+    )
+  })
+
+  it("summarizes the mobile folder, count, and active filter state", async () => {
+    restoreViewport = mockViewportWidth(402)
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        issuesPayload({ folder: "open", issue_count: 12, untouched_preset: false, filter: { and: [{ field: "query", op: "contains", value: "bug" }] } })
+      )
+    )
+    renderRoute("/repositories/1/plugin/issues?folder=open")
+
+    expect(await screen.findByText("Open · 12 issues · Filters active")).toBeInTheDocument()
+  })
+
+  it("stacks pagination status and controls without allowing them to shrink on mobile", async () => {
+    restoreViewport = mockViewportWidth(320)
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({ issue_count: 120, page: 1, per_page: 50, total_pages: 3 })))
+    renderRoute()
+
+    const status = await screen.findByText("Showing 1–50 of 120")
+    const pagination = status.parentElement
+    expect(pagination).toHaveClass("flex-col", "min-w-0")
+    expect(screen.getByText("Previous").parentElement).toHaveClass("shrink-0")
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument()
+  })
+
+  it("keeps the configurable desktop table at the medium breakpoint", async () => {
+    restoreViewport = mockViewportWidth(768)
+    const longLabel = "a-label-that-must-not-force-the-desktop-issue-column-to-collapse"
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({ issues: [issue({ labels: [{ name: longLabel, color: "d73a4a" }] })] })))
+    renderRoute()
+
+    const table = await screen.findByRole("table")
+    const label = screen.getByText(longLabel)
+    const issueCell = label.closest("td")
+
+    expect(table).toBeInTheDocument()
+    expect(issueCell).toHaveClass("min-w-80")
+    expect(label).not.toHaveClass("break-all", "max-w-full")
+    expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
+    expect(screen.queryByTestId("mobile-issue-list")).not.toBeInTheDocument()
+  })
 
   it("highlights the GitHub Issues tab using the real repo_page_tab id, not a mismatched literal", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload({ issues: [], issue_count: 0 })))

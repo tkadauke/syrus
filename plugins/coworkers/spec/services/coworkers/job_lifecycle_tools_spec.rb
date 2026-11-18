@@ -13,15 +13,29 @@ RSpec.describe "coworker Job lifecycle tools" do
 
   def payload(response) = JSON.parse(response.content.first.fetch(:text))
 
-  it "registers only cancellation and feedback from the shared Job lifecycle capability for coworkers" do
+  def allow_job_lifecycle!
+    coworker.permission_rules.update!(
+      capability: Permissions::JobLifecycle::JOBS.delete_suffix("@v1"),
+      approval_policy: "auto",
+      actor: owner
+    )
+  end
+
+  it "inherits eligible shared Job lifecycle tools for coworkers" do
     coworker_tools = McpToolRegistry.entries(surface: :coworker).select do |entry|
       entry.descriptor.capability == Permissions::JobLifecycle::JOBS
     end.map(&:tool_name)
+    eligible_chat_tools = McpToolRegistry.entries(surface: :chat).select do |entry|
+      entry.descriptor.capability == Permissions::JobLifecycle::JOBS &&
+        Mcp::CoworkerToolExposure.core_entry?(entry)
+    end.map(&:tool_name)
 
-    expect(coworker_tools).to contain_exactly("cancel_job", "submit_chat_feedback")
+    expect(coworker_tools).to match_array(eligible_chat_tools)
+    expect(coworker_tools).to include("cancel_job", "approve_job", "retry_job")
   end
 
   it "uses the shared lifecycle descriptor and mandatory cancellation pending action" do
+    allow_job_lifecycle!
     duplicate = Factories.job_record(user: owner, repository:, state: "implemented")
     canonical = Factories.job_record(user: owner, repository:, state: "implemented", issue_number: 43)
 
@@ -58,6 +72,7 @@ RSpec.describe "coworker Job lifecycle tools" do
   end
 
   it "rejects inaccessible Jobs without creating a pending action" do
+    allow_job_lifecycle!
     inaccessible = Factories.job_record(repository: Factories.repository(user: Factories.user), state: "implemented")
 
     response = Mcp::Tools::CancelJobTool.call(job_id: inaccessible.id, reason: "Obsolete.", server_context:)

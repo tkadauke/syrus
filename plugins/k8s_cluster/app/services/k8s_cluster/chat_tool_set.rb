@@ -118,7 +118,10 @@ module K8sCluster
     def self.tool_definitions(tier: nil, context: nil)
       super.map do |definition|
         operation = DESCRIPTORS.fetch(definition.fetch(:name))
-        definition.merge(capability_descriptor: PermissionProvider.capability_descriptor(operation))
+        definition.merge(
+          capability_descriptor: PermissionProvider.capability_descriptor(operation),
+          coworker_excluded: !COWORKER_READ_TOOLS.any? { |tool| tool.tool_name == definition.fetch(:name) }
+        )
       end
     end
   end

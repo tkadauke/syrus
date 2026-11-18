@@ -87,6 +87,8 @@ module Coworkers
       Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
     end
 
+    def self.coworker_specific_availability? = true
+
     def self.available_for_coworker?(_chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :essential
     end

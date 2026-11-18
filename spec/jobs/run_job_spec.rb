@@ -956,6 +956,12 @@ RSpec.describe RunJob, :ci_only do
   end
 
   describe "immutable-source graders" do
+    before do
+      allow(RunHostAdmission).to receive(:call).and_return(
+        RunHostAdmission::Decision.new(action: "admit", reason: "spec", delay: nil, details: {})
+      )
+    end
+
     it "uses per-run Solid Queue concurrency keys for distributed immutable-source grader projections" do
       Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
         feature.category = "Operations"

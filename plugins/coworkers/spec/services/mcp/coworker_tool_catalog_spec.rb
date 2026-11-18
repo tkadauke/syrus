@@ -47,14 +47,16 @@ RSpec.describe Mcp::CoworkerToolCatalog do
     )
   end
 
-  it "rejects plugin tools with neither a resolvable grant nor an ungated declaration" do
+  it "derives a requestable capability for a shared plugin tool without a legacy grant" do
     allow(provider).to receive(:coworker_grants).and_return([])
     allow(provider).to receive(:tool_definitions).and_return(
       [ { name: "unclassified_tool", coworker_safe: true, capability: "missing.grant" } ]
     )
 
-    expect { described_class.all }
-      .to raise_error(ArgumentError, 'coworker tool "unclassified_tool" has no resolvable grant and is not ungated')
+    descriptor = described_class.all.find { |candidate| candidate.tool_name == "unclassified_tool" }
+
+    expect(descriptor).to have_attributes(capability: "missing.grant", ungated: false, availability_state: :plugin_disabled)
+    expect(descriptor.grant).to include("default_policy" => "confirm", "tools" => [ "unclassified_tool" ])
   end
 
   context "when an enabled provider cannot supply a registered tool definition" do

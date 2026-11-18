@@ -23,17 +23,18 @@ module Syrus
     #
     # Defaults to false, so a tool set that says nothing behaves exactly as
     # it did before the flag existed.
-    # A definition must provide +capability_descriptor:+ using the canonical
-    # Permissions::CapabilityDescriptor contract.
-    # * +coworker_safe+ explicitly opts a definition into coworker chats.
-    #   Definitions are excluded there by default, including credential-backed
-    #   tool sets, and should also name their required capability. A tool set
-    #   must additionally implement `.available_for_coworker?`; its absence is
-    #   the deny-by-default behavior. Each safe definition must include a
-    #   `capability:` value held by the coworker or it is still excluded.
-    #   A harmless tool may instead declare `ungated: true`; this is reserved
-    #   for tools with no effects outside the coworker's workspace or chat,
-    #   no data beyond the owner's visibility, and no external cost.
+    # A definition may provide +capability_descriptor:+ using the canonical
+    # Permissions::CapabilityDescriptor contract. A plugin may temporarily
+    # ratchet existing hashes through manifest-owned
+    # +capability_descriptor_compatibility+ digests while it migrates.
+    # Coworkers inherit ordinary chat definitions and availability by default;
+    # canonical capability descriptors still decide whether calls run, ask, or
+    # are denied. A definition may opt out with +coworker_excluded:+ or
+    # +admin_only:+. A provider whose entire surface is incoherent for coworkers
+    # may return true from `.coworker_excluded?`. Providers that contribute a
+    # distinct coworker-only surface may return true from
+    # `.coworker_specific_availability?` and implement
+    # `.available_for_coworker?`.
     #
     # A provider may declare `.coworker_grants`, returning hashes accepted by
     # `Coworkers::GrantCatalog::Descriptor`: name, label, description,

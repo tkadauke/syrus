@@ -399,9 +399,15 @@ module Admin
 
     def mcp_capability_keys_for(entry)
       [
-        entry.capability,
+        (entry.capability unless mirrored_coworker_entry?(entry)),
         pending_action_capability_for(entry.tool_name)
       ].compact.map(&:to_s).uniq
+    end
+
+    def mirrored_coworker_entry?(entry)
+      entry.surface == :coworker && mcp_entries.any? do |candidate|
+        candidate.surface == :chat && candidate.tool_name == entry.tool_name
+      end
     end
 
     def pending_action_capability_for(tool_name)
