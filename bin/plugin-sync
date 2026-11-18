@@ -20,10 +20,11 @@ class PluginSync
 
   class Error < StandardError; end
 
-  def initialize(env:, strict:, env_file: nil)
+  def initialize(env:, strict:, env_file: nil, if_configured: false)
     @env = env
     @strict = strict
     @env_file = env_file
+    @if_configured = if_configured
     @data_root = Pathname.new(env.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")))
     @root = Pathname.new(env.fetch("SYRUS_PLUGIN_SYNC_ROOT", @data_root.join("plugin-sync").to_s))
     @role = env["SYRUS_ROLE"].to_s
@@ -31,6 +32,8 @@ class PluginSync
   end
 
   def call
+    return write_existing_state || 0 if @if_configured && !configured?
+
     FileUtils.mkdir_p(@root.join("sets"))
     manifest_body = storage.read(MANIFEST_KEY)
     verify_manifest!(manifest_body, storage.read(SIGNATURE_KEY))
@@ -52,6 +55,11 @@ class PluginSync
   end
 
   private
+
+  def configured?
+    @env["SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY"].to_s != "" &&
+      (@env["SYRUS_PLUGIN_SYNC_STORAGE_PATH"].to_s != "" || @env["S3_BUCKET"].to_s != "")
+  end
 
   def storage
     @storage ||= if (path = @env["SYRUS_PLUGIN_SYNC_STORAGE_PATH"]) && !path.empty?
@@ -238,10 +246,11 @@ class PluginSync
   end
 end
 
-options = { strict: false }
+options = { strict: false, if_configured: false }
 OptionParser.new do |parser|
   parser.banner = "Usage: bin/plugin-sync [--strict] [--env-file PATH]"
   parser.on("--strict") { options[:strict] = true }
   parser.on("--env-file PATH") { |path| options[:env_file] = path }
+  parser.on("--if-configured") { options[:if_configured] = true }
 end.parse!
 exit PluginSync.new(env: ENV, **options).call

@@ -40,4 +40,13 @@ RSpec.describe PluginInstallation do
     expect(installation).not_to be_valid
     expect(installation.errors[:plugin_release]).to include("must have a verified artifact")
   end
+
+  it "accepts only supported process roles, with an empty list meaning all roles" do
+    expect(described_class.new(plugin_name: "weather", plugin_release: release, roles: [])).to be_valid
+    expect(described_class.new(plugin_name: "weather", plugin_release: release, roles: %w[web sidecar])).to be_valid
+
+    installation = described_class.new(plugin_name: "weather", plugin_release: release, roles: %w[database])
+    expect(installation).not_to be_valid
+    expect(installation.errors[:roles].join).to include("database")
+  end
 end

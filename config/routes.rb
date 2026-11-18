@@ -572,6 +572,7 @@ Rails.application.routes.draw do
 
       namespace :admin do
         get "plugin_desired_state", to: "plugin_desired_state#show"
+        post "plugin_desired_state/apply", to: "plugin_desired_state#apply"
         # `#show` returns the deep-nested Job state (workflows + steps
         # + runs + diagnostics + provider_session metadata). `#index`
         # is a compact list — supports `?pr_number=`, `?issue_number=`,

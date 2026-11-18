@@ -14,7 +14,7 @@
 class InstanceVersion < ApplicationRecord
   include TracksFinishedAt
 
-  ROLES = %w[ web worker local ].freeze
+  ROLES = %w[ web worker preview local ].freeze
   HEARTBEAT_STALE_THRESHOLD = 2.minutes
   REAPER_STALE_THRESHOLD = 5.minutes
   MACOS_UPDATER_STALE_THRESHOLD = 15.minutes

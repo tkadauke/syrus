@@ -673,6 +673,7 @@
       "incompatible": "Incompatible",
       "duplicate_name": "Duplicate name",
       "skipped_dependency": "Skipped — dependency failed",
+      "skipped_role": "Skipped — process role not selected",
       "degraded": "Degraded",
       "cycle": "Dependency cycle"
     },
