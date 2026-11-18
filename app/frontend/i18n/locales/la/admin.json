@@ -504,8 +504,10 @@
       "duplicate_name": "Nomen duplicatum",
       "skipped_dependency": "Praetermissum — dependentia defecit",
       "degraded": "Debilitatum",
-      "cycle": "Circuitus dependentiarum"
+      "cycle": "Circuitus dependentiarum",
+      "warning": "Monitum"
     },
+    "host_surface_details": "Inventiones API hospitis",
     "disableable": "Deactivabile",
     "yes": "Ita",
     "no": "Non",

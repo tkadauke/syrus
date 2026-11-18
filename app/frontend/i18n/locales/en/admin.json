@@ -670,8 +670,10 @@
       "duplicate_name": "Duplicate name",
       "skipped_dependency": "Skipped — dependency failed",
       "degraded": "Degraded",
-      "cycle": "Dependency cycle"
+      "cycle": "Dependency cycle",
+      "warning": "Warning"
     },
+    "host_surface_details": "Host API findings",
     "disableable": "Disableable",
     "yes": "Yes",
     "no": "No",
