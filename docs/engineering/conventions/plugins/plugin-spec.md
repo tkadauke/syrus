@@ -125,43 +125,83 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 
 ## Public host surface
 
-- `AgentInvocation::Result` (since 0.1.16) — Result value returned by plugin agent and chat provider invocations. Construction and the listed outcome, transcript, usage, process, and success readers are supported; invocation engine internals are not. Supported members: class: `new`; instance: `turns`, `exit_status`, `timed_out`, `is_error`, `outcome`, `final_text`, `session_id`, `transcript_jsonl`, `transcript_path`, `cost_usd`, `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `process_outcome`, `spawned_process_id`, `silent_timed_out`, `stopped`, `operator_killed`, `aliveness_failed`, `success?`.
-- `Api::V1::Admin::BaseController` (since 0.1.16) — Base controller for plugin-owned administrative API routes. Subclasses may use inherited authentication, params, render, and policy helpers; filters and implementation details are not promised. Supported members: instance: `params`, `render`.
-- `Api::V1::App::Admin::BaseController` (since 0.1.16) — Base controller for authenticated plugin routes in the app admin namespace. Only inherited request, rendering, and authorization behavior is supported. Supported members: instance: `params`, `render`.
-- `Api::V1::App::BaseController` (since 0.1.16) — Base controller for authenticated plugin routes mounted in the application API. Only inherited request, rendering, and authorization behavior is supported. Supported members: instance: `params`, `render`.
-- `ApplicationJob` (since 0.1.16) — Base class for plugin-owned Active Job classes and the host operational-log context hook. Core queue topology and execution callbacks are not public. Supported members: class: `queue_as`; instance: `operational_log_context`.
-- `ApplicationRecord` (since 0.1.16) — Active Record base for plugin-owned models using the Syrus primary database. Database internals and private core helpers are not promised. Supported members: class: `belongs_to`, `has_many`.
-- `ChatSession` (since 0.1.16) — Read access to a chat's identity, title, owner, repository, and messages. Turn orchestration, broadcasts, artifacts, and mutation helpers are not public. Supported members: instance: `id`, `title`, `user`, `repository`, `messages`.
-- `Current` (since 0.1.16) — Request-local access to the authenticated user and API user for plugin handlers. All other current attributes are internal and plugins must not assign these accessors. Supported members: class: `user`, `api_user`.
-- `Job` (since 0.1.16) — Read access to a work item's identity, state, title, repository, owner, and workflows, plus visibility-scoped queries. State transitions, callbacks, and unlisted persistence APIs are not public. Supported members: class: `visible_to`, `accessible_to`; instance: `id`, `state`, `title`, `repository`, `user`, `workflows`.
-- `Mcp::Tools` (since 0.1.16) — Base module and response helpers for plugin MCP tools. Only the listed connection and response helpers are supported; core tool implementations are not. Supported members: class: `with_database_connection`, `success`, `invalid`.
-- `McpToolContext` (since 0.1.16) — Immutable authorization and request context passed to plugin tool handlers. Plugins may inspect the listed scope objects and predicates but must not construct or mutate contexts. Supported members: instance: `surface`, `role`, `user`, `repository`, `job`, `workflow`, `run`, `chat_session`, `run?`, `chat?`, `interactive`.
-- `OperationalLogging` (since 0.1.16) — Structured operational event sink for plugin diagnostics. Plugins may emit bounded events through ingest; subscriber installation and storage internals are not public. Supported members: class: `ingest`.
-- `PerformanceLogging` (since 0.1.16) — Performance instrumentation helper for timing plugin work through named phases. Event storage, thresholds, and request instrumentation are not public. Supported members: class: `phase`.
-- `ProcessRunner` (since 0.1.16) — Managed subprocess runner for plugin commands with host cancellation, timeout, confinement, and attribution. Plugins may use new, run, capture, start, mounts, and forwarded_env; backend and process-record internals are not public. Supported members: class: `new`, `mounts`, `forwarded_env`; instance: `run`, `capture`, `start`.
-- `Repository` (since 0.1.16) — Read access to repository identity, owner/name, archival state, and jobs, with active and user-scoped readable/writable queries. Credential fields, synchronization internals, callbacks, and unlisted mutations are not public. Supported members: class: `active`, `accessible_to`, `writable_by`; instance: `id`, `owner`, `name`, `archived_at`, `jobs`.
-- `Run` (since 0.1.16) — Read access to an execution attempt's identity, state, step, workflow, and job. Dispatch, lifecycle transitions, agent metadata mutation, and unlisted associations are not public. Supported members: instance: `id`, `state`, `step`, `workflow`, `job`.
-- `Syrus::Metrics` (since 0.1.16) — Non-blocking metrics facade for plugin-declared counters, gauges, and histograms. Plugins may fetch declared instruments; registry mutation and core metric declarations are not public. Supported members: class: `counter`, `gauge`, `histogram`.
-- `Syrus::Plugin::AdminPage` (since 0.1.16) — Marker contract for providers contributing administrative SPA pages through admin_pages metadata. Core navigation and route rendering internals are not public.
-- `Syrus::Plugin::AgentProvider` (since 0.1.16) — Interface mixed into registered agent providers, including model catalog and configuration hooks documented by the module. Provider orchestration and evidence internals are not public. Supported members: class: `available_models`, `configured_for_user?`.
-- `Syrus::Plugin::Callbacks` (since 0.1.16) — Lifecycle callbacks for registered plugin providers and cleanup effects. Plugins may implement the documented on_boot, on_shutdown, on_enable, on_disable, on_tick, and on_metrics_scrape callbacks. Supported members: instance: `on_boot`, `on_shutdown`, `on_enable`, `on_disable`, `on_tick`, `on_metrics_scrape`, `effect`.
-- `Syrus::Plugin::ChatMcpToolSet` (since 0.1.16) — Marker contract for chat MCP tool sets implementing tool_definitions, available_for?, and handle as documented by the interface. Core tool policy implementation is not public.
-- `Syrus::Plugin::ChatProvider` (since 0.1.16) — Marker contract for interactive chat providers implementing the documented provider metadata, constructor, and invoke interface. Host session orchestration is not public.
-- `Syrus::Plugin::CliCommandHandler` (since 0.1.16) — Base class for server-backed plugin CLI commands. Subclasses implement call and return values built with table, text, raw_text, or json; transport internals are not public. Supported members: class: `table`, `text`, `raw_text`, `json`; instance: `call`.
-- `Syrus::Plugin::DomainSubscriber` (since 0.1.16) — Marker contract for providers declaring domain-event subscriptions and handlers. Delivery scheduling and core event persistence are not public.
-- `Syrus::Plugin::GatedToolSet` (since 0.1.16) — Shared implementation for plugin tool sets gated by plugin availability and coworker grants. Only the documented declaration, definition, lookup, availability, and handle methods are supported. Supported members: class: `gated_by`, `gated?`, `tool_definitions`, `find_tool_class`, `available_for_context?`; instance: `handle`.
-- `Syrus::Plugin::InputSource` (since 0.1.16) — Marker contract for plugin input-source classes implementing poll!, validate_credentials!, config_schema, and dedup_key. Host polling internals are not public.
-- `Syrus::Plugin::McpToolSet` (since 0.1.16) — Marker contract for workflow MCP tool sets implementing tool_definitions, available_for?, and handle as documented by the interface. Core tool implementations are not public.
-- `Syrus::Plugin::PermissionProvider` (since 0.1.16) — Declaration contract for plugin capabilities, resource scopes, presets, authorization adapters, migrations, and retired identifiers. Core permission evaluation and storage are not public. Supported members: class: `register_authorization_adapter`, `register_resource_scope`, `register_capability`, `register_permission_preset`, `migrate_permission_scope`, `retire_permission_identifier`.
-- `Syrus::Plugin::RepoPageTab` (since 0.1.16) — Marker contract for providers contributing repository tabs through repo_page_tabs metadata scoped to a repository and user. Host navigation internals are not public.
-- `Syrus::Plugin::RepositoryContentProvider` (since 0.1.16) — Interface for immutable repository-content providers, including provider metadata and the documented resolve, tree, read, changes, refs, relation, history, commits, tree_sha, and divergence operations. Cache and fallback orchestration are not public. Supported members: class: `provider_key`, `display_name`, `role`, `available_for?`, `build`; instance: `resolve`, `tree`, `read`, `changes`, `refs`, `relation`, `history`, `commits`, `tree_sha`, `divergence`.
-- `Syrus::Plugin::SidebarPage` (since 0.1.16) — Marker contract for providers contributing sidebar pages through sidebar_pages metadata. Host navigation rendering and polling internals are not public.
-- `Syrus::Plugin::UiSlot` (since 0.1.16) — Interface for panels contributed to named host UI slots through ui_slots metadata. Plugins may rely on SLOTS and valid_slot?; page rendering internals are not public. Supported members: class: `valid_slot?`.
-- `Syrus::Plugin::WorkflowKinds` (since 0.1.16) — Marker contract for providers contributing trigger, step, job, and work-definition entries through the documented optional methods. Registry compilation and dispatch internals are not public.
-- `Syrus::PluginApi` (since 0.1.16) — Primary plugin manifest DSL for declaring a plugin and installing its definition. Plugins may call syrus_plugin, syrus_plugin_definition, register!, enabled?, and default_version; Definition internals are not public. Supported members: class: `default_version`; instance: `syrus_plugin`, `syrus_plugin_definition`, `register!`, `enabled?`.
-- `Syrus::PluginRegistry` (since 0.1.16) — Registry boundary for plugin manifests and extension-point providers. Plugins may register manifests and query providers for declared extension points; mutation, reset, health, and cache internals are not public. Supported members: class: `register`, `providers_for`, `extension_point?`.
-- `User` (since 0.1.16) — Read access to user identity, handle, display name, administrator status, repositories, and jobs. Credentials, preferences, callbacks, and unlisted persistence methods are not public. Supported members: instance: `id`, `handle`, `display_name`, `admin?`, `repositories`, `jobs`.
-- `Workflow` (since 0.1.16) — Read access to a workflow attempt's identity, state, owning job, steps, and runs. Scheduling, transitions, repair behavior, and unlisted mutations are not public. Supported members: instance: `id`, `state`, `job`, `steps`, `runs`.
+Plugins may reference only `Syrus::Host::*` (and the plugin DSL and interface modules), their own code, Rails, gems, and the standard library; everything else in core is internal. Only the members listed below are supported.
+
+- `Syrus::Plugin::Adjudicator` (since 0.1.16) — Defines the Adjudicator plugin extension-point contract.
+- `Syrus::Plugin::AdminPage` (since 0.1.16) — Defines the AdminPage plugin extension-point contract.
+- `Syrus::Plugin::AffectedTestAnalyzer` (since 0.1.16) — Defines the AffectedTestAnalyzer plugin extension-point contract.
+- `Syrus::Plugin::AgentProvider` (since 0.1.16) — Defines the AgentProvider plugin extension-point contract.
+- `Syrus::Plugin::ApprovalProvider` (since 0.1.16) — Defines the ApprovalProvider plugin extension-point contract.
+- `Syrus::Plugin::ArtifactRenderer` (since 0.1.16) — Defines the ArtifactRenderer plugin extension-point contract.
+- `Syrus::Plugin::AutofixCommand` (since 0.1.16) — Defines the AutofixCommand plugin extension-point contract.
+- `Syrus::Plugin::BuildSystemGraphProvider` (since 0.1.16) — Defines the BuildSystemGraphProvider plugin extension-point contract.
+- `Syrus::Plugin::Callbacks` (since 0.1.16) — Defines the Callbacks plugin extension-point contract.
+- `Syrus::Plugin::ChatIdentityProvider` (since 0.1.16) — Defines the ChatIdentityProvider plugin extension-point contract.
+- `Syrus::Plugin::ChatJobStatusExtension` (since 0.1.16) — Defines the ChatJobStatusExtension plugin extension-point contract.
+- `Syrus::Plugin::ChatMcpToolSet` (since 0.1.16) — Defines the ChatMcpToolSet plugin extension-point contract.
+- `Syrus::Plugin::ChatMediaSource` (since 0.1.16) — Defines the ChatMediaSource plugin extension-point contract.
+- `Syrus::Plugin::ChatPayloadContributor` (since 0.1.16) — Defines the ChatPayloadContributor plugin extension-point contract.
+- `Syrus::Plugin::ChatPromptInjector` (since 0.1.16) — Defines the ChatPromptInjector plugin extension-point contract.
+- `Syrus::Plugin::ChatProvider` (since 0.1.16) — Defines the ChatProvider plugin extension-point contract.
+- `Syrus::Plugin::ChatTurnFinalizer` (since 0.1.16) — Defines the ChatTurnFinalizer plugin extension-point contract.
+- `Syrus::Plugin::ChatTurnLifecycle` (since 0.1.16) — Defines the ChatTurnLifecycle plugin extension-point contract.
+- `Syrus::Plugin::ChatTurnOrientation` (since 0.1.16) — Defines the ChatTurnOrientation plugin extension-point contract.
+- `Syrus::Plugin::ChatWorkspaceLifecycle` (since 0.1.16) — Defines the ChatWorkspaceLifecycle plugin extension-point contract.
+- `Syrus::Plugin::CiLogParser` (since 0.1.16) — Defines the CiLogParser plugin extension-point contract.
+- `Syrus::Plugin::CoverageAnalyzer` (since 0.1.16) — Defines the CoverageAnalyzer plugin extension-point contract.
+- `Syrus::Plugin::DependencyAuditCommand` (since 0.1.16) — Defines the DependencyAuditCommand plugin extension-point contract.
+- `Syrus::Plugin::DiffReviewAnnotationProvider` (since 0.1.16) — Defines the DiffReviewAnnotationProvider plugin extension-point contract.
+- `Syrus::Plugin::DiffReviewFilePatternProvider` (since 0.1.16) — Defines the DiffReviewFilePatternProvider plugin extension-point contract.
+- `Syrus::Plugin::DomainSubscriber` (since 0.1.16) — Defines the DomainSubscriber plugin extension-point contract.
+- `Syrus::Plugin::ExecutionBackend` (since 0.1.16) — Defines the ExecutionBackend plugin extension-point contract.
+- `Syrus::Plugin::FocusedTestCommand` (since 0.1.16) — Defines the FocusedTestCommand plugin extension-point contract.
+- `Syrus::Plugin::GradeDetector` (since 0.1.16) — Defines the GradeDetector plugin extension-point contract.
+- `Syrus::Plugin::GraderAugmentor` (since 0.1.16) — Defines the GraderAugmentor plugin extension-point contract.
+- `Syrus::Plugin::GraderFailureSummarizer` (since 0.1.16) — Defines the GraderFailureSummarizer plugin extension-point contract.
+- `Syrus::Plugin::GraderInputMaterializer` (since 0.1.16) — Defines the GraderInputMaterializer plugin extension-point contract.
+- `Syrus::Plugin::GraderType` (since 0.1.16) — Defines the GraderType plugin extension-point contract.
+- `Syrus::Plugin::InputSource` (since 0.1.16) — Defines the InputSource plugin extension-point contract.
+- `Syrus::Plugin::JobOrigin` (since 0.1.16) — Defines the JobOrigin plugin extension-point contract.
+- `Syrus::Plugin::JobVisibilityRestriction` (since 0.1.16) — Defines the JobVisibilityRestriction plugin extension-point contract.
+- `Syrus::Plugin::McpRunContextContributor` (since 0.1.16) — Defines the McpRunContextContributor plugin extension-point contract.
+- `Syrus::Plugin::McpToolSet` (since 0.1.16) — Defines the McpToolSet plugin extension-point contract.
+- `Syrus::Plugin::MemoryStore` (since 0.1.16) — Defines the MemoryStore plugin extension-point contract.
+- `Syrus::Plugin::Mentionable` (since 0.1.16) — Defines the Mentionable plugin extension-point contract.
+- `Syrus::Plugin::PermissionProvider` (since 0.1.16) — Defines the PermissionProvider plugin extension-point contract.
+- `Syrus::Plugin::PlatformDelivery` (since 0.1.16) — Defines the PlatformDelivery plugin extension-point contract.
+- `Syrus::Plugin::PostImplementationReviewProvider` (since 0.1.16) — Defines the PostImplementationReviewProvider plugin extension-point contract.
+- `Syrus::Plugin::PrepareDetector` (since 0.1.16) — Defines the PrepareDetector plugin extension-point contract.
+- `Syrus::Plugin::PreviewPanelRetention` (since 0.1.16) — Defines the PreviewPanelRetention plugin extension-point contract.
+- `Syrus::Plugin::PreviewPanelViewer` (since 0.1.16) — Defines the PreviewPanelViewer plugin extension-point contract.
+- `Syrus::Plugin::PreviewProvider` (since 0.1.16) — Defines the PreviewProvider plugin extension-point contract.
+- `Syrus::Plugin::ProblemProvider` (since 0.1.16) — Defines the ProblemProvider plugin extension-point contract.
+- `Syrus::Plugin::PromptInjector` (since 0.1.16) — Defines the PromptInjector plugin extension-point contract.
+- `Syrus::Plugin::PurgeContributor` (since 0.1.16) — Defines the PurgeContributor plugin extension-point contract.
+- `Syrus::Plugin::RepoPageTab` (since 0.1.16) — Defines the RepoPageTab plugin extension-point contract.
+- `Syrus::Plugin::RepositoryConfiguration` (since 0.1.16) — Defines the RepositoryConfiguration plugin extension-point contract.
+- `Syrus::Plugin::RepositoryContentProvider` (since 0.1.16) — Defines the RepositoryContentProvider plugin extension-point contract.
+- `Syrus::Plugin::RepositoryFilter` (since 0.1.16) — Defines the RepositoryFilter plugin extension-point contract.
+- `Syrus::Plugin::RepositoryRecommendation` (since 0.1.16) — Defines the RepositoryRecommendation plugin extension-point contract.
+- `Syrus::Plugin::RetentionPolicy` (since 0.1.16) — Defines the RetentionPolicy plugin extension-point contract.
+- `Syrus::Plugin::ReviewContextContributor` (since 0.1.16) — Defines the ReviewContextContributor plugin extension-point contract.
+- `Syrus::Plugin::ReviewCriteriaProvider` (since 0.1.16) — Defines the ReviewCriteriaProvider plugin extension-point contract.
+- `Syrus::Plugin::ReviewGate` (since 0.1.16) — Defines the ReviewGate plugin extension-point contract.
+- `Syrus::Plugin::ReviewPresentationContributor` (since 0.1.16) — Defines the ReviewPresentationContributor plugin extension-point contract.
+- `Syrus::Plugin::ReviewerTargetProvider` (since 0.1.16) — Defines the ReviewerTargetProvider plugin extension-point contract.
+- `Syrus::Plugin::RuntimeSessionProvider` (since 0.1.16) — Defines the RuntimeSessionProvider plugin extension-point contract.
+- `Syrus::Plugin::SidebarPage` (since 0.1.16) — Defines the SidebarPage plugin extension-point contract.
+- `Syrus::Plugin::SlugType` (since 0.1.16) — Defines the SlugType plugin extension-point contract.
+- `Syrus::Plugin::SourceControlProvider` (since 0.1.16) — Defines the SourceControlProvider plugin extension-point contract.
+- `Syrus::Plugin::SpeechToTextProvider` (since 0.1.16) — Defines the SpeechToTextProvider plugin extension-point contract.
+- `Syrus::Plugin::StepEnvironment` (since 0.1.16) — Defines the StepEnvironment plugin extension-point contract.
+- `Syrus::Plugin::TestEvidence` (since 0.1.16) — Defines the TestEvidence plugin extension-point contract.
+- `Syrus::Plugin::UiSlot` (since 0.1.16) — Defines the UiSlot plugin extension-point contract.
+- `Syrus::Plugin::WorkerCapabilityProbe` (since 0.1.16) — Defines the WorkerCapabilityProbe plugin extension-point contract.
+- `Syrus::Plugin::WorkflowArtifactContributor` (since 0.1.16) — Defines the WorkflowArtifactContributor plugin extension-point contract.
+- `Syrus::Plugin::WorkflowKinds` (since 0.1.16) — Defines the WorkflowKinds plugin extension-point contract.
+- `Syrus::Plugin::WorkspaceGitTransport` (since 0.1.16) — Defines the WorkspaceGitTransport plugin extension-point contract.
+- `Syrus::Plugin::WorkspaceTab` (since 0.1.16) — Defines the WorkspaceTab plugin extension-point contract.
+- `Syrus::PluginApi` (since 0.1.16) — Declares a plugin manifest and its contributions. Supported members: `enabled?`, `register!`, `syrus_plugin`, `syrus_plugin_definition`.
 
 ## Packaging and testing
 
@@ -169,10 +209,10 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 
 ## Avoid
 
-- Calling unlisted core constants or members, or any `legacy` API.
+- Calling core constants outside `Syrus::Host::*`, the plugin DSL, and interface modules, or calling unlisted members.
 - Reaching into another plugin without a declared dependency and extension point.
 - Shipping source-only frontend code instead of the declared prebuilt bundle and locales.
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 31718 bytes (UTF-8, including this line).
+Size: 29975 bytes (UTF-8, including this line).

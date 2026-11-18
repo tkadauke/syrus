@@ -1,4 +1,5 @@
 require "digest"
+require "syrus/host"
 require "syrus/plugin_host_surface"
 
 module Syrus
@@ -11,9 +12,10 @@ module Syrus
         def findings = [ *public, *legacy, *unlisted ]
       end
 
-      def initialize(directory, surface: PluginHostSurface.new, inventory: Admin::PluginHostSurfaceInventory.new(surface:))
+      def initialize(directory, surface: PluginHostSurface.new, apis: Host.apis, inventory: Admin::PluginHostSurfaceInventory.new(surface:))
         @directory = Pathname.new(directory).expand_path
         @surface = surface
+        @apis = apis
         @inventory = inventory
       end
 
@@ -24,8 +26,7 @@ module Syrus
 
       def call
         grouped = @inventory.references_for(@directory).map do |reference|
-          entry = @surface.lookup(reference.constant)
-          Finding.new(constant: reference.constant, tier: entry&.tier || "unlisted", path: reference.path, line: reference.line)
+          Finding.new(constant: reference.constant, tier: tier_for(reference.constant), path: reference.path, line: reference.line)
         end.group_by(&:tier)
         public_findings = sorted(grouped.fetch("public", []))
         Result.new(public: public_findings, legacy: sorted(grouped.fetch("legacy", [])),
@@ -47,8 +48,19 @@ module Syrus
 
       def sorted(findings) = findings.sort_by { |item| [ item.path, item.line, item.constant ] }
 
+      def api_for(name)
+        @apis.select { |api| name == api.name || name.start_with?("#{api.name}::") }.max_by { |api| api.name.length }
+      end
+
+      def tier_for(name)
+        return "public" if api_for(name)
+        return "legacy" if @surface.lookup(name)
+
+        "unlisted"
+      end
+
       def minimum_version(findings)
-        findings.filter_map { |finding| @surface.lookup(finding.constant)&.since }
+        findings.filter_map { |finding| api_for(finding.constant)&.since }
           .map { |version| Gem::Version.new(version) }.max&.to_s
       end
     end

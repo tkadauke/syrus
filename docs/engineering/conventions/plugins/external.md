@@ -16,6 +16,10 @@ fixture is the smallest end-to-end example. `bin/test-plugin-relocation`
 copies it outside the checkout and proves its provider, route, migration,
 frontend bundle, and CLI command still work there.
 
+Plugins may reference only `Syrus::Host::*`, the plugin DSL and interface
+modules, their own code, Rails, gems, and the standard library. Everything else
+in core is internal.
+
 ## Directory layout
 
 Each immediate child of the external root is one plugin. A useful minimum is:

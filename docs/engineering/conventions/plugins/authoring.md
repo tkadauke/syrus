@@ -7,6 +7,10 @@ For generated contracts, use the [host API reference](host-api.md) and the
 [single-file plugin specification](plugin-spec.md). The latter is designed to
 be pasted whole into an LLM context and records its generated size.
 
+Plugins may reference only `Syrus::Host::*`, the plugin DSL and interface
+modules, their own code, Rails, gems, and the standard library. Everything else
+in core is internal.
+
 ## Review extension contracts
 
 Review plugins may register `reviewer_target_provider`,
