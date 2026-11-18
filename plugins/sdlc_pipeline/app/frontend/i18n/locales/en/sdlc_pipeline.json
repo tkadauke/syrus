@@ -43,6 +43,8 @@
   "next": "Next",
   "page": "Page {{page}} of {{pages}} · {{total}} items",
   "partial_evidence": "Delivery evidence is partial for {{count}} items that have not reached the final configured stage.",
+  "partial_evidence_short": "Incomplete evidence",
+  "open_presentation": "Open presentation",
   "recent_releases": "Recent releases",
   "job_details": "Job",
   "workflow_details": "Workflow",
