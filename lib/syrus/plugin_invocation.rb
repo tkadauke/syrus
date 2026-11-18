@@ -33,7 +33,7 @@ module Syrus
 
         runtime_health.record_failure(
           plugin: plugin, extension_point: extension_point, operation: operation, exception: error,
-          threshold: failure_threshold, window: failure_window
+          threshold: failure_threshold, window: failure_window, cooldown: cooldown
         )
         Failed.new(
           value: decline_value(on_decline, :failed), exception_class: error.class.name,
