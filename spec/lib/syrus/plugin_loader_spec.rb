@@ -120,13 +120,19 @@ RSpec.describe Syrus::PluginLoader do
     entry_files = Syrus::PluginRoots.default.plugin_directories.map do |directory|
       directory.glob("lib/*.rb").find { |file| file.read.include?("syrus_plugin") }
     end.compact
-    expected_names = entry_files.map { |file| file.read.match(/syrus_plugin\s+["']([^"']+)/)[1] }
+    expected_entries = entry_files.to_h do |file|
+      [ file.read.match(/syrus_plugin\s+["']([^"']+)/)[1], file.dirname.expand_path ]
+    end
+    expected_names = expected_entries.keys
     manifests = Syrus::PluginRegistry.all_plugins
     definitions = ObjectSpace.each_object(Module).filter_map do |namespace|
       next unless namespace.respond_to?(:syrus_plugin_definition)
 
       definition = namespace.syrus_plugin_definition
-      [ definition.name, definition ] if definition
+      next unless definition
+      next unless Pathname.new(definition.lib_dir).expand_path == expected_entries[definition.name]
+
+      [ definition.name, definition ]
     end.to_h
 
     expect(manifests.map(&:name)).to contain_exactly(*expected_names)
