@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_134128) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_151511) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1100,9 +1100,48 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_134128) do
     t.integer "credential_store_credential_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "token_expires_at"
+    t.datetime "last_health_checked_at"
+    t.string "health_message"
     t.index ["credential_store_credential_id"], name: "idx_on_credential_store_credential_id_7b6d26bf18"
     t.index ["owner_user_id", "provider"], name: "idx_connected_accounts_owner_provider"
     t.index ["owner_user_id"], name: "index_connected_accounts_accounts_on_owner_user_id"
+    t.index ["token_expires_at"], name: "index_connected_accounts_accounts_on_token_expires_at"
+  end
+
+  create_table "connected_accounts_pending_flows", force: :cascade do |t|
+    t.string "state_digest", null: false
+    t.string "provider", null: false
+    t.json "requested_scopes", null: false
+    t.boolean "read_only", null: false
+    t.string "redirect_uri", null: false
+    t.text "code_verifier"
+    t.integer "owner_user_id", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "consumed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["expires_at"], name: "index_connected_accounts_pending_flows_on_expires_at"
+    t.index ["owner_user_id"], name: "index_connected_accounts_pending_flows_on_owner_user_id"
+    t.index ["state_digest"], name: "index_connected_accounts_pending_flows_on_state_digest", unique: true
+  end
+
+  create_table "connected_accounts_provider_configs", force: :cascade do |t|
+    t.string "key", null: false
+    t.string "display_name", null: false
+    t.string "authorize_url", null: false
+    t.string "token_url", null: false
+    t.string "revoke_url"
+    t.string "identity_url"
+    t.json "scopes", null: false
+    t.json "api_origins", null: false
+    t.integer "credential_store_credential_id", null: false
+    t.integer "created_by_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_connected_accounts_provider_configs_on_created_by_id"
+    t.index ["credential_store_credential_id"], name: "idx_on_credential_store_credential_id_ba017e5772"
+    t.index ["key"], name: "index_connected_accounts_provider_configs_on_key", unique: true
   end
 
   create_table "coverage_snapshots", force: :cascade do |t|

@@ -130,6 +130,9 @@ module ConnectedAccounts
         replacement_payload
       end
       parse_payload!(refreshed.payload)
+    rescue StandardError
+      TokenManager.mark_reauth!(account)
+      raise
     end
 
     def token_secrets(tokens)

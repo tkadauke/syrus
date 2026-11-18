@@ -6,6 +6,14 @@ Tool plugins request block-scoped access through `ConnectedAccounts::AccountClie
 
 Before access is yielded, the client validates the stored token expiry. Expired tokens are replaced atomically through Credential Store when the account provider has configured a refresh handler; otherwise access fails closed. Invalid, missing, or still-expired replacement tokens are rejected without replacing the stored credential.
 
+The plugin refreshes expiring accounts in the background and periodically asks each provider to validate account health. A failed refresh moves the account to `needs_reauth` and creates an approval-inbox notification. Disconnecting calls the provider's revocation endpoint when available, erases stored token material, and retains the non-secret account and credential-access audit history.
+
+## Configuring a generic OAuth 2 provider
+
+Administrators can add standards-based providers at **Admin → OAuth providers** without installing Ruby code. Supply HTTPS authorize and token endpoints, optional revocation and identity endpoints, the supported scopes, and the allowed API origins. The OAuth client id and secret fields are write-only: Syrus stores them as an instance-scoped `connected_accounts.oauth_client` credential in Credential Store rather than in plugin settings or provider metadata.
+
+The callback URL to register with the provider is `/api/v1/app/connected_accounts/callback/<provider-key>` on the public Syrus base URL. Authorization uses a short-lived, single-use server-side state record and PKCE. Callback failures return only a fixed error code to the settings page; callback codes, state values, client secrets, and provider response bodies are never included in redirects or error pages.
+
 ## Adding an account provider
 
 A service plugin contributes to the hosted `connected_accounts:provider` extension point. The manifest declaration is the source of truth for the provider key and display name, callback path, read-only support, capabilities, and scope catalog. Every scope supplies a human label, a risk (`low`, `medium`, `high`, or `critical`), and the Syrus capabilities it enables.

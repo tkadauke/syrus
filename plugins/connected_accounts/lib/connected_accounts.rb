@@ -1,3 +1,5 @@
+require "connected_accounts/data_cleanup"
+
 module ConnectedAccounts
   extend Syrus::PluginApi
 
@@ -14,6 +16,8 @@ module ConnectedAccounts
     default_enabled false
     disableable true
     depends_on [ "credential_store" ]
+    home_queue :low_priority_maintenance
+    tick_interval 1.minute
     hosts :provider
     provides "connected_accounts:provider" => [
       {
@@ -48,11 +52,28 @@ module ConnectedAccounts
           name: "connected_accounts.broker",
           description: "Brokered in-memory access to connected account tokens."
         }
+      },
+      {
+        name: "connected_accounts.oauth_client",
+        label: "Connected account OAuth client",
+        description: "Instance OAuth client id and secret for a configured provider."
       }
     ]
+    provides admin_page: "ConnectedAccounts::AdminPages", callbacks: "ConnectedAccounts::Callbacks"
+    route :get, "/api/v1/app/connected_accounts", to: "api/v1/app/connected_accounts#index"
+    route :get, "/api/v1/app/connected_accounts/authorize/:provider", to: "api/v1/app/connected_accounts#authorize"
+    route :get, "/api/v1/app/connected_accounts/callback/:provider", to: "api/v1/app/connected_accounts#callback"
+    route :delete, "/api/v1/app/connected_accounts/:id", to: "api/v1/app/connected_accounts#destroy"
+    route :get, "/api/v1/app/admin/connected_account_providers", to: "api/v1/app/admin/connected_account_providers#index"
+    route :post, "/api/v1/app/admin/connected_account_providers", to: "api/v1/app/admin/connected_account_providers#create"
+    route :delete, "/api/v1/app/admin/connected_account_providers/:id", to: "api/v1/app/admin/connected_account_providers#destroy"
+    frontend routes: { "connected_accounts/AdminConnectedAccounts" => "app/frontend/routes/AdminConnectedAccounts.tsx" },
+      i18n: [ "app/frontend/i18n/locales/*/connected_accounts.json" ]
     while_enabled("provider contract") do
       ConnectedAccounts::ProviderRegistry.load!
+      ConnectedAccounts::AccountClient.refresh_handler = ConnectedAccounts::TokenManager.method(:refresh)
       nil
     end
+    always { |scope| ConnectedAccounts::DataCleanup.install_into(scope) }
   end
 end

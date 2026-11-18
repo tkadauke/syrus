@@ -22,6 +22,9 @@ module ConnectedAccounts
 
     before_validation :normalize_values
 
+    scope :due_for_refresh, -> { connected.where(token_expires_at: ..5.minutes.from_now) }
+    scope :due_for_health_check, -> { connected.where(last_health_checked_at: ..30.minutes.ago).or(connected.where(last_health_checked_at: nil)) }
+
     def effective_scope_ceiling
       return scope_ceiling if scope_ceiling.present?
 
