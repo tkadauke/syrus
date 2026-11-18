@@ -9,6 +9,10 @@ RSpec.describe Syrus::Host do
     described_class.apis.replace(original)
   end
 
+  it "exposes the declaration file through its Zeitwerk constant" do
+    expect(described_class::PluginApis::INTERFACES).to include("McpToolSet")
+  end
+
   it "registers a public API contract" do
     api = described_class.api(
       "Syrus::Host::Example",
