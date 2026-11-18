@@ -141,6 +141,7 @@ module Syrus
     def attempt_lease_path(id) = Pathname.new("#{path}.attempt-#{id}.lock")
 
     def hold_attempt_lease(id)
+      FileUtils.mkdir_p(path.dirname)
       lease = File.open(attempt_lease_path(id), File::RDWR | File::CREAT, 0o600)
       lease.flock(File::LOCK_EX)
       self.class.attempt_leases[[ path.to_s, id ]] = lease
