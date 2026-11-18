@@ -144,7 +144,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 function renderRoute(path: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
@@ -157,6 +157,7 @@ function renderRoute(path: string) {
       </MemoryRouter>
     </QueryClientProvider>
   )
+  return { ...view, client }
 }
 
 function fill(label: string, value: string) {
@@ -373,7 +374,8 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
       return jsonResponse(detailPayload)
     })
   )
-  renderRoute("/coworkers/7")
+  const { client } = renderRoute("/coworkers/7")
+  const invalidateQueries = vi.spyOn(client, "invalidateQueries")
   expect(await screen.findByRole("heading", { name: "Maya" })).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Main chat" })).toHaveAttribute("href", "/chats/12")
   fireEvent.click(screen.getByRole("button", { name: "Profile" }))
@@ -389,6 +391,8 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   fireEvent.click(screen.getByRole("button", { name: "Chat" }))
   fireEvent.click(screen.getByRole("button", { name: "New side chat" }))
   expect(await screen.findByText("Chat destination")).toBeInTheDocument()
+  expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["coworkers", "7", "chats"] })
+  expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chats"] })
 })
 
 it("prevents duplicate side-chat submissions and shows API failures", async () => {
