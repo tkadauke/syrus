@@ -14,9 +14,14 @@ RSpec.describe "Built-in plugin host surface", :ci_only do
     findings = Admin::PluginHostSurfaceAudit.new.findings
 
     expect(findings).to eq([]), findings.join("\n")
+    expect(Syrus::PluginHostSurface.new.lookup("Syrus::PluginApi")).to be_present
+    expect(Syrus::PluginHostSurface.new.lookup("Syrus::Plugin::Callbacks")).to be_present
   end
 
   it "keeps every public contract documented and resolvable" do
+    expect(Syrus::Host.apis.size).to be_between(25, 40)
+    expect(Syrus::Host.apis.map(&:name)).to all(start_with("Syrus::Host::"))
+
     failures = Syrus::Host.apis.flat_map do |api|
       constant = api.name.safe_constantize
       next [ "#{api.name} does not resolve" ] unless constant
