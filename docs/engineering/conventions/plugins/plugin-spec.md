@@ -127,9 +127,11 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 ## Public host surface
 
 - `Syrus::Host::AdminController` (since 0.1.16) — Bases admin-token plugin API controllers; core filters and implementation details are not promised. Only the listed members are supported. Supported members: `params`, `render`.
+- `Syrus::Host::AdminPage` (since 0.1.16) — Supplies admin navigation and route metadata; host navigation implementation details are not promised. Only the listed members are supported. Supported members: `admin_pages`.
 - `Syrus::Host::AgentProvider` (since 0.1.16) — Supplies the optional agent-provider class hooks that plugins may override; invocation orchestration and undeclared provider methods are not promised. Only the listed members are supported. Supported members: `availability_evidence_observed_at`, `available_models`, `configured_for_user?`, `credential_attributes`, `evidence_reset_at`, `false_positive_evidence?`, `ignore_model_for_positive_evidence?`, `mcp_tool_name`, `suppress_usage_limit_run?`, `usage_observed_at`, `usage_signal_account_id`, `usage_snapshot`, `usage_status`, `usage_windows`.
 - `Syrus::Host::AppAdminController` (since 0.1.16) — Bases authenticated plugin admin API controllers; core filters are not promised. Only the listed members are supported. Supported members: `params`, `render`.
 - `Syrus::Host::AppController` (since 0.1.16) — Bases authenticated plugin application API controllers; core filters are not promised. Only the listed members are supported. Supported members: `params`, `render`.
+- `Syrus::Host::ApplicationRecord` (since 0.1.16) — Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public. Supported members: `abstract_class`, `table_name`, `table_name=`.
 - `Syrus::Host::BackgroundJob` (since 0.1.16) — Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised. Only the listed members are supported. Supported members: `operational_log_context`, `queue_as`.
 - `Syrus::Host::Callbacks` (since 0.1.16) — Defines plugin lifecycle callbacks; callback scheduling and storage are not promised. Only the listed members are supported. Supported members: `effect`, `on_boot`, `on_disable`, `on_enable`, `on_metrics_scrape`, `on_shutdown`, `on_tick`.
 - `Syrus::Host::ChatSession` (since 0.1.16) — Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised. Supported members: `find`, `id`, `repository`, `title`, `user`.
@@ -168,4 +170,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 28585 bytes (UTF-8, including this line).
+Size: 29079 bytes (UTF-8, including this line).

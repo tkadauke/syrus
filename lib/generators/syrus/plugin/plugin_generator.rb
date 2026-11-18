@@ -91,7 +91,7 @@ module Syrus
           "PLUGIN_NAME" => file_name,
           "MODULE_NAME" => module_name,
           "DISPLAY_NAME" => display_name,
-          "SYRUS_VERSION" => options[:syrus_version],
+          "SYRUS_VERSION" => options[:syrus_version].delete_prefix("v"),
           "FRONTEND_DECLARATION" => frontend? ? 'bundle: "dist/frontend/plugin.js", css: "dist/frontend/plugin.css", i18n: [ "app/frontend/i18n/locales/*/' + file_name + '.json" ]' : 'bundle: "dist/frontend/plugin.js", i18n: [ "app/frontend/i18n/locales/*/' + file_name + '.json" ]',
           "OPTIONAL_PROVIDERS" => frontend? ? "    provides admin_page: \"#{module_name}::AdminPages\"\n" : "",
           "OPTIONAL_CLI" => options[:cli] ? "    cli_commands [ { path: %w[#{file_name} hello], summary: \"Say hello\", handler: \"#{module_name}::Cli::Hello\" } ]\n" : ""

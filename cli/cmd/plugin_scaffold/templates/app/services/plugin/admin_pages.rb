@@ -1,6 +1,8 @@
+require "syrus/host/admin_page"
+
 module {{MODULE_NAME}}
   class AdminPages
-    include Syrus::Plugin::AdminPage
+    include Syrus::Host::AdminPage
 
     def self.admin_pages
       [ { id: "{{PLUGIN_NAME}}.overview", label: "{{DISPLAY_NAME}}", path: "/admin/{{PLUGIN_NAME}}",

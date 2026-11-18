@@ -4,6 +4,7 @@ require "syrus/host/chat_titles"
   agent_provider callbacks permission_provider repository_content_provider
   cli_command_handler
 ].each { |name| require "syrus/plugin/#{name}" }
+require "syrus/host/admin_page"
 
 module Syrus
   module Host
@@ -11,6 +12,7 @@ module Syrus
       ALIASES = {
         PluginApi: "Syrus::PluginApi",
         AgentProvider: "Syrus::Plugin::AgentProvider",
+        AdminPage: "Syrus::Plugin::AdminPage",
         Callbacks: "Syrus::Plugin::Callbacks",
         PermissionProvider: "Syrus::Plugin::PermissionProvider",
         RepositoryContentProvider: "Syrus::Plugin::RepositoryContentProvider",
@@ -34,6 +36,7 @@ module Syrus
       ALIAS_CONTRACTS = {
         PluginApi: [ "Declares and installs plugin manifests; Definition internals are not promised.", %w[syrus_plugin syrus_plugin_definition register! enabled?] ],
         AgentProvider: [ "Supplies the optional agent-provider class hooks that plugins may override; invocation orchestration and undeclared provider methods are not promised.", %w[mcp_tool_name evidence_reset_at false_positive_evidence? suppress_usage_limit_run? ignore_model_for_positive_evidence? usage_signal_account_id usage_snapshot usage_status usage_observed_at availability_evidence_observed_at usage_windows configured_for_user? credential_attributes available_models] ],
+        AdminPage: [ "Supplies admin navigation and route metadata; host navigation implementation details are not promised.", %w[admin_pages] ],
         Callbacks: [ "Defines plugin lifecycle callbacks; callback scheduling and storage are not promised.", %w[on_boot on_shutdown on_enable on_disable on_tick on_metrics_scrape effect] ],
         PermissionProvider: [ "Declares plugin permission capabilities and scopes; core authorization storage is not promised.", %w[register_authorization_adapter register_resource_scope register_capability register_permission_preset migrate_permission_scope retire_permission_identifier] ],
         RepositoryContentProvider: [ "Supplies the immutable repository-content provider contract; cache and fallback orchestration are not promised.", %w[provider_key display_name role available_for? build resolve tree children read changes refs relation history commits tree_sha divergence] ],
@@ -55,7 +58,6 @@ module Syrus
       }.freeze
 
       DOMAIN_CONTRACTS = {
-        ApplicationRecord: [ "Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.", %w[abstract_class table_name table_name=] ],
         Job: [ "Reads a job's identity, state, title, repository, owner, and workflows through find and visibility-scoped lookups; transitions, persistence, callbacks, and other associations are not promised.", %w[find visible_to accessible_to id state title repository user workflows] ],
         Repository: [ "Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised.", %w[find active accessible_to writable_by id owner name archived_at jobs] ],
         User: [ "Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised.", %w[find id handle display_name admin? repositories jobs] ],
@@ -68,6 +70,10 @@ module Syrus
         ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ]
       }.freeze
 
+      STATIC_CONTRACTS = {
+        ApplicationRecord: [ "Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.", %w[abstract_class table_name table_name=] ]
+      }.freeze
+
       class << self
         def install!
           install_aliases!
@@ -75,6 +81,7 @@ module Syrus
           register_contracts(ALIAS_CONTRACTS, qualify: true)
           register_contracts(DOMAIN_CONTRACTS)
           register_contracts(SERVICE_CONTRACTS)
+          register_contracts(STATIC_CONTRACTS)
         end
 
         private
@@ -87,7 +94,7 @@ module Syrus
         end
 
         def replace_contracts!
-          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys + SERVICE_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
+          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys + SERVICE_CONTRACTS.keys + STATIC_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
           Host.apis.reject! { |api| managed_names.include?(api.name) }
         end
 
