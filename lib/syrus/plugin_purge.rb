@@ -72,7 +72,11 @@ module Syrus
         dropped << table
       end
 
-      removed = contributors.flat_map { |contributor| Array(contributor.purge!(@plugin_name)) }
+      removed = contributors.flat_map do |contributor|
+        Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+          extension_point: :purge_contributor, provider: contributor, operation: :purge, on_decline: []
+        ) { Array(contributor.purge!(@plugin_name)) })
+      end
 
       PluginRecord.where(name: @plugin_name).delete_all
       dropped + removed
@@ -82,9 +86,14 @@ module Syrus
     # cannot answer says so rather than hiding data from the report.
     def other_data
       contributors.flat_map do |contributor|
-        Array(contributor.purge_report(@plugin_name))
-      rescue StandardError => e
-        [ "#{contributor}: could not report (#{e.class}: #{e.message})" ]
+        result = Syrus::PluginInvocation.call(
+          extension_point: :purge_contributor, provider: contributor, operation: :purge_report,
+          on_decline: []
+        ) { Array(contributor.purge_report(@plugin_name)) }
+        if result.is_a?(Syrus::PluginInvocation::Failed)
+          next [ "#{contributor}: could not report (#{result.exception_class}: #{result.message})" ]
+        end
+        Syrus::PluginInvocation.value(result)
       end
     end
 

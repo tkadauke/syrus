@@ -18,17 +18,21 @@ class WorkspaceTabsPayload
   def available?(provider)
     return true unless provider.respond_to?(:available_for?)
 
-    PerformanceLogging.plugin_call(extension_point: :workspace_tab, provider: provider, operation: :available_for?) do
+    Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+      extension_point: :workspace_tab, provider:, operation: :available_for?, on_decline: false
+    ) do
       provider.available_for?(@chat_session)
-    end
+    end)
   end
 
   def tabs_for(provider)
-    PerformanceLogging.plugin_call(extension_point: :workspace_tab, provider: provider, operation: :workspace_tabs) do
+    Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+      extension_point: :workspace_tab, provider:, operation: :workspace_tabs, on_decline: []
+    ) do
       method = provider.method(:workspace_tabs)
       tabs = method.arity.zero? ? provider.workspace_tabs : provider.workspace_tabs(@chat_session)
       Array(tabs).map { |tab| tab_payload(tab) }
-    end
+    end)
   end
 
   def tab_payload(tab)

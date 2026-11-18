@@ -30,7 +30,11 @@ module Permissions
         end
       end
       permission_providers = Syrus::PluginRegistry.providers_for(:permission_provider).flat_map do |provider|
-        provider.permission_capability_descriptors.map do |descriptor|
+        descriptors = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+          extension_point: :permission_provider, provider:, operation: :permission_capability_descriptors,
+          on_decline: []
+        ) { provider.permission_capability_descriptors })
+        descriptors.map do |descriptor|
           Registration.new(
             tool_name: descriptor.operation, surface: :permission_provider,
             source: provider.name.presence || provider.to_s,
@@ -42,7 +46,9 @@ module Permissions
     end
 
     def self.plugin_registrations(provider, extension_point)
-      definitions = Syrus::PluginRegistry.all_tool_definitions(provider)
+      definitions = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point:, provider:, operation: :tool_definitions, on_decline: []
+      ) { Syrus::PluginRegistry.all_tool_definitions(provider) })
       definitions.map do |definition|
         definition = definition.symbolize_keys
         descriptor = CapabilityDescriptorAdapter.for_plugin_definition(definition)

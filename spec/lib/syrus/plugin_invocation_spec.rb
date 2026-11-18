@@ -85,4 +85,14 @@ RSpec.describe Syrus::PluginInvocation do
   it "does not rescue exceptions outside StandardError" do
     expect { invoke { raise Interrupt } }.to raise_error(Interrupt)
   end
+
+  it "keeps successful hot-path invocation overhead below one millisecond per call" do
+    20.times { invoke { nil } }
+
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    1_000.times { invoke { nil } }
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+
+    expect(elapsed / 1_000).to be < 0.001
+  end
 end

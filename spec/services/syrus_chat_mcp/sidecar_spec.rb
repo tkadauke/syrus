@@ -484,6 +484,32 @@ RSpec.describe Mcp::Sidecar do
       expect(response.dig(:result, :content, 0, :text)).to eq("chat pong")
     end
 
+    it "skips a failing tool set, advertises the rest, and records plugin health" do
+      health = Syrus::PluginRuntimeHealth.new
+      Syrus::PluginInvocation.runtime_health = health
+      failing = Class.new do
+        include Syrus::Plugin::ChatMcpToolSet
+        def self.available_for?(_chat_session, tier:) = true
+        def self.tool_definitions(tier:) = []
+      end
+      [ failing, stub_tool_set ].each_with_index do |tool_set, index|
+        Syrus::PluginRegistry.register(
+          name: "chat-plugin-#{index}", version: "0.1.0", provides: { chat_mcp_tool_set: tool_set }
+        )
+      end
+      failing.define_singleton_method(:tool_definitions) { |tier:| raise "discovery exploded" }
+
+      names = described_class.plugin_tools_for(chat_session, tier: :deferred)
+        .map { |tool| McpToolRegistry.tool_name_for(tool) }
+
+      expect(names).to include("chat_plugin_ping")
+      expect(health.failures.last).to have_attributes(
+        extension_point: "chat_mcp_tool_set", operation: "tool_definitions"
+      )
+    ensure
+      Syrus::PluginInvocation.runtime_health = Syrus::PluginRuntimeHealth.new
+    end
+
     it "preserves legacy plugin tools whose MCP-valid names start with a digit" do
       edge_tool_set = Class.new do
         include Syrus::Plugin::ChatMcpToolSet

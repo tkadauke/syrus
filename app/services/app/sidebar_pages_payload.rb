@@ -12,9 +12,11 @@ module App
     private
 
     def pages_for(provider)
-      PerformanceLogging.plugin_call(extension_point: :sidebar_page, provider: provider, operation: :sidebar_pages) do
+      Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :sidebar_page, provider:, operation: :sidebar_pages, on_decline: []
+      ) do
         Array(provider.sidebar_pages).map { |page| page_payload(page) }
-      end
+      end)
     end
 
     def page_payload(page)

@@ -261,23 +261,23 @@ module Admin
     end
 
     def agent_provider_availability(provider)
-      available = provider.respond_to?(:available?) && PerformanceLogging.plugin_call(extension_point: :agent_provider, provider: provider, operation: :available) { provider.available? }
+      invocation = if provider.respond_to?(:available?)
+        Syrus::PluginInvocation.call(
+          extension_point: :agent_provider, provider:, operation: :available, on_decline: false
+        ) { provider.available? }
+      end
+      if invocation.is_a?(Syrus::PluginInvocation::Failed)
+        return { status: "error", label: "Availability check failed", detail: invocation.message }
+      end
+      available = invocation && Syrus::PluginInvocation.value(invocation)
       {
         status: available ? "available" : "unavailable",
         label: available ? "Available" : "Unavailable"
       }
-    rescue StandardError => e
-      {
-        status: "error",
-        label: "Availability check failed",
-        detail: e.message
-      }
     end
 
     def input_source_availability(provider)
-      configured_count = PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :configured_count) do
-        InputSource.where(type: provider.name).count
-      end
+      configured_count = InputSource.where(type: provider.name).count
       {
         status: configured_count.positive? ? "configured" : "not_configured",
         label: configured_count.positive? ? "Configured" : "Not configured",

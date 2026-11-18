@@ -17,11 +17,13 @@ module App
     end
 
     def self.panels_from_provider(provider, slot:, context:, cacheable: nil)
-      PerformanceLogging.plugin_call(extension_point: :ui_slot, provider: provider, operation: :ui_slots) do
+      Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :ui_slot, provider:, operation: :ui_slots, on_decline: []
+      ) do
         Array(provider.ui_slots(slot: slot, context: context))
           .select { |panel| cacheable.nil? || panel.to_h.fetch(:cacheable, true) == cacheable }
           .map { |panel| panel_payload(panel) }
-      end
+      end)
     end
 
     # `props` lets a provider ship the data its panel needs. Without it, core
