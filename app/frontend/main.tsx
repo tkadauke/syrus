@@ -16,10 +16,7 @@ import { StartupRenderMarker } from "./lib/StartupRenderMarker"
 import { createQueryClient } from "./queryClient"
 import "./builtInPluginContributions"
 import { loadExternalPluginFrontends } from "./externalPluginFrontends"
-import {
-  installRecoverableErrorInteractionCapture,
-  reportRecoverableError
-} from "./lib/recoverableErrorDiagnostics"
+import { installRecoverableErrorInteractionCapture, reportRecoverableError } from "./lib/recoverableErrorDiagnostics"
 
 installStaleChunkRecovery()
 configureExcalidrawAssets()

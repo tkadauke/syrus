@@ -45,9 +45,7 @@ export function semanticTarget(element: Element): Interaction["target"] {
   const tag = semantic.tagName.toLowerCase()
   const role = boundedAttribute(semantic.getAttribute("role"))
   const testId = boundedAttribute(semantic.getAttribute("data-testid"))
-  const controlType = semantic instanceof HTMLInputElement || semantic instanceof HTMLButtonElement
-    ? boundedAttribute(semantic.type)
-    : undefined
+  const controlType = semantic instanceof HTMLInputElement || semantic instanceof HTMLButtonElement ? boundedAttribute(semantic.type) : undefined
 
   return {
     tag,
@@ -58,7 +56,8 @@ export function semanticTarget(element: Element): Interaction["target"] {
 }
 
 export function nearbyResourceTimings(now = performance.now()): NonNullable<BrowserErrorPayload["resource_timings"]> {
-  return performance.getEntriesByType("resource")
+  return performance
+    .getEntriesByType("resource")
     .filter((entry): entry is PerformanceResourceTiming => "initiatorType" in entry)
     .filter((entry) => entry.initiatorType === "script" || entry.initiatorType === "link" || /\.(?:js|css)(?:[?#]|$)/i.test(entry.name))
     .filter((entry) => entry.startTime <= now && entry.startTime >= now - RESOURCE_LOOKBACK_MS)
