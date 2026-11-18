@@ -4,6 +4,8 @@ require "shellwords"
 # load driver commands from .gitattributes because doing so would allow a clone
 # to execute arbitrary repository content without an explicit local opt-in.
 class GitMergeDrivers
+  DRIVER_NAME_PATTERN = /\A[a-zA-Z0-9][a-zA-Z0-9_-]*\z/
+
   Result = Data.define(:drivers) do
     def registered?(name) = drivers.key?(name.to_s)
   end
@@ -36,7 +38,15 @@ class GitMergeDrivers
     private
 
     def driver_names(attributes)
-      attributes.each_line.flat_map { |line| line.scan(/(?:^|\s)merge=([^\s#]+)/).flatten }.uniq
+      attributes.each_line
+        .flat_map { |line| line.scan(/(?:^|\s)merge=([^\s#]+)/).flatten }
+        .uniq
+        .select do |name|
+          next true if DRIVER_NAME_PATTERN.match?(name)
+
+          Rails.logger.warn("[GitMergeDrivers] merge=#{name} has an invalid driver name; skipping")
+          false
+        end
     end
 
     def script_candidates(root, name)
