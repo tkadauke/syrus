@@ -3,6 +3,7 @@ require "prism"
 module Admin
   class PluginHostSurfaceInventory
     Reference = Data.define(:constant, :plugin, :path, :line)
+    CollectedReference = Data.define(:name, :namespace, :absolute, :line)
     Result = Data.define(:constant, :tier, :plugins, :count)
 
     SOURCE_GLOBS = %w[app/**/*.rb lib/**/*.rb].freeze
@@ -30,11 +31,11 @@ module Admin
 
       def visit_constant_path_node(node)
         name = constant_name(node)
-        @references << [ name.delete_prefix("::"), node.location.start_line ] if name
+        record_reference(name, node.location.start_line) if name
       end
 
       def visit_constant_read_node(node)
-        @references << [ node.name.to_s, node.location.start_line ]
+        record_reference(node.name.to_s, node.location.start_line)
       end
 
       def visit_constant_write_node(node)
@@ -43,6 +44,15 @@ module Admin
       end
 
       private
+
+      def record_reference(name, line)
+        @references << CollectedReference.new(
+          name: name.delete_prefix("::"),
+          namespace: @namespace.dup,
+          absolute: name.start_with?("::"),
+          line:
+        )
+      end
 
       def record_definition(node)
         name = constant_name(node)
@@ -79,15 +89,15 @@ module Admin
     def references
       @references ||= begin
         core = core_constants
-        plugin_constants = all_plugin_constants
+        plugin_constants = plugin_constants_by_plugin
         plugin_files.flat_map do |plugin, path|
           collector = parse(path)
-          collector.references.filter_map do |name, line|
-            resolved = resolve(name, core)
+          owned_constants = plugin_constants.fetch(plugin).difference(core)
+          collector.references.filter_map do |reference|
+            resolved = resolve(reference, core, owned_constants)
             next unless resolved
-            next if owned_by_plugin?(name, plugin_constants)
 
-            Reference.new(constant: resolved, plugin:, path: relative(path), line:)
+            Reference.new(constant: resolved, plugin:, path: relative(path), line: reference.line)
           end
         end
       end
@@ -116,21 +126,37 @@ module Admin
       end
     end
 
-    def all_plugin_constants
-      @all_plugin_constants ||= plugin_files.each_with_object(Set.new) do |(_plugin, path), constants|
-        constants.merge(parse(path).definitions)
+    def plugin_constants_by_plugin
+      @plugin_constants_by_plugin ||= plugin_files.each_with_object(Hash.new { |hash, plugin| hash[plugin] = Set.new }) do |(plugin, path), constants|
+        constants[plugin].merge(parse(path).definitions)
       end
     end
 
-    def owned_by_plugin?(name, plugin_constants)
-      normalized = name.delete_prefix("::")
-      plugin_constants.any? { |constant| normalized == constant || normalized.start_with?("#{constant}::") }
+    def resolve(reference, core, plugin_constants)
+      candidates(reference).each do |candidate, lexical_prefix_length|
+        plugin_match = longest_constant_prefix(candidate, plugin_constants)
+        resolved = longest_constant_prefix(candidate, core)
+        plugin_match_length = plugin_match&.split("::")&.length.to_i
+        core_match_length = resolved&.split("::")&.length.to_i
+        resolved = nil if core_match_length <= lexical_prefix_length
+        return if plugin_match_length > lexical_prefix_length && plugin_match_length >= core_match_length
+        return resolved if resolved
+      end
+
+      nil
     end
 
-    def resolve(name, core)
-      normalized = name.delete_prefix("::")
-      parts = normalized.split("::")
-      parts.length.downto(1).map { |length| parts.first(length).join("::") }.find { |candidate| core.include?(candidate) }
+    def candidates(reference)
+      return [ [ reference.name, 0 ] ] if reference.absolute
+
+      reference.namespace.length.downto(0).map do |length|
+        [ [ *reference.namespace.first(length), reference.name ].join("::"), length ]
+      end
+    end
+
+    def longest_constant_prefix(name, constants)
+      parts = name.split("::")
+      parts.length.downto(1).map { |length| parts.first(length).join("::") }.find { |candidate| constants.include?(candidate) }
     end
 
     def core_files
