@@ -85,7 +85,6 @@ RSpec.describe "API: /api/v1/app/cli_commands", type: :request do
       expect(response.parsed_body.dig("error", "code")).to eq("invalid_arguments")
     end
   end
-
   it "returns forbidden when the handler rejects the user" do
     register_fixture_plugin
     post "/api/v1/app/cli_commands/execute", params: { plugin: "fixture_cli", path: %w[fixture denied] }, as: :json

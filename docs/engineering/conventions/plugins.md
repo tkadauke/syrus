@@ -4,7 +4,8 @@ Use these rules for plugin lifecycle, registration, boundaries, suggestions, and
 
 The complete extension-point interfaces, examples, frontend integration rules,
 icon pipeline, lifecycle hooks, and boundary tooling live in the
-[plugin-authoring reference](plugins/authoring.md).
+[plugin-authoring reference](plugins/authoring.md). To build a plugin outside
+this repository, start with [Authoring an external plugin](plugins/external.md).
 
 ## Frontend contribution registry
 
@@ -103,7 +104,6 @@ The currently registered contribution kinds are:
   processes use a separately distributed `syrus-<name>` executable discovered
   on `PATH`. This is an independent binary target, not a package imported by
   the core CLI: plugin modules must not appear in `cli/go.mod` or `go.work`.
-
   ```ruby
   cli_commands [
     {
@@ -130,3 +130,14 @@ The currently registered contribution kinds are:
   plugin spec may only name tools from a plugin it declares `depends_on`.
   See the [plugin-authoring reference](plugins/authoring.md) for the audit
   recipe.
+
+## Definition of done for relocatable plugins
+
+`bin/test-plugin-relocation` is the acceptance boundary for claiming that
+plugins are relocatable. It copies a deliberately small, full-surface fixture
+to a temporary `SYRUS_PLUGIN_PATH` outside the repository and proves discovery,
+health and providers, routes, migrations, a prebuilt frontend contribution,
+and server-backed CLI discovery and execution. The same check verifies version
+incompatibility and load-failure isolation, then boots once more with the
+plugin absent from both roots. Keep this acceptance test green whenever a
+plugin surface or its discovery mechanism changes.
