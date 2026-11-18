@@ -10,17 +10,17 @@ module Admin
     end
 
     def findings
-      unlisted_findings + legacy_growth_findings + stale_legacy_findings
+      internal_findings + legacy_growth_findings + stale_legacy_findings
     end
 
     private
 
-    def unlisted_findings
+    def internal_findings
       @inventory.results.filter_map do |result|
-        next unless result.tier == "unlisted"
+        next unless result.tier == "internal"
         next if INTENTIONAL_INTERNAL_REFERENCES.include?(result.constant)
 
-        "#{result.constant} is referenced by #{result.plugins.keys.join(', ')} but is not in the plugin host surface; list it as public with a documented contract, or stop using it"
+        "#{result.constant} is referenced by #{result.plugins.keys.join(', ')} but is internal; add a facade under Syrus::Host with an API contract, or stop using it"
       end
     end
 
@@ -31,7 +31,7 @@ module Admin
       end
       return [] if count == @surface.legacy_baseline
 
-      [ "legacy plugin host surface grew from #{@surface.legacy_baseline} to #{count}; list new APIs as public with a documented contract, or stop using them" ]
+      [ "legacy plugin host surface grew from #{@surface.legacy_baseline} to #{count}; add facades under Syrus::Host with API contracts, or stop using the new references" ]
     end
 
     def stale_legacy_findings
