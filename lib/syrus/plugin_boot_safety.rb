@@ -52,7 +52,12 @@ module Syrus
       update do |state|
         attempts = Array(state["attempts"])
         if attempt_id && (successful_index = attempts.index { |attempt| attempt["id"] == attempt_id })
-          state["attempts"] = attempts.drop(successful_index + 1)
+          state["attempts"] = attempts.each_with_index.filter_map do |attempt, index|
+            next if attempt["id"] == attempt_id
+            next if index < successful_index && !attempt_active?(attempt.fetch("id"))
+
+            attempt
+          end
         elsif attempt_id
           state["attempts"] = attempts
         else
