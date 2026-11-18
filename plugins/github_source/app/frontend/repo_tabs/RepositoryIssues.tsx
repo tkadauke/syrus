@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useT } from "@app/hooks/useT"
+import { useMediaQuery } from "@app/hooks/useMediaQuery"
 import { Checkbox } from "@app/components/Checkbox"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "@app/components/OnboardingEmptyState"
@@ -122,11 +123,14 @@ export function RepositoryIssues({
   ] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [selected, setSelected] = useState<number[]>([])
+  const [mobileSelectionMode, setMobileSelectionMode] = useState(false)
+  const isMobile = useMediaQuery("(max-width: 767px)")
   const allSelected = payload.issues.length > 0 && selected.length === payload.issues.length
   const canBulkClose = payload.issues.some((issue) => issue.state === "open")
 
   useEffect(() => {
     setSelected([])
+    setMobileSelectionMode(false)
   }, [payload.folder, payload.query])
 
   const command = useMutation({
@@ -161,6 +165,7 @@ export function RepositoryIssues({
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "issues"] })
       setNotice(updated.message || null)
       setSelected([])
+      setMobileSelectionMode(false)
     }
   })
   const columns = buildIssueColumns({
@@ -200,9 +205,9 @@ export function RepositoryIssues({
 
   return (
     <>
-      <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
-        <span>
-          {t("repository.trigger_label_prefix")} <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{payload.repository.trigger_label}</code>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-xs text-gray-600 sm:gap-x-5 sm:text-sm dark:text-gray-400">
+        <span className="min-w-0 break-words">
+          {t("repository.trigger_label_prefix")} <code className="break-all rounded bg-gray-100 px-1 dark:bg-gray-800">{payload.repository.trigger_label}</code>
         </span>
         {payload.repository.github_rate_limit ? (
           <span>
@@ -238,7 +243,11 @@ export function RepositoryIssues({
             }}
           />
         }
-        mobileSummaryLabel={folders.find((folder) => folder.active)?.name}
+        mobileSummaryLabel={t("repository.mobile_filter_summary", {
+          folder: folders.find((folder) => folder.active)?.name,
+          count: payload.issue_count,
+          filtered: payload.untouched_preset ? "" : ` · ${t("repository.filters_active")}`
+        })}
         smartFolders={
           <SmartFolderNavigation
             actionLabel={() => ""}
@@ -259,7 +268,7 @@ export function RepositoryIssues({
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t(`repository.folder_${payload.folder}`)}</h2>
             <span className="text-sm text-gray-500 dark:text-gray-400">{t("repository.issue_count", { count: payload.issue_count })}</span>
           </div>
-          {payload.issues.length > 0 ? (
+          {payload.issues.length > 0 && !isMobile ? (
             <DataTableColumnMenu
               columns={columns}
               downLabel={t("repository.column_down")}
@@ -277,7 +286,7 @@ export function RepositoryIssues({
 
         {payload.issues.length > 0 ? (
           <>
-            {selected.length > 0 ? (
+            {!isMobile && selected.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
                 <span>{t("repository.selected_count", { count: selected.length })}</span>
                 {canBulkClose ? (
@@ -301,35 +310,78 @@ export function RepositoryIssues({
               </div>
             ) : null}
 
-            <DataTable.Root wrapperClassName="mt-3">
-              <DataTable.Header>
-                <DataTableColumnHeaderRow
-                  columns={columns}
-                  onReorder={preferences.onChange}
-                  onSort={(column) => navigate(sortLink(location.pathname, location.search, sort, column))}
-                  order={preferences.order}
-                  sortColumn={sort.column}
-                  sortDirection={sortDirection(sort)}
-                />
-              </DataTable.Header>
-              <DataTable.Body>
-                {payload.issues.map((issue) => (
-                  <DataTable.Row key={issue.number}>
-                    <DataTableColumnCells columns={columns} order={preferences.order} row={issue} />
-                  </DataTable.Row>
-                ))}
-              </DataTable.Body>
-            </DataTable.Root>
+            {isMobile ? (
+              <MobileIssueList
+                allSelected={allSelected}
+                commandPending={command.isPending}
+                issues={payload.issues}
+                onClose={(issue) => command.mutate({ kind: "close", issueNumber: issue.number })}
+                onDelegate={(issue) => command.mutate({ kind: "delegate", issueNumber: issue.number })}
+                onExitSelection={() => {
+                  setMobileSelectionMode(false)
+                  setSelected([])
+                }}
+                onToggle={toggleIssue}
+                onToggleAll={toggleAll}
+                selected={selected}
+                selectionMode={mobileSelectionMode}
+                setSelectionMode={setMobileSelectionMode}
+                t={t}
+              />
+            ) : (
+              <DataTable.Root wrapperClassName="mt-3">
+                <DataTable.Header>
+                  <DataTableColumnHeaderRow
+                    columns={columns}
+                    onReorder={preferences.onChange}
+                    onSort={(column) => navigate(sortLink(location.pathname, location.search, sort, column))}
+                    order={preferences.order}
+                    sortColumn={sort.column}
+                    sortDirection={sortDirection(sort)}
+                  />
+                </DataTable.Header>
+                <DataTable.Body>
+                  {payload.issues.map((issue) => (
+                    <DataTable.Row key={issue.number}>
+                      <DataTableColumnCells columns={columns} order={preferences.order} row={issue} />
+                    </DataTable.Row>
+                  ))}
+                </DataTable.Body>
+              </DataTable.Root>
+            )}
+            {isMobile && mobileSelectionMode && selected.length > 0 ? (
+              <div className="sticky bottom-2 z-10 flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-2 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                <span className="mr-auto text-gray-700 dark:text-gray-300">{t("repository.selected_count", { count: selected.length })}</span>
+                {canBulkClose ? (
+                  <Button
+                    disabled={command.isPending}
+                    onClick={() => command.mutate({ kind: "bulk", bulkAction: "close", issueNumbers: selected })}
+                    size="sm"
+                    variant="danger"
+                  >
+                    {t("repository.close_selected")}
+                  </Button>
+                ) : null}
+                <Button
+                  disabled={command.isPending}
+                  onClick={() => command.mutate({ kind: "bulk", bulkAction: "delegate", issueNumbers: selected })}
+                  size="sm"
+                  variant="primary"
+                >
+                  {t("repository.delegate_selected")}
+                </Button>
+              </div>
+            ) : null}
             {totalPages > 1 ? (
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>
+              <div className="flex min-w-0 flex-col gap-2 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between dark:text-gray-400">
+                <span className="min-w-0">
                   {t("repository.pagination_showing", {
                     first: (currentPage - 1) * perPage + 1,
                     last: Math.min(currentPage * perPage, payload.issue_count),
                     total: payload.issue_count
                   })}
                 </span>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 gap-2">
                   {currentPage > 1 ? (
                     <Button onClick={() => navigate(pageLink(location.pathname, location.search, currentPage - 1))} size="sm" variant="secondary">
                       {t("repository.pagination_previous")}
@@ -374,6 +426,129 @@ export function RepositoryIssues({
 function emptyStateActionPath(payload: RepositoryIssuesPayload) {
   if (!payload.untouched_preset) return payload.folder_paths.all
   return payload.folder === "open" ? payload.paths.github_issues_path : payload.folder_paths.open
+}
+
+function MobileIssueList({
+  allSelected,
+  commandPending,
+  issues,
+  onClose,
+  onDelegate,
+  onExitSelection,
+  onToggle,
+  onToggleAll,
+  selected,
+  selectionMode,
+  setSelectionMode,
+  t
+}: {
+  allSelected: boolean
+  commandPending: boolean
+  issues: RepositoryIssue[]
+  onClose: (issue: RepositoryIssue) => void
+  onDelegate: (issue: RepositoryIssue) => void
+  onExitSelection: () => void
+  onToggle: (number: number) => void
+  onToggleAll: () => void
+  selected: number[]
+  selectionMode: boolean
+  setSelectionMode: (active: boolean) => void
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
+  return (
+    <div className="mt-3 min-w-0 space-y-2" data-testid="mobile-issue-list">
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        {selectionMode ? (
+          <>
+            <label className="mr-auto flex min-w-0 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <Checkbox aria-label={t("repository.select_all")} checked={allSelected} onChange={onToggleAll} />
+              <span className="truncate">{t("repository.select_all")}</span>
+            </label>
+            <Button onClick={onExitSelection} size="sm" variant="secondary">
+              {t("repository.done_selecting")}
+            </Button>
+          </>
+        ) : (
+          <Button onClick={() => setSelectionMode(true)} size="sm" variant="secondary">
+            {t("repository.select_issues")}
+          </Button>
+        )}
+      </div>
+      <ul className="min-w-0 divide-y divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-900">
+        {issues.map((issue) => (
+          <li className="min-w-0 p-3" key={issue.number}>
+            <article className="flex min-w-0 gap-3">
+              {selectionMode ? (
+                <Checkbox
+                  aria-label={t("repository.select_issue", { number: issue.number })}
+                  checked={selected.includes(issue.number)}
+                  onChange={() => onToggle(issue.number)}
+                />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <a
+                    className="shrink-0 font-mono text-xs text-gray-500 hover:underline dark:text-gray-400"
+                    href={issue.html_url}
+                    rel="noopener"
+                    target="_blank"
+                  >
+                    #{issue.number}
+                  </a>
+                  {issue.labels.map((label) => (
+                    <IssueLabel color={label.color} key={label.name} name={label.name} />
+                  ))}
+                </div>
+                <a
+                  className="mt-1 line-clamp-2 block break-words font-medium text-gray-900 hover:underline dark:text-gray-100"
+                  href={issue.html_url}
+                  rel="noopener"
+                  target="_blank"
+                >
+                  {issue.title}
+                </a>
+                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="min-w-0 break-words">
+                    {issue.user_login ? `${issue.user_login} · ` : ""}
+                    {issue.created_at ? <RelativeTimestamp value={issue.created_at} /> : ""}
+                  </span>
+                  {issue.linked_pull_request ? (
+                    <a
+                      className="font-medium text-brand hover:underline dark:text-brand-emphasis"
+                      href={issue.linked_pull_request.url}
+                      rel="noopener"
+                      target="_blank"
+                    >
+                      {t("repository.linked_pull_request", { number: issue.linked_pull_request.number })}
+                    </a>
+                  ) : null}
+                </div>
+                {issue.body_excerpt ? <p className="mt-2 line-clamp-2 break-words text-xs text-gray-500 dark:text-gray-400">{issue.body_excerpt}</p> : null}
+                <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+                  <TonePill tone={issue.delegated ? "green" : "gray"}>{issue.delegated ? t("repository.delegated") : t("repository.not_delegated")}</TonePill>
+                  <TonePill tone={issue.state === "open" ? "green" : "gray"}>{issue.state}</TonePill>
+                  {!selectionMode ? (
+                    <div className="ml-auto flex flex-wrap justify-end gap-1.5">
+                      {issue.state === "open" ? (
+                        <Button disabled={commandPending} onClick={() => onClose(issue)} size="sm" variant="secondary">
+                          {t("repository.close")}
+                        </Button>
+                      ) : null}
+                      {!issue.delegated ? (
+                        <Button disabled={commandPending} onClick={() => onDelegate(issue)} size="sm" variant="primary">
+                          {t("repository.delegate")}
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 function buildIssueColumns({
@@ -528,7 +703,7 @@ function IssueLabel({ color, name }: { color: string; name: string }) {
   const safeColor = color.match(/^[0-9a-fA-F]{6}$/) ? color : "6b7280"
   return (
     <span
-      className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium"
+      className="inline-flex max-w-full items-center break-all rounded px-1.5 py-0.5 text-xs font-medium"
       style={{
         backgroundColor: `#${safeColor}22`,
         border: `1px solid #${safeColor}44`,
@@ -567,7 +742,7 @@ export default function RepositoryIssuesTab() {
       activeTab="github_source.issues"
       heading={
         payload ? (
-          <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+          <h1 className="min-w-0 break-all font-mono text-xl font-semibold text-gray-900 sm:text-3xl dark:text-gray-100">
             <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">
               {payload.repository.slug}
             </a>
