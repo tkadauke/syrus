@@ -313,6 +313,37 @@ RSpec.describe Step do
       ))
     end
 
+    it "attributes and logs a blocked-source cascade as blocked" do
+      messages = []
+      allow(Rails.logger).to receive(:info).and_wrap_original do |method, message|
+        messages << message
+        method.call(message)
+      end
+
+      step_a.block!
+      step_a.save!
+
+      expect(step_b.reload.cancellation_reason).to eq("upstream_step_blocked")
+      expect(step_b.details).to include(
+        "cancelled_reason" => "upstream_step_blocked",
+        "cancelled_source_step_id" => step_a.id,
+        "cancelled_source_step_kind" => "implement"
+      )
+      cascades = messages.filter_map do |message|
+        next unless message.is_a?(String)
+
+        JSON.parse(message)
+      rescue JSON::ParserError
+        nil
+      end.select { |payload| payload["event"] == "step_cancellation_cascade" }
+      expect(cascades).to contain_exactly(include(
+        "source_step_id" => step_a.id,
+        "reason" => "upstream_step_blocked",
+        "cancelled_step_count" => 2,
+        "code_path" => "Steps::LifecyclePropagation#blocked!"
+      ))
+    end
+
     it "keeps suppression through an enclosing transaction's commit callbacks" do
       described_class.transaction do
         described_class.suppress_cancel_cascade do
