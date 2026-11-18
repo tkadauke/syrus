@@ -406,7 +406,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_164147) do
     t.json "metadata", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "error_cause", null: false
+    t.json "last_interaction", null: false
+    t.json "resource_timings", null: false
+    t.string "component_stack_unavailable_reason"
+    t.string "correlation_id"
+    t.integer "occurrence_count", default: 1, null: false
+    t.integer "burst_duration_ms", default: 0, null: false
+    t.datetime "last_occurred_at", null: false
+    t.boolean "recoverable", default: false, null: false
     t.index ["app_revision", "occurred_at"], name: "index_browser_error_events_on_revision_time"
+    t.index ["correlation_id"], name: "index_browser_error_events_on_correlation_id"
     t.index ["fingerprint", "occurred_at"], name: "index_browser_error_events_on_fingerprint_time"
     t.index ["occurred_at", "id"], name: "index_browser_error_events_on_occurred_id"
     t.index ["path", "occurred_at"], name: "index_browser_error_events_on_path_time"

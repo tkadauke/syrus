@@ -13,11 +13,29 @@ export type BrowserErrorPayload = {
   message: string
   stack?: string
   component_stack?: string
+  component_stack_unavailable_reason?: string
+  error_cause?: { name: string; message: string; stack?: string }
   url: string
   path: string
   route_id?: string
   route_params?: Record<string, unknown>
   trace_id?: string
+  correlation_id?: string
+  recoverable?: boolean
+  last_interaction?: {
+    event_type: string
+    timestamp: string
+    pathname: string
+    target?: { tag: string; role?: string; test_id?: string; control_type?: string }
+  }
+  resource_timings?: Array<{
+    name: string
+    initiator_type: string
+    start_time_ms: number
+    duration_ms: number
+    transfer_size: number
+    encoded_body_size: number
+  }>
   user_agent: string
   viewport: Record<string, unknown>
   feature_flags: Record<string, boolean>
@@ -29,13 +47,24 @@ export type BrowserErrorPayload = {
 export type BrowserErrorResponse = {
   id: number
   fingerprint: string
+  occurrence_count: number
 }
 
 export function recordBrowserError(payload: BrowserErrorPayload) {
   return postJson<BrowserErrorResponse>("/api/v1/app/browser_errors", { browser_error: payload })
 }
 
-export function buildBrowserErrorPayload(error: Error, options: { componentStack?: string; fingerprint: string; boundary: string }): BrowserErrorPayload {
+export function buildBrowserErrorPayload(error: Error, options: {
+  componentStack?: string
+  componentStackUnavailableReason?: string
+  correlationId?: string
+  errorCause?: BrowserErrorPayload["error_cause"]
+  fingerprint: string
+  boundary: string
+  lastInteraction?: BrowserErrorPayload["last_interaction"]
+  recoverable?: boolean
+  resourceTimings?: BrowserErrorPayload["resource_timings"]
+}): BrowserErrorPayload {
   const bootstrap = readInitialBootstrap()
   const route = browserErrorRouteContext(window.location.pathname)
   const safeLocation = browserErrorSafeLocation(window.location)
@@ -47,10 +76,16 @@ export function buildBrowserErrorPayload(error: Error, options: { componentStack
     message: error.message || "Unknown browser error",
     stack: error.stack,
     component_stack: options.componentStack,
+    component_stack_unavailable_reason: options.componentStackUnavailableReason,
+    error_cause: options.errorCause,
     url: safeLocation.url,
     path: safeLocation.path,
     route_id: route.route_id,
     route_params: route.route_params,
+    correlation_id: options.correlationId,
+    recoverable: options.recoverable,
+    last_interaction: options.lastInteraction,
+    resource_timings: options.resourceTimings,
     user_agent: navigator.userAgent,
     viewport: {
       width: window.innerWidth,

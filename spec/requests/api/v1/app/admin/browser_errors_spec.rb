@@ -25,6 +25,12 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
         "name" => "TypeError",
         "message" => "undefined is not an object (evaluating 'n.map')",
         "path" => "/jobs/3188",
+        "recoverable" => true,
+        "correlation_id" => "correlation-123",
+        "component_stack_unavailable_reason" => "React did not supply a component stack",
+        "error_cause" => { "name" => "ChunkError" },
+        "last_interaction" => { "event_type" => "click", "target" => { "tag" => "button" } },
+        "resource_timings" => [ { "name" => "/assets/lazy.js", "duration_ms" => 450 } ],
         "recent_api_requests" => [ { "path" => "/api/v1/app/jobs/3188", "status" => 200 } ]
       }
     )
@@ -48,7 +54,10 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
     expect(body.dig("events", 0)).to include(
       "fingerprint" => "map-fingerprint",
       "message" => "undefined is not an object (evaluating 'n.map')",
-      "path" => "/jobs/3188"
+      "path" => "/jobs/3188",
+      "correlation_id" => "correlation-123",
+      "occurrence_count" => 1,
+      "burst_duration_ms" => 0
     )
     expect(body.fetch("actions")).to include(
       include("id" => "file_job", "label" => "File Job", "event_type" => "browser_error")
@@ -59,7 +68,15 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
 
     get "/api/v1/app/admin/browser_errors/#{body.dig("events", 0, "id")}"
 
-    expect(response.parsed_body.fetch("recent_api_requests").first).to include("path" => "/api/v1/app/jobs/3188")
+    detail = response.parsed_body
+    expect(detail.fetch("recent_api_requests").first).to include("path" => "/api/v1/app/jobs/3188")
+    expect(detail).to include(
+      "recoverable" => true,
+      "component_stack_unavailable_reason" => "React did not supply a component stack",
+      "error_cause" => { "name" => "ChunkError" },
+      "last_interaction" => include("event_type" => "click"),
+      "resource_timings" => [ include("name" => "/assets/lazy.js") ]
+    )
   end
 
   it "serves stable controls separately from paginated rows" do
