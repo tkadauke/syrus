@@ -124,13 +124,36 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
     format.update!(next_step: grader)
     grader.update!(next_step: pr_open)
 
-    created = described_class.refresh_required_reviews!(workflow, repair)
+    StepDispatcher.advance_from(repair)
+    created = workflow.steps.select { |step| step.details.to_h["review_barrier_rematerialized"] }
 
     expect(stale.reload).to be_cancelled
     expect(created.map(&:kind)).to include("security_review")
     expect(created.detect { |step| step.kind == "security_review" }.details)
       .to include("reviewed_head_sha" => "head-c")
     expect([ sibling, collect_step, format, grader, pr_open ].map { |step| step.reload.state }).to all(eq("queued"))
+
+    replacement = created.detect { |step| step.kind == "security_review" }
+    expect(replacement.runs.active).to exist
+
+    replacement.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    sibling.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    collect_step.update_columns(
+      state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current,
+      details: collect_step.details.to_h.merge("reviewed_head_sha" => "head-c")
+    )
+    workflow.set_artifact!("security_review_iterations", [
+      { "reviewed_head_sha" => "head-c", "verdict" => "approved" }
+    ])
+    workflow.set_artifact!("adversarial_review_iterations", [
+      { "aggregate" => true, "reviewed_head_sha" => "head-c", "verdict" => "approved" }
+    ])
+
+    expect(StepDispatcher.create_run_and_enqueue(format.reload, workflow)).to be_present
+    format.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    expect(StepDispatcher.create_run_and_enqueue(grader.reload, workflow)).to be_present
+    grader.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    expect(StepDispatcher.create_run_and_enqueue(pr_open.reload, workflow)).to be_present
   end
 
   # Regression: a required review gate still waiting to run had been stamped

@@ -163,6 +163,15 @@ class Step < ApplicationRecord
   # cascade suppressed. New benign no-op paths should use :skipped instead;
   # this suppression remains for real cancellation propagation that must not
   # fan out further.
+  #
+  # Audited callers: Workflow terminal cleanup and the immutable-review
+  # barrier cancel Steps and therefore depend on suppression surviving until
+  # commit. LifecyclePropagation uses it while cancelling an entire tail so
+  # each descendant does not start a second cascade. StepDispatcher's
+  # post-loop cancellation has the same requirement. Steps::Base, RunJob,
+  # MergeTrainRebase, MergeTrainReconcile, and MergeabilityPreflight now only
+  # skip descendants; their blocks are harmless but retained to make the
+  # orchestration boundary explicit.
   def self.suppress_cancel_cascade
     prior = Thread.current[:syrus_step_suppress_cancel_cascade]
     Thread.current[:syrus_step_suppress_cancel_cascade] = true
