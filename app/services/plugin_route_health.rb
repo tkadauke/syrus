@@ -10,10 +10,14 @@ class PluginRouteHealth
 
     def record_error(plugin_name, error)
       timestamp = Time.current
-      PluginRecord
-        .where(name: plugin_name)
-        .where("last_error_at IS NULL OR last_error_at < ?", timestamp - ERROR_WRITE_INTERVAL)
-        .update_all(last_error_at: timestamp)
+      begin
+        PluginRecord
+          .where(name: plugin_name)
+          .where("last_error_at IS NULL OR last_error_at < ?", timestamp - ERROR_WRITE_INTERVAL)
+          .update_all(last_error_at: timestamp)
+      rescue ActiveRecord::ActiveRecordError => recording_error
+        log_recording_failure(plugin_name, recording_error)
+      end
 
       Syrus::PluginInvocation.runtime_health.record_failure(
         plugin: plugin_name,
@@ -25,8 +29,6 @@ class PluginRouteHealth
         cooldown: Syrus::PluginInvocation::DEFAULT_COOLDOWN,
         circuit: false
       )
-    rescue ActiveRecord::ActiveRecordError => recording_error
-      log_recording_failure(plugin_name, recording_error)
     end
 
     private

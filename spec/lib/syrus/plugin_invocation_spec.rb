@@ -95,6 +95,24 @@ RSpec.describe Syrus::PluginInvocation do
     )
   end
 
+  it "bounds distinct retained failures per plugin while preserving other plugins" do
+    bounded_health = Syrus::PluginRuntimeHealth.new(clock: -> { clock.now }, max_failures_per_plugin: 2)
+    3.times do |index|
+      bounded_health.record_failure(
+        plugin: "bounded", extension_point: :route, operation: :dispatch,
+        exception: RuntimeError.new("failure #{index}"), threshold: 5, window: 60, cooldown: 30
+      )
+      clock.now += 1
+    end
+    bounded_health.record_failure(
+      plugin: "sibling", extension_point: :route, operation: :dispatch,
+      exception: RuntimeError.new("sibling failure"), threshold: 5, window: 60, cooldown: 30
+    )
+
+    expect(bounded_health.failures(plugin: "bounded").map(&:message)).to contain_exactly("failure 1", "failure 2")
+    expect(bounded_health.failures(plugin: "sibling").map(&:message)).to eq([ "sibling failure" ])
+  end
+
   it "keeps successful hot-path invocation overhead below ten milliseconds per call" do
     20.times { invoke { nil } }
 

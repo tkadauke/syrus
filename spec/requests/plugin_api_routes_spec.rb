@@ -5,7 +5,7 @@ module Api
     module App
       class PluginApiRouteFixtureRaisingController < BaseController
         def show
-          raise "fixture route failed"
+          raise(params[:failure].presence || "fixture route failed")
         end
       end
 
@@ -115,7 +115,10 @@ RSpec.describe "Plugin API routes", type: :request do
     get "/api/v1/app/raising-route-fixture"
 
     expect(response.body).to include('window.location = "/500.html"')
-    expect(PluginRecord.find_by!(name: "raising_route_fixture").last_error_at).to be_nil
+    expect(PluginRecord.find_by!(name: "raising_route_fixture")).to have_attributes(
+      request_count: 1,
+      last_error_at: nil
+    )
     expect(Syrus::PluginInvocation.runtime_health.failures(plugin: "raising_route_fixture")).to be_empty
   end
 
@@ -158,6 +161,22 @@ RSpec.describe "Plugin API routes", type: :request do
       expect(record).to have_attributes(request_count: 2, last_error_at: first_error_at)
       expect(Syrus::PluginInvocation.runtime_health.failures(plugin: record.name).sole.count).to eq(2)
     end
+  end
+
+  it "bounds distinct route failures in runtime health and the admin payload" do
+    allow(Rails.env).to receive(:production?).and_return(true)
+    bounded_health = Syrus::PluginRuntimeHealth.new(max_failures_per_plugin: 2)
+    Syrus::PluginInvocation.runtime_health = bounded_health
+
+    3.times { |index| get "/api/v1/app/raising-route-fixture", params: { failure: "failure #{index}" } }
+
+    failures = bounded_health.failures(plugin: "raising_route_fixture")
+    expect(failures.map(&:message)).to contain_exactly("failure 1", "failure 2")
+
+    payload_failures = Admin::PluginsPayload.new
+      .show("raising_route_fixture")
+      .dig(:plugin, :health, :failures)
+    expect(payload_failures.map { |failure| failure.fetch(:message) }).to contain_exactly("failure 1", "failure 2")
   end
 
   it "leaves a healthy sibling plugin available after a route failure" do
