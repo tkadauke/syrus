@@ -231,11 +231,20 @@ module Admin
         Array(providers).map do |provider|
           {
             extension_point: extension_point.to_s,
-            class_name: provider.name || provider.to_s,
+            class_name: extension_provider_name(provider),
             availability: availability_for(extension_point, provider)
           }
         end
       end
+    end
+
+    def extension_provider_name(provider)
+      provider.try(:name).presence ||
+        provider.try(:to_h)&.with_indifferent_access&.dig(:provider).presence ||
+        provider.class.name.presence ||
+        "Unknown provider"
+    rescue StandardError
+      provider.class.name.presence || "Unknown provider"
     end
 
     def availability_for(extension_point, provider)

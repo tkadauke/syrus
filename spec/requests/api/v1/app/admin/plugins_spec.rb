@@ -344,6 +344,31 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(extension.fetch("availability")).to include("status" => "unavailable", "label" => "Unavailable")
   end
 
+  it "serializes structured capability-family providers" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "structured-provider",
+      version: "0.1.0",
+      provides: {
+        "example:provider" => [
+          { provider: "Example::Provider", key: "example", capabilities: %w[read write] }
+        ]
+      }
+    )
+
+    get "/api/v1/app/admin/plugins/structured-provider"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("plugin", "extension_points")).to contain_exactly(
+      {
+        "extension_point" => "example:provider",
+        "class_name" => "Example::Provider",
+        "availability" => { "status" => "registered", "label" => "Registered" }
+      }
+    )
+  end
+
   it "enables and disables an installed disableable plugin live" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
