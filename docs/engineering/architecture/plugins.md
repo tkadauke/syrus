@@ -29,8 +29,9 @@ plugin docs remain under `plugins/<name>/docs/`.
 Public plugin APIs are facades under `Syrus::Host` and declare their contract
 in code with `Syrus::Host.api API_NAME, since:, summary:, members:`. The
 `Syrus::Host.apis` registry is the source for tooling. The established
-`Syrus::PluginApi` and `Syrus::Plugin::*` extension-point interfaces are
-declared in the same registry for compatibility.
+`Syrus::PluginApi` and `Syrus::Plugin::*` names remain legacy until bundled
+plugins migrate; selected stable contracts are exposed separately through
+declared `Syrus::Host::*` aliases.
 
 `config/plugin_host_surface.yml` contains only legacy core constants referenced
 by built-in plugins. They are tolerated only while those dependencies are
