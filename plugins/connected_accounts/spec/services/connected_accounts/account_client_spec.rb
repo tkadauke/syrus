@@ -154,6 +154,17 @@ RSpec.describe ConnectedAccounts::AccountClient do
     credential.update!(payload: { refresh_token: refresh_token, expires_at: 5.minutes.from_now.iso8601 }.to_json)
     expect { with_access { :unused } }
       .to raise_error(described_class::Denied, "OAuth access token is unavailable")
+
+    credential.update!(payload: {
+      access_token: access_token,
+      refresh_token: refresh_token,
+      expires_at: 5.minutes.from_now.iso8601
+    }.to_json)
+    expect {
+      with_access { raise CredentialStore::Broker::InvalidPayload, access_token }
+    }.to raise_error(CredentialStore::Broker::ExecutionError) { |error|
+      expect(error.message).not_to include(access_token)
+    }
   end
 
   it "atomically refreshes an expired token before yielding access" do

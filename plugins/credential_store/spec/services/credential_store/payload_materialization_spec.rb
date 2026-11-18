@@ -34,7 +34,7 @@ RSpec.describe CredentialStore::Broker, ".with_credential_payload" do
     expect(release.completion_of_event).to eq(lease)
   end
 
-  it "preserves broker errors raised while validating a payload" do
+  it "redacts consumer-raised invalid payload errors" do
     expect {
       described_class.with_credential_payload(
         context: context,
@@ -42,8 +42,12 @@ RSpec.describe CredentialStore::Broker, ".with_credential_payload" do
         type: "connected_accounts.oauth",
         purpose: "broker",
         tool_name: "connected_accounts.broker"
-      ) { raise described_class::InvalidPayload, "invalid payload" }
-    }.to raise_error(described_class::InvalidPayload, "invalid payload")
+      ) { raise described_class::InvalidPayload, credential.payload }
+    }.to raise_error(described_class::ExecutionError) { |error|
+      expect(error.cause).to be_a(described_class::InvalidPayload)
+      expect(error.message).to include("[credential redacted]")
+      expect(error.message).not_to include(credential.payload)
+    }
   end
 
   it "redacts consumer-raised broker errors instead of trusting their messages" do
