@@ -7,7 +7,10 @@ sandbox: install only code you trust with the same data and credentials as the
 Syrus process.
 
 For every extension-point interface and lifecycle hook, see the full
-[plugin-authoring reference](authoring.md). The tested
+[plugin-authoring reference](authoring.md). The generated
+[host API reference](host-api.md) lists the supported core surface, while the
+[single-file plugin specification](plugin-spec.md) is the compact, complete
+contract intended for an LLM context. The tested
 [`relocatable_plugin`](../../../../spec/fixtures/relocatable_plugin/)
 fixture is the smallest end-to-end example. `bin/test-plugin-relocation`
 copies it outside the checkout and proves its provider, route, migration,
@@ -40,7 +43,7 @@ entry filename at `lib/<gem-name>.rb`; that file must declare exactly one
 `syrus_plugin` definition. Plugin table names must use the plugin namespace.
 Locale files, when present, use
 `app/frontend/i18n/locales/<language>/<namespace>.json`; English is required,
-with German and Latin supplied for user-visible bundled UI where applicable.
+and user-visible bundled UI must supply matching German and Latin translations.
 
 External gemspecs may depend only on `rails`. Syrus does not install arbitrary
 third-party gems for a dropped-in plugin. Bundle any browser dependencies into
