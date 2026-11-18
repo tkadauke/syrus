@@ -3,6 +3,14 @@ require "rails_helper"
 RSpec.describe Coworkers::MentionSession do
   include ActiveJob::TestHelper
 
+  around do |example|
+    scope = Syrus::EffectScope.new(label: "mention session spec")
+    Coworkers::ChatExtension.install_into(scope)
+    example.run
+  ensure
+    scope&.dispose
+  end
+
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:source_chat) { ChatSession.create!(user: owner, repository: repository, title: "Planning") }
