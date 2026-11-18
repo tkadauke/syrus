@@ -152,8 +152,8 @@ class RunFailureClassifier
       result("merge_train_rebuild_required", 0.90, false, "The merge-train integration branch must be rebuilt before this workflow can continue.")
     when empty_commit?
       result("empty_commit", 0.85, false, "A git commit or amend was rejected because it would be empty (not a corrupt workspace).")
-    when push_remote_transient?
-      result("push_remote_transient", 0.85, true, "GitHub's git backend transiently refused the push (a server-side 5xx), not a real non-fast-forward or force-with-lease conflict.")
+    when git_transport_transient?
+      result("git_transport_transient", 0.90, true, "The Git remote was temporarily unreachable or interrupted; retry the operation through the bounded workflow retry path.")
     when git_state_corrupt?
       result("git_state_corrupt", 0.85, false, "The workspace git state was corrupt or unsafe.")
     when max_turns?
@@ -506,17 +506,18 @@ class RunFailureClassifier
     text_match?(/would make it empty|nothing to commit|no changes added to commit/i)
   end
 
-  # A git push that GitHub's own server refused for its own transient reason
-  # -- "! [remote rejected] ... (Internal Server Error)" and its 5xx-shaped
-  # siblings -- rather than a real non-fast-forward/force-with-lease
-  # conflict (Steps::Base#push_rejected? already tells those apart and reacts
-  # to them directly at the raise site) or corrupt local git state. Must be
-  # checked before git_state_corrupt?, which matches every GitRunner::GitError
-  # by class alone and would otherwise mark this non-retryable, discarding
-  # completed work over a transient outage instead of retrying it.
-  def push_remote_transient?
-    diagnostic&.error_class.to_s.match?(/GitRunner::GitError/) &&
-      text_match?(/\[remote rejected\].*\((?:internal server error|service unavailable|bad gateway|gateway timeout|50\d)\)/i)
+  # Remote transport failures can happen during any operation that contacts
+  # the server, including prepare's ls-remote, clone and fetch. This must be
+  # checked before git_state_corrupt?, which matches GitRunner::GitError by
+  # class alone. Explicitly exclude permanent remote and semantic failures so
+  # coincidental transport wording cannot spend the bounded retry budget.
+  def git_transport_transient?
+    return false unless diagnostic&.error_class.to_s.match?(/GitRunner::GitError/)
+    return false if text_match?(/authentication failed|could not read username|permission denied|access denied|repository not found|not found|couldn't find remote ref|remote ref does not exist|invalid refspec|non-fast-forward|fetch first|stale info|merge conflict|unmerged files|not a git repository|bad revision|unrelated histories/i)
+
+    text_match?(
+      /failed to connect|could not connect to server|connection (?:refused|reset|timed out)|network is unreachable|no route to host|could not resolve host|temporary failure in name resolution|name or service not known|unexpected disconnect|remote end hung up unexpectedly|(?:network|connect|connection|read|operation) timed? out|TLS connection was non-properly terminated|SSL_ERROR_SYSCALL|gnutls_handshake.*(?:error|failed)|HTTP (?:500|502|503|504)|The requested URL returned error: 5\d\d|\[remote rejected\].*\((?:internal server error|service unavailable|bad gateway|gateway timeout|50\d)\)/i
+    )
   end
 
   def git_state_corrupt?

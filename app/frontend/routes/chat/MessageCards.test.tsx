@@ -23,7 +23,7 @@ import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetch
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 import { registerPluginContribution } from "../../pluginContributionRegistry"
 import { pluginToolCardRendererFor } from "../../pluginToolCards"
-import i18n from "../../i18n"
+import i18n, { pluginNamespacesFor } from "../../i18n"
 
 class TestPointerEvent extends MouseEvent {
   pointerType: string
@@ -172,6 +172,54 @@ function renderChatMessageItem(
     </QueryClientProvider>
   )
 }
+
+function dropPluginLocales(plugin: string) {
+  const removed: Array<[string, string, unknown]> = []
+  const backendState = (i18n.services.backendConnector as unknown as { state: Record<string, number> }).state
+  for (const namespace of pluginNamespacesFor(plugin)) {
+    for (const language of Object.keys(i18n.store.data)) {
+      const bundle = i18n.getResourceBundle(language, namespace)
+      if (!bundle) continue
+      removed.push([language, namespace, bundle])
+      i18n.removeResourceBundle(language, namespace)
+      delete backendState[`${language}|${namespace}`]
+    }
+  }
+  return () => removed.forEach(([language, namespace, bundle]) => i18n.addResourceBundle(language, namespace, bundle, true, true))
+}
+
+it("renders a plugin tool card without suspending while its translations load", async () => {
+  const restoreLocales = dropPluginLocales("coworkers")
+  const item: ChatToolGroupItem = {
+    type: "tool_group",
+    tool: "list_coworkers",
+    calls: [
+      {
+        message_id: 900,
+        tool_name: "list_coworkers",
+        raw_name: "mcp__coworkers__list_coworkers",
+        detail: "Listing coworkers",
+        display_label: "List coworkers",
+        progress_label: "Running",
+        raw_payload: {},
+        result_body: JSON.stringify({ coworkers: [] }),
+        result_json: { coworkers: [] },
+        result_error: false,
+        result_kind: "record",
+        result_summary: ""
+      }
+    ]
+  }
+
+  try {
+    // No Suspense boundary: the synchronous render must not throw React #426.
+    const { container } = render(<ToolGroup item={item} />)
+    expect(container).toBeEmptyDOMElement()
+    await waitFor(() => expect(container).not.toBeEmptyDOMElement())
+  } finally {
+    restoreLocales()
+  }
+})
 
 it("updates a mounted tool group when a tool card registers late", async () => {
   const item: ChatToolGroupItem = {

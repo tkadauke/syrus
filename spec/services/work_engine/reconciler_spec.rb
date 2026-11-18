@@ -7256,6 +7256,45 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include(match(/scheduled failed_step auto-retry/))
   end
 
+  it "schedules one delayed bounded retry for a transient prepare Git transport failure" do
+    now = Time.zone.parse("2026-11-17 12:00:00 UTC")
+    travel_to(now) do
+      step.update_columns(kind: "prepare", state: "failed", finished_at: now)
+      workflow.update_columns(state: "failed", finished_at: now, cleaned_up_at: nil)
+      run.update_columns(state: "failed", finished_at: now)
+      unit = attach_work_unit(workflow, state: "failed")
+      RunDiagnostic.create!(
+        run: run,
+        error_class: "GitRunner::GitError",
+        error_message: "git ls-remote --heads https://github.com/owner/repo.git refs/heads/topic exited 128\n" \
+          "fatal: Failed to connect to github.com port 443: Could not connect to server"
+      )
+
+      expect {
+        reconcile_and_execute(run_id: run.id)
+      }.to change { AutoRetryAttempt.where(run: run, failure_classification: "git_transport_transient").count }.by(1)
+        .and have_enqueued_job(AutoRetryJob).exactly(:once)
+
+      attempt = AutoRetryAttempt.find_by!(run: run, failure_classification: "git_transport_transient")
+      expect(attempt).to have_attributes(
+        retry_kind: "failed_step",
+        attempt_number: 1,
+        scheduled_at: now + AutoRetryAttempt::BACKOFFS.first,
+        performed_at: nil,
+        skipped_reason: nil
+      )
+      expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "auto_retry_backoff")
+      expect(run.reload.run_failure_classification).to have_attributes(
+        classification: "git_transport_transient",
+        retryable: true
+      )
+
+      expect {
+        reconcile_and_execute(run_id: run.id)
+      }.not_to change { AutoRetryAttempt.where(run: run, failure_classification: "git_transport_transient").count }
+    end
+  end
+
   it "opens a repeated-failure circuit instead of rebuilding a merge train after identical diagnostics recur" do
     now = Time.zone.parse("2026-09-21 12:18:00 UTC")
     train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
