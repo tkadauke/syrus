@@ -2,7 +2,7 @@ module Api
   module V1
     module Admin
       # POST /api/v1/admin/restart
-      # Body: { component: "web" | "worker" | "all", force: true }
+      # Body: { component: "web" | "worker" | "preview" | "all", force: true }
       #
       # Writes a Rails.cache poison-pill timestamp that every web/worker
       # process independently polls for (see RestartWatcher). Restarting

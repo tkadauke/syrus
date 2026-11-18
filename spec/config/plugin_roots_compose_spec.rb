@@ -20,4 +20,14 @@ RSpec.describe "external plugin Compose volume" do
     expect(installer.fetch("command")).to eq([ "/bin/true" ])
     expect(installer.fetch("volumes")).to eq([ "syrus-plugins:/home/rails/.syrus-plugins" ])
   end
+
+  it "keeps setup on the image entrypoint so sync precedes migrations" do
+    setup = compose.fetch("services").fetch("setup")
+
+    expect(setup).not_to have_key("entrypoint")
+    expect(setup.fetch("command").first(2)).to eq([ "/bin/bash", "-euc" ])
+    %w[web worker preview].each do |service_name|
+      expect(compose.fetch("services").fetch(service_name)).not_to have_key("entrypoint")
+    end
+  end
 end

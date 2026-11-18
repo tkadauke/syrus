@@ -1,4 +1,5 @@
 class PluginInstallation < ApplicationRecord
+  PROCESS_ROLES = Syrus::PluginApi::Definition::PROCESS_ROLES.freeze
   belongs_to :plugin_release
 
   attribute :roles, :json, default: -> { [] }
@@ -24,7 +25,13 @@ class PluginInstallation < ApplicationRecord
   end
 
   def roles_are_names
-    errors.add(:roles, "must be an array of non-empty names") unless roles.is_a?(Array) && roles.all? { |role| role.is_a?(String) && role.present? }
+    unless roles.is_a?(Array) && roles.all? { |role| role.is_a?(String) && role.present? }
+      errors.add(:roles, "must be an array of non-empty names")
+      return
+    end
+
+    invalid = roles - PROCESS_ROLES
+    errors.add(:roles, "contains invalid roles: #{invalid.join(', ')}") if invalid.any?
   end
 
   def release_artifact_is_available

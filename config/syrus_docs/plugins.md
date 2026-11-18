@@ -149,6 +149,21 @@ keep (default `2`). Fleet-quarantined and revoked entries are removed from the
 activated set. Rails and spawned sidecars receive `SYRUS_PLUGIN_SET_DIGEST` and
 `SYRUS_PLUGIN_SET_REVISION` for the active set.
 
+Plugin manifests may declare `roles %w[web worker preview sidecar]`. Omitting
+`roles` (or using an empty desired-state list) loads the plugin everywhere.
+Only those four names are valid. An unlisted process skips the plugin and
+records the reason in plugin health. Preview-provider, language, and framework
+plugins must remain available to the `preview` role.
+
+Desired-state changes do not hot-unload Ruby code. **Apply changes** records
+the desired revision, gracefully drains web, worker, and preview processes,
+and relies on the container supervisor to restart them in place. The entrypoint
+then syncs before Rails boots. Setup and web apply plugin migrations through
+the existing database preparation path; workers abort while migrations are
+pending. Status reports each process as pending, restarted, or stuck. This is
+tested with Docker Compose restart policies; native macOS workers and external
+plugin distribution on Kubernetes are not supported by this flow.
+
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore
 removes its documentation too.

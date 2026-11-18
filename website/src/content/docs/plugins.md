@@ -91,6 +91,13 @@ revoked entries are omitted from the activated set. A hand-placed plugin root
 still takes precedence over a same-named synced plugin and the collision is
 reported by plugin health.
 
+Plugin authors may limit loading with `roles %w[web worker preview sidecar]`;
+the default is every role. After changing desired plugins, **Apply changes**
+drains web, worker, and preview processes and lets the container restart policy
+rerun pre-boot sync. The status identifies processes still pending or stuck.
+Setup and web apply plugin migrations normally, while workers stop at boot if
+any migration remains pending.
+
 ## What Plugins Can Add
 
 Plugins can contribute:

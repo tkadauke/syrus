@@ -15,6 +15,7 @@
 # snapshot into MySQL.
 
 ActiveRecord::Schema[8.1].define(version: 2026_11_19_131053) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1844,6 +1845,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_131053) do
     t.json "capability_diagnostics"
     t.json "desired_version"
     t.json "macos_updater_status"
+    t.integer "plugin_set_revision"
+    t.string "plugin_set_digest"
     t.index ["finished_at"], name: "index_instance_versions_on_finished_at"
     t.index ["hostname", "role"], name: "index_instance_versions_on_hostname_and_role", unique: true
     t.index ["last_heartbeat_at"], name: "index_instance_versions_on_last_heartbeat_at"
@@ -3085,6 +3088,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_131053) do
     t.bigint "revision", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "apply_revision"
+    t.datetime "apply_requested_at"
     t.index ["singleton_key"], name: "index_plugin_desired_states_on_singleton_key", unique: true
   end
 
