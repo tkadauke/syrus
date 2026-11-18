@@ -59,6 +59,36 @@ module CredentialStore
         allowed.empty? || allowed.include?(surface.to_s)
       end
 
+      def refresh_credential!(credential:, plugin_name:, purpose:, user: nil, metadata: {})
+        credential_id = credential.respond_to?(:id) ? credential.id : credential
+        Credential.transaction do
+          locked = Credential.lock.find(credential_id)
+          owner = Syrus::PluginRegistry.credential_type_owner(locked.credential_type)
+          raise Denied, "credential type is not managed by #{plugin_name}" unless owner == plugin_name.to_s
+
+          previous_payload = locked.payload
+          replacement = yield previous_payload
+          raise ArgumentError, "refreshed credential payload cannot be blank" if replacement.blank?
+
+          locked.update!(payload: replacement, last_rotated_at: Time.current, revoked_at: nil)
+          CredentialAccessEvent.record!(
+            credential: locked,
+            user: user,
+            surface: "api",
+            tool_name: plugin_name.to_s,
+            action: "refresh",
+            purpose: purpose.to_s.presence,
+            result: "allowed",
+            metadata: Redaction.scrub_object(
+              metadata.to_h.merge(payload_replaced: true),
+              credentials: [ locked ],
+              extra_secrets: [ previous_payload, replacement ]
+            )
+          )
+          locked
+        end
+      end
+
       private
 
       def integer_ref?(credential_ref)
@@ -164,6 +194,8 @@ module CredentialStore
       return legacy_tool_denial_reason(credential) unless consumer
       return "incompatible credential type" unless consumer.compatible_with?(credential.credential_type)
       return if consumer.kind == :typed
+
+      return "plugin-managed credential cannot use raw wrappers" if ConsumerRegistry.plugin_managed_type?(credential.credential_type)
 
       allowed = Array(credential.allowed_tools).map(&:to_s)
       "raw-wrapper opt-in missing" if allowed.exclude?(tool_name)

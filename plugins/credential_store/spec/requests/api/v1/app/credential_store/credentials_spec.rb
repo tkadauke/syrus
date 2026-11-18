@@ -284,6 +284,30 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     expect(updated.metadata).to include("payload_replaced" => false)
   end
 
+  it "refuses to edit allowed tools for a plugin-managed credential" do
+    credential = create_credential(
+      credential_type: "k8s_cluster.kubeconfig",
+      allowed_tools: [ "k8s_cluster.exec" ]
+    )
+    sign_in_as(operator)
+
+    patch "/api/v1/app/credential_store/credentials/#{credential.id}", params: {
+      credential: { allowed_tools: [ "credential.exec" ] }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("managed_credential_allowed_tools")
+    expect(credential.reload.allowed_tools).to eq([ "k8s_cluster.exec" ])
+
+    patch "/api/v1/app/credential_store/credentials/#{credential.id}", params: {
+      credential: { credential_type: "credential_store.generic", allowed_tools: [ "credential.exec" ] }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("managed_credential_type")
+    expect(credential.reload.credential_type).to eq("k8s_cluster.kubeconfig")
+  end
+
   it "does not allow an operator to move an editable credential into an unauthorized scope" do
     credential = create_credential(scope_type: "user", scope_id: operator.id)
 

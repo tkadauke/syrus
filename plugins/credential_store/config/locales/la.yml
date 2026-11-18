@@ -1,0 +1,5 @@
+la:
+  credential_store:
+    api:
+      managed_credential_allowed_tools: "Instrumenta permissa credentialium a plugino administratorum hic mutari non possunt."
+      managed_credential_type: "Genus credentialis a plugino administrati hic mutari non potest."
