@@ -351,6 +351,9 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
   const disableBlockers = plugin.disable_blockers || []
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
   const toggleState = usePluginToggle(plugin, betaModeEnabled, () => pageReload.reloadPage())
+  const hostSurface = plugin.health?.host_surface
+  const hostSurfaceFindings = hostSurface ? [...hostSurface.public, ...hostSurface.legacy, ...hostSurface.unlisted] : []
+  const showHostSurfaceDetails = plugin.health?.state !== "ok" && hostSurfaceFindings.length > 0
 
   return (
     <>
@@ -377,11 +380,16 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
                 ))}
               </ul>
             ) : null}
-            {plugin.health?.host_surface && (plugin.health.host_surface.legacy.length > 0 || plugin.health.host_surface.unlisted.length > 0) ? (
+            {showHostSurfaceDetails && hostSurface ? (
               <div className="mt-3 max-w-3xl rounded border border-amber-300 p-3 text-sm dark:border-amber-700">
                 <div className="font-medium">{t("plugins.host_surface_details")}</div>
+                {hostSurface.minimum_syrus_version ? (
+                  <div className="mt-1">
+                    {t("plugins.host_surface_minimum")}: <span className="font-mono">{hostSurface.minimum_syrus_version}</span>
+                  </div>
+                ) : null}
                 <ul className="mt-2 space-y-1 font-mono text-xs">
-                  {[...plugin.health.host_surface.legacy, ...plugin.health.host_surface.unlisted].map((finding) => (
+                  {hostSurfaceFindings.map((finding) => (
                     <li key={`${finding.path}:${finding.line}:${finding.constant}`}>
                       {finding.constant} ({finding.tier}) — {finding.path}:{finding.line}
                     </li>
