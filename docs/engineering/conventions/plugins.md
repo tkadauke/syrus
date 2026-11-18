@@ -182,6 +182,42 @@ The currently registered contribution kinds are:
   See the [plugin-authoring reference](plugins/authoring.md) for the audit
   recipe.
 
+## Plugin test kit
+
+Plugin specs can require `syrus/plugin/test_kit` after `rails_helper`. The kit
+uses only the installed plugin path and the running host, so the same spec runs
+for a bundled plugin, a plugin under `SYRUS_PLUGIN_PATH`, or a plugin mounted in
+a packaged Syrus image.
+
+```ruby
+require "rails_helper"
+require "syrus/plugin/test_kit"
+
+RSpec.describe "weather tools host contract" do
+  let(:plugin) { syrus_plugin(__dir__ + "/..") }
+
+  it "satisfies the host contract" do
+    expect(plugin).to be_plugin_loaded
+    expect(plugin).to be_plugin_healthy
+    expect(plugin).to register_plugin_provider(:callbacks)
+    expect(plugin).to have_valid_plugin_manifest
+    expect(plugin).to satisfy_requires_syrus
+    expect(plugin).to have_clean_plugin_host_surface
+    expect(plugin).to have_plugin_frontend
+    expect(plugin).to have_matching_plugin_locales
+  end
+end
+```
+
+Route checks accept an `ActionDispatch::Integration::Session` through
+`.using(session)`. CLI checks use `.executable_with(user)`. Migration checks
+use `have_applicable_plugin_migrations`. `with_syrus_plugin(path) { |plugin| … }`
+loads an arbitrary directory into a fresh registry snapshot and restores the
+host registry afterward. `build_plugin_user`, `build_plugin_repository`, and
+`build_plugin_job` provide minimal host records without making the underlying
+test factories part of the public API. Provider implementations can use
+`it_behaves_like "a valid Syrus plugin provider", :extension_point`.
+
 ## Definition of done for relocatable plugins
 
 `bin/test-plugin-relocation` is the acceptance boundary for claiming that
