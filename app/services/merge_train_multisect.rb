@@ -346,6 +346,7 @@ class MergeTrainMultisect
       raise "member #{member.job.slug} has no branch" if branch.blank?
 
       fetch_branch(branch)
+      GitMergeDrivers.register!(git: git, path: workspace_path)
       temp_branch = "__syrus_multisect_member_#{member.id}"
       previous_tip = git.run("rev-parse", "HEAD", chdir: workspace_path.to_s).strip
       git.run("checkout", "-B", temp_branch, "FETCH_HEAD", chdir: workspace_path.to_s)

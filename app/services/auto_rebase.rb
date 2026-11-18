@@ -8,7 +8,7 @@ require "fileutils"
 # Whatever merge drivers the target repo declares in `.gitattributes`
 # get a chance to do their job — Syrus discovers them by convention
 # (a `merge=NAME` reference paired with an executable `bin/merge-NAME`
-# script in the clone) and registers them in the clone's `.git/config`
+# or hyphen-normalized script in the clone) and registers them in the clone's `.git/config`
 # before running rebase. No Ruby/Rails-specific knowledge in Syrus;
 # the driver lives in (and is shipped by) the target repo.
 class AutoRebase
@@ -83,7 +83,7 @@ class AutoRebase
     fetch_and_checkout_feature_branch
     configure_git_author
 
-    register_merge_drivers
+    GitMergeDrivers.register!(git: @git, path: clone_path)
 
     base_sha = base_head_sha
     pre_sha = head_sha
@@ -224,36 +224,6 @@ class AutoRebase
 
   def clone_lock_path(path = clone_path)
     path.dirname.join(".#{path.basename}.lock")
-  end
-
-  # Discover and register custom merge drivers the target repo
-  # declares. Convention:
-  #
-  #   .gitattributes:    db/schema.rb merge=ruby_schema
-  #   repo file:         bin/merge-ruby_schema  (executable)
-  #
-  # Each `merge=NAME` reference becomes
-  #   git config merge.NAME.driver "<absolute-path-to-script> %O %A %B"
-  # in the clone's .git/config so git uses the driver during rebase.
-  #
-  # Idempotent. Repos without `.gitattributes` or without matching
-  # scripts are silently skipped — Syrus has no opinion on whether
-  # a target repo "should" have merge drivers; it just respects
-  # what's declared.
-  def register_merge_drivers
-    attrs = clone_path.join(".gitattributes")
-    return unless attrs.exist?
-
-    names = attrs.each_line.flat_map { |line| line.scan(/merge=(\S+)/).flatten }.uniq
-    names.each do |name|
-      script = clone_path.join("bin", "merge-#{name}")
-      next unless script.exist? && File.executable?(script)
-      @git.run(
-        "config", "merge.#{name}.driver",
-        "#{script} %O %A %B",
-        chdir: clone_path.to_s
-      )
-    end
   end
 
   def configure_git_author
