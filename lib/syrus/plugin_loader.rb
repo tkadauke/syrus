@@ -8,7 +8,7 @@ module Syrus
   class PluginLoader
     class Error < StandardError; end
 
-    Plugin = Data.define(:name, :directory, :entry_file, :dependencies, :required_dependencies, :external, :version, :requires_syrus)
+    Plugin = Data.define(:name, :directory, :entry_file, :dependencies, :required_dependencies, :external, :version, :requires_syrus, :roles)
     DEPENDENCY_DECLARATIONS = %w[depends_on optionally_depends_on].freeze
     FRAMEWORK_GEM_DEPENDENCIES = %w[rails].freeze
     RESCUED_ERRORS = [ LoadError, StandardError, ScriptError ].freeze
@@ -75,6 +75,12 @@ module Syrus
       self.class.remember_plugins(plugins)
       failed = Set.new
       order_plugins(plugins).each do |plugin|
+        unless role_allowed?(plugin)
+          self.class.record_failure(plugin, RuntimeError.new("not enabled for process role #{process_role}"),
+            state: :skipped_role, message: "skipped because process role #{process_role} is not listed in #{plugin.roles.join(', ')}")
+          next
+        end
+
         failed_dependency = plugin.required_dependencies.find { |name| failed.include?(name) }
         if failed_dependency
           self.class.record_failure(plugin, RuntimeError.new("dependency #{failed_dependency} failed to load"),
@@ -163,7 +169,7 @@ module Syrus
         name = specification.name if specification&.name
       end
       plugin = Plugin.new(name:, directory:, entry_file: directory.join("lib/#{name}.rb"), dependencies: [], required_dependencies: [],
-        external: @plugin_roots.external?(directory), version: "unknown", requires_syrus: nil)
+        external: @plugin_roots.external?(directory), version: "unknown", requires_syrus: nil, roles: [])
       self.class.record_failure(plugin, error)
     end
 
@@ -198,8 +204,22 @@ module Syrus
         required_dependencies: plugin_dependencies(entry_file, declarations: [ "depends_on" ]),
         external: external,
         version: specification.version,
-        requires_syrus: requires_syrus
+        requires_syrus: requires_syrus,
+        roles: plugin_roles(entry_file)
       )
+    end
+
+    def process_role = ENV["SYRUS_ROLE"].to_s
+
+    def role_allowed?(plugin)
+      plugin.roles.empty? || process_role.empty? || plugin.roles.include?(process_role)
+    end
+
+    def plugin_roles(entry_file)
+      roles = plugin_dependencies(entry_file, declarations: [ "roles" ])
+      invalid = roles - Syrus::PluginApi::Definition::PROCESS_ROLES
+      raise Error, "Plugin entry file #{entry_file} declares invalid process roles: #{invalid.join(', ')}" if invalid.any?
+      roles
     end
 
     def compatible?(plugin)

@@ -20,8 +20,13 @@ module Api
                 fleet_quarantined: installation.fleet_quarantined,
                 desired_since: installation.desired_since
               }
-            end
+            end,
+            restart: PluginDesiredState::RestartStatus.new.as_json
           }
+        end
+
+        def apply
+          render json: PluginDesiredState::ApplyChanges.new(actor: current_api_user).call, status: :accepted
         end
       end
     end

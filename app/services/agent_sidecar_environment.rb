@@ -44,6 +44,7 @@ class AgentSidecarEnvironment
     def build(extra: {}, env: ENV)
       forwarded = env.slice(*SAFE_ENV_FORWARD).compact
       forwarded["SYRUS_DATA_ROOT"] ||= WorkflowWorkspace.data_root.to_s
+      forwarded["SYRUS_ROLE"] = "sidecar"
       pin_rubygems_to_bundle_path(forwarded)
       filter(forwarded.merge(extra.compact))
     end
@@ -51,6 +52,7 @@ class AgentSidecarEnvironment
     def build_boot(extra: {}, env: ENV)
       forwarded = env.slice(*BOOT_ENV_FORWARD).compact
       forwarded["SYRUS_DATA_ROOT"] ||= WorkflowWorkspace.data_root.to_s
+      forwarded["SYRUS_ROLE"] = "sidecar"
       pin_rubygems_to_bundle_path(forwarded)
       forwarded.merge(extra.compact)
     end

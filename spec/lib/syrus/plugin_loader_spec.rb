@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Syrus::PluginLoader do
-  def write_plugin(root, directory_name:, gem_name:, plugin_name: gem_name, dependencies: [], gem_dependencies: [], requires_syrus: nil)
+  def write_plugin(root, directory_name:, gem_name:, plugin_name: gem_name, dependencies: [], gem_dependencies: [], requires_syrus: nil, roles: nil)
     directory = root.join(directory_name)
     directory.join("lib").mkpath
     dependency_lines = ([ [ "rails", ">= 8.1" ] ] + gem_dependencies).map do |name, requirement|
@@ -20,11 +20,13 @@ RSpec.describe Syrus::PluginLoader do
       end
     RUBY
     dependency_declaration = dependencies.any? ? "depends_on #{dependencies.inspect}" : ""
+    role_declaration = roles.nil? ? "" : "roles #{roles.inspect}"
     directory.join("lib/#{gem_name}.rb").write(<<~RUBY)
       module ExternalLoaderFixture
         extend Syrus::PluginApi
         syrus_plugin #{plugin_name.inspect} do
           #{dependency_declaration}
+          #{role_declaration}
           provides callbacks: "ExternalLoaderFixture::Provider"
           route :get, "/loader-fixture", to: "loader_fixture#show"
         end
@@ -32,6 +34,57 @@ RSpec.describe Syrus::PluginLoader do
       end
     RUBY
     directory
+  end
+
+  it "loads plugins listed for the process role and defaults omitted roles to all" do
+    Dir.mktmpdir do |temporary|
+      snapshot = Syrus::PluginRegistry.snapshot
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture", roles: %w[preview])
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+      original_role = ENV["SYRUS_ROLE"]
+      ENV["SYRUS_ROLE"] = "preview"
+
+      described_class.new(plugin_roots: roots).load!
+
+      expect(defined?(ExternalLoaderFixture)).to eq("constant")
+    ensure
+      ENV["SYRUS_ROLE"] = original_role
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+      Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+    end
+  end
+
+  it "skips plugins not listed for the process role and records plugin health" do
+    Dir.mktmpdir do |temporary|
+      snapshot = Syrus::PluginRegistry.snapshot
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture", roles: %w[worker])
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+      original_role = ENV["SYRUS_ROLE"]
+      ENV["SYRUS_ROLE"] = "web"
+
+      described_class.new(plugin_roots: roots).load!
+
+      expect(defined?(ExternalLoaderFixture)).to be_nil
+      expect(Syrus::PluginRegistry.health.status("external_loader_fixture").reasons.join).to include("web", "worker")
+    ensure
+      ENV["SYRUS_ROLE"] = original_role
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+    end
+  end
+
+  it "rejects invalid plugin roles" do
+    Dir.mktmpdir do |temporary|
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture", roles: %w[database])
+
+      expect { described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)).ordered_plugins }
+        .to raise_error(Syrus::PluginLoader::Error, /invalid process roles: database/)
+    end
   end
 
   it "validates requires_syrus in an external manifest" do

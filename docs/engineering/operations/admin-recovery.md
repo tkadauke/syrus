@@ -3,16 +3,16 @@
 This runbook covers restarting deployed Syrus processes. Recovery-tool
 semantics live in the [searchable recovery guide](../../../config/syrus_docs/admin_recovery.md), while queue, audit, and frontend mechanics live in [admin recovery architecture](../architecture/admin-recovery.md).
 
-## Restart Web / Worker
+## Restart Web / Worker / Preview
 
 The operator console's Maintenance section and `POST /api/v1/admin/restart`
 (bearer-token API) / `POST /api/v1/app/admin/restart` (session-authenticated,
-used by the React admin UI) restart web and/or worker processes without any
+used by the React admin UI) restart web, worker, and preview processes without any
 environment-specific code -- no `kubectl`, Kubernetes API access, or RBAC.
 
 The mechanism is a shared-cache poison pill. `Admin::RestartService` writes a
-UTC timestamp under `syrus:restart_web` and/or `syrus:restart_worker`;
-component `all` writes both. Every server process runs a `RestartWatcher`
+UTC timestamp under `syrus:restart_web`, `syrus:restart_worker`, and/or
+`syrus:restart_preview`; component `all` writes all three. Every server process runs a `RestartWatcher`
 background thread started by `config/initializers/restart_watcher.rb`. It polls
 its role-scoped key every 10 seconds. On a timestamp newer than its start time,
 it logs, sleeps a random 0-20 second jitter, and sends itself `SIGTERM`.
