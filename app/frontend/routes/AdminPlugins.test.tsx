@@ -989,7 +989,8 @@ describe("AdminPlugins", () => {
             host_surface: {
               public: [],
               legacy: [],
-              unlisted: [{ constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7 }]
+              unlisted: [{ constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7 }],
+              dynamic: []
             }
           }
         }
@@ -1020,6 +1021,7 @@ describe("AdminPlugins", () => {
               public: [{ constant: "AgentInvocation", tier: "public", path: "lib/external.rb", line: 4 }],
               legacy: [],
               unlisted: [],
+              dynamic: [],
               minimum_syrus_version: "0.2.0"
             }
           }

@@ -133,7 +133,7 @@ module Syrus
     def scan_plugin(plugin)
       Syrus::PluginHostSurface::Scanner.cached(plugin.directory)
     rescue *RESCUED_ERRORS => error
-      Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [],
+      Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [],
         minimum_syrus_version: nil, content_hash: nil, error: "#{error.class}: #{error.message}")
     end
 
