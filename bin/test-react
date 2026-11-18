@@ -12,7 +12,12 @@ if [ ! -d node_modules/.bin ] || [ ! -f node_modules/.package-lock.json ] || [ p
   npm ci
 fi
 
-vitest_max_workers="${VITEST_MAX_WORKERS:-2}"
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  default_vitest_max_workers=1
+else
+  default_vitest_max_workers=2
+fi
+vitest_max_workers="${VITEST_MAX_WORKERS:-$default_vitest_max_workers}"
 vitest_junit_output="${VITEST_JUNIT_OUTPUT:-.syrus/grade-output/react-tests-junit.xml}"
 mkdir -p "$(dirname "$vitest_junit_output")"
 
