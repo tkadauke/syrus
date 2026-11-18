@@ -2,19 +2,30 @@ require "base64"
 require "ed25519"
 
 class PluginDesiredState::SigningKey
+  class KeyAlreadyExists < StandardError; end
   class PublicKeyMismatch < StandardError; end
 
   def self.generate!
-    signing_key = Ed25519::SigningKey.generate
-    AppSetting.current.update!(plugin_manifest_signing_key: Base64.strict_encode64(signing_key.to_bytes))
-    new(signing_key).tap(&:validate_configured_public_key!)
+    setting = AppSetting.current
+    setting.with_lock do
+      raise KeyAlreadyExists, "plugin manifest signing key already exists" if setting.plugin_manifest_signing_key.present?
+
+      key, encoded = build_generated_key
+      setting.update!(plugin_manifest_signing_key: encoded)
+      key
+    end
   end
 
   def self.current
-    encoded = AppSetting.current.plugin_manifest_signing_key
-    return generate! if encoded.blank?
+    setting = AppSetting.current
+    setting.with_lock do
+      encoded = setting.plugin_manifest_signing_key
+      return from_encoded(encoded) if encoded.present?
 
-    new(Ed25519::SigningKey.new(Base64.strict_decode64(encoded))).tap(&:validate_configured_public_key!)
+      key, encoded = build_generated_key
+      setting.update!(plugin_manifest_signing_key: encoded)
+      key
+    end
   end
 
   def initialize(signing_key)
@@ -35,5 +46,19 @@ class PluginDesiredState::SigningKey
       raise PublicKeyMismatch, "SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY does not match the control-plane signing key"
     end
     self
+  end
+
+  class << self
+    private
+
+    def build_generated_key
+      signing_key = Ed25519::SigningKey.generate
+      key = new(signing_key).tap(&:validate_configured_public_key!)
+      [ key, Base64.strict_encode64(signing_key.to_bytes) ]
+    end
+
+    def from_encoded(encoded)
+      new(Ed25519::SigningKey.new(Base64.strict_decode64(encoded))).tap(&:validate_configured_public_key!)
+    end
   end
 end
