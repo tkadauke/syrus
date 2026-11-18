@@ -164,6 +164,31 @@ describe("CredentialStoreAdmin", () => {
     expect(requestCredential(fetchSpy, "/api/v1/app/credential_store/credentials", "POST").allowed_tools).toEqual([])
   })
 
+  it("keeps wrappers protected when editing a credential whose plugin type is unavailable", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        payload({
+          credentials: [
+            credential({
+              credential_type: "connected_accounts.oauth",
+              plugin_managed: true,
+              allowed_tools: []
+            })
+          ],
+          options: { credential_types: [{ name: "credential_store.generic", label: "Generic secret", plugin: "credential_store" }] }
+        })
+      )
+    )
+
+    renderRoute(<CredentialStoreAdmin />)
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit credential" })
+
+    expect(within(dialog).getByLabelText("Credential type")).toBeDisabled()
+    expect(within(dialog).queryByRole("checkbox", { name: /credential\.exec/ })).not.toBeInTheDocument()
+    expect(within(dialog).getByText(/managed by its plugin/)).toBeInTheDocument()
+  })
+
   it("previews a discovered fingerprint and requires explicit confirmation", async () => {
     const knownHost = "host.example ssh-ed25519 AAAATEST"
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {

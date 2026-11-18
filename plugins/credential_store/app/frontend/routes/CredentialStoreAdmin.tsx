@@ -368,7 +368,8 @@ function CredentialForm({
   const scopeOptions = optionsForScope(payload, draft.scope_type)
   const typeOptions = payload.options.credential_types
   const selectedType = typeOptions.find((type) => type.name === draft.credential_type)
-  const pluginManaged = Boolean(selectedType?.plugin && selectedType.plugin !== "credential_store")
+  const existingCredential = draft.id ? payload.credentials.find((credential) => credential.id === draft.id) : undefined
+  const pluginManaged = existingCredential?.plugin_managed || Boolean(selectedType?.plugin && selectedType.plugin !== "credential_store")
   const SpecializedFields = CREDENTIAL_FORM_FIELDS[draft.credential_type]
   const wrapperOptions = payload.options.credential_wrappers.filter(
     (wrapper) => wrapper.credential_types.includes("*") || wrapper.credential_types.includes(draft.credential_type)
