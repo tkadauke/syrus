@@ -259,13 +259,13 @@ RSpec.describe "Docker image scripts" do
     # helpers always forward it, and non-release build paths derive the nearest
     # reachable release tag for plugin compatibility.
     dockerfile = File.read(File.join(root, "Dockerfile"))
-    expect(dockerfile.scan('ARG SYRUS_VERSION=""').size).to eq(2)
-    expect(dockerfile.scan("ENV SYRUS_VERSION=$SYRUS_VERSION").size).to eq(2)
+    expect(dockerfile.scan('ARG SYRUS_VERSION=""').size).to eq(3)
+    expect(dockerfile.scan("ENV SYRUS_VERSION=$SYRUS_VERSION").size).to eq(3)
 
     expect(helper.scan("--version=*)").size).to eq(2)
     expect(helper.scan('--build-arg "SYRUS_VERSION=$syrus_version"').size).to eq(3)
 
-    expect(publish_image.scan('--version="$VERSION"').size).to eq(3)
+    expect(publish_image.scan('--version="$VERSION"').size).to eq(5)
 
     build_local_image = File.read(File.join(root, "bin/build-local-image"))
     expect(build_local_image).to include('--version="$SYRUS_RELEASE_VERSION"')
@@ -293,7 +293,7 @@ RSpec.describe "Docker image scripts" do
     expect(publish_image).to include(
       %q{BUILT_AT="${SYRUS_BUILT_AT:-$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y-%m-%dT%H:%M:%SZ' HEAD 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)}"}
     )
-    expect(publish_image.scan('--built-at="$BUILT_AT"').size).to eq(3)
+    expect(publish_image.scan('--built-at="$BUILT_AT"').size).to eq(5)
 
     build_local_image = File.read(File.join(root, "bin/build-local-image"))
     expect(build_local_image).to include('BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"')
