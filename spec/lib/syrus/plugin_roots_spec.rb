@@ -114,6 +114,7 @@ RSpec.describe Syrus::PluginRoots do
       expect(roots.plugin_directories.map { |path| path.basename.to_s }).to eq(%w[weather calendar])
       expect(roots.resolve("weather")).to eq(external.join("weather"))
       expect(roots.duplicate_names).to eq([ "weather" ])
+      expect(roots).to be_external(synced.join("calendar"))
     end
   end
 end
