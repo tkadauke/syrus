@@ -239,6 +239,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_142023) do
     t.string "contained_chat_execution", default: "off", null: false
     t.string "host_admission_policy", default: "prediction", null: false
     t.boolean "permissions_enforced", default: true, null: false
+    t.text "plugin_manifest_signing_key"
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -3096,6 +3097,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_142023) do
     t.boolean "ever_enabled", default: false, null: false
     t.boolean "experimental", default: false, null: false
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
+  end
+
+  create_table "plugin_desired_states", force: :cascade do |t|
+    t.integer "singleton_key", null: false
+    t.bigint "revision", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["singleton_key"], name: "index_plugin_desired_states_on_singleton_key", unique: true
+  end
+
+  create_table "plugin_installations", force: :cascade do |t|
+    t.string "plugin_name", null: false
+    t.bigint "plugin_release_id", null: false
+    t.boolean "enabled_for_sync", default: true, null: false
+    t.boolean "fleet_quarantined", default: false, null: false
+    t.json "roles"
+    t.datetime "desired_since", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["plugin_name"], name: "index_plugin_installations_on_plugin_name", unique: true
+    t.index ["plugin_release_id"], name: "index_plugin_installations_on_plugin_release_id"
+  end
+
+  create_table "plugin_releases", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "version", null: false
+    t.string "content_digest", null: false
+    t.string "source", null: false
+    t.string "trust_label", null: false
+    t.bigint "uploaded_by_id"
+    t.bigint "size_bytes", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_digest"], name: "index_plugin_releases_on_content_digest"
+    t.index ["name", "version", "content_digest"], name: "idx_plugin_releases_identity", unique: true
+    t.index ["uploaded_by_id"], name: "index_plugin_releases_on_uploaded_by_id"
   end
 
   create_table "pr_review_comments", force: :cascade do |t|

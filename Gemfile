@@ -61,6 +61,9 @@ gem "commonmarker"
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt", "~> 3.1.7"
 
+# Detached signatures for pre-boot plugin desired-state manifests.
+gem "ed25519", "~> 1.4"
+
 # WebAuthn server-side ceremony verification for passkey support
 gem "webauthn", "~> 3.0"
 
