@@ -4,7 +4,22 @@ class RetentionPolicySetting < ApplicationRecord
   validates :archive_before_delete, inclusion: { in: [ true, false ] }, allow_nil: true
 
   def self.for(definition)
-    find_by(retention_key: definition.key.to_s) || new(
+    find_by(retention_key: definition.key.to_s) || default_for(definition)
+  end
+
+  def self.for_definitions(definitions)
+    definitions = definitions.to_a
+    persisted_by_key = where(retention_key: definitions.map { |definition| definition.key.to_s })
+      .index_by(&:retention_key)
+
+    definitions.to_h do |definition|
+      key = definition.key.to_s
+      [ key, persisted_by_key.fetch(key) { default_for(definition) } ]
+    end
+  end
+
+  def self.default_for(definition)
+    new(
       retention_key: definition.key.to_s,
       retention_seconds: definition.default_seconds,
       archive_before_delete: definition.archivable ? false : nil
