@@ -109,6 +109,31 @@ RSpec.describe CredentialStore::Broker do
     expect(CredentialStore::CredentialAccessEvent.where(credential: credential, result: "allowed").count).to eq(1)
   end
 
+  it "leases a credential in process without creating environment or file material" do
+    credential = create_credential
+    derived_secret = "derived-access-token"
+
+    result = described_class.with_credential_value(
+      context: context,
+      credential: credential.id,
+      type: credential.credential_type,
+      purpose: "typed consumer",
+      tool_name: "deploy.push",
+      target: { host: "api.example.com", url: "https://api.example.com/releases" },
+      extra_secrets: [ derived_secret ]
+    ) do |value, metadata|
+      expect(ENV.values).not_to include(secret, derived_secret)
+      expect(Dir.glob(File.join(Dir.tmpdir, "#{described_class::FILE_PREFIX}*"))).to be_empty
+      { value: value, derived: derived_secret, lease_id: metadata.fetch(:lease_id) }
+    end
+
+    expect(result).to include(
+      value: CredentialStore::Redaction::REDACTION,
+      derived: CredentialStore::Redaction::REDACTION
+    )
+    expect(result.fetch(:lease_id)).to be_present
+  end
+
   it "resolves an active replacement instead of an older revoked credential with the same name" do
     create_credential(revoked_at: Time.current, payload: "retired-secret")
     create_credential(expires_at: 1.minute.ago, payload: "expired-secret")

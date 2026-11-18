@@ -19,13 +19,21 @@ module CredentialStore
 
     class << self
       def with_credential_file(context:, credential:, type:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
-        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata)
+        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata, extra_secrets: [])
           .with_file { |path, metadata| yield path, metadata }
       end
 
       def with_credential_env(context:, credential:, type:, env_key:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
-        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata)
+        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata, extra_secrets: [])
           .with_env(env_key: env_key) { |env, metadata| yield env, metadata }
+      end
+
+      # Materializes a credential only inside the Ruby process. Typed plugin
+      # brokers use this path when putting the payload in an environment, file,
+      # or command argument would violate the credential's security contract.
+      def with_credential_value(context:, credential:, type:, purpose:, tool_name:, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {}, extra_secrets: [])
+        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata, extra_secrets: extra_secrets)
+          .with_value { |value, metadata| yield value, metadata }
       end
 
       def redact(value, credentials: [], extra_secrets: [])
@@ -97,7 +105,7 @@ module CredentialStore
       end
     end
 
-    def initialize(context:, credential_ref:, type:, purpose:, tool_name:, target:, expires_in:, credential_validator:, attempt_metadata:)
+    def initialize(context:, credential_ref:, type:, purpose:, tool_name:, target:, expires_in:, credential_validator:, attempt_metadata:, extra_secrets:)
       @context = context
       @credential_ref = credential_ref
       @type = type.to_s
@@ -107,6 +115,7 @@ module CredentialStore
       @expires_in = expires_in
       @credential_validator = credential_validator
       @attempt_metadata = (attempt_metadata || {}).to_h
+      @extra_secrets = extra_secrets
     end
 
     def with_file
@@ -135,9 +144,20 @@ module CredentialStore
       env&.clear
     end
 
+    def with_value
+      credential = authorized_credential!
+      lease = lease_for(credential)
+      record_event!(credential, result: "allowed", metadata: lease.metadata)
+      value = credential.payload
+
+      yield_with_redaction(credential) { yield value, metadata_for(credential, lease) }
+    ensure
+      value = nil
+    end
+
     private
 
-    attr_reader :context, :credential_ref, :type, :purpose, :tool_name, :target, :expires_in, :credential_validator, :attempt_metadata
+    attr_reader :context, :credential_ref, :type, :purpose, :tool_name, :target, :expires_in, :credential_validator, :attempt_metadata, :extra_secrets
 
     def authorized_credential!
       credential = resolve_credential
@@ -241,9 +261,9 @@ module CredentialStore
     end
 
     def yield_with_redaction(credential)
-      Redaction.scrub_object(yield, credentials: [ credential ])
+      Redaction.scrub_object(yield, credentials: [ credential ], extra_secrets: extra_secrets)
     rescue StandardError => e
-      raise ExecutionError, Redaction.scrub(e.message, credentials: [ credential ])
+      raise ExecutionError, Redaction.scrub(e.message, credentials: [ credential ], extra_secrets: extra_secrets)
     end
 
     def metadata_for(credential, lease)
@@ -262,7 +282,7 @@ module CredentialStore
         surface: event_surface,
         tool_name: tool_name,
         action: "lease",
-        purpose: purpose,
+        purpose: Redaction.scrub(purpose, credentials: Array(credential), extra_secrets: extra_secrets).truncate(255),
         result: result,
         denial_reason: denial_reason,
         metadata: sanitized_metadata(credential, metadata),
@@ -271,7 +291,7 @@ module CredentialStore
     end
 
     def sanitized_metadata(credential, metadata)
-      Redaction.scrub_object(attempt_metadata.merge(metadata), credentials: Array(credential))
+      Redaction.scrub_object(attempt_metadata.merge(metadata), credentials: Array(credential), extra_secrets: extra_secrets)
     end
 
     def event_surface
