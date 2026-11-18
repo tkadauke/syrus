@@ -45,6 +45,15 @@ RSpec.describe GitMergeDrivers do
     expect(git).not_to have_received(:run)
   end
 
+  it "rejects driver names that could escape the clone or alter the config key" do
+    attributes("a merge=foo/../../../../tmp/evil\nb merge=foo.bar\n")
+    expect(Rails.logger).to receive(:warn).with(include("merge=foo/../../../../tmp/evil", "invalid driver name"))
+    expect(Rails.logger).to receive(:warn).with(include("merge=foo.bar", "invalid driver name"))
+
+    expect(described_class.register!(git: git, path: root).drivers).to be_empty
+    expect(git).not_to have_received(:run)
+  end
+
   it "does not register a non-executable script" do
     attributes("file merge=locked\n")
     script("merge-locked", executable: false)
