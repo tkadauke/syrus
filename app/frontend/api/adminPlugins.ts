@@ -16,6 +16,7 @@ export type AdminPlugin = {
   disable_blockers: Array<{ kind: string; label: string; count: number }>
   recommendation?: { reason: string; evidence: string } | null
   health?: { state: string; reasons: string[] }
+  quarantine_clearable?: boolean
   name: string
   display_name: string
   display_name_i18n_key?: string | null
@@ -49,7 +50,7 @@ export type AdminPlugin = {
 }
 
 export type AdminPluginsPayload = {
-  recovery?: { safe_mode: string | null; quarantines: Record<string, string> }
+  recovery?: { safe_mode: string | null; quarantines: Record<string, string>; locally_clearable: string[] }
   beta_mode_enabled?: boolean
   convergence?: PluginConvergencePayload
   plugins: AdminPlugin[]

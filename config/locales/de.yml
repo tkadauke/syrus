@@ -896,6 +896,7 @@ de:
     plugins:
       disabled: "Das Plugin %{plugin} ist deaktiviert."
       route_not_found: "Plugin-Route nicht gefunden."
+      quarantine_not_locally_clearable: "Diese Quarantäne muss an ihrer Quelle aufgehoben werden."
 
     job_lifecycle:
       direct_only: "Nur direkte Jobs können manuell gestartet werden."
