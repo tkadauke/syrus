@@ -11,6 +11,10 @@ RSpec.describe Syrus::PluginDocumentation do
       "Plugin specification is stale; run bin/generate-plugin-docs"
   end
 
+  it "documents requires_syrus as gemspec string metadata" do
+    expect(described_class.plugin_spec).to include('metadata["requires_syrus"] = ">= 0.1.16"')
+  end
+
   it "documents every accepted manifest key and registered extension point" do
     spec = described_class.plugin_spec
     Syrus::PluginApi::Definition::MANIFEST_KEYS.each { |key| expect(spec).to include("`#{key}`") }
