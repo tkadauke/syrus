@@ -132,6 +132,20 @@ describe("CredentialStoreAdmin", () => {
     expect(body.allowed_tools).toEqual([])
   })
 
+  it("does not offer raw wrappers for a plugin-managed credential type", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(payload({ credentials: [], options: { credential_types: [{ name: "connected_accounts.oauth", label: "Connected account", plugin: "connected_accounts" }] } }))
+    )
+
+    renderRoute(<CredentialStoreAdmin />)
+    fireEvent.click(await screen.findByRole("button", { name: "New credential" }))
+    const dialog = screen.getByRole("dialog", { name: "New credential" })
+    fireEvent.change(within(dialog).getByLabelText("Credential type"), { target: { value: "connected_accounts.oauth" } })
+
+    expect(within(dialog).queryByRole("checkbox", { name: /credential\.exec/ })).not.toBeInTheDocument()
+    expect(within(dialog).getByText(/managed by its plugin/)).toBeInTheDocument()
+  })
+
   it("previews a discovered fingerprint and requires explicit confirmation", async () => {
     const knownHost = "host.example ssh-ed25519 AAAATEST"
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -567,6 +581,7 @@ function credential(overrides: Partial<CredentialStorePayload["credentials"][num
     target_constraints: { allowed_hosts: ["github.com"] },
     allowed_surfaces: ["workflow"],
     allowed_tools: ["git.push"],
+    plugin_managed: false,
     effective_typed_consumers: [],
     explicit_wrapper_grants: [],
     expires_at: null,

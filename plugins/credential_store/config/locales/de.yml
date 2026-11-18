@@ -1,0 +1,5 @@
+de:
+  credential_store:
+    api:
+      managed_credential_allowed_tools: "Erlaubte Werkzeuge für pluginverwaltete Anmeldedaten können hier nicht geändert werden."
+      managed_credential_type: "Der Typ pluginverwalteter Anmeldedaten kann hier nicht geändert werden."
