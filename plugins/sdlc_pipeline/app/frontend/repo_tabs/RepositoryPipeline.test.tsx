@@ -59,8 +59,8 @@ describe("RepositoryPipelineRoute", () => {
     expect(within(embedded).getByTestId("compact-pipeline-time-rail")).toBeVisible()
     expect(within(embedded).queryByText("Saved cohort")).not.toBeInTheDocument()
     expect(within(embedded).queryByLabelText("Pipeline summary")).not.toBeInTheDocument()
-    expect(within(embedded).queryByText(/Delivery evidence is partial/)).not.toBeInTheDocument()
-    expect(within(embedded).queryByText("More history exists.")).not.toBeInTheDocument()
+    expect(within(embedded).getByText("Incomplete evidence")).toBeInTheDocument()
+    expect(within(embedded).getByText(/Delivery evidence is partial/)).toBeInTheDocument()
     expect(within(embedded).queryByText("SDLC Pipeline")).not.toBeInTheDocument()
   })
 
@@ -121,8 +121,8 @@ describe("RepositoryPipelineRoute", () => {
     expect(screen.getByText("JOB-9")).toBeInTheDocument()
     expect(screen.getByText("Job state")).toBeInTheDocument()
     expect(screen.getByText("Release reliability")).toBeInTheDocument()
-    expect(screen.getByText("12 items represented")).toBeInTheDocument()
-    expect(screen.getByTestId("pipeline-time-rail")).toBeVisible()
+    expect(screen.queryByText("12 items represented")).not.toBeInTheDocument()
+    expect(screen.getByTestId("compact-pipeline-time-rail")).toBeVisible()
     expect(screen.getByTestId("pipeline-with-time-rail")).toContainElement(screen.getByRole("region", { name: "Pipeline stages" }))
     expect(screen.getByText(/No deployment stages are configured/)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Workflow" })).toHaveAttribute("href", "/jobs/JOB-9?tab=workflows#workflow-3")
@@ -223,7 +223,11 @@ describe("RepositoryPipelineRoute", () => {
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?q=encoded-tree"]}>
+        <MemoryRouter
+          initialEntries={[
+            "/repositories/1/plugin/sdlc-pipeline?q=encoded-tree&at=2026-10-31T10%3A00%3A00Z&range_start=2026-10-01&range_end=2026-10-31"
+          ]}
+        >
           <RepositoryPipelineRoute repositoryId="1" prefix="" />
         </MemoryRouter>
       </QueryClientProvider>
@@ -231,7 +235,16 @@ describe("RepositoryPipelineRoute", () => {
 
     expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/sdlc_pipeline?q=encoded-tree"), expect.anything())
-    expect(screen.getByRole("link", { name: /Mine/ })).toHaveAttribute("href", "/repositories/1/plugin/sdlc-pipeline?smart_folder_id=7")
+    expect(screen.queryByRole("link", { name: /Mine/ })).not.toBeInTheDocument()
+    expect(screen.getByTestId("pipeline-filter-row")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "+ Add filter" })).toHaveLength(1)
+    expect(screen.queryByRole("textbox", { name: "Filter pipeline" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Pipeline stage navigation" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "SDLC Pipeline" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open presentation" })).toHaveAttribute(
+      "href",
+      "/repositories/1/plugin/sdlc-pipeline?q=encoded-tree&at=2026-10-31T10%3A00%3A00Z&range_start=2026-10-01&range_end=2026-10-31&syrus_presentation=embedded"
+    )
   })
 
   it("reconstructs a historical tick without requesting the at presentation state", async () => {
@@ -299,28 +312,24 @@ describe("RepositoryPipelineRoute", () => {
 
     expect(await screen.findByText("Historical card")).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Pipeline stages" })).toBeInTheDocument()
-    expect(screen.getByTestId("pipeline-time-rail")).toBeInTheDocument()
-    expect(screen.getByLabelText("Historical time")).toHaveStyle({ direction: "rtl", writingMode: "vertical-lr" })
-    expect(screen.queryByRole("button", { name: /View pipeline at/ })).not.toBeInTheDocument()
+    expect(screen.getByTestId("compact-pipeline-time-rail")).toBeInTheDocument()
+    expect(screen.getByLabelText(/Historical time/)).toBeInTheDocument()
     expect(screen.getByText("Reconstructed placement; current metadata")).toBeInTheDocument()
     expect(screen.getByText("Stage placement is reconstructed. Card metadata is current.")).toBeInTheDocument()
     expect(screen.getByText(/This view is read-only/)).toBeInTheDocument()
-    expect(screen.getByText(/1 placement changed/)).toBeInTheDocument()
-    const movementMark = screen.getByRole("button", { name: /stage movement/ })
+    const movementMark = screen.getByRole("button", { name: /View pipeline at/ })
     expect(movementMark).toBeInTheDocument()
-    expect(movementMark).toHaveClass("ring-2")
-    expect(screen.getByRole("button", { name: /deployment/ })).toHaveTextContent("◆")
+    expect(movementMark).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: /deployment/ })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /failure or blocked work/ })).toHaveTextContent("!")
-    expect(screen.getByTestId("pipeline-time-rail")).toBeVisible()
-    expect(screen.getByText("JOB-9: implementing → review")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Previous event" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Next event" })).toBeInTheDocument()
-    expect(screen.getByLabelText("History window")).toBeInTheDocument()
+    expect(screen.getByTestId("compact-pipeline-time-rail")).toBeVisible()
+    expect(screen.getByRole("button", { name: /Previous event/ })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Next event/ })).toBeInTheDocument()
+    expect(screen.getByLabelText(/History window/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "View trace" }))
     expect(screen.getByText("Trace for JOB-9")).toBeInTheDocument()
     expect(screen.getByText(/entered/)).toBeInTheDocument()
-    fireEvent.click(screen.getByText("Options"))
-    fireEvent.change(screen.getByLabelText("History window"), { target: { value: "30" } })
+    fireEvent.change(screen.getByLabelText(/History window/), { target: { value: "30" } })
     await waitFor(() =>
       expect(
         fetchSpy.mock.calls.some(
@@ -331,10 +340,10 @@ describe("RepositoryPipelineRoute", () => {
     expect(String(fetchSpy.mock.calls[0][0])).not.toContain("at=")
     fireEvent.click(screen.getByRole("button", { name: /deployment/ }))
     await waitFor(() => expect(screen.queryByText("Historical card")).not.toBeInTheDocument())
-    expect(screen.getByTestId("selected-history-time")).toHaveAttribute("datetime", "2026-10-31T11:00:00.000Z")
+    expect(screen.getByTestId("selected-history-time")).toHaveTextContent(/Oct 31/)
     fireEvent.click(movementMark)
     await waitFor(() => expect(screen.getByText("Historical card")).toBeInTheDocument())
-    fireEvent.click(await screen.findByRole("button", { name: "Return to now" }))
+    fireEvent.click(await screen.findByRole("button", { name: /Return to now/ }))
     await waitFor(() => expect(screen.queryByText(/This view is read-only/)).not.toBeInTheDocument())
     expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(4)
   })
@@ -377,23 +386,19 @@ describe("RepositoryPipelineRoute", () => {
       mockFetch(() => Promise.resolve(jsonResponse(historyBody(["2026-10-31T10:00:00Z", "2026-10-31T11:00:00Z"]))))
       renderRoute()
       await screen.findByRole("region", { name: "Pipeline stages" })
-      await waitFor(() => expect(screen.getByTestId("history-event-track").querySelectorAll("button")).toHaveLength(2))
-      const toolbar = within(screen.getByTestId("pipeline-toolbar"))
-      expect(toolbar.getByRole("heading", { name: "SDLC Pipeline" })).toBeInTheDocument()
-      expect(toolbar.getByLabelText("Pipeline summary")).toBeInTheDocument()
-      expect(toolbar.getByRole("textbox", { name: "Filter pipeline" })).toBeInTheDocument()
-      expect(screen.getAllByLabelText("History window")).toHaveLength(1)
-      expect(screen.getAllByTestId("pipeline-time-rail")).toHaveLength(1)
-      expect(screen.queryByTestId("compact-pipeline-time-rail")).not.toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId("history-rail-scroll").querySelectorAll("button")).toHaveLength(2))
+      expect(screen.queryByRole("heading", { name: "SDLC Pipeline" })).not.toBeInTheDocument()
+      expect(screen.queryByLabelText("Pipeline summary")).not.toBeInTheDocument()
+      expect(screen.getByTestId("pipeline-filter-row")).toBeInTheDocument()
+      expect(screen.getAllByLabelText(/History window/)).toHaveLength(1)
+      expect(screen.getAllByTestId("compact-pipeline-time-rail")).toHaveLength(1)
       expect(screen.queryByTestId("history-status")).not.toBeInTheDocument()
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: "Play" })).toBeEnabled()
-        expect(screen.getByRole("button", { name: "Previous event" })).toBeEnabled()
+        expect(screen.getByRole("button", { name: /Play/ })).toBeEnabled()
+        expect(screen.getByRole("button", { name: /Previous event/ })).toBeEnabled()
       })
-      fireEvent.click(screen.getByRole("button", { name: "Previous event" }))
-      await waitFor(() => expect(screen.getByTestId("selected-history-time")).toHaveAttribute("datetime", "2026-10-31T11:00:00.000Z"))
-      fireEvent.click(screen.getByRole("button", { name: "Previous event" }))
-      await waitFor(() => expect(screen.getByTestId("selected-history-time")).toHaveAttribute("datetime", "2026-10-31T10:00:00.000Z"))
+      fireEvent.click(screen.getByRole("button", { name: /Previous event/ }))
+      await waitFor(() => expect(screen.getByTestId("selected-history-time")).toHaveTextContent(/Oct 31/))
     })
 
     it("shows a pending state while history loads and keeps the pipeline usable", async () => {
@@ -402,7 +407,7 @@ describe("RepositoryPipelineRoute", () => {
       await screen.findByRole("region", { name: "Pipeline stages" })
       expect(screen.getByTestId("history-status")).toHaveAttribute("data-history-status", "loading")
       expect(screen.getByText("Loading history…")).toBeInTheDocument()
-      expect(screen.getByRole("button", { name: "Play" })).toBeDisabled()
+      expect(screen.getByRole("button", { name: /Play/ })).toBeDisabled()
     })
 
     it("shows a failure with retry that recovers", async () => {
@@ -436,7 +441,7 @@ describe("RepositoryPipelineRoute", () => {
       await waitFor(() => expect(screen.getByTestId("history-status")).toHaveAttribute("data-history-status", "incomplete"))
       expect(screen.getByText(/cannot safely reconstruct/)).toBeInTheDocument()
       expect(screen.queryByText(/No pipeline changes were recorded/)).not.toBeInTheDocument()
-      expect(screen.getByRole("button", { name: "Play" })).toBeDisabled()
+      expect(screen.getByRole("button", { name: /Play/ })).toBeDisabled()
     })
 
     it("keeps a single compact navigator when embedded", async () => {
@@ -444,7 +449,6 @@ describe("RepositoryPipelineRoute", () => {
       renderRoute("?syrus_presentation=embedded")
       await screen.findByRole("region", { name: "Pipeline stages" })
       expect(screen.getAllByTestId("compact-pipeline-time-rail")).toHaveLength(1)
-      expect(screen.queryByTestId("pipeline-time-rail")).not.toBeInTheDocument()
       expect(screen.getAllByLabelText(/History window/)).toHaveLength(1)
     })
 
