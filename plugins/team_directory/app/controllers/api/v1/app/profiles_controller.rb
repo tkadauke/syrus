@@ -64,6 +64,7 @@ module Api
             profile_location: user.profile_location,
             profile_company: user.profile_company,
             profile_website: user.profile_website,
+            is_current_user: user.id == Current.user.id,
             avatar_url: user.avatar_url,
             counts: directory_counts([ user ]).fetch(user.id),
             profile_path: profile_path(user),

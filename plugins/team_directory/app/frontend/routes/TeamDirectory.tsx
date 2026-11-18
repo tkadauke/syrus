@@ -1,5 +1,4 @@
 import { withRoutePrefix } from "@app/lib/routing"
-import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { Avatar } from "@app/components/Avatar"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
@@ -13,17 +12,11 @@ import {
   type TeamProfileActivity,
   type TeamProfileCounts,
   type TeamProfileDetail,
-  type TeamProfileEpic,
-  type TeamProfileJob,
   type TeamProfileRepository,
   type TeamProfileSummary
 } from "../api/profiles"
-import { StatusPill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
-import { PanelMessage } from "@app/components/PanelMessage"
-import { Page } from "@app/components/ui"
-import { Input } from "@app/components/Input"
-import { Button } from "@app/components/Button"
+import { Button, Input, LinkText, Metric, Page, PanelMessage, Pill, Section, StatusPill, Text, buttonClasses } from "@app/components/ui"
 
 export function TeamDirectoryRoute() {
   const { t } = useT("team_directory")
@@ -56,7 +49,7 @@ export function TeamDirectoryRoute() {
   return (
     <Page.Root aria-label={t("profiles.aria_directory")} gutter="responsive" size="wide">
       <Page.Header>
-        <PageHeading>{t("profiles.team_directory")}</PageHeading>
+        <Page.Title>{t("profiles.team_directory")}</Page.Title>
       </Page.Header>
 
       <form className="flex max-w-xl items-end gap-2" onSubmit={submitSearch}>
@@ -172,47 +165,43 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
     .slice(0, 8)
   return (
     <>
-      <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      <Section.Root aria-labelledby="profile-name" padding="lg">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
           <Avatar avatarUrl={profile.avatar_url} name={profile.display_name} size="large" />
           <div className="min-w-0 flex-1">
-            <PageHeading>
-              <Link className="text-brand hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>
-                {profile.display_name}
-              </Link>
-            </PageHeading>
+            <div className="flex flex-wrap items-center gap-2">
+              <Page.Title id="profile-name">{profile.display_name}</Page.Title>
+              <Pill tone="info">{profile.role_label}</Pill>
+            </div>
             {profile.github_handle ? (
-              <a
-                className="mt-1 inline-block text-sm text-brand hover:underline"
+              <LinkText
+                aria-label={t("profiles.github_profile", { handle: profile.github_handle })}
+                className="mt-1 inline-block text-sm"
+                external
                 href={`https://github.com/${profile.github_handle}`}
-                rel="noopener noreferrer"
-                target="_blank"
               >
                 @{profile.github_handle}
-              </a>
+              </LinkText>
             ) : null}
-            {profile.profile_bio ? (
-              <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">{profile.profile_bio}</p>
-            ) : null}
-            <Counts counts={profile.counts} />
+            {profile.profile_bio ? <Text className="mt-4 max-w-3xl whitespace-pre-wrap leading-6">{profile.profile_bio}</Text> : null}
+            <ProfileMetadata profile={profile} />
           </div>
+          {profile.is_current_user ? (
+            <Link className={buttonClasses("primary", "md", "shrink-0")} to={`${prefix}/profile`}>
+              {t("profiles.edit_profile")}
+            </Link>
+          ) : null}
         </div>
-      </section>
+        <Counts counts={profile.counts} prominent />
+      </Section.Root>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,0.7fr)]">
         <SummaryList
-          title={t("profiles.owned_epics")}
-          empty={t("profiles.empty_epics")}
-          items={profile.epics}
+          title={t("profiles.recent_work")}
+          empty={t("profiles.empty_work")}
+          items={recentActivity}
           prefix={prefix}
-          renderItem={(epic) => <EpicRow epic={epic} prefix={prefix} />}
-        />
-        <SummaryList
-          title={t("profiles.owned_jobs")}
-          empty={t("profiles.empty_jobs")}
-          items={profile.jobs}
-          prefix={prefix}
-          renderItem={(job) => <JobRow job={job} prefix={prefix} />}
+          renderItem={(activity) => <ActivityRow activity={activity} prefix={prefix} />}
         />
         <SummaryList
           title={t("profiles.repositories")}
@@ -221,20 +210,62 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
           prefix={prefix}
           renderItem={(repository) => <RepositoryRow prefix={prefix} repository={repository} />}
         />
-        <SummaryList
-          title={t("profiles.recent_activity")}
-          empty={t("profiles.empty_activity")}
-          items={recentActivity}
-          prefix={prefix}
-          renderItem={(activity) => <ActivityRow activity={activity} prefix={prefix} />}
-        />
       </div>
     </>
   )
 }
 
-function Counts({ counts }: { counts: TeamProfileCounts }) {
+function ProfileMetadata({ profile }: { profile: TeamProfileDetail }) {
   const { t } = useT("team_directory")
+  const metadata = [
+    profile.profile_company ? { external: false, label: t("profiles.company"), value: profile.profile_company } : null,
+    profile.profile_location ? { external: false, label: t("profiles.location"), value: profile.profile_location } : null
+  ].filter((item): item is { external: boolean; label: string; value: string } => Boolean(item))
+
+  if (profile.profile_website) {
+    metadata.push({ external: true, label: t("profiles.website"), value: profile.profile_website })
+  }
+
+  if (metadata.length === 0) return null
+
+  return (
+    <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-3 text-sm">
+      {metadata.map((item) => (
+        <div key={item.label}>
+          <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">{item.label}</dt>
+          <dd className="mt-0.5 text-text-primary">{item.external ? <WebsiteLink value={item.value} /> : item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function WebsiteLink({ value }: { value: string }) {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return value
+    return (
+      <LinkText external href={url.href}>
+        {url.host}
+      </LinkText>
+    )
+  } catch {
+    return value
+  }
+}
+
+function Counts({ counts, prominent = false }: { counts: TeamProfileCounts; prominent?: boolean }) {
+  const { t } = useT("team_directory")
+  if (prominent) {
+    return (
+      <Metric.Group aria-label={t("profiles.work_counts")} className="mt-6 border-t border-border pt-5" columns={4} role="group">
+        <Metric.Card label={t("profiles.count_repos")} value={counts.repositories} />
+        <Metric.Card label={t("profiles.count_epics")} value={counts.epics} />
+        <Metric.Card label={t("profiles.count_jobs")} value={counts.jobs} />
+        <Metric.Card label={t("profiles.count_open")} value={counts.open_jobs} />
+      </Metric.Group>
+    )
+  }
   return (
     <dl className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
       <Count label={t("profiles.count_repos")} value={counts.repositories} />
@@ -256,76 +287,29 @@ function Count({ label, value }: { label: string; value: number }) {
 }
 
 function SummaryList<T>({ title, empty, items, renderItem }: { title: string; empty: string; items: T[]; prefix: string; renderItem: (item: T) => ReactNode }) {
-  const { t } = useT("team_directory")
   return (
-    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <SectionHeading className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">{title}</SectionHeading>
-      {items.length === 0 ? (
-        <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{empty}</p>
-      ) : (
-        <div className="divide-y divide-gray-100 dark:divide-gray-800">
-          {items.map((item, index) => (
-            <div className="px-4 py-3" key={index}>
-              {renderItem(item)}
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function EpicRow({ epic, prefix }: { epic: TeamProfileEpic; prefix: string }) {
-  const { t } = useT("team_directory")
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(epic.path, prefix)}>
-          {epic.title}
-        </Link>
-        <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
-          {epic.display_number} · {epic.repository.slug}
-        </div>
-      </div>
-      <StatusPill state={epic.state} />
-    </div>
-  )
-}
-
-function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
-  const { t } = useT("team_directory")
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.path, prefix)}>
-          {job.title}
-        </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-          {job.owner ? <OwnerProfileLink owner={job.owner} prefix={prefix} /> : null}
-          <span>
-            {job.repository.slug} · {t("profiles.updated")} <RelativeTimestamp fallback={t("profiles.not_started")} value={job.updated_at} />
-          </span>
-        </div>
-      </div>
-      <StatusPill state={job.state} />
-    </div>
-  )
-}
-
-function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob["owner"]>; prefix: string }) {
-  const { t } = useT("team_directory")
-  return (
-    <Link
-      className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium text-gray-600 dark:text-gray-400 hover:text-brand hover:underline"
-      to={withRoutePrefix(owner.profile_path, prefix)}
-    >
-      {owner.display_name}
-    </Link>
+    <Section.Root divided>
+      <Section.Header>
+        <Section.Title>{title}</Section.Title>
+      </Section.Header>
+      <Section.Body>
+        {items.length === 0 ? (
+          <Text muted>{empty}</Text>
+        ) : (
+          <div className="divide-y divide-border">
+            {items.map((item, index) => (
+              <div className="py-3 first:pt-0 last:pb-0" key={index}>
+                {renderItem(item)}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section.Body>
+    </Section.Root>
   )
 }
 
 function RepositoryRow({ repository, prefix }: { repository: TeamProfileRepository; prefix: string }) {
-  const { t } = useT("team_directory")
   return (
     <Link className="font-mono text-sm text-brand hover:underline" to={withRoutePrefix(repository.path, prefix)}>
       {repository.slug}
@@ -341,8 +325,9 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
         <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(activity.path, prefix)}>
           {activity.title}
         </Link>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {activity.type} · {activity.repository_slug} · <RelativeTimestamp fallback={t("profiles.not_started")} value={activity.occurred_at} />
+        <div className="mt-1 text-xs text-text-muted">
+          {t(`profiles.${activity.type}`)} · {activity.repository_slug} ·{" "}
+          <RelativeTimestamp fallback={t("profiles.not_started")} value={activity.occurred_at} />
         </div>
       </div>
       <StatusPill state={activity.state} />
