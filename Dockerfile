@@ -174,6 +174,8 @@ FROM docker.io/library/golang:1.26.5-bookworm AS cli-build
 
 WORKDIR /src
 
+ARG SYRUS_VERSION="latest"
+
 COPY cli/go.mod cli/go.sum ./cli/
 COPY plugins/credential_store/cli/go.mod ./plugins/credential_store/cli/
 
@@ -192,7 +194,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     target_arch="${TARGETARCH:-$(go env GOARCH)}"; \
     cd cli; \
     env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
-      go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .; \
+      go build -trimpath -ldflags="-s -w -X github.com/tkadauke/syrus/cli/cmd.cliReleaseVersion=${SYRUS_VERSION:-latest}" -o /usr/local/bin/syrus .; \
     cd ../plugins/credential_store/cli; \
     env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
       go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus-credential ./cmd/syrus-credential; \
@@ -241,6 +243,24 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD if [ -n "$SYRUS_ROLE" ] && [ "$SYRUS_ROLE" != "web" ]; then exit 0; fi; curl -fsS http://127.0.0.1/readyz >/dev/null || exit 1
 CMD ["./bin/thrust", "./bin/rails", "server"]
+
+# Plugin SDK runner. The production app intentionally excludes test gems;
+# this companion target keeps RSpec and the test database schema while sharing
+# the exact application build and public plugin host surface of the release.
+FROM build AS plugin-test
+
+ARG SYRUS_VERSION=""
+ENV SYRUS_VERSION=$SYRUS_VERSION \
+    RAILS_ENV="test" \
+    BUNDLE_WITHOUT="development"
+
+# The production bundle deliberately omits RSpec. Install only the test group
+# in this explicit SDK image; it is never used by web or worker deployments.
+RUN bundle install && \
+    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
+    chmod 0755 /rails/bin/plugin-test && mkdir -p /plugins && chmod 0777 /plugins
+ENTRYPOINT ["/rails/bin/plugin-test"]
+CMD ["/plugins/plugin"]
 
 
 

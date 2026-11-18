@@ -1,0 +1,82 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "json"
+require "open3"
+require "pathname"
+require "tmpdir"
+
+plugin_root = Pathname.new(ARGV.shift || ENV.fetch("SYRUS_PLUGIN_PATH", "/plugins/plugin")).expand_path
+mode = ENV.fetch("SYRUS_PLUGIN_TEST_MODE", "test")
+json_only = ENV["SYRUS_PLUGIN_TEST_JSON"] == "1"
+abort "usage: bin/plugin-test [PLUGIN_DIR]" unless ARGV.empty?
+abort "plugin directory does not exist: #{plugin_root}" unless plugin_root.directory?
+abort "SYRUS_PLUGIN_TEST_MODE must be validate or test" unless %w[validate test].include?(mode)
+
+host_root = Pathname.new(__dir__).join("..").expand_path
+result = { version: 1, mode:, plugin: plugin_root.basename.to_s, validation: "not_run", tests: "not_run", exit_code: 0 }
+
+Dir.mktmpdir("syrus-plugin-test") do |temporary|
+  external_root = Pathname.new(temporary).join("plugins")
+  FileUtils.mkdir_p(external_root)
+  FileUtils.ln_s(plugin_root, external_root.join(plugin_root.basename))
+  database = Pathname.new(temporary).join("plugin-test.sqlite3")
+  environment = {
+    "RAILS_ENV" => "test",
+    "DATABASE_URL" => "sqlite3:#{database}",
+    "SYRUS_PLUGIN_PATH" => external_root.to_s,
+    "SYRUS_VERSION" => ENV.fetch("SYRUS_VERSION", "0.0.0"),
+    "SYRUS_HOST_ROOT" => host_root.to_s,
+    "RELOCATABLE_PLUGIN_ROOT" => plugin_root.to_s
+  }
+
+  run = lambda do |*command|
+    if json_only
+      _output, status = Open3.capture2e(environment, *command, chdir: host_root.to_s)
+      status.success?
+    else
+      system(environment, *command, chdir: host_root.to_s)
+    end
+  end
+
+  schema_ok = run.call(host_root.join("bin/rails").to_s, "db:schema:load")
+  validation_spec = Pathname.new(temporary).join("validation_spec.rb")
+  validation_spec.write(<<~RUBY)
+    require #{host_root.join("spec/spec_helper").to_s.inspect}
+    require #{host_root.join("config/environment").to_s.inspect}
+    require "rspec/rails"
+    require "syrus/plugin/test_kit"
+
+    RSpec.describe "external plugin validation" do
+      include Syrus::Plugin::TestKit::Helpers
+      let(:plugin) { syrus_plugin(#{plugin_root.to_s.inspect}) }
+
+      it "passes the complete external plugin contract" do
+        expect(plugin).to be_plugin_loaded
+        expect(plugin).to be_plugin_healthy
+        expect(plugin).to have_valid_plugin_manifest
+        expect(plugin).to satisfy_requires_syrus
+        expect(plugin).to have_clean_plugin_host_surface
+        expect(plugin).to have_plugin_frontend
+        expect(plugin).to have_matching_plugin_locales
+      end
+    end
+  RUBY
+
+  validation_ok = schema_ok && run.call(host_root.join("bin/rspec").to_s, validation_spec.to_s)
+  result[:validation] = validation_ok ? "passed" : "failed"
+
+  if mode == "test" && validation_ok
+    specs = Dir[plugin_root.join("spec/**/*_spec.rb")].sort
+    tests_ok = !specs.empty? && run.call(host_root.join("bin/rspec").to_s, *specs)
+    result[:tests] = tests_ok ? "passed" : "failed"
+  elsif mode == "test"
+    result[:tests] = "skipped"
+  end
+
+  result[:exit_code] = 1 if result[:validation] == "failed" || result[:tests] == "failed"
+end
+
+puts JSON.generate(result)
+exit result[:exit_code]

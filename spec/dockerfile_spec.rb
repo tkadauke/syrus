@@ -130,7 +130,7 @@ RSpec.describe "Dockerfile" do
     expect(cli_stage).to include("COPY cli/go.mod cli/go.sum ./cli/")
     expect(cli_stage).to include("cd cli && GOWORK=off go mod download")
     expect(cli_stage).to include('env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch"')
-    expect(cli_stage).to include('go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .')
+    expect(cli_stage).to include('go build -trimpath -ldflags="-s -w -X github.com/tkadauke/syrus/cli/cmd.cliReleaseVersion=${SYRUS_VERSION:-latest}" -o /usr/local/bin/syrus .')
 
     expect(cli_stage).not_to match(%r{COPY plugins/(?!credential_store/cli)\S+/cli})
 

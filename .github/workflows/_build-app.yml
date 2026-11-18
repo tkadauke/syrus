@@ -253,12 +253,33 @@ jobs:
           echo "pushed $PLATFORM as $digest"
           touch "/tmp/digests/${digest#sha256:}"
 
+          mkdir -p /tmp/plugin-test-digests
+          PLUGIN_TEST_IMAGE="ghcr.io/tkadauke/syrus-plugin-test"
+          docker buildx build -f Dockerfile --target plugin-test \
+            --build-arg "GIT_SHA=$(git rev-parse --short HEAD)" \
+            --build-arg "SYRUS_VERSION=$VERSION" \
+            --platform "$PLATFORM" --provenance=false \
+            --cache-from "type=registry,ref=$CACHE_REF" \
+            --output "type=image,name=$PLUGIN_TEST_IMAGE,push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file /tmp/plugin-test-metadata.json .
+          plugin_test_digest="$(jq -r '."containerimage.digest"' /tmp/plugin-test-metadata.json)"
+          touch "/tmp/plugin-test-digests/${plugin_test_digest#sha256:}"
+
       - name: Upload digest
         if: inputs.push_image
         uses: actions/upload-artifact@v7
         with:
           name: digests-${{ matrix.arch }}
           path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload plugin test digest
+        if: inputs.push_image
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-test-digests-${{ matrix.arch }}
+          path: /tmp/plugin-test-digests/*
           if-no-files-found: error
           retention-days: 1
 
@@ -290,6 +311,13 @@ jobs:
           pattern: digests-*
           merge-multiple: true
 
+      - name: Download plugin test per-arch digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/plugin-test-digests
+          pattern: plugin-test-digests-*
+          merge-multiple: true
+
       - name: Assemble the multi-arch manifest
         env:
           IMAGE: ghcr.io/tkadauke/syrus-backend
@@ -305,6 +333,13 @@ jobs:
           echo "merging ${#refs[@]} arch(es) into $IMAGE:$VERSION${VERSION_TAG:+ + $IMAGE:$VERSION_TAG}"
           docker buildx imagetools create -t "$IMAGE:$VERSION" ${VERSION_TAG:+-t "$IMAGE:$VERSION_TAG"} "${refs[@]}"
 
+          PLUGIN_TEST_IMAGE="ghcr.io/tkadauke/syrus-plugin-test"
+          cd /tmp/plugin-test-digests
+          plugin_test_refs=()
+          for d in *; do plugin_test_refs+=("$PLUGIN_TEST_IMAGE@sha256:$d"); done
+          if [ "${#plugin_test_refs[@]}" -eq 0 ]; then echo "::error::no plugin test digests to merge"; exit 1; fi
+          docker buildx imagetools create -t "$PLUGIN_TEST_IMAGE:$VERSION" ${VERSION_TAG:+-t "$PLUGIN_TEST_IMAGE:$VERSION_TAG"} "${plugin_test_refs[@]}"
+
       - name: Verify the pushed manifest(s) exist
         env:
           IMAGE: ghcr.io/tkadauke/syrus-backend
@@ -315,6 +350,9 @@ jobs:
           . ./bin/docker-image-lib
           syrus_verify_pushed "$IMAGE" "$VERSION"
           if [ -n "$VERSION_TAG" ]; then syrus_verify_pushed "$IMAGE" "$VERSION_TAG"; fi
+          PLUGIN_TEST_IMAGE="ghcr.io/tkadauke/syrus-plugin-test"
+          syrus_verify_pushed "$PLUGIN_TEST_IMAGE" "$VERSION"
+          if [ -n "$VERSION_TAG" ]; then syrus_verify_pushed "$PLUGIN_TEST_IMAGE" "$VERSION_TAG"; fi
 
   # ---------------------------------------------------------------------------
   # Cross-compile the CLI and stage the tarballs + checksums.
