@@ -1,5 +1,20 @@
 #!/bin/bash -e
 
+plugin_sync_env="${SYRUS_DATA_ROOT:-/home/rails/.syrus}/plugin-sync/process.env"
+if [ "${SYRUS_PLUGIN_SYNC_ENABLED:-0}" = "1" ]; then
+  plugin_sync_args=(--env-file "$plugin_sync_env")
+  if [ "${SYRUS_PLUGIN_SYNC_STRICT:-0}" = "1" ]; then
+    plugin_sync_args+=(--strict)
+  fi
+  bundle exec ruby ./bin/plugin-sync "${plugin_sync_args[@]}"
+  if [ -f "$plugin_sync_env" ]; then
+    set -a
+    # shellcheck source=/dev/null
+    . "$plugin_sync_env"
+    set +a
+  fi
+fi
+
 # Seed /opt/mise from /opt/mise-seed when the volume is empty. cp -rn
 # (no-clobber) is safe for partially-populated volumes; reshim rebuilds
 # shims so seeded installs are immediately on PATH.
