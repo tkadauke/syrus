@@ -128,6 +128,7 @@ class Coworkers::ReviewMemoryLifecycle
           with_git_auth(repository, run, operation_type: "coworker_review_reconcile") do |url, env|
             git.run("fetch", url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path, env:)
           end
+          GitMergeDrivers.register!(git:, path:)
           git.run("rebase", "origin/#{branch}", chdir: path)
           expected_sha = git.run("rev-parse", "origin/#{branch}", chdir: path).strip
           lease = "--force-with-lease=refs/heads/#{branch}:#{expected_sha}"
