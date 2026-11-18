@@ -64,6 +64,16 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
   end
 
+  it "records a host-surface scan without replacing manifest registration" do
+    described_class.register(name: "external", version: "1.0.0", external: true, custom: "value")
+    scan = instance_double(Syrus::PluginHostSurface::Scanner::Result)
+
+    described_class.record_host_surface_scan("external", scan)
+
+    manifest = described_class.all_plugins.find { |plugin| plugin.name == "external" }
+    expect(manifest.metadata).to include(custom: "value", plugin_host_surface_scan: scan)
+  end
+
   let(:test_result_parser_class) do
     Class.new { include TestInsights::Parser }
   end

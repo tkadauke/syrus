@@ -84,6 +84,30 @@ RSpec.describe Syrus::PluginLoader do
     end
   end
 
+  it "defers a real host-surface scan until application preparation" do
+    Dir.mktmpdir do |temporary|
+      snapshot = Syrus::PluginRegistry.snapshot
+      app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+      external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+      write_plugin(external_root, directory_name: "fixture", gem_name: "external_loader_fixture")
+      roots = Syrus::PluginRoots.new(application_root: app_root, external_path: external_root)
+      allow(Syrus::PluginHostSurface::Scanner).to receive(:cached).and_call_original
+
+      described_class.new(plugin_roots: roots).load!
+
+      expect(Syrus::PluginHostSurface::Scanner).not_to have_received(:cached)
+      described_class.scan_external_plugins!
+      manifest = Syrus::PluginRegistry.all_plugins.find { |candidate| candidate.name == "external_loader_fixture" }
+      scan = manifest.metadata.fetch(:plugin_host_surface_scan)
+      expect(scan.error).to be_nil
+      expect(scan.public.map(&:constant)).to include("Syrus::PluginApi")
+      expect(Syrus::PluginHostSurface::Scanner).to have_received(:cached).with(manifest.plugin_root).once
+    ensure
+      Syrus::PluginRegistry.restore(snapshot) if snapshot
+      Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
+    end
+  end
+
   it "loads an external plugin and notes the skipped check when the running release is unknown" do
     Dir.mktmpdir do |temporary|
       snapshot = Syrus::PluginRegistry.snapshot
