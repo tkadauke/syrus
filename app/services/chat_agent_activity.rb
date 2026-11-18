@@ -29,6 +29,10 @@ class ChatAgentActivity
   # EXISTS against spawned_processes for an answer the chat payload had just
   # worked out one line earlier.
   def self.for(chat_session, now: Time.current, active: nil)
+    if chat_session.respond_to?(:proxied_agent_activity_chat) && (proxy = chat_session.proxied_agent_activity_chat)
+      chat_session = proxy
+      active = proxy.turn_in_flight? || proxy.agent_busy?
+    end
     new(chat_session, now: now, active: active).call
   end
 

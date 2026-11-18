@@ -791,10 +791,9 @@ module Api
         end
 
         def stored_file_patch(job, base, head, path, previous_path)
-          snapshot = job.diff_review_versions
-                        .where(base_sha: base, head_sha: head)
-                        .latest_first
-                        .pick(:files_snapshot)
+          versions = job.diff_review_versions.where(base_sha: base, head_sha: head)
+          version_id = versions.latest_first.pick(:id)
+          snapshot = versions.where(id: version_id).pick(:files_snapshot) if version_id
           file = Array(snapshot).find do |candidate|
             candidate["path"].to_s == path && candidate["previous_path"].to_s.presence == previous_path
           end

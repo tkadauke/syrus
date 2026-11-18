@@ -20,7 +20,7 @@ module Coworkers
         {
           id: coworker.id, name: coworker.name, handle: coworker.handle,
           accent_hex: coworker.accent_hex, avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url,
-          removable: chat_session.user_id == Current.user&.id
+          removable: chat_session.user_id == Current.user&.id, after_reply: entry.after_reply
         }
       end
     end
@@ -34,7 +34,9 @@ module Coworkers
         .index_by { |coworker| [ coworker.owner_user_id, coworker.id ] }
       bridge_chat_ids = messages.filter_map do |message|
         content = message.content
-        content["origin_chat_session_id"] if content.is_a?(Hash) && content["requested_by"] == "cross_chat"
+        next unless content.is_a?(Hash)
+
+        content["origin_chat_session_id"] if content["requested_by"] == "cross_chat" || content["source"] == "coworker_message"
       end.uniq
       bridge_coworkers = Coworkers::Chat.where(chat_session_id: bridge_chat_ids)
         .includes(coworker: { avatar_attachment: :blob }, chat_session: :user)
@@ -44,10 +46,10 @@ module Coworkers
         decorated = {}
         owner_id = message.chat_session.user_id
         content = message.content.is_a?(Hash) ? message.content : {}
-        bridge_chat_id = content["origin_chat_session_id"] if content["requested_by"] == "cross_chat"
+        bridge_chat_id = content["origin_chat_session_id"] if content["requested_by"] == "cross_chat" || content["source"] == "coworker_message"
         bridge_link = bridge_coworkers[[ owner_id, bridge_chat_id ]]
         if bridge_link
-          decorated[:plugin_message] = message_presentation(appearance: appearance_json(bridge_link.coworker), direction: "incoming", handle: bridge_link.coworker.handle)
+          decorated[:plugin_message] = message_presentation(appearance: appearance_json(bridge_link.coworker), direction: "incoming", handle: bridge_link.coworker.handle, working_chat_id: bridge_chat_id)
         elsif entry&.fetch("direction", nil) == "incoming" && (coworker = coworkers[[ owner_id, entry["sender_id"].to_i ]])
           decorated[:plugin_message] = message_presentation(appearance: appearance_json(coworker), direction: "incoming", handle: entry["sender_handle"])
         elsif entry&.fetch("direction", nil) == "outgoing" && (coworker = coworkers[[ owner_id, entry["receiver_id"].to_i ]])
@@ -55,6 +57,7 @@ module Coworkers
         elsif entry
           decorated[:plugin_message] = message_presentation(appearance: nil, direction: entry["direction"], handle: entry["sender_handle"] || entry["receiver_handle"])
         end
+        decorated[:author] = decorated.dig(:plugin_message, :data, :appearance)&.slice(:id, :name, :handle, :accent_hex, :avatar_key, :avatar_url)
         [ message.id, decorated ]
       end
     end
@@ -73,8 +76,10 @@ module Coworkers
       }
     end
 
-    def self.message_presentation(appearance:, direction:, handle:)
-      { component: "coworkers/CoworkerMessage", data: { appearance: appearance, direction: direction, handle: handle } }
+    def self.message_presentation(appearance:, direction:, handle:, working_chat_id: nil)
+      data = { appearance: appearance, direction: direction, handle: handle }
+      data[:working_chat_id] = working_chat_id if working_chat_id
+      { component: "coworkers/CoworkerMessage", data: data }
     end
   end
 end

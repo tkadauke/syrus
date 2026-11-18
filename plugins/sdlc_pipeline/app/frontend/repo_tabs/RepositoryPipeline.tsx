@@ -3,10 +3,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button, Input, Modal, Notice, PageHeading, Section, Select, Text } from "@app/components/ui"
 import { CloseIcon } from "@app/components/CloseIcon"
-import { AdminFiltersLayout } from "@app/components/AdminFiltersLayout"
-import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { FilterBar } from "@app/components/FilterBar"
-import { SmartFolderFilterBar } from "@app/components/SmartFolderFilterBar"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { TonePill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
@@ -30,24 +27,16 @@ const STAGE_HEADER_CLASSES =
   "w-full border-b border-border bg-surface/95 p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
 const SHOW_ALL_CLASSES =
   "mt-auto rounded p-1.5 text-left text-[length:var(--text-caption)] font-medium text-brand hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-const TIME_RAIL_CLASSES =
-  "relative z-20 flex h-[33.75rem] w-[6.5rem] shrink-0 flex-col items-center border-r border-border bg-surface px-1.5 py-2 sm:w-[7.5rem] sm:px-2"
-const RAIL_BUTTON_CLASSES =
-  "rounded px-1 text-sm font-semibold text-brand hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-const VERTICAL_SCRUBBER_CLASSES =
-  "absolute left-1/2 top-1/2 z-10 h-[92%] w-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer opacity-0 focus-visible:opacity-100"
-const EVENT_MARK_CLASSES =
-  "absolute left-1/2 z-20 flex h-3 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm text-[8px] font-bold focus-visible:h-5 focus-visible:w-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-const RAIL_OPTIONS_CLASSES =
-  "cursor-pointer list-none rounded border border-border px-1.5 py-1 text-center text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-const RAIL_POPOVER_CLASSES =
-  "fixed inset-x-2 bottom-2 z-40 rounded border border-border bg-surface p-3 text-left shadow-lg sm:absolute sm:inset-x-auto sm:bottom-8 sm:left-0 sm:w-72"
 const RAIL_LABEL_CLASSES =
   "pointer-events-none absolute left-0 w-11 -translate-y-1/2 whitespace-nowrap pr-1 sm:w-14 sm:pr-1.5 text-right text-[10px] leading-none"
 const RAIL_TICK_CLASSES =
   "absolute left-[3rem] z-20 flex h-3.5 w-6 sm:left-[4rem] sm:w-8 -translate-y-1/2 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
 const TICK_TONE = { attention: "text-danger-text", deployment: "text-info", movement: "text-text-muted" } as const
 const SELECTED_CHIP_CLASSES = "mb-1 shrink-0 break-words rounded bg-surface-raised px-1 py-0.5 text-center text-2xs font-semibold leading-tight text-brand"
+const STAGE_SCROLLER_CLASSES =
+  "flex min-h-0 flex-1 snap-x gap-3 overflow-x-auto px-3 pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+const PRESENTATION_LINK_CLASSES =
+  "shrink-0 rounded border border-border px-3 py-2 text-sm font-medium text-text-primary hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
 type HistoryEventKind = "attention" | "deployment" | "movement"
@@ -382,6 +371,7 @@ function HistoryRail({
   historical,
   historicalAt,
   history,
+  incompleteEvidenceCount,
   onRangeChange,
   onSelect,
   playing,
@@ -392,6 +382,7 @@ function HistoryRail({
   historical: boolean
   historicalAt: string | null
   history: PipelineHistory
+  incompleteEvidenceCount: number
   onRangeChange: (days: number) => void
   onSelect: (at: string | null) => void
   playing: boolean
@@ -411,6 +402,16 @@ function HistoryRail({
             : t("live_mode")}
         </Text>
       </div>
+      {incompleteEvidenceCount > 0 ? (
+        <details className="text-2xs text-warning-text">
+          <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            {t("partial_evidence_short")}
+          </summary>
+          <Text className="mt-1" variant="caption" tone="muted">
+            {t("partial_evidence", { count: incompleteEvidenceCount })}
+          </Text>
+        </details>
+      ) : null}
       <div className="grid w-full grid-cols-2 gap-1">
         <Button
           aria-label={`${t("history_short")} ${playing ? t("pause_history") : t("play_history")}`}
@@ -481,6 +482,16 @@ function HistoryRail({
           </Select>
         </label>
       </div>
+      {historical && historicalAt ? (
+        <Text variant="caption" tone="muted">
+          {t("historical_banner_compact", { time: new Date(historicalAt).toLocaleString() })}
+        </Text>
+      ) : null}
+      {history.accuracy.message ? (
+        <Text variant="caption" tone="muted">
+          {history.accuracy.message}
+        </Text>
+      ) : null}
     </Section.Root>
   )
 }
@@ -533,7 +544,6 @@ function PipelineOverview({
   const { t } = useT("sdlc_pipeline")
   const scroller = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<PipelineStage | null>(null)
-  const [query, setQuery] = useState("")
   const [edges, setEdges] = useState({ left: false, right: false })
   const [traceJobId, setTraceJobId] = useState<number | null>(null)
   const [traceEpic, setTraceEpic] = useState<PipelineGroup["epic"] | null>(null)
@@ -606,24 +616,7 @@ function PipelineOverview({
     })
     return { ...payload, stages, groups: [...grouped.values()] }
   }, [payload, selectedAt, historicalAt, history, tracesByJob])
-  const stages = useMemo(
-    () =>
-      displayedPayload.stages.map((stage) => {
-        if (!query) return stage
-        const normalized = query.toLowerCase()
-        const stageMatches = stage.label.toLowerCase().includes(normalized)
-        const highlighted_items = stageMatches
-          ? stage.highlighted_items
-          : stage.highlighted_items.filter((item) => `${item.slug} ${item.title}`.toLowerCase().includes(normalized))
-        return { ...stage, highlighted_items }
-      }),
-    [displayedPayload.stages, query]
-  )
-  const active = displayedPayload.stages.find((stage) => stage.total > 0 && stage.kind === "lifecycle")
-  const total = displayedPayload.stages.reduce((sum, stage) => sum + stage.total, 0)
-  const attention = displayedPayload.stages.reduce((sum, stage) => sum + stage.attention_count, 0)
-  const landed = displayedPayload.stages.find((stage) => stage.key === "landed")?.total || 0
-  const oldest = Math.max(0, ...displayedPayload.stages.map((stage) => stage.oldest_age_seconds || 0))
+  const stages = displayedPayload.stages
   const navigate = useNavigate()
   function setAt(at: string | null) {
     const params = new URLSearchParams(search)
@@ -633,8 +626,6 @@ function PipelineOverview({
   }
   const selectedTime = historicalAt ? new Date(historicalAt).getTime() : new Date(history.to).getTime()
   const currentTick = history.ticks.reduce((found, tick, index) => (selectedTime >= timeMs(tick) ? index : found), -1)
-  const previousTick = currentTick > 0 ? history.ticks[currentTick - 1] : history.from
-  const changes = historical ? history.deltas.filter((delta) => timeMs(delta.at) > timeMs(previousTick) && selectedTime >= timeMs(delta.at)) : []
   const eventMarks = useMemo(() => {
     const deltasByTick = new Map<string, typeof history.deltas>()
     history.deltas.forEach((delta) => deltasByTick.set(delta.at, [...(deltasByTick.get(delta.at) || []), delta]))
@@ -679,11 +670,6 @@ function PipelineOverview({
   function move(direction: number) {
     scroller.current?.scrollBy({ left: direction * 580, behavior: reducedMotion() ? "auto" : "smooth" })
   }
-  function focusStage(stage: PipelineStage) {
-    scroller.current
-      ?.querySelector<HTMLElement>(`[data-stage="${CSS.escape(stage.key)}"]`)
-      ?.scrollIntoView({ inline: "center", block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" })
-  }
   function onKeys(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault()
@@ -693,45 +679,8 @@ function PipelineOverview({
   const deploymentStages = payload.stages.filter((stage) => stage.kind === "deployment")
   return (
     <>
-      {!embedded ? (
+      {!embedded && (Boolean(trace && tracedItem) || Boolean(traceEpic)) ? (
         <div className="py-2">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="pipeline-toolbar">
-            <div className="flex min-w-0 items-baseline gap-2">
-              <Section.Title>{t("title")}</Section.Title>
-              <Text className="truncate" tone="muted" variant="caption">
-                {t("subtitle", { time: new Date(historicalAt || payload.generated_at).toLocaleString() })}
-              </Text>
-            </div>
-            <div className="flex min-w-0 gap-3 overflow-x-auto text-2xs text-text-muted" aria-label={t("pipeline_summary")}>
-              <span className="whitespace-nowrap">
-                <strong className="text-text-primary">{total}</strong> {t("in_pipeline")}
-              </span>
-              <span className={`whitespace-nowrap ${attention && !historical ? "text-danger-text" : ""}`}>
-                <strong>{historical ? t("not_available") : attention}</strong> {t("need_attention")}
-              </span>
-              <span className="whitespace-nowrap">
-                <strong className={landed ? "text-warning-text" : "text-text-primary"}>{landed}</strong> {t("landed_gap")}
-              </span>
-              <span className="whitespace-nowrap">
-                <strong className="text-text-primary">{duration(oldest, t)}</strong> {t("oldest_active")}
-              </span>
-            </div>
-            <Input
-              aria-label={t("filter_aria")}
-              className="ml-auto max-w-xs"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("filter_placeholder")}
-              value={query}
-            />
-            {active ? (
-              <Button onClick={() => focusStage(active)} size="sm" variant="secondary">
-                {t("center_active")}
-              </Button>
-            ) : null}
-            <Text variant="caption" tone="muted">
-              {t("represented", { count: total })}
-            </Text>
-          </div>
           {trace && tracedItem ? (
             <Section.Root className="mt-3 p-3">
               <div className="flex items-center gap-2">
@@ -780,170 +729,11 @@ function PipelineOverview({
         </div>
       ) : null}
       <HistoryStatusNotice onRetry={onRetryHistory} status={historyStatus} />
-      <div className={`relative flex border-y border-border bg-surface-subtle ${embedded ? "min-h-0 flex-1" : ""}`} data-testid="pipeline-with-time-rail">
-        {!embedded ? (
-          <aside aria-label={t("history_aria")} className={TIME_RAIL_CLASSES} data-testid="pipeline-time-rail">
-            <div className="flex w-full flex-col items-center gap-1 sm:flex-row sm:justify-between">
-              <TonePill tone={historical ? "amber" : "gray"}>{historical ? t("historical_mode_short") : t("live_mode")}</TonePill>
-              {historical ? (
-                <button aria-label={t("return_now")} className={RAIL_BUTTON_CLASSES} onClick={() => setAt(null)} title={t("return_now")} type="button">
-                  ↥
-                </button>
-              ) : null}
-            </div>
-            <Text className="mt-1 text-center text-2xs leading-tight" variant="caption" tone="muted">
-              {historical ? (
-                <time data-testid="selected-history-time" dateTime={historicalAt!}>
-                  {new Date(historicalAt!).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                </time>
-              ) : (
-                t("now")
-              )}
-            </Text>
-            <div className="relative my-2 min-h-0 w-full flex-1" data-testid="history-event-track">
-              <div aria-hidden className="absolute bottom-2 left-1/2 top-2 w-px -translate-x-1/2 bg-border" />
-              <Input
-                aria-label={t("time_scrubber")}
-                className={VERTICAL_SCRUBBER_CLASSES}
-                max={history.ticks.length}
-                min={0}
-                onChange={(event) =>
-                  setAt(event.target.value === String(history.ticks.length) ? null : history.ticks[Number(event.target.value)] || history.from)
-                }
-                style={{ writingMode: "vertical-lr", direction: "rtl" }}
-                type="range"
-                value={historical ? Math.max(0, currentTick) : history.ticks.length}
-              />
-              {eventMarks.map((mark) => {
-                const selected = historical && mark.index === currentTick
-                const label = t("event_mark", {
-                  time: new Date(mark.tick).toLocaleString(),
-                  type: t(`event_type_${mark.kind}`),
-                  count: mark.count
-                })
-                return (
-                  <button
-                    aria-label={label}
-                    className={`${EVENT_MARK_CLASSES} ${
-                      selected
-                        ? "bg-brand text-on-brand ring-2 ring-offset-1 ring-offset-surface"
-                        : mark.kind === "attention"
-                          ? "bg-danger text-on-danger"
-                          : mark.kind === "deployment"
-                            ? "bg-info text-on-info"
-                            : "border border-border-strong bg-surface-raised text-text-muted"
-                    }`}
-                    key={mark.tick}
-                    onClick={() => setAt(mark.tick)}
-                    style={{ top: `${96 - (mark.index / Math.max(1, history.ticks.length)) * 92}%` }}
-                    title={label}
-                    type="button"
-                  >
-                    {mark.kind === "attention" ? "!" : mark.kind === "deployment" ? "◆" : "•"}
-                  </button>
-                )
-              })}
-              <span aria-hidden className="absolute bottom-0 left-1/2 -translate-x-1/2 text-2xs text-text-subtle">
-                −
-              </span>
-              <span aria-hidden className="absolute left-1/2 top-0 -translate-x-1/2 text-2xs text-text-subtle">
-                +
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-1">
-              <Button
-                aria-label={playing ? t("pause_history") : t("play_history")}
-                disabled={!history.ticks.length}
-                onClick={() => {
-                  if (!historical) setAt(history.ticks[0])
-                  setPlaying((value) => !value)
-                }}
-                className="h-7 w-7"
-                size="icon"
-                title={history.ticks.length ? (playing ? t("pause_history") : t("play_history")) : t("history_controls_unavailable")}
-                variant="secondary"
-              >
-                {playing ? "Ⅱ" : "▶"}
-              </Button>
-              <Button
-                aria-label={t("previous_tick")}
-                disabled={!history.ticks.length || (historical && currentTick <= 0)}
-                className="h-7 w-7"
-                onClick={() => setAt(historical ? history.ticks[currentTick - 1] : history.ticks[history.ticks.length - 1])}
-                size="icon"
-                title={!history.ticks.length || (historical && currentTick <= 0) ? t("history_no_previous") : t("previous_tick")}
-                variant="secondary"
-              >
-                ↑
-              </Button>
-              <Button
-                aria-label={t("next_tick")}
-                disabled={!historical || currentTick >= history.ticks.length - 1}
-                className="h-7 w-7"
-                onClick={() => setAt(history.ticks[currentTick + 1])}
-                size="icon"
-                title={!historical || currentTick >= history.ticks.length - 1 ? t("history_no_next") : t("next_tick")}
-                variant="secondary"
-              >
-                ↓
-              </Button>
-            </div>
-            <details className="group relative mt-2 w-full text-2xs">
-              <summary className={RAIL_OPTIONS_CLASSES}>{t("history_options")}</summary>
-              <div className={RAIL_POPOVER_CLASSES}>
-                <label className="text-2xs text-text-muted">
-                  {t("history_window")}
-                  <Select
-                    className="mt-1 px-2 py-1"
-                    onChange={(event) => {
-                      const days = Number(event.target.value)
-                      const params = new URLSearchParams(search)
-                      const end = new Date(history.to)
-                      params.set("range_end", end.toISOString())
-                      params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
-                      navigate({ search: params.toString() })
-                    }}
-                    value={Math.max(1, Math.round((new Date(history.to).getTime() - new Date(history.from).getTime()) / 86_400_000))}
-                  >
-                    <option value="1">{t("one_day")}</option>
-                    <option value="7">{t("seven_days")}</option>
-                    <option value="30">{t("thirty_days")}</option>
-                    <option value="90">{t("ninety_days")}</option>
-                  </Select>
-                </label>
-                <Text className="mt-2" variant="caption" tone="muted">
-                  {t("history_range", { from: new Date(history.from).toLocaleDateString(), to: new Date(history.to).toLocaleDateString() })}
-                </Text>
-                {historical ? (
-                  <Text className="mt-2" variant="caption" tone="muted">
-                    {t("historical_banner_compact", { time: new Date(historicalAt!).toLocaleString() })}{" "}
-                    {t("current_freshness", { time: new Date(payload.generated_at).toLocaleString() })}
-                  </Text>
-                ) : null}
-                {history.accuracy.message ? (
-                  <Text className="mt-2" variant="caption" tone="muted">
-                    {history.accuracy.message}
-                  </Text>
-                ) : null}
-                {historical ? (
-                  <div className="mt-2 border-t border-border pt-2">
-                    <Text variant="caption">{changes.length ? t("changes_count", { count: changes.length }) : t("no_changes")}</Text>
-                    {changes.slice(0, 5).map((change) => (
-                      <Text className="mt-1" key={`${change.job_id}-${change.at}`} variant="caption" tone="muted">
-                        {t("change_line", {
-                          job: change.item?.item.slug || change.job_id,
-                          from: change.from_stage || t("outside_pipeline"),
-                          to: change.to_stage || t("outside_pipeline")
-                        })}
-                      </Text>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </details>
-          </aside>
-        ) : null}
-        <div className={`relative min-w-0 flex-1 overflow-hidden py-3 ${embedded ? "flex flex-col" : ""}`}>
+      <div
+        className={`relative flex min-h-0 border-y border-border bg-surface-subtle ${embedded ? "flex-1" : "h-[calc(100dvh-14rem)] min-h-[32rem]"}`}
+        data-testid="pipeline-with-time-rail"
+      >
+        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden py-3">
           {edges.left ? (
             <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-surface-subtle to-transparent" />
           ) : null}
@@ -972,7 +762,7 @@ function PipelineOverview({
           </Button>
           <div
             aria-label={t("stages_aria")}
-            className={`flex snap-x gap-3 overflow-x-auto px-3 pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${embedded ? "min-h-0 flex-1" : ""}`}
+            className={STAGE_SCROLLER_CLASSES}
             onKeyDown={onKeys}
             onScroll={updateEdges}
             ref={scroller}
@@ -980,59 +770,41 @@ function PipelineOverview({
             tabIndex={0}
           >
             {stages.map((stage) => (
-              <div className={`snap-start ${embedded ? "h-full" : ""}`} key={stage.key}>
+              <div className="h-full snap-start" key={stage.key}>
                 <StageColumn
                   groups={displayedPayload.groups}
                   onOpen={() => setSelected(stage)}
                   onEpicTrace={historical ? (group) => setTraceEpic(group.epic || null) : undefined}
                   onTrace={historical ? (item) => setTraceJobId(item.id) : undefined}
                   releaseTail={Boolean(stage.release_tail)}
-                  fill={embedded}
+                  fill
                   stage={stage}
                 />
               </div>
             ))}
             {!stages.length ? <Notice>{t("filter_empty")}</Notice> : null}
           </div>
-          <div aria-label={t("stage_navigation")} className="mt-2 flex shrink-0 flex-wrap justify-center gap-1" role="navigation">
-            {payload.stages.map((stage) => (
-              <button
-                aria-label={t("go_to_stage", { stage: stage.label })}
-                className={`h-2 min-w-6 rounded-full ${stage.attention_count ? "bg-warning" : "bg-border"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`}
-                key={stage.key}
-                onClick={() => focusStage(stage)}
-                title={stage.label}
-                type="button"
-              />
-            ))}
-          </div>
         </div>
-        {embedded ? (
-          <HistoryRail
-            currentTick={currentTick}
-            eventMarks={eventMarks}
-            historical={historical}
-            historicalAt={historicalAt}
-            history={history}
-            onRangeChange={(days) => {
-              const params = new URLSearchParams(search)
-              const end = new Date(history.to)
-              params.set("range_end", end.toISOString())
-              params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
-              navigate({ search: params.toString() })
-            }}
-            onSelect={setAt}
-            playing={playing}
-            setPlaying={setPlaying}
-          />
-        ) : null}
+        <HistoryRail
+          currentTick={currentTick}
+          eventMarks={eventMarks}
+          historical={historical}
+          historicalAt={historicalAt}
+          history={history}
+          incompleteEvidenceCount={payload.evidence.status === "partial" ? payload.evidence.incomplete_count : 0}
+          onRangeChange={(days) => {
+            const params = new URLSearchParams(search)
+            const end = new Date(history.to)
+            params.set("range_end", end.toISOString())
+            params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
+            navigate({ search: params.toString() })
+          }}
+          onSelect={setAt}
+          playing={playing}
+          setPlaying={setPlaying}
+        />
       </div>
-      {!embedded ? (
-        <div className="space-y-2 py-3">
-          {!deploymentStages.length ? <Notice tone="warning">{t("no_deployment_config")}</Notice> : null}
-          {payload.evidence.status === "partial" ? <Notice tone="warning">{t("partial_evidence", { count: payload.evidence.incomplete_count })}</Notice> : null}
-        </div>
-      ) : null}
+      {!embedded ? <div className="space-y-2 py-3">{!deploymentStages.length ? <Notice tone="warning">{t("no_deployment_config")}</Notice> : null}</div> : null}
       {selected && !historical ? <DrillDown onClose={() => setSelected(null)} repositoryId={repositoryId} search={search} stage={selected} /> : null}
     </>
   )
@@ -1091,18 +863,6 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
           : "empty"
         : "ready"
   const retryHistory = () => void history.refetch()
-  const folders = useMemo(() => {
-    const presentation = new URLSearchParams(location.search)
-    const keys = ["at", "range_start", "range_end", "syrus_presentation"]
-    return (pipeline.data?.smart_folders ?? []).map((folder) => {
-      const url = new URL(folder.path, window.location.origin)
-      keys.forEach((key) => {
-        const value = presentation.get(key)
-        if (value) url.searchParams.set(key, value)
-      })
-      return { ...folder, path: `${url.pathname}?${url.searchParams.toString()}` }
-    })
-  }, [pipeline.data?.smart_folders, location.search])
   const buildLink = (pathname: string, search: string, updates: Record<string, string | number | null | undefined>) => {
     const params = new URLSearchParams(search)
     Object.entries(updates).forEach(([key, value]) => (value == null ? params.delete(key) : params.set(key, String(value))))
@@ -1123,6 +883,9 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
       </Button>
     </div>
   ) : null
+  const presentationParams = new URLSearchParams(location.search)
+  presentationParams.set("syrus_presentation", "embedded")
+  const presentationHref = `${location.pathname}?${presentationParams.toString()}`
   if (embedded) {
     return (
       <main aria-label={t("aria_pipeline")} className="flex h-[100dvh] min-h-full flex-col overflow-hidden bg-surface" data-testid="embedded-pipeline-view">
@@ -1165,39 +928,23 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
       {loading}
       {error}
       {pipeline.data ? (
-        <AdminFiltersLayout
-          filterBar={
-            <SmartFolderFilterBar
-              activeSmartFolderId={pipeline.data.active_smart_folder_id}
-              buildLink={buildLink}
-              filter={pipeline.data.filter}
-              filterSchema={pipeline.data.filter_schema ?? []}
-              pathname={location.pathname}
-              search={location.search}
-              smartFolders={folders}
-              suggestionSearch={{ surface: "sdlc_pipeline", subject: "sdlc_pipeline" }}
-            />
-          }
-          mobileSummaryLabel={folders.find((folder) => folder.active)?.name}
-          smartFolders={
-            <AdminSmartFolderNav
-              activeFolderId={pipeline.data.active_smart_folder_id}
-              allowSaveWithoutActiveFolder
-              ariaLabel={t("folders_aria")}
-              currentFilter={pipeline.data.filter}
-              folders={folders}
-              heading={t("folders_heading")}
-              onMutationSuccess={() => void pipeline.refetch()}
-              prefix={prefix}
-              queryKey={queryKey}
-              rewriteRedirectTo={(path) => {
-                const query = path.split("?", 2)[1]
-                return query ? `${location.pathname}?${query}` : location.pathname
-              }}
-              subjectType="sdlc_pipeline"
-            />
-          }
-        >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 border-b border-border py-2" data-testid="pipeline-filter-row">
+            <div className="min-w-0 flex-1">
+              <FilterBar
+                buildLink={buildLink}
+                filter={pipeline.data.filter}
+                filterSchema={pipeline.data.filter_schema ?? []}
+                pathname={location.pathname}
+                search={location.search}
+                suggestionSearch={{ surface: "sdlc_pipeline", subject: "sdlc_pipeline" }}
+              />
+            </div>
+            <a aria-label={t("open_presentation")} className={PRESENTATION_LINK_CLASSES} href={presentationHref} rel="noopener noreferrer" target="_blank">
+              <span aria-hidden>↗</span>
+              <span className="sr-only sm:not-sr-only sm:ml-1">{t("open_presentation")}</span>
+            </a>
+          </div>
           <PipelineOverview
             historyStatus={historyStatus}
             onRetryHistory={retryHistory}
@@ -1205,7 +952,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
             repositoryId={repositoryId}
             search={location.search}
           />
-        </AdminFiltersLayout>
+        </div>
       ) : null}
     </RepositoryPageShell>
   )

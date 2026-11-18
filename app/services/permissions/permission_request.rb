@@ -190,7 +190,7 @@ module Permissions
     def create_request!(descriptor, scope, key, offered, requested)
       ChatPendingAction.transaction do
         request = ChatPendingAction.create_or_find_authorization_request!(
-          chat_session: context.chat_session, repository: context.repository, user: owner,
+          chat_session: context.owner_chat, repository: context.repository, user: owner,
           origin: context.run || context.chat_session, subject:, runtime_role: context.role,
           action: ACTION, state: "pending", requested_by: "agent", deduplication_key: key, purpose:,
           payload: { "requested_duration" => requested, "approval_policy" => "queue", "approval_inbox" => true,

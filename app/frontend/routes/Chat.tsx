@@ -23,6 +23,7 @@ import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { Button } from "../components/Button"
+import { Select } from "../components/Select"
 import {
   AnalyzingHint,
   annotationHoldLabel,
@@ -68,6 +69,7 @@ import {
   fetchChatMessages,
   fetchChatSearchMessages,
   removeChatAgent,
+  updateChatAgent,
   fetchSharedChat,
   markChatRead,
   rejectChatProposal,
@@ -1993,6 +1995,15 @@ function ChatAgentRoster({ payload, queryKey, onNotice }: { payload: ChatPayload
     },
     onError: (error) => onNotice(errorMessage(error, t("command_failed")))
   })
+  const updatePolicy = useMutation({
+    mutationFn: ({ coworkerId, afterReply }: { coworkerId: number; afterReply: "wake" | "quiet" }) => updateChatAgent(payload.chat.id, coworkerId, afterReply),
+    onSuccess: ({ agent }) => {
+      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) =>
+        current ? { ...current, agent_roster: (current.agent_roster || []).map((item) => (item.id === agent.id ? agent : item)) } : current
+      )
+    },
+    onError: (error) => onNotice(errorMessage(error, t("command_failed")))
+  })
   const roster = payload.agent_roster || []
   if (roster.length === 0) return null
 
@@ -2004,7 +2015,21 @@ function ChatAgentRoster({ payload, queryKey, onNotice }: { payload: ChatPayload
           key={agent.id}
         >
           <Avatar avatarKey={agent.avatar_key} avatarUrl={agent.avatar_url} accentHex={agent.accent_hex} name={agent.name} size="xs" />
-          <span className="max-w-[8rem] truncate">@{agent.handle}</span>
+          <span className="min-w-[4rem] max-w-[10rem] shrink-0 truncate" title={`${agent.name} (@${agent.handle})`}>
+            {agent.name} <span className="text-text-muted">@{agent.handle}</span>
+          </span>
+          {agent.removable ? (
+            <Select
+              aria-label={t("after_reply_for", { name: agent.name })}
+              className="rounded border border-border bg-surface px-1 py-0.5 text-xs"
+              disabled={updatePolicy.isPending}
+              onChange={(event) => updatePolicy.mutate({ coworkerId: agent.id, afterReply: event.target.value as "wake" | "quiet" })}
+              value={agent.after_reply}
+            >
+              <option value="wake">{t("after_reply_wake")}</option>
+              <option value="quiet">{t("after_reply_quiet")}</option>
+            </Select>
+          ) : null}
           {agent.removable ? (
             <button
               aria-label={t("remove_agent", { name: agent.name })}

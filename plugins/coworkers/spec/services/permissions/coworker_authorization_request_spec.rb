@@ -58,6 +58,15 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     expect(operation.prerequisites).to be_empty
   end
 
+  it "renders a mention-session request in its owner chat while preserving the hidden origin" do
+    owner_chat = ChatSession.create!(user: owner, repository: repository, title: "Owner chat")
+    chat.define_singleton_method(:owner_facing_chat_session) { owner_chat }
+
+    request = described_class.new(context: context, descriptor:, arguments:).call.request
+
+    expect(request).to have_attributes(chat_session: owner_chat, origin: chat, subject: coworker)
+  end
+
   it "reuses an equivalent active request instead of interrupting twice" do
     first = described_class.new(context: context, descriptor:, arguments:).call.request
     second = described_class.new(context: context, descriptor:, arguments:).call.request

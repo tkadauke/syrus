@@ -411,12 +411,17 @@ RSpec.describe "API: coworkers", type: :request do
       post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
     }.to change(Coworkers::ChatAgent, :count).by(1)
     expect(response).to have_http_status(:created)
-    expect(Coworkers::ChatAgent.last.added_by_user).to eq(owner)
+    expect(Coworkers::ChatAgent.last).to have_attributes(added_by_user: owner, after_reply: "wake")
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
     }.not_to change(Coworkers::ChatAgent, :count)
     expect(response).to have_http_status(:created)
+
+    patch "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}", params: { after_reply: "quiet" }
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig("agent", "after_reply")).to eq("quiet")
+    expect(Coworkers::ChatAgent.last.reload.after_reply).to eq("quiet")
 
     expect {
       delete "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
@@ -515,7 +520,7 @@ RSpec.describe "API: coworkers", type: :request do
     expect(chat.resolve_mentions("Ask @maya-roster")).to include(include("kind" => "coworker", "id" => coworker.id))
   end
 
-  it "triggers the exact roster-mentioned coworker in a group chat with the owner's settings" do
+  it "delegates the exact roster-mentioned coworker without starting a source-chat turn" do
     maya = Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya", workspace_repo: "https://github.com/acme/workspace.git",
       chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
@@ -529,17 +534,31 @@ RSpec.describe "API: coworkers", type: :request do
     [ maya, mayank ].each { |coworker| Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner) }
     sign_in_as(member)
 
-    expect {
-      post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Please ask @maya" } }
-    }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer)).once
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Please ask @maya" } }
 
     message = chat.messages.last
+    expect(enqueued_jobs).to include(hash_including(job: Coworkers::MentionDeliveryJob, args: [ message.id, maya.id ]))
+    expect(enqueued_jobs).not_to include(hash_including(job: ChatTurnJob))
     expect(message.mentions).to contain_exactly(include("kind" => "coworker", "id" => maya.id, "handle" => "maya"))
     expect(message.mentions).not_to include(include("id" => mayank.id))
-    expect(chat.reload).to be_turn_in_flight
-    expect(Coworkers::TurnChatContext.new(chat, maya)).to have_attributes(
-      coworker: maya, effective_chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
+    expect(chat.reload).not_to be_turn_in_flight
+  end
+
+  it "keeps the host chat repository when adding a coworker to its roster" do
+    host_repository = Factories.repository(user: owner, owner: "acme", name: "host")
+    workspace_repository = Factories.repository(user: owner, owner: "acme", name: "coworker-home")
+    chat = ChatSession.create!(user: owner, repository: host_repository, title: "Planning")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-host-repository",
+      workspace_repo: workspace_repository.remote_url
     )
+    sign_in_as(owner)
+
+    post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
+
+    expect(response).to have_http_status(:created)
+    expect(chat.reload.repository).to eq(host_repository)
+    expect(chat.coworker_chat).to be_nil
   end
 
   it "does not address or leave a turn in flight for an unrostered coworker in a group chat" do
@@ -559,7 +578,7 @@ RSpec.describe "API: coworkers", type: :request do
     expect(chat.reload).not_to be_turn_in_flight
   end
 
-  it "uses one concurrency lane for back-to-back coworker mentions in the same group chat" do
+  it "delegates back-to-back coworker mentions without starting source-chat turns" do
     maya = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-serial", workspace_repo: "https://github.com/acme/workspace.git")
     member = Factories.user(email_address: "serial-member@example.com")
     chat = ChatSession.create!(user: owner, title: "Planning", conversation_kind: "group")
@@ -572,10 +591,11 @@ RSpec.describe "API: coworkers", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    jobs = enqueued_jobs.select { |job| job.fetch(:job) == ChatTurnJob }
+    jobs = enqueued_jobs.select { |job| job.fetch(:job) == Coworkers::MentionDeliveryJob }
     expect(jobs.size).to eq(2)
-    expect(jobs.map { |job| ChatTurnJob.new(*job.fetch(:args)).concurrency_key }.uniq)
-      .to eq([ "#{ChatTurnJob::CONCURRENCY_GROUP}/chat:#{chat.id}" ])
+    expect(jobs.map { |job| job.fetch(:args).last }).to eq([ maya.id, maya.id ])
+    expect(enqueued_jobs).not_to include(hash_including(job: ChatTurnJob))
+    expect(chat.reload).not_to be_turn_in_flight
   end
 
   it "creates side chats in the coworker's Phase 1 home-branch workspace" do
@@ -593,6 +613,25 @@ RSpec.describe "API: coworkers", type: :request do
     expect(chat).to have_attributes(
       repository: repository, chat_provider: "codex", chat_model: "gpt-6.1-sol", chat_effort: "high"
     )
+  end
+
+  it "omits hidden mention sessions from the coworker's default chat list" do
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-hidden-mention",
+      workspace_repo: "https://github.com/acme/workspace.git"
+    )
+    main_chat = ChatSession.create!(user: owner, title: "Maya")
+    source_chat = ChatSession.create!(user: owner, title: "Planning")
+    mention_chat = ChatSession.create!(user: owner, title: "Maya in Planning", hidden_at: Time.current)
+    Coworkers::Chat.create!(coworker:, chat_session: main_chat, role: "main")
+    Coworkers::Chat.create!(coworker:, chat_session: mention_chat, source_chat_session: source_chat, role: "mention")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/chats"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("chats").pluck("id")).to eq([ main_chat.id ])
+    expect(owner.accessible_chat_sessions.find(mention_chat.id)).to eq(mention_chat)
   end
 
   it "ignores dedicated coworker repositories when inferring a new chat repository default" do

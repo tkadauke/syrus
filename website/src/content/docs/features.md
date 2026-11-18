@@ -209,27 +209,28 @@ into one ordered view. Stage totals, attention and aging counts, Epic rollups,
 and a bounded recent-completion tail keep the initial view useful for busy
 repositories without downloading every Job. Pinned, attention, and recently
 changed work is promoted above linked Epic and ungrouped aggregates. The board
-supports stage navigation, keyboard scrolling, and bounded stage drill-downs;
+supports horizontal scrolling, edge controls, keyboard navigation, and bounded stage drill-downs;
 configured deployment lanes are observational evidence, while Landed remains
 separate so undeployed changes stay visible. Partial delivery evidence is
 called out explicitly, and Job cards link through to their Job, latest
 Workflow, and delivery/release evidence. The projection is read-only;
 disabling or deleting the plugin does not alter Job or deployment state.
-Its standard FilterBar narrows the Job cohort by search, associated chat,
+Its single compact FilterBar narrows the Job cohort by search, associated chat,
 Epic, Job, or owner before every total and card is computed. Nested AND/OR/NOT
-expressions can be saved as reusable Pipeline views, including the built-in
-**All** and **Mine** views. Repository scope remains in the route rather than
-the saved view, and filters never hide configured pipeline stages, including
-empty ones.
+expressions remain shareable through the canonical `q` URL. The Pipeline page
+does not show SmartFolder navigation or a second local search. Repository scope
+remains in the route, and filters never hide configured pipeline stages,
+including empty ones.
 The same filtered view is available from a chat's Jobs workspace and through
 the read-only `show_pipeline` chat tool. Multi-repository chats ask the operator
 to choose a repository; live tool calls may present the view once, while saved
 tool cards retain explicit open and copy-link actions without reopening on
 transcript replay. The popup is a focused presentation of the editable
-FilterBar, pipeline canvas, and compact history rail; saved views, summaries,
-diagnostics, and repository navigation remain on the full Pipeline page. In the
-popup the canvas and the history rail fill the full modal height; stage columns
-scroll internally. The rail is its own vertical scroll container with
+FilterBar, pipeline canvas, and compact right-hand history rail. The normal
+repository page uses that same rail implementation, and its presentation action
+preserves `q`, `at`, `range_start`, and `range_end`. In both views the canvas and
+history rail consume the useful remaining height while stage columns scroll
+internally. The rail is its own vertical scroll container with
 time-proportional spacing (a minimum gap keeps dense events apart), small
 event ticks with non-color cues, and adaptive time landmarks, and it keeps the
 selected time in view without moving the pipeline canvas.
@@ -964,12 +965,23 @@ mention. Your own handle is editable under Profile; handles are public,
 instance-wide identifiers and should not contain sensitive information.
 Selecting an own coworker marked **Add to chat** adds it to the chat's agent
 roster before inserting the mention. Everyone participating in the chat can
-then address that coworker. An exact mention starts that coworker with the chat
-owner's settings. A coworker is also implicitly addressable in its own main
-and side chats without a roster entry; coworkers that are neither the chat's
-implicit coworker nor on its roster remain plain text and do not start a turn.
-Coworker turns in the same chat run one at a time. The chat owner can remove a
-coworker from the roster.
+then address that coworker. An exact mention delegates the message to a reusable
+hidden session for that coworker and source chat. The coworker's final reply is
+delivered automatically as a named coworker message in the source chat, and the
+planner does not also answer the mention. Proposals, questions, permission and
+spawn requests, and other confirmation cards created in the hidden session
+appear in the source chat; answering or confirming them resumes the coworker.
+The roster control can either wake the planner once after each delivered reply
+(the default) or leave the reply quiet. Waiting owner-facing items do not wake
+the planner by themselves, and wake turns retain the normal hop and rate limits.
+If one message mentions several
+rostered coworkers, only the first rostered coworker answers. These working
+sessions stay out of the coworker's chat list and search by default but remain
+reachable by direct link. A coworker is also implicitly addressable in its own
+main and side chats without a roster entry; coworkers that are neither the
+chat's implicit coworker nor on its roster remain plain text and do not start a
+turn. The chat owner can remove a coworker from the roster, which also revokes
+the coworker's read access to that source chat.
 
 Coworker detail tabs load independently, so opening a coworker does not fetch
 remote profile content, chat rosters, permissions, schedules, and activity all

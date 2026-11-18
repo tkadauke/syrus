@@ -34,7 +34,7 @@ module Coworkers
           home_branch: "coworkers/#{coworker.handle}"
         },
         grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
-        chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| chat_payload(link) },
+        chats: coworker.listed_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| chat_payload(link) },
         active_schedules: coworker.schedules.active.order(:id).map { |task| schedule_payload(task) }
       )
     end

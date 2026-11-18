@@ -133,7 +133,7 @@ RSpec.describe "Coworker background runs" do
     expect(Mcp::Tools::ReadJobTool.call(job_id: job.id, server_context: { run: run })).not_to be_error
   end
 
-  it "reads the owner's accessible chats without exposing another user's chats from a run context" do
+  it "reads native and shared chats without exposing unshared or foreign chats from a run context" do
     SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
     SearchRecord.connection.execute(<<~SQL)
       CREATE VIRTUAL TABLE chat_message_fts
@@ -159,16 +159,16 @@ RSpec.describe "Coworker background runs" do
     context = { run: run }
 
     listed = JSON.parse(Mcp::Tools::ListChatsTool.call(server_context: context).content.first[:text]).fetch("chats")
-    expect(listed.pluck("id")).to contain_exactly(main_chat.id, shared_chat.id, owner_chat.id)
+    expect(listed.pluck("id")).to contain_exactly(main_chat.id, shared_chat.id)
 
     searched = JSON.parse(
       Mcp::Tools::SearchChatsTool.call(server_context: context, query: "background").content.first[:text]
     ).fetch("results")
-    expect(searched.pluck("chat_session_id")).to contain_exactly(main_chat.id, shared_chat.id, owner_chat.id)
+    expect(searched.pluck("chat_session_id")).to contain_exactly(main_chat.id, shared_chat.id)
 
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: main_chat.id)).not_to be_error
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: shared_chat.id)).not_to be_error
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_chat.id)).to be_error
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: inaccessible_chat.id)).to be_error
   end
 
@@ -248,9 +248,7 @@ RSpec.describe "Coworker background runs" do
     list_response = list_tool.call(server_context: raw_context, page: 1, per_page: 10)
     listed_ids = JSON.parse(list_response.content.first[:text]).fetch("chats").pluck("id")
     expect(list_response).not_to be_error
-    expect(listed_ids).to contain_exactly(
-      main_chat.id, own_side_chat.id, shared_chat.id, owner_chat.id, other_chat.id
-    )
+    expect(listed_ids).to contain_exactly(main_chat.id, own_side_chat.id, shared_chat.id)
 
     # Workflow Runs may execute on compute workers that intentionally do not
     # mount the home worker's local SQLite search index. Reproduce that topology

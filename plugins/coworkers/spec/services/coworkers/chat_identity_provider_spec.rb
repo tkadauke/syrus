@@ -30,7 +30,7 @@ RSpec.describe Coworkers::ChatIdentityProvider do
     )
   end
 
-  it "selects the first roster-mentioned coworker for a turn" do
+  it "leaves roster mentions outside its source-chat turn ownership" do
     Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
     message = chat.messages.create!(
       role: "user", content: { "text" => "@maya-identity help" },
@@ -38,9 +38,10 @@ RSpec.describe Coworkers::ChatIdentityProvider do
       skip_turn_trigger: true
     )
 
-    expect(described_class.chat_turn_identity(chat_session: chat, message: message)).to include(
-      id: coworker.id, snapshot: include(handle: "maya-identity")
-    )
+    expect(described_class.chat_turn_identity(chat_session: chat, message: message)).to be_nil
+    expect(described_class.chat_turn_trigger(chat_session: chat, message: message, mentions: message.resolved_mentions))
+      .to be_nil
+    expect(chat.should_trigger_agent?(message.resolved_mentions)).to be(false)
   end
 
   it "preserves direct and group-chat turn trigger decisions" do
@@ -72,6 +73,34 @@ RSpec.describe Coworkers::ChatIdentityProvider do
 
     expect(described_class.chat_message_presentations(messages: [ message ]).dig(message.id, :plugin_message, :data, :appearance))
       .to include(handle: "maya-identity")
+  end
+
+  it "decorates two delivered mention replies with their own authors and working sessions" do
+    other = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Rin", handle: "rin-identity",
+      workspace_repo: "git@example.com:workspaces.git", accent_hex: "#663399"
+    )
+    maya_session = ChatSession.create!(user: owner, title: "Maya work")
+    rin_session = ChatSession.create!(user: owner, title: "Rin work")
+    Coworkers::Chat.create!(coworker:, chat_session: maya_session, source_chat_session: chat, role: "mention")
+    Coworkers::Chat.create!(coworker: other, chat_session: rin_session, source_chat_session: chat, role: "mention")
+    messages = [ [ coworker, maya_session ], [ other, rin_session ] ].map do |author, session|
+      chat.messages.create!(
+        role: "assistant", skip_turn_trigger: true,
+        content: { "text" => "Reply from #{author.name}", "source" => "coworker_message",
+          "origin_chat_session_id" => session.id,
+          "coworker_message" => { "direction" => "incoming", "sender_id" => author.id, "sender_handle" => author.handle } }
+      )
+    end
+
+    presentations = described_class.chat_message_presentations(messages: messages)
+
+    expect(presentations.dig(messages.first.id, :plugin_message, :data)).to include(
+      appearance: include(name: "Maya"), working_chat_id: maya_session.id
+    )
+    expect(presentations.dig(messages.second.id, :plugin_message, :data)).to include(
+      appearance: include(name: "Rin"), working_chat_id: rin_session.id
+    )
   end
 
   it "decorates an inbound historical bridge without a legacy payload writer" do

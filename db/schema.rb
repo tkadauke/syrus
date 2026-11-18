@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_17_203433) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -451,8 +451,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.datetime "updated_at", null: false
     t.json "questions"
     t.json "answers"
+    t.integer "response_chat_session_id"
     t.index ["chat_session_id", "answered_at", "expired_at"], name: "idx_chat_agent_questions_active"
     t.index ["chat_session_id"], name: "index_chat_agent_questions_on_chat_session_id"
+    t.index ["response_chat_session_id"], name: "index_chat_agent_questions_on_response_chat_session_id"
   end
 
   create_table "chat_attachments", force: :cascade do |t|
@@ -756,6 +758,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.string "priority", default: "medium", null: false
     t.string "proposer_type"
     t.integer "proposer_id"
+    t.integer "response_chat_session_id"
     t.index ["chat_goal_id", "created_at"], name: "index_chat_proposals_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_chat_proposals_on_chat_goal_id"
     t.index ["chat_session_id", "slug"], name: "index_chat_proposals_on_chat_session_id_and_slug", unique: true
@@ -766,6 +769,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.index ["parent_proposal_id"], name: "index_chat_proposals_on_parent_proposal_id"
     t.index ["proposer_type", "proposer_id"], name: "index_chat_proposals_on_proposer"
     t.index ["repository_id"], name: "index_chat_proposals_on_repository_id"
+    t.index ["response_chat_session_id"], name: "index_chat_proposals_on_response_chat_session_id"
     t.index ["target_epic_id"], name: "index_chat_proposals_on_target_epic_id"
   end
 
@@ -1129,7 +1133,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.datetime "unsaved_workspace_retry_exhausted_at"
     t.datetime "unsaved_workspace_retry_scheduled_at"
     t.string "unsaved_workspace_retry_token"
+    t.integer "source_chat_session_id"
+    t.integer "last_delivered_message_id"
     t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
+    t.index ["coworker_id", "source_chat_session_id"], name: "idx_coworker_chats_mention_source", unique: true
     t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
     t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
@@ -1244,6 +1251,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.integer "added_by_user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "after_reply", default: "wake", null: false
     t.index ["added_by_user_id"], name: "index_coworkers_chat_agents_on_added_by_user_id"
     t.index ["chat_session_id", "coworker_id"], name: "idx_coworkers_chat_agents_unique_roster", unique: true
     t.index ["chat_session_id"], name: "index_coworkers_chat_agents_on_chat_session_id"

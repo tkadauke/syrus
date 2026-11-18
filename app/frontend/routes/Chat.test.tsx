@@ -8054,7 +8054,18 @@ describe("chat agent roster", () => {
     window.localStorage.clear()
   })
 
-  const agentRoster = [{ id: 7, name: "Maya", handle: "maya", color_key: "rose-soft", avatar_key: null, avatar_url: null, removable: true }]
+  const agentRoster = [
+    {
+      id: 7,
+      name: "Maya",
+      handle: "maya",
+      accent_hex: "#b6492e",
+      avatar_key: null,
+      avatar_url: null,
+      removable: true,
+      after_reply: "wake" as const
+    }
+  ]
 
   it("shows a removable roster affordance on mobile", async () => {
     mockMobileViewport()
@@ -8073,11 +8084,38 @@ describe("chat agent roster", () => {
     const roster = await screen.findByTestId("mobile-chat-agent-roster")
     expect(roster).toHaveClass("mt-[var(--mobile-chrome-visible-top-inset,0px)]")
     expect(within(roster).getByText("Agents in this chat")).toBeInTheDocument()
-    expect(within(roster).getByText("@maya")).toBeInTheDocument()
+    const author = within(roster).getByTitle("Maya (@maya)")
+    expect(author).toHaveClass("min-w-[4rem]", "max-w-[10rem]", "shrink-0", "truncate")
+    expect(author).toHaveTextContent("Maya @maya")
     fireEvent.click(within(roster).getByRole("button", { name: "Remove Maya from chat" }))
 
     await waitFor(() => expect(screen.queryByTestId("mobile-chat-agent-roster")).not.toBeInTheDocument())
     expect(requests).toContainEqual({ path: "/api/v1/app/chats/8/agents/7", method: "DELETE" })
+  })
+
+  it("updates the roster after-reply policy", async () => {
+    mockDesktopViewport()
+    const payload = chatPayload({}, { agent_roster: agentRoster })
+    const requests: Array<{ path: string; method?: string; body?: string }> = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      requests.push({ path, method: init?.method, body: init?.body?.toString() })
+      if (path === "/api/v1/app/chats/8/agents/7" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({ agent: { ...agentRoster[0], after_reply: "quiet" } }))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRoute()
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "After Maya replies" }), { target: { value: "quiet" } })
+    await waitFor(() =>
+      expect(requests).toContainEqual({
+        path: "/api/v1/app/chats/8/agents/7",
+        method: "PATCH",
+        body: JSON.stringify({ after_reply: "quiet" })
+      })
+    )
   })
 })
 
