@@ -79,6 +79,18 @@ RSpec.describe Document, type: :model do
     expect(I18n.with_locale(:la) { document.valid?; document.errors[:base] }).to include("Jobs non plus quam 10 adiuncta habere possunt")
   end
 
+  it "rejects oversized pending snapshot content with localized errors" do
+    document = job.documents.build(
+      kind: "pending_snapshot",
+      user: user,
+      content_cache: "x" * (Document::MAX_CONTENT_CACHE_SIZE + 1)
+    )
+
+    expect(I18n.with_locale(:en) { document.valid?; document.errors[:content_cache] }).to include("must be 64 KB or smaller")
+    expect(I18n.with_locale(:de) { document.valid?; document.errors[:content_cache] }).to include("darf höchstens 64 KB groß sein")
+    expect(I18n.with_locale(:la) { document.valid?; document.errors[:content_cache] }).to include("non maius quam 64 KB esse debet")
+  end
+
   it "rejects the removed Google Doc kind" do
     document = user.documents.build(kind: "google_doc", user: user)
 
