@@ -478,6 +478,11 @@
     "aria": "Acta operationalia administrativa"
   },
   "plugins": {
+    "recovery_active": "Modus recuperationis pluginorum activus est",
+    "recovery_active_body": "Modus tutus: {{mode}}. Plugina segregata: {{count}}. Mutationes post initium novum valent.",
+    "none": "nullus",
+    "clear_quarantine": "Post initium novum restitue",
+    "clearing_quarantine": "Segregatio tollitur...",
     "suggested": "Huic instantiae commendatum:",
     "heading": "Plugin",
     "convergence_heading": "Concordia classis",

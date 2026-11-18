@@ -29,6 +29,11 @@ module Api
             render json: ::Admin::PluginConfigPayload.new(manifest, record).as_json
           end
 
+          def clear_quarantine
+            Syrus::PluginBootSafety.default.clear!(params[:name])
+            render json: { ok: true, plugin: params[:name], restart_required: true }
+          end
+
           private
 
           def find_plugin_record
