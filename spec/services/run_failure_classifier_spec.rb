@@ -1185,6 +1185,17 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "preserves transient Git transport classification through an immutable checkout wrapper" do
+    run.update!(state: "failed")
+    diagnostic(
+      "WorkflowSourceSnapshots::InfrastructureStateError",
+      "immutable source checkout missing ref refs/syrus/source-snapshots/runs/123: " \
+      "fatal: unable to access 'https://github.com/owner/repo.git/': Failed to connect to github.com port 443"
+    )
+
+    expect(classification).to have_attributes(classification: "git_transport_transient", retryable: true)
+  end
+
   {
     "ls-remote connection failure" =>
       "git ls-remote --heads https://github.com/owner/repo.git refs/heads/topic exited 128\n" \

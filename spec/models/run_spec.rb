@@ -714,6 +714,70 @@ RSpec.describe Run, :ci_only do
       expect(step.runs.where(state: "queued").count).to eq(0)
     end
 
+    it "schedules a bounded in-place retry for a transient immutable checkout transport failure" do
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.create_run_diagnostic!(
+        error_class: "WorkflowSourceSnapshots::InfrastructureStateError",
+        error_message: "immutable source checkout failed: Failed to connect to github.com port 443"
+      )
+
+      expect { run.fail! }.to have_enqueued_job(AutoRetryJob)
+
+      expect(step.reload).to be_running
+      expect(AutoRetryAttempt.find_by!(run: run)).to have_attributes(
+        failure_classification: "git_transport_transient",
+        retry_kind: "failed_step",
+        attempt_number: 1
+      )
+    end
+
+    it "fails normally after transient transport in-place retries are exhausted" do
+      Run::WORKER_DIED_STEP_MAX_RETRIES.times do
+        prior = step.runs.create!(job: job, trigger_kind: "initial", state: "failed", finished_at: Time.current)
+        prior.create_run_failure_classification!(
+          classification: "git_transport_transient",
+          retryable: true,
+          classified_at: Time.current
+        )
+      end
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.create_run_diagnostic!(
+        error_class: "WorkflowSourceSnapshots::InfrastructureStateError",
+        error_message: "immutable source checkout failed: connection reset by peer"
+      )
+
+      run.fail!
+
+      expect(step.reload).to be_failed
+      expect(AutoRetryAttempt.where(run: run)).to be_empty
+    end
+
+    it "does not replay an agentic step after a transient Git transport failure" do
+      agentic_step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
+      run = agentic_step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.create_run_diagnostic!(
+        error_class: "GitRunner::GitError",
+        error_message: "git fetch failed: Could not resolve host: github.com"
+      )
+
+      run.fail!
+
+      expect(AutoRetryAttempt.where(run: run)).to be_empty
+    end
+
+    it "does not replay a non-idempotent fanout after a transient Git transport failure" do
+      fanout_step = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1, state: "running")
+      run = fanout_step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.create_run_diagnostic!(
+        error_class: "GitRunner::GitError",
+        error_message: "git fetch failed: connection timed out"
+      )
+
+      run.fail!
+
+      expect(AutoRetryAttempt.where(run: run)).to be_empty
+    end
+
     # A worker disappearing mid-fanout used to hard-fail the Workflow and take
     # whole merge trains with it, so
     # StepDispatcher#retry_step_after_infrastructure_failure! now reopens the

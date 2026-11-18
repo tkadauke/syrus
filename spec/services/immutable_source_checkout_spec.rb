@@ -71,6 +71,51 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(checkout.path.to_s).to include("/workflow-scratch/#{workflow.id}/immutable-checkouts/steps/#{step.id}")
   end
 
+  it "fetches the immutable snapshot through the workspace Git transport without contacting GitHub" do
+    register_workspace_transport(url: "file://#{bare_remote_dir}")
+    expect(GithubAuthenticatedGit).not_to receive(:run)
+
+    checkout = described_class.new(step)
+    checkout.setup
+
+    expect(sh("git -C #{checkout.path} rev-parse HEAD").strip).to eq(main_sha)
+  end
+
+  it "falls back to authenticated GitHub when a stale mirror lacks the exact snapshot SHA" do
+    stale_remote = Pathname.new(Dir.mktmpdir("syrus-immutable-source-stale"))
+    seed_remote(stale_remote)
+    update_remote_config("prepare: []\n")
+    register_workspace_transport(url: "file://#{stale_remote}")
+    expect(GithubAuthenticatedGit).to receive(:run).at_least(:once) do |repository:, user:, git:, operation_type:, log:, &block|
+      block.call("file://#{bare_remote_dir}")
+    end
+
+    checkout = described_class.new(step)
+    checkout.setup
+
+    expect(sh("git -C #{checkout.path} rev-parse HEAD").strip).to eq(snapshot.source_sha)
+  ensure
+    FileUtils.rm_rf(stale_remote) if stale_remote
+  end
+
+  it "recovers a transient mirror failure by re-registering before using GitHub" do
+    current_url = "file:///missing-mirror"
+    registered_url = "file://#{bare_remote_dir}"
+    register_calls = 0
+    register_workspace_transport(
+      url: -> { current_url },
+      register: -> {
+        register_calls += 1
+        current_url = registered_url
+      }
+    )
+    expect(GithubAuthenticatedGit).not_to receive(:run)
+
+    described_class.new(step).setup
+
+    expect(register_calls).to eq(1)
+  end
+
   # A grader is routinely the first thing a worker runs for a workflow whose
   # workspace was cloned on a different node. While this scratch lived under
   # the workspace, materializing the checkout created the workspace path as a
@@ -1029,6 +1074,8 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       chdir: anything,
       env: { "GIT_TERMINAL_PROMPT" => "0" }
     ).and_raise(GitRunner::GitError.new([ "fetch" ], 128, "network unavailable"))
+    allow(git).to receive(:run).with("cat-file", "-e", anything, chdir: anything)
+      .and_raise(GitRunner::GitError.new([ "cat-file" ], 128, "missing"))
 
     expect { described_class.new(step, git: git).setup }
       .to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /network unavailable/)
@@ -1089,6 +1136,18 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
       sh("git clone -q --bare #{seed} #{bare_path}")
       sh("git --git-dir=#{bare_path} update-ref refs/syrus/source-snapshots/runs/123 refs/heads/feature")
     end
+  end
+
+  def register_workspace_transport(url:, register: -> { })
+    transport = Object.new
+    transport.define_singleton_method(:url) { url.respond_to?(:call) ? url.call : url }
+    transport.define_singleton_method(:env) { {} }
+    transport.define_singleton_method(:register!, &register)
+    Syrus::PluginRegistry.register(:workspace_git_transport, Class.new do
+      include Syrus::Plugin::WorkspaceGitTransport
+      define_singleton_method(:available_for?) { |_repository| true }
+      define_singleton_method(:build) { |repository:, user:| transport }
+    end)
   end
 
   def update_remote_config(contents)
