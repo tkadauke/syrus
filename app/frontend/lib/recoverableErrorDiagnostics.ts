@@ -60,7 +60,9 @@ export function nearbyResourceTimings(now = performance.now()): NonNullable<Brow
     .getEntriesByType("resource")
     .filter((entry): entry is PerformanceResourceTiming => "initiatorType" in entry)
     .filter((entry) => entry.initiatorType === "script" || entry.initiatorType === "link" || /\.(?:js|css)(?:[?#]|$)/i.test(entry.name))
-    .filter((entry) => entry.startTime <= now && entry.startTime >= now - RESOURCE_LOOKBACK_MS)
+    .filter((entry) => {
+      return entry.startTime <= now && entry.startTime >= now - RESOURCE_LOOKBACK_MS
+    })
     .sort((left, right) => right.startTime - left.startTime)
     .slice(0, RESOURCE_LIMIT)
     .map((entry) => ({
