@@ -119,6 +119,13 @@ plugin is disabled. Installing, replacing, or removing a plugin always requires
 a full restart; enabling or disabling an already installed healthy plugin does
 not.
 
+Validate a plugin directory with `syrus plugin validate [DIR]`, or run both
+validation and its RSpec suite with `syrus plugin test [DIR]`. The commands use
+a release-matched test image and an isolated SQLite database; the runner never
+needs credentials for a real instance. `--syrus-version VERSION` selects a
+release, `--checkout PATH` uses a contributor checkout, and `--json` leaves a
+stable `syrus.plugin-test.v1` summary as the final output line.
+
 After restart, open **Admin → Plugins** to check the plugin's version, health,
 dependencies, routes, and load failures before enabling it. `incompatible`
 means its `requires_syrus` range excludes the running release. `failed` means

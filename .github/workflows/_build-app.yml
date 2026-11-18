@@ -249,6 +249,10 @@ jobs:
             --cache-from "type=registry,ref=$CACHE_REF" \
             --output "type=image,name=$IMAGE,push-by-digest=true,name-canonical=true,push=true" \
             --metadata-file /tmp/metadata.json .
+          docker buildx build -f Dockerfile --target plugin-test \
+            --build-arg "SYRUS_VERSION=$VERSION" \
+            --platform "$PLATFORM" --provenance=false \
+            -t "ghcr.io/tkadauke/syrus-plugin-test:${{ inputs.image_primary_tag }}-${{ matrix.arch }}" --push .
           digest="$(jq -r '."containerimage.digest"' /tmp/metadata.json)"
           echo "pushed $PLATFORM as $digest"
           touch "/tmp/digests/${digest#sha256:}"
@@ -304,6 +308,13 @@ jobs:
           if [ "${#refs[@]}" -eq 0 ]; then echo "::error::no per-arch digests to merge"; exit 1; fi
           echo "merging ${#refs[@]} arch(es) into $IMAGE:$VERSION${VERSION_TAG:+ + $IMAGE:$VERSION_TAG}"
           docker buildx imagetools create -t "$IMAGE:$VERSION" ${VERSION_TAG:+-t "$IMAGE:$VERSION_TAG"} "${refs[@]}"
+          plugin_refs=(
+            "ghcr.io/tkadauke/syrus-plugin-test:${VERSION}-amd64"
+            "ghcr.io/tkadauke/syrus-plugin-test:${VERSION}-arm64"
+          )
+          plugin_tags=(-t "ghcr.io/tkadauke/syrus-plugin-test:$VERSION")
+          if [ -n "$VERSION_TAG" ]; then plugin_tags+=(-t "ghcr.io/tkadauke/syrus-plugin-test:$VERSION_TAG"); fi
+          docker buildx imagetools create "${plugin_tags[@]}" "${plugin_refs[@]}"
 
       - name: Verify the pushed manifest(s) exist
         env:
@@ -315,6 +326,8 @@ jobs:
           . ./bin/docker-image-lib
           syrus_verify_pushed "$IMAGE" "$VERSION"
           if [ -n "$VERSION_TAG" ]; then syrus_verify_pushed "$IMAGE" "$VERSION_TAG"; fi
+          syrus_verify_pushed "ghcr.io/tkadauke/syrus-plugin-test" "$VERSION"
+          if [ -n "$VERSION_TAG" ]; then syrus_verify_pushed "ghcr.io/tkadauke/syrus-plugin-test" "$VERSION_TAG"; fi
 
   # ---------------------------------------------------------------------------
   # Cross-compile the CLI and stage the tarballs + checksums.

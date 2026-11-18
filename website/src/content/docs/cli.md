@@ -216,6 +216,23 @@ administrative surfaces require an admin token.
 The generated [CLI command catalog](/docs/generated/cli-catalog) lists every
 registered command, its flags, and whether that command supports `--json`.
 
+## Plugin validation and tests
+
+External plugin authors can validate a directory or run its RSpec suite against
+the matching real Syrus release without cloning Syrus:
+
+```bash
+syrus plugin validate .
+syrus plugin test . --json
+syrus plugin test . --syrus-version 0.4.0
+```
+
+The CLI uses the connected instance's release when available, otherwise its own
+release, and pulls `ghcr.io/tkadauke/syrus-plugin-test`. The directory is mounted
+read-only and the runner creates an isolated SQLite test database; it never uses
+instance credentials. Syrus contributors can use the identical checkout runner
+with `--checkout /path/to/syrus`.
+
 ## Repository Detection
 
 When a command runs inside a GitHub checkout, Syrus reads the `origin`

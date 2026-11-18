@@ -259,7 +259,7 @@ RSpec.describe "Docker image scripts" do
     # helpers always forward it, and non-release build paths derive the nearest
     # reachable release tag for plugin compatibility.
     dockerfile = File.read(File.join(root, "Dockerfile"))
-    expect(dockerfile.scan('ARG SYRUS_VERSION=""').size).to eq(2)
+    expect(dockerfile.scan('ARG SYRUS_VERSION=""').size).to eq(3)
     expect(dockerfile.scan("ENV SYRUS_VERSION=$SYRUS_VERSION").size).to eq(2)
 
     expect(helper.scan("--version=*)").size).to eq(2)

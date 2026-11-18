@@ -377,6 +377,10 @@ jobs:
           set -euo pipefail
           : > "$RUNNER_TEMP/plugin-latest-before"
           . bin/docker-image-lib
+          IMAGE="ghcr.io/tkadauke/syrus-plugin-test"
+          OLD="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          echo "$IMAGE $OLD" >> "$RUNNER_TEMP/plugin-latest-before"
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
           while read -r _dir IMAGE; do
             OLD="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
             echo "$IMAGE $OLD" >> "$RUNNER_TEMP/plugin-latest-before"

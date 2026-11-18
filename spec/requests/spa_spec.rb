@@ -164,6 +164,7 @@ RSpec.describe "SPA shell", type: :request do
   end
 
   it "prevents browser caching of the SPA shell" do
+    allow(SyrusVersion).to receive(:release).and_return(Gem::Version.new("1.2.3"))
     Factories.user
 
     get root_path
@@ -171,6 +172,7 @@ RSpec.describe "SPA shell", type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.headers["Cache-Control"]).to include("no-store")
     expect(response.headers["X-Syrus-Revision"]).to eq(SyrusVersion.current)
+    expect(response.headers["X-Syrus-Version"]).to eq("1.2.3")
   end
 
   it "does not version content-hashed SPA assets, but still versions unhashed assets" do

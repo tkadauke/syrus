@@ -38,6 +38,7 @@ cd "$(dirname "$0")/.."
 . ./bin/docker-image-lib
 
 IMAGE="${SYRUS_IMAGE_REPO:-ghcr.io/tkadauke/syrus-backend}"
+PLUGIN_TEST_IMAGE="${SYRUS_PLUGIN_TEST_IMAGE_REPO:-ghcr.io/tkadauke/syrus-plugin-test}"
 GHCR_USER="${GHCR_USER:-tkadauke}"
 VERSION=""
 MULTI=0
@@ -147,12 +148,19 @@ if [ -n "$VERSION" ]; then plugin_args+=("$VERSION"); fi
 if [ "$SKIP_LATEST" = 1 ]; then plugin_args+=(--skip-latest); fi
 
 if [ "$NO_PUSH" = 1 ]; then
+  docker build -f Dockerfile --target plugin-test --build-arg "SYRUS_VERSION=$VERSION" -t "$PLUGIN_TEST_IMAGE:${VERSION:-latest}" .
   # Build the plugin service images too, so a dry run proves they build.
   ./bin/publish-plugin-images ${plugin_args[@]+"${plugin_args[@]}"} --no-push
   echo
   echo "== --no-push: image built and tested, nothing pushed =="
   exit 0
 fi
+
+echo "== Publishing plugin test companion image =="
+plugin_test_tags=(-t "$PLUGIN_TEST_IMAGE:${VERSION:-latest}")
+if [ "$SKIP_LATEST" = 0 ] && [ -n "$VERSION" ]; then plugin_test_tags+=(-t "$PLUGIN_TEST_IMAGE:latest"); fi
+docker buildx build -f Dockerfile --target plugin-test --platform "$([ "$MULTI" = 1 ] && echo linux/amd64,linux/arm64 || docker version -f '{{.Server.Os}}/{{.Server.Arch}}')" \
+  --build-arg "SYRUS_VERSION=$VERSION" --provenance=false "${plugin_test_tags[@]}" --push .
 
 # Publish plugin service images before making the backend available. A plugin
 # image nothing references yet is harmless; a backend whose service images are

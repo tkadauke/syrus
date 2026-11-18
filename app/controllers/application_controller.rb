@@ -21,6 +21,7 @@ class ApplicationController < ActionController::Base
 
   def set_syrus_revision_header
     response.headers["X-Syrus-Revision"] = SyrusVersion.current
+    response.headers["X-Syrus-Version"] = SyrusVersion.release.to_s if SyrusVersion.release
   end
 
   def switch_locale(&action)

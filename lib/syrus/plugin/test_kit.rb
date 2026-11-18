@@ -208,6 +208,15 @@ module Syrus
           failure_message { |plugin| "expected #{plugin.name} manifest to be valid; #{@errors.join('; ')}" }
         end
 
+        matcher :have_no_third_party_runtime_gems do
+          match do |plugin|
+            allowed = Bundler.load.specs.map(&:name).to_set
+            @unsupported = plugin.specification.runtime_dependencies.map(&:name).reject { |name| allowed.include?(name) }
+            @unsupported.empty?
+          end
+          failure_message { |plugin| "expected #{plugin.name} to use only gems shipped by Syrus; unsupported runtime gems: #{@unsupported.join(', ')}" }
+        end
+
         matcher :satisfy_requires_syrus do
           match do |plugin|
             @requirement = Gem::Requirement.new(plugin.specification.metadata["requires_syrus"].to_s)

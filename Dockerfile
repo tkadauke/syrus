@@ -160,11 +160,21 @@ RUN SYRUS_APP_HOST=syrus.invalid \
     SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile && \
     rm -rf node_modules
 
+# Dedicated dependency layer for the plugin-test companion image. Production
+# images intentionally exclude test gems; plugin authors need RSpec without
+# turning the runtime image into a development environment.
+FROM build AS plugin-test-build
+ENV BUNDLE_WITHOUT=""
+RUN bundle config unset without && bundle install && \
+    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache
+
 # Build the same Go CLI shipped by bin/release-cli. Keep this in its own
 # source-thin stage so Go module downloads cache independently from Rails and
 # asset changes, and so the final app/worker images receive only the static
 # binary.
 FROM docker.io/library/golang:1.26.5-bookworm AS cli-build
+
+ARG SYRUS_VERSION=""
 
 WORKDIR /src
 
@@ -186,7 +196,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     target_arch="${TARGETARCH:-$(go env GOARCH)}"; \
     cd cli; \
     env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
-      go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus .; \
+      go build -trimpath -ldflags="-s -w -X github.com/tkadauke/syrus/cli/cmd.pluginCLIVersion=${SYRUS_VERSION:-development}" -o /usr/local/bin/syrus .; \
     cd ../plugins/credential_store/cli; \
     env GOWORK=off CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" \
       go build -trimpath -ldflags="-s -w" -o /usr/local/bin/syrus-credential ./cmd/syrus-credential; \
@@ -235,6 +245,16 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD if [ -n "$SYRUS_ROLE" ] && [ "$SYRUS_ROLE" != "web" ]; then exit 0; fi; curl -fsS http://127.0.0.1/readyz >/dev/null || exit 1
 CMD ["./bin/thrust", "./bin/rails", "server"]
+
+# Published separately as ghcr.io/tkadauke/syrus-plugin-test. It contains the
+# real host plus its test dependencies and has no server credentials.
+FROM base AS plugin-test
+ENV BUNDLE_WITHOUT="" RAILS_ENV="test"
+USER 1000:1000
+COPY --chown=rails:rails --from=plugin-test-build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
+COPY --chown=rails:rails --from=build /rails /rails
+ENTRYPOINT ["/rails/bin/plugin-test"]
+CMD ["test", "/plugin"]
 
 
 

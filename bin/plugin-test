@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Validate or test an external Syrus plugin against this Syrus checkout/image.
+set -uo pipefail
+
+mode="${1:-test}"
+plugin_root="${2:-/plugin}"
+if [[ "$mode" != "validate" && "$mode" != "test" ]]; then
+  echo "usage: bin/plugin-test validate|test [PLUGIN_DIR]" >&2
+  exit 2
+fi
+plugin_root="$(cd "$plugin_root" 2>/dev/null && pwd)" || { echo "plugin directory not found: $plugin_root" >&2; exit 2; }
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$repo_root"
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+export RAILS_ENV=test
+export DATABASE_URL="sqlite3:$work/plugin-test.sqlite3"
+export SYRUS_PLUGIN_PATH="$(dirname "$plugin_root")"
+export SYRUS_PLUGIN_TEST_ROOT="$plugin_root"
+export SYRUS_PLUGIN_TEST_MODE="$mode"
+
+./bin/rails db:schema:load >/dev/null 2>&1
+validation_status=$?
+if [[ $validation_status -eq 0 ]]; then
+  ./bin/rails runner 'ActiveRecord.dump_schema_after_migration = false; ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths).migrate'
+  validation_status=$?
+fi
+if [[ $validation_status -eq 0 ]]; then
+  bundle exec rspec --format progress spec/plugin_test_runner/validation_spec.rb
+  validation_status=$?
+fi
+
+test_status=0
+if [[ "$mode" == "test" && $validation_status -eq 0 ]]; then
+  mapfile -t specs < <(find "$plugin_root/spec" -type f -name '*_spec.rb' -print 2>/dev/null | sort)
+  if [[ ${#specs[@]} -eq 0 ]]; then
+    echo "No plugin specs found under $plugin_root/spec" >&2
+    test_status=1
+  else
+    SYRUS_HOST_ROOT="$(pwd)" bundle exec rspec --format progress "${specs[@]}"
+    test_status=$?
+  fi
+fi
+
+overall="passed"
+[[ $validation_status -eq 0 && $test_status -eq 0 ]] || overall="failed"
+printf '{"schema":"syrus.plugin-test.v1","mode":"%s","validation":"%s","tests":"%s","status":"%s"}\n' \
+  "$mode" "$([[ $validation_status -eq 0 ]] && echo passed || echo failed)" \
+  "$([[ "$mode" == validate ]] && echo skipped || { [[ $test_status -eq 0 ]] && echo passed || echo failed; })" "$overall"
+[[ "$overall" == passed ]]
