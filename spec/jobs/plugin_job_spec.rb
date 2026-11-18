@@ -45,12 +45,35 @@ RSpec.describe PluginJob, :reset_plugin_registry do
   end
 
   it "records an exhausted failure in plugin health before discarding it" do
-    error = RuntimeError.new("still broken")
+    stub_const("FailingExternalReportsJob", Class.new(described_class) do
+      owned_by_plugin "external_reports"
 
-    expect { ExternalReportsJob.record_discard(error) }
+      def perform
+        raise "still broken"
+      end
+    end)
+    job = FailingExternalReportsJob.new
+    job.exception_executions = { "[StandardError]" => described_class::MAX_ATTEMPTS - 1 }
+
+    expect { job.perform_now }
       .to change { Syrus::PluginInvocation.runtime_health.failures(plugin: "external_reports").size }.by(1)
     expect(PluginRecord.find_by!(name: "external_reports").last_error_at).to be_present
     expect(Syrus::PluginInvocation.runtime_health.failures(plugin: "external_reports").sole)
-      .to have_attributes(extension_point: "background_job", operation: "ExternalReportsJob", count: 1)
+      .to have_attributes(extension_point: "background_job", operation: "FailingExternalReportsJob", count: 1)
+  end
+
+  it "does not record exceptions handled by a job's discard policy as exhausted failures" do
+    stub_const("StaleExternalReportsJob", Class.new(described_class) do
+      owned_by_plugin "external_reports"
+      discard_on ActiveRecord::RecordNotFound
+
+      def perform
+        raise ActiveRecord::RecordNotFound, "report was removed"
+      end
+    end)
+
+    expect { StaleExternalReportsJob.perform_now }
+      .not_to change { Syrus::PluginInvocation.runtime_health.failures(plugin: "external_reports").size }
+    expect(PluginRecord.find_by!(name: "external_reports").last_error_at).to be_nil
   end
 end

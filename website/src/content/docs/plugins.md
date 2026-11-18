@@ -82,6 +82,16 @@ values. Provider timeouts remain opt-in per operation. This in-process boundary
 contains ordinary bugs, not malicious code, native-code hangs, memory growth,
 monkey patches, or process termination.
 
+Plugin background jobs inherit from `PluginJob` and use a dedicated
+`plugin_<name>` queue by default, keeping their worker capacity separate from
+core and other plugins. Each plugin may run two jobs concurrently by default;
+set `job_concurrency` in its manifest to raise that cap. A job may explicitly
+select another queue when it has specialized placement requirements. Ordinary
+failures retry five times with increasing backoff, then are discarded and
+recorded in plugin health. Expected discards, such as work whose database record
+was already removed, do not count as health failures. **Admin → Queue** and
+**Admin → Plugins** show each plugin queue's current depth and failure count.
+
 To uninstall, disable the plugin and resolve any usage blockers, stop every
 container, move its directory out of the shared root, and restart all
 containers. Keep its data for rollback; destructive purge is a separate,

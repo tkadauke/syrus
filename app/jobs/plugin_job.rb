@@ -7,8 +7,9 @@ class PluginJob < ApplicationJob
   queue_as { self.class.plugin_queue_name }
   limits_concurrency key: ->(*) { self.class.plugin_owner }, group: "plugin_jobs"
 
-  retry_on StandardError, wait: :polynomially_longer, attempts: MAX_ATTEMPTS
-  after_discard { |job, error| job.class.record_discard(error) }
+  retry_on StandardError, wait: :polynomially_longer, attempts: MAX_ATTEMPTS do |job, error|
+    job.class.record_discard(error)
+  end
 
   class << self
     def limits_concurrency(to: 1, **options)

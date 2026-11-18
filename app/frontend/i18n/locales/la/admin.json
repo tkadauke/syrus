@@ -497,6 +497,7 @@
     "version": "Versio",
     "source": "Fons",
     "health": "Status",
+    "queue_health": "Ordo {{queue}} · {{depth}} exspectant · {{failures}} defecerunt",
     "circuit_open_detail": "Circuitus {{extensionPoint}} post {{count}} errores apertus est; proximum experimentum post {{retryAt}}.",
     "runtime_failure_detail": "{{extensionPoint}}.{{operation}} {{count}} vicibus defecit: {{exceptionClass}}: {{message}} (novissime {{lastAt}}).",
     "health_states": {
@@ -1414,7 +1415,6 @@
       "host": "Hospes",
       "role": "Munus",
       "health": "Salus",
-    "queue_health": "Ordo {{queue}} · {{depth}} exspectant · {{failures}} defecerunt",
       "reasons": "Causae",
       "heartbeat": "Pulsus",
       "details": "Singula",
