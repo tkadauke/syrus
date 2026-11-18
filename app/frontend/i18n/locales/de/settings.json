@@ -79,6 +79,7 @@
   "permissions": {
     "title": "Berechtigungen",
     "description": "Verwalte dauerhafte Befugnisse, die du Agenten übertragen hast.",
+    "loading": "Berechtigungen werden geladen…",
     "mode_label": "Detailstufe der Berechtigungszentrale",
     "modes": {
       "simple": "Einfach",

@@ -79,6 +79,7 @@
   "permissions": {
     "title": "Permissions",
     "description": "Manage durable authority you have delegated to agents.",
+    "loading": "Loading permissions…",
     "mode_label": "Permission Hub detail level",
     "modes": {
       "simple": "Simple",

@@ -79,6 +79,7 @@
   "permissions": {
     "title": "Permissiones",
     "description": "Auctoritatem diuturnam agentibus delegatam administra.",
+    "loading": "Permissiones onerantur…",
     "mode_label": "Gradus explicationis permissionum",
     "modes": {
       "simple": "Simplex",
