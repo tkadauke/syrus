@@ -29,9 +29,6 @@ module Coworkers
       # explicit mention of an addressable agent. Returning nil for all other
       # chats leaves the generic host policy in charge.
       def chat_turn_trigger(chat_session:, message:, mentions:)
-        roster_mention = rostered_coworker_for_mentions(chat_session, mentions)
-        return { trigger: false, reason: "delegated coworker mention" } if roster_mention
-
         owns_turn = linked_coworker(chat_session)
         return unless owns_turn
 
@@ -80,23 +77,6 @@ module Coworkers
 
       def linked_coworker(chat_session)
         Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat_session.id)&.coworker
-      end
-
-      def rostered_coworker(chat_session, message)
-        rostered_coworker_for_mentions(chat_session, message&.resolved_mentions)
-      end
-
-      def rostered_coworker_for_mentions(chat_session, mentions)
-        ids = coworker_mentions(mentions)
-        return if ids.empty?
-
-        roster = Coworkers::ChatAgent.where(chat_session_id: chat_session.id, coworker_id: ids)
-          .includes(:coworker).index_by(&:coworker_id)
-        ids.lazy.filter_map { |id| roster[id]&.coworker }.first
-      end
-
-      def coworker_mentions(mentions)
-        Array(mentions).filter_map { |mention| mention["id"].to_i if mention["kind"] == "coworker" }
       end
 
       def identity(coworker, role: nil)

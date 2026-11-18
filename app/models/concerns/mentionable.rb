@@ -10,5 +10,6 @@ module Mentionable
   def avatar_key = nil
   def accent_hex = nil
   def agentic? = false
+  def delegates_chat_turn?(_chat) = false
   def addressable_in?(_chat) = raise(NotImplementedError)
 end
