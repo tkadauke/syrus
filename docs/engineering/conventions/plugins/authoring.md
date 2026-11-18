@@ -1329,11 +1329,11 @@ end
 The default queue is `plugin_my_plugin`. Solid Queue consumes the `plugin_*`
 prefix, including queues introduced by external plugins after deployment.
 Jobs may use `queue_as` after `plugin_name` when they deliberately need an
-existing specialized queue. All `PluginJob` classes retry ordinary failures
-five times with polynomial backoff, then discard the execution and record the
-failure count, timestamp, and latest error in plugin health. A shared semaphore
-defaults to two simultaneous jobs per plugin; set `job_concurrency 4` in the
-plugin declaration to raise that cap.
+existing specialized queue. All `PluginJob` classes make up to five total
+attempts for ordinary failures with polynomial backoff, then discard the
+execution and record the failure count, timestamp, and latest error in plugin
+health. A shared semaphore defaults to two simultaneous jobs per plugin; set
+`job_concurrency 4` in the plugin declaration to raise that cap.
 
 `tick_interval:` (optional ActiveSupport duration) declares how often the
 plugin wants `on_tick` fired, and that is all a plugin needs to do -- no

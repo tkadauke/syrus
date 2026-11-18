@@ -210,9 +210,9 @@ Plugin background jobs use `PluginJob` and declare their plugin name. They run
 on `plugin_<plugin name>` by default, with at most two jobs per plugin executing
 at once. A plugin can raise that cap with `job_concurrency` in its declaration,
 or a job can deliberately select a specialized queue with `queue_as`. Ordinary
-failures retry five times with polynomial backoff; a job that still fails is
-discarded and its failure count, latest error, queue depth, and timestamp appear
-under **Admin → Plugins** and **Admin → Queue**.
+failures make up to five total attempts with polynomial backoff; a job that
+still fails is discarded and its failure count, latest error, queue depth, and
+timestamp appear under **Admin → Plugins** and **Admin → Queue**.
 
 Operators can tune the breaker for every process at startup:
 
