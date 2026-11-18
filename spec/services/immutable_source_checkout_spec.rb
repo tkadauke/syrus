@@ -114,12 +114,9 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     mirror = Pathname.new(Dir.mktmpdir("syrus-immutable-source-stale-base"))
     sh("git clone -q --bare #{bare_remote_dir} #{mirror}")
     expected_base_sha = advance_remote_main("new-base.txt")
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY, expected_base_sha)
     snapshot.update!(source_ref: "refs/syrus/source-snapshots/runs/123", source_sha: feature_sha, tree_sha: feature_tree_sha)
     register_workspace_transport(url: "file://#{mirror}")
-    content = instance_double(RepositoryContent::Reader)
-    allow(RepositoryContent).to receive(:for).with(repository, user: user).and_return(content)
-    allow(content).to receive(:resolve).with("main", max_age: 0)
-      .and_return(RepositoryContent::Revision.new(id: expected_base_sha, ref: "main", observed_at: Time.current))
     expect(GithubAuthenticatedGit).to receive(:run).at_least(:once) do |repository:, user:, git:, operation_type:, log:, &block|
       block.call("file://#{bare_remote_dir}")
     end
@@ -132,21 +129,32 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     FileUtils.rm_rf(mirror) if mirror
   end
 
+  it "refreshes an existing base ref before accepting a restored checkout" do
+    register_workspace_transport(url: "file://#{bare_remote_dir}")
+    snapshot.update!(source_ref: "refs/syrus/source-snapshots/runs/123", source_sha: feature_sha, tree_sha: feature_tree_sha)
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY, main_sha)
+    checkout = described_class.new(step)
+    checkout.setup
+    expected_base_sha = advance_remote_main("new-restored-base.txt")
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY, expected_base_sha)
+
+    checkout.setup
+
+    expect(sh("git -C #{checkout.path} rev-parse refs/remotes/origin/main").strip).to eq(expected_base_sha)
+  end
+
   it "verifies a fork upstream base against the upstream repository before accepting its mirror" do
     upstream = Factories.repository(user: user, owner: "upstream", name: "widgets", default_branch: "main")
     repository.update!(upstream_repository: upstream)
     stale_upstream_mirror = Pathname.new(Dir.mktmpdir("syrus-immutable-source-stale-upstream"))
     sh("git clone -q --bare #{bare_remote_dir} #{stale_upstream_mirror}")
     expected_base_sha = advance_remote_main("new-upstream-base.txt")
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY, expected_base_sha)
     snapshot.update!(source_ref: "refs/syrus/source-snapshots/runs/123", source_sha: feature_sha, tree_sha: feature_tree_sha)
     register_workspace_transports(
       repository.id => "file://#{bare_remote_dir}",
       upstream.id => "file://#{stale_upstream_mirror}"
     )
-    content = instance_double(RepositoryContent::Reader)
-    allow(RepositoryContent).to receive(:for).with(upstream, user: user).and_return(content)
-    allow(content).to receive(:resolve).with("main", max_age: 0)
-      .and_return(RepositoryContent::Revision.new(id: expected_base_sha, ref: "main", observed_at: Time.current))
     expect(GithubAuthenticatedGit).to receive(:run).at_least(:once) do |repository:, user:, git:, operation_type:, log:, &block|
       expect(repository).to eq(upstream)
       block.call("file://#{bare_remote_dir}")

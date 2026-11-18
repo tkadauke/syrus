@@ -206,9 +206,10 @@ class ImmutableSourceCheckout
   end
 
   def ensure_base_ref!
-    return if git_ref_exists?(base_ref)
-
     remote, branch = remote_tracking_ref_parts(base_ref)
+    repository = remote_repository(remote)
+    return if git_ref_exists?(base_ref) && !WorkspaceGitTransports.for(repository, user: @job.user)
+
     log("[immutable_source_checkout] fetching base ref #{base_ref}")
     ensure_remote!(remote)
     begin
@@ -268,11 +269,11 @@ class ImmutableSourceCheckout
   def fetch_remote_branch!(remote, branch, destination_ref:)
     repository = remote_repository(remote)
     refspec = "+refs/heads/#{branch}:#{destination_ref}"
-    unless WorkspaceGitTransports.for(repository, user: @job.user)
+    expected_sha = expected_base_sha(remote, branch)
+    unless expected_sha && WorkspaceGitTransports.for(repository, user: @job.user)
       return authenticated_base_fetch!(repository, refspec)
     end
 
-    expected_sha = RepositoryContent.for(repository, user: @job.user).resolve(branch, max_age: 0).id
     log("[immutable_source_checkout] trying preferred workspace Git transport for #{remote}/#{branch}")
     fetch_via_transport!(
       repository: repository,
@@ -286,9 +287,15 @@ class ImmutableSourceCheckout
       log("[immutable_source_checkout] preferred transport unavailable or stale; falling back to authenticated hosting fetch for #{remote}/#{branch}")
       authenticated_base_fetch!(repository, refspec)
     end
-  rescue RepositoryContent::Error => e
-    log("[immutable_source_checkout] could not verify preferred transport freshness for #{remote}/#{branch}: #{e.class}; using authenticated hosting fetch")
-    authenticated_base_fetch!(repository, refspec)
+  end
+
+  def expected_base_sha(remote, branch)
+    snapshot = source_snapshot
+    return snapshot.source_sha if remote == "origin" && snapshot.source_ref == "refs/heads/#{branch}"
+    return unless branch == @job.effective_base_branch
+
+    @workflow.artifact(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY).presence ||
+      @job.mergeability_base_sha.presence
   end
 
   def authenticated_base_fetch!(repository, refspec)
