@@ -113,6 +113,35 @@ RSpec.describe ConnectedAccounts::AccountClient do
     )
   end
 
+  it "refreshes an expired access token before yielding and persists the replacement payload" do
+    replacement_access_token = "replacement-access-secret"
+    replacement_refresh_token = "replacement-refresh-secret"
+    expired_payload = {
+      access_token: access_token,
+      refresh_token: refresh_token,
+      expires_at: 1.minute.ago.iso8601
+    }.to_json
+    replacement_payload = {
+      access_token: replacement_access_token,
+      refresh_token: replacement_refresh_token,
+      expires_at: 10.minutes.from_now.iso8601
+    }.to_json
+    record = account
+    record.credential.update!(payload: expired_payload)
+    allow(ConnectedAccounts::TokenRefresher).to receive(:call)
+      .with(account: record, payload: expired_payload)
+      .and_return(replacement_payload)
+
+    observed_header = with_invocation do
+      call_client(record) { |access| access.authorization_header }
+    end
+
+    expect(observed_header).to eq("Bearer #{CredentialStore::Redaction::REDACTION}")
+    expect(record.credential.reload.payload).to eq(replacement_payload)
+    expect(CredentialStore::CredentialAccessEvent.where(credential: record.credential).pluck(:action))
+      .to contain_exactly("lease", "refresh")
+  end
+
   it "refuses an account owned by another user without revealing it" do
     other_user = Factories.user
     record = account(owner: other_user)
@@ -181,6 +210,19 @@ RSpec.describe ConnectedAccounts::AccountClient do
     )
     expect(event.purpose).to include(CredentialStore::Redaction::REDACTION)
     expect(event.attributes.values.join(" ")).not_to include(access_token, refresh_token)
+  end
+
+  it "redacts a token that crosses the audit purpose truncation boundary" do
+    record = account
+    purpose = "x" * 250 + access_token
+
+    with_invocation do
+      call_client(record, purpose: purpose) { "ok" }
+    end
+
+    event = CredentialStore::CredentialAccessEvent.last
+    expect(event.purpose).to include(CredentialStore::Redaction::REDACTION)
+    expect(event.purpose).not_to include(access_token, access_token.first(5))
   end
 
   it "denies another plugin that calls the credential broker under its own tool name" do

@@ -32,6 +32,7 @@ module ConnectedAccounts
       credential = account.credential
       api_origins = Array(credential.target_constraints.to_h["allowed_url_prefixes"])
       access = nil
+      parse_payload!(credential.payload)
 
       result = CredentialStore::Broker.with_credential_value(
         context:,
@@ -49,8 +50,8 @@ module ConnectedAccounts
           authorized_invocation: authorization.slice("tool_name", "invocation_fingerprint")
         },
         extra_secrets: token_secrets
-      ) do |payload, lease_metadata|
-        tokens = parse_payload!(payload)
+      ) do |payload, _lease_metadata|
+        tokens = refresh_if_expired(account:, credential:, context:, payload:)
         access = Access.new(
           token: tokens.fetch("access_token"),
           expires_at: parse_expiry(tokens["expires_at"]),
@@ -125,8 +126,27 @@ module ConnectedAccounts
       raise InvalidAccount, "OAuth credential payload is invalid"
     end
 
+    def refresh_if_expired(account:, credential:, context:, payload:)
+      tokens = parse_payload!(payload)
+      expires_at = parse_expiry(tokens["expires_at"])
+      return tokens unless expires_at && expires_at <= Time.current
+
+      refreshed = CredentialStore::Broker.refresh_credential!(
+        credential: credential,
+        plugin_name: "connected_accounts",
+        purpose: "refresh connected account access",
+        user: context.user,
+        metadata: { provider: account.provider_key, account_id: account.id }
+      ) do |current_payload|
+        TokenRefresher.call(account:, payload: current_payload)
+      end
+      parse_payload!(refreshed.payload)
+    end
+
     def redacted_purpose
-      CredentialStore::Broker.redact(purpose, extra_secrets: token_secrets).truncate(PURPOSE_MAX_LENGTH)
+      CredentialStore::Broker
+        .redact(purpose, extra_secrets: token_secrets)
+        .truncate(PURPOSE_MAX_LENGTH, omission: CredentialStore::Redaction::REDACTION)
     end
 
     def normalize_scopes(scopes)
