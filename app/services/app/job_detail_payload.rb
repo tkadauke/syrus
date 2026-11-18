@@ -826,7 +826,6 @@ module App
         filename: attachment.filename,
         content_type: attachment.content_type,
         byte_size: attachment.byte_size,
-        google_doc_url: attachment.google_doc_url,
         uploaded_file: attachment.uploaded_file?,
         file_path: attachment.file.attached? ? "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}/file" : nil,
         content_path: attachment.file.attached? ? "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}/content" : nil,

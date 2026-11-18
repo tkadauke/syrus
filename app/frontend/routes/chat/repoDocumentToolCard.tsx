@@ -68,7 +68,7 @@ function parseDocument(value: unknown): DocumentRow | null {
     repository,
     contentType: displayValue(value.content_type) || displayValue(value.mime_type),
     sizeBytes: numberValue(value.size_bytes) ?? numberValue(value.byte_size),
-    url: displayValue(value.url) || displayValue(value.google_docs_url)
+    url: displayValue(value.url)
   }
 }
 

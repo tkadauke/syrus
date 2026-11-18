@@ -1,14 +1,10 @@
 require "base64"
 require "mcp"
-require "net/http"
-require "openssl"
 require "pdf/reader"
-require "uri"
 
 module Mcp::Tools
   class ReadRepoDocumentTool < MCP::Tool
     MAX_TEXT_BYTES = 64.kilobytes
-    GOOGLE_DOC_CACHE_TTL = 1.hour
     IMAGE_CONTENT_TYPES = %w[
       image/png
       image/jpeg
@@ -37,11 +33,7 @@ module Mcp::Tools
         document = chat_session.attached_documents_in_scope.with_attached_file.find_by(id: id)
         return Mcp::Tools.invalid("document not found in this chat session's attachments: #{id}") unless document
 
-        if document.file?
-          read_file(document)
-        else
-          read_google_doc(document)
-        end
+        read_file(document)
       rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError => e
         Mcp::Tools.tool_error("Could not extract PDF text: #{e.message}")
       rescue StandardError => e
@@ -66,22 +58,6 @@ module Mcp::Tools
 
         text = extract_file_text(document, content_type)
         MCP::Tool::Response.new([ text_block(capped_text(text)) ])
-      end
-
-      def read_google_doc(document)
-        if document.content_cache.present? && document.content_cached_at && document.content_cached_at > GOOGLE_DOC_CACHE_TTL.ago
-          return MCP::Tool::Response.new([ text_block(document.content_cache) ])
-        end
-
-        text = fetch_google_doc_text(document.google_docs_url)
-        capped = capped_text(text)
-        document.update!(content_cache: capped, content_cached_at: Time.current)
-
-        MCP::Tool::Response.new([ text_block(capped) ])
-      rescue URI::InvalidURIError, SocketError, SystemCallError, Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError, RuntimeError => e
-        google_doc_error(e.message)
-      rescue ActiveRecord::RecordInvalid => e
-        google_doc_error(e.record.errors.full_messages.to_sentence)
       end
 
       def extract_file_text(document, content_type)
@@ -112,24 +88,6 @@ module Mcp::Tools
         raise ArgumentError, "DOCX support is not available"
       end
 
-      def fetch_google_doc_text(url)
-        uri = URI.parse(google_doc_export_url(url))
-        response = Net::HTTP.get_response(uri)
-        return response.body if response.is_a?(Net::HTTPSuccess)
-
-        raise "Google Doc export returned HTTP #{response.code}"
-      end
-
-      def google_doc_export_url(url)
-        clean = url.to_s.strip
-        clean = clean.split("#", 2).first.to_s.split("?", 2).first.to_s
-        clean = clean.delete_suffix("/edit")
-        clean = clean.delete_suffix("/")
-        return "#{clean}?format=txt" if clean.end_with?("/export")
-
-        "#{clean}/export?format=txt"
-      end
-
       def capped_text(text)
         text = text.to_s
         return text if text.bytesize <= MAX_TEXT_BYTES
@@ -148,11 +106,6 @@ module Mcp::Tools
         IMAGE_CONTENT_TYPES.include?(content_type)
       end
 
-      def google_doc_error(message)
-        Mcp::Tools.tool_error(
-          "Could not fetch Google Doc text: #{message}. Check that the document is shared publicly or with anyone who has the link."
-        )
-      end
     end
   end
 end

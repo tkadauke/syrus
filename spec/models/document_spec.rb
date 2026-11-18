@@ -26,9 +26,9 @@ RSpec.describe Document, type: :model do
 
   it "attaches to a Repository" do
     document = repo.documents.create!(
-      kind: "google_doc",
+      kind: "file",
       user: user,
-      google_doc_url: "https://docs.google.com/document/d/repo/edit"
+      file: upload
     )
 
     expect(document.attachable).to eq(repo)
@@ -37,9 +37,9 @@ RSpec.describe Document, type: :model do
 
   it "attaches to a Job" do
     document = job.documents.create!(
-      kind: "google_doc",
+      kind: "file",
       user: user,
-      google_doc_url: "https://docs.google.com/document/d/job/edit"
+      file: upload
     )
 
     expect(document.attachable).to eq(job)
@@ -72,10 +72,17 @@ RSpec.describe Document, type: :model do
   end
 
   it "localizes attachment limit interpolation in German and Latin" do
-    document = job.documents.build(kind: "google_doc", user: user, google_doc_url: "https://docs.google.com/document/d/test/edit")
+    document = job.documents.build(kind: "file", user: user, file: upload)
     allow(job.documents).to receive(:count).and_return(Document::MAX_ATTACHMENTS_PER_JOB)
 
     expect(I18n.with_locale(:de) { document.valid?; document.errors[:base] }).to include("Jobs dürfen höchstens 10 Anhänge haben")
     expect(I18n.with_locale(:la) { document.valid?; document.errors[:base] }).to include("Jobs non plus quam 10 adiuncta habere possunt")
+  end
+
+  it "rejects the removed Google Doc kind" do
+    document = user.documents.build(kind: "google_doc", user: user)
+
+    expect(document).not_to be_valid
+    expect(document.errors[:kind]).to be_present
   end
 end
