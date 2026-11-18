@@ -149,14 +149,20 @@ describe("RepositoryIssuesTab", () => {
 
   it.each([320, 375, 402])("renders mobile issue cards without the desktop table at %ipx", async (width) => {
     restoreViewport = mockViewportWidth(width)
+    const longLabel = "a-label-that-must-remain-inside-the-mobile-card"
     vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(issuesPayload({ issues: [issue({ title: "A very long issue title that must remain inside the viewport" })] }))
+      jsonResponse(
+        issuesPayload({
+          issues: [issue({ labels: [{ name: longLabel, color: "d73a4a" }], title: "A very long issue title that must remain inside the viewport" })]
+        })
+      )
     )
     renderRoute()
 
     const list = await screen.findByTestId("mobile-issue-list")
     expect(list.className).toContain("min-w-0")
     expect(within(list).getByRole("link", { name: /A very long issue title/ })).toHaveClass("break-words")
+    expect(within(list).getByText(longLabel)).toHaveClass("break-all", "max-w-full")
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Select issues" })).toBeInTheDocument()
   })
@@ -210,10 +216,19 @@ describe("RepositoryIssuesTab", () => {
 
   it("keeps the configurable desktop table at the medium breakpoint", async () => {
     restoreViewport = mockViewportWidth(768)
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(issuesPayload()))
+    const longLabel = "a-label-that-must-not-force-the-desktop-issue-column-to-collapse"
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(issuesPayload({ issues: [issue({ labels: [{ name: longLabel, color: "d73a4a" }] })] }))
+    )
     renderRoute()
 
-    expect(await screen.findByRole("table")).toBeInTheDocument()
+    const table = await screen.findByRole("table")
+    const label = screen.getByText(longLabel)
+    const issueCell = label.closest("td")
+
+    expect(table).toBeInTheDocument()
+    expect(issueCell).toHaveClass("min-w-80")
+    expect(label).not.toHaveClass("break-all", "max-w-full")
     expect(screen.getByRole("button", { name: "Columns" })).toBeInTheDocument()
     expect(screen.queryByTestId("mobile-issue-list")).not.toBeInTheDocument()
   })
