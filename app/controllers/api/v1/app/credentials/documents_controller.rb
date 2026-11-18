@@ -56,7 +56,6 @@ module Api
         def uploaded_files
           Array(params.dig(:document, :files)).compact_blank
         end
-
       end
     end
   end

@@ -61,5 +61,4 @@ RSpec.describe Document, type: :model do
     expect(document).not_to be_valid
     expect(document.errors[:file]).to include("must be 20 MB or smaller")
   end
-
 end

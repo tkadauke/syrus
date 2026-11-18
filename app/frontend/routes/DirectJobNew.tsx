@@ -94,7 +94,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         title: "",
         prompt: "",
         priority: "medium",
-        createMore: true,
+        createMore: true
       }))
     }
   })
@@ -330,7 +330,6 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           </Button>
           {files.length > 0 ? <span className="text-sm text-gray-600 dark:text-gray-400">{files.map((file) => file.name).join(", ")}</span> : null}
         </div>
-
       </section>
 
       <Checkbox
@@ -366,7 +365,7 @@ function initialValues(payload: DirectJobFormPayload): DirectJobFormState {
     title: "",
     prompt: "",
     priority: "medium",
-    createMore: payload.create_more,
+    createMore: payload.create_more
   }
 }
 
