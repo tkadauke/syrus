@@ -248,11 +248,15 @@ in plugin health that the compatibility check was skipped. Bundled plugins are
 not checked because they ship with Syrus itself.
 
 At discovery, Syrus statically scans an external plugin's Ruby files without
-executing them. Legacy or unsupported core API references, scan errors, and a
-`requires_syrus` floor below the minimum derived from public APIs appear as a
-non-blocking warning in plugin health. The admin plugin detail page lists each
-finding with its source file and line. Results are cached by Ruby content, so
-unchanged plugins are not rescanned on every boot.
+executing them. Registered `Syrus::Host` APIs are supported. Legacy APIs,
+unsupported core references, literal dynamic core names, scan errors, and a
+`requires_syrus` floor below the minimum derived from host APIs appear in
+plugin health; direct unsupported references make the standalone scanner exit
+non-zero. Literal names passed to `class_name`, `constantize`,
+`safe_constantize`, or `const_get` are warnings because computed dynamic names
+cannot be detected statically. The admin plugin detail page lists each finding
+with its source file and line. Results are cached by Ruby content, so unchanged
+plugins are not rescanned on every boot.
 
 External plugin discovery, entry loading, engine construction, and provider
 registration are isolated per plugin. A load error, syntax error, or other

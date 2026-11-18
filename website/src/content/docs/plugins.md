@@ -36,9 +36,11 @@ the required and running releases in plugin health. If the running release is
 unknown, Syrus loads the plugin and records that the compatibility check was
 skipped. Plugin authors should declare the oldest Syrus release they have
 actually tested. Before publishing, run `bin/plugin-host-surface scan PATH`
-(or add `--json` for tooling). It reports every public, legacy, and unsupported
-core constant reference without loading the plugin and derives the minimum
-Syrus release required by the public APIs in use. The tested release may be
+(or add `--json` for tooling). Registered `Syrus::Host` APIs are supported;
+legacy and literal dynamic core names produce warnings, while direct
+unsupported core references make the command fail. The report derives the
+minimum Syrus release required by the host APIs in use. Computed dynamic
+constant names cannot be detected. The tested release may be
 newer, but must not be older than that derived floor.
 
 ## Hand-install an external plugin
