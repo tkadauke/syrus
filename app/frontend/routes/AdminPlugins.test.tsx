@@ -132,10 +132,7 @@ describe("AdminPlugins", () => {
     fireEvent.click(screen.getByRole("button", { name: "Re-enable after restart" }))
 
     await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/app/admin/plugins/weather/clear_quarantine",
-        expect.objectContaining({ method: "POST" })
-      )
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/admin/plugins/weather/clear_quarantine", expect.objectContaining({ method: "POST" }))
     )
   })
 
