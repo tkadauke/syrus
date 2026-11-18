@@ -124,6 +124,26 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     expect(described_class.new(registrations).findings.map(&:code)).to include(:conflicting_descriptor)
   end
 
+  it "accepts the coworker surface's role projection of a chat descriptor" do
+    chat = registration("read_example", descriptor: descriptor)
+    workflow = registration("read_example", surface: :workflow, descriptor: chat.descriptor)
+    coworker_descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(chat.descriptor)
+    coworker = registration("read_example", surface: :coworker, descriptor: coworker_descriptor)
+
+    expect(described_class.new([ chat, coworker, workflow ]).findings).to be_empty
+  end
+
+  it "rejects a coworker projection that changes the authorization contract" do
+    chat = registration("read_example", descriptor: descriptor)
+    coworker = registration("read_example", surface: :coworker, descriptor: descriptor(
+      effects: [ :confidential_read ],
+      requestable_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
+      defaults: { AgentRole::COWORKER_CHAT => :ask, AgentRole::COWORKER => :ask }
+    ))
+
+    expect(described_class.new([ chat, coworker ]).findings.map(&:code)).to include(:conflicting_descriptor)
+  end
+
   it "builds application registrations through the public complete plugin inventory" do
     plugin_descriptor = descriptor(capability: "plugin.data@v1", operation: "plugin.data/read@v1")
     provider = stub_const("ExampleToolSet", Class.new)
