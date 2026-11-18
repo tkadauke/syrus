@@ -110,9 +110,7 @@ export function disableAdminPlugin(name: string, confirmCascade = false) {
 }
 
 export function clearAdminPluginQuarantine(name: string) {
-  return postJson<{ ok: true; plugin: string; restart_required: boolean }>(
-    `/api/v1/app/admin/plugins/${encodeURIComponent(name)}/clear_quarantine`
-  )
+  return postJson<{ ok: true; plugin: string; restart_required: boolean }>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}/clear_quarantine`)
 }
 
 export function enableBetaModeForInstance() {
