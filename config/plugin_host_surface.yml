@@ -4,7 +4,7 @@
 # Public entries require a `since` release; legacy entries are a shrinking
 # compatibility inventory and must never be used by external plugins.
 ---
-legacy_baseline: 414
+legacy_baseline: 477
 constants:
 - name: Admin::JobStateSerializer
   tier: legacy
@@ -33,6 +33,14 @@ constants:
 - name: AgentInvocation::SILENT_TIMEOUT_SECONDS
   tier: legacy
 - name: AgentProviderCatalogOptions
+  tier: legacy
+- name: AgentProviders
+  tier: legacy
+- name: AgentProviders::Base
+  tier: legacy
+- name: AgentProviders::ConfigurationError
+  tier: legacy
+- name: AgentProviders::SessionStore
   tier: legacy
 - name: AgentRole
   tier: legacy
@@ -65,6 +73,12 @@ constants:
 - name: AgentRole::WORKFLOW_VISUAL_REVIEWER
   tier: legacy
 - name: AgentSidecarEnvironment
+  tier: legacy
+- name: Api::V1::Admin::BaseController
+  tier: legacy
+- name: Api::V1::App::Admin::BaseController
+  tier: legacy
+- name: Api::V1::App::BaseController
   tier: legacy
 - name: App::AdversarialReviewProjects
   tier: legacy
@@ -131,6 +145,10 @@ constants:
 - name: ChatProposal
   tier: legacy
 - name: ChatProviderOptions
+  tier: legacy
+- name: ChatProviders::Base
+  tier: legacy
+- name: ChatProviders::ConfigurationError
   tier: legacy
 - name: ChatQueuedMessage::INTERNAL_ROLE_KEY
   tier: legacy
@@ -232,6 +250,58 @@ constants:
   tier: legacy
 - name: Feature
   tier: legacy
+- name: Filters
+  tier: legacy
+- name: Filters::Ast
+  tier: legacy
+- name: Filters::Ast::AndNode
+  tier: legacy
+- name: Filters::Ast::Chip
+  tier: legacy
+- name: Filters::Ast::EMPTY
+  tier: legacy
+- name: Filters::Ast::NotNode
+  tier: legacy
+- name: Filters::Ast::OrNode
+  tier: legacy
+- name: Filters::BaseFilter
+  tier: legacy
+- name: Filters::Chips::Base
+  tier: legacy
+- name: Filters::Chips::BooleanColumn
+  tier: legacy
+- name: Filters::Chips::DateColumn
+  tier: legacy
+- name: Filters::Chips::DateColumn::UNITS
+  tier: legacy
+- name: Filters::Chips::EnumColumn
+  tier: legacy
+- name: Filters::Chips::FkColumn
+  tier: legacy
+- name: Filters::Chips::FullTextStringColumn
+  tier: legacy
+- name: Filters::Chips::Jobs::JobType
+  tier: legacy
+- name: Filters::Chips::NumberColumn
+  tier: legacy
+- name: Filters::Chips::StringColumn
+  tier: legacy
+- name: Filters::Compiler
+  tier: legacy
+- name: Filters::QueryParam
+  tier: legacy
+- name: Filters::QueryParam::PARAM_NAME
+  tier: legacy
+- name: Filters::Registry
+  tier: legacy
+- name: Filters::Schema
+  tier: legacy
+- name: Filters::SmartFolderResolution
+  tier: legacy
+- name: Filters::SmartFolderResolution::PRESET_FIELD
+  tier: legacy
+- name: Filters::UnknownFilterField
+  tier: legacy
 - name: FtsQueryParser
   tier: legacy
 - name: GitRunner
@@ -268,6 +338,8 @@ constants:
   tier: legacy
 - name: InputSource
   tier: legacy
+- name: InputSources::PendingWorkWakeup
+  tier: legacy
 - name: InstanceVersion
   tier: legacy
 - name: InstanceVersion::HEARTBEAT_STALE_THRESHOLD
@@ -298,8 +370,6 @@ constants:
   tier: legacy
 - name: JobPin
   tier: legacy
-- name: Jobs
-  tier: legacy
 - name: Jobs::Filter
   tier: legacy
 - name: JunitXmlParser
@@ -317,6 +387,28 @@ constants:
 - name: LandingFailureHandler
   tier: legacy
 - name: MaintenanceTasks::Definitions::Base::Result
+  tier: legacy
+- name: Mcp::Pagination
+  tier: legacy
+- name: Mcp::Tools
+  tier: legacy
+- name: Mcp::Tools::AdminPendingActionToolSupport
+  tier: legacy
+- name: Mcp::Tools::AgentPreviewRegistry
+  tier: legacy
+- name: Mcp::Tools::AuthorizationSupport
+  tier: legacy
+- name: Mcp::Tools::AuthorizationSupport::AuthorizationError
+  tier: legacy
+- name: Mcp::Tools::BulkPendingActionToolSupport
+  tier: legacy
+- name: Mcp::Tools::BulkPendingActionToolSupport::MAX_BATCH_SIZE
+  tier: legacy
+- name: Mcp::Tools::EvidenceRedactor
+  tier: legacy
+- name: Mcp::Tools::PendingActionToolSupport
+  tier: legacy
+- name: Mcp::Tools::ProposalToolSupport
   tier: legacy
 - name: McpInvocationContext
   tier: legacy
@@ -360,6 +452,12 @@ constants:
   tier: legacy
 - name: PendingActionItem
   tier: legacy
+- name: PendingActions::AuthorizedToolCall
+  tier: legacy
+- name: PendingActions::Base
+  tier: legacy
+- name: PendingActions::PermissionManagement
+  tier: legacy
 - name: PerformanceLogEvent
   tier: legacy
 - name: PerformanceLogging
@@ -383,6 +481,38 @@ constants:
 - name: PermissionLease
   tier: legacy
 - name: PermissionRule
+  tier: legacy
+- name: Permissions::AuthorizationDecision
+  tier: legacy
+- name: Permissions::AuthorizationRequest
+  tier: legacy
+- name: Permissions::CapabilityDescriptor
+  tier: legacy
+- name: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS
+  tier: legacy
+- name: Permissions::CapabilityDescriptor::POLICIES
+  tier: legacy
+- name: Permissions::CapabilityDescriptorAdapter
+  tier: legacy
+- name: Permissions::CapabilityPresentation
+  tier: legacy
+- name: Permissions::CapabilityRegistryValidator
+  tier: legacy
+- name: Permissions::Catalog
+  tier: legacy
+- name: Permissions::Catalog::UnknownCapability
+  tier: legacy
+- name: Permissions::CoworkerDefaultPolicy
+  tier: legacy
+- name: Permissions::CoworkerDefaultPolicy::ROLES
+  tier: legacy
+- name: Permissions::Management
+  tier: legacy
+- name: Permissions::Management::PROFILE_SOURCE_PREFIX
+  tier: legacy
+- name: Permissions::PermissionRequest
+  tier: legacy
+- name: Permissions::PolicyEvaluator::POLICY_RANK
   tier: legacy
 - name: PersistentMcpDaemon
   tier: legacy
@@ -417,8 +547,6 @@ constants:
 - name: PreviewProcessLauncher
   tier: legacy
 - name: ProcessRunner
-  tier: legacy
-- name: Prompts
   tier: legacy
 - name: Prompts::AdversarialReview
   tier: legacy
@@ -547,8 +675,6 @@ constants:
 - name: SearchIndexWriteLimits
   tier: legacy
 - name: SearchRecord
-  tier: legacy
-- name: Session
   tier: legacy
 - name: Skills
   tier: legacy
