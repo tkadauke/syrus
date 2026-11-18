@@ -512,6 +512,7 @@
       "warning": "Warnung"
     },
     "host_surface_details": "Host-API-Befunde",
+    "host_surface_minimum": "Abgeleitete Syrus-Mindestversion",
     "disableable": "Deaktivierbar",
     "yes": "Ja",
     "no": "Nein",
