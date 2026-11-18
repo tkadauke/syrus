@@ -137,7 +137,7 @@ module Permissions
       registrations.select { |registration| registration.explicit_descriptor && registration.descriptor }
         .group_by { |registration| registration.descriptor.operation }.filter_map do |operation, group|
         contracts = group.group_by { |registration| registration.descriptor.contract_key }
-        next if contracts.one?
+        next if contracts.one? || coworker_role_projection?(group)
         Finding.new(
           code: :conflicting_descriptor,
           message: I18n.t("server.permissions.capability_registry.conflicting_descriptor",
@@ -145,6 +145,26 @@ module Permissions
           registrations: group
         )
       end
+    end
+
+    def coworker_role_projection?(registrations)
+      return false unless registrations.map(&:source).uniq.one?
+      return false unless registrations.map(&:tool_name).uniq.one?
+      return false unless registrations.map { |registration| registration.descriptor.authorization_contract_key }.uniq.one?
+
+      coworker_registrations, ordinary_registrations = registrations.partition { |registration| registration.surface == :coworker }
+      return false unless coworker_registrations.one? && ordinary_registrations.any?
+      return false unless ordinary_registrations.map { |registration| registration.descriptor.contract_key }.uniq.one?
+
+      chat = ordinary_registrations.find { |registration| registration.surface == :chat }&.descriptor
+      return false unless chat
+
+      coworker = coworker_registrations.first.descriptor
+      original_roles = chat.requestable_roles
+      added_roles = [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].map(&:to_s)
+
+      coworker.requestable_roles.sort == (original_roles + added_roles).uniq.sort &&
+        coworker.defaults.slice(*original_roles) == chat.defaults
     end
 
     def canonical_and_alias_findings(kind)
