@@ -503,6 +503,7 @@
       "incompatible": "Incompatibile",
       "duplicate_name": "Nomen duplicatum",
       "skipped_dependency": "Praetermissum — dependentia defecit",
+      "skipped_role": "Praetermissum — munus processus non electum",
       "degraded": "Debilitatum",
       "cycle": "Circuitus dependentiarum"
     },

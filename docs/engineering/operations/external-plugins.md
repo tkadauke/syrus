@@ -54,6 +54,10 @@ or installer workflow yet. Populate the volume through an operator-controlled
 helper container or volume-management procedure while the application is
 stopped. Kubernetes deployments should provide the equivalent shared,
 read-only application mount through their normal storage and rollout system.
+The shipped k3s workloads continue to use plugins baked into the image; when
+no signed desired-state storage is configured, the shared entrypoint's sync is
+a no-op. Third-party plugin distribution to k3s and native macOS workers
+remains outside this mechanism.
 
 ## Install or replace a plugin
 
