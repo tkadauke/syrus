@@ -14,8 +14,8 @@ RSpec.describe Syrus::PluginHealth do
       requires_syrus:, metadata: { plugin_host_surface_scan: scan })
   end
 
-  def scan(legacy: [], unlisted: [], minimum: nil, error: nil)
-    Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy:, unlisted:,
+  def scan(legacy: [], unlisted: [], dynamic: [], minimum: nil, error: nil)
+    Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy:, unlisted:, dynamic:,
       minimum_syrus_version: minimum, content_hash: "digest", error:)
   end
 
@@ -127,6 +127,13 @@ RSpec.describe Syrus::PluginHealth do
     subject = health([ external_manifest(scan: scan(error: "Prism failed")) ])
     expect(subject.status("external").reasons.join).to include("Prism failed")
     expect(subject.healthy?("external")).to be(true)
+  end
+
+  it "warns without disabling for a literal dynamic core reference" do
+    subject = health([ external_manifest(scan: scan(dynamic: [ double ])) ])
+
+    expect(subject.status("external")).to have_attributes(state: :warning)
+    expect(subject.status("external").reasons.join).to include("dynamic")
   end
 
   it "warns when requires_syrus is below the derived minimum" do

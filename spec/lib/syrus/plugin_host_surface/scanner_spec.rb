@@ -2,31 +2,30 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Syrus::PluginHostSurface::Scanner do
-  def scan(source, entries: {})
+  def scan(source, public_apis: {})
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
       root.join("lib").mkpath
       root.join("lib/fixture.rb").write(source)
-      surface = instance_double(Syrus::PluginHostSurface)
-      allow(surface).to receive(:lookup) { |name| entries[name] }
+      surface = Syrus::PluginHostSurface.new
+      apis = public_apis.map do |name, since|
+        Syrus::Host::Api.new(name:, since:, summary: "Test API", members: [])
+      end
+      allow(Syrus::Host).to receive(:apis).and_return(apis)
+      allow(Syrus::Host).to receive(:public?) do |name|
+        apis.any? { |api| name == api.name || name.start_with?("#{api.name}::") }
+      end
       return described_class.new(root, surface:).call
     end
   end
 
-  def entry(name, tier:, since: nil)
-    Syrus::PluginHostSurface::Entry.new(name:, tier:, since:, contract: nil, members: {})
-  end
+  it "classifies host, legacy, and unlisted core references with locations" do
+    result = scan("Syrus::Host::Job.find(1)\nAgentRole.call\nMainHealthChangedService.call\n",
+      public_apis: { "Syrus::Host::Job" => "0.1.16" })
 
-  it "classifies public, legacy, and unlisted core references with locations" do
-    entries = {
-      "AgentInvocation" => entry("AgentInvocation", tier: "public", since: "0.1.16"),
-      "AgentRole" => entry("AgentRole", tier: "legacy")
-    }
-    result = scan("AgentInvocation.call\nAgentRole.call\nWorkflow.call\n", entries:)
-
-    expect(result.public.first).to have_attributes(constant: "AgentInvocation", path: "lib/fixture.rb", line: 1)
-    expect(result.legacy.first).to have_attributes(constant: "AgentRole", line: 2)
-    expect(result.unlisted.first).to have_attributes(constant: "Workflow", line: 3)
+    expect(result.public.first).to have_attributes(constant: "Syrus::Host::Job", path: "lib/fixture.rb", line: 1)
+    expect(result.legacy.first).to have_attributes(constant: "AgentRole", tier: "non-public", line: 2)
+    expect(result.unlisted.first).to have_attributes(constant: "MainHealthChangedService", line: 3)
   end
 
   it "does not count constants in strings or comments" do
@@ -39,13 +38,36 @@ RSpec.describe Syrus::PluginHostSurface::Scanner do
     expect(result.findings).to be_empty
   end
 
+  it "allows plugin interfaces registered through host aliases" do
+    api = Syrus::Host.apis.find { |entry| entry.name == "Syrus::Host::PluginApi" }
+    result = scan("module Fixture; extend Syrus::PluginApi; end\n", public_apis: { api.name => api.since })
+
+    expect(result.unlisted).to be_empty
+    expect(result.public.map(&:constant)).to eq([ "Syrus::PluginApi" ])
+  end
+
   it "derives the newest since version across public APIs" do
-    entries = {
-      "AgentInvocation" => entry("AgentInvocation", tier: "public", since: "0.1.16"),
-      "Workflow" => entry("Workflow", tier: "public", since: "0.4.2")
-    }
-    result = scan("AgentInvocation.call\nWorkflow.call\n", entries:)
+    apis = { "Syrus::Host::Job" => "0.1.16", "Syrus::Host::Workflow" => "0.4.2",
+             "Syrus::Host::Record" => "0.3.0" }
+    source = "include Syrus::Host::Job\nextend ::Syrus::Host::Workflow\nclass Model < Syrus::Host::Record; end\n"
+    result = scan(source, public_apis: apis)
     expect(result.minimum_syrus_version).to eq("0.4.2")
+  end
+
+  it "resolves host APIs reached through a constant alias" do
+    result = scan("HostApi = Syrus::Host\nHostApi::Job.find(1)\n",
+      public_apis: { "Syrus::Host::Job" => "0.2.0" })
+
+    expect(result.public.map(&:constant)).to include("Syrus::Host::Job")
+    expect(result.minimum_syrus_version).to eq("0.2.0")
+  end
+
+  it "warns about dynamic internal core constant references" do
+    result = scan("belongs_to :job, class_name: \"Job\"\n\"Workflow\".safe_constantize\n")
+
+    expect(result.dynamic.map(&:constant)).to contain_exactly("Job", "Workflow")
+    expect(result).to be_warnings
+    expect(result).not_to be_violations
   end
 
   it "caches scans by the Ruby content hash" do
@@ -55,6 +77,7 @@ RSpec.describe Syrus::PluginHostSurface::Scanner do
       root.join("lib/fixture.rb").write("Workflow.call\n")
       inventory = instance_double(Admin::PluginHostSurfaceInventory)
       allow(inventory).to receive(:references_for).and_return([])
+      allow(inventory).to receive(:string_references_for).and_return([])
       surface = instance_double(Syrus::PluginHostSurface)
       store = ActiveSupport::Cache::MemoryStore.new
       allow(Rails).to receive(:cache).and_return(store)
