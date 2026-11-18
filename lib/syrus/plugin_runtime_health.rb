@@ -20,7 +20,7 @@ module Syrus
         return true unless circuit
         return true if circuit[:state] == :closed
         return false if circuit[:state] == :half_open
-        return false if now < circuit[:opened_at] + cooldown
+        return false if now < circuit[:opened_at] + circuit.fetch(:cooldown, cooldown)
 
         circuit[:state] = :half_open
         true
@@ -31,7 +31,7 @@ module Syrus
       @mutex.synchronize { @circuits.delete(circuit_key(plugin, extension_point)) }
     end
 
-    def record_failure(plugin:, extension_point:, operation:, exception:, threshold:, window:)
+    def record_failure(plugin:, extension_point:, operation:, exception:, threshold:, window:, cooldown:)
       timestamp = now
       @mutex.synchronize do
         failure_key = [ plugin.to_s, extension_point.to_s, operation.to_s, exception.class.name, exception.message.to_s ]
@@ -49,6 +49,7 @@ module Syrus
         if circuit[:state] == :half_open || circuit[:failures].size >= threshold
           circuit[:state] = :open
           circuit[:opened_at] = timestamp
+          circuit[:cooldown] = cooldown
         end
       end
     end
@@ -61,14 +62,14 @@ module Syrus
       end
     end
 
-    def circuits(plugin: nil, cooldown:)
+    def circuits(plugin: nil)
       timestamp = now
       @mutex.synchronize do
         @circuits.filter_map do |(plugin_name, extension_point), circuit|
           next if circuit[:state] == :closed
           next if plugin && plugin_name != plugin.to_s
 
-          retry_at = circuit[:opened_at] && circuit[:opened_at] + cooldown
+          retry_at = circuit[:opened_at] && circuit[:opened_at] + circuit.fetch(:cooldown)
           Circuit.new(
             plugin: plugin_name, extension_point: extension_point, state: circuit[:state],
             failure_count: circuit[:failures].count { |failed_at| failed_at <= timestamp },

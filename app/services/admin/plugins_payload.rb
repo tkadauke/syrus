@@ -209,7 +209,7 @@ module Admin
       status = plugin_health.status(manifest.name)
       runtime = Syrus::PluginInvocation.runtime_health
       failures = runtime.failures(plugin: manifest.name).map(&:to_h)
-      circuits = runtime.circuits(plugin: manifest.name, cooldown: Syrus::PluginInvocation::DEFAULT_COOLDOWN).map(&:to_h)
+      circuits = runtime.circuits(plugin: manifest.name).map(&:to_h)
       state = if circuits.any?
         "circuit_open"
       elsif failures.any? && (status.nil? || status.ok?)

@@ -58,6 +58,21 @@ shows dependency problems, compatibility, and retained load failures. An
 incompatible or failed plugin contributes no routes or providers and does not
 stop healthy plugins or core from loading.
 
+Syrus also isolates ordinary failures from plugin providers at runtime. The
+admin page shows recent failures and open circuits. After repeated failures in
+a sliding window, a process-local circuit declines calls until its cool-down
+expires; one successful trial closes it, while another failure reopens it.
+Circuit histories can differ between web and worker processes because they are
+kept in memory.
+
+The runtime breaker defaults to five failures within 60 seconds and a 30-second
+cool-down. Set `SYRUS_PLUGIN_CIRCUIT_FAILURE_THRESHOLD`,
+`SYRUS_PLUGIN_CIRCUIT_WINDOW_SECONDS`, and
+`SYRUS_PLUGIN_CIRCUIT_COOLDOWN_SECONDS` on every Syrus process to tune those
+values. Provider timeouts remain opt-in per operation. This in-process boundary
+contains ordinary bugs, not malicious code, native-code hangs, memory growth,
+monkey patches, or process termination.
+
 To uninstall, disable the plugin and resolve any usage blockers, stop every
 container, move its directory out of the shared root, and restart all
 containers. Keep its data for rollback; destructive purge is a separate,
