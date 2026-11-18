@@ -1,0 +1,5 @@
+en:
+  credential_store:
+    api:
+      managed_credential_allowed_tools: "Allowed tools for plugin-managed credentials cannot be changed here."
+      managed_credential_type: "The type of a plugin-managed credential cannot be changed here."

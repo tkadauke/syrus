@@ -14,7 +14,15 @@ module CredentialStore
     disableable true
 
     credential_types [
-      { name: "ssh_private_key", label: "SSH private key", description: "Private key material for SSH access with destination authorization and explicitly confirmed host-key identity." },
+      {
+        name: "ssh_private_key",
+        label: "SSH private key",
+        description: "Private key material for SSH access with destination authorization and explicitly confirmed host-key identity.",
+        typed_consumer: {
+          name: "credential_store_ssh_exec",
+          description: "Execute a permission-authorized SSH command without exposing the private key."
+        }
+      },
       { name: "token", label: "Token", description: "Opaque token material constrained by safe metadata and target policy." },
       { name: "json", label: "JSON credential", description: "Opaque JSON credential material constrained by safe metadata and target policy." },
       { name: "env", label: "Environment credential", description: "Environment-style secret material constrained by safe metadata and target policy." },

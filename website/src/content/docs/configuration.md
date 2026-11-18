@@ -830,8 +830,13 @@ tool name. This does not grant command authority: unified permissions still
 evaluate the operation and exact invocation, while raw-materialization wrappers
 remain explicit grants under **Allowed credential wrappers**. Management and
 discovery payloads report inferred typed consumers separately from those raw
-wrapper grants. The SSH editor guides operators through private-key entry,
-destination allowlists, and explicit host-key enrollment. A discovered key is
+wrapper grants. Credential types owned by another plugin are protected from
+those raw wrappers, and their wrapper grants cannot be changed in the generic
+Credential Store UI or API; the owning plugin instead uses its validated typed
+consumer. Plugin refreshes take a database row lock and produce a distinct
+refresh audit event without changing the human rotation action. The SSH editor
+guides operators through private-key entry, destination allowlists, and explicit
+host-key enrollment. A discovered key is
 not proof of server identity: verify its SHA-256 fingerprint through a trusted
 channel before confirming it. SSH execution requires that confirmed entry,
 uses a temporary `0600` known-hosts file with strict checking, and never relies
