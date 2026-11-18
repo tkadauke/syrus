@@ -12,11 +12,12 @@ const vendorChunkPackages = {
   "vendor-react": ["/react/", "/react-dom/", "/react-router/", "/react-router-dom/"],
   "vendor-query": ["/@tanstack/"],
   "vendor-i18n": ["/i18next/", "/react-i18next/"],
+  "vendor-terminal": ["/@xterm/", "/xterm/"],
   "vendor-rails": ["/@rails/"],
   "vendor-ui": ["/@floating-ui/", "/react-joyride/"]
 } as const
 
-const lazyVendorPackagePaths = ["/@excalidraw/", "/mermaid/", "/cytoscape", "/d3", "/@shikijs/", "/katex/", "/@xterm/", "/xterm/"] as const
+const lazyVendorPackagePaths = ["/@excalidraw/", "/mermaid/", "/cytoscape", "/d3", "/@shikijs/", "/katex/"] as const
 
 function packageChunkName(normalizedId: string) {
   const modulePath = normalizedId.split("/node_modules/").at(-1)
@@ -29,6 +30,9 @@ function packageChunkName(normalizedId: string) {
 
 function manualVendorChunk(id: string) {
   const normalizedId = id.replaceAll("\\", "/")
+  // The cross-surface event registry is large and changes independently from
+  // most route code, so keep it cacheable outside the startup entry.
+  if (normalizedId.endsWith("/app/frontend/lib/appEvents.ts")) return "app-events"
   if (!normalizedId.includes("/node_modules/")) return undefined
   // Leave route-only packages to Rollup's dynamic-import graph. Assigning a
   // manual chunk here can make a lazy package eager through a shared module
