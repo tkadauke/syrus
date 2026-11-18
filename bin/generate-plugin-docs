@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+ENV["RAILS_ENV"] ||= "test"
+require_relative "../config/environment"
+
+Syrus::PluginDocumentation.write!
+puts "Wrote #{Syrus::PluginDocumentation::HOST_API_PATH.relative_path_from(Rails.root)}"
+puts "Wrote #{Syrus::PluginDocumentation::PLUGIN_SPEC_PATH.relative_path_from(Rails.root)}"
