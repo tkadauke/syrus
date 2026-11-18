@@ -14,9 +14,9 @@ RSpec.describe TestInsights::Query do
   end
 
   def create_case!(identity:, status:, created_at:, duration_ms: 100)
-    # These examples exercise case aggregation, not ingestion. Reusing one
-    # parent run avoids constructing a complete Job/Workflow/Step graph for
-    # every individual case while preserving the real associations queried.
+    # These examples exercise case aggregation, not workflow launch. Reusing
+    # one lightweight parent graph avoids launching a real WorkUnit merely to
+    # satisfy the associations while preserving every relation queried here.
     # Identity summaries are explicit fixture attributes here: refreshing one
     # after every case would exercise ingestion work unrelated to this query.
     test_run = test_run_for(identity.repository)
@@ -37,7 +37,7 @@ RSpec.describe TestInsights::Query do
   def test_run_for(repository)
     @test_runs_by_repository ||= {}
     @test_runs_by_repository[repository.id] ||= TestInsights::TestRun.create!(
-      run: Factories.job(user: repository.user, repository: repository).initial_run,
+      run: Factories.job_with_run(user: repository.user, repository: repository).runs.first,
       repository: repository,
       grader_name: "rspec",
       total_count: 0,
