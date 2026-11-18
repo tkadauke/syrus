@@ -28,7 +28,7 @@ module Syrus
         end
         runtime_health.record_success(plugin: plugin, extension_point: extension_point)
         result
-      rescue StandardError => error
+      rescue StandardError, NotImplementedError => error
         raise if test_framework_exception?(error)
 
         runtime_health.record_failure(
