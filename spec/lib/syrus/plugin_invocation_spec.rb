@@ -104,4 +104,5 @@ RSpec.describe Syrus::PluginInvocation do
 
     expect(elapsed / 1_000).to be < 0.01
   end
+=======
 end
