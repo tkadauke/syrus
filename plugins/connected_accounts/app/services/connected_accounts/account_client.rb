@@ -9,7 +9,6 @@ module ConnectedAccounts
     class Denied < Error; end
 
     class_attribute :refresh_handler, instance_writer: false
-
     class << self
       def with_access(account:, acting_mode:, scopes:, purpose:, context: nil, target: {})
         new(account:, acting_mode:, scopes:, purpose:, context:, target:).with_access { |access| yield access }

@@ -2,7 +2,6 @@ require "rails_helper"
 
 RSpec.describe ConnectedAccounts::AccountClient do
   after { described_class.refresh_handler = nil }
-
   let(:owner) { Factories.user }
   let(:context) do
     McpToolContext.new(
