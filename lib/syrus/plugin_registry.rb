@@ -400,6 +400,14 @@ module Syrus
         @mutex.synchronize { @direct_providers[extension_point.to_sym].dup }
       end
 
+      def plugin_name_for(provider)
+        @mutex.synchronize do
+          @plugins.find do |manifest|
+            manifest.provides.values.any? { |providers| Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider.class } }
+          end&.name
+        end
+      end
+
       # Returns every definition a tool set can advertise, independent of a
       # particular chat tier or workflow context. Tool-set providers must treat
       # a nil tier/context as an inventory request.

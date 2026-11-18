@@ -535,6 +535,8 @@
     "version": "Versio",
     "source": "Fons",
     "health": "Status",
+    "circuit_open_detail": "Circuitus {{extensionPoint}} post {{count}} errores apertus est; proximum experimentum post {{retryAt}}.",
+    "runtime_failure_detail": "{{extensionPoint}}.{{operation}} {{count}} vicibus defecit: {{exceptionClass}}: {{message}} (novissime {{lastAt}}).",
     "health_states": {
       "ok": "Sanum",
       "failed": "In onerando defecit",
@@ -543,6 +545,7 @@
       "skipped_dependency": "Praetermissum — dependentia defecit",
       "skipped_role": "Praetermissum — munus processus non electum",
       "degraded": "Debilitatum",
+      "circuit_open": "Circuitus apertus",
       "cycle": "Circuitus dependentiarum"
     },
     "disableable": "Deactivabile",

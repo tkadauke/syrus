@@ -15,7 +15,12 @@ export type AdminPluginExtensionPoint = {
 export type AdminPlugin = {
   disable_blockers: Array<{ kind: string; label: string; count: number }>
   recommendation?: { reason: string; evidence: string } | null
-  health?: { state: string; reasons: string[] }
+  health?: {
+    state: string
+    reasons: string[]
+    failures?: Array<{ extension_point: string; operation: string; exception_class: string; message: string; count: number; last_at: string }>
+    circuits?: Array<{ extension_point: string; state: string; failure_count: number; opened_at: string; retry_at: string }>
+  }
   quarantine_clearable?: boolean
   name: string
   display_name: string

@@ -1,0 +1,94 @@
+# frozen_string_literal: true
+
+module Syrus
+  # Process-local runtime failure and circuit state for plugin providers.
+  class PluginRuntimeHealth
+    Failure = Data.define(:plugin, :extension_point, :operation, :exception_class, :message, :backtrace, :count, :last_at)
+    Circuit = Data.define(:plugin, :extension_point, :state, :failure_count, :opened_at, :retry_at)
+
+    def initialize(clock: -> { Time.current })
+      @clock = clock
+      @mutex = Mutex.new
+      @failures = {}
+      @circuits = {}
+    end
+
+    def allow?(plugin:, extension_point:, cooldown:)
+      key = circuit_key(plugin, extension_point)
+      @mutex.synchronize do
+        circuit = @circuits[key]
+        return true unless circuit
+        return true if circuit[:state] == :closed
+        return false if circuit[:state] == :half_open
+        return false if now < circuit[:opened_at] + cooldown
+
+        circuit[:state] = :half_open
+        true
+      end
+    end
+
+    def record_success(plugin:, extension_point:)
+      @mutex.synchronize { @circuits.delete(circuit_key(plugin, extension_point)) }
+    end
+
+    def record_failure(plugin:, extension_point:, operation:, exception:, threshold:, window:)
+      timestamp = now
+      @mutex.synchronize do
+        failure_key = [ plugin.to_s, extension_point.to_s, operation.to_s, exception.class.name, exception.message.to_s ]
+        previous = @failures[failure_key]
+        @failures[failure_key] = {
+          plugin: plugin.to_s, extension_point: extension_point.to_s, operation: operation.to_s,
+          exception_class: exception.class.name, message: exception.message.to_s,
+          backtrace: Array(exception.backtrace).first(12), count: previous.to_h.fetch(:count, 0) + 1, last_at: timestamp
+        }
+
+        key = circuit_key(plugin, extension_point)
+        circuit = (@circuits[key] ||= { state: :closed, failures: [] })
+        circuit[:failures] = circuit[:failures].select { |failed_at| failed_at >= timestamp - window }
+        circuit[:failures] << timestamp
+        if circuit[:state] == :half_open || circuit[:failures].size >= threshold
+          circuit[:state] = :open
+          circuit[:opened_at] = timestamp
+        end
+      end
+    end
+
+    def failures(plugin: nil)
+      @mutex.synchronize do
+        @failures.values
+          .select { |failure| plugin.nil? || failure[:plugin] == plugin.to_s }
+          .map { |failure| Failure.new(**failure) }
+      end
+    end
+
+    def circuits(plugin: nil, cooldown:)
+      timestamp = now
+      @mutex.synchronize do
+        @circuits.filter_map do |(plugin_name, extension_point), circuit|
+          next if circuit[:state] == :closed
+          next if plugin && plugin_name != plugin.to_s
+
+          retry_at = circuit[:opened_at] && circuit[:opened_at] + cooldown
+          Circuit.new(
+            plugin: plugin_name, extension_point: extension_point, state: circuit[:state],
+            failure_count: circuit[:failures].count { |failed_at| failed_at <= timestamp },
+            opened_at: circuit[:opened_at], retry_at: retry_at
+          )
+        end
+      end
+    end
+
+    def reset!(clock: nil)
+      @mutex.synchronize do
+        @clock = clock if clock
+        @failures.clear
+        @circuits.clear
+      end
+    end
+
+    private
+
+    def now = @clock.call
+    def circuit_key(plugin, extension_point) = [ plugin.to_s, extension_point.to_s ]
+  end
+end
