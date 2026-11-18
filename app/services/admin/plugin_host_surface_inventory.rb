@@ -106,7 +106,14 @@ module Admin
     def results
       references.group_by(&:constant).map do |constant, refs|
         counts = refs.group_by(&:plugin).transform_values(&:count).sort.to_h
-        Result.new(constant:, tier: @surface.lookup(constant)&.tier || "unlisted", plugins: counts, count: refs.size)
+        tier = if Syrus::Host.public?(constant)
+          "public"
+        elsif @surface.lookup(constant)
+          "legacy"
+        else
+          "internal"
+        end
+        Result.new(constant:, tier:, plugins: counts, count: refs.size)
       end.sort_by(&:constant)
     end
 
