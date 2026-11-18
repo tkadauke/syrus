@@ -670,11 +670,6 @@ function PipelineOverview({
   function move(direction: number) {
     scroller.current?.scrollBy({ left: direction * 580, behavior: reducedMotion() ? "auto" : "smooth" })
   }
-  function focusStage(stage: PipelineStage) {
-    scroller.current
-      ?.querySelector<HTMLElement>(`[data-stage="${CSS.escape(stage.key)}"]`)
-      ?.scrollIntoView({ inline: "center", block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" })
-  }
   function onKeys(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault()
