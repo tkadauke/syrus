@@ -141,6 +141,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `ProcessRunner` (since 0.1.16) — Managed subprocess runner for plugin commands with host cancellation, timeout, confinement, and attribution. Plugins may use new, run, capture, start, mounts, and forwarded_env; backend and process-record internals are not public. Supported members: class: `new`, `mounts`, `forwarded_env`; instance: `run`, `capture`, `start`.
 - `Repository` (since 0.1.16) — Read access to repository identity, owner/name, archival state, and jobs, with active and user-scoped readable/writable queries. Credential fields, synchronization internals, callbacks, and unlisted mutations are not public. Supported members: class: `active`, `accessible_to`, `writable_by`; instance: `id`, `owner`, `name`, `archived_at`, `jobs`.
 - `Run` (since 0.1.16) — Read access to an execution attempt's identity, state, step, workflow, and job. Dispatch, lifecycle transitions, agent metadata mutation, and unlisted associations are not public. Supported members: instance: `id`, `state`, `step`, `workflow`, `job`.
+- `Syrus::Host::ApplicationRecord` (since 0.1.16) — Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public. Supported members: class: `abstract_class`, `table_name`, `table_name=`.
 - `Syrus::Metrics` (since 0.1.16) — Non-blocking metrics facade for plugin-declared counters, gauges, and histograms. Plugins may fetch declared instruments; registry mutation and core metric declarations are not public. Supported members: class: `counter`, `gauge`, `histogram`.
 - `Syrus::Plugin::AdminPage` (since 0.1.16) — Marker contract for providers contributing administrative SPA pages through admin_pages metadata. Core navigation and route rendering internals are not public.
 - `Syrus::Plugin::AgentProvider` (since 0.1.16) — Interface mixed into registered agent providers, including model catalog and configuration hooks documented by the module. Provider orchestration and evidence internals are not public. Supported members: class: `available_models`, `configured_for_user?`.
@@ -175,4 +176,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 31718 bytes (UTF-8, including this line).
+Size: 31997 bytes (UTF-8, including this line).

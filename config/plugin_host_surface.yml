@@ -6,6 +6,11 @@
 ---
 legacy_baseline: 440
 constants:
+- name: Syrus::Host::ApplicationRecord
+  tier: public
+  since: 0.1.16
+  contract: Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.
+  members: { class: [abstract_class, table_name, table_name=] }
 - name: Admin::JobStateSerializer
   tier: legacy
 - name: Admin::OperationalLogsPayload

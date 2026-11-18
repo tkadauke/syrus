@@ -198,6 +198,16 @@ Supported members:
 
 ## Syrus
 
+### `Syrus::Host::ApplicationRecord`
+
+Tier: `public` · Since: `0.1.16`
+
+Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.
+
+Supported members:
+
+- class: `abstract_class`, `table_name`, `table_name=`
+
 ### `Syrus::Metrics`
 
 Tier: `public` · Since: `0.1.16`
