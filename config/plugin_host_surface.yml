@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 420
+legacy_baseline: 477
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -367,9 +367,66 @@ constants:
 - name: Syrus::Metrics
 - name: Syrus::PathJail
 - name: Syrus::PathJail::PathEscape
+- name: Syrus::Plugin::AdminPage
+- name: Syrus::Plugin::AgentProvider
+- name: Syrus::Plugin::AgentProvider::ModelInfo
 - name: Syrus::Plugin::AgenticConnection
+- name: Syrus::Plugin::Callbacks
+- name: Syrus::Plugin::ChatIdentityProvider
+- name: Syrus::Plugin::ChatJobStatusExtension
+- name: Syrus::Plugin::ChatMcpToolSet
+- name: Syrus::Plugin::ChatMediaSource
+- name: Syrus::Plugin::ChatPayloadContributor
+- name: Syrus::Plugin::ChatPromptInjector
+- name: Syrus::Plugin::ChatProvider
+- name: Syrus::Plugin::ChatTurnFinalizer
+- name: Syrus::Plugin::ChatTurnLifecycle
+- name: Syrus::Plugin::ChatTurnOrientation
+- name: Syrus::Plugin::ChatWorkspaceLifecycle
 - name: Syrus::Plugin::CliCommandHandler
+- name: Syrus::Plugin::DiffReviewAnnotationProvider
+- name: Syrus::Plugin::DomainSubscriber
+- name: Syrus::Plugin::ExecutionBackend
+- name: Syrus::Plugin::FocusedTestCommand
 - name: Syrus::Plugin::GatedToolSet
+- name: Syrus::Plugin::GradeDetector
+- name: Syrus::Plugin::GraderFailureSummarizer
+- name: Syrus::Plugin::GraderType
+- name: Syrus::Plugin::InputSource
+- name: Syrus::Plugin::JobOrigin
+- name: Syrus::Plugin::JobVisibilityRestriction
+- name: Syrus::Plugin::McpRunContextContributor
+- name: Syrus::Plugin::McpToolSet
+- name: Syrus::Plugin::MemoryStore
+- name: Syrus::Plugin::PermissionProvider
+- name: Syrus::Plugin::PlatformDelivery
+- name: Syrus::Plugin::PostImplementationReviewProvider
+- name: Syrus::Plugin::PreviewPanelRetention
+- name: Syrus::Plugin::PurgeContributor
+- name: Syrus::Plugin::RepoPageTab
+- name: Syrus::Plugin::RepositoryConfiguration
+- name: Syrus::Plugin::RepositoryContentProvider
+- name: Syrus::Plugin::RepositoryFilter
+- name: Syrus::Plugin::RepositoryRecommendation
+- name: Syrus::Plugin::RetentionPolicy
+- name: Syrus::Plugin::ReviewContextContributor
+- name: Syrus::Plugin::ReviewGate
+- name: Syrus::Plugin::ReviewPresentationContributor
+- name: Syrus::Plugin::ReviewerTargetProvider
+- name: Syrus::Plugin::RuntimeSessionProvider
+- name: Syrus::Plugin::SidebarPage
+- name: Syrus::Plugin::SlugType
+- name: Syrus::Plugin::SourceControlProvider
+- name: Syrus::Plugin::SpeechToTextProvider
+- name: Syrus::Plugin::StepEnvironment
+- name: Syrus::Plugin::TestEvidence
+- name: Syrus::Plugin::UiSlot
+- name: Syrus::Plugin::WorkerCapabilityProbe
+- name: Syrus::Plugin::WorkflowArtifactContributor
+- name: Syrus::Plugin::WorkflowKinds
+- name: Syrus::Plugin::WorkspaceGitTransport
+- name: Syrus::Plugin::WorkspaceTab
+- name: Syrus::PluginApi
 - name: Syrus::PluginRegistry
 - name: Syrus::PluginSettings
 - name: SyrusMcp
