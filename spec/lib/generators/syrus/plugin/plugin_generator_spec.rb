@@ -27,7 +27,7 @@ RSpec.describe Syrus::Plugin::PluginGenerator do
 
   it "generates each optional surface only when requested" do
     described_class.start(
-      [ "sample_plugin", "--frontend", "--model", "--cli", "--syrus-version", "1.2.3" ],
+      [ "sample_plugin", "--frontend", "--model", "--cli", "--syrus-version", "v1.2.3" ],
       destination_root: destination_root
     )
 
