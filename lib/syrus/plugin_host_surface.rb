@@ -5,7 +5,7 @@ module Syrus
   class PluginHostSurface
     Entry = Data.define(:name, :tier, :since, :contract, :members)
     TIERS = %w[public legacy].freeze
-    DEFAULT_PATH = Rails.root.join("config/plugin_host_surface.yml")
+    DEFAULT_PATH = Pathname.new(File.expand_path("../../config/plugin_host_surface.yml", __dir__))
 
     attr_reader :legacy_baseline
 
