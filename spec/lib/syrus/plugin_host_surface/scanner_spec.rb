@@ -14,7 +14,9 @@ RSpec.describe Syrus::PluginHostSurface::Scanner do
   end
 
   def entry(name, tier:, since: nil)
-    Syrus::PluginHostSurface::Entry.new(name:, tier:, since:, contract: nil, members: {})
+    Syrus::PluginHostSurface::Entry.new(
+      name:, tier:, since:, category: "Test fixtures", contract: nil, members: {}
+    )
   end
 
   it "classifies public, legacy, and unlisted core references with locations" do
