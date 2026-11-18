@@ -635,6 +635,11 @@
     "aria": "Admin operational logs"
   },
   "plugins": {
+    "recovery_active": "Plugin recovery mode is active",
+    "recovery_active_body": "Safe mode: {{mode}}. Quarantined plugins: {{count}}. Changes take effect after restart.",
+    "none": "none",
+    "clear_quarantine": "Re-enable after restart",
+    "clearing_quarantine": "Clearing quarantine...",
     "heading": "Plugins",
     "convergence_heading": "Fleet convergence",
     "convergence_aria": "Plugin fleet convergence",

@@ -99,6 +99,8 @@ RSpec.describe "plugin-sync" do
       publish(storage, key, revision: 4, plugins: [ v1.merge(fleet_quarantined: true) ])
       run_sync(storage:, data:, verify_key: key.verify_key)
       expect(File).not_to exist(active(data, "weather"))
+      expect(JSON.parse(File.read(File.join(data, "plugin-sync/fleet-quarantines.json"))))
+        .to eq("weather" => "fleet quarantine in desired plugin state")
     end
   end
 

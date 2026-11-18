@@ -115,6 +115,24 @@ that remain divergent longer than
 `SYRUS_PLUGIN_DIVERGENCE_THRESHOLD_SECONDS` (five minutes by default) are
 highlighted and produce the standard system alarm with a link back to Plugins.
 
+### Recovering from a broken plugin
+
+Set `SYRUS_SAFE_MODE=third_party` to withhold external plugins, `recent` to
+withhold external plugins changed since the last good boot, or `all` to boot
+without plugins. Syrus core requires no plugin to boot. Safe-mode and
+quarantine reasons appear in Admin → Plugins and in the global admin warning.
+
+Syrus records boot attempts outside the database. After three incomplete boots
+within ten minutes, it quarantines changed external plugins on the next start;
+a process that remains up for 60 seconds promotes its plugin set to last-good.
+Fleet quarantine from desired state takes effect on restart as well.
+
+If the UI works, correct the plugin and choose **Re-enable after restart** one
+plugin at a time. If Rails does not boot, use `bin/plugin-recovery list`,
+`bin/plugin-recovery quarantine NAME`, and `bin/plugin-recovery clear NAME`.
+Restart after changes. Clear fleet quarantine in desired state, and remove
+`SYRUS_SAFE_MODE` only after the recovered process remains healthy.
+
 ## What Plugins Can Add
 
 Plugins can contribute:
