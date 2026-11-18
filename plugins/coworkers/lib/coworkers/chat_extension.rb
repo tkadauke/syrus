@@ -52,7 +52,7 @@ module Coworkers
         ChatSession.define_method(:ephemeral_agent_turn?) { coworker_chat.present? }
 
         ChatSession.define_method(:owner_facing_chat_session) do
-          link = coworker_chat
+          link = Coworkers::Chat.find_by(chat_session_id: id)
           link&.mention? ? link.source_chat_session : self
         end
 

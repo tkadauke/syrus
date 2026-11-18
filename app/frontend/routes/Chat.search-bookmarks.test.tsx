@@ -147,11 +147,14 @@ describe("App chat search and bookmarks", () => {
 
       expect(await screen.findByRole("link", { name: "Forum planning" })).toHaveAttribute("href", "/chats/77")
       expect(screen.getByText("Ada")).toBeInTheDocument()
-      expect(screen.getByText((_content, element) => element?.textContent === "Best needle ignored")).toBeInTheDocument()
+      expect(screen.getByText((_content, element) => element?.textContent === "Best needle ignored", { selector: "p" })).toBeInTheDocument()
       expect(screen.getByText(/ago$/)).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "Show 1 more match" }))
-      const secondMatch = await screen.findByText((_content, element) => element?.textContent === "Second needle")
+      const secondMatch = await screen.findByText(
+        (_content, element) => element?.textContent === "Second needle",
+        { selector: "p" }
+      )
       expect(screen.getByText("Showing the first 4 matches.")).toBeInTheDocument()
       fireEvent.click(secondMatch.closest("button") as HTMLButtonElement)
 
