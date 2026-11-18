@@ -84,7 +84,7 @@ for target in "${targets[@]}"; do
   (
     cd "$ROOT/cli"
     env CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
-      go build -trimpath -ldflags="-s -w" -o "$STAGING/syrus" .
+      go build -trimpath -ldflags="-s -w -X github.com/tkadauke/syrus/cli/cmd.cliReleaseVersion=${VERSION#v}" -o "$STAGING/syrus" .
     cd "$ROOT/plugins/credential_store/cli"
     env CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" GOWORK=off \
       go build -trimpath -ldflags="-s -w" -o "$STAGING/syrus-credential" ./cmd/syrus-credential
