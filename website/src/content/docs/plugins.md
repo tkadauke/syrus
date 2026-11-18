@@ -98,6 +98,23 @@ rerun pre-boot sync. The status identifies processes still pending or stuck.
 Setup and web apply plugin migrations normally, while workers stop at boot if
 any migration remains pending.
 
+### Reading fleet convergence
+
+**Admin → Plugins** compares the desired revision with every process heartbeat.
+`Converged` means the process reports the role-specific desired digest. `Pending
+restart` means an applied revision has not started there yet; restart that
+process. `Behind` means it is running an older set without a current restart
+request; verify sync configuration and restart it. `Ahead` means the process is
+running a revision newer than this control plane; verify that it points at the
+correct database and manifest store. `Unreachable` means its heartbeat is stale;
+restore or replace the process before trusting its plugin state.
+
+Each row lists the running version and local load state for every desired plugin,
+including role skips, load failures, missing plugins, and fleet quarantine. Rows
+that remain divergent longer than
+`SYRUS_PLUGIN_DIVERGENCE_THRESHOLD_SECONDS` (five minutes by default) are
+highlighted and produce the standard system alarm with a link back to Plugins.
+
 ## What Plugins Can Add
 
 Plugins can contribute:

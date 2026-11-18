@@ -15,6 +15,7 @@ RSpec.describe "admin API prefix ownership" do
     POST /api/v1/app/admin/macos_worker_update/clear api/v1/app/admin/macos_worker_updates#clear
     POST /api/v1/app/admin/macos_worker_update/force_terminate api/v1/app/admin/macos_worker_updates#force_terminate
     GET /api/v1/app/admin/plugins api/v1/app/admin/plugins#index
+    GET /api/v1/app/admin/plugin_convergence api/v1/app/admin/plugin_convergence#show
     POST /api/v1/app/admin/plugins/:name/enable api/v1/app/admin/plugins#enable
     POST /api/v1/app/admin/plugins/:name/disable api/v1/app/admin/plugins#disable
     GET /api/v1/app/admin/plugins/:name/config api/v1/app/admin/plugins#show_config
@@ -90,6 +91,8 @@ RSpec.describe "admin API prefix ownership" do
   ROUTES
 
   REVIEWED_OPERATOR_ADMIN_ROUTES = <<~ROUTES.lines.map(&:strip).reject(&:blank?).freeze
+    GET /api/v1/admin/plugin_desired_state api/v1/admin/plugin_desired_state#show
+    POST /api/v1/admin/plugin_desired_state/apply api/v1/admin/plugin_desired_state#apply
     POST /api/v1/admin/jobs/:id/force_fail api/v1/admin/jobs#force_fail
     GET /api/v1/admin/jobs api/v1/admin/jobs#index
     POST /api/v1/admin/jobs api/v1/admin/jobs#create

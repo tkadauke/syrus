@@ -42,7 +42,10 @@ module Api
             stale: instance.stale?,
             data_root_usage: instance.data_root_usage_json,
             capabilities: instance.capabilities || {},
-            capability_diagnostics: instance.capability_diagnostics || {}
+            capability_diagnostics: instance.capability_diagnostics || {},
+            plugin_set_revision: instance.plugin_set_revision,
+            plugin_set_digest: instance.plugin_set_digest,
+            plugin_set_details: instance.plugin_set_details || {}
           }
         end
       end
