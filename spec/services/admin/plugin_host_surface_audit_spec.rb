@@ -7,13 +7,13 @@ RSpec.describe Admin::PluginHostSurfaceAudit do
 
   it "gives an actionable failure for an unlisted plugin reference" do
     result = Admin::PluginHostSurfaceInventory::Result.new(
-      constant: "InternalService", tier: "internal", plugins: { "fixture_plugin" => 1 }, count: 1
+      constant: "Syrus::Host::Undeclared", tier: "internal", plugins: { "fixture_plugin" => 1 }, count: 1
     )
     inventory = instance_double(Admin::PluginHostSurfaceInventory, results: [ result ])
     surface = instance_double(Syrus::PluginHostSurface, legacy_entries: [], legacy_baseline: 0)
 
     expect(described_class.new(inventory:, surface:).findings).to contain_exactly(
-      "InternalService is referenced by fixture_plugin but is internal; add a facade under Syrus::Host with an API contract, or stop using it"
+      "Syrus::Host::Undeclared is referenced by fixture_plugin but is internal; add a facade under Syrus::Host with an API contract, or stop using it"
     )
   end
 
