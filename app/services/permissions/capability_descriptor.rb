@@ -97,9 +97,16 @@ module Permissions
 
     def contract_key
       [
+        *authorization_contract_key,
+        requestable_roles.sort, defaults.sort
+      ]
+    end
+
+    def authorization_contract_key
+      [
         capability, effects.sort, risk, maximum_autonomy, authority_durations.sort,
         maximum_duration, resource_scope.type, resource_scope.options,
-        requestable_roles.sort, defaults.sort, presets,
+        presets,
         capability_aliases.sort, operation_aliases.sort, constraint_fields.sort,
         fresh_authentication_window, budget_dimensions.sort, benign_internal
       ]

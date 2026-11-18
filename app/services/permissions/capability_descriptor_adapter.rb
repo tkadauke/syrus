@@ -13,7 +13,11 @@ module Permissions
           AgentRole::COWORKER_CHAT => ordinary_default,
           AgentRole::COWORKER => ordinary_default
         )
-        CapabilityDescriptor.new(**descriptor.to_h.merge(requestable_roles: roles, defaults: defaults))
+        CapabilityDescriptor.new(**descriptor.to_h.merge(
+          presentation: descriptor.presentation,
+          requestable_roles: roles,
+          defaults: defaults
+        ))
       end
 
       def for_registry_entry(tool_name:, capability:, mutation:, required_roles: [], admin_only: false, descriptor: nil,
