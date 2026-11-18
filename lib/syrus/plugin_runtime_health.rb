@@ -31,7 +31,7 @@ module Syrus
       @mutex.synchronize { @circuits.delete(circuit_key(plugin, extension_point)) }
     end
 
-    def record_failure(plugin:, extension_point:, operation:, exception:, threshold:, window:, cooldown:)
+    def record_failure(plugin:, extension_point:, operation:, exception:, threshold:, window:, cooldown:, circuit: true)
       timestamp = now
       @mutex.synchronize do
         failure_key = [ plugin.to_s, extension_point.to_s, operation.to_s, exception.class.name, exception.message.to_s ]
@@ -41,6 +41,8 @@ module Syrus
           exception_class: exception.class.name, message: exception.message.to_s,
           backtrace: Array(exception.backtrace).first(12), count: previous.to_h.fetch(:count, 0) + 1, last_at: timestamp
         }
+
+        next unless circuit
 
         key = circuit_key(plugin, extension_point)
         circuit = (@circuits[key] ||= { state: :closed, failures: [] })

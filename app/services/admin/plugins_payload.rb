@@ -137,7 +137,7 @@ module Admin
           optionally_depends_on: Array(manifest.optionally_depends_on),
           conflicts_with: Array(manifest.conflicts_with),
           dependents: dependency_graph.dependents_for(manifest.name),
-          health: health_payload(manifest),
+          health: health_payload(manifest, record),
           quarantine_clearable: clearable_quarantine_names.include?(manifest.name),
           recommendation: recommendation_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
@@ -225,7 +225,7 @@ module Admin
     # Surfacing the state and the specific unmet dependency is what lets an
     # operator fix a degraded instance instead of guessing why a plugin's
     # behavior vanished.
-    def health_payload(manifest)
+    def health_payload(manifest, record)
       if (reason = quarantines[manifest.name])
         return { state: "quarantined", reasons: [ reason ] }
       end
@@ -241,7 +241,12 @@ module Admin
       else
         status&.state&.to_s || "ok"
       end
-      payload = { state: state, reasons: status&.reasons || [] }
+      payload = {
+        state: state,
+        reasons: status&.reasons || [],
+        request_count: record&.request_count.to_i,
+        last_error_at: record&.last_error_at&.iso8601
+      }
       payload[:failures] = failures if failures.any?
       payload[:circuits] = circuits if circuits.any?
       payload
