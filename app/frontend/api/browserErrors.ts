@@ -54,17 +54,20 @@ export function recordBrowserError(payload: BrowserErrorPayload) {
   return postJson<BrowserErrorResponse>("/api/v1/app/browser_errors", { browser_error: payload })
 }
 
-export function buildBrowserErrorPayload(error: Error, options: {
-  componentStack?: string
-  componentStackUnavailableReason?: string
-  correlationId?: string
-  errorCause?: BrowserErrorPayload["error_cause"]
-  fingerprint: string
-  boundary: string
-  lastInteraction?: BrowserErrorPayload["last_interaction"]
-  recoverable?: boolean
-  resourceTimings?: BrowserErrorPayload["resource_timings"]
-}): BrowserErrorPayload {
+export function buildBrowserErrorPayload(
+  error: Error,
+  options: {
+    componentStack?: string
+    componentStackUnavailableReason?: string
+    correlationId?: string
+    errorCause?: BrowserErrorPayload["error_cause"]
+    fingerprint: string
+    boundary: string
+    lastInteraction?: BrowserErrorPayload["last_interaction"]
+    recoverable?: boolean
+    resourceTimings?: BrowserErrorPayload["resource_timings"]
+  }
+): BrowserErrorPayload {
   const bootstrap = readInitialBootstrap()
   const route = browserErrorRouteContext(window.location.pathname)
   const safeLocation = browserErrorSafeLocation(window.location)
@@ -112,9 +115,7 @@ function browserErrorSafeLocation(location: Location): { url: string; path: stri
 }
 
 function scrubSensitivePathSegments(path: string): string {
-  return path
-    .replace(/(\/passwords\/)[^/?#]+(\/edit\b)/g, `$1${REDACTED}$2`)
-    .replace(/(\/chats\/shared\/)[^/?#]+/g, `$1${REDACTED}`)
+  return path.replace(/(\/passwords\/)[^/?#]+(\/edit\b)/g, `$1${REDACTED}$2`).replace(/(\/chats\/shared\/)[^/?#]+/g, `$1${REDACTED}`)
 }
 
 export function browserErrorRouteContext(pathname: string): { route_id?: string; route_params?: Record<string, string> } {
