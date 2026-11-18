@@ -24,7 +24,8 @@ test("SDLC Pipeline repository tab is aggregate-first and drills into a bounded 
   await page.goto("/repositories")
   await page.getByRole("link", { name: "demo/syrus-preview" }).click()
   await page.getByRole("link", { name: "Pipeline" }).click()
-  await expectNativePluginSurface(page, "SDLC Pipeline")
+  await expectNativePluginSurface(page, "demo/syrus-preview")
+  await expect(page.getByRole("heading", { name: "SDLC Pipeline", exact: true })).toHaveCount(0)
 
   const pipeline = page.getByRole("main", { name: "Repository SDLC pipeline" })
   await expect(pipeline.getByRole("region", { name: "Pipeline stages" })).toBeVisible()
@@ -47,7 +48,7 @@ test("SDLC Pipeline repository tab is aggregate-first and drills into a bounded 
   await firstEvent.click()
   await expect(page).toHaveURL(/(?:\?|&)at=/)
   await expect(pipeline.locator("[data-stage]")).toHaveCount(initialStageCount)
-  await expect(pipeline.getByText(/Past/)).toBeVisible()
+  await expect(pipeline.getByText(/This view is read-only at/)).toBeVisible()
   const desktopStageBox = await pipeline.locator("[data-stage]").first().boundingBox()
   expect(desktopStageBox).not.toBeNull()
   expect(desktopStageBox!.y).toBeGreaterThanOrEqual(0)
