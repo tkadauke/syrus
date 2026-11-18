@@ -319,6 +319,67 @@ RSpec.describe CredentialStore::Broker do
     expect(CredentialStore::ConsumerRegistry.consumers).to be_frozen
   end
 
+  it "leases a programmatic payload only through its typed consumer", :reset_plugin_registry do
+    Syrus::PluginRegistry.register(
+      name: "mail_plugin",
+      version: "1.0.0",
+      credential_types: [
+        { name: "mail_plugin.oauth", typed_consumer: { name: "mail_plugin.account_client", description: "Brokered account access." } }
+      ]
+    )
+    credential = create_credential(
+      credential_type: "mail_plugin.oauth",
+      allowed_tools: [ "mail_plugin.account_client" ]
+    )
+
+    yielded_payload = nil
+    yielded_metadata = nil
+    result = described_class.with_credential(
+      context: context,
+      credential: credential.id,
+      type: "mail_plugin.oauth",
+      purpose: "search mail",
+      tool_name: "mail_plugin.account_client",
+      target: { host: "api.example.com", url: "https://api.example.com/messages" }
+    ) do |payload, metadata|
+      yielded_payload = payload
+      yielded_metadata = metadata
+      :used
+    end
+
+    expect(result).to eq(:used)
+    expect(yielded_payload).to eq(secret)
+    expect(yielded_metadata).to include(
+      lease_id: be_present,
+      credential_id: credential.id,
+      credential_type: "mail_plugin.oauth",
+      tool_name: "mail_plugin.account_client",
+      safe_metadata: credential.safe_metadata,
+      target_constraints: credential.target_constraints
+    )
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      action: "lease",
+      result: "allowed",
+      lease_id: yielded_metadata.fetch(:lease_id),
+      tool_name: "mail_plugin.account_client"
+    )
+  end
+
+  it "rejects programmatic payload leases from non-typed consumers" do
+    expect {
+      described_class.with_credential(
+        context: context,
+        credential: 123,
+        type: "credential_store.url_token",
+        purpose: "bypass typed client",
+        tool_name: "credential.exec"
+      ) { "unreachable" }
+    }.to raise_error(CredentialStore::Broker::Denied, /typed consumer/)
+
+    expect(CredentialStore::CredentialAccessEvent.count).to eq(0)
+  end
+
   it "denies revoked credentials" do
     credential = create_credential(revoked_at: Time.current)
 
