@@ -34,7 +34,7 @@ RSpec.describe "Prometheus alert rules" do
     expect(matcher_jobs).to eq(recurring_jobs)
   end
 
-  it "alerts when the retention sweep misses its ten-minute cadence" do
+  it "alerts when either retention sweep misses its cadence" do
     expression = YAML.load_file(Rails.root.join("config/prometheus/syrus-alert-rules.yml"))
       .fetch("groups")
       .flat_map { |group| group.fetch("rules") }
@@ -42,5 +42,6 @@ RSpec.describe "Prometheus alert rules" do
       .fetch("expr")
 
     expect(expression).to match(/job=~"[^"]*database_retention_sweep[^"]*"} > 1200/)
+    expect(expression).to match(/job=~"[^"]*database_retention_archive_sweep[^"]*"} > 172800/)
   end
 end

@@ -2,10 +2,7 @@ class Coworkers::ChatTurnLifecycle
   include Syrus::Plugin::ChatTurnLifecycle
 
   def self.applies_to?(chat_session:, user_message:)
-    return false unless chat_session.respond_to?(:agent_turn_context)
-
-    agent = chat_session.agent_turn_context(user_message).coworker
-    agent.respond_to?(:kind) && agent.kind == "coworker"
+    Coworkers::Chat.exists?(chat_session_id: chat_session.id)
   end
 
   def initialize(chat_session:, user_message:)
@@ -19,7 +16,7 @@ class Coworkers::ChatTurnLifecycle
     result
   end
 
-  def context = @chat_session.agent_turn_context(@user_message)
+  def context = @chat_session
   def isolated_workspace? = true
 
   def synchronize(&block)
@@ -28,5 +25,5 @@ class Coworkers::ChatTurnLifecycle
 
   private
 
-  def coworker = context.coworker
+  def coworker = Coworkers::Chat.includes(:coworker).find_by!(chat_session_id: @chat_session.id).coworker
 end

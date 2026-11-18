@@ -603,14 +603,21 @@ class ChatPendingAction < ApplicationRecord
             "pending_action_id" => id,
             "action_kind" => action_key,
             "execution_status" => execution_status
-          }
+          },
+          skip_turn_trigger: true
         )
         chat_session.pin_chat_provider!
       end
       update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id
 
       if !legacy_outcome_record? && outcome_wake_enqueued_at.blank?
-        ChatTurnJob.perform_later(chat_session_id, message.id)
+        wake_chat = origin if origin.is_a?(ChatSession) && origin_id != chat_session_id
+        wake_message = if wake_chat
+          wake_chat.messages.create!(role: "system", content: message.content, skip_turn_trigger: false)
+        else
+          message
+        end
+        ChatTurnJob.perform_later(wake_message.chat_session_id, wake_message.id)
         update_columns(outcome_wake_enqueued_at: Time.current, updated_at: Time.current)
       end
     end

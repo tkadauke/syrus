@@ -37,6 +37,19 @@ RSpec.describe Mcp::Tools::AskUserQuestionTool, :full_chat_access do
     expect(response_payload(response)).to include(question_id: question.id)
   end
 
+  it "records a delegated question in the owner chat and resumes the execution chat when answered" do
+    owner_chat = ChatSession.create!(user: user, repository: repository)
+    chat_session.define_singleton_method(:owner_facing_chat_session) { owner_chat }
+    response = call_tool(questions: [ { question: "Which path?" } ])
+    question = owner_chat.agent_questions.sole
+
+    expect(response_payload(response)).to include(question_id: question.id)
+    expect(question.response_chat_session).to eq(chat_session)
+    expect { question.answer_and_record!([ "Careful" ], sender_user: user) }
+      .to have_enqueued_job(ChatTurnJob).with(chat_session.id, kind_of(Integer))
+    expect(chat_session.messages.last.content).to include("source" => "agent_question_answer")
+  end
+
   it "normalizes literal backslash-n sequences into real line breaks" do
     response = call_tool(questions: [ { question: "Two scoping questions:\\n1. Scope to X?\\n2. Name it Y?" } ])
 

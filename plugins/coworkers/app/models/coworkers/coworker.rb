@@ -40,6 +40,7 @@ class Coworkers::Coworker < ApplicationRecord
   def kind = "coworker"
   def accent_hex = self[:accent_hex]
   def agentic? = true
+  def delegates_chat_turn?(chat) = Coworkers::ChatAgent.exists?(coworker_id: id, chat_session_id: chat.id)
   def avatar_url = avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(avatar, only_path: true) : nil
   def avatar_key = self[:avatar_key]
   def addressable_in?(chat)
@@ -56,13 +57,15 @@ class Coworkers::Coworker < ApplicationRecord
     Repository.where("LOWER(owner) = ? AND LOWER(name) = ?", match[1].downcase, match[2].downcase).first
   end
 
-  # The shared-chat capability delegates the owner's existing chat visibility
-  # to the coworker. Keep this owner-scoped even when the owner is an instance
-  # admin: admin status must never turn a coworker chat read into an
-  # instance-wide read.
+  # Coworker chat reads are capability-gated and resource-scoped: native
+  # coworker sessions plus chats explicitly shared with this coworker.
   def readable_chat_session_ids
-    owner_user.accessible_chat_sessions.active.distinct.ids
+    ChatSession.active.where(id: chats.select(:id)).or(
+      ChatSession.active.where(id: received_chat_shares.select(:chat_session_id))
+    ).distinct.ids
   end
+
+  def listed_chats = coworker_chats.reject(&:mention?)
 
   def permission_rules = Coworkers::PermissionRules.new(self)
   def prepare_review_context!(run:, evidence:, criteria:) = Coworkers::ReviewMemoryLifecycle.prepare!(coworker: self, run:, evidence:, criteria:)

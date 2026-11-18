@@ -265,15 +265,14 @@ RSpec.describe PersistentMcpDaemon do
 
         list_response = call_workflow_tool(path, "list_chats", token: token)
         listed = JSON.parse(json_body(list_response).dig("result", "content", 0, "text")).fetch("chats")
-        expect(listed.pluck("id")).to include(chat.id, owner_chat.id, other_coworker_chat.id)
-        expect(listed.pluck("id")).not_to include(hidden_owner_chat.id, inaccessible_chat.id)
+        expect(listed.pluck("id")).to contain_exactly(chat.id)
 
         search_response = call_workflow_tool(
           path, "search_chats", token: token,
           arguments: { query: "ownerhistoryneedle", coworker_id: "syrus" }
         )
         search_results = JSON.parse(json_body(search_response).dig("result", "content", 0, "text")).fetch("results")
-        expect(search_results.pluck("chat_session_id")).to eq([ owner_chat.id ])
+        expect(search_results).to be_empty
 
         hidden_search = call_workflow_tool(
           path, "search_chats", token: token,
@@ -286,7 +285,7 @@ RSpec.describe PersistentMcpDaemon do
           arguments: { query: "robinhistoryneedle", coworker_id: other_coworker.id }
         )
         filtered_results = JSON.parse(json_body(filtered_response).dig("result", "content", 0, "text")).fetch("results")
-        expect(filtered_results.pluck("chat_session_id")).to eq([ other_coworker_chat.id ])
+        expect(filtered_results).to be_empty
 
         owner_filtered = Mcp::Tools::SearchChatsTool.call(
           server_context: { chat_session: owner_chat }, query: "robinhistoryneedle", coworker_id: other_coworker.id
@@ -298,8 +297,7 @@ RSpec.describe PersistentMcpDaemon do
           path, "read_chat_messages", token: token,
           arguments: { chat_session_id: owner_chat.id }
         )
-        read_messages = JSON.parse(json_body(read_response).dig("result", "content", 0, "text")).fetch("messages")
-        expect(read_messages).to include(include("id" => owner_message.id))
+        expect(json_body(read_response).dig("result", "isError")).to be(true)
 
         foreign_search = call_workflow_tool(path, "search_chats", token: token, arguments: { query: "foreignhistoryneedle" })
         expect(JSON.parse(json_body(foreign_search).dig("result", "content", 0, "text")).fetch("results")).to be_empty

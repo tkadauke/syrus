@@ -702,6 +702,11 @@ class ChatSession < ApplicationRecord
     else
       resolve_mentions(message_or_mentions)
     end
+    return false if mentions.any? do |mention|
+      mentionable = Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+      mentionable&.delegates_chat_turn?(self)
+    end
+
     decision = ChatIdentityContributions.trigger_decision(
       chat_session: self,
       message: message_or_mentions.is_a?(Array) ? nil : message_or_mentions,

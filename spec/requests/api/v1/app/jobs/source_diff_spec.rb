@@ -141,6 +141,48 @@ RSpec.describe "App API job source diff browser", type: :request do
     expect(response.body).to eq(patch)
   end
 
+  it "selects the newest stored patch without sorting the snapshot payload" do
+    base = "e" * 40
+    head = "f" * 40
+    older_patch = "@@ -1 +1 @@\n-old\n+stale\n"
+    newest_patch = "@@ -1 +1 @@\n-old\n+current\n"
+    DiffReviewVersion.create!(
+      job: job,
+      version_index: 1,
+      base_sha: base,
+      head_sha: head,
+      source_key: "older-snapshot",
+      files_snapshot: [ { "path" => "app/models/widget.rb", "patch" => older_patch } ]
+    )
+    DiffReviewVersion.create!(
+      job: job,
+      version_index: 2,
+      base_sha: base,
+      head_sha: head,
+      source_key: "newer-snapshot",
+      files_snapshot: [
+        { "path" => "app/models/widget.rb", "patch" => newest_patch },
+        { "path" => "tmp/large.txt", "patch" => "x" * 430.kilobytes }
+      ]
+    )
+    statements = []
+    subscriber = ->(*, payload) { statements << payload[:sql].to_s }
+
+    expect(RepositoryContent).not_to receive(:for)
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      get "/api/v1/app/jobs/#{job.id}/source_file_diff",
+        params: { base: base, head: head, path: "app/models/widget.rb" }
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("patch" => newest_patch)
+    ordered_lookup = statements.find do |sql|
+      sql.include?("diff_review_versions") && sql.include?("ORDER BY") && sql.include?("version_index")
+    end
+    expect(ordered_lookup).to be_present
+    expect(ordered_lookup).not_to include("files_snapshot")
+  end
+
   it "loads a per-file patch using the refs returned for a development preview fixture" do
     base = "abc1234"
     head = "def5678"
