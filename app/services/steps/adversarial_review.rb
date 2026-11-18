@@ -226,7 +226,12 @@ module Steps
 
     def plugin_review_criteria
       Syrus::PluginRegistry.providers_for(:review_criteria_provider)
-        .flat_map { |provider| Array(provider.criteria(workspace.path)) }
+        .flat_map do |provider|
+          result = Syrus::PluginInvocation.call(
+            extension_point: :review_criteria_provider, provider:, operation: :criteria, on_decline: []
+          ) { provider.criteria(workspace.path) }
+          Array(Syrus::PluginInvocation.value(result))
+        end
         .map(&:to_s)
         .map(&:strip)
         .reject(&:empty?)

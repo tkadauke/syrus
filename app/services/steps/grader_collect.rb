@@ -251,25 +251,16 @@ module Steps
       grader_steps.each_with_object({}) do |grader_step, memo|
         name = grader_step.details.to_h["name"]
         lines = providers.flat_map do |provider|
-          begin
-            PerformanceLogging.plugin_call(
-              extension_point: :grader_failure_summarizer,
-              provider: provider,
-              operation: :summarize_grader_failure
-            ) do
-              Array(provider.summarize_grader_failure(
+          result = Syrus::PluginInvocation.call(
+            extension_point: :grader_failure_summarizer, provider:, operation: :summarize_grader_failure, on_decline: []
+          ) do
+            provider.summarize_grader_failure(
                 grader_step: grader_step,
                 run: latest_runs[grader_step.id],
                 grader_name: name
-              ))
-            end
-          rescue StandardError => e
-            Rails.logger.warn(
-              "[GraderCollect] grader_failure_summarizer #{provider} failed for Step ##{grader_step.id}: " \
-              "#{e.class}: #{e.message}"
             )
-            []
           end
+          Array(Syrus::PluginInvocation.value(result))
         end
         memo[grader_step.id] = lines if lines.any?
       end

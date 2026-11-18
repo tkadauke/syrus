@@ -23,7 +23,10 @@ module TestEvidenceLookup
     test_evidence_providers.flat_map do |provider|
       next [] unless provider.respond_to?(:failed_test_cases)
 
-      Array(provider.failed_test_cases(run: run, grader_name: grader_name))
+      result = Syrus::PluginInvocation.call(
+        extension_point: :test_evidence, provider:, operation: :failed_test_cases, on_decline: []
+      ) { provider.failed_test_cases(run: run, grader_name: grader_name) }
+      Array(Syrus::PluginInvocation.value(result))
     end.map { |test_case| test_case.to_h.stringify_keys }.uniq { |test_case| TestCaseIdentity.for(test_case) }
   end
 
@@ -45,7 +48,10 @@ module TestEvidenceLookup
     summaries = test_evidence_providers.filter_map do |provider|
       next unless provider.respond_to?(:failed_test_summary)
 
-      provider.failed_test_summary(run: run, grader_name: grader_name, limit: limit)
+      result = Syrus::PluginInvocation.call(
+        extension_point: :test_evidence, provider:, operation: :failed_test_summary, on_decline: nil
+      ) { provider.failed_test_summary(run: run, grader_name: grader_name, limit: limit) }
+      Syrus::PluginInvocation.value(result)
     end
     return legacy_failed_test_summary(run, grader_name, limit) if summaries.empty?
 

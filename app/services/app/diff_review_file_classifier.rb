@@ -70,7 +70,10 @@ module App
 
     def diff_review_file_pattern_provider_patterns
       Syrus::PluginRegistry.providers_for(:diff_review_file_pattern_provider).flat_map do |provider|
-        Array(provider.diff_review_file_patterns).filter_map do |entry|
+        result = Syrus::PluginInvocation.call(
+          extension_point: :diff_review_file_pattern_provider, provider:, operation: :diff_review_file_patterns, on_decline: []
+        ) { provider.diff_review_file_patterns }
+        Array(Syrus::PluginInvocation.value(result)).filter_map do |entry|
           attrs = entry.respond_to?(:to_h) ? entry.to_h.with_indifferent_access : {}
           glob = attrs[:glob].to_s.strip
           next if glob.blank?
@@ -84,7 +87,10 @@ module App
       Syrus::PluginRegistry.providers_for(:dependency_audit_command).flat_map do |provider|
         next [] unless provider.respond_to?(:lockfiles)
 
-        Array(provider.lockfiles).map { |glob| Pattern.new(glob, "lockfile", "dependency_audit") }
+        result = Syrus::PluginInvocation.call(
+          extension_point: :dependency_audit_command, provider:, operation: :lockfiles, on_decline: []
+        ) { provider.lockfiles }
+        Array(Syrus::PluginInvocation.value(result)).map { |glob| Pattern.new(glob, "lockfile", "dependency_audit") }
       end
     end
 

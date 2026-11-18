@@ -126,14 +126,16 @@ class IsolatedReproRecorder
     Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
       next unless provider.respond_to?(:isolated_command_for)
 
-      command = provider.isolated_command_for(
-        grader_name: @grader_name,
-        grader_command: grader_step.details.to_h["command"].to_s,
-        test_case: failing_test
-      )
+      result = Syrus::PluginInvocation.call(
+        extension_point: :focused_test_command, provider:, operation: :isolated_command_for, on_decline: nil
+      ) do
+        provider.isolated_command_for(
+          grader_name: @grader_name, grader_command: grader_step.details.to_h["command"].to_s,
+          test_case: failing_test
+        )
+      end
+      command = Syrus::PluginInvocation.value(result)
       return command.to_s.strip if command.to_s.strip.present?
-    rescue StandardError => e
-      Rails.logger.warn("[IsolatedReproRecorder] focused command provider #{provider} failed: #{e.class}: #{e.message}")
     end
     nil
   end

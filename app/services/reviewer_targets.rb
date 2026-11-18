@@ -10,7 +10,9 @@ module ReviewerTargets
   module_function
 
   def options(user:, repository: nil)
-    providers.flat_map { |provider| provider.options(user: user, repository: repository) }
+    providers.flat_map do |provider|
+      invoke(provider, :options, []) { provider.options(user: user, repository: repository) }
+    end
   end
 
   def resolve(payload, owner:, repository:)
@@ -18,8 +20,13 @@ module ReviewerTargets
     provider = provider_for(target["type"])
     raise PluginUnavailable, "reviewer target plugin is unavailable" unless provider
 
-    resolution = provider.resolve(reference: target["reference"], owner: owner, repository: repository)
-    unless provider.available?(resolution:, owner:, repository:)
+    resolution = invoke(provider, :resolve, nil) do
+      provider.resolve(reference: target["reference"], owner: owner, repository: repository)
+    end
+    raise TargetUnavailable, "reviewer target is unavailable" unless resolution
+
+    available = invoke(provider, :available?, false) { provider.available?(resolution:, owner:, repository:) }
+    unless available
       raise TargetUnavailable, "reviewer target is unavailable"
     end
     resolution
@@ -33,8 +40,8 @@ module ReviewerTargets
     {
       "type" => resolution.fetch(:type),
       "reference" => resolution.fetch(:reference).to_s,
-      "display" => provider.audit_snapshot(resolution:).deep_stringify_keys,
-      "uniqueness_key" => provider.uniqueness_key(resolution:).to_s
+      "display" => invoke(provider, :audit_snapshot, {}) { provider.audit_snapshot(resolution:) }.deep_stringify_keys,
+      "uniqueness_key" => invoke(provider, :uniqueness_key, "") { provider.uniqueness_key(resolution:) }.to_s
     }
   end
 
@@ -47,5 +54,16 @@ module ReviewerTargets
   end
 
   def providers = Syrus::PluginRegistry.providers_for(:reviewer_target_provider)
-  def provider_for(type) = providers.find { |candidate| candidate.target_type == type }
+  def provider_for(type)
+    providers.find do |candidate|
+      invoke(candidate, :target_type, nil) { candidate.target_type } == type
+    end
+  end
+
+  def invoke(provider, operation, decline, &block)
+    result = Syrus::PluginInvocation.call(
+      extension_point: :reviewer_target_provider, provider:, operation:, on_decline: decline, &block
+    )
+    Syrus::PluginInvocation.value(result)
+  end
 end

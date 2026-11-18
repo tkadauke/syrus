@@ -72,9 +72,10 @@ class RepoGradeSignals
 
   def plugin_candidates
     Syrus::PluginRegistry.providers_for(:grade_detector).flat_map do |provider|
-      Array(provider.grade_candidates(@path)).map { |candidate| normalize_candidate(candidate) }
-    rescue StandardError
-      []
+      result = Syrus::PluginInvocation.call(
+        extension_point: :grade_detector, provider:, operation: :grade_candidates, on_decline: []
+      ) { provider.grade_candidates(@path) }
+      Array(Syrus::PluginInvocation.value(result)).map { |candidate| normalize_candidate(candidate) }
     end.compact
   end
 

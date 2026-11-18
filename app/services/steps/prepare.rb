@@ -51,12 +51,12 @@ module Steps
     # takes effect without a restart.
     def self.prep_env_forward
       plugin_keys = Syrus::PluginRegistry.providers_for(:step_environment).flat_map do |provider|
-        PerformanceLogging.plugin_call(extension_point: :step_environment, provider: provider, operation: :forwarded_env_keys) do
+        result = Syrus::PluginInvocation.call(
+          extension_point: :step_environment, provider:, operation: :forwarded_env_keys, on_decline: []
+        ) do
           Array(provider.forwarded_env_keys).map(&:to_s)
         end
-      rescue StandardError => e
-        Rails.logger.error("[Steps::Prepare] #{provider} forwarded_env_keys failed: #{e.class}: #{e.message}")
-        []
+        Array(Syrus::PluginInvocation.value(result))
       end
 
       (BASE_ENV_FORWARD + plugin_keys).uniq.freeze
@@ -74,12 +74,13 @@ module Steps
       Syrus::PluginRegistry.providers_for(:step_environment).each_with_object({}) do |provider, env|
         next unless provider.respond_to?(:extra_env)
 
-        computed = PerformanceLogging.plugin_call(extension_point: :step_environment, provider: provider, operation: :extra_env) do
+        computed = Syrus::PluginInvocation.call(
+          extension_point: :step_environment, provider:, operation: :extra_env, on_decline: {}
+        ) do
           provider.extra_env(scope: scope, workspace_path: workspace_path)
         end
+        computed = Syrus::PluginInvocation.value(computed)
         env.merge!(Hash(computed).transform_keys(&:to_s).transform_values(&:to_s)) if computed.present?
-      rescue StandardError => e
-        Rails.logger.error("[Steps::Prepare] #{provider} extra_env failed: #{e.class}: #{e.message}")
       end
     end
 
@@ -383,7 +384,10 @@ module Steps
       return true if UNIVERSAL_MISE_VERSION_FILES.any? { |f| workspace.path.join(f).exist? }
 
       Syrus::PluginRegistry.providers_for(:prepare_detector).any? do |detector|
-        file = detector.mise_version_file
+        result = Syrus::PluginInvocation.call(
+          extension_point: :prepare_detector, provider: detector, operation: :mise_version_file, on_decline: nil
+        ) { detector.mise_version_file }
+        file = Syrus::PluginInvocation.value(result)
         file.present? && workspace.path.join(file).exist?
       end
     end
