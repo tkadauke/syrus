@@ -49,7 +49,8 @@ module Syrus
         end.join("\n")
         extensions = PluginRegistry::EXTENSION_POINTS.sort.map do |point|
           interface = PluginRegistry::INTERFACE_FOR.fetch(point).call
-          "- `#{point}` — Contributes an implementation of `#{interface.name}`; its methods, return values, and lifecycle form the contract. Interface: `#{interface_path(interface)}`."
+          description = PluginRegistry::EXTENSION_POINT_DESCRIPTIONS.fetch(point)
+          "- `#{point}` — #{description} Implement `#{interface.name}`; interface contract: `#{interface_path(interface)}`."
         end.join("\n")
         public_api = surface.public_entries.sort_by(&:name).map do |entry|
           members = entry.members.sort.map { |kind, names| "#{kind}: #{names.map { |name| "`#{name}`" }.join(', ')}" }.join("; ")
