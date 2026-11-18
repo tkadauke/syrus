@@ -1,8 +1,7 @@
 require "syrus/host"
 %w[
-  agent_provider callbacks chat_mcp_tool_set chat_provider domain_subscriber
-  input_source mcp_tool_set permission_provider repository_content_provider
-  workflow_kinds cli_command_handler
+  agent_provider callbacks permission_provider repository_content_provider
+  cli_command_handler
 ].each { |name| require "syrus/plugin/#{name}" }
 
 module Syrus::Host::PublicApis
@@ -14,14 +13,8 @@ module Syrus
       PluginApi: ::Syrus::PluginApi,
       AgentProvider: ::Syrus::Plugin::AgentProvider,
       Callbacks: ::Syrus::Plugin::Callbacks,
-      ChatMcpToolSet: ::Syrus::Plugin::ChatMcpToolSet,
-      ChatProvider: ::Syrus::Plugin::ChatProvider,
-      DomainSubscriber: ::Syrus::Plugin::DomainSubscriber,
-      InputSource: ::Syrus::Plugin::InputSource,
-      McpToolSet: ::Syrus::Plugin::McpToolSet,
       PermissionProvider: ::Syrus::Plugin::PermissionProvider,
       RepositoryContentProvider: ::Syrus::Plugin::RepositoryContentProvider,
-      WorkflowKinds: ::Syrus::Plugin::WorkflowKinds,
       CliCommandHandler: ::Syrus::Plugin::CliCommandHandler,
       InvocationResult: ::AgentInvocation::Result,
       ToolContext: ::McpToolContext,
@@ -45,16 +38,10 @@ end
 
 alias_contracts = {
   PluginApi: [ "Declares and installs plugin manifests; Definition internals are not promised.", %w[syrus_plugin syrus_plugin_definition register! enabled?] ],
-  AgentProvider: [ "Defines the agent-provider extension contract; host orchestration internals are not promised.", [] ],
+  AgentProvider: [ "Supplies the optional agent-provider class hooks that plugins may override; invocation orchestration and undeclared provider methods are not promised.", %w[mcp_tool_name evidence_reset_at false_positive_evidence? suppress_usage_limit_run? ignore_model_for_positive_evidence? usage_signal_account_id usage_snapshot usage_status usage_observed_at availability_evidence_observed_at usage_windows configured_for_user? credential_attributes available_models] ],
   Callbacks: [ "Defines plugin lifecycle callbacks; callback scheduling and storage are not promised.", %w[on_boot on_shutdown on_enable on_disable on_tick on_metrics_scrape effect] ],
-  ChatMcpToolSet: [ "Defines chat MCP tool sets; core tool implementations and policy internals are not promised.", [] ],
-  ChatProvider: [ "Defines interactive chat providers; host session orchestration is not promised.", [] ],
-  DomainSubscriber: [ "Defines domain-event subscribers; delivery scheduling and event persistence are not promised.", [] ],
-  InputSource: [ "Defines polling input sources; host polling orchestration is not promised.", [] ],
-  McpToolSet: [ "Defines workflow MCP tool sets; core tool implementations are not promised.", [] ],
   PermissionProvider: [ "Declares plugin permission capabilities and scopes; core authorization storage is not promised.", %w[register_authorization_adapter register_resource_scope register_capability register_permission_preset migrate_permission_scope retire_permission_identifier] ],
-  RepositoryContentProvider: [ "Defines immutable repository-content providers; cache and fallback orchestration are not promised.", %w[provider_key display_name role available_for? build resolve tree read changes refs relation history commits tree_sha divergence] ],
-  WorkflowKinds: [ "Declares plugin workflow kinds; registry compilation and dispatch internals are not promised.", [] ],
+  RepositoryContentProvider: [ "Supplies the immutable repository-content provider contract; cache and fallback orchestration are not promised.", %w[provider_key display_name role available_for? build resolve tree children read changes refs relation history commits tree_sha divergence] ],
   CliCommandHandler: [ "Bases server-backed plugin CLI handlers; transport internals are not promised.", %w[call table text raw_text json] ],
   InvocationResult: [ "Carries an agent or chat invocation result; invocation-engine internals are not promised.", %w[new turns exit_status timed_out is_error outcome final_text session_id transcript_jsonl transcript_path cost_usd input_tokens output_tokens success?] ],
   ToolContext: [ "Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised.", %w[surface role user repository job workflow run chat_session run? chat? interactive] ],
