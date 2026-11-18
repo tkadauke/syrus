@@ -397,7 +397,9 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
 
 it("prevents duplicate side-chat submissions and shows API failures", async () => {
   let rejectRequest!: (reason: Error) => void
-  const sideChatRequest = new Promise<Response>((_resolve, reject) => { rejectRequest = reject })
+  const sideChatRequest = new Promise<Response>((_resolve, reject) => {
+    rejectRequest = reject
+  })
   const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     if (String(input).endsWith("/chats") && init?.method === "POST") return sideChatRequest
     return jsonResponse(detailPayload)
