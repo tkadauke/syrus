@@ -829,6 +829,29 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   end
 
   describe "plugin health" do
+    it "reports an open runtime circuit" do
+      provider = Class.new { include Syrus::Plugin::CiLogParser }
+      Syrus::PluginRegistry.register(
+        name: "runtime-failure-plugin", version: "1.0.0", provides: { ci_log_parser: provider }
+      )
+      Syrus::PluginInvocation.call(
+        extension_point: :ci_log_parser, provider: provider, operation: :call,
+        failure_threshold: 1, on_decline: nil
+      ) { raise "provider unavailable" }
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/plugins"
+
+      entry = response.parsed_body["plugins"].find { |plugin| plugin["name"] == "runtime-failure-plugin" }
+      expect(entry.dig("health", "state")).to eq("circuit_open")
+      expect(entry.dig("health", "circuits", 0)).to include(
+        "extension_point" => "ci_log_parser", "state" => "open", "failure_count" => 1
+      )
+    ensure
+      Syrus::PluginInvocation.runtime_health.reset!
+    end
+
     it "reports ok for a plugin with satisfied dependencies" do
       admin = Factories.user(admin: true)
       sign_in_as(admin)
