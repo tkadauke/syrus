@@ -28,6 +28,7 @@ module Admin
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
         payload = {
           beta_mode_enabled: AppSetting.beta_mode_enabled?,
+          convergence: PluginDesiredState::Convergence.new.as_json,
           plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph) }
         }
         payload.merge!(filter: filter.to_h, controls: controls_json) if @params
