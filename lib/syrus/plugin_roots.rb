@@ -1,9 +1,9 @@
 require "pathname"
 
 module Syrus
-  # Locates built-in and externally installed plugins without depending on
-  # Rails initialization. The built-in root has precedence when both roots
-  # contain the same plugin name.
+  # Locates built-in, hand-placed, and synced plugins without depending on
+  # Rails initialization. Precedence follows that order when roots contain
+  # the same plugin name.
   class PluginRoots
     Problem = Data.define(:code, :path, :plugin_name, :message)
 
@@ -52,7 +52,9 @@ module Syrus
     end
 
     def external?(directory)
-      !valid_root(external_root).nil? && contained_by?(directory, external_root)
+      [ external_root, synced_root ].compact.any? do |root|
+        valid_root(root) && contained_by?(directory, root)
+      end
     end
 
     def duplicate_names
