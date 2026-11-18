@@ -653,30 +653,16 @@ RSpec.describe ChatSession do
       user = repo.user
       other_repo = Factories.repository(user: user)
       unrelated_repo = Factories.repository(user: user)
-      repo_document = repo.repository_documents.create!(
-        user: user,
-        kind: "google_doc",
-        title: "Repo notes",
-        google_docs_url: "https://docs.google.com/document/d/repo/edit"
-      )
-      job_document = other_repo.repository_documents.create!(
-        user: user,
-        kind: "google_doc",
-        title: "Job notes",
-        google_docs_url: "https://docs.google.com/document/d/job/edit"
-      )
-      direct_document = unrelated_repo.repository_documents.create!(
-        user: user,
-        kind: "google_doc",
-        title: "Direct notes",
-        google_docs_url: "https://docs.google.com/document/d/direct/edit"
-      )
-      unrelated_repo.repository_documents.create!(
-        user: user,
-        kind: "google_doc",
-        title: "Out of scope",
-        google_docs_url: "https://docs.google.com/document/d/out/edit"
-      )
+      create_document = lambda do |repository, title|
+        document = repository.repository_documents.build(user: user, kind: "file", title: title)
+        document.file.attach(io: StringIO.new(title), filename: "#{title.parameterize}.txt", content_type: "text/plain")
+        document.save!
+        document
+      end
+      repo_document = create_document.call(repo, "Repo notes")
+      job_document = create_document.call(other_repo, "Job notes")
+      direct_document = create_document.call(unrelated_repo, "Direct notes")
+      create_document.call(unrelated_repo, "Out of scope")
       job = Factories.job_record(user: user, repository: other_repo)
       session = described_class.create!(user: user, repository: repo)
       session.chat_attachments.create!(attachable: job)

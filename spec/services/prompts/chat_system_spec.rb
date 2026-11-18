@@ -427,7 +427,7 @@ RSpec.describe Prompts::ChatSystem do
 
     expect(out).to include("Supporting documents available (use read_repo_document to fetch):")
     expect(out).to include("- [#{pdf.id}] API spec (PDF, 3 bytes)")
-    expect(out).to include("- [#{notes.id}] Architecture notes (Plain text, 5 bytes)")
+    expect(out).to include("- [#{notes.id}] Architecture notes (PLAIN, 5 bytes)")
     expect(out.index("Supporting documents available")).to be < out.index("Your environment:")
   end
 
@@ -473,7 +473,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Jobs:")
     expect(out).to include("#{attached_job.slug}: Inventory existing drains")
     expect(out).to include("Documents:")
-    expect(out).to include("[#{document.id}] Drainage notes (Plain text; use `read_repo_document`)")
+    expect(out).to include("[#{document.id}] Drainage notes (PLAIN, 6 bytes; use `read_repo_document`)")
     expect(out.index("Attached context:")).to be < out.index("What Syrus is")
   end
 

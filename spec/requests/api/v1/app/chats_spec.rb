@@ -2619,12 +2619,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     allow(ChatProviders).to receive(:display_name).and_call_original
     allow(ChatProviders).to receive(:display_name).with("codex").and_return("Codex Chat")
     sign_in_as(user)
-    document = repository.repository_documents.create!(
-      user: user,
-      kind: "google_doc",
-      title: "Launch notes",
-      google_docs_url: "https://docs.google.com/document/d/launch/edit"
-    )
+    document = repository.repository_documents.build(user: user, kind: "file", title: "Launch notes")
+    document.file.attach(io: StringIO.new("launch"), filename: "launch.txt", content_type: "text/plain")
+    document.save!
     chat = ChatSession.create!(
       user: user,
       repository: repository,

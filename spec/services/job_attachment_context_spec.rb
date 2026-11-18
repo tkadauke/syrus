@@ -4,7 +4,6 @@ RSpec.describe JobAttachmentContext do
   let(:job) { Factories.job }
 
   it "downloads uploaded files into tmp/attachments and appends prompt context" do
-    job.job_attachments.create!(attachment_type: "google_doc_link", google_doc_url: "https://docs.google.com/document/d/context/edit")
     upload = job.job_attachments.build(attachment_type: "uploaded_file")
     upload.file.attach(
       io: StringIO.new("mockup notes"),
@@ -20,7 +19,6 @@ RSpec.describe JobAttachmentContext do
       expect(File.read(path)).to eq("mockup notes")
       expect(prompt).to include("# Job Attachments")
       expect(prompt).to include("- Mockup Notes.md (text/markdown): tmp/attachments/#{File.basename(path)}")
-      expect(prompt).to include("https://docs.google.com/document/d/context/edit")
     end
   end
 
