@@ -3,9 +3,12 @@ module ConnectedAccounts
     CREDENTIAL_TYPE = "connected_accounts.oauth".freeze
     BROKER_TOOL_NAME = "connected_accounts.broker".freeze
     PURPOSE_REDACTION = "[purpose redacted]".freeze
+    EXPIRY_SKEW = 30.seconds
 
     class Error < StandardError; end
     class Denied < Error; end
+
+    class_attribute :refresh_handler, instance_writer: false
 
     class << self
       def with_access(account:, acting_mode:, scopes:, purpose:, context: nil, target: {})
@@ -38,13 +41,17 @@ module ConnectedAccounts
         attempt_metadata: audit_metadata(account)
       ) do |payload, _lease|
         tokens = parse_payload!(payload)
+        secrets = token_secrets(tokens)
+        tokens = refresh_tokens!(account, tokens) if token_expired?(tokens)
+        secrets |= token_secrets(tokens)
         access = Access.new(tokens.fetch("access_token"))
         result = yield access
-        CredentialStore::Broker.redact(result, extra_secrets: tokens.values_at("access_token", "refresh_token"))
+        CredentialStore::Broker.redact(result, extra_secrets: secrets)
       rescue StandardError => e
-        raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: tokens&.values_at("access_token", "refresh_token"))
+        raise e.class, CredentialStore::Broker.redact(e.message, extra_secrets: secrets || token_secrets(tokens))
       end
-    rescue CredentialStore::Broker::Denied, CredentialStore::Broker::NotFound => e
+    rescue CredentialStore::Broker::Denied, CredentialStore::Broker::NotFound,
+      CredentialStore::Broker::InvalidPayload => e
       raise Denied, e.message
     end
 
@@ -82,11 +89,46 @@ module ConnectedAccounts
 
     def parse_payload!(payload)
       value = JSON.parse(payload)
-      raise Denied, "OAuth access token is unavailable" if value["access_token"].blank?
+      raise CredentialStore::Broker::InvalidPayload, "OAuth credential payload is invalid" unless value.is_a?(Hash)
+      raise CredentialStore::Broker::InvalidPayload, "OAuth access token is unavailable" if value["access_token"].blank?
 
       value
     rescue JSON::ParserError
-      raise Denied, "OAuth credential payload is invalid"
+      raise CredentialStore::Broker::InvalidPayload, "OAuth credential payload is invalid"
+    end
+
+    def token_expired?(tokens)
+      expires_at = Time.iso8601(tokens.fetch("expires_at"))
+      expires_at <= EXPIRY_SKEW.from_now
+    rescue KeyError, ArgumentError
+      raise CredentialStore::Broker::InvalidPayload, "OAuth credential expiry is invalid"
+    end
+
+    def refresh_tokens!(account, tokens)
+      handler = self.class.refresh_handler
+      raise CredentialStore::Broker::InvalidPayload, "OAuth access token has expired" unless handler
+
+      refreshed = CredentialStore::Broker.refresh_credential!(
+        credential: account.credential_store_credential_id,
+        plugin_name: "connected_accounts",
+        purpose: PURPOSE_REDACTION,
+        user: context.user,
+        metadata: audit_metadata(account)
+      ) do |current_payload|
+        current_tokens = parse_payload!(current_payload)
+        replacement = handler.call(account: account, tokens: current_tokens.dup)
+        replacement_payload = JSON.generate(replacement)
+        replacement_tokens = parse_payload!(replacement_payload)
+        if token_expired?(replacement_tokens)
+          raise CredentialStore::Broker::InvalidPayload, "refreshed OAuth access token is expired"
+        end
+        replacement_payload
+      end
+      parse_payload!(refreshed.payload)
+    end
+
+    def token_secrets(tokens)
+      tokens&.values_at("access_token", "refresh_token") || []
     end
 
     def redacted_purpose

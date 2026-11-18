@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe ConnectedAccounts::AccountClient do
+  after { described_class.refresh_handler = nil }
+
   let(:owner) { Factories.user }
   let(:context) do
     McpToolContext.new(
@@ -142,6 +144,66 @@ RSpec.describe ConnectedAccounts::AccountClient do
     events = CredentialStore::CredentialAccessEvent.where(credential: credential).order(:id)
     expect(events.pluck(:action)).to end_with("lease", "revoke")
     expect(events.last.completion_of_event).to eq(events[-2])
+  end
+
+  it "denies invalid OAuth payloads without misclassifying tool failures" do
+    credential.update!(payload: "not-json")
+    expect { with_access { :unused } }
+      .to raise_error(described_class::Denied, "OAuth credential payload is invalid")
+
+    credential.update!(payload: { refresh_token: refresh_token, expires_at: 5.minutes.from_now.iso8601 }.to_json)
+    expect { with_access { :unused } }
+      .to raise_error(described_class::Denied, "OAuth access token is unavailable")
+  end
+
+  it "atomically refreshes an expired token before yielding access" do
+    expired_token = "expired-access-token"
+    refreshed_token = "refreshed-access-token"
+    credential.update!(payload: {
+      access_token: expired_token,
+      refresh_token: refresh_token,
+      expires_at: 1.minute.ago.iso8601
+    }.to_json)
+    described_class.refresh_handler = lambda do |account:, tokens:|
+      expect(account).to eq(self.account)
+      expect(tokens).to include("access_token" => expired_token, "refresh_token" => refresh_token)
+      tokens.merge("access_token" => refreshed_token, "expires_at" => 5.minutes.from_now.iso8601)
+    end
+
+    result = with_access do |access|
+      expect(access.authorization_header).to eq("Bearer #{refreshed_token}")
+      "#{expired_token} #{refresh_token} #{refreshed_token}"
+    end
+
+    expect(result).to eq("[credential redacted] [credential redacted] [credential redacted]")
+    expect(credential.reload.access_events.pluck(:action)).to include("refresh")
+  end
+
+  it "fails closed when an expired token has no refresh handler" do
+    credential.update!(payload: {
+      access_token: access_token,
+      refresh_token: refresh_token,
+      expires_at: 1.minute.ago.iso8601
+    }.to_json)
+
+    expect { with_access { :unused } }
+      .to raise_error(described_class::Denied, "OAuth access token has expired")
+  end
+
+  it "rejects an expired refresh replacement without persisting it" do
+    original_payload = {
+      access_token: access_token,
+      refresh_token: refresh_token,
+      expires_at: 1.minute.ago.iso8601
+    }.to_json
+    credential.update!(payload: original_payload)
+    described_class.refresh_handler = lambda do |account:, tokens:|
+      tokens.merge("access_token" => "still-expired", "expires_at" => 1.second.ago.iso8601)
+    end
+
+    expect { with_access { :unused } }
+      .to raise_error(described_class::Denied, "refreshed OAuth access token is expired")
+    expect(credential.reload.payload).to eq(original_payload)
   end
 
   it "denies another plugin that calls the credential broker under its own tool name" do
