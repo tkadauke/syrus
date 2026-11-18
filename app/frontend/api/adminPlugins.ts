@@ -22,6 +22,7 @@ export type AdminPlugin = {
       public: Array<{ constant: string; tier: string; path: string; line: number }>
       legacy: Array<{ constant: string; tier: string; path: string; line: number }>
       unlisted: Array<{ constant: string; tier: string; path: string; line: number }>
+      dynamic: Array<{ constant: string; tier: string; path: string; line: number; method: string }>
       minimum_syrus_version?: string | null
       error?: string | null
     }
