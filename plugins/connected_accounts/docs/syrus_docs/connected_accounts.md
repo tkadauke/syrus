@@ -28,4 +28,18 @@ provides "connected_accounts:provider" => [
 
 The provider implements one class method per declared capability. Each method accepts exactly one context object from `ConnectedAccounts::Provider`; positional argument lists are not part of the contract. `authorization`, `exchange_code`, `refresh`, `revoke`, `identity`, and `validate` are required. `events` is provisional and optional, but must be implemented when declared. Invalid declarations and missing methods are withheld and degrade the contributing plugin in plugin health.
 
+The capability contexts and results are:
+
+| Capability | Context fields | Result |
+| --- | --- | --- |
+| `authorization` | `redirect_uri`, opaque `state`, `requested_scopes`, and `read_only` | A hash containing `authorize_url`. A non-OAuth provider may return the URL or instruction flow it uses for its trivial authorization step. |
+| `exchange_code` | Provider callback `code` and the original `redirect_uri` | A token hash containing `access_token`; include `refresh_token` and `expires_in` when the service supplies them. |
+| `refresh` | The current `tokens` hash | A replacement token hash containing `access_token` and preserving or replacing the other usable token fields. |
+| `revoke` | The current `tokens` hash | A hash containing boolean `revoked`. |
+| `identity` | `access_token` | A hash containing the human-readable external identity `label`. |
+| `validate` | `access_token` | A health result containing boolean `healthy` and a safe, non-secret `message`. |
+| `events` | Request `headers` and raw request `body` | After verifying authenticity, a normalized hash containing `event_id`, `event_type`, and `data`. Invalid signatures must fail closed. |
+
+Results and errors must not expose token material. The manifest scope catalog constrains `requested_scopes`: each entry has a provider scope `key`, a human `label`, its `risk`, and the `syrus_capabilities` that scope enables. `callback_route` must be an absolute path owned by the contributing plugin, and `supports_read_only` states whether the authorization flow can limit the resulting connection to read-only access.
+
 Provider gems can require `connected_accounts/provider_test_kit` and run the shared `"a connected accounts provider"` examples with their declaration and provider. The fake provider bundled with Connected Accounts is the executable reference implementation.
