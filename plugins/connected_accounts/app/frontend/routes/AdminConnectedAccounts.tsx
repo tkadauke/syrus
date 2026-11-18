@@ -29,7 +29,7 @@ export function AdminConnectedAccounts() {
   }
 
   return <Page.Root aria-label={t("admin.title")} gutter="responsive" size="wide">
-    <Page.Header><Page.HeadingGroup><Page.Title>{t("admin.title")}</Page.Title></Page.HeadingGroup><Page.Description>{t("admin.description")}</Page.Description></Page.Header>
+    <Page.Header className="pt-16 lg:pt-0"><Page.HeadingGroup><Page.Title>{t("admin.title")}</Page.Title></Page.HeadingGroup><Page.Description>{t("admin.description")}</Page.Description></Page.Header>
     {error ? <Notice tone="danger">{error}</Notice> : null}
     <Section.Root><SectionHeading>{t("admin.configured")}</SectionHeading>
       {query.isPending ? <Notice>{t("admin.loading")}</Notice> : null}

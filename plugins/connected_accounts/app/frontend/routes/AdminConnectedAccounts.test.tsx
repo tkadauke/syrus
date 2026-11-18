@@ -30,4 +30,13 @@ describe("AdminConnectedAccounts", () => {
     expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ client_id: "client-id", client_secret: "client-secret", scopes: [ "read", "write" ] })
     expect(document.body.textContent).not.toContain("client-secret")
   })
+
+  it("keeps the page heading below the mobile application header", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ providers: [] }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MemoryRouter><AdminConnectedAccounts /></MemoryRouter></QueryClientProvider>)
+
+    const heading = await screen.findByRole("heading", { name: "Connected account OAuth providers" })
+    expect(heading.closest("header")).toHaveClass("pt-16", "lg:pt-0")
+  })
 })
