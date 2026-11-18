@@ -402,6 +402,20 @@ module Syrus
         @mutex.synchronize { @plugins.dup }.flat_map(&:hosted_extension_points).to_set
       end
 
+      # Plugin-hosted extension points own their contracts. They use this seam
+      # to reject malformed contributions without preventing Syrus from
+      # booting; the contributor becomes degraded in the ordinary health UI.
+      def add_validation_error(plugin_name, message)
+        @mutex.synchronize do
+          index = @plugins.index { |manifest| manifest.name == plugin_name.to_s }
+          return if index.nil?
+
+          manifest = @plugins[index]
+          errors = (manifest.validation_errors + [ message.to_s ]).uniq
+          @plugins[index] = manifest.with(validation_errors: errors)
+        end
+      end
+
       def registered_events
         @mutex.synchronize { @plugins.dup }.each_with_object({}) do |manifest, registered|
           registered.merge!(manifest.events)
