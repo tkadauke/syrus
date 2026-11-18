@@ -308,6 +308,39 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     expect(credential.reload.credential_type).to eq("k8s_cluster.kubeconfig")
   end
 
+  it "creates plugin-managed credentials only without raw wrapper grants" do
+    sign_in_as(operator)
+
+    post "/api/v1/app/credential_store/credentials", params: {
+      credential: credential_params(
+        scope_type: "user",
+        scope_id: operator.id,
+        payload: "managed-secret"
+      ).merge(name: "Managed without wrapper field", credential_type: "k8s_cluster.kubeconfig").except(:allowed_tools)
+    }
+    expect(response).to have_http_status(:created)
+    expect(parse_body.dig("credential", "allowed_tools")).to eq([])
+
+    post "/api/v1/app/credential_store/credentials", params: {
+      credential: credential_params(
+        scope_type: "user",
+        scope_id: operator.id,
+        payload: "managed-secret"
+      ).merge(name: "Managed with empty wrappers", credential_type: "k8s_cluster.kubeconfig", allowed_tools: [])
+    }, as: :json
+    expect(response).to have_http_status(:created)
+
+    post "/api/v1/app/credential_store/credentials", params: {
+      credential: credential_params(
+        scope_type: "user",
+        scope_id: operator.id,
+        payload: "managed-secret"
+      ).merge(name: "Managed with raw wrapper", credential_type: "k8s_cluster.kubeconfig", allowed_tools: [ "credential.exec" ])
+    }
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("managed_credential_allowed_tools")
+  end
+
   it "does not allow an operator to move an editable credential into an unauthorized scope" do
     credential = create_credential(scope_type: "user", scope_id: operator.id)
 
