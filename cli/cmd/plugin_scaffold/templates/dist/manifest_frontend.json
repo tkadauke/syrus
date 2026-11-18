@@ -1,0 +1,3 @@
+{
+  "frontend": { "bundle": "dist/frontend/plugin.js", "css": "dist/frontend/plugin.css" }
+}
