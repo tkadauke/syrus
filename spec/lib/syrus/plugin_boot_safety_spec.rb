@@ -71,6 +71,19 @@ RSpec.describe Syrus::PluginBootSafety do
     end
   end
 
+  it "begins a boot before the data-root directory exists" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      ledger = described_class.new(path: root.join("missing/data/plugin-boot-safety.json"), env: {})
+      candidate = plugin(root, "weather")
+
+      attempt_id = ledger.begin_boot!([ candidate ])
+
+      expect(ledger.path).to be_file
+      expect(ledger.path.dirname.join("plugin-boot-safety.json.attempt-#{attempt_id}.lock")).to be_file
+    end
+  end
+
   it "preserves same-timestamp overlapping starts when they promote out of start order" do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
