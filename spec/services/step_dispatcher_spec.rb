@@ -1672,6 +1672,22 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(workflow.artifact("no_runnable_cancelled_step_ids")).to contain_exactly(s2.id, s3.id)
     end
 
+    it "preserves a more specific failure reason when cancelled steps remain" do
+      workflow.start!; workflow.save!
+      workflow.update!(failure_reason: "loop_exhausted_after_grader_failure")
+      s1.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      Step.suppress_cancel_cascade do
+        s2.update!(state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)
+        s3.update!(state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)
+      end
+
+      described_class.finish_workflow!(workflow)
+
+      expect(workflow.reload).to be_failed
+      expect(workflow.failure_reason).to eq("loop_exhausted_after_grader_failure")
+      expect(workflow.artifact("failure_reason")).not_to eq("no_runnable_steps_after_cancellation")
+    end
+
     it "transitions the Workflow to succeeded after the last step in the chain" do
       workflow.start!; workflow.save!
       s3.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)

@@ -2304,12 +2304,9 @@ class StepDispatcher
     return if workflow_finish_blocked_by_live_descendants?
 
     cancelled_step_ids = @workflow.steps.where(state: "cancelled").pluck(:id)
-    if cancelled_step_ids.any? && @workflow.terminal_descendant_outcome.nil?
-      @workflow.artifacts = (@workflow.artifacts || {}).merge(
-        "failure_reason" => "no_runnable_steps_after_cancellation",
-        "no_runnable_cancelled_step_ids" => cancelled_step_ids
-      )
-      return hard_fail_workflow!("no_runnable_steps_after_cancellation")
+    cancellation_left_no_outcome = cancelled_step_ids.any? && @workflow.terminal_descendant_outcome.nil?
+    if cancellation_left_no_outcome && @workflow.failure_reason.present?
+      return hard_fail_workflow!(@workflow.failure_reason)
     end
 
     if @workflow.uncleared_retry_until_barrier?
@@ -2318,6 +2315,14 @@ class StepDispatcher
 
     if @workflow.pr_publication_missing_after_success?
       return hard_fail_workflow!("pr_publication_missing_after_success")
+    end
+
+    if cancellation_left_no_outcome
+      @workflow.artifacts = (@workflow.artifacts || {}).merge(
+        "failure_reason" => "no_runnable_steps_after_cancellation",
+        "no_runnable_cancelled_step_ids" => cancelled_step_ids
+      )
+      return hard_fail_workflow!("no_runnable_steps_after_cancellation")
     end
 
     return unless @workflow.may_succeed?

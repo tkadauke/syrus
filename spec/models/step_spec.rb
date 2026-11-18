@@ -310,12 +310,15 @@ RSpec.describe Step do
     end
 
     it "retains cascade suppression until an enclosing transaction commits" do
+      loaded_step = described_class.find(step_a.id)
+
       Step.transaction do
         Step.suppress_cancel_cascade do
-          step_a.cancel!
-          step_a.save!
+          loaded_step.cancel!
+          loaded_step.save!
         end
 
+        expect(loaded_step).to be_cancel_cascade_suppressed
         expect(step_b.reload).to be_queued
       end
 

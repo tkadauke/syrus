@@ -173,10 +173,13 @@ class Step < ApplicationRecord
 
   # Cancellation propagation runs from after_update_commit, which may fire
   # after the suppress_cancel_cascade block (and its thread-local flag) has
-  # exited. Snapshot the flag on the record while the cancelled transition is
-  # being persisted so the commit callback retains the orchestration intent.
+  # exited. Snapshot the flag on every record while its cancelled transition
+  # is being persisted so the commit callback retains the orchestration
+  # intent. This applies equally to DB-loaded records used by review evidence
+  # invalidation, post-loop cleanup, workflow cleanup, and mergeability repair.
+  # Callers which only skip steps do not trigger the cancellation callback.
   before_update :retain_cancel_cascade_suppression,
-    if: :saved_change_to_state_to_cancelled?
+    if: -> { will_save_change_to_state?(to: "cancelled") }
 
   def cancel_cascade_suppressed?
     @cancel_cascade_suppressed == true
