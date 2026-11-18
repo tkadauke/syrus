@@ -504,8 +504,10 @@
       "duplicate_name": "Doppelter Name",
       "skipped_dependency": "Übersprungen — Abhängigkeit fehlgeschlagen",
       "degraded": "Beeinträchtigt",
-      "cycle": "Abhängigkeitszyklus"
+      "cycle": "Abhängigkeitszyklus",
+      "warning": "Warnung"
     },
+    "host_surface_details": "Host-API-Befunde",
     "disableable": "Deaktivierbar",
     "yes": "Ja",
     "no": "Nein",
