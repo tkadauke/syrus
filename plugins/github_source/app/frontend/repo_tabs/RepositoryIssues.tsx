@@ -496,7 +496,7 @@ function MobileIssueList({
                     #{issue.number}
                   </a>
                   {issue.labels.map((label) => (
-                    <IssueLabel color={label.color} key={label.name} name={label.name} />
+                    <IssueLabel color={label.color} key={label.name} mobile name={label.name} />
                   ))}
                 </div>
                 <a
@@ -623,7 +623,7 @@ function buildIssueColumns({
           {issue.body_excerpt ? <p className="mt-1 line-clamp-2 text-xs text-gray-400 dark:text-gray-500">{issue.body_excerpt}</p> : null}
         </>
       ),
-      cellClassName: "align-top"
+      cellClassName: "min-w-80 align-top"
     },
     {
       key: "number",
@@ -699,11 +699,11 @@ function pageLink(pathname: string, search: string, page: number) {
   return `${pathname}?${params}`
 }
 
-function IssueLabel({ color, name }: { color: string; name: string }) {
+function IssueLabel({ color, mobile = false, name }: { color: string; mobile?: boolean; name: string }) {
   const safeColor = color.match(/^[0-9a-fA-F]{6}$/) ? color : "6b7280"
   return (
     <span
-      className="inline-flex max-w-full items-center break-all rounded px-1.5 py-0.5 text-xs font-medium"
+      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${mobile ? "max-w-full break-all" : ""}`}
       style={{
         backgroundColor: `#${safeColor}22`,
         border: `1px solid #${safeColor}44`,
