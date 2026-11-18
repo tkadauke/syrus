@@ -191,7 +191,7 @@ function MatchRow({ chatSessionId, match }: { chatSessionId: number; match: Chat
       ) : (
         <Snippet className="min-w-0 flex-1 text-gray-700 dark:text-gray-300" html={match.snippet || ""} />
       )}
-      <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
+      <span className="shrink-0 text-xs text-text-muted">
         <RelativeTimestamp value={match.created_at} />
       </span>
     </button>

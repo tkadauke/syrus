@@ -24,11 +24,13 @@ module Coworkers
         identity(coworker) if coworker
       end
 
-      # Coworker-owned turns preserve the host invariant exactly: a direct
-      # chat speaks automatically, while a multi-human chat requires an
-      # explicit mention of an addressable agent. Returning nil for all other
-      # chats leaves the generic host policy in charge.
+      # Roster mentions are delegated instead of starting a source-chat turn.
+      # Coworker-owned turns preserve the host invariant exactly: a direct chat
+      # speaks automatically, while a multi-human chat requires an explicit
+      # mention of an addressable agent. Other chats use the generic host policy.
       def chat_turn_trigger(chat_session:, message:, mentions:)
+        return { trigger: false, reason: "delegated coworker mention" } if delegated_roster_mention?(chat_session, mentions)
+
         owns_turn = linked_coworker(chat_session)
         return unless owns_turn
 
@@ -74,6 +76,15 @@ module Coworkers
       end
 
       private
+
+      def delegated_roster_mention?(chat_session, mentions)
+        coworker_ids = Array(mentions).filter_map do |mention|
+          mention["id"].to_i if mention["kind"] == "coworker"
+        end
+        return false if coworker_ids.empty?
+
+        Coworkers::ChatAgent.exists?(chat_session_id: chat_session.id, coworker_id: coworker_ids)
+      end
 
       def linked_coworker(chat_session)
         Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat_session.id)&.coworker
