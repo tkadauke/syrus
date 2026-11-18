@@ -439,10 +439,7 @@ describe("coworker messages", () => {
     expect(bubbles[0]).toHaveStyle({ borderLeftColor: "#0090FF" })
     expect(bubbles[1]).toHaveTextContent("Rin")
     expect(bubbles[1]).toHaveStyle({ borderLeftColor: "#E5484D" })
-    expect(screen.getAllByRole("link", { name: "View working session" }).map((link) => link.getAttribute("href"))).toEqual([
-      "/chats/301",
-      "/chats/302"
-    ])
+    expect(screen.getAllByRole("link", { name: "View working session" }).map((link) => link.getAttribute("href"))).toEqual(["/chats/301", "/chats/302"])
   })
 
   it("renders a coworker cross-chat bridge with the standard coworker identity and bubble color", () => {

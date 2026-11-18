@@ -238,7 +238,12 @@
     "description": "Named coworker reviewers use repository grants and protected memory.",
     "aria_label": "Coworker review routing summary"
   },
-  "chat": { "message_to": "to @{{handle}}", "bridge_link": "via Chat #{{id}}: {{title}}", "new_title": "New chat", "view_working_session": "View working session" },
+  "chat": {
+    "message_to": "to @{{handle}}",
+    "bridge_link": "via Chat #{{id}}: {{title}}",
+    "new_title": "New chat",
+    "view_working_session": "View working session"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",
