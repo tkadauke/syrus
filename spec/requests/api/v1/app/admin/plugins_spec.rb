@@ -836,7 +836,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       )
       Syrus::PluginInvocation.call(
         extension_point: :ci_log_parser, provider: provider, operation: :call,
-        failure_threshold: 1, on_decline: nil
+        failure_threshold: 1, cooldown: 75, on_decline: nil
       ) { raise "provider unavailable" }
       admin = Factories.user(admin: true)
       sign_in_as(admin)
@@ -845,9 +845,11 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
       entry = response.parsed_body["plugins"].find { |plugin| plugin["name"] == "runtime-failure-plugin" }
       expect(entry.dig("health", "state")).to eq("circuit_open")
-      expect(entry.dig("health", "circuits", 0)).to include(
+      circuit = entry.dig("health", "circuits", 0)
+      expect(circuit).to include(
         "extension_point" => "ci_log_parser", "state" => "open", "failure_count" => 1
       )
+      expect(Time.iso8601(circuit.fetch("retry_at")) - Time.iso8601(circuit.fetch("opened_at"))).to eq(75)
     ensure
       Syrus::PluginInvocation.runtime_health.reset!
     end

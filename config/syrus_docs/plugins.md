@@ -258,6 +258,26 @@ Bundled plugins remain
 strict in development and test so defects are immediately visible; production
 isolates and reports their failures in the same way as external plugins.
 
+Runtime provider failures are isolated from core work and recorded under
+**Admin → Plugins**. Repeated failures open a process-local circuit for that
+plugin capability; calls decline without invoking the provider until one trial
+is allowed after the cool-down. A successful trial closes the circuit, while a
+failed trial opens it again. Because circuit state is process-local, different
+web and worker processes can show different runtime histories.
+
+Operators can tune the breaker for every process at startup:
+
+| Environment variable | Default | Meaning |
+| --- | --- | --- |
+| `SYRUS_PLUGIN_CIRCUIT_FAILURE_THRESHOLD` | `5` | Failures within the window that open a circuit. |
+| `SYRUS_PLUGIN_CIRCUIT_WINDOW_SECONDS` | `60` | Sliding failure window in seconds. |
+| `SYRUS_PLUGIN_CIRCUIT_COOLDOWN_SECONDS` | `30` | Delay before one trial call may run. |
+
+Provider timeouts are opt-in at individual call sites rather than controlled by
+a global setting. In-process isolation contains ordinary provider bugs; it
+cannot contain malicious code, native-code hangs, memory growth, monkey
+patches, or process termination.
+
 Enablement can cascade through hard dependencies. Disabling a dependency can
 cascade through its enabled dependents, but the admin must confirm the complete
 set first. Disablement is rejected with a `plugin_in_use` HTTP 409 response when

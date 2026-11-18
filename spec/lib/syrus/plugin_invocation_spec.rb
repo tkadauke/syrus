@@ -51,12 +51,12 @@ RSpec.describe Syrus::PluginInvocation do
 
   it "opens, short-circuits, permits one half-open trial, and closes after success" do
     2.times { invoke { raise "broken" } }
-    expect(health.circuits(cooldown: 20).first.state).to eq(:open)
+    expect(health.circuits.first.state).to eq(:open)
 
     expect { |probe| invoke(&probe) }.not_to yield_control
     clock.now += 21
     expect(invoke { :recovered }).to eq(:recovered)
-    expect(health.circuits(cooldown: 20)).to be_empty
+    expect(health.circuits).to be_empty
   end
 
   it "reopens when the half-open trial fails" do
@@ -65,7 +65,7 @@ RSpec.describe Syrus::PluginInvocation do
 
     invoke { raise "still broken" }
 
-    expect(health.circuits(cooldown: 20).first).to have_attributes(state: :open, opened_at: clock.now)
+    expect(health.circuits.first).to have_attributes(state: :open, opened_at: clock.now)
   end
 
   it "closes when the half-open trial declines normally" do
@@ -73,7 +73,7 @@ RSpec.describe Syrus::PluginInvocation do
     clock.now += 21
 
     expect(invoke { described_class.decline([]) }).to be_a(described_class::Declined)
-    expect(health.circuits(cooldown: 20)).to be_empty
+    expect(health.circuits).to be_empty
   end
 
   it "times out only when a budget is supplied" do
