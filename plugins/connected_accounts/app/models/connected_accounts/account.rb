@@ -1,0 +1,70 @@
+module ConnectedAccounts
+  class Account < ApplicationRecord
+    self.table_name = "connected_accounts_accounts"
+
+    STATUSES = %w[connected needs_reauth revoked error].freeze
+    ACTING_MODES = %w[as_owner as_self as_service].freeze
+
+    belongs_to :owner_user, class_name: "::User"
+    belongs_to :credential_store_credential, class_name: "CredentialStore::Credential"
+
+    attribute :granted_scopes, :json, default: -> { [] }
+    attribute :scope_ceiling, :json
+    attribute :acting_modes, :json, default: -> { [] }
+
+    enum :status, STATUSES.index_with(&:itself), validate: true
+
+    validates :provider, :display_label, presence: true
+    validates :read_only, inclusion: { in: [ true, false ] }
+    validate :validate_string_arrays
+    validate :validate_acting_modes
+    validate :validate_credential_contract
+
+    before_validation :normalize_values
+
+    def effective_scope_ceiling
+      return scope_ceiling if scope_ceiling.present?
+
+      read_only? ? granted_scopes.grep(/(?:read|readonly)\z/) : granted_scopes
+    end
+
+    private
+
+    def normalize_values
+      self.provider = provider.to_s.strip.downcase.presence
+      self.display_label = display_label.to_s.strip.presence
+      self.granted_scopes = Array(granted_scopes).filter_map { |scope| scope.to_s.strip.presence }.uniq.sort
+      self.scope_ceiling = Array(scope_ceiling).filter_map { |scope| scope.to_s.strip.presence }.uniq.sort if scope_ceiling
+      self.acting_modes = Array(acting_modes).filter_map { |mode| mode.to_s.strip.presence }.uniq.sort
+    end
+
+    def validate_string_arrays
+      errors.add(:granted_scopes, "must be an array of strings") unless granted_scopes.is_a?(Array) && granted_scopes.all?(String)
+      errors.add(:acting_modes, "must be an array of strings") unless acting_modes.is_a?(Array) && acting_modes.all?(String)
+      errors.add(:scope_ceiling, "must be an array of strings") unless scope_ceiling.nil? || (scope_ceiling.is_a?(Array) && scope_ceiling.all?(String))
+      errors.add(:scope_ceiling, "must be a subset of granted scopes") if scope_ceiling.present? && (scope_ceiling - granted_scopes).any?
+    end
+
+    def validate_acting_modes
+      invalid = acting_modes - ACTING_MODES
+      errors.add(:acting_modes, "contains unsupported modes: #{invalid.join(', ')}") if invalid.any?
+    end
+
+    def validate_credential_contract
+      return unless credential_store_credential
+
+      if credential_store_credential.credential_type != AccountClient::CREDENTIAL_TYPE
+        errors.add(:credential_store_credential, "must contain connected account OAuth material")
+      end
+      if credential_store_credential.owner_user_id != owner_user_id
+        errors.add(:credential_store_credential, "must have the same owner")
+      end
+      unless credential_store_credential.allowed_tools == [ AccountClient::BROKER_TOOL_NAME ]
+        errors.add(:credential_store_credential, "must be pinned to the connected account broker")
+      end
+      if Array(credential_store_credential.target_constraints["allowed_url_prefixes"]).empty?
+        errors.add(:credential_store_credential, "must be pinned to provider API origins")
+      end
+    end
+  end
+end

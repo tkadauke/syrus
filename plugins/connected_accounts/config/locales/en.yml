@@ -1,0 +1,6 @@
+en:
+  connected_accounts:
+    plugin:
+      display_name: "Connected accounts"
+      description: "Broker access to user-owned external accounts without exposing long-lived credentials."
+      long_description: "Connected Accounts owns external account metadata and brokers short-lived, authorized OAuth access through Credential Store."

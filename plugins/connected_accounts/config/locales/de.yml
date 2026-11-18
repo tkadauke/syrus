@@ -1,0 +1,6 @@
+de:
+  connected_accounts:
+    plugin:
+      display_name: "Verbundene Konten"
+      description: "Vermittle Zugriff auf benutzereigene externe Konten, ohne langlebige Zugangsdaten offenzulegen."
+      long_description: "Verbundene Konten verwaltet sichere Kontometadaten und vermittelt kurzlebigen, autorisierten OAuth-Zugriff über den Zugangsdaten-Speicher."
