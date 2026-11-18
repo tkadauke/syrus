@@ -778,6 +778,25 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   end
 
   describe "plugin health" do
+    it "includes external host API findings for the admin plugin page" do
+      finding = Syrus::PluginHostSurface::Scanner::Finding.new(
+        constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7
+      )
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ],
+        minimum_syrus_version: nil, content_hash: "digest", error: nil)
+      Syrus::PluginRegistry.register(name: "external_scan", version: "1.0.0", external: true,
+        plugin_host_surface_scan: scan)
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/plugins/external_scan"
+
+      expect(response.parsed_body.dig("plugin", "health", "state")).to eq("warning")
+      expect(response.parsed_body.dig("plugin", "health", "host_surface", "unlisted", 0)).to include(
+        "constant" => "InternalService", "path" => "lib/external.rb", "line" => 7
+      )
+    end
+
     it "reports ok for a plugin with satisfied dependencies" do
       admin = Factories.user(admin: true)
       sign_in_as(admin)

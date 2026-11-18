@@ -1,5 +1,6 @@
 require "pathname"
 require "ripper"
+require "syrus/plugin_host_surface/scanner"
 
 module Syrus
   # Discovers plugin declarations before loading their Ruby entry files. This
@@ -84,8 +85,10 @@ module Syrus
         end
 
         if plugin.external
+          scan = scan_plugin(plugin)
           Syrus::PluginRegistry.register(name: plugin.name, version: plugin.version.to_s,
-            requires_syrus: plugin.requires_syrus, external: true, loaded: compatible?(plugin))
+            requires_syrus: plugin.requires_syrus, external: true, loaded: compatible?(plugin),
+            plugin_root: plugin.directory, plugin_host_surface_scan: scan)
           next unless compatible?(plugin)
         end
         lib_dir = plugin.directory.join("lib").to_s
@@ -126,6 +129,13 @@ module Syrus
     end
 
     private
+
+    def scan_plugin(plugin)
+      Syrus::PluginHostSurface::Scanner.cached(plugin.directory)
+    rescue *RESCUED_ERRORS => error
+      Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [],
+        minimum_syrus_version: nil, content_hash: nil, error: "#{error.class}: #{error.message}")
+    end
 
     def safely_discovered_plugins
       inspected = @plugin_roots.plugin_directories.filter_map do |directory|
