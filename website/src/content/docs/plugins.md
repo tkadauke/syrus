@@ -71,6 +71,26 @@ signature and every artifact digest before activating a set. Operators
 distribute only the public verification key; Syrus keeps the signing key
 encrypted with its other application credentials.
 
+Set `SYRUS_PLUGIN_SYNC_ENABLED=1` on each Rails process and provide
+`SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY`. The pre-boot sync reads from the configured
+S3-compatible attachment bucket using `S3_BUCKET`, `S3_ENDPOINT`, `S3_REGION`,
+`S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`. Single-node installations can
+instead set `SYRUS_PLUGIN_SYNC_STORAGE_PATH` to the local attachment-storage
+root. Synced sets live under `$SYRUS_DATA_ROOT/plugin-sync`; activation changes
+the `current` symlink atomically, and the previous set remains available as
+`last-good`.
+
+Sync failures do not block boot by default. An unreachable store, invalid
+signature, malformed manifest, unsafe archive, or artifact size/digest mismatch
+prints one error and retains the active set. Set `SYRUS_PLUGIN_SYNC_STRICT=1`
+when a process should fail instead. `SYRUS_PLUGIN_SYNC_RETENTION` controls the
+number of additional inactive sets retained beyond `current` and `last-good`
+(default `2`). The entrypoint exports `SYRUS_PLUGIN_SET_DIGEST` and
+`SYRUS_PLUGIN_SET_REVISION` to Rails and its sidecars. Fleet-quarantined or
+revoked entries are omitted from the activated set. A hand-placed plugin root
+still takes precedence over a same-named synced plugin and the collision is
+reported by plugin health.
+
 ## What Plugins Can Add
 
 Plugins can contribute:
