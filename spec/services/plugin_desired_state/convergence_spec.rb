@@ -43,21 +43,23 @@ RSpec.describe PluginDesiredState::Convergence do
     state = PluginDesiredState.current
     state.update!(revision: 0, apply_processes: 4.times.map { |index| { "hostname" => "recorded-#{index}", "role" => "web" } })
     4.times do |index|
-      process = create_process("recorded-#{index}", 1, now - 3.minutes)
+      process = create_process("recorded-#{index}", 1, now)
       process.update!(finished_at: now - 1.minute)
     end
 
     queries = []
+    result = nil
     callback = lambda do |_name, _started, _finished, _id, payload|
       queries << payload[:sql].to_s if payload[:sql].to_s.match?(/\ASELECT/i)
     end
 
     ActiveRecord::Base.uncached do
       ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
-        described_class.new(state:, now:).as_json
+        result = described_class.new(state:, now:).as_json
       end
     end
 
+    expect(result.fetch(:processes).pluck(:state)).to contain_exactly(*([ "ahead" ] * 4))
     expect(queries.grep(/\binstance_versions\b/i).size).to eq(2)
     expect(queries.grep(/\bplugin_installations\b/i).size).to eq(1)
     expect(queries.grep(/\bplugin_releases\b/i).size).to eq(1)
