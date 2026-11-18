@@ -37,7 +37,11 @@ func (containerPluginRunner) Run(ctx context.Context, stdout, stderr io.Writer, 
 		if jsonOutput {
 			jsonValue = "1"
 		}
-		command.Env = append(os.Environ(), "SYRUS_PLUGIN_TEST_JSON="+jsonValue)
+		environment := command.Env
+		if environment == nil {
+			environment = os.Environ()
+		}
+		command.Env = append(environment, "SYRUS_PLUGIN_TEST_JSON="+jsonValue)
 	} else {
 		if _, err := pluginLookPath("docker"); err != nil {
 			return errors.New("Docker is required to test plugins; install Docker or use --checkout PATH")
