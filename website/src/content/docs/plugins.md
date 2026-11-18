@@ -583,7 +583,9 @@ required methods and their result contracts are:
 `validate` are required. API-key and password providers use the same contract
 with a trivial `authorization` implementation. Providers that declare
 `events` must verify authenticity and fail closed before normalizing a push.
-Results and errors must never expose tokens.
+Token-bearing `exchange_code` and `refresh` results are returned only to the
+Connected Accounts broker. Providers must not log token material or include it
+in exceptions, user-visible output, or other external results.
 
 Syrus rejects malformed declarations and providers with missing or invalid
 method signatures at load time, with the reason visible in plugin health.
