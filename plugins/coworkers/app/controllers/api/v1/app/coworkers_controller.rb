@@ -165,7 +165,10 @@ module Api
           coworker = find_coworker
           authorize coworker, :update?, policy_class: CoworkerPolicy
           Coworkers::BranchLifecycle.new(coworker).rename!(handle: params.require(:handle))
-          head :no_content
+          attributes = update_params.except(:handle, :about)
+          attributes[:role_summary] = update_params[:about] if update_params.key?(:about)
+          coworker.update!(attributes)
+          render json: { coworker: base_detail_json(coworker) }
         rescue Coworkers::OperationLock::Busy => error
           render_error("coworker_busy", error.message, status: :conflict)
         rescue ActiveRecord::RecordInvalid, ArgumentError => error
@@ -199,14 +202,7 @@ module Api
         def create_chat
           coworker = find_coworker
           authorize coworker, :manage_chats?, policy_class: CoworkerPolicy
-          chat = ApplicationRecord.transaction do
-            session = ChatSession.create!(
-              user: Current.user, repository: workspace_repository(coworker), title: coworker.name,
-              **coworker.chat_configuration
-            )
-            Coworkers::Chat.create!(coworker: coworker, chat_session: session, role: "side")
-            session
-          end
+          chat = Coworkers::CreateSideChat.call(coworker:, user: Current.user, repository: workspace_repository(coworker))
           render json: { chat_path: "/chats/#{chat.id}" }, status: :created
         end
 
@@ -433,6 +429,10 @@ module Api
           params.permit(:name, :handle, :workspace_repo, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model, :chat_effort)
         end
 
+        def update_params
+          params.permit(:name, :handle, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model)
+        end
+
         def grant_constraints
           params.permit(constraints: [ :max_spawns_per_run, :max_spawns_per_day, { confirm_paths: [] } ])[:constraints]&.to_h || {}
         end
@@ -476,7 +476,7 @@ module Api
           summary_json(coworker).merge(
             chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
             effective_model: coworker.chat_model,
-            workspace_repo: coworker.workspace_repo
+            workspace_repo: coworker.workspace_repo, about: coworker.role_summary
           )
         end
 

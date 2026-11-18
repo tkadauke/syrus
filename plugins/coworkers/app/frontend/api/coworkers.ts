@@ -19,6 +19,7 @@ export type CoworkerDetail = CoworkerSummary & {
   chat_model: string | null
   effective_model: string | null
   workspace_repo: string
+  about: string | null
   soul: string | null
   chats: { id: number; link_id: number; role: "main" | "side"; title: string; path: string; unsaved_workspace: UnsavedWorkspace | null }[]
   grants: {
@@ -182,7 +183,7 @@ export const fetchCoworkerOptions = () =>
 export const retryProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/retry`)
 export const acknowledgeProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/acknowledge`)
 export function fetchCoworker(id: string) {
-  return getJson<{ coworker: CoworkerSummary & Pick<CoworkerDetail, "chat_provider" | "chat_model" | "effective_model" | "workspace_repo"> }>(
+  return getJson<{ coworker: CoworkerSummary & Pick<CoworkerDetail, "chat_provider" | "chat_model" | "effective_model" | "workspace_repo" | "about"> }>(
     `/api/v1/app/coworkers/${id}`
   )
 }
@@ -223,6 +224,9 @@ export const commandCoworkerSchedule = (coworkerId: string, scheduleId: number, 
   )
 export function createCoworker(form: FormData) {
   return postForm<{ coworker: CoworkerDetail; redirect_to: string }>("/api/v1/app/coworkers", form)
+}
+export function updateCoworker(id: string, attributes: Record<string, string | null>) {
+  return patchJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`, attributes)
 }
 export function createSideChat(id: number) {
   return postJson<{ chat_path: string }>(`/api/v1/app/coworkers/${id}/chats`)

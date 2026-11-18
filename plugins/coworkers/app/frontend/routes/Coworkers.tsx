@@ -16,9 +16,8 @@ import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { Markdown } from "@app/lib/Markdown"
 import { withRoutePrefix } from "@app/lib/routing"
-import { defaultAccentSelection, type AccentSelection } from "@app/lib/appearance"
+import { defaultAccentSelection, resolveAccentSelection, type AccentSelection } from "@app/lib/appearance"
 import {
-  addCoworkerToChat,
   commandCoworkerSchedule,
   createCoworkerSchedule,
   updateCoworkerSchedule,
@@ -33,11 +32,11 @@ import {
   fetchCoworkerWorkspace,
   fetchCoworkers,
   retryCoworkerWorkspaceSave,
-  removeCoworkerFromChat,
   retryProvisioningCleanup,
   acknowledgeProvisioningCleanup,
   decideCoworkerApproval,
   testCoworkerRemote,
+  updateCoworker,
   updateCoworkerGrant,
   type CoworkerDetail,
   type CoworkerSchedule,
@@ -49,6 +48,7 @@ export default function CoworkersRoute() {
   const { id } = useParams()
   const location = useLocation()
   if (location.pathname.endsWith("/new")) return <NewCoworker />
+  if (id && location.pathname.endsWith("/edit")) return <EditCoworker id={id} />
   if (id) return <CoworkerPage id={id} />
   return <CoworkerList />
 }
@@ -291,7 +291,7 @@ function NewCoworker() {
   )
 }
 
-function Field({ label, ...props }: { label: string; name: string; required?: boolean; pattern?: string; type?: string; placeholder?: string }) {
+function Field({ label, ...props }: { label: string; name: string; required?: boolean; pattern?: string; type?: string; placeholder?: string; defaultValue?: string }) {
   return (
     <label className="block text-sm font-medium">
       {label}
@@ -300,11 +300,97 @@ function Field({ label, ...props }: { label: string; name: string; required?: bo
   )
 }
 
+function EditCoworker({ id }: { id: string }) {
+  const { t } = useT("coworkers")
+  const prefix = usePrefix()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id) })
+  const options = useQuery({ queryKey: ["coworkers", "options"], queryFn: fetchCoworkerOptions })
+  const [avatar, setAvatar] = useState<string | null>(null)
+  const [color, setColor] = useState<AccentSelection>(() => defaultAccentSelection())
+  const [colorPopupOpen, setColorPopupOpen] = useState(false)
+  const mutation = useMutation({
+    mutationFn: (attributes: Record<string, string | null>) => updateCoworker(id, attributes),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["coworkers"] })
+      navigate(`${prefix}/coworkers/${id}`)
+    }
+  })
+
+  useEffect(() => {
+    const coworker = query.data?.coworker
+    if (!coworker) return
+    setAvatar(coworker.avatar_key)
+    setColor(resolveAccentSelection(coworker.accent_hex))
+  }, [query.data])
+
+  if (query.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
+  if (!query.data) return <PanelMessage>{t("error")}</PanelMessage>
+  const coworker = query.data.coworker
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (mutation.isPending) return
+    const form = new FormData(event.currentTarget)
+    const model = form.get("model")?.toString() || ""
+    const [chatProvider, chatModel] = model ? model.split(":", 2) : ["", ""]
+    mutation.mutate({
+      name: form.get("name")?.toString() || "",
+      handle: form.get("handle")?.toString() || "",
+      about: form.get("about")?.toString() || "",
+      accent_hex: color.accentHex,
+      avatar_key: avatar,
+      chat_provider: chatProvider || null,
+      chat_model: chatModel || null
+    })
+  }
+  const selectedModel = coworker.chat_provider && coworker.chat_model ? `${coworker.chat_provider}:${coworker.chat_model}` : ""
+  return (
+    <Page.Root gutter="responsive" size="narrow">
+      <Page.Header>
+        <Link className="text-sm text-brand" to={`${prefix}/coworkers/${id}`}>{coworker.name}</Link>
+        <PageHeading>{t("edit.title")}</PageHeading>
+      </Page.Header>
+      <form className="space-y-5 rounded border border-border bg-surface p-5" onSubmit={submit}>
+        <Field defaultValue={coworker.name} label={t("fields.name")} name="name" required />
+        <Field defaultValue={coworker.handle} label={t("fields.handle")} name="handle" pattern="[a-z0-9_-]{3,32}" required />
+        <label className="block text-sm font-medium">{t("fields.model")}
+          <Select className="mt-1" defaultValue={selectedModel} name="model">
+            <option value="">{t("detail.account_default")}</option>
+            {(options.data?.model_options || []).map((provider) => (
+              <optgroup key={provider.provider} label={provider.provider_label}>
+                {provider.models.map((model) => <option key={model.id} value={`${provider.provider}:${model.id}`}>{model.label}</option>)}
+              </optgroup>
+            ))}
+          </Select>
+        </label>
+        <label className="block text-sm font-medium">{t("fields.remote")}
+          <Input className="mt-1" disabled value={coworker.workspace_repo} />
+        </label>
+        <div className="relative">
+          <label className="mb-2 block text-sm font-medium">{t("fields.color")}</label>
+          <button aria-expanded={colorPopupOpen} aria-haspopup="dialog" className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm" onClick={() => setColorPopupOpen((open) => !open)} type="button">
+            <span className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: color.accentHex }} />{color.accentHex}
+          </button>
+          {colorPopupOpen ? <div aria-label={t("fields.color")} className="absolute z-20 mt-2 w-[min(90vw,36rem)] rounded border border-border bg-surface p-3 shadow-lg" role="dialog">
+            <ColorPicker accentRef={color.accentRef} ariaLabel={t("fields.color")} mode="light" name={coworker.name} onChange={setColor} value={color.accentHex} />
+          </div> : null}
+        </div>
+        <div><label className="mb-2 block text-sm font-medium">{t("fields.avatar")}</label><AvatarPicker ariaLabel={t("fields.avatar")} onChange={setAvatar} value={avatar} /></div>
+        <label className="block text-sm font-medium">{t("fields.about")}<Textarea className="mt-1 min-h-28" defaultValue={coworker.about || ""} name="about" /></label>
+        {mutation.isError ? <PanelMessage>{mutation.error.message}</PanelMessage> : null}
+        <button className="rounded bg-brand px-4 py-2 font-medium text-white disabled:opacity-60" disabled={mutation.isPending}>{mutation.isPending ? t("edit.saving") : t("edit.save")}</button>
+      </form>
+    </Page.Root>
+  )
+}
+
 function CoworkerPage({ id }: { id: string }) {
   const { t } = useT("coworkers")
   const prefix = usePrefix()
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const requestedTab = new URLSearchParams(location.search).get("tab")
   const [tab, setTab] = useState(id === "syrus" ? "chats" : requestedTab || "chat")
   const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id), enabled: id !== "syrus" })
@@ -316,19 +402,21 @@ function CoworkerPage({ id }: { id: string }) {
     queryFn: () => fetchCoworkerTab(id, detailTab!),
     enabled: id !== "syrus" && Boolean(detailTab)
   })
-  const sideChat = useMutation({ mutationFn: () => createSideChat(Number(id)), onSuccess: (data) => navigate(withRoutePrefix(data.chat_path, prefix)) })
-  const [selectedChatId, setSelectedChatId] = useState("")
-  const roster = useMutation({
-    mutationFn: ({ chatId, add }: { chatId: number; add: boolean }) =>
-      add ? addCoworkerToChat(Number(id), chatId) : removeCoworkerFromChat(Number(id), chatId),
-    onSuccess: () => void tabQuery.refetch()
+  const sideChat = useMutation({
+    mutationFn: () => createSideChat(Number(id)),
+    onSuccess: async (data) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }),
+        queryClient.invalidateQueries({ queryKey: ["chats"] })
+      ])
+      navigate(withRoutePrefix(data.chat_path, prefix))
+    }
   })
   if (id === "syrus") return <SyrusPage tab={tab} setTab={setTab} />
   if (query.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
   if (!query.data) return <PanelMessage>{t("error")}</PanelMessage>
   if (detailTab && tabQuery.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
   const coworker = { ...query.data.coworker, ...tabQuery.data } as CoworkerDetail
-  const selectedChat = coworker.available_chats?.find((chat) => chat.id === Number(selectedChatId))
   return (
     <Page.Root gutter="responsive" size="wide">
       <Page.Header>
@@ -341,43 +429,18 @@ function CoworkerPage({ id }: { id: string }) {
             <PageHeading>{coworker.name}</PageHeading>
             <div className="text-text-secondary">@{coworker.handle}</div>
           </div>
+          <Link className="ml-auto rounded border border-border px-3 py-2 text-sm" to={`${prefix}/coworkers/${id}/edit`}>
+            {t("detail.edit")}
+          </Link>
         </div>
       </Page.Header>
       <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"]} />
       {tab === "chat" ? (
         <section className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-surface p-3">
-            <Select aria-label={t("detail.add_to_chat")} onChange={(event) => setSelectedChatId(event.target.value)} value={selectedChatId}>
-              <option value="">{t("detail.choose_chat")}</option>
-              {coworker.available_chats.map((chat) => (
-                <option key={chat.id} value={chat.id}>
-                  {chat.title}
-                  {chat.rostered || chat.implicit ? ` — ${t("detail.on_roster")}` : ""}
-                </option>
-              ))}
-            </Select>
-            <button
-              className="rounded border border-border px-3 py-2 text-sm disabled:opacity-50"
-              disabled={!selectedChatId || roster.isPending || selectedChat?.rostered || selectedChat?.implicit}
-              onClick={() => roster.mutate({ chatId: Number(selectedChatId), add: true })}
-              type="button"
-            >
-              {t("detail.add_to_chat")}
-            </button>
-            {selectedChat?.rostered ? (
-              <button
-                className="rounded border border-border px-3 py-2 text-sm"
-                disabled={roster.isPending}
-                onClick={() => roster.mutate({ chatId: Number(selectedChatId), add: false })}
-                type="button"
-              >
-                {t("detail.remove_from_chat")}
-              </button>
-            ) : null}
-          </div>
-          <button className="rounded bg-brand px-3 py-2 text-sm text-white" onClick={() => sideChat.mutate()}>
-            {t("detail.new_side_chat")}
+          <button className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60" disabled={sideChat.isPending} onClick={() => sideChat.mutate()}>
+            {sideChat.isPending ? t("detail.creating_side_chat") : t("detail.new_side_chat")}
           </button>
+          {sideChat.isError ? <PanelMessage>{sideChat.error.message}</PanelMessage> : null}
           {coworker.chats.map((chat) => (
             <Link className="block rounded border border-border bg-surface p-3 text-brand" key={chat.id} to={withRoutePrefix(chat.path, prefix)}>
               {chat.role === "main" ? t("detail.main_chat") : chat.title}

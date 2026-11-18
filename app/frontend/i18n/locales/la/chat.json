@@ -7,6 +7,7 @@
   "background_run_merge_unavailable": "Spatium operis non praesto est",
   "share_people": "Communicare",
   "mention_add_to_chat": "Ad colloquium adde",
+  "unable_to_create_side_chat": "Colloquium creari non potuit.",
   "mention_add_error": "Hic collega colloquio addi non potuit.",
   "agent_roster": "Agentes in hoc colloquio",
   "after_reply_for": "Postquam {{name}} respondet",

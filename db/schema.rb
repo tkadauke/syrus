@@ -9,12 +9,8 @@
 # migrations use external dependencies or application code.
 #
 # It's strongly recommended that you check this file into your version control system.
-#
-# Syrus uses this dump for SQLite development and test databases. Production
-# MySQL schema authority is the migration history; do not load this SQLite
-# snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_17_203433) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_155251) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1135,9 +1131,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_203433) do
     t.string "unsaved_workspace_retry_token"
     t.integer "source_chat_session_id"
     t.integer "last_delivered_message_id"
+    t.virtual "main_coworker_id", type: :bigint, as: "CASE WHEN role = 'main' THEN coworker_id ELSE NULL END", stored: true
     t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
     t.index ["coworker_id", "source_chat_session_id"], name: "idx_coworker_chats_mention_source", unique: true
-    t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
+    t.index ["main_coworker_id"], name: "index_coworker_chats_on_main_coworker_id", unique: true
     t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
 
