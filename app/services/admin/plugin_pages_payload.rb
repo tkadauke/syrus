@@ -11,9 +11,11 @@ module Admin
     private
 
     def pages_for(provider)
-      PerformanceLogging.plugin_call(extension_point: :admin_page, provider: provider, operation: :admin_pages) do
+      Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :admin_page, provider:, operation: :admin_pages, on_decline: []
+      ) do
         Array(provider.admin_pages).map { |page| page_payload(page) }
-      end
+      end)
     end
 
     def page_payload(page)
