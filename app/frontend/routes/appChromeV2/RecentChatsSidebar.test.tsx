@@ -23,7 +23,7 @@ function renderSidebar(
     featureFlags?: Record<string, boolean>
     groups?: ChatGroupRecord[]
     onCloseDrawer?: () => void
-    onNotice?: (message: string) => void
+    onNotice?: (message: string | null) => void
     onStartChat?: (repositoryId?: number | null) => void
     prefix?: string
     providerAvailability?: Record<string, ProviderAvailability>
@@ -84,7 +84,7 @@ function withMatchMedia(matches: boolean) {
 
 describe("RecentChatsSidebar active chat highlighting", () => {
   it("creates one side chat action only on a coworker's main-chat row", async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse({ chat_path: "/chats/44" }, 201))
+    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse({ chat_path: "/chats/44" }, 201))
     vi.stubGlobal("fetch", fetchSpy)
     const { queryClient } = renderSidebar([
       chatNav({
