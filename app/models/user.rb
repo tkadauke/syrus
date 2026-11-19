@@ -38,10 +38,12 @@ class User < ApplicationRecord
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
   has_many :passkeys, dependent: :destroy
   has_many :platform_identities, dependent: :destroy
+  has_many :provider_accounts, dependent: :destroy
   has_one :handle_record, as: :owner, class_name: "Handle", dependent: :destroy
   belongs_to :color_theme, class_name: "Theme", optional: true
 
   after_update_commit :wake_default_provider_work_after_agent_provider_change, if: :saved_change_to_agent_provider?
+  after_save :sync_legacy_provider_accounts, if: :saved_legacy_provider_credentials?
 
   DEFAULT_PROVIDER_AVAILABILITY_PAUSE_THRESHOLD_PERCENT = 10
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
@@ -61,6 +63,11 @@ class User < ApplicationRecord
     "gemini_api_key" => "Gemini API key",
     "muse_api_key" => "Muse API key"
   }.freeze
+  # Compatibility boundary for the singular credential rollout. Delete these
+  # columns and this list after callers consume ProviderAccount payloads.
+  LEGACY_PROVIDER_CREDENTIALS = %w[
+    claude_oauth_token codex_api_key codex_auth_json codex_auth_mode gemini_api_key muse_api_key
+  ].freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",
     "last_view" => "list",
@@ -738,6 +745,16 @@ class User < ApplicationRecord
     User.agent_providers.select { |provider| agent_provider_configured?(provider) }
   end
 
+  def default_provider_account(provider = agent_provider)
+    provider_accounts.enabled.where(provider_key: provider).in_position_order.first
+  end
+
+  def enabled_provider_accounts(provider = nil)
+    accounts = provider_accounts.enabled
+    accounts = accounts.where(provider_key: provider) if provider.present?
+    accounts.order(:provider_key, :position, :id)
+  end
+
   def self.chat_providers
     ChatProviders.provider_keys
   end
@@ -865,6 +882,14 @@ class User < ApplicationRecord
   end
 
   private
+
+  def saved_legacy_provider_credentials?
+    (saved_changes.keys & LEGACY_PROVIDER_CREDENTIALS).any?
+  end
+
+  def sync_legacy_provider_accounts
+    ProviderAccount.sync_legacy_defaults_for!(self)
+  end
 
   def provider_configured?(provider)
     AgentProviders.for(provider).configured_for_user?(self)

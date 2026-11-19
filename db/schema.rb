@@ -3235,6 +3235,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.index ["state"], name: "index_preview_panels_on_state"
   end
 
+  create_table "provider_accounts", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "public_id", limit: 36, null: false
+    t.string "provider_key", limit: 64, null: false
+    t.string "label", limit: 100
+    t.string "authentication_kind", limit: 64, null: false
+    t.text "credential_payload", null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.decimal "weight", precision: 8, scale: 3
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["public_id"], name: "index_provider_accounts_on_public_id", unique: true
+    t.index ["user_id", "provider_key", "enabled", "position"], name: "idx_provider_accounts_enabled_order"
+    t.index ["user_id", "provider_key", "label"], name: "idx_provider_accounts_user_provider_label", unique: true
+    t.index ["user_id", "provider_key", "position"], name: "idx_provider_accounts_user_provider_position", unique: true
+    t.index ["user_id"], name: "index_provider_accounts_on_user_id"
+  end
+
   create_table "provider_availability_evidences", force: :cascade do |t|
     t.integer "user_id", null: false
     t.integer "run_id"
