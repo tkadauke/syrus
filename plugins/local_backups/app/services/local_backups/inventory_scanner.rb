@@ -24,12 +24,21 @@ module LocalBackups
       directory = @root.contain!(entry)
       manifest = Manifest.read(directory.join(Manifest::FILE_NAME))
       attributes = attributes_for(manifest, directory)
-      backup = Backup.find_or_initialize_by(uuid: attributes.fetch(:uuid))
-      backup.assign_attributes(attributes)
-      backup.save!
+      uuid = attributes.fetch(:uuid)
+      backup = Backup.find_by(uuid:) || create_backup(attributes)
+      backup.update!(attributes.except(:uuid))
       discovered << backup
     rescue StorageRoot::Error, Manifest::Error, ActiveRecord::RecordInvalid => e
       invalid << { path: entry.basename.to_s, error: e.message }
+    end
+
+    def create_backup(attributes)
+      Backup.create!(attributes)
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+      backup = Backup.find_by(uuid: attributes.fetch(:uuid))
+      return backup if backup
+
+      raise
     end
 
     def attributes_for(manifest, directory)

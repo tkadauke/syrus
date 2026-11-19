@@ -27,4 +27,44 @@ RSpec.describe LocalBackups::InventoryScanner do
       expect(result.invalid).to contain_exactly(include(path: "syrus-backup-v1-newer", error: /unsupported manifest version/))
     end
   end
+
+  it "atomically updates an already discovered backup" do
+    Dir.mktmpdir do |dir|
+      root = Pathname(dir)
+      bundle = root.join("syrus-backup-v1-valid").tap(&:mkpath)
+      id = "123e4567-e89b-42d3-a456-426614174000"
+      LocalBackups::Manifest.new(data(id:)).write_once(bundle.join("manifest.json"))
+      existing = LocalBackups::Backup.create!(
+        uuid: id, state: "completed", artifact_path: "stale", manifest_version: 1,
+        logical_bytes: 1, stored_bytes: 1, blob_count: 0, verification_state: "unverified", encryption_fingerprints: {}
+      )
+
+      result = described_class.new(root: LocalBackups::StorageRoot.new(root)).call
+
+      expect(result.invalid).to be_empty
+      expect(result.discovered).to contain_exactly(have_attributes(id: existing.id, artifact_path: "syrus-backup-v1-valid", verification_state: "valid"))
+      expect(LocalBackups::Backup.where(uuid: id).count).to eq(1)
+    end
+  end
+
+  it "uses the concurrently inserted row when another scanner wins creation" do
+    Dir.mktmpdir do |dir|
+      root = Pathname(dir)
+      bundle = root.join("syrus-backup-v1-valid").tap(&:mkpath)
+      id = "123e4567-e89b-42d3-a456-426614174000"
+      LocalBackups::Manifest.new(data(id:)).write_once(bundle.join("manifest.json"))
+      winner = LocalBackups::Backup.create!(
+        uuid: id, state: "completed", artifact_path: "stale", manifest_version: 1,
+        logical_bytes: 1, stored_bytes: 1, blob_count: 0, verification_state: "unverified", encryption_fingerprints: {}
+      )
+      allow(LocalBackups::Backup).to receive(:find_by).with(uuid: id).and_return(nil, winner)
+      allow(LocalBackups::Backup).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique)
+
+      result = described_class.new(root: LocalBackups::StorageRoot.new(root)).call
+
+      expect(result.invalid).to be_empty
+      expect(result.discovered).to contain_exactly(winner)
+      expect(winner.reload).to have_attributes(artifact_path: "syrus-backup-v1-valid", verification_state: "valid")
+    end
+  end
 end

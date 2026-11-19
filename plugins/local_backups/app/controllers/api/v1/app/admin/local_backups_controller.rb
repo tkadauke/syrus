@@ -4,12 +4,11 @@ module Api
       module Admin
         class LocalBackupsController < BaseController
           def index
-            scan = LocalBackups::InventoryScanner.new.call
             render json: {
               configured: true,
               root: LocalBackups::StorageRoot.from_env.path.to_s,
               backups: LocalBackups::Backup.where(state: "completed").order(completed_at: :desc).map { |backup| serialize(backup) },
-              invalid_artifacts: scan.invalid
+              invalid_artifacts: []
             }
           rescue LocalBackups::StorageRoot::Error => e
             render json: { configured: false, error: e.message, backups: [], invalid_artifacts: [] }

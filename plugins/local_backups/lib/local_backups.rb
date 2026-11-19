@@ -21,5 +21,14 @@ module LocalBackups
     route :get, "/admin/local_backups", to: "spa#show"
     frontend routes: { "local_backups/AdminLocalBackups" => "app/frontend/routes/AdminLocalBackups.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/local_backups.json" ]
+
+    while_enabled do |scope|
+      scope.effect("reconstruct local backup inventory") do
+        LocalBackups::InventoryScanner.new.call
+        nil
+      rescue LocalBackups::StorageRoot::Error
+        nil
+      end
+    end
   end
 end
