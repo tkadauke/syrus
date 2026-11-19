@@ -6,6 +6,11 @@ class RunProcessParallelism
   # share. See undetectable_cpu_count for why this is deliberately small.
   UNDETECTABLE_CPU_COUNT = 4
   CPU_LIMIT_ENV = "SYRUS_WORKER_CPU_LIMIT".freeze
+  # A file holding this worker's core budget, written at pod start from what
+  # its node has left over (allocatable cores minus every other pod's CPU
+  # requests). Lets one manifest size every node -- a 10-core master sharing
+  # with MySQL and a 20-core agent alike -- without a per-node CPU limit.
+  CPU_BUDGET_FILE_ENV = "SYRUS_WORKER_CPU_BUDGET_FILE".freeze
 
   def self.for(...) = new(...).call
 
@@ -28,6 +33,7 @@ class RunProcessParallelism
     if (count = cgroup_v2_cpu_count) then return CpuDetection.new(count: count, source: "cgroup_v2_quota") end
     if (count = cgroup_v1_cpu_count) then return CpuDetection.new(count: count, source: "cgroup_v1_quota") end
     if (count = positive_int(ENV[CPU_LIMIT_ENV])) then return CpuDetection.new(count: count, source: "env_override") end
+    if (count = budget_file_cpu_count) then return CpuDetection.new(count: count, source: "node_budget_file") end
 
     CpuDetection.new(count: [ Etc.nprocessors, UNDETECTABLE_CPU_COUNT ].min, source: "undetectable_fallback")
   end
@@ -53,7 +59,7 @@ class RunProcessParallelism
   # real core budget to get accurate sizing without waiting for a manifest
   # change, or give the pod a `limits.cpu` and the quota probes take over.
   def self.undetectable_cpu_count
-    configured = positive_int(ENV[CPU_LIMIT_ENV])
+    configured = positive_int(ENV[CPU_LIMIT_ENV]) || budget_file_cpu_count
     return configured if configured
 
     assumed = [ Etc.nprocessors, UNDETECTABLE_CPU_COUNT ].min
@@ -83,6 +89,17 @@ class RunProcessParallelism
 
   def self.reset_undetectable_cpu_warning!
     @warned_about_undetectable_cpu_share = false
+  end
+
+  # Whole cores from SYRUS_WORKER_CPU_BUDGET_FILE; nil when unset, missing,
+  # unreadable or not a positive number, so sizing falls back as before.
+  def self.budget_file_cpu_count
+    path = ENV[CPU_BUDGET_FILE_ENV].to_s.strip
+    return nil if path.empty?
+
+    positive_int(File.read(path).strip.split(/\s+/).first)
+  rescue SystemCallError, IOError
+    nil
   end
 
   def self.positive_int(raw)

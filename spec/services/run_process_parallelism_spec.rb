@@ -1,4 +1,5 @@
 require "rails_helper"
+require "tempfile"
 require "open3"
 require "rbconfig"
 
@@ -158,6 +159,44 @@ RSpec.describe RunProcessParallelism do
       stub_const("ENV", ENV.to_h.except(described_class::CPU_LIMIT_ENV))
 
       expect(described_class.effective_cpu_count).to eq(2)
+    end
+
+    describe "a node budget file" do
+      let(:budget_file) { Tempfile.new("cpu-budget") }
+      let(:base_env) { ENV.to_h.except(described_class::CPU_LIMIT_ENV) }
+
+      after { budget_file.close! }
+
+      def with_budget(contents, env: {})
+        budget_file.write(contents)
+        budget_file.flush
+        stub_const("ENV", base_env.merge(described_class::CPU_BUDGET_FILE_ENV => budget_file.path).merge(env))
+      end
+
+      # One manifest sizes every node: the file holds what this worker's node
+      # has left over after every other pod's CPU requests.
+      it "sizes the worker from what its node has left over" do
+        with_budget("19\n")
+        allow(described_class).to receive(:host_capacity).and_call_original
+
+        expect(described_class.effective_cpu_count).to eq(19)
+        expect(described_class.cpu_detection).to have_attributes(count: 19, source: "node_budget_file")
+        expect(described_class.host_capacity).to eq(15)
+      end
+
+      it "lets an explicit SYRUS_WORKER_CPU_LIMIT win over the file" do
+        with_budget("19", env: { described_class::CPU_LIMIT_ENV => "8" })
+
+        expect(described_class.effective_cpu_count).to eq(8)
+      end
+
+      it "falls back to the small share when the file is missing or nonsense" do
+        stub_const("ENV", base_env.merge(described_class::CPU_BUDGET_FILE_ENV => "/nonexistent/budget"))
+        expect(described_class.effective_cpu_count).to eq(described_class::UNDETECTABLE_CPU_COUNT)
+
+        with_budget("lots")
+        expect(described_class.effective_cpu_count).to eq(described_class::UNDETECTABLE_CPU_COUNT)
+      end
     end
 
     it "says so in the log, because a silent wrong number is what caused the outage" do

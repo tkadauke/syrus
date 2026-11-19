@@ -132,10 +132,13 @@ The production MySQL connection pool defaults to 9 connections per process,
 enough for 6 run threads plus Solid Queue's 3-connection supervision headroom.
 When setting `JOB_CONCURRENCY` above 6, also set `DB_POOL` to at least
 `JOB_CONCURRENCY + 3`; `bin/check-thread-budget` enforces this relationship.
-Give every worker pod a `resources.limits.cpu` (or set
-`SYRUS_WORKER_CPU_LIMIT`): with no readable quota, `RunProcessParallelism`
-deliberately assumes a small share rather than the node's core count, so an
-unlimited pod runs *fewer* threads, not more. `AppSetting.max_concurrent_agent_runs` (admin-configurable,
+Give every worker pod a `resources.limits.cpu`, set `SYRUS_WORKER_CPU_LIMIT`,
+or point `SYRUS_WORKER_CPU_BUDGET_FILE` at a file holding the core budget (for
+example, written at pod start from what the node has left after every other
+pod's CPU requests, so one manifest sizes nodes of different sizes): with none
+of these, `RunProcessParallelism` deliberately assumes a small share rather
+than the node's core count, so an unlimited pod runs *fewer* threads, not
+more. `AppSetting.max_concurrent_agent_runs` (admin-configurable,
 `0` = unlimited) is a **cluster-wide** cap enforced by `RunJob`: if too many
 agent (`:runs`-queue) Runs are already executing across all pods, a new one is
 deferred and re-enqueued. Main-branch grader Runs are on `:runs` and are counted
