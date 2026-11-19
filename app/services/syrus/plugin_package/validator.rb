@@ -117,7 +117,7 @@ module Syrus
           errors << "manifest requires_syrus does not match gemspec" unless source.include?(manifest["requires_syrus"].to_s)
         end
         ruby = entries.select { |path, _| path.end_with?(".rb") }.values.map { |entry| entry[:data] }.join("\n")
-        errors << "plugin uses a non-public Syrus API" if ruby.match?(/\b(?:Job|Workflow|Run|Repository|GithubClient)(?:::)?/) || ruby.include?("Syrus::PluginRegistry")
+        errors << "plugin uses a non-public Syrus API" if ruby.match?(/\b(?:Job|Workflow|Run|Repository|GithubClient)\b/) || ruby.include?("Syrus::PluginRegistry")
         declared_extension_points = ruby.scan(/provides\s+([a-z_]+):/).flatten.uniq.sort
         declared_routes = ruby.scan(/route\s+:[a-z]+,\s*["']([^"']+)/).flatten.uniq.sort
         declared_credentials = ruby.scan(/credential_type_names?\s+["']([^"']+)/).flatten.uniq.sort
