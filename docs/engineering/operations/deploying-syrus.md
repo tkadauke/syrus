@@ -19,8 +19,11 @@ worker stops claiming jobs and waits `SOLID_QUEUE_SHUTDOWN_TIMEOUT` seconds for
 the ones it holds (SolidQueue's own default is five seconds, which killed every
 running grader on every deploy); the pod's termination grace must exceed it.
 
-The rollout counts as done once the new pods are ready -- a DaemonSet's status
-counts nodes, not pods, so draining old pods do not hold it -- and
+The rollout counts as done once every node has a ready, non-terminating pod on
+the new template. A DaemonSet's own status is not enough: Kubernetes counts a
+node as updated only after its old pod is gone, so waiting on the status waits
+out the whole drain, times out, and unwinds a successful deploy into a
+rollback. `RolloutWait` therefore reads the pods of a surging DaemonSet, and
 `Verifications` asks the newest ready pod that is not terminating, never a
 draining one. Old code keeps running against the new schema for as long as a
 drain lasts, which is why two-version compatibility above is not optional.
