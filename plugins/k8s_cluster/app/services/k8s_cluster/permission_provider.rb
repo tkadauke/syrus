@@ -199,6 +199,8 @@ module K8sCluster
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
       maximum_autonomy: :invocation, authority_durations: %i[invocation], resource_scope: :raw,
+      # Raw kubectl: once for the family or the tool, forever only per cluster scope.
+      breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent },
       classifier: fixed_classifier("k8s.raw/execute@v1", %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible], :critical),
       fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)
     )

@@ -49,6 +49,25 @@ RSpec.describe Deploy::Prepull do
     [ described_class.new(context), fake ]
   end
 
+  # The runner starts every cluster's pull right after the push, so
+  # production's nodes download while staging rolls out.
+  it "starts the pull without waiting, and a later warm! only waits for it" do
+    prepull, fake = build({
+      "daemonset syrus-worker-compute" => compute_daemonset,
+      "daemonset syrus-image-prepull" => prepull_status
+    })
+
+    expect(prepull.start!).to be(true)
+    applies = -> { fake.writes.count { |write| write[:action]&.first == "apply" } }
+    expect(applies.call).to eq(1)
+    expect(out.string).not_to include("image warm on every compute node")
+
+    prepull.warm!
+
+    expect(applies.call).to eq(1)
+    expect(out.string).to include("production: image warm on every compute node")
+  end
+
   it "skips when pre-pull is turned off" do
     prepull, fake = build({}, env: { "PREPULL" => "0" })
 

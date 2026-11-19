@@ -9,7 +9,8 @@ module Mcp::Tools
       operation, or omit selectors when this chat has exactly one cancellable
       authorization request. Use the numeric ID only as an exact handle when
       semantic selectors are ambiguous; never quote that internal handle to the
-      operator. Always requires operator confirmation.
+      operator. Cancelling only withdraws the agent's own request, so it takes
+      effect immediately without operator confirmation.
     DESC
     input_schema(properties: {
       authorization_request_id: { type: "integer", description: "Exact internal handle for an ambiguous authorization request." },
@@ -23,13 +24,12 @@ module Mcp::Tools
         request = resolve_request(server_context.fetch(:chat_session), authorization_request_id:, capability:, operation:)
         return request unless request.is_a?(ChatPendingAction)
 
-        item = request.authorization_items.first
-        permission_action(
-          server_context,
-          "cancel_authorization_request",
-          { authorization_request_id: request.id, capability: item&.capability, operation: item&.operation, rationale: },
-          "Cancel the authorization request for #{request_label(request)}?"
-        )
+        # Withdrawing a request only reduces authority: an essential operation
+        # that acts directly instead of asking the operator to confirm it.
+        label = request_label(request)
+        return Mcp::Tools.invalid("authorization request is no longer cancellable") unless request.cancel!(user: request.user)
+
+        Mcp::Tools.success(cancelled: true, authorization_request: label, rationale:)
       end
 
       private

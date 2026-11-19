@@ -34,11 +34,13 @@ module Permissions
     end
 
     # Payload shared by every surface; nil when only Allow once / Deny apply.
+    # The adaptive action is the longest safe authority at the request's own
+    # breadth -- the named resource when there is one, otherwise the tool.
     def option
       return unless supported?
 
-      duration = eligible.keys.first
-      duration && payload_for(duration, eligible.fetch(duration))
+      duration = CANDIDATES.find { |candidate| eligible.key?([ candidate, default_breadth ]) }
+      duration && payload_for(duration, eligible.fetch([ duration, default_breadth ]), default_breadth)
     end
 
     # Every safe duration is presented explicitly. This matters for operations
@@ -47,21 +49,24 @@ module Permissions
     def options
       return [] unless supported?
 
-      return [ option ].compact unless item.operation.to_s.start_with?("ssh.execute/")
-
-      %w[chat_session permanent].filter_map do |duration|
-        preview = eligible[duration]
-        payload_for(duration, preview) if preview
+      # Every safe combination of how long (once is always on the card) and
+    # how broadly: this resource, the whole tool, or the whole family.
+      breadths.flat_map do |breadth|
+        CANDIDATES.reverse.filter_map do |duration|
+          preview = eligible[[ duration, breadth ]]
+          payload_for(duration, preview, breadth) if preview
+        end
       end
     end
 
     # Returns the applied rule or lease. Must run inside the request lock so the
     # rule and the invocation approval commit or roll back together.
-    def apply_rule!(duration:, digest:, prefix: nil)
+    def apply_rule!(duration:, digest:, prefix: nil, breadth: nil)
+      breadth = (breadth.presence || default_breadth).to_s
       raise AlreadyDecided, I18n.t("api.permission_requests.smart_decision.stale") unless supported?
-      raise ArgumentError, I18n.t("api.permission_requests.smart_decision.unavailable") unless eligible.key?(duration.to_s)
+      raise ArgumentError, I18n.t("api.permission_requests.smart_decision.unavailable") unless eligible.key?([ duration.to_s, breadth ])
 
-      draft = prefix.present? ? prefix_draft_for(duration.to_s, prefix) : draft_for(duration.to_s)
+      draft = prefix.present? ? prefix_draft_for(duration.to_s, prefix) : draft_for(duration.to_s, breadth)
       draft.apply!(digest:, actor: user)
     end
 
@@ -115,10 +120,29 @@ module Permissions
     attr_reader :request, :item, :user
 
     def eligible
-      @eligible ||= candidate_durations.each_with_object({}) do |duration, found|
-        preview = draft_for(duration).preview
-        found[duration] = preview if preview.valid? && preview.warnings.empty? && permitted?(duration, preview)
+      @eligible ||= breadths.product(candidate_durations).each_with_object({}) do |(breadth, duration), found|
+        preview = draft_for(duration, breadth).preview
+        found[[ duration, breadth ]] = preview if preview.valid? && preview.warnings.empty? && permitted?(duration, preview, breadth)
       end
+    end
+
+    # The breadths this request can be widened to, narrowest first. "Resource"
+    # only exists when the invocation named one (a resource scope or a pinned
+    # argument); a coworker request never widens past its own tool.
+    def breadths
+      @breadths ||= begin
+        list = []
+        list << "resource" if item.resource_scope.present? || RuleDraft.request_constraints(item).present?
+        list << "tool"
+        list << "family" unless coworker_permission_request?
+        list
+      end
+    end
+
+    def default_breadth = breadths.first
+
+    def coworker_permission_request?
+      request.action == PermissionRequest::ACTION && request.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
     end
 
     def candidate_durations
@@ -143,22 +167,22 @@ module Permissions
       DURATION_RANK.fetch(duration) > DURATION_RANK.fetch(requested, 0)
     end
 
-    def permitted?(duration, preview)
+    def permitted?(duration, preview, _breadth = nil)
       return true unless duration == "permanent" && request.action == PermissionRequest::ACTION
       return true unless request.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
       preview.draft.dig(:subject, :type) == "agent"
     end
 
-    def draft_for(duration)
-      RuleDraft.from_request_item(user:, request:, item:, duration:)
+    def draft_for(duration, breadth = default_breadth)
+      RuleDraft.from_request_item(user:, request:, item:, duration:, breadth:)
     end
 
-    def payload_for(duration, preview)
+    def payload_for(duration, preview, breadth = default_breadth)
       {
-        kind: kind_for(duration), duration:, digest: preview.digest, summary: preview.summary,
+        kind: kind_for(duration), duration:, breadth:, digest: preview.digest, summary: preview.summary,
         draft: preview.draft, ceiling: preview.ceiling,
-        prefix: prefix_payload(duration),
+        prefix: prefix_payload(duration, breadth),
         context: {
           coworker: RequestPresenter.reference(request.subject)&.fetch(:label),
           operation: item.operation,
@@ -171,8 +195,8 @@ module Permissions
 
     # Present only where widening is on offer: a durable grant for an
     # invocation that was projected into a prefix-matchable form.
-    def prefix_payload(duration)
-      return unless duration == "permanent"
+    def prefix_payload(duration, breadth = default_breadth)
+      return unless duration == "permanent" && breadth == "resource"
 
       field = prefix_field
       return unless field

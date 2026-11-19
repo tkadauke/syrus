@@ -60,7 +60,7 @@ class PermissionLease < ApplicationRecord
     Permissions::PolicyRule.new(
       id: "permission-lease-#{id}", layer: :lease, policy: :allow, source: "permission_lease",
       capability:, operation:, resource_scope:, selectors: subject_selectors,
-      delegable: true, rationale: "Temporary delegated authority"
+      delegable: true, rationale: "Temporary delegated authority", duration: duration_kind
     )
   end
 

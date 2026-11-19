@@ -1960,7 +1960,17 @@
     "repository": "Repositorium",
     "scope": "Ambitus",
     "stale": "Haec petitio post praevisionem mutata est. Optiones novissimae oneratae sunt; eas inspice et iterum conare.",
-    "status_preview": "Regula «{{action}}» inspicitur."
+    "status_preview": "Regula «{{action}}» inspicitur.",
+    "breadth": "Valet ad",
+    "more_options": "Plura optiones…",
+    "choose_duration": "Quamdiu",
+    "choose_breadth": "Quam late",
+    "review": "Inspice",
+    "breadths": {
+      "resource": "Haec res tantum",
+      "tool": "Omnis usus huius instrumenti",
+      "family": "Tota familia instrumentorum"
+    }
   },
   "permission_editor": {
     "title": "Regulam permissionis accommodare",

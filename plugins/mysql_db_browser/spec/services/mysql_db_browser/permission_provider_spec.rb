@@ -79,7 +79,9 @@ RSpec.describe MysqlDbBrowser::PermissionProvider do
     # execution next door stays per-invocation.
     expect(read).to have_attributes(maximum_autonomy: :permanent, risk: :medium,
       authority_durations: %i[invocation chat_session job permanent])
-    expect(query).to have_attributes(maximum_autonomy: :invocation, authority_durations: [ :invocation ], risk: :critical)
+    # Raw SQL: once for the family or the tool, forever only for a named target.
+    expect(query).to have_attributes(risk: :critical,
+      breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent })
   end
 
   it "declares inert read-only and query-operator presets" do

@@ -66,7 +66,7 @@ module Permissions
         subject_selector_type: payload.fetch("subject_selector_type"),
         subject_selector_id: payload["subject_selector_id"], subject_repository: repository(payload),
         resource_scope: payload.fetch("resource_scope", {}), constraints: payload.fetch("constraints", {}),
-        rules: policy_rules, rationale: payload["rationale"]
+        rules: policy_rules, rationale: payload["rationale"], family_wide: payload["family_wide"] == true
       )
     end
 
@@ -95,7 +95,8 @@ module Permissions
         subject_selector_id: payload["subject_selector_id"], subject_repository: repository(payload),
         resource_scope: payload.fetch("resource_scope", {}), constraints: payload.fetch("constraints", {}),
         arguments: payload.fetch("arguments", {}), rules: policy_rules, chat_session: chat_session(payload), job: job(payload),
-        expires_at: parse_time(payload["expires_at"]), max_uses: payload["max_uses"]
+        expires_at: parse_time(payload["expires_at"]), max_uses: payload["max_uses"],
+        family_wide: payload["family_wide"] == true
       )
     end
 
@@ -234,7 +235,7 @@ module Permissions
         subject_selector_type: payload.fetch("subject_selector_type"),
         subject_selector_id: payload["subject_selector_id"], subject_repository: repository(payload),
         subject_role_keys: payload.fetch("subject_role_keys", []), dynamic_future_roles: payload.fetch("dynamic_future_roles", false),
-        capability: descriptor.capability, operation: descriptor.operation,
+        capability: descriptor.capability, operation: (descriptor.operation unless payload["family_wide"] == true),
         resource_type: descriptor.resource_scope.type.to_s, resource_scope: scope,
         constraints: payload.fetch("constraints", {}), policy_layer: "agent", source: "operator",
         provenance: { "management_api" => true }, rationale: payload["rationale"], delegable: true

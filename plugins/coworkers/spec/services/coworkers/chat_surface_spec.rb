@@ -299,7 +299,9 @@ RSpec.describe "Coworker chat surface" do
     expect(Job.count).to eq(0)
   end
 
-  it "keeps proposals gated behind an explicit deny rule" do
+  # Drafting a proposal only creates the owner's confirmation card, which is
+  # the decision that creates real work, so a deny rule cannot block it.
+  it "drafts a proposal for the owner to confirm even under an explicit deny rule" do
     descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == Mcp::Tools::ProposeJobTool }.descriptor
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,
@@ -310,12 +312,12 @@ RSpec.describe "Coworker chat surface" do
     )
 
     response = coworker_tool("propose_job").call(
-      repo: repository.slug, title: "Denied", description: "Should never be drafted.",
+      repo: repository.slug, title: "Drafted", description: "The owner decides on the card.",
       planned_execution: { capabilities: { os: [ "linux" ] } }, server_context: { chat_session: chat }
     )
 
-    expect(response).to be_error
-    expect(chat.proposals).to be_empty
+    expect(response).not_to be_error
+    expect(chat.proposals.count).to eq(1)
   end
 
   it "uses descriptor defaults for read-only core tools despite legacy policy changes" do

@@ -17,7 +17,7 @@ RSpec.describe SyrusBrowser::PermissionProvider do
     # twice and still left them ungrantable beyond a single invocation.
     %w[browser.execute@v1 browser.upload@v1 browser.interact@v1].each do |capability|
       expect(descriptors.fetch(capability)).to have_attributes(
-        defaults: include(ROLES_SAMPLE => :allow), maximum_autonomy: :job
+        defaults: include(ROLES_SAMPLE => :allow), essential: true
       )
     end
     expect(descriptors.fetch("browser.execute@v1").risk).to eq(:high)

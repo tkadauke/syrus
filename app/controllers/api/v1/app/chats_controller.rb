@@ -1000,7 +1000,8 @@ module Api
           pending_action = find_pending_action(chat_session)
           item = pending_action.authorization_items.find(params[:item_id])
           Permissions::AuthorizationDecision.new(request: pending_action, item:, user: Current.user)
-            .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
+            .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s,
+                                               prefix: params[:prefix].presence, breadth: params[:breadth].presence })
 
           render json: chat_mutation_payload(chat_session, message: t("api.chats.messages.authorization_item_decided"), include: :pending_actions)
         rescue Permissions::SmartDecision::AlreadyDecided, Permissions::RuleDraft::Stale => e

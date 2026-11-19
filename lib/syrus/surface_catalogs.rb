@@ -67,7 +67,8 @@ module Syrus
           Array(entry[:required_roles]).presence&.map { |role| "`#{role}`" }&.join(", ") || "-",
           Array(entry[:step_kinds]).presence&.map { |kind| "`#{kind}`" }&.join(", ") || "-",
           entry[:capability].present? ? "`#{entry[:capability]}`" : "-",
-          entry[:feature_flag].present? ? "`#{entry[:feature_flag]}`" : "-"
+          entry[:feature_flag].present? ? "`#{entry[:feature_flag]}`" : "-",
+          permission_class(entry[:descriptor])
         ]
       end
 
@@ -78,10 +79,28 @@ module Syrus
 
         Generated catalog of MCP tools registered through `McpToolRegistry`.
 
-        | Tool | Surface | Tier | Mode | Admin | Roles | Step kinds | Capability | Feature flag |
-        |---|---|---|---|---|---|---|---|---|
+        The Permission column is each tool's consequence classification on that
+        surface (see [Permission authority](permission_authority.md)):
+
+        - **essential** -- consequence-free agent work. Always allowed: it is
+          evaluated and audited, but no rule, preset, lease or confirmation request
+          can block it. `default: allow` is not essential; internal persistence
+          alone is not a consequence barrier.
+        - **gated** -- crosses a consequence barrier, named by its effects.
+        - **deniable** -- no barrier effect, but deniable for the named reason.
+
+        | Tool | Surface | Tier | Mode | Admin | Roles | Step kinds | Capability | Feature flag | Permission |
+        |---|---|---|---|---|---|---|---|---|---|
         #{rows.map { |row| "| #{row.join(' | ')} |" }.join("\n")}
       MD
+    end
+
+    def self.permission_class(descriptor)
+      return "-" unless descriptor
+      return "essential" if descriptor.essential?
+      return "gated (#{descriptor.barrier_effects.join(', ')})" if descriptor.barrier_effects.any?
+
+      "deniable (#{descriptor.deniable_reason.to_s.tr('_', ' ')})"
     end
 
     def self.render_cli(root:)

@@ -67,6 +67,18 @@ module Deploy
     # every code deploy. Worth turning on where the local BuildKit cache is cold.
     def inline_cache? = truthy?(fetch("SYRUS_DEPLOY_INLINE_CACHE", "0"))
 
+    # The worker toolchain as its own, digest-tagged image (see
+    # Images#ensure_worker_deps!). On by default; 0 builds the in-file stage.
+    def worker_deps_image? = !truthy_off?(fetch("SYRUS_WORKER_DEPS_IMAGE", "1"))
+
+    # Rebuild the toolchain image even though its Dockerfile text is
+    # unchanged, to take newer upstream base images and packages.
+    def worker_deps_refresh? = truthy?(fetch("SYRUS_WORKER_DEPS_REFRESH", "0"))
+
+    def worker_deps_registry
+      fetch("WORKER_DEPS_REGISTRY", worker_dev_registry.sub(/-dev\z/, "-deps"))
+    end
+
     # --- clusters -------------------------------------------------------
 
     def clusters

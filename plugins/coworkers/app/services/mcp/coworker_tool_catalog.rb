@@ -40,7 +40,9 @@ module Mcp
             names.map do |name|
               definition = by_name[name]
               definition = definition&.merge(coworker_default_policy: grant_definitions.fetch(capability)["default_policy"])
-              Descriptor.new(tool_name: name, capability: capability, ungated: false,
+              essential = definition.present? &&
+                Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).essential?
+              Descriptor.new(tool_name: name, capability: capability, ungated: essential,
                 approval_effect: definition.present? && value(definition, :approval_effect) == true,
                 tier: definition ? definition_tier(provider, name, chat_session: chat_session) : :essential,
                 tool: nil, provider: provider,
@@ -71,7 +73,8 @@ module Mcp
               "description" => descriptor.presentation.capability_description,
               "tools" => [ name ], "default_policy" => "confirm", "maximum_policy" => "auto"
             }
-            Descriptor.new(tool_name: name, capability: capability, ungated: false,
+            # An essential plugin operation is essential for coworkers too.
+            Descriptor.new(tool_name: name, capability: capability, ungated: descriptor.essential?,
               approval_effect: value(definition, :approval_effect) == true,
               tier: definition_tier(provider, name, chat_session: chat_session), tool: nil, provider: provider,
               availability_state: provider_state(provider, plugin_state, chat_session:),

@@ -15,6 +15,13 @@ module Permissions
       return unless context.run? && context.job&.cron?
 
       descriptor = descriptor_for(tool)
+      return if descriptor.nil?
+      # Essential operations are evaluated and audited, never queued or skipped.
+      if descriptor.essential?
+        Management.new(context.user).authorize(descriptor:, role: context.role, resource_scope: {}, arguments:,
+          context: evaluator_context.merge(user_id: context.user.id))
+        return
+      end
       rules = PermissionRule.active.for_owner(context.user).for_capability(descriptor.capability).map(&:to_policy_rule)
       decision = Permissions::LeaseAuthorizer.call(
         descriptor:, owner: context.user, role: context.role, resource_scope: {}, rules:,
@@ -47,7 +54,12 @@ module Permissions
     attr_reader :tool, :context, :arguments
 
     def descriptor_for(value)
-      value.respond_to?(:capability_descriptor) ? value.capability_descriptor : McpToolRegistry.entry_for(value).descriptor
+      return value.capability_descriptor if value.respond_to?(:capability_descriptor)
+
+      # A scheduled Job runs workflow roles: classify the tool as the workflow
+      # surface registers it, not by whichever surface registered it first.
+      surface_entry = McpToolRegistry.entries(surface: :workflow).find { |entry| entry.tool == value }
+      (surface_entry || McpToolRegistry.entry_for(value))&.descriptor
     end
 
     def evaluator_context

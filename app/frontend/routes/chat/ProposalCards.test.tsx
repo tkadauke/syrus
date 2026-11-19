@@ -637,6 +637,7 @@ describe("PendingActionCard", () => {
             smart_option: {
               kind: "allow_chat",
               duration: "chat_session",
+              breadth: "resource",
               digest: "abc123",
               summary: { allows: ["Maya may run database.read/query in this chat."], excludes: ["Other operations"] },
               draft: {},
@@ -653,6 +654,7 @@ describe("PendingActionCard", () => {
               {
                 kind: "always_allow_command",
                 duration: "permanent",
+                breadth: "resource",
                 digest: "permanent-digest",
                 summary: { allows: ["Always allow this exact SSH command."], excludes: ["Other commands"] },
                 draft: {},
@@ -668,6 +670,7 @@ describe("PendingActionCard", () => {
               {
                 kind: "allow_chat",
                 duration: "chat_session",
+                breadth: "resource",
                 digest: "chat-digest",
                 summary: { allows: ["Allow this exact SSH command in this chat."], excludes: ["Other chats"] },
                 draft: {},
@@ -688,7 +691,10 @@ describe("PendingActionCard", () => {
 
     expect(screen.getByRole("button", { name: "Allow once" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Always allow this command" })).toBeInTheDocument()
+    // The adaptive chat-scoped action stays one click away; the permanent
+    // command grant is behind More options.
+    expect(screen.queryByRole("button", { name: "Always allow this command" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "More options…" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Allow for this chat" }))
     expect(screen.getByText("Maya")).toBeInTheDocument()
     expect(screen.getByText("acme/app")).toBeInTheDocument()
@@ -701,7 +707,7 @@ describe("PendingActionCard", () => {
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Permission decision recorded."))
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/smart_decision",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ duration: "chat_session", digest: "chat-digest" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ duration: "chat_session", breadth: "resource", digest: "chat-digest" }) })
     )
   })
 

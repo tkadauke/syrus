@@ -49,7 +49,7 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     )
     expect(operation).to have_attributes(
       kind: "operation", operation: "database.read/query", operation_version: 2,
-      requested_durations: [ "invocation" ], effects: [ "confidential_read" ],
+      requested_durations: %w[invocation chat_session permanent], effects: [ "confidential_read" ],
       normalized_arguments: arguments.merge("password" => "[REDACTED]")
     )
     expect(operation.invocation_fingerprint).to eq(
@@ -82,7 +82,7 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     ).call.request
 
     expect(request.authorization_items.sole).to have_attributes(
-      kind: "operation", requested_durations: [ "invocation" ]
+      kind: "operation", requested_durations: %w[invocation chat_session permanent]
     )
   end
 

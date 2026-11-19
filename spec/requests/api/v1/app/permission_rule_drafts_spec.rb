@@ -55,7 +55,8 @@ RSpec.describe "API: /api/v1/app/permission_rule_drafts", type: :request do
     allow(Permissions::Catalog).to receive(:descriptors) do
       [ Permissions::CapabilityDescriptor.new(**descriptor.to_h.merge(maximum_autonomy: :job, classifier: descriptor.classifier,
         fingerprint_normalizer: descriptor.fingerprint_normalizer, redactor: descriptor.redactor,
-        resource_scope: descriptor.resource_scope, authority_durations: %i[invocation chat_session job])) ]
+        resource_scope: descriptor.resource_scope, authority_durations: %i[invocation chat_session job],
+        breadth_ceilings: %i[family tool resource].index_with(:job))) ]
     end
 
     post "/api/v1/app/permission_rule_drafts/preview", params: { draft: }, as: :json

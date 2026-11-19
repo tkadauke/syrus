@@ -5,10 +5,14 @@ module Permissions
     POLICIES = CapabilityDescriptor::POLICIES
 
     attr_reader :id, :layer, :policy, :capability, :operation, :resource_scope,
-      :constraints, :selectors, :delegable, :source, :rationale
+      :constraints, :selectors, :delegable, :source, :rationale, :duration
 
+    # +duration+ is how long the authority behind this rule lasts: nil for a
+    # durable rule (permanent), a lease's duration kind, or :invocation for a
+    # one-call grant. The evaluator caps an allow by the descriptor's breadth
+    # ceiling for that duration.
     def initialize(id:, layer:, policy:, source:, capability: nil, operation: nil,
-      resource_scope: nil, constraints: {}, selectors: {}, delegable: true, rationale: nil)
+      resource_scope: nil, constraints: {}, selectors: {}, delegable: true, rationale: nil, duration: nil, breadth: nil)
       @id = id.to_s.freeze
       @layer = layer.to_sym
       @policy = policy.to_sym
@@ -20,9 +24,15 @@ module Permissions
       @selectors = deep_freeze(selectors.to_h.transform_keys(&:to_sym))
       @delegable = !!delegable
       @rationale = rationale&.to_s&.freeze
+      @duration = duration&.to_sym
+      @breadth = breadth&.to_sym
       validate!
       freeze
     end
+
+    def effective_duration = duration || (layer == :invocation ? :invocation : :permanent)
+
+    def breadth = @breadth || CapabilityDescriptor.breadth_of(operation:, resource_scope:, constraints:)
 
     def matches?(invocation, descriptor:, context:, arguments: {})
       match_status(invocation, descriptor:, context:, arguments:) == :match

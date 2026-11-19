@@ -35,7 +35,9 @@ module Mockups
         definition = {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h
+          input_schema: klass.input_schema_value.to_h,
+          # Mockup previews render inside the chat's own preview sandbox. Essential: evaluated and audited, never deniable.
+          essential: true
         }
         definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
       end

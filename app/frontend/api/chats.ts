@@ -1878,8 +1878,16 @@ export function confirmPendingAction(path: string) {
   return postJson<ChatPayload>(path)
 }
 
-export function smartDecideAuthorizationItem(path: string, option: Pick<SmartPermissionOption, "duration" | "digest">) {
-  return postJson<ChatPayload>(path, { duration: option.duration, digest: option.digest })
+export function smartDecideAuthorizationItem(
+  path: string,
+  option: Pick<SmartPermissionOption, "duration" | "digest"> & Partial<Pick<SmartPermissionOption, "breadth" | "prefix">>
+) {
+  return postJson<ChatPayload>(path, {
+    duration: option.duration,
+    ...(option.breadth ? { breadth: option.breadth } : {}),
+    digest: option.digest,
+    ...(option.prefix ? { prefix: option.prefix.value } : {})
+  })
 }
 
 export function decideAuthorizationItem(path: string, decision: "approved" | "denied") {

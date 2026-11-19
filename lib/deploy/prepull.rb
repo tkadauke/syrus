@@ -24,15 +24,23 @@ module Deploy
       @context = context
     end
 
-    def warm!
+    # Starts the pull without waiting for it. The deploy starts every
+    # cluster's pull as soon as the images are pushed, so production's nodes
+    # download while staging rolls out instead of afterwards -- on a recent
+    # deploy the two pulls were 12 and 8 minutes back to back. Returns whether
+    # a pull is now running.
+    def start!
+      return @started if defined?(@started)
+
+      @started = false
       unless config.prepull?
         reporter.step("#{label}: skipping image pre-pull (PREPULL=0)")
-        return
+        return false
       end
 
       unless kubectl.exists?("daemonset", COMPUTE_DAEMONSET)
         reporter.step("#{label}: no compute DaemonSet in #{kubectl.namespace} — skipping pre-pull")
-        return
+        return false
       end
 
       reporter.step("#{label}: pre-pulling #{config.worker_dev_registry}:#{sha} on every compute node")
@@ -41,8 +49,16 @@ module Deploy
       unless kubectl.apply(manifest).success?
         reporter.warn("#{label}: could not create the pre-pull DaemonSet — continuing without it")
         remove!
-        return
+        return false
       end
+
+      @started = true
+    end
+
+    # Waits for the pull this cluster started (starting it first if nothing
+    # did), then removes the DaemonSet.
+    def warm!
+      return unless start!
 
       wait_for_warm_nodes
       remove!
