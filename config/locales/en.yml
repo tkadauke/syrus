@@ -154,6 +154,7 @@ en:
       entry_must_be_object: "entry %{index} must be an object with a provider key"
       entry_missing_provider: "entry %{index} is missing a provider"
       entry_unknown_provider: "entry %{index} has unknown provider %{provider}"
+      entry_unknown_account: "entry %{index} has an unknown account for this provider"
       entry_weight_not_positive: "entry %{index} weight must be positive"
       entry_unknown_model: "entry %{index} has model %{model} not in %{provider}'s known models"
       candidates_must_be_array: "candidates must be an array"

@@ -124,6 +124,7 @@ la:
       entry_must_be_object: "elementum %{index} obiectum cum clave provisoris esse debet"
       entry_missing_provider: "elemento %{index} provisor deest"
       entry_unknown_provider: "elementum %{index} provisorem ignotum %{provider} habet"
+      entry_unknown_account: "elementum %{index} rationem ignotam huius provisoris habet"
       entry_weight_not_positive: "pondus elementi %{index} positivum esse debet"
       entry_unknown_model: "elementum %{index} exemplar %{model} inter exemplaria nota provisoris %{provider} non habet"
       candidates_must_be_array: "candidati series esse debent"

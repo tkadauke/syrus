@@ -124,6 +124,7 @@ de:
       entry_must_be_object: "Eintrag %{index} muss ein Objekt mit Anbieterschlüssel sein"
       entry_missing_provider: "Eintrag %{index} enthält keinen Anbieter"
       entry_unknown_provider: "Eintrag %{index} enthält den unbekannten Anbieter %{provider}"
+      entry_unknown_account: "Eintrag %{index} enthält ein unbekanntes Konto für diesen Anbieter"
       entry_weight_not_positive: "Gewicht von Eintrag %{index} muss positiv sein"
       entry_unknown_model: "Eintrag %{index} enthält das Modell %{model}, das nicht zu den bekannten Modellen von %{provider} gehört"
       candidates_must_be_array: "Kandidaten müssen ein Array sein"
