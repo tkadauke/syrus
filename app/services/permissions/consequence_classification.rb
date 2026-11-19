@@ -81,7 +81,7 @@ module Permissions
       material_control: %w[
         approve_job unapprove_job close_job_successfully archive_epic move_epic_to_backlog
         update_job update_epic set_job_priority assign_job_to_epic remove_job_from_epic
-        add_epic_dependency remove_epic_dependency add_job_dependency remove_job_dependency
+        add_epic_dependency remove_epic_dependency add_job_dependency remove_job_dependency replace_job_dependency
         select_job_delivery_track mark_ci_repair_noop repair_provider_circuit_evidence
         retire_terminal_work_unit create_coding_job
       ],
