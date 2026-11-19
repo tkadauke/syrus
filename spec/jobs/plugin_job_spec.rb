@@ -1,10 +1,16 @@
 require "rails_helper"
 
 RSpec.describe PluginJob do
+  include ActiveJob::TestHelper
+
   before do
     stub_const("ExamplePluginJob", Class.new(described_class) do
       plugin :example_plugin
       def perform(*) = nil
+    end)
+    stub_const("FailingPluginJob", Class.new(described_class) do
+      plugin :example_plugin
+      def perform = raise("broken")
     end)
   end
 
@@ -33,14 +39,21 @@ RSpec.describe PluginJob do
 
   it "retries ordinary failures with backoff and records the final discard" do
     record = PluginRecord.create!(name: "example_plugin", enabled: true, config: {})
-    error = RuntimeError.new("broken")
+    started_at = Time.current
 
-    expect(ExamplePluginJob.rescue_handlers).to include([ "StandardError", anything ])
-    ExamplePluginJob.new.record_discarded_failure(error)
+    expect { FailingPluginJob.perform_now }.to have_enqueued_job(FailingPluginJob).on_queue("plugin_example_plugin")
+    scheduled_at = Time.at(enqueued_jobs.last.fetch(:at))
+    expect(scheduled_at).to be_between(started_at + 2.seconds, Time.current + 4.seconds)
+    expect(record.reload.config["job_health"]).to be_nil
+
+    clear_enqueued_jobs
+    final_attempt = FailingPluginJob.new
+    final_attempt.exception_executions = { [ StandardError ].to_s => PluginJob::DEFAULT_ATTEMPTS - 1 }
+    expect { final_attempt.perform_now }.not_to have_enqueued_job(FailingPluginJob)
 
     expect(record.reload.config.fetch("job_health")).to include(
       "discarded_count" => 1,
-      "last_error" => "ExamplePluginJob: RuntimeError: broken"
+      "last_error" => "FailingPluginJob: RuntimeError: broken"
     )
   end
 end
