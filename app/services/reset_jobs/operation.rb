@@ -22,9 +22,8 @@ module ResetJobs
 
     def self.active_workflows(job)
       owned_ids = job.active_runtime_workflows.map(&:id)
-      job.workflows.where(state: Workflow::OPERATOR_DISMISSABLE_STATES).or(
-        job.workflows.where(id: owned_ids)
-      ).order(:created_at, :id)
+      direct_ids = job.workflows.where(state: Workflow::OPERATOR_DISMISSABLE_STATES).pluck(:id)
+      Workflow.where(id: direct_ids | owned_ids).order(:created_at, :id)
     end
 
     def initialize(job:, user:, reason:, pending_action:)
@@ -46,17 +45,24 @@ module ResetJobs
 
     def cancel_and_supersede!
       active_units = WorkUnits::Ownership.active_units_for_job(job)
+      workflows = self.class.active_workflows(job).to_a
+      runs = runs_for_reset(workflows)
       job.spawned_processes.running.find_each { |process| process.request_kill!(user:) }
-      self.class.active_workflows(job).each do |workflow|
+      workflows.each do |workflow|
         WorkUnits::WorkflowCancellation.cancel!(workflow, reason: Workflow::SUPERSEDED_BY_RESET_REASON, artifacts: reset_artifacts)
       end
-      job.runs.active.find_each do |run|
+      runs.active.find_each do |run|
         run.cancel! if run.may_cancel?
         run.save!
       end
       active_units.each { |unit| unit.preempt!(reason: Workflow::SUPERSEDED_BY_RESET_REASON) }
       job.workflows.find_each { |workflow| workflow.update!(artifacts: workflow.artifacts.to_h.merge(reset_artifacts)) }
-      job.runs.find_each { |run| run.update!(artifacts: run.artifacts.to_h.merge(reset_artifacts)) }
+      runs.find_each { |run| run.update!(artifacts: run.artifacts.to_h.merge(reset_artifacts)) }
+    end
+
+    def runs_for_reset(workflows)
+      workflow_step_ids = Step.where(workflow_id: workflows.map(&:id)).select(:id)
+      Run.where(job_id: job.id).or(Run.where(step_id: workflow_step_ids))
     end
 
     def remove_remote_state!
