@@ -132,7 +132,7 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(grader_step.details).to include(
       "name" => "cli-go-tests",
       "target_label" => "//cli:grade/go-tests",
-      "command" => "mise exec go@1.26.5 -- sh -c 'cd cli && go test ./...'"
+        "command" => "mise exec go@1.26.5 -- sh -c 'cd cli && { go list ./... >/dev/null 2>&1 || export GOWORK=off; } && go test ./...'"
     )
   end
 
