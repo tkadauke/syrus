@@ -43,6 +43,10 @@ class Coworkers::UnsavedWorkspace
 
   def record!(branch:, path:, operation:, failure:)
     now = Time.current
+    if Syrus::Metrics.registry.declared?(:syrus_coworkers_workspace_push_failures_total)
+      Syrus::Metrics.counter(:syrus_coworkers_workspace_push_failures_total)
+        .increment(tags: { coworker: @link.coworker.handle, kind: failure.kind })
+    end
     @link.with_lock do
       @link.reload
       attempts = @link.unsaved_workspace_attempt_count.to_i + 1
