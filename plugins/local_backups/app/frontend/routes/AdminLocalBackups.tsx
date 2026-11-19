@@ -24,6 +24,8 @@ export function AdminLocalBackups() {
   )
 }
 
+export default AdminLocalBackups
+
 function Inventory({ payload }: { payload: Awaited<ReturnType<typeof fetchAdminLocalBackups>> }) {
   const { t } = useT("local_backups")
   return <>
