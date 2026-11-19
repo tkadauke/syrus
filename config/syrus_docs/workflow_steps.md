@@ -175,6 +175,16 @@ A repository with no repository rules follows the user's rules. Workflow creatio
 candidate in `agent_provider_routing_decision`, including a
 `routing_resolution` payload with the matched rule, source scope, condition
 results, and final action.
+After choosing a provider, Syrus selects from that user's enabled accounts for
+the provider. Disabled, uncredentialed, authentication-failed, rate-limited,
+exhausted, and below-threshold accounts are skipped. Selection balances active
+Workflows, remaining capacity, and optional account weights; when usage is
+unknown it rotates fairly by weighted assignment history. The selected account
+is pinned before the first Run and is retained by retries and resumable
+sessions. An advanced rule candidate may set `account_id` to pin one account;
+otherwise the candidate represents the whole provider pool. Account-specific
+proactive thresholds override the provider default, and zero disables only
+proactive pausing, not hard-unavailability checks.
 When that action is a hold, Syrus also creates a durable
 `ProviderRoutingHold` before workflow admission. The record captures the
 matched rule and scope, condition evidence, operator-facing reason, resumption
