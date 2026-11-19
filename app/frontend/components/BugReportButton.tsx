@@ -523,7 +523,10 @@ export const BugReportButton = forwardRef<
                     {captureError}
                   </p>
                 ) : capturing ? (
-                  <p className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-600 dark:text-gray-300" role="status">
+                  <p
+                    className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-600 dark:text-gray-300"
+                    role="status"
+                  >
                     {t("bug_report.capturing")}
                   </p>
                 ) : null}
