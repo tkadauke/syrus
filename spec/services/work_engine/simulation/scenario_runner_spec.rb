@@ -346,6 +346,13 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result.events.join("\n")).to include("running_run_without_live_worker_evidence")
     job = Job.find(result.job_ids.first)
     expect(job).to be_implemented
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    semantic_failure = workflow.steps.find_by!(kind: "grader", iteration: 1, details: { "name" => "frontend-lint" })
+    first_collect = workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+    expect(semantic_failure).to be_failed
+    expect(semantic_failure.latest_run.agent_outcome).not_to eq(AutoRetryAttempt::WORKER_DIED_CLASSIFICATION)
+    expect(first_collect).to be_failed
+    expect(first_collect.runs).to exist
   end
 
   it "repairs a queued Run stuck in a healthy re-enqueue loop by clearing affinity" do
