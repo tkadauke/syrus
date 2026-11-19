@@ -1,6 +1,13 @@
 require "rails_helper"
 
 RSpec.describe Coworkers::ProvisioningCleanup do
+  it "keeps cleanup retry limits and worker placement while using plugin isolation" do
+    expect(Coworkers::ProvisioningCleanupJob).to be < PluginJob
+    expect(Coworkers::ProvisioningCleanupJob::MAX_ATTEMPTS).to eq(PluginJob::DEFAULT_ATTEMPTS)
+    expect(Coworkers::ProvisioningCleanupJob.new.queue_name).to eq("cleanup")
+    expect(Coworkers::ProvisioningCleanupJob.concurrency_group.call).to eq("plugin_coworkers")
+  end
+
   class ProvisioningRemote
     attr_accessor :sha, :failure
     attr_reader :deleted
