@@ -223,7 +223,9 @@ function QueueContent({
         <div className="mb-4 rounded border border-gray-200 p-3 text-sm dark:border-gray-700">
           <p className="font-medium">{t("queue.plugin_queues")}</p>
           <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-            {payload.plugin_queues.map((item) => <li key={item.queue}>{t("queue.plugin_queue_summary", { plugin: item.plugin, depth: item.depth, failed: item.failed_count })}</li>)}
+            {payload.plugin_queues.map((item) => (
+              <li key={item.queue}>{t("queue.plugin_queue_summary", { plugin: item.plugin, depth: item.depth, failed: item.failed_count })}</li>
+            ))}
           </ul>
         </div>
       ) : null}
