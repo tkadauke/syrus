@@ -9,6 +9,16 @@ RSpec.describe Syrus::PluginHealth do
     )
   end
 
+  def external_manifest(scan:, requires_syrus: nil)
+    Syrus::Plugin::Manifest.new(name: "external", version: "1.0.0", provides: {}, external: true,
+      requires_syrus:, metadata: { plugin_host_surface_scan: scan })
+  end
+
+  def scan(legacy: [], unlisted: [], dynamic: [], minimum: nil, error: nil)
+    Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy:, unlisted:, dynamic:,
+      minimum_syrus_version: minimum, content_hash: "digest", error:)
+  end
+
   def health(manifests, enabled: nil)
     described_class.new(manifests, enabled_names: enabled || manifests.map(&:name))
   end
@@ -101,5 +111,34 @@ RSpec.describe Syrus::PluginHealth do
 
   it "treats an unknown plugin name as healthy" do
     expect(health([ manifest("ruby") ]).healthy?("nonexistent")).to be(true)
+  end
+
+  it "warns without disabling an external plugin that uses unsupported APIs" do
+    subject = health([ external_manifest(scan: scan(unlisted: [ double ])) ])
+    expect(subject.status("external")).to have_attributes(state: :warning)
+    expect(subject.healthy?("external")).to be(true)
+  end
+
+  it "does not warn for a clean external plugin" do
+    expect(health([ external_manifest(scan: scan) ]).status("external").state).to eq(:ok)
+  end
+
+  it "records a non-fatal scan error" do
+    subject = health([ external_manifest(scan: scan(error: "Prism failed")) ])
+    expect(subject.status("external").reasons.join).to include("Prism failed")
+    expect(subject.healthy?("external")).to be(true)
+  end
+
+  it "warns without disabling for a literal dynamic core reference" do
+    subject = health([ external_manifest(scan: scan(dynamic: [ double ])) ])
+
+    expect(subject.status("external")).to have_attributes(state: :warning)
+    expect(subject.status("external").reasons.join).to include("dynamic")
+  end
+
+  it "warns when requires_syrus is below the derived minimum" do
+    requirement = Gem::Requirement.new(">= 0.1.0")
+    subject = health([ external_manifest(scan: scan(minimum: "0.2.0"), requires_syrus: requirement) ])
+    expect(subject.status("external").reasons.join).to include("0.2.0")
   end
 end

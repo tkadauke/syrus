@@ -205,6 +205,10 @@ module Syrus
           previous = @plugins.find { |manifest| manifest.name == name }
           requires_syrus ||= previous&.requires_syrus
           external = previous&.external if external.nil?
+          plugin_root ||= previous&.plugin_root
+          if previous&.external && previous.metadata.to_h.key?(:plugin_host_surface_scan)
+            metadata = { plugin_host_surface_scan: previous.metadata.to_h[:plugin_host_surface_scan], **metadata }
+          end
           # Registration runs on every `to_prepare`, so re-registering a name
           # replaces the previous manifest rather than appending a second one.
           # It has to happen before the uniqueness checks, or a plugin would
@@ -507,6 +511,18 @@ module Syrus
         register(name: name, version: version.to_s, provides: {}, external: external,
           requires_syrus: requires_syrus, depends_on: dependencies, loaded: false,
           default_enabled: false, disableable: false, **details)
+      end
+
+      def record_host_surface_scan(name, scan)
+        @mutex.synchronize do
+          index = @plugins.index { |manifest| manifest.name == name }
+          return unless index
+
+          manifest = @plugins.fetch(index)
+          metadata = manifest.metadata.to_h.merge(plugin_host_surface_scan: scan)
+          @plugins[index] = manifest.with(metadata:)
+          @generation += 1
+        end
       end
 
       def validate_dependencies!

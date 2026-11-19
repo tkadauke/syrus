@@ -958,6 +958,12 @@ en:
     plugins:
       disabled: "The %{plugin} plugin is disabled."
       route_not_found: "Plugin route not found."
+      host_surface:
+        scan_failed: "Host API scan failed: %{error}"
+        unsupported: "%{count} unsupported host API reference(s)"
+        legacy: "%{count} non-public host API reference(s)"
+        dynamic: "%{count} dynamic non-public host API reference(s)"
+        minimum: "requires_syrus starts at %{declared}, below the derived minimum %{derived}"
 
     job_lifecycle:
       direct_only: "Only direct Jobs can be started manually."

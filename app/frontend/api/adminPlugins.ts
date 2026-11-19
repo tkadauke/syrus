@@ -15,7 +15,18 @@ export type AdminPluginExtensionPoint = {
 export type AdminPlugin = {
   disable_blockers: Array<{ kind: string; label: string; count: number }>
   recommendation?: { reason: string; evidence: string } | null
-  health?: { state: string; reasons: string[] }
+  health?: {
+    state: string
+    reasons: string[]
+    host_surface?: {
+      public: Array<{ constant: string; tier: string; path: string; line: number }>
+      legacy: Array<{ constant: string; tier: string; path: string; line: number }>
+      unlisted: Array<{ constant: string; tier: string; path: string; line: number }>
+      dynamic: Array<{ constant: string; tier: string; path: string; line: number; method: string }>
+      minimum_syrus_version?: string | null
+      error?: string | null
+    }
+  }
   name: string
   display_name: string
   display_name_i18n_key?: string | null

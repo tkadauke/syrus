@@ -898,6 +898,12 @@ la:
     plugins:
       disabled: "Plugin %{plugin} deactivatum est."
       route_not_found: "Iter plugin non inventum est."
+      host_surface:
+        scan_failed: "Inspectio API hospitis defecit: %{error}"
+        unsupported: "%{count} relatio API hospitis non sustentata"
+        legacy: "%{count} relatio API hospitis non publica"
+        dynamic: "%{count} relatio dynamica API hospitis non publica"
+        minimum: "requires_syrus a %{declared} incipit, infra minimum deductum %{derived}"
 
     job_lifecycle:
       direct_only: "Sola opera directa manu incipi possunt."
