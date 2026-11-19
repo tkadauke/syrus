@@ -3947,8 +3947,7 @@ module WorkEngine
       @active_runtime_work_for_job ||= {}
       return @active_runtime_work_for_job[job.id] if @active_runtime_work_for_job.key?(job.id)
 
-      WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
-      job.reload
+      job.reload if execute_repairs? && WorkUnits::TerminalWorkflowSync.for_job(job)
       @active_runtime_work_for_job[job.id] = job.any_active_run? || WorkUnits::Ownership.active_for_job?(job)
     end
 
