@@ -231,16 +231,18 @@ export function RecentChatsSidebar({
           .then(({ chats: linkedChats }) => {
             setLoadedCoworkerSideChats((current) => ({
               ...current,
-              [coworkerId]: linkedChats.filter((link) => link.role === "side").map((link) => ({
-                ...mainChat,
-                id: link.id,
-                title: link.title,
-                title_pending: link.title == null,
-                pinned: false,
-                chat_path: link.path,
-                unread: false,
-                agent_appearance: mainChat.agent_appearance ? { ...mainChat.agent_appearance, coworker_chat_role: "side" } : undefined
-              }))
+              [coworkerId]: linkedChats
+                .filter((link) => link.role === "side")
+                .map((link) => ({
+                  ...mainChat,
+                  id: link.id,
+                  title: link.title,
+                  title_pending: link.title == null,
+                  pinned: false,
+                  chat_path: link.path,
+                  unread: false,
+                  agent_appearance: mainChat.agent_appearance ? { ...mainChat.agent_appearance, coworker_chat_role: "side" } : undefined
+                }))
             }))
           })
           .catch((error) => onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_load_chats")))
@@ -563,184 +565,202 @@ export function RecentChatsSidebar({
                   const coworkerId = chat.agent_appearance?.coworker_id
                   const isCoworkerMain = chat.agent_appearance?.coworker_chat_role === "main" && coworkerId != null
                   const payloadSideChats = isCoworkerMain
-                    ? section.chats.filter((candidate) => candidate.agent_appearance?.coworker_chat_role === "side" && candidate.agent_appearance.coworker_id === coworkerId)
+                    ? section.chats.filter(
+                        (candidate) => candidate.agent_appearance?.coworker_chat_role === "side" && candidate.agent_appearance.coworker_id === coworkerId
+                      )
                     : []
-                  const sideChats = isCoworkerMain
-                    ? uniqueChats([...payloadSideChats, ...(loadedCoworkerSideChats[coworkerId] || [])])
-                    : []
+                  const sideChats = isCoworkerMain ? uniqueChats([...payloadSideChats, ...(loadedCoworkerSideChats[coworkerId] || [])]) : []
                   const expanded = isCoworkerMain && expandedCoworkerIds.has(coworkerId)
                   const showAllSideChats = isCoworkerMain && expandedCoworkerChatIds.has(coworkerId)
                   const visibleSideChats = expanded ? sideChats.slice(0, showAllSideChats ? undefined : sidebarSettings.per_group) : []
                   return (
                     <Fragment key={chat.id}>
-                    <div
-                      className={`group/recent-chat relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
-                      onMouseEnter={() => setHoveredChatId(chat.id)}
-                      onMouseLeave={() => setHoveredChatId((current) => (current === chat.id ? null : current))}
-                      onDragEnter={(e) => {
-                        e.preventDefault()
-                        if (draggingOverChatId === chat.id) return
-                        if (navigateTimerRef.current !== null) clearTimeout(navigateTimerRef.current)
-                        setDraggingOverChatId(chat.id)
-                        navigateTimerRef.current = setTimeout(() => {
-                          navigate(withRoutePrefix(chat.chat_path, prefix))
-                          onCloseDrawer()
-                          setDraggingOverChatId(null)
-                        }, 1000)
-                      }}
-                      onDragLeave={(e) => {
-                        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
-                        if (navigateTimerRef.current !== null) clearTimeout(navigateTimerRef.current)
-                        setDraggingOverChatId(null)
-                      }}
-                      onDragOver={(e) => e.preventDefault()}
-                    >
-                      {isCoworkerMain ? (
-                        <button
-                          aria-expanded={expanded}
-                          aria-label={t(expanded ? "nav:collapse_coworker_chats" : "nav:expand_coworker_chats", { name: chat.agent_appearance?.name })}
-                          className="absolute left-1 z-10 inline-flex h-6 w-5 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
-                          onClick={() => toggleCoworker(coworkerId, chat)}
-                          type="button"
-                        >
-                          <ChevronDownIcon className={expanded ? "" : "-rotate-90"} />
-                        </button>
-                      ) : null}
-                      <Link
-                        aria-disabled={Boolean(chat.archived_at)}
-                        aria-label={title}
-                        className={`${recentChatLinkClass(active)} ${isCoworkerMain ? "pl-7" : ""} ${chat.archived_at ? "cursor-default opacity-60" : ""}`}
-                        onClick={(event) => {
-                          if (chat.archived_at) {
-                            event.preventDefault()
-                            return
-                          }
-                          onCloseDrawer()
+                      <div
+                        className={`group/recent-chat relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
+                        onMouseEnter={() => setHoveredChatId(chat.id)}
+                        onMouseLeave={() => setHoveredChatId((current) => (current === chat.id ? null : current))}
+                        onDragEnter={(e) => {
+                          e.preventDefault()
+                          if (draggingOverChatId === chat.id) return
+                          if (navigateTimerRef.current !== null) clearTimeout(navigateTimerRef.current)
+                          setDraggingOverChatId(chat.id)
+                          navigateTimerRef.current = setTimeout(() => {
+                            navigate(withRoutePrefix(chat.chat_path, prefix))
+                            onCloseDrawer()
+                            setDraggingOverChatId(null)
+                          }, 1000)
                         }}
-                        title={title}
-                        to={withRoutePrefix(chat.chat_path, prefix)}
+                        onDragLeave={(e) => {
+                          if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+                          if (navigateTimerRef.current !== null) clearTimeout(navigateTimerRef.current)
+                          setDraggingOverChatId(null)
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
                       >
-                        {unread ? (
-                          <span
-                            aria-label={t("chat:unread_indicator")}
-                            className="h-2 w-2 shrink-0 rounded-full bg-brand"
-                            data-testid="recent-chat-unread-indicator"
-                            role="img"
-                          />
+                        {isCoworkerMain ? (
+                          <button
+                            aria-expanded={expanded}
+                            aria-label={t(expanded ? "nav:collapse_coworker_chats" : "nav:expand_coworker_chats", { name: chat.agent_appearance?.name })}
+                            className="absolute left-1 z-10 inline-flex h-6 w-5 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
+                            onClick={() => toggleCoworker(coworkerId, chat)}
+                            type="button"
+                          >
+                            <ChevronDownIcon className={expanded ? "" : "-rotate-90"} />
+                          </button>
                         ) : null}
-                        {chat.agent_appearance ? (
-                          <Avatar
-                            avatarUrl={chat.agent_appearance.avatar_url}
-                            avatarKey={chat.agent_appearance.avatar_key}
-                            accentHex={chat.agent_appearance.accent_hex}
-                            name={chat.agent_appearance.name}
-                            size="xs"
-                          />
-                        ) : null}
-                        <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
-                        {chat.conversation_kind === "group" ? (
-                          <span className="contents" data-testid="group-chat-icon">
-                            <TeamIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
-                          </span>
-                        ) : null}
-                        {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
-                        <ProviderAvailabilityWarning
-                          availability={
-                            chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)
-                          }
-                          className="mt-0.5"
-                        />
-                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>{title}</span>
-                        {chat.archived_at ? <span className="shrink-0 text-xs text-text-muted">{t("chat:archived")}</span> : null}
-                        <span
-                          className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
-                          data-testid="recent-chat-marker-slot"
-                        >
-                          <IndicatorPopover chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
-                            <span className="flex items-center gap-1">
-                              <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} />
-                              <JobStateMarkers summary={chat.job_summary} />
-                              {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
-                                <span
-                                  className={`${RECENT_CHAT_MARKER_CELL_CLASS} ${chat.active_goal.status === "paused" ? "text-amber-500 opacity-60 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}
-                                  data-testid="chat-goal-marker"
-                                >
-                                  <TargetIcon className="h-3.5 w-3.5" />
-                                </span>
-                              ) : null}
-                              {(chat.pending_proposal_count ?? 0) > 0 && (
-                                <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
-                                  <span className="h-2 w-2 rounded-full bg-amber-400 dark:bg-amber-500" />
-                                </span>
-                              )}
-                              {chat.coding_checkout_uncommitted && (
-                                <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
-                                  <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
-                                </span>
-                              )}
-                              {(chat.scratchpad_items_count ?? 0) > 0 && (
-                                <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
-                                  <span className="h-2 w-2 rounded-full bg-teal-500 dark:bg-teal-400" />
-                                </span>
-                              )}
-                            </span>
-                          </IndicatorPopover>
-                        </span>
-                      </Link>
-                      {chat.agent_appearance?.coworker_chat_role === "main" ? (
-                        <button
-                          aria-label={t("nav:new_coworker_side_chat", { name: chat.agent_appearance.name })}
-                          className={`${RECENT_CHATS_ICON_BUTTON_CLASS} absolute right-8 top-1/2 z-10 -translate-y-1/2`}
-                          disabled={creatingSideChatIds.has(chat.id)}
-                          onClick={() => createSideChat(chat)}
-                          type="button"
-                        >
-                          <PlusIcon />
-                        </button>
-                      ) : null}
-                      {chat.archived_at ? null : (
-                        <RecentChatActionsMenu
-                          chat={chat}
-                          deleteDisabled={deletingChatIds.has(chat.id)}
-                          onDelete={() => deleteRecentChat(chat)}
-                          onNotice={onNotice}
-                          onTogglePin={() => togglePin(chat)}
-                          open={openActionChatId === chat.id}
-                          search={location.search}
-                          setOpen={(nextOpen) => {
-                            setOpenActionChatId((current) => {
-                              const open = typeof nextOpen === "function" ? nextOpen(current === chat.id) : nextOpen
-                              return open ? chat.id : current === chat.id ? null : current
-                            })
+                        <Link
+                          aria-disabled={Boolean(chat.archived_at)}
+                          aria-label={title}
+                          className={`${recentChatLinkClass(active)} ${isCoworkerMain ? "pl-7" : ""} ${chat.archived_at ? "cursor-default opacity-60" : ""}`}
+                          onClick={(event) => {
+                            if (chat.archived_at) {
+                              event.preventDefault()
+                              return
+                            }
+                            onCloseDrawer()
                           }}
-                        />
-                      )}
-                    </div>
-                    {visibleSideChats.map((sideChat) => (
-                      <CoworkerSideChatRow
-                        activeChatId={activeChatId}
-                        chat={sideChat}
-                        codingModeEnabled={codingModeEnabled}
-                        key={sideChat.id}
-                        localModeEnabled={localModeEnabled}
-                        onCloseDrawer={onCloseDrawer}
-                        prefix={prefix}
-                        providerAvailability={providerAvailability}
-                      />
-                    ))}
-                    {expanded && sideChats.length > sidebarSettings.per_group ? (
-                      <div className="ml-8 flex gap-1">
-                        {!showAllSideChats ? (
-                          <button aria-label={t("nav:show_more_coworker_chats", { name: chat.agent_appearance?.name })} className="whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => new Set(current).add(coworkerId))} type="button">
-                            {t("nav:more_coworker_chats")}
+                          title={title}
+                          to={withRoutePrefix(chat.chat_path, prefix)}
+                        >
+                          {unread ? (
+                            <span
+                              aria-label={t("chat:unread_indicator")}
+                              className="h-2 w-2 shrink-0 rounded-full bg-brand"
+                              data-testid="recent-chat-unread-indicator"
+                              role="img"
+                            />
+                          ) : null}
+                          {chat.agent_appearance ? (
+                            <Avatar
+                              avatarUrl={chat.agent_appearance.avatar_url}
+                              avatarKey={chat.agent_appearance.avatar_key}
+                              accentHex={chat.agent_appearance.accent_hex}
+                              name={chat.agent_appearance.name}
+                              size="xs"
+                            />
+                          ) : null}
+                          <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
+                          {chat.conversation_kind === "group" ? (
+                            <span className="contents" data-testid="group-chat-icon">
+                              <TeamIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
+                            </span>
+                          ) : null}
+                          {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
+                          <ProviderAvailabilityWarning
+                            availability={
+                              chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)
+                            }
+                            className="mt-0.5"
+                          />
+                          <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>
+                            {title}
+                          </span>
+                          {chat.archived_at ? <span className="shrink-0 text-xs text-text-muted">{t("chat:archived")}</span> : null}
+                          <span
+                            className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
+                            data-testid="recent-chat-marker-slot"
+                          >
+                            <IndicatorPopover chat={chat} prefix={prefix} rowHovered={hoveredChatId === chat.id}>
+                              <span className="flex items-center gap-1">
+                                <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} />
+                                <JobStateMarkers summary={chat.job_summary} />
+                                {chat.active_goal && (chat.active_goal.status === "active" || chat.active_goal.status === "paused") ? (
+                                  <span
+                                    className={`${RECENT_CHAT_MARKER_CELL_CLASS} ${chat.active_goal.status === "paused" ? "text-amber-500 opacity-60 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}
+                                    data-testid="chat-goal-marker"
+                                  >
+                                    <TargetIcon className="h-3.5 w-3.5" />
+                                  </span>
+                                ) : null}
+                                {(chat.pending_proposal_count ?? 0) > 0 && (
+                                  <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
+                                    <span className="h-2 w-2 rounded-full bg-amber-400 dark:bg-amber-500" />
+                                  </span>
+                                )}
+                                {chat.coding_checkout_uncommitted && (
+                                  <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
+                                    <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
+                                  </span>
+                                )}
+                                {(chat.scratchpad_items_count ?? 0) > 0 && (
+                                  <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
+                                    <span className="h-2 w-2 rounded-full bg-teal-500 dark:bg-teal-400" />
+                                  </span>
+                                )}
+                              </span>
+                            </IndicatorPopover>
+                          </span>
+                        </Link>
+                        {chat.agent_appearance?.coworker_chat_role === "main" ? (
+                          <button
+                            aria-label={t("nav:new_coworker_side_chat", { name: chat.agent_appearance.name })}
+                            className={`${RECENT_CHATS_ICON_BUTTON_CLASS} absolute right-8 top-1/2 z-10 -translate-y-1/2`}
+                            disabled={creatingSideChatIds.has(chat.id)}
+                            onClick={() => createSideChat(chat)}
+                            type="button"
+                          >
+                            <PlusIcon />
                           </button>
-                        ) : (
-                          <button aria-label={t("nav:show_less_coworker_chats", { name: chat.agent_appearance?.name })} className="whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => { const next = new Set(current); next.delete(coworkerId); return next })} type="button">
-                            {t("nav:fewer_coworker_chats")}
-                          </button>
+                        ) : null}
+                        {chat.archived_at ? null : (
+                          <RecentChatActionsMenu
+                            chat={chat}
+                            deleteDisabled={deletingChatIds.has(chat.id)}
+                            onDelete={() => deleteRecentChat(chat)}
+                            onNotice={onNotice}
+                            onTogglePin={() => togglePin(chat)}
+                            open={openActionChatId === chat.id}
+                            search={location.search}
+                            setOpen={(nextOpen) => {
+                              setOpenActionChatId((current) => {
+                                const open = typeof nextOpen === "function" ? nextOpen(current === chat.id) : nextOpen
+                                return open ? chat.id : current === chat.id ? null : current
+                              })
+                            }}
+                          />
                         )}
                       </div>
-                    ) : null}
+                      {visibleSideChats.map((sideChat) => (
+                        <CoworkerSideChatRow
+                          activeChatId={activeChatId}
+                          chat={sideChat}
+                          codingModeEnabled={codingModeEnabled}
+                          key={sideChat.id}
+                          localModeEnabled={localModeEnabled}
+                          onCloseDrawer={onCloseDrawer}
+                          prefix={prefix}
+                          providerAvailability={providerAvailability}
+                        />
+                      ))}
+                      {expanded && sideChats.length > sidebarSettings.per_group ? (
+                        <div className="ml-8 flex gap-1">
+                          {!showAllSideChats ? (
+                            <button
+                              aria-label={t("nav:show_more_coworker_chats", { name: chat.agent_appearance?.name })}
+                              className="whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
+                              onClick={() => setExpandedCoworkerChatIds((current) => new Set(current).add(coworkerId))}
+                              type="button"
+                            >
+                              {t("nav:more_coworker_chats")}
+                            </button>
+                          ) : (
+                            <button
+                              aria-label={t("nav:show_less_coworker_chats", { name: chat.agent_appearance?.name })}
+                              className="whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
+                              onClick={() =>
+                                setExpandedCoworkerChatIds((current) => {
+                                  const next = new Set(current)
+                                  next.delete(coworkerId)
+                                  return next
+                                })
+                              }
+                              type="button"
+                            >
+                              {t("nav:fewer_coworker_chats")}
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
                     </Fragment>
                   )
                 })}
@@ -788,7 +808,15 @@ function uniqueChats(chats: ChatNavRecord[]) {
   return chats.filter((chat) => !seen.has(chat.id) && Boolean(seen.add(chat.id)))
 }
 
-function CoworkerSideChatRow({ activeChatId, chat, codingModeEnabled, localModeEnabled, onCloseDrawer, prefix, providerAvailability }: {
+function CoworkerSideChatRow({
+  activeChatId,
+  chat,
+  codingModeEnabled,
+  localModeEnabled,
+  onCloseDrawer,
+  prefix,
+  providerAvailability
+}: {
   activeChatId: number | null
   chat: ChatNavRecord
   codingModeEnabled: boolean
@@ -807,7 +835,10 @@ function CoworkerSideChatRow({ activeChatId, chat, codingModeEnabled, localModeE
         {unread ? <span aria-label={t("chat:unread_indicator")} className="h-2 w-2 shrink-0 rounded-full bg-brand" role="img" /> : null}
         <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
         {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
-        <ProviderAvailabilityWarning availability={chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)} className="mt-0.5" />
+        <ProviderAvailabilityWarning
+          availability={chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)}
+          className="mt-0.5"
+        />
         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>{title}</span>
         <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} />
       </Link>
