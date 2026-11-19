@@ -1243,6 +1243,54 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("Skipped — dependency failed")).toBeInTheDocument()
     expect(screen.getByText("SyntaxError: unexpected end-of-input")).toBeInTheDocument()
   })
+
+  it("shows open plugin circuits on the health page", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "parser",
+            display_name: "Parser",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.0.0",
+            enabled: true,
+            description: "Parses output",
+            extension_points: [],
+            health: {
+              state: "circuit_open",
+              reasons: [],
+              circuits: [
+                {
+                  extension_point: "ci_log_parser",
+                  state: "open",
+                  failure_count: 3,
+                  opened_at: "2026-01-01T00:00:00Z",
+                  retry_at: "2026-01-01T00:00:30Z"
+                }
+              ],
+              failures: [
+                {
+                  extension_point: "ci_log_parser",
+                  operation: "call",
+                  exception_class: "RuntimeError",
+                  message: "offline",
+                  count: 3,
+                  last_at: "2026-01-01T00:00:00Z"
+                }
+              ]
+            }
+          }
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText("Circuit open")).toBeInTheDocument()
+    expect(screen.getByText(/ci_log_parser circuit opened after 3 failures/)).toBeInTheDocument()
+    expect(screen.getByText(/ci_log_parser.call failed 3 time\(s\): RuntimeError: offline/)).toBeInTheDocument()
+  })
 })
 
 function renderRoute(children: ReactNode, initialEntry = "/admin/plugins") {
