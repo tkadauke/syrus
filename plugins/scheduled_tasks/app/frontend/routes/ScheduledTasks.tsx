@@ -346,10 +346,11 @@ function taskColumns({
     {
       key: "schedule",
       header: t("scheduled_tasks.schedule"),
+      className: "min-w-72",
       render: (task) => (
         <div>
-          <div>{task.schedule_label || t("scheduled_tasks.none")}</div>
-          <div className="text-xs text-text-secondary">
+          <div className="whitespace-nowrap">{task.schedule_label || t("scheduled_tasks.none")}</div>
+          <div className="whitespace-nowrap text-xs text-text-secondary">
             {task.next_fire_at ? (
               <>
                 {t("scheduled_tasks.next_run")}: <RelativeTimestamp value={task.next_fire_at} />
