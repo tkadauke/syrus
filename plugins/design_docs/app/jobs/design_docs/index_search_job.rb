@@ -1,6 +1,6 @@
 module DesignDocs
-  class IndexSearchJob < ApplicationJob
-    queue_as :indexing
+  class IndexSearchJob < PluginJob
+    plugin :design_docs
 
     def perform(design_doc_id)
       design_doc = DesignDocs::DesignDoc.find_by(id: design_doc_id)

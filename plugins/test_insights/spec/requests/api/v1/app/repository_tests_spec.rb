@@ -195,7 +195,7 @@ RSpec.describe "App API repository tests", type: :request do
       begin
         expect {
           get "/api/v1/app/repositories/#{repo.id}/tests"
-        }.to have_enqueued_job(BackfillTestIdentitiesJob).with(repo.id).on_queue("indexing")
+        }.to have_enqueued_job(BackfillTestIdentitiesJob).with(repo.id).on_queue("plugin_test_insights")
       ensure
         ActiveSupport::Notifications.unsubscribe(subscriber)
       end

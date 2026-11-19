@@ -391,3 +391,18 @@ instance. The standard distribution includes:
   `draw_image`, `move_element`, `delete_element`, `update_scene`, `save_canvas`,
   `clear_canvas`, and `load_canvas`.
 - `worker_timeline` — default-disabled worker and workflow timeline views.
+
+## Background jobs
+
+Plugin-owned Active Jobs subclass `PluginJob` and declare their owner with
+`plugin :plugin_name`. They run on `plugin_<name>` by default, including jobs
+from external plugins. Core jobs keep their existing queues.
+
+The default cap is two concurrent jobs across a plugin's job classes. Raise it
+with `plugin :plugin_name, concurrency: 5`, or use `queue_as` when one job has a
+specific worker-placement requirement. Concurrency slots use a renewable
+15-minute lease so long-running jobs remain capped while abandoned slots can
+recover; plugins with an unusual recovery window can pass
+`concurrency_duration: 30.minutes`. Ordinary failures retry five times with
+polynomial backoff, then the job is discarded and recorded in plugin health.
+The admin Queue and Plugins pages show plugin queue depth and failures.

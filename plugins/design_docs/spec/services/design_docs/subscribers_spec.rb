@@ -15,7 +15,7 @@ RSpec.describe DesignDocs::Subscribers do
   it "enqueues an index update when Design Docs search is available" do
     expect {
       described_class.on_design_doc_upserted(event("design_doc.upserted", design_doc_id: 7))
-    }.to have_enqueued_job(DesignDocs::IndexSearchJob).with(7).on_queue("indexing")
+    }.to have_enqueued_job(DesignDocs::IndexSearchJob).with(7).on_queue("plugin_design_docs")
   end
 
   it "no-ops when global search is disabled" do

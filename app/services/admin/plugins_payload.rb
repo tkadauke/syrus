@@ -223,9 +223,24 @@ module Admin
         request_count: record&.request_count.to_i,
         last_error_at: record&.last_error_at&.iso8601
       }
+      payload[:jobs] = plugin_job_health(manifest, record)
       payload[:failures] = failures if failures.any?
       payload[:circuits] = circuits if circuits.any?
       payload
+    end
+
+    def plugin_job_health(manifest, record)
+      queue_name = "plugin_#{manifest.name}"
+      recorded = record&.config&.dig("job_health") || {}
+      plugin_job_counts.for(manifest.name, default_queue: queue_name).merge(
+        discarded_count: recorded["discarded_count"].to_i,
+        last_error: recorded["last_error"],
+        last_discarded_at: recorded["last_discarded_at"]
+      )
+    end
+
+    def plugin_job_counts
+      @plugin_job_counts ||= Admin::PluginJobHealth.new
     end
 
     def plugin_health

@@ -1,5 +1,5 @@
-class K8sCluster::RefreshCredentialsJob < ApplicationJob
-  queue_as :low_priority_maintenance
+class K8sCluster::RefreshCredentialsJob < PluginJob
+  plugin :k8s_cluster
 
   def perform
     return unless K8sCluster.enabled?

@@ -163,6 +163,7 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
           ) : null}
           <RuntimeCircuits plugin={plugin} />
           <RuntimeFailures plugin={plugin} />
+          <PluginJobHealth plugin={plugin} />
           {description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{description}</p> : null}
           {longDescription ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -381,6 +382,7 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
             ) : null}
             <RuntimeCircuits plugin={plugin} />
             <RuntimeFailures plugin={plugin} />
+            <PluginJobHealth plugin={plugin} />
             {description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{description}</p> : null}
             {longDescription ? (
               <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p>
@@ -571,6 +573,18 @@ function RuntimeFailures({ plugin }: { plugin: AdminPlugin }) {
       })}
     </p>
   ))
+}
+
+function PluginJobHealth({ plugin }: { plugin: AdminPlugin }) {
+  const { t } = useT("admin")
+  const jobs = plugin.health?.jobs
+  if (!jobs) return null
+
+  return (
+    <p className="mt-2 text-sm text-text-secondary">
+      {t("plugins.job_health", { queue: jobs.queue, depth: jobs.depth, failed: jobs.failed_count, discarded: jobs.discarded_count })}
+    </p>
+  )
 }
 
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {

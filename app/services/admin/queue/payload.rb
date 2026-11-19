@@ -68,6 +68,7 @@ module Admin
           }
 
           smart_folder_payload(:active, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queue_counts,
             jobs: PerformanceLogging.phase("admin_queue.active.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, claimed_at: job.claimed_execution&.created_at) } },
             total: total,
             pagination: pagination_payload(total),
@@ -87,6 +88,7 @@ module Admin
           jobs = PerformanceLogging.phase("admin_queue.pending.query") { apply_sql_sort(filtered, :pending).offset(offset).limit(@per_page).to_a }
 
           smart_folder_payload(:pending, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queue_counts,
             jobs: PerformanceLogging.phase("admin_queue.pending.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, ready_at: job.ready_execution&.created_at) } },
             total: total,
             pagination: pagination_payload(total),
@@ -113,6 +115,7 @@ module Admin
           }
 
           smart_folder_payload(:failed, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queue_counts,
             since: since.iso8601,
             failures: PerformanceLogging.phase("admin_queue.failed.serialize", count: failures.size) { failures.map { |failure| serialize_failure(failure) } },
             total: total,
@@ -176,6 +179,10 @@ module Admin
       end
 
       private
+
+      def plugin_queue_counts
+        @plugin_queue_counts ||= Admin::PluginJobHealth.new.summaries
+      end
 
       attr_reader :params, :user
 

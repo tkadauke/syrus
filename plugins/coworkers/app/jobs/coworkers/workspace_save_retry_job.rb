@@ -1,5 +1,5 @@
-class Coworkers::WorkspaceSaveRetryJob < ApplicationJob
-  queue_as :chat
+class Coworkers::WorkspaceSaveRetryJob < PluginJob
+  plugin :coworkers
 
   def perform(link_id, token)
     link = Coworkers::Chat.find_by(id: link_id)
