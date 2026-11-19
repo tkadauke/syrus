@@ -308,6 +308,13 @@ class GithubClient
     end
   end
 
+  def delete_ref(repo_slug, ref)
+    track_rate_limits { @client.delete_ref(repo_slug, ref.delete_prefix("refs/")) }
+    true
+  rescue Octokit::NotFound, Octokit::UnprocessableEntity
+    true
+  end
+
   def merge_pull_request(repo_slug, pr_number, commit_title:, merge_method:, sha: nil)
     options = {
       commit_title: commit_title,

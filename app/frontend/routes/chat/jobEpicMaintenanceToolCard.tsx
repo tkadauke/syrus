@@ -115,6 +115,11 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     showsAssignedEpic: true
   },
   add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
+  replace_job_dependency: { toolName: "replace_job_dependency", subjectKind: "job", actionLabel: "Replace Job Dependency", verb: "Dependency replaced" },
+  reset_job: {
+    toolName: "reset_job", subjectKind: "job", actionLabel: "Reset Job", verb: "Reset requested",
+    pendingVerb: "Reset requested", showsReasonMarkdown: true, warningMessage: true, recoversTargetFromMessage: true
+  },
   remove_job_dependency: {
     toolName: "remove_job_dependency",
     subjectKind: "job",

@@ -66,7 +66,8 @@ module Permissions
       "add_epic_dependency" => operation("epics", "add_dependency"),
       "remove_epic_dependency" => operation("epics", "remove_dependency"),
       "add_job_dependency" => operation("jobs", "add_dependency"),
-      "remove_job_dependency" => operation("jobs", "remove_dependency")
+      "remove_job_dependency" => operation("jobs", "remove_dependency"),
+      "replace_job_dependency" => operation("jobs", "replace_dependency")
     }.freeze
 
     class << self

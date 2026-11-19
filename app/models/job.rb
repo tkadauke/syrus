@@ -729,6 +729,13 @@ class Job < ApplicationRecord
       transitions from: :blocked_by_epic, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_if_needed
     end
 
+    event :reset_from_scratch do
+      transitions from: %i[running failed implemented approved no_change_needed], to: :blocked_by_epic,
+                  guard: :reset_requires_dependency_block?
+      transitions from: %i[running failed implemented approved no_change_needed], to: :queued,
+                  after: :create_initial_run_if_needed
+    end
+
     # Fired by Workflow#start's after-callback when a workflow
     # (initial / retry / pr_comment / ci_failure / rebase, but NOT
     # auto_merge — landing has its own state) begins executing.
@@ -1125,6 +1132,10 @@ class Job < ApplicationRecord
     return false if epic.releases_jobs_for_execution?
 
     true
+  end
+
+  def reset_requires_dependency_block?
+    blocked_by_epic_before_execution? || !dependencies_satisfied_for_execution?
   end
 
   def prepare_skip_reason
