@@ -12,9 +12,9 @@ RSpec.describe "CI workflow" do
     run_steps = steps.filter_map { |step| step["run"] }
 
     # Each RSpec shard runs `bin/rspec-ci $(bin/rspec-shard-files ...)`.
-    rspec_step = run_steps.index { |command| command.start_with?("bin/rspec-ci") }
-    expect(rspec_step).to be_present
-    expect(run_steps.index("npm ci")).to be < rspec_step
+    rspec_step_index = run_steps.index { |command| command.start_with?("bin/rspec-ci ") }
+    expect(rspec_step_index).to be_present
+    expect(run_steps.index("npm ci")).to be < rspec_step_index
     expect(steps).to include(
       a_hash_including(
         "uses" => "actions/setup-node@v7",
