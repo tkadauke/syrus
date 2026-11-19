@@ -68,6 +68,14 @@ RSpec.describe "Syrus::Metrics reconcile!" do
 
       expect(Syrus::Metrics.render).to include('syrus_reconciled_total{state="succeeded"} 1.75')
     end
+
+    it "can retire a series whose label identity no longer exists" do
+      counter.reconcile!(5, tags: { state: "retired" })
+
+      counter.clear(tags: { state: "retired" })
+
+      expect(Syrus::Metrics.render).not_to include('syrus_reconciled_total{state="retired"}')
+    end
   end
 
   describe "Histogram#reconcile!" do

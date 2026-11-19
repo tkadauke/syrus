@@ -191,7 +191,7 @@ module MetricsDashboard
         # merged into it: a core category's label comes from this plugin's
         # own i18n namespace via `tabs.<id>`, but a plugin's label is a
         # literal string this plugin cannot own a translation for.
-        plugin_tabs: plugin_tabs.map { |tab| { id: tab[:id], label: tab[:label] } },
+        plugin_tabs: plugin_tabs.map { |tab| { id: tab[:id], label: tab[:label], summary: tab[:summary] }.compact },
         panels: panels
       }
     end
