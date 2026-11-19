@@ -60,17 +60,18 @@ RSpec.describe ResetJobs::Operation do
     expect(run.artifacts).to include("reset_reason" => "Discard compatibility work")
   end
 
-  it "lists and cancels a shared Workflow owned through non-anchor WorkUnit membership" do
+  it "lists and cancels an indirectly owned child Workflow" do
     epic = Factories.epic(user:, repository:)
     anchor = Factories.job_with_run(user:, repository:, epic:, state: "running", issue_number: 50,
-      workflow_attrs: { state: "running", trigger_kind: "stack_rebase" },
-      step_attrs: { state: "running" }, run_attrs: { state: "running", trigger_kind: "stack_rebase" })
+      workflow_attrs: { state: "running", trigger_kind: "merge_train_validation" },
+      step_attrs: { state: "running" }, run_attrs: { state: "running", trigger_kind: "merge_train_validation" })
     member = Factories.job_record(user:, repository:, epic:, state: "running", issue_number: 51)
     workflow = anchor.workflows.sole
     run = anchor.runs.sole
-    unit = attach_work_unit(workflow, state: "running", kind: "stack_rebase", member_jobs: [ anchor, member ])
+    unit = attach_work_unit(workflow, state: "running", kind: "merge_train_validation", member_jobs: [ anchor, member ])
 
     expect(workflow.job).to eq(anchor)
+    expect(WorkDefinitions.for(unit.kind)).to be_child
     expect(described_class.destruction_summary(member)[:active_workflows]).to eq([ workflow.id ])
 
     described_class.new(job: member, user:, reason: "Reset member", pending_action: action).call

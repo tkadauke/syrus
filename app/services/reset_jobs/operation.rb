@@ -21,7 +21,8 @@ module ResetJobs
     end
 
     def self.active_workflows(job)
-      owned_ids = job.active_runtime_workflows.map(&:id)
+      WorkUnits::TerminalWorkflowSync.for_job(job)
+      owned_ids = WorkUnits::Ownership.active_workflow_ids([ job.id ]).to_a
       direct_ids = job.workflows.where(state: Workflow::OPERATOR_DISMISSABLE_STATES).pluck(:id)
       Workflow.where(id: direct_ids | owned_ids).order(:created_at, :id)
     end
