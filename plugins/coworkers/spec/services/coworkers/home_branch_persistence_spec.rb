@@ -69,6 +69,7 @@ RSpec.describe Coworkers::HomeBranchPersistence do
 
         ""
       end
+    expect(GitMergeDrivers).to receive(:register!).with(git:, path:)
 
     described_class.new(chat, coworker, git: git).persist!
 

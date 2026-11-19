@@ -69,12 +69,50 @@ module AgentInsights
                              AND workflows.finished_at >= :window_start
                          )
                        SQL
-                       .includes(workflows: { steps: :runs })
+                       .to_a
+      preload_workflows_steps_and_runs(jobs)
 
       jobs.reject(&:infrastructure?)
           .sort_by { |recent_job| recent_completion_at(recent_job) || Time.zone.at(0) }
           .reverse
           .first(RECENT_JOB_LIMIT)
+    end
+
+    # `includes(workflows: { steps: :runs })` preloads three ordered
+    # associations across IN lists of ids, which no index can sort: MySQL
+    # filesorted every workflow, step (grader output in `details`) and run (the
+    # full prompt) of the analysis window, and every insight run failed with
+    # `Out of sort memory`. Load them unsorted and order them in Ruby.
+    def preload_workflows_steps_and_runs(jobs)
+      return if jobs.empty?
+
+      workflows_by_job_id = ::Workflow.where(job_id: jobs.map(&:id)).reorder(nil).to_a.group_by(&:job_id)
+      jobs.each do |recent_job|
+        attach!(recent_job, :workflows, workflows_by_job_id.fetch(recent_job.id, []).sort_by { |workflow| [ workflow.created_at, workflow.id ] })
+      end
+
+      # Done here rather than through core's internal step preloader: a plugin
+      # may only reach core through the declared host surface.
+      workflows = jobs.flat_map(&:workflows)
+      steps_by_workflow_id = ::Step.where(workflow_id: workflows.map(&:id)).reorder(nil).to_a.group_by(&:workflow_id)
+      workflows.each do |workflow|
+        ordered = steps_by_workflow_id.fetch(workflow.id, []).sort_by { |step| [ step.position, step.id ] }
+        ordered.each { |step| step.association(:workflow).target = workflow }
+        attach!(workflow, :steps, ordered)
+      end
+      steps = workflows.flat_map(&:steps)
+      return if steps.empty?
+
+      runs_by_step_id = Run.where(step_id: steps.map(&:id)).reorder(nil).to_a.group_by(&:step_id)
+      steps.each do |step|
+        attach!(step, :runs, runs_by_step_id.fetch(step.id, []).sort_by { |run| [ run.created_at, run.id ] })
+      end
+    end
+
+    def attach!(owner, name, records)
+      association = owner.association(name)
+      association.target = records
+      association.loaded!
     end
 
     def recent_completion_at(recent_job)

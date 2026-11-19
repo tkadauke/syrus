@@ -5,11 +5,11 @@ RSpec.describe AdminMysql::PermissionProvider do
     observe = described_class.capability_descriptor("mysql.admin/status@v1")
     kill = described_class.capability_descriptor("mysql.admin/kill_query@v1")
 
-    expect(observe).to have_attributes(capability: "mysql.admin.observe@v1", risk: :medium, maximum_autonomy: :job)
+    expect(observe).to have_attributes(capability: "mysql.admin.observe@v1", risk: :medium, maximum_autonomy: :permanent)
     expect(observe.defaults.values.uniq).to eq([ :allow ])
     expect(kill).to have_attributes(
       capability: "mysql.admin.kill_query@v1", risk: :critical,
-      maximum_autonomy: :invocation, authority_durations: [ :invocation ]
+      maximum_autonomy: :permanent
     )
     expect(kill.defaults).to eq(AgentRole::CHAT_PLANNER => :ask)
   end

@@ -23,9 +23,12 @@ module Deploy
   class ClusterRollout
     attr_reader :context, :images
 
-    def initialize(context:, images:)
+    # +prepull+ is the cluster's pre-pull, usually already started by the
+    # runner right after the push; a rollout on its own starts one itself.
+    def initialize(context:, images:, prepull: nil)
       @context = context
       @images = images
+      @prepull = prepull || Prepull.new(context)
     end
 
     def roll!
@@ -44,8 +47,7 @@ module Deploy
       backup = MysqlBackup.new(context)
       backup.suspend!
 
-      MiseCache.new(context).apply!
-      Prepull.new(context).warm!
+      @prepull.warm!
       Migrations.new(context).run!
 
       pins.pin!

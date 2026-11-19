@@ -7,7 +7,7 @@ RSpec.describe PersonalDocuments::Origin do
 
   it "classifies manual and legacy documents as personal context" do
     expect(origin_for(nil)).to eq(kind: "personal", chat: nil)
-    expect(origin_for("https://docs.google.com/document/d/example/edit")).to eq(kind: "personal", chat: nil)
+    expect(origin_for("https://example.test/document")).to eq(kind: "personal", chat: nil)
   end
 
   it "classifies and links chat uploads and runtime captures" do

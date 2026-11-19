@@ -227,6 +227,7 @@ test("covers review diff, coverage, diff comments, and workflow warning action",
   await expect(coverage).toContainText("app/frontend/routes/Dashboard.tsx")
 
   await page.getByRole("button", { name: /^Workflows \(\d+\)$/ }).click()
+  await page.getByRole("button", { name: "Show more" }).click()
   await page.getByRole("button", { name: /Implement/i }).click()
   await expect(page.getByText("Branch coverage 70.2% is below the 75% threshold")).toBeVisible()
   await expect(page.getByRole("button", { name: "File a fix Job" })).toBeVisible()

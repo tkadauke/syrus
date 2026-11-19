@@ -113,6 +113,40 @@ RSpec.describe AutoRetryJob do
     expect(workflow.workflow_workspace_events.last.event_type).to eq("storage_lost")
   end
 
+  it "reruns a running idempotent grader after transient Git transport failure without clearing healthy affinity" do
+    workflow.update_columns(state: "running", worker_hostname: "worker-current", worker_storage_key: "storage-current")
+    step.update_columns(kind: "grader", state: "running")
+    run.update_columns(state: "failed", agent_provider: "claude", finished_at: Time.current)
+    run.create_run_diagnostic!(
+      error_class: "WorkflowSourceSnapshots::InfrastructureStateError",
+      error_message: "immutable source checkout failed: Failed to connect to github.com port 443"
+    )
+    expect(run.reload.run_failure_classification).to have_attributes(
+      classification: "git_transport_transient",
+      retryable: true
+    )
+    attempt = AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      agent_provider: "claude",
+      failure_classification: "git_transport_transient",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: Time.current
+    )
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.to change { step.runs.where(state: "queued").count }.by(1)
+
+    expect(attempt.reload.performed_at).to be_present
+    expect(workflow.reload).to have_attributes(
+      worker_hostname: "worker-current",
+      worker_storage_key: "storage-current"
+    )
+  end
+
   it "targets the Step that produced the automatic retry" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     allow(RetryFailedStepEnqueuer).to receive(:call).and_call_original

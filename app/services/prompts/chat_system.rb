@@ -1133,8 +1133,6 @@ module Prompts
     end
 
     def document_label(document)
-      return "Google Doc" if document.google_doc?
-
       content_type = document.content_type.to_s
       type = case content_type
       when "application/pdf"

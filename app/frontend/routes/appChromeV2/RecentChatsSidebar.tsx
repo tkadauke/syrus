@@ -10,6 +10,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   DEFAULT_CHAT_SIDEBAR_SETTINGS,
   cancelCodingCheckout,
+  createChatFromAction,
   deleteChat,
   fetchChatGroupsPage,
   fetchChats,
@@ -196,6 +197,7 @@ export function RecentChatsSidebar({
   const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
   const [deletingChatIds, setDeletingChatIds] = useState<Set<number>>(() => new Set())
+  const [creatingSideChatIds, setCreatingSideChatIds] = useState<Set<number>>(() => new Set())
   const [sidebarSettings, setSidebarSettings] = useState<ChatSidebarSettings>(readSidebarSettings)
   const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
   const [openActionChatId, setOpenActionChatId] = useState<number | null>(null)
@@ -370,6 +372,26 @@ export function RecentChatsSidebar({
       })
       .finally(() => {
         setDeletingChatIds((current) => {
+          const next = new Set(current)
+          next.delete(chat.id)
+          return next
+        })
+      })
+  }
+
+  function createSideChat(chat: ChatNavRecord) {
+    const path = chat.agent_appearance?.side_chat_action_path
+    if (!path || creatingSideChatIds.has(chat.id)) return
+    setCreatingSideChatIds((current) => new Set(current).add(chat.id))
+    void createChatFromAction(path)
+      .then((payload) => {
+        refreshRecentChats(queryClient)
+        navigate(withRoutePrefix(payload.chat_path, prefix))
+        onCloseDrawer()
+      })
+      .catch((error) => onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_create_side_chat")))
+      .finally(() => {
+        setCreatingSideChatIds((current) => {
           const next = new Set(current)
           next.delete(chat.id)
           return next
@@ -613,6 +635,17 @@ export function RecentChatsSidebar({
                           </IndicatorPopover>
                         </span>
                       </Link>
+                      {chat.agent_appearance?.coworker_chat_role === "main" ? (
+                        <button
+                          aria-label={t("nav:new_coworker_side_chat", { name: chat.agent_appearance.name })}
+                          className={`${RECENT_CHATS_ICON_BUTTON_CLASS} absolute right-8 top-1/2 z-10 -translate-y-1/2`}
+                          disabled={creatingSideChatIds.has(chat.id)}
+                          onClick={() => createSideChat(chat)}
+                          type="button"
+                        >
+                          <PlusIcon />
+                        </button>
+                      ) : null}
                       {chat.archived_at ? null : (
                         <RecentChatActionsMenu
                           chat={chat}

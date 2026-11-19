@@ -330,6 +330,15 @@ migrations from a runtime toggle would mean choosing which of several processes
 runs them while the others serve traffic against a changing schema, with no
 rollout gate -- the deploy path exists precisely to avoid that.
 
+Declare `roles %w[web worker preview sidecar]` only for genuinely
+process-specific plugins; omission means all roles. Invalid names are rejected,
+and an unlisted process records a skipped-role health reason. Language,
+framework, prepare, and preview providers must remain available to `preview`.
+Installing, replacing, removing, or changing roles requires **Apply changes**,
+which drains long-lived processes and lets the supervisor restart containers
+through pre-boot sync. It does not hot-unload plugin code or run a second
+migration mechanism.
+
 ## Telling an admin a plugin exists
 
 The three states above all assume somebody already knows the plugin is there.
@@ -1023,14 +1032,20 @@ grant. A scopeable grant additionally supplies `scope_options_callback`
 `chat_mcp_tool_set` providers are collected, so disabling a plugin removes its
 declarations from the catalog.
 
-Each definition offered to coworkers must set `coworker_safe: true` and must
-either name a `capability` whose provider grant lists that tool or explicitly
-set `ungated: true`. Gated calls honor the coworker's `auto`, `confirm`, or
-`queue` policy even when the tool is read-only. `ungated` is reserved for
-tools confined to the coworker's workspace or current chat that reveal no data
-beyond the owner's visibility and incur no external cost. Approval replay
-resolves the tool by name through the enabled provider instead of coupling core
-code to plugin handler classes.
+Coworkers inherit plugin chat tools by default. A plugin may set
+`coworker_excluded: true` only when an operation depends on a dedicated chat
+mode, checkout, runtime, workflow role, or otherwise has no coherent coworker
+semantics; admin-only definitions set `admin_only: true`. These exclusions are
+registration boundaries, not authorization shortcuts. Every inherited tool
+keeps its canonical capability descriptor, availability checks, resource
+scope, and handler. Definitions without a legacy `coworker_grants` declaration
+are grouped by their descriptor capability and default to confirmation.
+Existing grants remain supported for labels, scope choices, and compatibility.
+`ungated` on a definition must mean exactly what `essential: true` means on its
+descriptor (the registry validator rejects a mismatch): tools confined to the
+coworker's own conversation that reveal no data beyond the owner's visibility
+and incur no external cost. Approval replay resolves the tool by name through the enabled
+provider instead of coupling core code to plugin handler classes.
 
 Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
 (`chat_mcp_tool_set`). A plugin registers exactly one tool-set entrypoint per
@@ -1042,6 +1057,41 @@ and implement:
 | `.tool_definitions` | `() → [{name:, description:, input_schema:}, ...]` (chat: `(tier:)`) | Every tool this set can offer |
 | `.available_for?` | `(repository) → bool` (chat: `(chat_session, tier:)`) | Whether the set is offered at all |
 | `#handle` | `(tool_name, params, server_context) → MCP::Tool::Response` | Dispatch a call |
+
+#### Consequence classification (required)
+
+Every operation must be classified on purpose, and
+`Permissions::CapabilityRegistryValidator` fails CI otherwise:
+
+- **`essential: true`** -- consequence-free work an agent needs for research,
+  planning, coordination, context management or bounded workflow execution.
+  It is still evaluated and audited, but the evaluator returns `allow` over
+  every rule, lease and preset, the gates never create a request, and the
+  permission UI never offers a rule for it. An essential descriptor may not
+  declare a barrier effect (`CapabilityDescriptor::BARRIER_EFFECTS`).
+- **Gated** -- the descriptor declares a barrier effect (external write,
+  communication, destructive, irreversible, credential use, privilege change,
+  operational, persistent autonomy, operator-host access, financial).
+- **`deniable_reason:`** -- no barrier effect, yet deniable for a named reason
+  from `CapabilityDescriptor::DENIABLE_REASONS` (confidential cross-boundary
+  reads, instance-wide observability, material control, shared state, ...).
+
+`default: allow` is **not** non-deniable: an explicit deny overrides any
+default. Internal persistence alone is **not** a consequence barrier -- a
+private memory, a draft, a bookmark or a workflow summary is essential;
+sharing or destroying it is gated. Split a family whose operations differ
+(read and write a private memory are essential; publish and delete are
+gated). Core tools are classified in `Permissions::ConsequenceClassification`;
+plugins classify their own operations in `register_capability` (or with
+`essential: true` on a legacy tool definition), so core never names a plugin
+tool. Coworkers have their own rules but the same essentials as chat: a chat
+essential stays essential on the coworker surface, and only tools that exist
+on one surface alone carry surface-specific classifications.
+
+Every operation that asks can be allowed forever. To keep a broad grant from
+being offered, narrow `breadth_ceilings:` instead of capping durations, for
+example raw SQL: `{ family: :invocation, tool: :invocation, resource: :permanent }`
+(once for the family or tool, forever for one named database).
 
 Every agent-callable definition is normalized to a
 `Permissions::CapabilityDescriptor` and audited in CI. New definitions must

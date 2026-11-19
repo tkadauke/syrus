@@ -238,10 +238,17 @@
     "description": "Named coworker reviewers use repository grants and protected memory.",
     "aria_label": "Coworker review routing summary"
   },
-  "chat": { "message_to": "to @{{handle}}", "bridge_link": "via Chat #{{id}}: {{title}}", "new_title": "New chat" },
+  "chat": {
+    "message_to": "to @{{handle}}",
+    "bridge_link": "via Chat #{{id}}: {{title}}",
+    "new_title": "New chat",
+    "view_working_session": "View working session"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",
+    "creating_side_chat": "Creating side chat…",
+    "edit": "Edit",
     "add_to_chat": "Add to chat",
     "remove_from_chat": "Remove from chat",
     "choose_chat": "Choose a chat",
@@ -251,5 +258,6 @@
     "soul_unavailable": "SOUL.md is unavailable.",
     "engineer_capabilities": "Fixed engineer capabilities",
     "existing_link": "Open this feature from its existing Syrus page."
-  }
+  },
+  "edit": { "title": "Edit coworker", "save": "Save changes", "saving": "Saving…" }
 }

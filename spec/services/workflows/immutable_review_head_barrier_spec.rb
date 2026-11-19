@@ -104,6 +104,58 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
     expect(tail.reload).to be_queued
   end
 
+  it "rematerializes an in-flight stale gate after the repair transaction commits without cancelling its chain" do
+    stale = Step.create!(workflow: workflow, kind: "security_review", position: 1, state: "running",
+      loop_id: "security-loop", details: { "panel_member" => true, "reviewed_head_sha" => "head-a" })
+    stale.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", started_at: 1.minute.ago)
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 2, state: "succeeded",
+      loop_id: "security-loop")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-c")
+    sibling = Step.create!(workflow: workflow, kind: "adversarial_review", position: 3,
+      details: { "panel_review_kind" => "adversarial_review", "panel_member" => true })
+    collect_step = Step.create!(workflow: workflow, kind: "review_panel_collect", position: 4,
+      details: { "panel_review_kind" => "adversarial_review" })
+    format = Step.create!(workflow: workflow, kind: "format", position: 5)
+    grader = Step.create!(workflow: workflow, kind: "grader", position: 6)
+    pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 7)
+    repair.update!(next_step: sibling)
+    sibling.update!(next_step: collect_step)
+    collect_step.update!(next_step: format)
+    format.update!(next_step: grader)
+    grader.update!(next_step: pr_open)
+
+    StepDispatcher.advance_from(repair)
+    created = workflow.steps.select { |step| step.details.to_h["review_barrier_rematerialized"] }
+
+    expect(stale.reload).to be_cancelled
+    expect(created.map(&:kind)).to include("security_review")
+    expect(created.detect { |step| step.kind == "security_review" }.details)
+      .to include("reviewed_head_sha" => "head-c")
+    expect([ sibling, collect_step, format, grader, pr_open ].map { |step| step.reload.state }).to all(eq("queued"))
+
+    replacement = created.detect { |step| step.kind == "security_review" }
+    expect(replacement.runs.active).to exist
+
+    replacement.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    sibling.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    collect_step.update_columns(
+      state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current,
+      details: collect_step.details.to_h.merge("reviewed_head_sha" => "head-c")
+    )
+    workflow.set_artifact!("security_review_iterations", [
+      { "reviewed_head_sha" => "head-c", "verdict" => "approved" }
+    ])
+    workflow.set_artifact!("adversarial_review_iterations", [
+      { "aggregate" => true, "reviewed_head_sha" => "head-c", "verdict" => "approved" }
+    ])
+
+    expect(StepDispatcher.create_run_and_enqueue(format.reload, workflow)).to be_present
+    format.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    expect(StepDispatcher.create_run_and_enqueue(grader.reload, workflow)).to be_present
+    grader.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+    expect(StepDispatcher.create_run_and_enqueue(pr_open.reload, workflow)).to be_present
+  end
+
   # Regression: a required review gate still waiting to run had been stamped
   # with the HEAD of the time. A repair changed HEAD, invalidation cancelled
   # that never-run gate as "stale evidence" -- and the cancellation took the

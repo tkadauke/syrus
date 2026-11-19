@@ -34,11 +34,17 @@ and the video walkthrough settings documented above) is out of scope and
 stays fixed or on its own settings.
 
 `RetentionSweepJob` runs every ten minutes and enqueues one `RetentionPolicyPruneJob` per
-active stable key. A plugin provider that fails while declaring its policies is logged
-and skipped, so it cannot prevent core or other plugin policies from being scheduled.
-The worker resolves the current setting, deletes at most 50
+active stable key whose archive-before-delete setting is disabled.
+`RetentionArchiveSweepJob` separately fans out archive-enabled policies once daily, which
+keeps their immutable archives at a useful daily granularity. Both sweeps discover core
+and plugin-contributed policies through the registry. A plugin provider that fails while
+declaring its policies is logged and skipped, so it cannot prevent core or other plugin
+policies from being scheduled. The worker rechecks the current archive setting before it
+starts, so a policy that changes cadence while queued waits for the matching sweep rather
+than running through the stale cadence. It deletes at most 50
 ordered 1,000-row batches, and re-enqueues only that key after one minute when
-eligible rows remain. `SkipIfPending` plus a Solid Queue concurrency key
+eligible rows remain; each continuation keeps the originating cadence and stops if the
+archive setting changes. `SkipIfPending` plus a Solid Queue concurrency key
 deduplicates each policy without coupling failures between policies. A normal
 core or plugin policy needs only a registry definition—no ApplicationJob or
 recurring YAML entry. Definitions may name a small executor strategy when

@@ -74,11 +74,25 @@ class BackendExceptionEvent < ApplicationRecord
     )
   end
 
+  # Rails' default cleaner keeps only app/, config/, lib/ and test/ frames, so a
+  # failure inside a plugin was recorded as a bare `RunJob#perform_step` with
+  # the plugin frames -- the ones that say where it failed -- silenced like a
+  # gem's.
+  APP_FRAME_PREFIXES = %w[ app/ bin/ config/ lib/ plugins/ ].freeze
+
+  def self.backtrace_cleaner
+    @backtrace_cleaner ||= ActiveSupport::BacktraceCleaner.new.tap do |cleaner|
+      root = "#{Rails.root}/"
+      cleaner.add_filter { |line| line.delete_prefix(root) }
+      cleaner.add_silencer { |line| !line.start_with?(*APP_FRAME_PREFIXES) || line.include?("/vendor/") }
+    end
+  end
+
   def self.formatted_backtrace(exception)
     backtrace = exception&.backtrace
     return if backtrace.blank?
 
-    cleaned = Rails.backtrace_cleaner.clean(backtrace)
+    cleaned = backtrace_cleaner.clean(backtrace)
     cleaned = backtrace if cleaned.blank?
     cleaned.first(50).join("\n")
   end

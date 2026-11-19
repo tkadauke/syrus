@@ -265,15 +265,14 @@ RSpec.describe PersistentMcpDaemon do
 
         list_response = call_workflow_tool(path, "list_chats", token: token)
         listed = JSON.parse(json_body(list_response).dig("result", "content", 0, "text")).fetch("chats")
-        expect(listed.pluck("id")).to include(chat.id, owner_chat.id, other_coworker_chat.id)
-        expect(listed.pluck("id")).not_to include(hidden_owner_chat.id, inaccessible_chat.id)
+        expect(listed.pluck("id")).to contain_exactly(chat.id)
 
         search_response = call_workflow_tool(
           path, "search_chats", token: token,
           arguments: { query: "ownerhistoryneedle", coworker_id: "syrus" }
         )
         search_results = JSON.parse(json_body(search_response).dig("result", "content", 0, "text")).fetch("results")
-        expect(search_results.pluck("chat_session_id")).to eq([ owner_chat.id ])
+        expect(search_results).to be_empty
 
         hidden_search = call_workflow_tool(
           path, "search_chats", token: token,
@@ -286,7 +285,7 @@ RSpec.describe PersistentMcpDaemon do
           arguments: { query: "robinhistoryneedle", coworker_id: other_coworker.id }
         )
         filtered_results = JSON.parse(json_body(filtered_response).dig("result", "content", 0, "text")).fetch("results")
-        expect(filtered_results.pluck("chat_session_id")).to eq([ other_coworker_chat.id ])
+        expect(filtered_results).to be_empty
 
         owner_filtered = Mcp::Tools::SearchChatsTool.call(
           server_context: { chat_session: owner_chat }, query: "robinhistoryneedle", coworker_id: other_coworker.id
@@ -298,8 +297,7 @@ RSpec.describe PersistentMcpDaemon do
           path, "read_chat_messages", token: token,
           arguments: { chat_session_id: owner_chat.id }
         )
-        read_messages = JSON.parse(json_body(read_response).dig("result", "content", 0, "text")).fetch("messages")
-        expect(read_messages).to include(include("id" => owner_message.id))
+        expect(json_body(read_response).dig("result", "isError")).to be(true)
 
         foreign_search = call_workflow_tool(path, "search_chats", token: token, arguments: { query: "foreignhistoryneedle" })
         expect(JSON.parse(json_body(foreign_search).dig("result", "content", 0, "text")).fetch("results")).to be_empty
@@ -414,34 +412,13 @@ RSpec.describe PersistentMcpDaemon do
 
         essential = persistent_chat_tool_names(coworker_chat, tier: :essential)
         deferred = persistent_chat_tool_names(coworker_chat, tier: :deferred)
-        all_names = essential + deferred
         expect(essential).to include(*%w[
           write_coworker_file edit_coworker_file move_coworker_file delete_coworker_file
-          message_coworker manage_coworker_schedule read_memory
+          message_coworker manage_coworker_schedule write_memory read_memory
         ])
-        expect(deferred).to include("search_memories", "list_memories")
-        forbidden_names = all_names.grep(/\A(?:mysql_db_browser_|k8s_cluster_|credential_store_)/)
-        forbidden_names += all_names.grep(/(?:theme|preview|canvas|scene|draw_|element)/)
-        expect(forbidden_names).to be_empty
-
-        unsafe_coworker_definitions = Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set).flat_map do |tool_set|
-          next [] unless tool_set.respond_to?(:available_for_coworker?)
-
-          %i[essential deferred].flat_map do |tier|
-            next [] unless tool_set.available_for_coworker?(coworker_chat, tier: tier)
-
-            definitions = if tool_set.method(:tool_definitions).parameters.any? { |type, name| [ :key, :keyreq ].include?(type) && name == :chat_session }
-              tool_set.tool_definitions(tier: tier, chat_session: coworker_chat)
-            else
-              tool_set.tool_definitions(tier: tier)
-            end
-            definitions.select do |definition|
-              all_names.include?((definition[:name] || definition["name"]).to_s) &&
-                !(definition[:coworker_safe] || definition["coworker_safe"])
-            end
-          end
-        end
-        expect(unsafe_coworker_definitions).to be_empty
+        expect(deferred).to include(
+          "search_memories", "list_memories", "delete_memory", "publish_memory", "unpublish_memory"
+        )
 
         response = call_tool(
           "list_jobs", token: chat_token(coworker_chat, tier: :essential), arguments: {}

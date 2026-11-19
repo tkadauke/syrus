@@ -26,8 +26,12 @@ module Mcp::Tools
 
         proposal = chat_session.proposals.find_by(slug: slug)
         return Mcp::Tools.invalid("unknown proposal slug: #{slug}") unless proposal
+        # Only a proposal still awaiting the operator's decision can be
+        # withdrawn: a confirmed or rejected one is no longer the agent's to
+        # retract, and withdrawing it never undoes the work it created.
+        return Mcp::Tools.invalid("proposal #{slug} is already #{proposal.state}; only undecided proposals can be withdrawn") unless proposal.proposed?
 
-        cascade = ChatProposal.transitive_downstream_closure([ proposal ]).to_a
+        cascade = ChatProposal.transitive_downstream_closure([ proposal ]).to_a.select(&:proposed?)
 
         epic_ids = cascade.select(&:epic_bundle?).map(&:id)
         if epic_ids.any?

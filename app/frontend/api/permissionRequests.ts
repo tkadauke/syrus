@@ -1,9 +1,12 @@
 import { deleteJson, getJson, postJson } from "./client"
 
 export type SmartPermissionKind = "always_allow_similar" | "always_allow_command" | "allow_job" | "allow_chat"
+export type SmartPermissionBreadth = "resource" | "tool" | "family"
 export type SmartPermissionOption = {
   kind: SmartPermissionKind
   duration: "permanent" | "job" | "chat_session"
+  /** How broadly the rule applies: the named resource, the whole tool, or its whole family. */
+  breadth: SmartPermissionBreadth
   digest: string
   summary: { allows: string[]; excludes: string[] }
   draft: Record<string, unknown>
@@ -108,9 +111,10 @@ export const dismissPermissionRequest = (id: number) => {
 }
 export const batchDecidePermissionRequests = (requestIds: number[], decision: "approved" | "denied", duration?: string) =>
   postJson<{ requests: MutationPermissionRequest[] }>("/api/v1/app/permission_requests/batch_decide", { request_ids: requestIds, decision, duration })
-export const smartDecidePermissionRequest = (id: number, itemId: number, option: Pick<SmartPermissionOption, "duration" | "digest" | "prefix">) =>
+export const smartDecidePermissionRequest = (id: number, itemId: number, option: Pick<SmartPermissionOption, "duration" | "digest" | "prefix"> & Partial<Pick<SmartPermissionOption, "breadth">>) =>
   postJson<{ request: MutationPermissionRequest }>(`/api/v1/app/permission_requests/${id}/items/${itemId}/smart_decision`, {
     duration: option.duration,
+    ...(option.breadth ? { breadth: option.breadth } : {}),
     digest: option.digest,
     ...(option.prefix ? { prefix: option.prefix.value } : {})
   })

@@ -14,8 +14,17 @@ concurrency:
 
 jobs:
   rspec:
+    name: rspec (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # The parallel suite needs ~85 worker-minutes, more than one 4-vCPU runner
+    # finishes inside the timeout, so it is split by file across a matrix
+    # (bin/rspec-shard-files). Each shard also runs the :ci_only examples among
+    # its own files.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,15 +62,12 @@ jobs:
       # db:test:prepare, bin/rspec-fast, then the :ci_only examples), and
       # give the job matching headroom.
       - name: Run RSpec
-        run: bin/rspec-ci
+        run: bin/rspec-ci $(bin/rspec-shard-files ${{ matrix.shard }} 4)
 
-  react:
-    # Keep the frontend suite on the image it is validated against instead of
+  frontend:
+    # Keep the frontend jobs on the image they are validated against instead of
     # following ubuntu-latest across a runner-image migration mid-PR.
     runs-on: ubuntu-24.04
-    # This includes npm install, lint, a production build, bundle analysis,
-    # typechecking, and the full Vitest suite. The tests alone can take about
-    # nine minutes, so 15 minutes leaves too little runner-variance headroom.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -80,8 +86,43 @@ jobs:
       - name: Build and enforce frontend entry budget
         run: npm run build && npm run check:bundle-size
 
-      - name: Run React tests and typecheck
-        run: bin/test-react
+      # The relocation acceptance boots Rails against an external plugin root,
+      # so this job needs Ruby, the bundle and libvips like the rspec job.
+      - name: Install native image libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y libvips42t64 ||
+            sudo apt-get install --no-install-recommends -y libvips42 ||
+            sudo apt-get install --no-install-recommends -y libvips
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
 
       - name: Run external plugin relocation acceptance
         run: bin/test-plugin-relocation
+
+  react:
+    name: react (${{ matrix.shard }}/3)
+    runs-on: ubuntu-24.04
+    # bin/test-react runs Vitest with coverage on one worker in Actions; the
+    # whole suite on one runner outgrew the 30-minute budget, so it is split
+    # with Vitest's own --shard.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run React tests and typecheck
+        run: bin/test-react --shard=${{ matrix.shard }}/3

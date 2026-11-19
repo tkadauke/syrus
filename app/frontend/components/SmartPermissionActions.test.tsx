@@ -10,6 +10,7 @@ import { SmartPermissionActions } from "./SmartPermissionActions"
 const option: SmartPermissionOption = {
   kind: "always_allow_similar",
   duration: "permanent",
+  breadth: "resource",
   digest: "digest-1",
   summary: { allows: ["Maya may run mail.send/draft."], excludes: ["Other operations", "Anything a higher-layer rule denies"] },
   draft: {},
@@ -40,14 +41,33 @@ describe("SmartPermissionActions", () => {
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Always allow similar", "Deny"])
   })
 
-  it("presents chat-scoped and permanent choices separately", () => {
+  it("keeps the adaptive action one click away and puts the other durations behind More options", () => {
     const handlers = setup({ options: [chatOption, option] })
 
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Allow for this chat", "Always allow similar", "Deny"])
-    fireEvent.click(screen.getByRole("button", { name: "Allow for this chat" }))
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Always allow similar", "More options…", "Deny"])
+    fireEvent.click(screen.getByRole("button", { name: "More options…" }))
+    fireEvent.change(screen.getByLabelText("How long"), { target: { value: "chat_session" } })
+    fireEvent.click(screen.getByRole("button", { name: "Review" }))
     expect(screen.getByText("This chat only")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
     expect(handlers.onConfirm).toHaveBeenCalledWith(chatOption)
+  })
+
+  it("lets the operator choose how broadly a permanent rule applies", () => {
+    const toolOption: SmartPermissionOption = { ...option, breadth: "tool", digest: "digest-tool" }
+    const familyOption: SmartPermissionOption = { ...option, breadth: "family", digest: "digest-family" }
+    const handlers = setup({ options: [option, toolOption, familyOption] })
+
+    fireEvent.click(screen.getByRole("button", { name: "More options…" }))
+    const breadth = screen.getByLabelText("How broadly")
+    expect(Array.from(breadth.querySelectorAll("option")).map((item) => item.textContent)).toEqual([
+      "This resource only", "Every use of this tool", "The whole tool family"
+    ])
+    fireEvent.change(breadth, { target: { value: "family" } })
+    fireEvent.click(screen.getByRole("button", { name: "Review" }))
+    expect(screen.getByRole("group", { name: "Always allow similar · The whole tool family" })).toHaveTextContent("The whole tool family")
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(handlers.onConfirm).toHaveBeenCalledWith(familyOption)
   })
 
   it("offers only Allow once and Deny without an adaptive option", () => {

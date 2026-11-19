@@ -14,7 +14,8 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_142023) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -239,6 +240,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.string "contained_chat_execution", default: "off", null: false
     t.string "host_admission_policy", default: "prediction", null: false
     t.boolean "permissions_enforced", default: true, null: false
+    t.text "plugin_manifest_signing_key"
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -410,7 +412,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.json "metadata", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "error_cause", null: false
+    t.json "last_interaction", null: false
+    t.json "resource_timings", null: false
+    t.string "component_stack_unavailable_reason"
+    t.string "correlation_id"
+    t.integer "occurrence_count", default: 1, null: false
+    t.integer "burst_duration_ms", default: 0, null: false
+    t.datetime "last_occurred_at", null: false
+    t.boolean "recoverable", default: false, null: false
     t.index ["app_revision", "occurred_at"], name: "index_browser_error_events_on_revision_time"
+    t.index ["correlation_id"], name: "index_browser_error_events_on_correlation_id"
     t.index ["fingerprint", "occurred_at"], name: "index_browser_error_events_on_fingerprint_time"
     t.index ["occurred_at", "id"], name: "index_browser_error_events_on_occurred_id"
     t.index ["path", "occurred_at"], name: "index_browser_error_events_on_path_time"
@@ -451,8 +463,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.datetime "updated_at", null: false
     t.json "questions"
     t.json "answers"
+    t.integer "response_chat_session_id"
     t.index ["chat_session_id", "answered_at", "expired_at"], name: "idx_chat_agent_questions_active"
     t.index ["chat_session_id"], name: "index_chat_agent_questions_on_chat_session_id"
+    t.index ["response_chat_session_id"], name: "index_chat_agent_questions_on_response_chat_session_id"
   end
 
   create_table "chat_attachments", force: :cascade do |t|
@@ -756,6 +770,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.string "priority", default: "medium", null: false
     t.string "proposer_type"
     t.integer "proposer_id"
+    t.integer "response_chat_session_id"
     t.index ["chat_goal_id", "created_at"], name: "index_chat_proposals_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_chat_proposals_on_chat_goal_id"
     t.index ["chat_session_id", "slug"], name: "index_chat_proposals_on_chat_session_id_and_slug", unique: true
@@ -766,6 +781,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.index ["parent_proposal_id"], name: "index_chat_proposals_on_parent_proposal_id"
     t.index ["proposer_type", "proposer_id"], name: "index_chat_proposals_on_proposer"
     t.index ["repository_id"], name: "index_chat_proposals_on_repository_id"
+    t.index ["response_chat_session_id"], name: "index_chat_proposals_on_response_chat_session_id"
     t.index ["target_epic_id"], name: "index_chat_proposals_on_target_epic_id"
   end
 
@@ -1129,8 +1145,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.datetime "unsaved_workspace_retry_exhausted_at"
     t.datetime "unsaved_workspace_retry_scheduled_at"
     t.string "unsaved_workspace_retry_token"
+    t.integer "source_chat_session_id"
+    t.integer "last_delivered_message_id"
+    t.virtual "main_coworker_id", type: :bigint, as: "CASE WHEN role = 'main' THEN coworker_id ELSE NULL END", stored: true
     t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
-    t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
+    t.index ["coworker_id", "source_chat_session_id"], name: "idx_coworker_chats_mention_source", unique: true
+    t.index ["main_coworker_id"], name: "index_coworker_chats_on_main_coworker_id", unique: true
     t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
 
@@ -1244,6 +1264,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.integer "added_by_user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "after_reply", default: "wake", null: false
     t.index ["added_by_user_id"], name: "index_coworkers_chat_agents_on_added_by_user_id"
     t.index ["chat_session_id", "coworker_id"], name: "idx_coworkers_chat_agents_unique_roster", unique: true
     t.index ["chat_session_id"], name: "index_coworkers_chat_agents_on_chat_session_id"
@@ -1542,11 +1563,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.string "attachable_type", null: false
     t.bigint "byte_size"
     t.text "content_cache", limit: 65536
-    t.datetime "content_cached_at"
     t.string "content_type"
     t.datetime "created_at", null: false
     t.string "filename"
-    t.string "google_doc_url"
     t.string "kind", default: "file", null: false
     t.string "source_url"
     t.string "title", null: false
@@ -1826,6 +1845,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.json "capability_diagnostics"
     t.json "desired_version"
     t.json "macos_updater_status"
+    t.integer "plugin_set_revision"
+    t.string "plugin_set_digest"
+    t.json "plugin_set_details"
     t.index ["finished_at"], name: "index_instance_versions_on_finished_at"
     t.index ["hostname", "role"], name: "index_instance_versions_on_hostname_and_role", unique: true
     t.index ["last_heartbeat_at"], name: "index_instance_versions_on_last_heartbeat_at"
@@ -2354,6 +2376,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.index ["state"], name: "index_maintenance_tasks_on_state"
     t.index ["task_key"], name: "index_maintenance_tasks_on_task_key", unique: true
     t.index ["trigger_kind", "trigger_key"], name: "idx_maintenance_tasks_trigger"
+  end
+
+  create_table "mcp_bridge_tokens", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "chat_session_id"
+    t.string "name", null: false
+    t.string "token_digest", null: false
+    t.string "token_prefix", null: false
+    t.datetime "last_used_at"
+    t.datetime "revoked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id"], name: "index_mcp_bridge_tokens_on_chat_session_id"
+    t.index ["token_digest"], name: "index_mcp_bridge_tokens_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_mcp_bridge_tokens_on_user_id"
   end
 
   create_table "mcp_startup_phase_events", force: :cascade do |t|
@@ -3064,6 +3101,45 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_003641) do
     t.boolean "ever_enabled", default: false, null: false
     t.boolean "experimental", default: false, null: false
     t.index ["name"], name: "index_plugin_records_on_name", unique: true
+  end
+
+  create_table "plugin_desired_states", force: :cascade do |t|
+    t.integer "singleton_key", null: false
+    t.bigint "revision", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "apply_revision"
+    t.datetime "apply_requested_at"
+    t.json "apply_processes"
+    t.index ["singleton_key"], name: "index_plugin_desired_states_on_singleton_key", unique: true
+  end
+
+  create_table "plugin_installations", force: :cascade do |t|
+    t.string "plugin_name", null: false
+    t.bigint "plugin_release_id", null: false
+    t.boolean "enabled_for_sync", default: true, null: false
+    t.boolean "fleet_quarantined", default: false, null: false
+    t.json "roles"
+    t.datetime "desired_since", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["plugin_name"], name: "index_plugin_installations_on_plugin_name", unique: true
+    t.index ["plugin_release_id"], name: "index_plugin_installations_on_plugin_release_id"
+  end
+
+  create_table "plugin_releases", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "version", null: false
+    t.string "content_digest", null: false
+    t.string "source", null: false
+    t.string "trust_label", null: false
+    t.bigint "uploaded_by_id"
+    t.bigint "size_bytes", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["content_digest"], name: "index_plugin_releases_on_content_digest"
+    t.index ["name", "version", "content_digest"], name: "idx_plugin_releases_identity", unique: true
+    t.index ["uploaded_by_id"], name: "index_plugin_releases_on_uploaded_by_id"
   end
 
   create_table "pr_review_comments", force: :cascade do |t|

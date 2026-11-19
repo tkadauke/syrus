@@ -49,13 +49,22 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     )
     expect(operation).to have_attributes(
       kind: "operation", operation: "database.read/query", operation_version: 2,
-      requested_durations: [ "invocation" ], effects: [ "confidential_read" ],
+      requested_durations: %w[invocation chat_session permanent], effects: [ "confidential_read" ],
       normalized_arguments: arguments.merge("password" => "[REDACTED]")
     )
     expect(operation.invocation_fingerprint).to eq(
       Permissions::InvocationFingerprint.call(descriptor:, arguments:)
     )
     expect(operation.prerequisites).to be_empty
+  end
+
+  it "renders a mention-session request in its owner chat while preserving the hidden origin" do
+    owner_chat = ChatSession.create!(user: owner, repository: repository, title: "Owner chat")
+    chat.define_singleton_method(:owner_facing_chat_session) { owner_chat }
+
+    request = described_class.new(context: context, descriptor:, arguments:).call.request
+
+    expect(request).to have_attributes(chat_session: owner_chat, origin: chat, subject: coworker)
   end
 
   it "reuses an equivalent active request instead of interrupting twice" do
@@ -73,7 +82,7 @@ RSpec.describe Permissions::CoworkerAuthorizationRequest do
     ).call.request
 
     expect(request.authorization_items.sole).to have_attributes(
-      kind: "operation", requested_durations: [ "invocation" ]
+      kind: "operation", requested_durations: %w[invocation chat_session permanent]
     )
   end
 

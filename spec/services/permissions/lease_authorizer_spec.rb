@@ -118,8 +118,10 @@ RSpec.describe Permissions::LeaseAuthorizer do
   end
 
   it "rejects unsupported durations and descriptor autonomy escalation" do
+    # Authority is capped through breadth ceilings: once at every breadth.
     limited = Permissions::CapabilityDescriptor.new(**descriptor.to_h.merge(
-      maximum_autonomy: :invocation, authority_durations: [ :invocation ]
+      maximum_autonomy: :invocation, authority_durations: [ :invocation ],
+      breadth_ceilings: %i[family tool resource].index_with(:invocation)
     ))
 
     expect do

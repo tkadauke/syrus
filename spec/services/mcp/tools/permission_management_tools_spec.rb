@@ -160,7 +160,8 @@ RSpec.describe "permission management MCP tools" do
 
   it "revalidates the descriptor autonomy ceiling during confirmation" do
     invocation_only = Permissions::CapabilityDescriptor.new(**descriptor.to_h.merge(
-      maximum_autonomy: :invocation, authority_durations: [ :invocation ]
+      maximum_autonomy: :invocation, authority_durations: [ :invocation ],
+      breadth_ceilings: %i[family tool resource].index_with(:invocation)
     ))
     allow(Permissions::Catalog).to receive(:find!).and_return(invocation_only)
     response = Mcp::Tools::GrantPermissionTool.call(
@@ -198,6 +199,22 @@ RSpec.describe "permission management MCP tools" do
     expect { pending.confirm!(user: user) }.to raise_error(ArgumentError, /subject selector does not match/)
     expect(PermissionRule.count).to eq(0)
     expect(pending.reload).to be_failed
+  end
+
+  # Revoking a lease only reduces authority, so it acts directly.
+  it "revokes a lease immediately, without a confirmation card" do
+    lease = Permissions::Management.new(user).lease!({
+      "role" => AgentRole::CHAT_PLANNER, "subject_selector_type" => "interactive_chat",
+      "capability" => descriptor.capability, "operation" => descriptor.operation,
+      "resource_scope" => {}, "duration" => "chat_session", "chat_session_id" => chat_session.id
+    }, actor: user)
+
+    payload = body(Mcp::Tools::RevokePermissionLeaseTool.call(permission_lease_id: lease.id, server_context: context))
+
+    expect(payload).to include(revoked: true)
+    expect(payload).not_to have_key(:pending_action_id)
+    expect(lease.reload.revoked_at).to be_present
+    expect(ChatPendingAction.where(action: "revoke_permission_lease")).to be_empty
   end
 
   it "explains only leases available to the requested lifecycle context" do
@@ -242,16 +259,17 @@ RSpec.describe "permission management MCP tools" do
     expect(lease.reload.used_count).to eq(0)
   end
 
-  it "cancels only the confirming user's authorization request after confirmation" do
+  # Withdrawing a request only reduces authority, so it acts directly.
+  it "cancels the agent's own authorization request immediately, without a confirmation card" do
     request = ChatPendingAction.create!(
       user: user, chat_session: chat_session, origin: chat_session, subject: user,
       request_kind: "authorization_request", requested_by: "agent", state: "pending",
       deduplication_key: SecureRandom.hex(16)
     )
     response = Mcp::Tools::CancelAuthorizationRequestTool.call(authorization_request_id: request.id, server_context: context)
-    expect(request.reload).to be_pending
 
-    ChatPendingAction.find(body(response).fetch(:pending_action_id)).confirm!(user: user)
+    expect(body(response)).to include(cancelled: true)
+    expect(body(response)).not_to have_key(:pending_action_id)
     expect(request.reload).to be_cancelled
   end
 
@@ -261,9 +279,8 @@ RSpec.describe "permission management MCP tools" do
     response = Mcp::Tools::CancelAuthorizationRequestTool.call(server_context: context)
     payload = body(response)
 
-    expect(payload).to include(message: "Cancel the authorization request for example.records@v1 / example.records/read@v1?")
+    expect(payload).to include(cancelled: true, authorization_request: "example.records@v1 / example.records/read@v1")
     expect(payload).not_to have_key(:authorization_request_id)
-    ChatPendingAction.find(payload.fetch(:pending_action_id)).confirm!(user: user)
     expect(request.reload).to be_cancelled
   end
 
@@ -285,8 +302,8 @@ RSpec.describe "permission management MCP tools" do
     response = Mcp::Tools::CancelAuthorizationRequestTool.call(
       server_context: context, capability: other_descriptor.capability, operation: other_descriptor.operation
     )
-    ChatPendingAction.find(body(response).fetch(:pending_action_id)).confirm!(user: user)
 
+    expect(body(response)).to include(cancelled: true)
     expect(matching.reload).to be_cancelled
     expect(ChatPendingAction.where(request_kind: "authorization_request", state: "pending").count).to eq(1)
   end

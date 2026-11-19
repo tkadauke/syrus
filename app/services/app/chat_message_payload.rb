@@ -819,7 +819,7 @@ module App
 
     def repository_document_resource(document)
       repository = document.repository
-      url = document.file.attached? ? "/api/v1/app/repository_documents/#{document.id}/file" : document.google_docs_url
+      url = "/api/v1/app/repository_documents/#{document.id}/file"
 
       {
         resource_title: document.title,

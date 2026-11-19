@@ -43,6 +43,8 @@
   "next": "Proximus",
   "page": "Pagina {{page}} ex {{pages}} · {{total}} opera",
   "partial_evidence": "Testimonium traditionis pro {{count}} operibus imperfectum est; ultimum gradum configuratum nondum attigerunt.",
+  "partial_evidence_short": "Testimonium imperfectum",
+  "open_presentation": "Praesentationem aperire",
   "recent_releases": "Emissiones recentes",
   "job_details": "Opus",
   "workflow_details": "Workflow",

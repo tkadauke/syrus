@@ -64,6 +64,20 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
     expect(described_class).to have_received(:persist_checkout!).once
   end
 
+  it "registers repository merge drivers before reconciling the reviewer checkout" do
+    record = context
+    git = instance_double(GitRunner, configure_author: nil, run: "")
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(git).to receive(:run).with("rev-parse", "origin/coworkers/maya", chdir: @directory.to_s).and_return("a" * 40)
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: @directory.to_s).and_return("b" * 40)
+    allow(described_class).to receive(:with_git_auth).and_yield("https://github.com/acme/home.git", {})
+    expect(GitMergeDrivers).to receive(:register!).with(git:, path: @directory.to_s)
+
+    described_class.send(:persist_checkout!, coworker, run, record)
+
+    expect(git).to have_received(:run).with("rebase", "origin/coworkers/maya", chdir: @directory.to_s)
+  end
+
   it "tombstones raw context while preserving the safe manifest and lineage" do
     record = context
     record.tombstone!

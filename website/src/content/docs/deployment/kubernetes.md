@@ -74,7 +74,7 @@ Example topology:
 | Tier | Runs where | Queues / responsibility |
 | --- | --- | --- |
 | Web | k3s Deployment | HTTPS app, API, admin UI, metrics |
-| Home worker | one k3s pod | `chat`, `polling`, `indexing`, `cleanup`, `control_plane`, `videos` |
+| Home worker | one k3s pod | `chat`, `polling`, `indexing`, `cleanup`, `control_plane`, `operator_actions`, `videos` |
 | Linux compute | k3s Deployment or DaemonSet | `runs`, `runs-linux-amd64`, `merges`, `merges-linux-amd64`, local resume queue |
 | Mac mini pool | external launchd services | `runs-macos-arm64`, `merges-macos-arm64`, compatible resume queues |
 | Data services | k3s or managed services | MySQL, object/artifact storage, search/data volumes |

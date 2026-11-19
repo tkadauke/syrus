@@ -8,6 +8,15 @@ module AgentInsights
     TOOLS = (MUTATIONS + %w[list_insights read_insight read_run_transcript list_recent_workflows]).freeze
     OPERATIONS = TOOLS.index_with { |name| "agent_insights.investigation/#{name}@v1" }.freeze
 
+    # The insight agent's own output and the reads it investigates with are
+    # essential. Triage decisions that change what the operator acts on, and
+    # reading another run's raw transcript, stay deniable.
+    ESSENTIAL = %w[submit_insight update_insight list_insights read_insight list_recent_workflows].freeze
+    DENIABLE_REASONS = {
+      "retire_insight" => :material_control, "accept_insight" => :material_control,
+      "dismiss_insight" => :material_control, "read_run_transcript" => :confidential_cross_boundary
+    }.freeze
+
     class << self
       def normalize(arguments) = arguments.to_h.stringify_keys.sort.to_h
       def redact(arguments) = normalize(arguments).transform_values { |value| value.is_a?(String) && value.length > 200 ? "[REDACTED CONTENT]" : value }
@@ -22,6 +31,7 @@ module AgentInsights
       end
       register_capability(
         capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        essential: ESSENTIAL.include?(name), deniable_reason: DENIABLE_REASONS[name],
         effects:, risk: mutation ? :medium : :low, requestable_roles: ROLES, defaults:,
         maximum_autonomy: mutation ? :invocation : :permanent,
         authority_durations: mutation ? %i[invocation] : Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,

@@ -125,6 +125,31 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "preserves transient Git transport classification through an immutable checkout wrapper" do
+    run.update!(state: "failed")
+    diagnostic(
+      "WorkflowSourceSnapshots::InfrastructureStateError",
+      "immutable source checkout missing ref refs/syrus/source-snapshots/runs/123: " \
+      "fatal: Failed to connect to github.com port 443: Could not connect to server"
+    )
+
+    expect(classification).to have_attributes(
+      classification: "git_transport_transient",
+      retryable: true
+    )
+  end
+
+  it "does not treat a wrapped missing immutable snapshot ref as transient transport" do
+    run.update!(state: "failed")
+    diagnostic(
+      "WorkflowSourceSnapshots::InfrastructureStateError",
+      "immutable source checkout missing ref refs/syrus/source-snapshots/runs/123: " \
+      "fatal: couldn't find remote ref refs/syrus/source-snapshots/runs/123"
+    )
+
+    expect(classification.classification).to eq("source_snapshot_metadata_invalid")
+  end
+
   it "classifies an exhausted deleted base ref fallback as non-retryable" do
     run.update!(state: "failed")
     diagnostic(
@@ -1167,7 +1192,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
     # GitRunner::GitError whose error_class alone would match
     # git_state_corrupt?, but the message is a transient server-side push
     # refusal (not a real non-fast-forward/lease conflict, and not corrupt
-    # local git state) — push_remote_transient? must win.
+    # local git state) — git_transport_transient? must win.
     diagnostic(
       "GitRunner::GitError",
       "git push --force-with-lease=refs/heads/syrus/direct-5004:abc123 " \
@@ -1181,11 +1206,51 @@ RSpec.describe RunFailureClassifier, :ci_only do
 
     result = classification
 
-    expect(result.classification).to eq("push_remote_transient")
+    expect(result.classification).to eq("git_transport_transient")
     expect(result.retryable).to eq(true)
   end
 
-  it "does not classify a genuine non-fast-forward push rejection as push_remote_transient" do
+  {
+    "ls-remote connection failure" =>
+      "git ls-remote --heads https://github.com/owner/repo.git refs/heads/topic exited 128\n" \
+      "fatal: unable to access 'https://github.com/owner/repo.git/': Failed to connect to github.com port 443: Could not connect to server",
+    "clone DNS failure" =>
+      "git clone https://github.com/owner/repo.git /tmp/repo exited 128\n" \
+      "fatal: unable to access 'https://github.com/owner/repo.git/': Could not resolve host: github.com",
+    "fetch connection reset" =>
+      "git fetch origin refs/heads/main exited 128\n" \
+      "fatal: unable to access 'https://github.com/owner/repo.git/': Recv failure: Connection reset by peer",
+    "fetch HTTP 503" =>
+      "git fetch origin refs/heads/main exited 128\n" \
+      "fatal: unable to access 'https://github.com/owner/repo.git/': The requested URL returned error: 503"
+  }.each do |example, message|
+    it "classifies #{example} as a retryable Git transport failure" do
+      run.update!(state: "failed")
+      diagnostic("GitRunner::GitError", message)
+
+      result = classification
+
+      expect(result).to have_attributes(classification: "git_transport_transient", retryable: true)
+    end
+  end
+
+  {
+    "authentication" => "git fetch exited 128\nfatal: Authentication failed for 'https://github.com/owner/repo.git/'",
+    "missing ref" => "git fetch origin refs/heads/deleted exited 128\nfatal: couldn't find remote ref refs/heads/deleted",
+    "repository missing" => "git clone exited 128\nremote: Repository not found.\nfatal: repository 'https://github.com/owner/missing.git/' not found"
+  }.each do |example, message|
+    it "keeps #{example} Git failures non-retryable" do
+      run.update!(state: "failed")
+      diagnostic("GitRunner::GitError", message)
+
+      result = classification
+
+      expect(result.classification).not_to eq("git_transport_transient")
+      expect(result.retryable).to eq(false)
+    end
+  end
+
+  it "does not classify a genuine non-fast-forward push rejection as git_transport_transient" do
     run.update!(state: "failed")
     diagnostic(
       "GitRunner::GitError",
@@ -1196,7 +1261,7 @@ RSpec.describe RunFailureClassifier, :ci_only do
 
     result = classification
 
-    expect(result.classification).not_to eq("push_remote_transient")
+    expect(result.classification).not_to eq("git_transport_transient")
   end
 
   it "classifies branch divergence as non-retryable" do

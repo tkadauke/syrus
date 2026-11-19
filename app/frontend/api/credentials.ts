@@ -52,13 +52,10 @@ export type GithubRateLimit = {
 export type PersonalDocument = {
   id: number
   kind: string
-  google_doc_url: string | null
   filename: string | null
   content_type: string | null
   byte_size: number | null
   source_url: string | null
-  content_cache_state: string
-  content_cached_at: string | null
   created_at: string
   updated_at: string
   file_path: string | null
@@ -309,12 +306,9 @@ export function revokeApiToken() {
   return deleteJson<CredentialsMutationPayload>("/api/v1/app/credentials/revoke_api_token")
 }
 
-export function addCredentialDocuments(files: File[], googleDocUrl: string) {
+export function addCredentialDocuments(files: File[]) {
   const formData = new FormData()
   files.forEach((file) => formData.append("document[files][]", file))
-  if (googleDocUrl.trim().length > 0) {
-    formData.append("document[google_doc_url]", googleDocUrl.trim())
-  }
   return postForm<PersonalDocumentsPayload>("/api/v1/app/credentials/documents", formData)
 }
 

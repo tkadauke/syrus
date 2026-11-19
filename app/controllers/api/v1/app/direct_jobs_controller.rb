@@ -236,15 +236,6 @@ module Api
             errors.concat(attachment.errors.full_messages) unless attachment.save
           end
 
-          google_doc_url = params.dig(:job_attachment, :google_doc_url).to_s.strip
-          if google_doc_url.present?
-            attachment = job.job_attachments.build(
-              attachment_type: "google_doc_link",
-              google_doc_url: google_doc_url
-            )
-            errors.concat(attachment.errors.full_messages) unless attachment.save
-          end
-
           errors
         end
 

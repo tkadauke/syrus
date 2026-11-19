@@ -1,6 +1,7 @@
 require "pathname"
 require "ripper"
 require "syrus/plugin_host_surface/scanner"
+require "syrus/plugin_boot_safety"
 
 module Syrus
   # Discovers plugin declarations before loading their Ruby entry files. This
@@ -9,13 +10,13 @@ module Syrus
   class PluginLoader
     class Error < StandardError; end
 
-    Plugin = Data.define(:name, :directory, :entry_file, :dependencies, :required_dependencies, :external, :version, :requires_syrus)
+    Plugin = Data.define(:name, :directory, :entry_file, :dependencies, :required_dependencies, :external, :version, :requires_syrus, :roles)
     DEPENDENCY_DECLARATIONS = %w[depends_on optionally_depends_on].freeze
     FRAMEWORK_GEM_DEPENDENCIES = %w[rails].freeze
     RESCUED_ERRORS = [ LoadError, StandardError, ScriptError ].freeze
 
     class << self
-      attr_reader :plugins_by_name
+      attr_reader :plugins_by_name, :boot_attempt_id
 
       def install_definition!(definition)
         plugin = @plugins_by_name&.fetch(definition.name, nil)
@@ -82,21 +83,42 @@ module Syrus
         Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [],
           minimum_syrus_version: nil, content_hash: nil, error: "#{error.class}: #{error.message}")
       end
+
+      def remember_boot_attempt(id)
+        @boot_attempt_id = id
+      end
     end
 
     def self.load!(plugin_roots: Syrus::PluginRoots.default)
-      new(plugin_roots:).load!
+      new(plugin_roots:, boot_safety: Syrus::PluginBootSafety.default, record_boot: true).load!
     end
 
-    def initialize(plugin_roots:)
+    attr_reader :boot_safety
+
+    def initialize(plugin_roots:, boot_safety: nil, record_boot: false)
       @plugin_roots = plugin_roots
+      @boot_safety = boot_safety
+      @record_boot = record_boot
     end
 
     def load!
       plugins = safely_discovered_plugins
+      self.class.remember_boot_attempt(boot_safety.begin_boot!(plugins)) if @record_boot
       self.class.remember_plugins(plugins)
+      record_absent_fleet_quarantines(plugins)
       failed = Set.new
       order_plugins(plugins).each do |plugin|
+        if (reason = boot_safety&.skip_reason(plugin))
+          self.class.record_failure(plugin, RuntimeError.new(reason), state: :quarantined, message: reason)
+          failed << plugin.name
+          next
+        end
+        unless role_allowed?(plugin)
+          self.class.record_failure(plugin, RuntimeError.new("not enabled for process role #{process_role}"),
+            state: :skipped_role, message: "skipped because process role #{process_role} is not listed in #{plugin.roles.join(', ')}")
+          next
+        end
+
         failed_dependency = plugin.required_dependencies.find { |name| failed.include?(name) }
         if failed_dependency
           self.class.record_failure(plugin, RuntimeError.new("dependency #{failed_dependency} failed to load"),
@@ -150,6 +172,19 @@ module Syrus
 
     private
 
+    def record_absent_fleet_quarantines(plugins)
+      return unless boot_safety
+
+      present = plugins.map(&:name).to_set
+      boot_safety.fleet_quarantines.each do |name, reason|
+        next if present.include?(name)
+
+        plugin = Plugin.new(name:, directory: Pathname.new("."), entry_file: Pathname.new("."), dependencies: [],
+          required_dependencies: [], external: true, version: "unknown", requires_syrus: nil, roles: [])
+        self.class.record_failure(plugin, RuntimeError.new(reason), state: :quarantined, message: reason)
+      end
+    end
+
     def safely_discovered_plugins
       inspected = @plugin_roots.plugin_directories.filter_map do |directory|
         inspect_plugin(directory)
@@ -186,7 +221,7 @@ module Syrus
         name = specification.name if specification&.name
       end
       plugin = Plugin.new(name:, directory:, entry_file: directory.join("lib/#{name}.rb"), dependencies: [], required_dependencies: [],
-        external: @plugin_roots.external?(directory), version: "unknown", requires_syrus: nil)
+        external: @plugin_roots.external?(directory), version: "unknown", requires_syrus: nil, roles: [])
       self.class.record_failure(plugin, error)
     end
 
@@ -221,8 +256,22 @@ module Syrus
         required_dependencies: plugin_dependencies(entry_file, declarations: [ "depends_on" ]),
         external: external,
         version: specification.version,
-        requires_syrus: requires_syrus
+        requires_syrus: requires_syrus,
+        roles: plugin_roles(entry_file)
       )
+    end
+
+    def process_role = ENV["SYRUS_ROLE"].to_s
+
+    def role_allowed?(plugin)
+      plugin.roles.empty? || process_role.empty? || plugin.roles.include?(process_role)
+    end
+
+    def plugin_roles(entry_file)
+      roles = plugin_dependencies(entry_file, declarations: [ "roles" ])
+      invalid = roles - Syrus::PluginApi::Definition::PROCESS_ROLES
+      raise Error, "Plugin entry file #{entry_file} declares invalid process roles: #{invalid.join(', ')}" if invalid.any?
+      roles
     end
 
     def compatible?(plugin)
@@ -257,15 +306,23 @@ module Syrus
       tokens.each_with_index do |(_position, type, text, _state), index|
         next unless type == :on_ident && declarations.include?(text)
 
-        bracket = ((index + 1)...tokens.length).find { |candidate| tokens[candidate][1] == :on_lbracket }
-        next unless bracket
+        list_start = ((index + 1)...tokens.length).find { |candidate| tokens[candidate][1] != :on_sp }
+        next unless list_start
 
-        depth = 0
-        tokens.drop(bracket).each do |_position, token_type, token_text, _state|
-          depth += 1 if token_type == :on_lbracket
-          depth -= 1 if token_type == :on_rbracket
-          dependencies << token_text if depth.positive? && token_type == :on_tstring_content
-          break if depth.zero?
+        case tokens[list_start][1]
+        when :on_lbracket
+          depth = 0
+          tokens.drop(list_start).each do |_position, token_type, token_text, _state|
+            depth += 1 if token_type == :on_lbracket
+            depth -= 1 if token_type == :on_rbracket
+            dependencies << token_text if depth.positive? && token_type == :on_tstring_content
+            break if depth.zero?
+          end
+        when :on_qwords_beg
+          tokens.drop(list_start + 1).each do |_position, token_type, token_text, _state|
+            break if token_type == :on_tstring_end
+            dependencies << token_text if token_type == :on_tstring_content
+          end
         end
       end
       dependencies.uniq

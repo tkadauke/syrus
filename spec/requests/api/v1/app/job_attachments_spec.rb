@@ -21,38 +21,36 @@ RSpec.describe "App API job attachments", type: :request do
     Rack::Test::UploadedFile.new(file.path, content_type, original_filename: name)
   end
 
-  it "adds file and Google Doc attachments to one of the current user's jobs" do
+  it "adds file attachments to one of the current user's jobs" do
     expect(AppEvents).to receive(:broadcast).with(
       user: user,
       type: "updated",
       resource: "job",
       id: job.id,
       changed: [ "attachments" ],
-      payload: { "attachments_count" => 2 }
+      payload: { "attachments_count" => 1 }
     )
 
     expect {
       post app_attachments_path(job),
            params: {
              job_attachment: {
-               files: [ upload_file ],
-               google_doc_url: "https://docs.google.com/document/d/context/edit"
+               files: [ upload_file ]
              }
            }
-    }.to change(Document, :count).by(2)
+    }.to change(Document, :count).by(1)
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["message"]).to eq("Attachments added.")
-    expect(body.dig("job", "attachments_count")).to eq(2)
-    expect(body["attachments"].map { |attachment| attachment["kind"] }).to contain_exactly("file", "google_doc")
+    expect(body["message"]).to eq("Attachment added.")
+    expect(body.dig("job", "attachments_count")).to eq(1)
+    expect(body["attachments"].map { |attachment| attachment["kind"] }).to contain_exactly("file")
     expect(body["attachments"]).to include(
       include(
         "filename" => "notes.md",
         "file_path" => %r{\A/api/v1/app/jobs/#{job.id}/attachments/\d+/file\z},
         "app_delete_path" => %r{\A/api/v1/app/jobs/#{job.id}/attachments/\d+\z}
-      ),
-      include("google_doc_url" => "https://docs.google.com/document/d/context/edit")
+      )
     )
     expect(body["attachments"].first).not_to have_key("delete_path")
   end
@@ -184,24 +182,17 @@ RSpec.describe "App API job attachments", type: :request do
     expect(body["size"]).to eq(Document::MAX_PREVIEW_SIZE + 1)
   end
 
-  it "exposes a content_path for uploaded attachments and none for Google Doc links" do
+  it "exposes a content_path for uploaded attachments" do
     file_attachment = job.job_attachments.build(attachment_type: "uploaded_file")
     file_attachment.file.attach(io: StringIO.new("hello"), filename: "notes.txt", content_type: "text/plain")
     file_attachment.save!
-    doc_attachment = job.job_attachments.create!(
-      attachment_type: "google_doc_link",
-      google_doc_url: "https://docs.google.com/document/d/context/edit"
-    )
-
     get app_attachment_content_path(job, file_attachment)
     expect(response).to have_http_status(:ok)
 
     post app_attachments_path(job),
-         params: { job_attachment: { google_doc_url: "https://docs.google.com/document/d/other/edit" } },
-         as: :json
+         params: { job_attachment: { files: [ upload_file(name: "other.txt", content_type: "text/plain") ] } }
     attachments = parse_body["attachments"]
     expect(attachments.find { |a| a["id"] == file_attachment.id }["content_path"]).to eq(app_attachment_content_path(job, file_attachment))
-    expect(attachments.find { |a| a["id"] == doc_attachment.id }["content_path"]).to be_nil
   end
 
   it "does not serve another user's attachment content" do
@@ -230,16 +221,15 @@ RSpec.describe "App API job attachments", type: :request do
       "v" => 1,
       "error" => {
         "code" => "validation_failed",
-        "message" => "Choose a file or enter a Google Doc URL."
+        "message" => "Choose a file."
       }
     )
   end
 
   it "removes one of the current user's job attachments" do
-    attachment = job.job_attachments.create!(
-      attachment_type: "google_doc_link",
-      google_doc_url: "https://docs.google.com/document/d/context/edit"
-    )
+    attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+    attachment.file.attach(io: StringIO.new("context"), filename: "context.txt", content_type: "text/plain")
+    attachment.save!
     expect(AppEvents).to receive(:broadcast).with(
       user: user,
       type: "updated",
@@ -267,7 +257,7 @@ RSpec.describe "App API job attachments", type: :request do
     other_job = Factories.job_record(repository: other_repo, issue_number: 99)
 
     post app_attachments_path(other_job),
-         params: { job_attachment: { google_doc_url: "https://docs.google.com/document/d/context/edit" } },
+         params: { job_attachment: { files: [ upload_file ] } },
          as: :json
 
     expect(response).to have_http_status(:not_found)

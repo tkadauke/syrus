@@ -42,7 +42,6 @@ module Permissions
       "search_jobs" => read("syrus.read_jobs"),
       "read_job" => read("syrus.read_jobs"),
       "cancel_job" => Operation.new("syrus.jobs", %i[internal_write operational destructive], :high, :ask, nil, :none),
-      "submit_chat_feedback" => Operation.new("syrus.jobs", %i[internal_write operational], :medium, :ask, nil, :none),
       "propose_job" => benign("syrus.propose_job", :draft_proposal),
       "propose_epic_with_jobs" => benign("syrus.propose_job", :draft_proposal),
       # Cross-chat reads can contain anything another chat saw.
@@ -82,7 +81,7 @@ module Permissions
       # Builds a coworker descriptor and validates the default against the
       # shared safety rule, so a new tool cannot silently inherit +allow+.
       def descriptor(tool_name:, family:, effects:, risk:, default:, roles: CoworkerDefaultPolicy::ROLES,
-        benign_internal: nil, maximum_autonomy: nil, durations: nil)
+        benign_internal: nil, maximum_autonomy: nil, durations: nil, essential: false, deniable_reason: nil)
         family = family.to_s
         operation = "#{family}/#{tool_name.to_s.tr('/', '.').gsub(/[^a-zA-Z0-9_.-]/, '_').downcase}@v1"
         effects = Array(effects)
@@ -102,6 +101,8 @@ module Permissions
           authority_durations: durations,
           resource_scope: { type: :none },
           benign_internal: benign_internal,
+          essential: essential,
+          deniable_reason: deniable_reason,
           classifier: ->(_arguments) { { operation: operation, effects: effects, risk: risk, confidence: :certain } },
           fingerprint_normalizer: ->(arguments) { deep_normalize(arguments) },
           redactor: ->(arguments) { CapabilityDescriptorAdapter.send(:deep_redact, arguments) }

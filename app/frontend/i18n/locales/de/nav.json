@@ -330,6 +330,7 @@
   "recent_chats_show_archived": "Archivierte Chats anzeigen",
   "recent_chats_unread_only": "Nur ungelesene",
   "recent_chats_new_in": "Neuer Chat in {{group}}",
+  "new_coworker_side_chat": "Neuer Nebenchat mit {{name}}",
   "recent_chats_options": {
     "all": "Alle",
     "status_label": "Status",

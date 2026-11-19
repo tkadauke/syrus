@@ -386,14 +386,7 @@ class ChatPendingAction < ApplicationRecord
     # Non-repair actions go straight to their execution label so the progress
     # row is written (and broadcast) once instead of twice.
     start_step = command.repair_action? ? "Starting pending action..." : command.execution_label
-    should_execute = with_lock do
-      return false unless confirming?
-      return false if !finalize && execution_status == "running"
-
-      update_confirmation_progress!("running", start_step)
-      true
-    end
-    return false unless should_execute
+    return false unless claim_confirmation_execution!(start_step)
 
     raise ActiveRecord::RecordInvalid, self unless valid?
 
@@ -480,6 +473,22 @@ class ChatPendingAction < ApplicationRecord
       execution_step: step,
       execution_started_at: execution_started_at || Time.current
     )
+  end
+
+  def claim_confirmation_execution!(step)
+    started_at = Time.current
+    claimed = self.class.where(id:, state: "confirming", execution_started_at: nil).update_all(
+      execution_status: "running",
+      execution_step: step,
+      execution_started_at: started_at,
+      updated_at: started_at
+    )
+    return false unless claimed == 1
+
+    assign_attributes(execution_status: "running", execution_step: step, execution_started_at: started_at, updated_at: started_at)
+    clear_changes_information
+    broadcast_pending_action_updated
+    true
   end
 
   # The one path that must never raise. A command that writes progress from
@@ -594,14 +603,21 @@ class ChatPendingAction < ApplicationRecord
             "pending_action_id" => id,
             "action_kind" => action_key,
             "execution_status" => execution_status
-          }
+          },
+          skip_turn_trigger: true
         )
         chat_session.pin_chat_provider!
       end
       update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id
 
       if !legacy_outcome_record? && outcome_wake_enqueued_at.blank?
-        ChatTurnJob.perform_later(chat_session_id, message.id)
+        wake_chat = origin if origin.is_a?(ChatSession) && origin_id != chat_session_id
+        wake_message = if wake_chat
+          wake_chat.messages.create!(role: "system", content: message.content, skip_turn_trigger: false)
+        else
+          message
+        end
+        ChatTurnJob.perform_later(wake_message.chat_session_id, wake_message.id)
         update_columns(outcome_wake_enqueued_at: Time.current, updated_at: Time.current)
       end
     end

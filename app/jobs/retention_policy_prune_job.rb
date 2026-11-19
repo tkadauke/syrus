@@ -2,7 +2,7 @@ class RetentionPolicyPruneJob < ApplicationJob
   include SkipIfPending
 
   queue_as :cleanup
-  limits_concurrency to: 1, key: ->(retention_key) { "retention:#{retention_key}" }
+  limits_concurrency to: 1, key: ->(retention_key, *) { "retention:#{retention_key}" }
 
   CONTINUATION_DELAY = 1.minute
   DURATION_BUCKETS = [ 0.01, 0.1, 0.5, 1, 5, 15, 60, 300 ].freeze
@@ -18,7 +18,7 @@ class RetentionPolicyPruneJob < ApplicationJob
     counter :retention_prune_failures_total, tags: %i[retention_key], comment: "Failed database retention policy passes"
   end
 
-  def perform(retention_key)
+  def perform(retention_key, expected_archive_before_delete = nil)
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     definition = RetentionPolicyRegistry.find(retention_key)
     unless definition
@@ -28,9 +28,20 @@ class RetentionPolicyPruneJob < ApplicationJob
       return 0
     end
 
+    unless expected_archive_before_delete.nil?
+      current_archive_before_delete = definition.setting.archive_before_delete?
+      unless current_archive_before_delete == expected_archive_before_delete
+        Rails.logger.info(
+          "[RetentionPolicyPruneJob] key=#{retention_key} archive_before_delete=" \
+          "#{current_archive_before_delete}; expected=#{expected_archive_before_delete}; skipping"
+        )
+        return 0
+      end
+    end
+
     result = definition.executor.call
     record_success(definition.key, result, started_at)
-    self.class.set(wait: CONTINUATION_DELAY).perform_later(definition.key.to_s) if result.backlog
+    enqueue_continuation(definition.key, expected_archive_before_delete) if result.backlog
     result.deleted_count
   rescue StandardError
     Syrus::Metrics.counter(:syrus_retention_prune_failures_total).increment(tags: { retention_key: retention_key.to_s })
@@ -38,6 +49,12 @@ class RetentionPolicyPruneJob < ApplicationJob
   end
 
   private
+
+  def enqueue_continuation(key, expected_archive_before_delete)
+    arguments = [ key.to_s ]
+    arguments << expected_archive_before_delete unless expected_archive_before_delete.nil?
+    self.class.set(wait: CONTINUATION_DELAY).perform_later(*arguments)
+  end
 
   def record_success(key, result, started_at)
     tags = { retention_key: key.to_s }

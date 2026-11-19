@@ -1,5 +1,69 @@
 # Permission authority
 
+## Agent essentials are never deniable
+
+Every tool call goes through the permission system: it is classified,
+evaluated, and recorded in the decision audit. What differs is whether a rule
+can change the outcome. Every operation has exactly one consequence class:
+
+- **Essential.** Work an agent needs for research, planning, coordination,
+  context management, or bounded workflow execution that crosses no real
+  consequence barrier: reading its own Jobs, Epics, docs, and repositories,
+  asking you a question, naming or pinning its chat, managing its goals,
+  writing a private memory, submitting its summary, test plan, report, or
+  review, drafting a Job proposal, previewing its own work, and withdrawing
+  anything it put forward that you have not decided yet (a proposal, a pending
+  card, a permission request, a scheduled wakeup). **No permission
+  rule, preset, lease, generic fallback, or confirmation request can block an
+  essential operation.** It is still evaluated and audited, and any rule that
+  would have applied is reported as overridden.
+- **Gated.** The operation crosses a consequence barrier: external writes or
+  communication, destructive or irreversible effects, credential use,
+  privilege changes, persistent or unattended autonomy, operator-host access,
+  or material operational control.
+- **Deniable.** No barrier effect, but an operator may legitimately scope it,
+  for a stated reason: reads that may contain secrets or another user's data,
+  instance-wide diagnostics, Job and Epic definition changes, and shared
+  documents.
+
+Two rules decide the class:
+
+- **`default: allow` is not non-deniable.** A default only applies when no rule
+  matches; an explicit deny overrides it. Only essential operations are immune.
+- **Internal persistence alone is not a consequence barrier.** Writing a
+  private memory, a draft proposal, a chat bookmark, or a workflow summary
+  stores data, but nothing outside the agent's bounded work changes. Sharing
+  that data (publishing a memory, messaging another chat) or destroying it
+  (deleting a memory) is a barrier and stays gated.
+
+Coworkers have their own permission rules, separate from chat and from each
+other, but the same essentials as chat. A coworker still sees only the
+repositories its grants select; that scoping is enforced by the tools
+themselves, not by asking.
+
+The permission editor and the Permissions Hub never offer a rule for an
+essential operation. A rule written before an operation became essential
+stays visible but has no effect.
+
+## How long and how broadly
+
+When an agent asks, the approval card offers **Allow once**, an adaptive
+action, **More options**, and **Deny**. More options lets you choose:
+
+- **How long:** this chat, this Job, or forever (until you revoke it).
+- **How broadly:** this resource only (the database, destination, or
+  repository the call named), every use of this tool, or the whole tool family.
+
+Every operation that asks can be allowed forever at some breadth. A few
+operations are deliberately narrow: arbitrary SQL, raw `kubectl`, and SSH
+command execution can be allowed forever only for a named resource (for
+example, your staging database) and never for the whole tool or family.
+Tools whose result is already its own confirmation card, such as approving or
+cancelling a Job, keep that card as their only decision. Local Mode commands
+on your machine keep Local Mode's own per-chat command rules. A permission
+profile you choose (for example, Full access) is your own central declaration
+and is not narrowed by these per-card limits.
+
 ## Canonical profiles and tool-set bundles
 
 Permission setup offers three stable profiles: `full_access@v1`,
@@ -13,8 +77,8 @@ Descriptors are grouped by effects into the versioned Workspace, Knowledge,
 Collaboration, Operations, and Administration bundles. This keeps plugin and
 core tools in one human-sized vocabulary without coupling core to plugin tool
 names. The capability registry reports bundle coverage, and the provider
-contract checks both bundle membership and profile compilation. Explicitly
-ungated protocol tools are tracked separately in registry coverage. Profile
+contract checks both bundle membership and profile compilation. Essential
+operations are tracked separately in registry coverage. Profile
 parity diagnostics identify decisions narrowed by provider or resource policy.
 
 Profiles also preserve invocation-time safety classification. A capability that
@@ -126,19 +190,25 @@ and checkpoints the exact arguments. Approval can cover only that invocation,
 the current chat, or a durable scoped rule when the descriptor and higher
 ceilings permit it; the waiting invocation still resumes once through its
 fingerprinted token. A `deny` decision returns the evaluator explanation and
-creates no request. Tools that already create a separately confirmed proposal
-or transaction keep that existing confirmation as their sole approval boundary.
+creates no request. Drafting a Job or Epic proposal is essential: it only
+creates the proposal card, and confirming that card is the decision that
+creates the real Job, Epic, or workflow. Tools that already create a separately
+confirmed transaction keep that existing confirmation as their sole approval
+boundary.
 
-Coworker authorization cards (in chat and in the inbox) default to three
-decisions: Allow once, an adaptive action, and Deny. The adaptive action is
+Authorization cards (in chat and in the inbox) default to three decisions:
+Allow once, an adaptive action, and Deny, plus **More options** whenever more
+than one duration or breadth is safe (see "How long and how broadly" above).
+The adaptive action is
 derived from the capability descriptor and the canonical rule draft, never from
 a tool name: "Always allow similar" is offered only as a permanent rule for the
 exact requesting coworker and normalized scope when the descriptor and every
 higher-layer ceiling permit it; otherwise "Allow for this job" or "Allow for this
-chat" is offered as the strongest safe duration. Invocation-only capabilities,
-explicit denies and ceilings leave just Allow once and Deny. Choosing the
-adaptive action opens an inline preview naming the coworker, operation,
-repository, scope, duration and exclusions, with Confirm, Back and Customize.
+chat" is offered as the strongest safe duration at the request's own breadth.
+Explicit denies and ceilings can leave just Allow once and Deny. Choosing the
+adaptive action, or a combination under More options, opens an inline preview
+naming the coworker, operation, repository, scope, breadth, duration and
+exclusions, with Confirm, Back and Customize.
 Confirm creates the rule or lease and authorizes the waiting invocation in one
 transaction, so a stale preview or ceiling creates neither; the approved item
 links to its auditable, revocable rule, and a duplicate decision is refused.
@@ -303,8 +373,9 @@ the current permission model.
 Approval authorizes only the exact invocation. Current authority is rechecked
 before dispatch, so revocation or a new deny invalidates queued work and retries
 cannot replay an invocation already claimed.
-Only protocol controls explicitly classified as ungated bypass this flow; they
-cannot perform a capability effect. Ordinary chat, coworker, scheduled,
+Essential operations never wait in this flow: they are evaluated and audited
+like any other call, but no rule can deny them and they declare no
+consequence barrier. Ordinary chat, coworker, scheduled,
 workflow, and Local Mode invocations now use the canonical evaluator as their
 sole authority source. The former fail-open shadow comparison has been removed.
 Canonical decisions are recorded as redacted `permissions.policy_evaluator`

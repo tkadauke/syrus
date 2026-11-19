@@ -45,7 +45,7 @@ class InstanceVersionSupervisor
 
       data_root_snapshot = data_root_usage_snapshot
       capability_snapshot = WorkerCapabilities.current
-      attrs = { last_heartbeat_at: now }.merge(data_root_usage_attrs(data_root_snapshot)).merge(capability_attrs(capability_snapshot))
+      attrs = { last_heartbeat_at: now }.merge(plugin_set_attrs).merge(data_root_usage_attrs(data_root_snapshot)).merge(capability_attrs(capability_snapshot))
       rows = heartbeat_scope(instance, now: now).update_all(attrs)
       record_worker_host_health_sample(instance, observed_at: now, data_root_snapshot: data_root_snapshot, capability_snapshot: capability_snapshot) if rows == 1
       return if rows == 1
@@ -92,6 +92,31 @@ class InstanceVersionSupervisor
       }
     end
 
+    def plugin_set_attrs
+      {
+        plugin_set_revision: ENV["SYRUS_PLUGIN_SET_REVISION"].presence&.to_i,
+        plugin_set_digest: ENV["SYRUS_PLUGIN_SET_DIGEST"].presence,
+        plugin_set_details: plugin_set_details
+      }
+    end
+
+    def plugin_set_details
+      health = Syrus::PluginRegistry.health
+      plugins = Syrus::PluginRegistry.all_plugins.map do |manifest|
+        status = health.status(manifest.name)
+        {
+          "name" => manifest.name,
+          "version" => manifest.version.to_s,
+          "state" => status.state.to_s,
+          "reasons" => status.reasons
+        }
+      end
+      { "plugins" => plugins }
+    rescue StandardError => e
+      Rails.logger.warn("[InstanceVersionSupervisor] plugin-set report failed: #{e.class}: #{e.message}")
+      { "plugins" => [] }
+    end
+
     def heartbeat_scope(instance, now:)
       InstanceVersion.where(id: instance.id, finished_at: nil)
                      .where("last_heartbeat_at IS NULL OR last_heartbeat_at < ?", now - TICK_INTERVAL_SECONDS.seconds)
@@ -136,6 +161,7 @@ class InstanceVersionSupervisor
           last_heartbeat_at: now,
           finished_at: nil,
           outcome: nil,
+          **plugin_set_attrs,
           **capability_attrs(WorkerCapabilities.current)
         )
         return existing
@@ -147,6 +173,7 @@ class InstanceVersionSupervisor
         version: version,
         started_at: now,
         last_heartbeat_at: now,
+        **plugin_set_attrs,
         **capability_attrs(WorkerCapabilities.current)
       )
     rescue ActiveRecord::RecordNotUnique

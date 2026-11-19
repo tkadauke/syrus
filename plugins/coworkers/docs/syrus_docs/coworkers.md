@@ -1,5 +1,16 @@
 # Coworkers
 
+## Mentions in ordinary chats
+
+Adding a coworker to an ordinary chat makes that coworker addressable without
+changing the chat's repository or workspace. Mentioning a rostered coworker
+delegates the message to a reusable hidden coworker-owned working session; the
+ordinary chat never becomes a coworker workspace. The coworker's final reply is
+delivered back as a colored, attributed bubble with a link to that working
+session. If several coworkers are mentioned in one message, only the first
+rostered mention answers in this version. Removing the coworker revokes access
+to the source chat.
+
 ## Automated review contributions
 
 When Coworkers is enabled and healthy, it contributes an opaque reviewer
@@ -215,12 +226,15 @@ Unified permission policy is enforced for every gated call, including read-only
 core tools and plugin-defined tools. `allow` runs immediately, `ask` creates an
 approval request, and `deny` fails closed. Confirming authorizes the stored tool
 name and fingerprinted arguments exactly once through the owning provider; the
-evaluator is rerun while the invocation is atomically claimed. Tools explicitly
-classified as `ungated` bypass this policy because they stay
-within the coworker's workspace or current chat, expose no additional owner
-data, and incur no external cost. The workspace file tools, read-only memory
-tools, `reply_in_chat_thread`, and the in-turn question/suggestion helpers use
-that classification. `message_coworker` remains gated by `coworker.message`
+evaluator is rerun while the invocation is atomically claimed. A coworker's
+rules are its own, separate from chat and from other coworkers, but its
+essentials are the same as a chat's: reading Jobs, Epics, docs and the
+repositories its grants select, writing private memories, drafting proposals,
+asking you questions, and managing its own chat are evaluated and audited but
+can never be denied. Coworker-only essentials are `reply_in_chat_thread`,
+capability discovery, and permission requests and surrender. The workspace
+file tools are allowed by default but stay deniable, because you can protect
+paths in the coworker workspace. `message_coworker` remains gated by `coworker.message`
 and defaults to confirmation.
 
 Tools marked `approval_effect` still evaluate capability policy and fail on an
@@ -264,7 +278,7 @@ uses `reply_in_chat_thread` for follow-ups; it gains no access to unrelated
 chats. Separate positive `max_spawns_per_run` and `max_spawns_per_day`
 constraints default to three and ten.
 
-`reply_in_chat_thread` is an ungated exception to grant approval: it needs no
+`reply_in_chat_thread` is an essential exception to grant approval: it needs no
 per-reply confirmation when the coworker's owner opened
 the bridge thread and both the coworker's chat and an ordinary, non-coworker
 chat belonging to that owner are its members. It can only reply to that
@@ -303,16 +317,19 @@ The `syrus.propose_job` grant exposes both `propose_job` and
 `propose_epic_with_jobs`. They create the same pending proposal cards as an
 ordinary Syrus Chat, retain the originating coworker as audit provenance, and
 show that coworker's name and handle on the proposal card. They still require
-an operator to confirm before any Job or Epic exists. Proposal
+an operator to confirm before any Job or Epic exists. Registration is shared
+with ordinary chat tools, so a missing permission does not hide these tools;
+canonical policy decides whether an invocation runs, asks, or is denied. Proposal
 placement and repository-write checks are unchanged: every child declares
 explicit planned execution capabilities, and a coworker cannot target a
-repository its owner cannot write. A missing grant keeps the tools absent;
-an invalid target is returned as an authorization or validation error.
+repository its owner cannot write. An invalid target is returned as an
+authorization or validation error.
 
-The shared `syrus.jobs` capability exposes only `cancel_job` and
-`submit_chat_feedback` to coworker chats; approval, merge, retry, reopen, and
-other lifecycle operations stay unavailable. Canonical policy and Job-state
-checks still apply. Cancellation requires a reason, and duplicate cancellations may link a
+Coworkers receive the ordinary chat-agent Job lifecycle tools, including
+`cancel_job` and `submit_chat_feedback`. Canonical `syrus.jobs` policy decides
+whether each invocation runs, asks for confirmation, or is denied; sharing the
+tool registration does not bypass its Job-state or authorization checks.
+Cancellation requires a reason, and duplicate cancellations may link a
 canonical replacement Job in the same repository. The state history records
 the coworker, chat, prior and resulting states, reason, time, and replacement.
 Jobs with landing or deployment evidence are refused.
@@ -353,12 +370,20 @@ context until the gate is healthy again. Credentials stay inside broker
 services; grant state, tool metadata, workspaces, mounts, and logs contain only
 credential identifiers and redacted lease provenance, never secret material.
 
+Coworkers inherit every ordinary core and enabled-plugin chat tool unless its
+registration is admin-only, tied to Coding or Local Mode, tied to a workflow
+submission role, or centrally excluded because it has no coherent coworker
+semantics. Shared registration preserves the handler, input/output contract,
+permission descriptor, resource checks, pending-action behavior, and audit
+model. It grants no authority by itself.
+
 Operator chat exposes the same aggregated catalog through
 `list_coworker_grants`. `propose_coworker_grants` accepts one or more desired
 capability, policy, and optional scope changes; `off` removes a grant and lower
 policies reduce it. The proposal remains inert until its pending-action card is
-confirmed. Ordinary coworker prompts and tool lists contain only callable
-tools. Deferred discovery adds `discover_coworker_capabilities`, a read-only,
+confirmed. Ordinary coworker prompts and tool lists advertise contextually
+meaningful tools even when policy will require a request. Deferred discovery
+adds `discover_coworker_capabilities`, a read-only,
 ungated lookup for eligible but locked capability families. Each result names
 the required resource scope, effective policy, and lock reason without granting
 authority. Explicit discovery keeps `available`, `requestable`, `prohibited`,
@@ -516,17 +541,27 @@ limit, origin turn, and three-hop cap as `message_coworker`; a refusal is
 recorded in the replier's main chat. A coworker can end the exchange without
 sending or displaying an answer by replying with only `NO_REPLY`.
 
-Chat owners can also add their coworkers to a chat's agent roster from the
-coworker page or by choosing an autocomplete result marked "Add to chat."
-Rostered coworkers become addressable by every participant in that chat and
-an exact structured mention starts a coworker turn using the chat owner's
-settings. A coworker is also implicitly addressable in its own main and side
+Chat owners add their coworkers to a chat's agent roster by choosing an
+autocomplete result marked "Add to chat."
+Rostered coworkers become addressable by every participant in that chat. An
+exact structured mention delegates the message to a reusable hidden coworker
+session for that source chat; the coworker's final answer returns automatically
+as a named, colored coworker message, and the planner does not answer the
+mention. Proposals, structured questions, permission requests, spawn requests,
+and confirmation cards created during the hidden turn appear directly in the
+source chat. Answering or confirming there resumes the hidden session; queued
+approval policies keep using their normal unattended behavior. Each roster row
+has an `after_reply` policy. The default `wake` starts one source-chat planner
+turn after a delivered reply, subject to the coworker hop cap and rate limit;
+`quiet` delivers the reply without waking the planner. A turn that only created
+an owner-facing item still awaiting a decision does not wake the planner. When
+one message names several rostered coworkers, only the first one
+answers. A coworker is also implicitly addressable in its own main and side
 chats without a roster entry. Coworkers that are neither the chat's implicit
 coworker nor on its roster remain plain text and do not start a turn. Rostered
 coworkers can be removed by the chat owner, and coworkers owned by anyone else
-cannot be added. The roster is shown beside the chat heading. Coworker turns
-share the chat's serialization lane, so two turns in one chat do not run at the
-same time.
+cannot be added. The roster is shown beside the chat heading. Removing a
+coworker also revokes its read-only share of that source chat.
 
 Profile pages render `SOUL.md` read-only. The Memory tab reads the coworker's
 home branch through the cached repository-content providers and presents daily,

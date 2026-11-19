@@ -17,8 +17,11 @@ RSpec.describe CredentialStore::PermissionProvider do
     expect(risky).to have_attributes(
       operation: "ssh.execute/risky@v1", risk: :critical, fallback?: false
     )
+    # Arbitrary commands are allowed forever only per destination or command,
+    # never for the whole tool or family.
     expect(descriptor).to have_attributes(
-      maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent]
+      maximum_autonomy: :permanent,
+      breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent }
     )
     expect(descriptor.effects).to include(:credential_use, :external_write, :operational)
     expect(descriptor.defaults.values.uniq).to eq([ :ask ])

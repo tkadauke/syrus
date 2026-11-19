@@ -82,6 +82,7 @@ class AppSetting < ApplicationRecord
   encrypts :github_app_private_key_pem
   encrypts :telegram_bot_token
   encrypts :discord_bot_token
+  encrypts :plugin_manifest_signing_key
 
   # Singleton row. .current returns the only record, creating it if missing.
   # On the very first create (fresh database), an explicitly configured

@@ -43,6 +43,8 @@
   "next": "Weiter",
   "page": "Seite {{page}} von {{pages}} · {{total}} Elemente",
   "partial_evidence": "Für {{count}} Elemente sind die Auslieferungsnachweise unvollständig; sie haben die letzte konfigurierte Phase noch nicht erreicht.",
+  "partial_evidence_short": "Unvollständige Nachweise",
+  "open_presentation": "Präsentation öffnen",
   "recent_releases": "Neueste Releases",
   "job_details": "Job",
   "workflow_details": "Workflow",

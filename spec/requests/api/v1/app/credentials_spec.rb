@@ -43,6 +43,13 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     Rack::Test::UploadedFile.new(file.path, content_type, original_filename: name)
   end
 
+  def create_personal_document(name:, **attrs)
+    document = user.documents.build({ kind: "file", user: user }.merge(attrs))
+    document.file.attach(upload_file(name: name, content: name))
+    document.save!
+    document
+  end
+
   it "401s with a JSON error when signed out" do
     user
     get "/api/v1/app/credentials"
@@ -103,24 +110,15 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "lists personal documents separately from credentials" do
     sign_in_as(user)
-    document = user.documents.create!(
-      kind: "google_doc",
-      google_doc_url: "https://docs.google.com/document/d/user/edit",
-      source_url: "https://docs.google.com/document/d/user/edit",
-      content_cache: "cached body",
-      content_cached_at: Time.zone.parse("2026-01-01 12:00:00"),
-      user: user
-    )
+    document = create_personal_document(name: "user-notes.txt", source_url: "https://example.test/user-notes")
 
     get "/api/v1/app/credentials/documents"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("documents", 0)).to include(
       "id" => document.id,
-      "google_doc_url" => "https://docs.google.com/document/d/user/edit",
-      "source_url" => "https://docs.google.com/document/d/user/edit",
-      "content_cache_state" => "cached",
-      "content_cached_at" => document.content_cached_at.utc.iso8601,
+      "filename" => "user-notes.txt",
+      "source_url" => "https://example.test/user-notes",
       "created_at" => document.created_at.iso8601,
       "updated_at" => document.updated_at.iso8601
     )
@@ -131,9 +129,9 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
   it "filters and sorts the full personal document collection before paginating" do
     sign_in_as(user)
     26.times do |index|
-      user.documents.create!(kind: "google_doc", google_doc_url: "https://docs.google.com/document/d/doc-#{index}/edit", user: user)
+      create_personal_document(name: "doc-#{index}.txt")
     end
-    matching = user.documents.create!(kind: "google_doc", google_doc_url: "https://docs.google.com/document/d/needle/edit", user: user)
+    matching = create_personal_document(name: "needle.txt")
     q = Filters::QueryParam.encode(and: [ { field: "title", op: "contains", value: "needle" } ])
 
     get "/api/v1/app/credentials/documents", params: { q:, sort: "title", direction: "ascending", page: 2 }
@@ -146,7 +144,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
   it "paginates personal documents at the bounded default page size" do
     sign_in_as(user)
     26.times do |index|
-      document = user.documents.create!(kind: "google_doc", google_doc_url: "https://docs.google.com/document/d/page-#{index}/edit", user: user)
+      document = create_personal_document(name: "page-#{index}.txt")
       document.update_column(:created_at, Time.zone.parse("2026-01-01") + index.minutes)
     end
 
@@ -159,7 +157,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
   it "clamps a now-invalid personal documents page after deletion" do
     sign_in_as(user)
     documents = 26.times.map do |index|
-      user.documents.create!(kind: "google_doc", google_doc_url: "https://docs.google.com/document/d/delete-page-#{index}/edit", user: user)
+      create_personal_document(name: "delete-page-#{index}.txt")
     end
 
     delete "/api/v1/app/credentials/documents/#{documents.last.id}", params: { page: 2 }
@@ -886,29 +884,22 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect {
       post "/api/v1/app/credentials/documents", params: {
-        document: {
-          files: [ upload_file ],
-          google_doc_url: "https://docs.google.com/document/d/user/edit"
-        }
+        document: { files: [ upload_file ] }
       }
-    }.to change(Document, :count).by(2)
+    }.to change(Document, :count).by(1)
 
     expect(response).to have_http_status(:created)
     body = parse_body
-    expect(body["documents"].map { |document| document["kind"] }).to contain_exactly("file", "google_doc")
+    expect(body["documents"].map { |document| document["kind"] }).to contain_exactly("file")
 
     file_document = body["documents"].find { |document| document["kind"] == "file" }
     expect(file_document["file_path"]).to eq("/api/v1/app/credentials/documents/#{file_document['id']}/file")
     expect(file_document).to include(
       "source_url" => nil,
-      "content_cache_state" => "empty",
-      "content_cached_at" => nil,
       "updated_at" => be_present
     )
-    google_doc_document = body["documents"].find { |document| document["kind"] == "google_doc" }
-    expect(google_doc_document["file_path"]).to be_nil
 
-    document = user.documents.find_by!(kind: "google_doc")
+    document = user.documents.find_by!(kind: "file")
     delete "/api/v1/app/credentials/documents/#{document.id}"
 
     expect(response).to have_http_status(:ok)
@@ -924,7 +915,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     post "/api/v1/app/credentials/documents", params: { document: {} }
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Wähle eine Datei oder gib eine Google-Doc-URL ein.")
+    expect(parse_body.dig("error", "message")).to eq("Wähle eine Datei.")
   end
 
   it "downloads a personal document's non-previewable raw file with restrictive browser headers" do

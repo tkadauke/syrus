@@ -53,14 +53,19 @@ specifies another. Implementation workflow workers omit this context unless a
 specialized prompt actually needs calendar language.
 
 Being available to an ordinary Syrus Chat does not itself authorize a tool.
-Each call goes through the same permission evaluator. Safe defaults remain
-frictionless; an ask-on-first-use decision shows one compact approval for the
-tool's capability bundle and the scopes that are actually safe to grant. You
-can allow only the waiting call, the current chat, or a durable scoped rule
-when the capability supports it. Syrus then resumes the exact fingerprinted
-call once. Denials stop before execution and explain why. A proposal or
-transaction that already has its own confirmation does not add a redundant
-permission prompt in front of that review.
+Each call goes through the same permission evaluator and is audited. The work
+an agent needs to research, plan, and keep its own context -- reading its Jobs
+and docs, asking you a question, naming its chat, writing a private memory,
+drafting a Job proposal, submitting its summary or review -- is essential:
+it always runs, and no rule or confirmation can block it. Anything with a real
+consequence asks first. The approval card lets you allow just the waiting
+call, or choose under More options how long (this chat, this Job, or forever)
+and how broadly (this resource, the whole tool, or the tool family). Every
+operation that asks can be allowed forever at some breadth; arbitrary SQL,
+raw `kubectl`, and SSH commands only for a named database, cluster, or
+destination. Syrus then resumes the exact fingerprinted call once. Denials
+stop before execution and explain why. A transaction that already has its own
+confirmation card keeps that card as its only decision.
 
 The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show
@@ -73,12 +78,13 @@ Operators can filter the inbox by state, agent, requested action, consequence,
 and origin using searchable labeled choices; filters run on the server before
 pagination, so matches beyond the first page are found. Select requests with a shared duration and decide them atomically,
 dismiss obsolete requests without denying future work, and review completed
-history. Coworker approval cards offer Allow once, Deny, and one adaptive
-choice — "Always allow similar", "Allow for this job", or "Allow for this chat",
-whichever is the strongest the capability and your permission ceilings allow.
-It opens a short preview of the exact coworker, operation, scope, duration and
-exclusions; confirming creates a revocable rule and approves the request together,
-or neither.
+history. Approval cards offer Allow once, Deny, one adaptive choice --
+"Always allow similar", "Allow for this job", or "Allow for this chat",
+whichever is the strongest the capability and your permission ceilings allow --
+and More options for any other safe duration and breadth. Each opens a short
+preview of the exact agent, operation, scope, breadth, duration and
+exclusions; confirming creates a revocable rule and approves the request
+together, or neither.
 Customize opens the same fine-grained rule editor used by the Permissions page,
 prefilled from the exact request; it shows the effective rule, what it excludes,
 the ceilings that cap it and examples of what it does and does not match before
@@ -209,27 +215,28 @@ into one ordered view. Stage totals, attention and aging counts, Epic rollups,
 and a bounded recent-completion tail keep the initial view useful for busy
 repositories without downloading every Job. Pinned, attention, and recently
 changed work is promoted above linked Epic and ungrouped aggregates. The board
-supports stage navigation, keyboard scrolling, and bounded stage drill-downs;
+supports horizontal scrolling, edge controls, keyboard navigation, and bounded stage drill-downs;
 configured deployment lanes are observational evidence, while Landed remains
 separate so undeployed changes stay visible. Partial delivery evidence is
 called out explicitly, and Job cards link through to their Job, latest
 Workflow, and delivery/release evidence. The projection is read-only;
 disabling or deleting the plugin does not alter Job or deployment state.
-Its standard FilterBar narrows the Job cohort by search, associated chat,
+Its single compact FilterBar narrows the Job cohort by search, associated chat,
 Epic, Job, or owner before every total and card is computed. Nested AND/OR/NOT
-expressions can be saved as reusable Pipeline views, including the built-in
-**All** and **Mine** views. Repository scope remains in the route rather than
-the saved view, and filters never hide configured pipeline stages, including
-empty ones.
+expressions remain shareable through the canonical `q` URL. The Pipeline page
+does not show SmartFolder navigation or a second local search. Repository scope
+remains in the route, and filters never hide configured pipeline stages,
+including empty ones.
 The same filtered view is available from a chat's Jobs workspace and through
 the read-only `show_pipeline` chat tool. Multi-repository chats ask the operator
 to choose a repository; live tool calls may present the view once, while saved
 tool cards retain explicit open and copy-link actions without reopening on
 transcript replay. The popup is a focused presentation of the editable
-FilterBar, pipeline canvas, and compact history rail; saved views, summaries,
-diagnostics, and repository navigation remain on the full Pipeline page. In the
-popup the canvas and the history rail fill the full modal height; stage columns
-scroll internally. The rail is its own vertical scroll container with
+FilterBar, pipeline canvas, and compact right-hand history rail. The normal
+repository page uses that same rail implementation, and its presentation action
+preserves `q`, `at`, `range_start`, and `range_end`. In both views the canvas and
+history rail consume the useful remaining height while stage columns scroll
+internally. The rail is its own vertical scroll container with
 time-proportional spacing (a minimum gap keeps dense events apart), small
 event ticks with non-color cues, and adaptive time landmarks, and it keeps the
 selected time in view without moving the pipeline canvas.
@@ -964,12 +971,23 @@ mention. Your own handle is editable under Profile; handles are public,
 instance-wide identifiers and should not contain sensitive information.
 Selecting an own coworker marked **Add to chat** adds it to the chat's agent
 roster before inserting the mention. Everyone participating in the chat can
-then address that coworker. An exact mention starts that coworker with the chat
-owner's settings. A coworker is also implicitly addressable in its own main
-and side chats without a roster entry; coworkers that are neither the chat's
-implicit coworker nor on its roster remain plain text and do not start a turn.
-Coworker turns in the same chat run one at a time. The chat owner can remove a
-coworker from the roster.
+then address that coworker. An exact mention delegates the message to a reusable
+hidden session for that coworker and source chat. The coworker's final reply is
+delivered automatically as a named coworker message in the source chat, and the
+planner does not also answer the mention. Proposals, questions, permission and
+spawn requests, and other confirmation cards created in the hidden session
+appear in the source chat; answering or confirming them resumes the coworker.
+The roster control can either wake the planner once after each delivered reply
+(the default) or leave the reply quiet. Waiting owner-facing items do not wake
+the planner by themselves, and wake turns retain the normal hop and rate limits.
+If one message mentions several
+rostered coworkers, only the first rostered coworker answers. These working
+sessions stay out of the coworker's chat list and search by default but remain
+reachable by direct link. A coworker is also implicitly addressable in its own
+main and side chats without a roster entry; coworkers that are neither the
+chat's implicit coworker nor on its roster remain plain text and do not start a
+turn. The chat owner can remove a coworker from the roster, which also revokes
+the coworker's read access to that source chat.
 
 Coworker detail tabs load independently, so opening a coworker does not fetch
 remote profile content, chat rosters, permissions, schedules, and activity all
@@ -2218,8 +2236,9 @@ Coworkers is installed but disabled by default. A self-hosted instance must
 enable beta mode before an administrator can enable it from **Admin →
 Plugins**. When enabled, it exposes a Coworkers page for creating named agents,
 choosing their appearance and capabilities, opening their main and side chats,
-and viewing their read-only identity profile. Every new coworker opens its main
-chat itself. Custom-coworker turns require the Container Execution plugin and
+and viewing or editing their identity profile while keeping the workspace
+remote read-only. Every new coworker opens its main chat itself. Custom-coworker
+turns require the Container Execution plugin and
 a configured Docker-compatible launch environment. They fail closed instead
 of falling back to the worker host. Each Codex, Claude, Muse, or Agy turn runs
 in a disposable, non-root container with only its coworker checkout, that
@@ -2440,6 +2459,15 @@ Queued and confirmation-gated actions identify the coworker and show the real
 tool name plus readable arguments on both the chat card and the coworker's
 Approvals tab. Secret-like values are redacted, and long values can be expanded
 before the operator confirms or declines the action.
+
+Coworker tool discovery starts from the same registered tools as an ordinary
+chat agent, including enabled plugin tools. Seeing a tool is not a permission
+grant: canonical permission rules, repository and resource scope, plugin and
+resource availability, and mandatory pending actions still decide whether a
+call runs, asks for confirmation, or is denied. Discovery reports those states
+instead of hiding a meaningful operation. Admin-only tools, Coding or Local
+Mode tools, workflow-role submission tools, and operations explicitly marked
+as having no coworker semantics are excluded from registration.
 
 Credential-backed database, Kubernetes, log, and third-party capabilities
 have an additional hard gate. Syrus offers them only when a live worker has

@@ -4,266 +4,357 @@
 
 Generated catalog of MCP tools registered through `McpToolRegistry`.
 
-| Tool | Surface | Tier | Mode | Admin | Roles | Step kinds | Capability | Feature flag |
-|---|---|---|---|---|---|---|---|---|
-| `read_live_state` | agent_insight | - | read | no | - | - | - | - |
-| `read_run_worker_health` | agent_insight | - | read | no | - | - | - | - |
-| `add_epic_dependency` | chat | deferred | write | no | - | - | - | - |
-| `add_job_dependency` | chat | deferred | write | no | - | - | - | - |
-| `add_job_tag` | chat | deferred | write | no | - | - | - | - |
-| `apply_permission_preset` | chat | deferred | write | no | - | - | - | - |
-| `archive_epic` | chat | deferred | write | no | - | - | - | - |
-| `assign_job_to_epic` | chat | deferred | write | no | - | - | - | - |
-| `cancel_authorization_request` | chat | deferred | write | no | - | - | - | - |
-| `cancel_wakeup` | chat | deferred | write | no | - | - | - | - |
-| `check_job_mergeability` | chat | deferred | write | no | - | - | - | - |
-| `classify_pull_request` | chat | deferred | read | no | - | - | - | - |
-| `create_permission_lease` | chat | deferred | write | no | - | - | - | - |
-| `create_repo_document` | chat | deferred | write | no | - | - | - | - |
-| `create_tag` | chat | deferred | write | no | - | - | - | - |
-| `delegate_issue` | chat | deferred | write | no | - | - | - | - |
-| `delete_repo_document` | chat | deferred | write | no | - | - | - | - |
-| `deny_permission` | chat | deferred | write | no | - | - | - | - |
-| `dispatch_ref_movement_action` | chat | deferred | write | no | - | - | - | - |
-| `explain_permission` | chat | deferred | read | no | - | - | - | - |
-| `explain_provider_routing` | chat | deferred | read | no | - | - | - | - |
-| `explain_stuck_job` | chat | deferred | read | no | - | - | - | - |
-| `get_job_diff` | chat | deferred | read | no | - | - | - | - |
-| `grant_permission` | chat | deferred | write | no | - | - | - | - |
-| `ingest_pull_request` | chat | deferred | write | no | - | - | - | - |
-| `list_artifacts` | chat | deferred | read | no | - | - | - | - |
-| `list_chat_media` | chat | deferred | read | no | - | - | - | - |
-| `list_chats` | chat | deferred | read | no | - | - | - | - |
-| `list_delivery_tracks` | chat | deferred | read | no | - | - | - | - |
-| `list_job_workflows` | chat | deferred | read | no | - | - | - | - |
-| `list_open_issues` | chat | deferred | read | no | - | - | - | - |
-| `list_open_prs` | chat | deferred | read | no | - | - | - | - |
-| `list_permissions` | chat | deferred | read | no | - | - | - | - |
-| `list_ref_movement_actions` | chat | deferred | read | no | - | - | - | - |
-| `list_repo_documents` | chat | deferred | read | no | - | - | - | - |
-| `list_repositories` | chat | deferred | read | no | - | - | - | - |
-| `list_tags` | chat | deferred | read | no | - | - | - | - |
-| `list_wakeups` | chat | deferred | read | no | - | - | - | - |
-| `move_epic_to_backlog` | chat | deferred | write | no | - | - | - | - |
-| `mutate_provider_routing_rules` | chat | deferred | write | no | - | - | - | - |
-| `override_job_planned_execution` | chat | deferred | write | no | - | - | - | - |
-| `pause_landing_queue` | chat | deferred | write | no | - | - | - | - |
-| `poll_job_feedback` | chat | deferred | write | no | - | - | - | - |
-| `read_artifact` | chat | deferred | read | no | - | - | - | - |
-| `read_chat_messages` | chat | deferred | read | no | - | - | - | - |
-| `read_pr` | chat | deferred | read | no | - | - | - | - |
-| `read_provider_routing_rules` | chat | deferred | read | no | - | - | - | - |
-| `read_queue` | chat | deferred | read | yes | - | - | - | - |
-| `read_ref_movement_status` | chat | deferred | read | no | - | - | - | - |
-| `read_repo_document` | chat | deferred | read | no | - | - | - | - |
-| `read_run_transcript` | chat | deferred | read | no | - | - | - | - |
-| `read_workflow` | chat | deferred | read | no | - | - | - | - |
-| `rebase_job` | chat | deferred | write | no | - | - | - | - |
-| `remove_epic_dependency` | chat | deferred | write | no | - | - | - | - |
-| `remove_job_dependency` | chat | deferred | write | no | - | - | - | - |
-| `remove_job_from_epic` | chat | deferred | write | no | - | - | - | - |
-| `remove_job_tag` | chat | deferred | write | no | - | - | - | - |
-| `remove_pinned_context` | chat | deferred | write | no | - | - | - | - |
-| `reopen_job` | chat | deferred | write | no | - | - | - | - |
-| `request_permission` | chat | deferred | write | no | - | - | - | - |
-| `resolve_delivery_policy` | chat | deferred | read | no | - | - | - | - |
-| `resume_landing_queue` | chat | deferred | write | no | - | - | - | - |
-| `revoke_permission` | chat | deferred | write | no | - | - | - | - |
-| `revoke_permission_lease` | chat | deferred | write | no | - | - | - | - |
-| `run_visual_diff` | chat | deferred | write | no | - | - | - | - |
-| `run_visual_review` | chat | deferred | write | no | - | - | - | - |
-| `schedule_wakeup` | chat | deferred | write | no | - | - | - | - |
-| `search_chats` | chat | deferred | read | no | - | - | - | - |
-| `search_syrus_docs` | chat | deferred | read | no | - | - | - | - |
-| `select_job_delivery_track` | chat | deferred | write | no | - | - | - | - |
-| `send_chat_message` | chat | deferred | write | no | - | - | - | - |
-| `spawn_chats` | chat | deferred | write | no | - | - | - | - |
-| `start_epic` | chat | deferred | write | no | - | - | - | - |
-| `submit_artifact` | chat | deferred | write | no | - | - | - | - |
-| `unapprove_job` | chat | deferred | write | no | - | - | - | - |
-| `unland_epic` | chat | deferred | write | no | - | - | - | `unlanding` |
-| `unland_job` | chat | deferred | write | no | - | - | - | `unlanding` |
-| `update_epic` | chat | deferred | write | no | - | - | - | - |
-| `update_job` | chat | deferred | write | no | - | - | - | - |
-| `update_pinned_context` | chat | deferred | write | no | - | - | - | - |
-| `admin_cleanup_workspace` | chat | essential | write | yes | - | - | - | - |
-| `admin_clear_github_cache` | chat | essential | write | yes | - | - | - | - |
-| `admin_github_app_installation_diagnostic` | chat | essential | read | yes | - | - | - | - |
-| `admin_kill_process` | chat | essential | write | yes | - | - | - | - |
-| `admin_list_processes` | chat | essential | read | yes | - | - | - | - |
-| `admin_list_runs` | chat | essential | read | yes | - | - | - | - |
-| `admin_list_users` | chat | essential | read | yes | - | - | - | - |
-| `admin_maintenance_tasks` | chat | essential | write | yes | - | - | - | - |
-| `admin_mcp_tool_usage` | chat | essential | read | yes | - | - | - | - |
-| `admin_overview` | chat | essential | read | yes | - | - | - | - |
-| `admin_pause_polling` | chat | essential | write | yes | - | - | - | - |
-| `admin_pause_runs` | chat | essential | write | yes | - | - | - | - |
-| `admin_pause_user_scheduling` | chat | essential | write | yes | - | - | - | - |
-| `admin_queue_detail` | chat | essential | read | yes | - | - | - | - |
-| `admin_read_operational_logs` | chat | essential | read | yes | - | - | - | - |
-| `admin_reap_stale_runs` | chat | essential | write | yes | - | - | - | - |
-| `admin_refresh_installations` | chat | essential | write | yes | - | - | - | - |
-| `admin_retry_step` | chat | essential | write | yes | - | - | - | - |
-| `admin_stuck_jobs` | chat | essential | read | yes | - | - | - | - |
-| `admin_unpause_polling` | chat | essential | write | yes | - | - | - | - |
-| `admin_unpause_runs` | chat | essential | write | yes | - | - | - | - |
-| `admin_unpause_user_scheduling` | chat | essential | write | yes | - | - | - | - |
-| `admin_version` | chat | essential | read | yes | - | - | - | - |
-| `adopt_current_pr_head` | chat | essential | write | yes | - | - | - | - |
-| `approve_job` | chat | essential | write | no | - | - | - | - |
-| `ask_user_question` | chat | essential | write | no | - | - | - | - |
-| `attach_repository` | chat | essential | write | no | - | - | - | - |
-| `base_refresh_retry_job` | chat | essential | write | no | - | - | - | - |
-| `cancel_coding_checkout` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `cancel_job` | chat | essential | write | no | - | - | - | - |
-| `cancel_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
-| `cancel_stale_work` | chat | essential | write | yes | - | - | - | - |
-| `clear_provider_circuit` | chat | essential | write | yes | - | - | - | - |
-| `close_job_successfully` | chat | essential | write | no | - | - | - | - |
-| `complete_implement_step` | chat | essential | write | no | `chat:coding`, `chat:local` | - | - | - |
-| `create_coding_job` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
-| `delete_proposal` | chat | essential | write | no | - | - | - | - |
-| `detach_repository` | chat | essential | write | no | - | - | - | - |
-| `diagnose_run_queue` | chat | essential | read | yes | - | - | - | - |
-| `emergency_land` | chat | essential | write | no | `chat:coding` | - | - | `emergency_land` |
-| `force_fail_job` | chat | essential | write | yes | - | - | - | - |
-| `force_landing_recheck` | chat | essential | write | yes | - | - | - | - |
-| `force_rebase` | chat | essential | write | yes | - | - | - | - |
-| `force_state_transition` | chat | essential | write | yes | - | - | - | - |
-| `git_diff` | chat | essential | read | no | `chat:local` | - | - | `local_mode` |
-| `git_status` | chat | essential | read | no | `chat:local` | - | - | `local_mode` |
-| `inspect_provider_circuit` | chat | essential | read | yes | - | - | - | - |
-| `list_epics` | chat | essential | read | no | - | - | - | - |
-| `list_files` | chat | essential | read | no | `chat:local` | - | - | `local_mode` |
-| `list_jobs` | chat | essential | read | no | - | - | - | - |
-| `list_pending_actions` | chat | essential | read | no | - | - | - | - |
-| `list_proposals` | chat | essential | read | no | - | - | - | - |
-| `manual_agentic_run` | chat | essential | write | yes | - | - | - | - |
-| `mark_ci_repair_noop` | chat | essential | write | yes | - | - | - | - |
-| `mark_goal_blocked` | chat | essential | write | no | - | - | - | - |
-| `mark_goal_completed` | chat | essential | write | no | - | - | - | - |
-| `open_in_coding_mode` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `open_in_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
-| `override_landing_blocker_once` | chat | essential | write | yes | - | - | - | - |
-| `pin_chat` | chat | essential | write | no | - | - | - | - |
-| `propose_epic` | chat | essential | write | no | - | - | - | - |
-| `propose_epic_with_jobs` | chat | essential | write | no | - | - | - | - |
-| `propose_job` | chat | essential | write | no | - | - | - | - |
-| `read_admission_diagnostics` | chat | essential | read | yes | - | - | - | - |
-| `read_epic` | chat | essential | read | no | - | - | - | - |
-| `read_file` | chat | essential | read | no | `chat:local` | - | - | `local_mode` |
-| `read_job` | chat | essential | read | no | - | - | - | - |
-| `read_metrics_diagnostics` | chat | essential | read | yes | - | - | - | - |
-| `read_worker_health` | chat | essential | read | yes | - | - | - | - |
-| `read_worker_occupancy` | chat | essential | read | yes | - | - | - | - |
-| `read_workflow_timeline` | chat | essential | read | yes | - | - | - | - |
-| `read_workflow_waterfall` | chat | essential | read | yes | - | - | - | - |
-| `reconcile_job_state` | chat | essential | write | yes | - | - | - | - |
-| `reenqueue_work` | chat | essential | write | yes | - | - | - | - |
-| `refresh_pr_checks` | chat | essential | write | yes | - | - | - | - |
-| `rename_chat` | chat | essential | write | no | - | - | - | - |
-| `repair_provider_circuit_evidence` | chat | essential | write | yes | - | - | - | - |
-| `repair_queue_affinity` | chat | essential | write | yes | - | - | - | - |
-| `replace_pr_branch_with_workflow_output` | chat | essential | write | yes | - | - | - | - |
-| `repo_info` | chat | essential | read | no | - | - | - | - |
-| `rerun_ci_repair` | chat | essential | write | yes | - | - | - | - |
-| `reset_workspace` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `restack_epic` | chat | essential | write | yes | - | - | - | - |
-| `retire_terminal_work_unit` | chat | essential | write | yes | - | - | - | - |
-| `retry_from_current_pr_branch` | chat | essential | write | yes | - | - | - | - |
-| `retry_job` | chat | essential | write | no | - | - | - | - |
-| `run_command` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
-| `runtime_acquire_control` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_build_or_reload` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_capture_artifact` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_input` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_inspect` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_launch` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_list_sessions` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_logs` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_release_control` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_snapshot` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_start` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_status` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_stop` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `runtime_wait` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` |
-| `search_jobs` | chat | essential | read | no | - | - | - | - |
-| `set_bookmark` | chat | essential | write | no | - | - | - | - |
-| `set_job_priority` | chat | essential | write | no | - | - | - | - |
-| `submit_chat_feedback` | chat | essential | write | no | - | - | `syrus.jobs` | - |
-| `submit_coding_changes` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
-| `suggest_next_step` | chat | essential | write | no | - | - | - | - |
-| `unpin_chat` | chat | essential | write | no | - | - | - | - |
-| `wake_landing_queue` | chat | essential | write | yes | - | - | - | - |
-| `wake_provider_admission` | chat | essential | write | yes | - | - | - | - |
-| `withdraw_pending_action` | chat | essential | write | no | - | - | - | - |
-| `write_file` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
-| `discover_coworker_capabilities` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - |
-| `list_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - |
-| `read_chat_messages` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - |
-| `request_permission` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - |
-| `request_permission_revocation` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - |
-| `search_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - |
-| `surrender_permission_lease` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - |
-| `admin_read_operational_logs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `ask_user_question` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - |
-| `attach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
-| `cancel_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - |
-| `detach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
-| `diagnose_run_queue` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
-| `list_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - |
-| `list_repository_files` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
-| `propose_epic_with_jobs` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - |
-| `propose_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - |
-| `read_admission_diagnostics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `read_backend_exception_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `read_browser_error_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `read_job` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - |
-| `read_metrics_diagnostics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `read_performance_log_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `read_pr` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
-| `read_repository_file` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
-| `read_worker_health` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `read_worker_occupancy` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `read_workflow_timeline` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `read_workflow_waterfall` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
-| `search_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - |
-| `search_repository_code` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
-| `submit_chat_feedback` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - |
-| `suggest_next_step` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - |
-| `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
-| `list_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `list_open_issues` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `list_open_prs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `patch_workflow` | workflow | - | write | no | `workflow:implement`, `workflow:manual` | - | `patch_workflow` | - |
-| `propose_job` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `propose_job` | - |
-| `read_artifact` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
-| `read_live_state` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `read_pr` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `read_preview_log` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `read_run_worker_health` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `record_isolated_repro` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - |
-| `report_cannot_proceed` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `report_cannot_proceed` | - |
-| `report_main_concern` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - |
-| `run_target_prepare` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:manual` | - | `run_target_prepare` | - |
-| `runtime_acquire_control` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
-| `runtime_capture_artifact` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
-| `runtime_input` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
-| `runtime_inspect` | workflow | - | read | no | `workflow:visual_reviewer` | - | - | - |
-| `runtime_release_control` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
-| `runtime_snapshot` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - |
-| `runtime_wait` | workflow | - | read | no | `workflow:visual_reviewer` | - | - | - |
-| `search_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `start_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `stop_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
-| `submit_adversarial_review` | workflow | - | write | no | `workflow:adversarial_reviewer`, `workflow:manual` | - | `submit_adversarial_review` | - |
-| `submit_artifact` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_artifact` | - |
-| `submit_job_metadata` | workflow | - | write | no | `workflow:summary_test_plan`, `workflow:manual` | `refresh_job_metadata` | `submit_job_metadata` | - |
-| `submit_report` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | `submit_report` | `submit_report` | - |
-| `submit_security_review` | workflow | - | write | no | `workflow:security_reviewer`, `workflow:manual` | - | `submit_security_review` | - |
-| `submit_summary` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_summary` | - |
-| `submit_test_plan` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_test_plan` | - |
-| `submit_visual_artifact` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | `submit_visual_artifact` | - |
-| `submit_visual_review` | workflow | - | write | no | `workflow:visual_reviewer`, `workflow:manual` | - | `submit_visual_review` | - |
+The Permission column is each tool's consequence classification on that
+surface (see [Permission authority](permission_authority.md)):
+
+- **essential** -- consequence-free agent work. Always allowed: it is
+  evaluated and audited, but no rule, preset, lease or confirmation request
+  can block it. `default: allow` is not essential; internal persistence
+  alone is not a consequence barrier.
+- **gated** -- crosses a consequence barrier, named by its effects.
+- **deniable** -- no barrier effect, but deniable for the named reason.
+
+| Tool | Surface | Tier | Mode | Admin | Roles | Step kinds | Capability | Feature flag | Permission |
+|---|---|---|---|---|---|---|---|---|---|
+| `read_live_state` | agent_insight | - | read | no | - | - | - | - | essential |
+| `read_run_worker_health` | agent_insight | - | read | no | - | - | - | - | essential |
+| `add_epic_dependency` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `add_job_dependency` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `add_job_tag` | chat | deferred | write | no | - | - | - | - | essential |
+| `apply_permission_preset` | chat | deferred | write | no | - | - | - | - | deniable (privilege change) |
+| `archive_epic` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `assign_job_to_epic` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `cancel_authorization_request` | chat | deferred | write | no | - | - | - | - | essential |
+| `cancel_wakeup` | chat | deferred | write | no | - | - | - | - | essential |
+| `check_job_mergeability` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `classify_pull_request` | chat | deferred | read | no | - | - | - | - | essential |
+| `create_permission_lease` | chat | deferred | write | no | - | - | - | - | deniable (privilege change) |
+| `create_repo_document` | chat | deferred | write | no | - | - | - | - | deniable (shared state) |
+| `create_tag` | chat | deferred | write | no | - | - | - | - | essential |
+| `delegate_issue` | chat | deferred | write | no | - | - | - | - | gated (credential_use, external_write, operational) |
+| `delete_repo_document` | chat | deferred | write | no | - | - | - | - | gated (destructive) |
+| `deny_permission` | chat | deferred | write | no | - | - | - | - | deniable (privilege change) |
+| `dispatch_ref_movement_action` | chat | deferred | write | no | - | - | - | - | gated (operational, external_write) |
+| `explain_permission` | chat | deferred | read | no | - | - | - | - | essential |
+| `explain_provider_routing` | chat | deferred | read | no | - | - | - | - | essential |
+| `explain_stuck_job` | chat | deferred | read | no | - | - | - | - | essential |
+| `get_job_diff` | chat | deferred | read | no | - | - | - | - | deniable (confidential cross boundary) |
+| `grant_permission` | chat | deferred | write | no | - | - | - | - | deniable (privilege change) |
+| `ingest_pull_request` | chat | deferred | write | no | - | - | - | - | deniable (external ingestion) |
+| `list_artifacts` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_chat_media` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_chats` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_delivery_tracks` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_job_workflows` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_open_issues` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_open_prs` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_permissions` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_ref_movement_actions` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_repo_documents` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_repositories` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_tags` | chat | deferred | read | no | - | - | - | - | essential |
+| `list_wakeups` | chat | deferred | read | no | - | - | - | - | essential |
+| `move_epic_to_backlog` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `mutate_provider_routing_rules` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `override_job_planned_execution` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `pause_landing_queue` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `poll_job_feedback` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `read_artifact` | chat | deferred | read | no | - | - | - | - | deniable (confidential cross boundary) |
+| `read_chat_messages` | chat | deferred | read | no | - | - | - | - | deniable (confidential cross boundary) |
+| `read_pr` | chat | deferred | read | no | - | - | - | - | essential |
+| `read_provider_routing_rules` | chat | deferred | read | no | - | - | - | - | essential |
+| `read_queue` | chat | deferred | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `read_ref_movement_status` | chat | deferred | read | no | - | - | - | - | essential |
+| `read_repo_document` | chat | deferred | read | no | - | - | - | - | essential |
+| `read_run_transcript` | chat | deferred | read | no | - | - | - | - | deniable (confidential cross boundary) |
+| `read_workflow` | chat | deferred | read | no | - | - | - | - | essential |
+| `rebase_job` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `remove_epic_dependency` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `remove_job_dependency` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `remove_job_from_epic` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `remove_job_tag` | chat | deferred | write | no | - | - | - | - | essential |
+| `remove_pinned_context` | chat | deferred | write | no | - | - | - | - | essential |
+| `reopen_job` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `request_permission` | chat | deferred | write | no | - | - | - | - | essential |
+| `resolve_delivery_policy` | chat | deferred | read | no | - | - | - | - | essential |
+| `resume_landing_queue` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `revoke_permission` | chat | deferred | write | no | - | - | - | - | deniable (privilege change) |
+| `revoke_permission_lease` | chat | deferred | write | no | - | - | - | - | essential |
+| `run_visual_diff` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `run_visual_review` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `schedule_wakeup` | chat | deferred | write | no | - | - | - | - | gated (persistent_autonomy) |
+| `search_chats` | chat | deferred | read | no | - | - | - | - | essential |
+| `search_syrus_docs` | chat | deferred | read | no | - | - | - | - | essential |
+| `select_job_delivery_track` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `send_chat_message` | chat | deferred | write | no | - | - | - | - | gated (communication) |
+| `spawn_chats` | chat | deferred | write | no | - | - | - | - | gated (communication, persistent_autonomy) |
+| `start_epic` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `submit_artifact` | chat | deferred | write | no | - | - | - | - | essential |
+| `unapprove_job` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `unland_epic` | chat | deferred | write | no | - | - | - | `unlanding` | gated (operational) |
+| `unland_job` | chat | deferred | write | no | - | - | - | `unlanding` | gated (operational) |
+| `update_epic` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `update_job` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
+| `update_pinned_context` | chat | deferred | write | no | - | - | - | - | essential |
+| `admin_cleanup_workspace` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
+| `admin_clear_github_cache` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_github_app_installation_diagnostic` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_kill_process` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
+| `admin_list_processes` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_list_runs` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_list_users` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_maintenance_tasks` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_mcp_tool_usage` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_overview` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_pause_polling` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_pause_runs` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_pause_user_scheduling` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_queue_detail` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_read_operational_logs` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_reap_stale_runs` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
+| `admin_refresh_installations` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
+| `admin_retry_step` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_stuck_jobs` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `admin_unpause_polling` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_unpause_runs` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_unpause_user_scheduling` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `admin_version` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `adopt_current_pr_head` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
+| `approve_job` | chat | essential | write | no | - | - | - | - | deniable (material control) |
+| `ask_user_question` | chat | essential | write | no | - | - | - | - | essential |
+| `attach_repository` | chat | essential | write | no | - | - | - | - | essential |
+| `base_refresh_retry_job` | chat | essential | write | no | - | - | - | - | gated (operational) |
+| `cancel_coding_checkout` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (destructive) |
+| `cancel_job` | chat | essential | write | no | - | - | - | - | gated (operational, destructive) |
+| `cancel_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | gated (destructive) |
+| `cancel_stale_work` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
+| `clear_provider_circuit` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `close_job_successfully` | chat | essential | write | no | - | - | - | - | deniable (material control) |
+| `complete_implement_step` | chat | essential | write | no | `chat:coding`, `chat:local` | - | - | - | gated (operational) |
+| `create_coding_job` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | deniable (material control) |
+| `delete_proposal` | chat | essential | write | no | - | - | - | - | essential |
+| `detach_repository` | chat | essential | write | no | - | - | - | - | essential |
+| `diagnose_run_queue` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `emergency_land` | chat | essential | write | no | `chat:coding` | - | - | `emergency_land` | gated (operational, external_write, destructive, irreversible) |
+| `force_fail_job` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
+| `force_landing_recheck` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `force_rebase` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
+| `force_state_transition` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
+| `git_diff` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
+| `git_status` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
+| `inspect_provider_circuit` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `list_epics` | chat | essential | read | no | - | - | - | - | essential |
+| `list_files` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
+| `list_jobs` | chat | essential | read | no | - | - | - | - | essential |
+| `list_pending_actions` | chat | essential | read | no | - | - | - | - | essential |
+| `list_proposals` | chat | essential | read | no | - | - | - | - | essential |
+| `manual_agentic_run` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `mark_ci_repair_noop` | chat | essential | write | yes | - | - | - | - | deniable (material control) |
+| `mark_goal_blocked` | chat | essential | write | no | - | - | - | - | essential |
+| `mark_goal_completed` | chat | essential | write | no | - | - | - | - | essential |
+| `open_in_coding_mode` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
+| `open_in_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | gated (operational) |
+| `override_landing_blocker_once` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
+| `pin_chat` | chat | essential | write | no | - | - | - | - | essential |
+| `propose_epic` | chat | essential | write | no | - | - | - | - | essential |
+| `propose_epic_with_jobs` | chat | essential | write | no | - | - | - | - | essential |
+| `propose_job` | chat | essential | write | no | - | - | - | - | essential |
+| `read_admission_diagnostics` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `read_epic` | chat | essential | read | no | - | - | - | - | essential |
+| `read_file` | chat | essential | read | no | `chat:local` | - | - | `local_mode` | essential |
+| `read_job` | chat | essential | read | no | - | - | - | - | essential |
+| `read_metrics_diagnostics` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `read_worker_health` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `read_worker_occupancy` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `read_workflow_timeline` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `read_workflow_waterfall` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
+| `reconcile_job_state` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `reenqueue_work` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `refresh_pr_checks` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `rename_chat` | chat | essential | write | no | - | - | - | - | essential |
+| `repair_provider_circuit_evidence` | chat | essential | write | yes | - | - | - | - | deniable (material control) |
+| `repair_queue_affinity` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `replace_pr_branch_with_workflow_output` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
+| `repo_info` | chat | essential | read | no | - | - | - | - | essential |
+| `rerun_ci_repair` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `reset_workspace` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (destructive) |
+| `restack_epic` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
+| `retire_terminal_work_unit` | chat | essential | write | yes | - | - | - | - | deniable (material control) |
+| `retry_from_current_pr_branch` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `retry_job` | chat | essential | write | no | - | - | - | - | gated (operational) |
+| `run_command` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | gated (operator_host_access) |
+| `runtime_acquire_control` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
+| `runtime_build_or_reload` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
+| `runtime_capture_artifact` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | deniable (operator scoping) |
+| `runtime_input` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
+| `runtime_inspect` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
+| `runtime_launch` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
+| `runtime_list_sessions` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
+| `runtime_logs` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
+| `runtime_release_control` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | deniable (operator scoping) |
+| `runtime_snapshot` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | deniable (operator scoping) |
+| `runtime_start` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
+| `runtime_status` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
+| `runtime_stop` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
+| `runtime_wait` | chat | essential | read | no | `chat:coding` | - | - | `coding_mode` | essential |
+| `search_jobs` | chat | essential | read | no | - | - | - | - | essential |
+| `set_bookmark` | chat | essential | write | no | - | - | - | - | essential |
+| `set_job_priority` | chat | essential | write | no | - | - | - | - | deniable (material control) |
+| `submit_chat_feedback` | chat | essential | write | no | - | - | `syrus.jobs` | - | gated (operational) |
+| `submit_coding_changes` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (operational) |
+| `suggest_next_step` | chat | essential | write | no | - | - | - | - | essential |
+| `unpin_chat` | chat | essential | write | no | - | - | - | - | essential |
+| `wake_landing_queue` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `wake_provider_admission` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `withdraw_pending_action` | chat | essential | write | no | - | - | - | - | essential |
+| `write_file` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | gated (operator_host_access) |
+| `add_epic_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
+| `add_job_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `add_job_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | essential |
+| `archive_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
+| `assign_job_to_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `cancel_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | essential |
+| `check_job_mergeability` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `classify_pull_request` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `create_repo_document` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.documents` | - | deniable (shared state) |
+| `create_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | essential |
+| `delegate_issue` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.github_issues` | - | gated (credential_use, external_write, operational) |
+| `delete_repo_document` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.documents` | - | gated (destructive) |
+| `discover_coworker_capabilities` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
+| `dispatch_ref_movement_action` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.delivery` | - | gated (operational, external_write) |
+| `explain_provider_routing` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `explain_stuck_job` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `ingest_pull_request` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | deniable (external ingestion) |
+| `list_artifacts` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | essential |
+| `list_chat_media` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.attachments` | - | essential |
+| `list_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | essential |
+| `list_delivery_tracks` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `list_job_workflows` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | essential |
+| `list_open_issues` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | essential |
+| `list_open_prs` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | essential |
+| `list_ref_movement_actions` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `list_repo_documents` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | essential |
+| `list_repositories` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `list_tags` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `list_wakeups` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_reads` | - | essential |
+| `move_epic_to_backlog` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
+| `mutate_provider_routing_rules` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.provider_routing` | - | gated (operational) |
+| `override_job_planned_execution` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `pause_landing_queue` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.landing_queue` | - | gated (operational) |
+| `poll_job_feedback` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `read_artifact` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.attachments` | - | deniable (confidential cross boundary) |
+| `read_chat_messages` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | deniable (confidential cross boundary) |
+| `read_provider_routing_rules` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `read_ref_movement_status` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `read_repo_document` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | essential |
+| `read_run_transcript` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.confidential_reads` | - | deniable (confidential cross boundary) |
+| `read_workflow` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | essential |
+| `rebase_job` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `remove_epic_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
+| `remove_job_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `remove_job_from_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `remove_job_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | essential |
+| `remove_pinned_context` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_context` | - | essential |
+| `reopen_job` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `request_permission` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
+| `request_permission_revocation` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
+| `resolve_delivery_policy` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `resume_landing_queue` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.landing_queue` | - | gated (operational) |
+| `run_visual_diff` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.visual_review` | - | gated (operational) |
+| `run_visual_review` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.visual_review` | - | gated (operational) |
+| `schedule_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | gated (persistent_autonomy) |
+| `search_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | essential |
+| `search_syrus_docs` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | essential |
+| `select_job_delivery_track` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.delivery` | - | deniable (material control) |
+| `send_chat_message` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.communication` | - | gated (communication) |
+| `spawn_chats` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.communication` | - | gated (communication, persistent_autonomy) |
+| `start_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | gated (operational) |
+| `submit_artifact` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.artifacts` | - | essential |
+| `surrender_permission_lease` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
+| `unapprove_job` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `unland_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | `unlanding` | gated (operational) |
+| `unland_job` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | `unlanding` | gated (operational) |
+| `update_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
+| `update_job` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `update_pinned_context` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_context` | - | essential |
+| `admin_read_operational_logs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `approve_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `ask_user_question` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
+| `attach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
+| `base_refresh_retry_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `cancel_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational, destructive) |
+| `close_job_successfully` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `delete_proposal` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - | essential |
+| `detach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
+| `diagnose_run_queue` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (confidential cross boundary) |
+| `list_epics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | essential |
+| `list_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | essential |
+| `list_pending_actions` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_reads` | - | essential |
+| `list_proposals` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_reads` | - | essential |
+| `list_repository_files` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
+| `mark_goal_blocked` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_goals` | - | essential |
+| `mark_goal_completed` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_goals` | - | essential |
+| `pin_chat` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chats` | - | essential |
+| `propose_epic` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - | essential |
+| `propose_epic_with_jobs` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - | essential |
+| `propose_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - | essential |
+| `read_admission_diagnostics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `read_backend_exception_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `read_browser_error_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `read_epic` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | essential |
+| `read_job` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | essential |
+| `read_metrics_diagnostics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `read_performance_log_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `read_pr` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
+| `read_repository_file` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
+| `read_worker_health` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `read_worker_occupancy` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `read_workflow_timeline` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `read_workflow_waterfall` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
+| `rename_chat` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chats` | - | essential |
+| `repo_info` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `retry_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `search_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | essential |
+| `search_repository_code` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
+| `set_bookmark` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_context` | - | essential |
+| `set_job_priority` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
+| `submit_chat_feedback` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `suggest_next_step` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
+| `unpin_chat` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chats` | - | essential |
+| `withdraw_pending_action` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.pending_actions` | - | essential |
+| `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - | essential |
+| `list_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `list_open_issues` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `list_open_prs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `patch_workflow` | workflow | - | write | no | `workflow:implement`, `workflow:manual` | - | `patch_workflow` | - | deniable (autonomy expansion) |
+| `propose_job` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `propose_job` | - | essential |
+| `read_artifact` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - | deniable (confidential cross boundary) |
+| `read_live_state` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `read_pr` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `read_preview_log` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `read_run_worker_health` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `record_isolated_repro` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - | essential |
+| `report_cannot_proceed` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `report_cannot_proceed` | - | essential |
+| `report_main_concern` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | - | - | essential |
+| `run_target_prepare` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:manual` | - | `run_target_prepare` | - | essential |
+| `runtime_acquire_control` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - | deniable (operator scoping) |
+| `runtime_capture_artifact` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - | deniable (operator scoping) |
+| `runtime_input` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - | deniable (operator scoping) |
+| `runtime_inspect` | workflow | - | read | no | `workflow:visual_reviewer` | - | - | - | essential |
+| `runtime_release_control` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - | deniable (operator scoping) |
+| `runtime_snapshot` | workflow | - | write | no | `workflow:visual_reviewer` | - | - | - | deniable (operator scoping) |
+| `runtime_wait` | workflow | - | read | no | `workflow:visual_reviewer` | - | - | - | essential |
+| `search_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `start_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `stop_preview` | workflow | - | write | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
+| `submit_adversarial_review` | workflow | - | write | no | `workflow:adversarial_reviewer`, `workflow:manual` | - | `submit_adversarial_review` | - | essential |
+| `submit_artifact` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_artifact` | - | essential |
+| `submit_job_metadata` | workflow | - | write | no | `workflow:summary_test_plan`, `workflow:manual` | `refresh_job_metadata` | `submit_job_metadata` | - | essential |
+| `submit_report` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | `submit_report` | `submit_report` | - | essential |
+| `submit_security_review` | workflow | - | write | no | `workflow:security_reviewer`, `workflow:manual` | - | `submit_security_review` | - | essential |
+| `submit_summary` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_summary` | - | essential |
+| `submit_test_plan` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_test_plan` | - | essential |
+| `submit_visual_artifact` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | `submit_visual_artifact` | - | essential |
+| `submit_visual_review` | workflow | - | write | no | `workflow:visual_reviewer`, `workflow:manual` | - | `submit_visual_review` | - | essential |

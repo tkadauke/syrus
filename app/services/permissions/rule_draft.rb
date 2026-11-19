@@ -15,8 +15,12 @@ module Permissions
     POLICIES = CapabilityDescriptor::POLICIES.map(&:to_s).freeze
     ATTRIBUTES = %w[
       policy duration subject_selector_type subject_selector_id subject_type subject_repository_id
-      role capability operation resource_scope constraints chat_session_id job_id rationale
+      role capability operation resource_scope constraints chat_session_id job_id rationale breadth
     ].freeze
+    # How broadly a draft targets the operation it was built from: the named
+    # resource (scope and argument constraints), every use of the tool, or
+    # every operation in the tool's family.
+    BREADTHS = %w[ resource tool family ].freeze
     # Core never constants-depends on plugins: an exact-agent subject class opts
     # in by responding true to .permission_agent_subject? and exposing owner_user_id.
     # The unscoped dynamic selector cannot name an exact subject.
@@ -47,7 +51,10 @@ module Permissions
     # caller that passes it is an operator widening an exact command into a
     # prefix, which has to *replace* the exact pin rather than sit beside it:
     # a rule carrying both would still match one command only.
-    def self.from_request_item(user:, request:, item:, duration:, policy: "allow", constraints: nil)
+    def self.from_request_item(user:, request:, item:, duration:, policy: "allow", constraints: nil, breadth: nil)
+      constraints ||= request_constraints(item)
+      # The request's own breadth: its resource when it named one, else the tool.
+      breadth ||= item.resource_scope.present? || constraints.present? ? "resource" : "tool"
       raise ActiveRecord::RecordNotFound, "authorization request belongs to another user" unless request.user_id == user.id
       raise ArgumentError, "authorization item belongs to another request" unless item.chat_pending_action_id == request.id
 
@@ -57,7 +64,8 @@ module Permissions
         "policy" => policy, "duration" => duration.to_s,
         "role" => request.runtime_role, "capability" => "#{item.capability}@v#{item.capability_version}",
         "operation" => ("#{item.operation}@v#{item.operation_version}" if item.operation),
-        "resource_scope" => item.resource_scope, "constraints" => constraints || request_constraints(item)
+        "resource_scope" => item.resource_scope, "constraints" => constraints,
+        "breadth" => breadth.to_s
       }.merge(request_subject(request)).merge(lifecycle), request_scope: item.resource_scope)
     end
 
@@ -174,6 +182,12 @@ module Permissions
       %w[ subject_selector_id subject_repository_id chat_session_id job_id ].each { |key| raw[key] = raw[key].presence&.to_s }
       raw["resource_scope"] = hash_value(raw["resource_scope"])
       raw["constraints"] = hash_value(raw["constraints"])
+      raw["breadth"] = raw["breadth"].presence&.to_s || "resource"
+      # A broader draft carries none of the narrower fields it widens past.
+      unless raw["breadth"] == "resource"
+        raw["resource_scope"] = {}
+        raw["constraints"] = {}
+      end
       raw
     end
 
@@ -187,6 +201,7 @@ module Permissions
       descriptor = find_descriptor(errors)
       return unless descriptor
 
+      validate_consequence_class(descriptor, errors)
       validate_policy_and_duration(descriptor, errors)
       role = validate_subject(descriptor, errors)
       repository = resolve_repository(errors)
@@ -233,6 +248,54 @@ module Permissions
       if AuthorityGrant::Base::AUTONOMY_RANK.fetch(duration.to_sym) > AuthorityGrant::Base::AUTONOMY_RANK.fetch(descriptor.maximum_autonomy)
         errors << error(duration == "permanent" ? :permanent_forbidden : :exceeds_maximum_autonomy)
       end
+    end
+
+    # Essential operations are never the target of a rule: no rule can change
+    # their outcome, so offering one would only mislead. A family-wide rule is
+    # fine -- the essential members of the family simply ignore it.
+    def validate_consequence_class(descriptor, errors)
+      breadth = attributes["breadth"]
+      unless BREADTHS.include?(breadth)
+        errors << error(:unknown_breadth)
+        return
+      end
+      if breadth != "family" && Catalog.essential_for?(descriptor.operation, role: draft_role(descriptor))
+        errors << error(:essential_operation)
+      end
+      return unless attributes["policy"] == "allow" && DURATIONS.include?(attributes["duration"])
+
+      rank = AuthorityGrant::Base::AUTONOMY_RANK
+      # A duration beyond every ceiling is reported once, as permanent_forbidden
+      # or exceeds_maximum_autonomy, by validate_policy_and_duration.
+      return if rank.fetch(attributes["duration"].to_sym) > rank.fetch(descriptor.maximum_autonomy)
+
+      breadth_key = effective_breadth(descriptor)
+      governed = breadth == "family" ? family_descriptors(descriptor) : [ descriptor ]
+      if governed.any? { |member| !member.breadth_permits?(breadth_key, attributes["duration"]) }
+        errors << error(:exceeds_breadth_ceiling, breadth: breadth_key, duration: attributes["duration"])
+      end
+    end
+
+    # The runtime role the draft targets, before full subject validation.
+    def draft_role(descriptor)
+      return AgentRole::COWORKER_CHAT if attributes["subject_selector_type"] == "agent"
+
+      attributes["role"].presence || PermissionRule::SUBJECT_SELECTORS.dig(attributes["subject_selector_type"], :role) ||
+        (attributes["subject_selector_id"] if PermissionRule::SUBJECT_SELECTORS.dig(attributes["subject_selector_type"], :role_from_id)) ||
+        descriptor.requestable_roles.first
+    end
+
+    # A "resource" draft with no scope or constraint left is really a tool draft.
+    def effective_breadth(descriptor)
+      return :family if attributes["breadth"] == "family"
+
+      CapabilityDescriptor.breadth_of(operation: descriptor.operation, resource_scope: attributes["resource_scope"].presence,
+        constraints: attributes["constraints"].presence)
+    end
+
+    def family_descriptors(descriptor)
+      members = Catalog.descriptors.select { |member| member.capability == descriptor.capability && !member.essential? }
+      members.presence || [ descriptor ]
     end
 
     # Returns the role the draft is evaluated as.
@@ -294,6 +357,9 @@ module Permissions
 
     def normalize_scope(descriptor, errors)
       return {} unless attributes["resource_scope"].is_a?(Hash)
+      # A tool- or family-wide draft means every resource; a resource draft must
+      # name one, so an empty scope there is still rejected, never widened.
+      return {} if attributes["breadth"] != "resource"
 
       normalized = descriptor.resource_scope.normalize(attributes["resource_scope"], context: { user: })
       if normalized.fail_closed?
@@ -323,7 +389,8 @@ module Permissions
         duration: attributes["duration"].to_sym, descriptor:, owner: user, actor: user, role:,
         subject_selector_type: attributes["subject_selector_type"], subject_selector_id: attributes["subject_selector_id"],
         subject_repository: repository, resource_scope: scope, constraints:, context: { user: },
-        rules: Management.new(user).rules.map(&:to_policy_rule), chat_session:, job:
+        rules: Management.new(user).rules.map(&:to_policy_rule), chat_session:, job:,
+        family_wide: attributes["breadth"] == "family"
       )
       evaluation = grant.evaluate!
       [ evaluation.decision, evaluation.expires_at ]
@@ -337,8 +404,9 @@ module Permissions
 
     def persist!(actor, resolved)
       management = Management.new(user)
-      payload = attributes.compact.merge("resource_scope" => resolved.scope, "role" => resolved.role,
+      payload = attributes.except("breadth").compact.merge("resource_scope" => resolved.scope, "role" => resolved.role,
         "constraints" => resolved.attributes["constraints"])
+      payload["family_wide"] = true if attributes["breadth"] == "family"
       case attributes["policy"]
       when "deny" then management.deny!(payload, actor:)
       when "ask" then management.ask!(payload, actor:)
@@ -361,7 +429,9 @@ module Permissions
         policy: attrs["policy"], duration: attrs["duration"], role: resolved.role,
         subject: { type: attrs["subject_selector_type"], id: attrs["subject_selector_id"],
                    subject_type: attrs["subject_type"], repository_id: resolved.repository&.id },
-        capability: resolved.descriptor.capability, operation: resolved.descriptor.operation,
+        capability: resolved.descriptor.capability,
+        operation: (resolved.descriptor.operation unless attrs["breadth"] == "family"),
+        breadth: attrs["breadth"],
         resource_scope: ToolPayloadRedactor.redact(resolved.scope),
         resource_scope_label: scope_label(resolved),
         constraints: ToolPayloadRedactor.redact(attrs["constraints"]),
@@ -444,9 +514,14 @@ module Permissions
 
     # Binds the preview to every input that determines whether and how the draft
     # applies: the normalized draft, the descriptor contract and the owner's
-    # active rules (a changed ceiling or an upgraded descriptor goes stale).
+    # active rules for the same capability -- the only ones that can shadow,
+    # conflict with or cap it (a changed ceiling or an upgraded descriptor goes
+    # stale). Every other rule is deliberately left out: on a busy instance
+    # other chats and coworkers create and expire rules all day, and binding
+    # the digest to all of them rejected nearly every approval click as stale.
     def digest_for(resolved)
-      rules_state = Management.new(user).rules.pluck(:id, :updated_at, :policy).map { |id, at, policy| [ id, at.to_f, policy ] }
+      rules_state = Management.new(user).rules.where(capability: resolved.descriptor.capability)
+        .pluck(:id, :updated_at, :policy).map { |id, at, policy| [ id, at.to_f, policy ] }
       material = {
         user: user.id, draft: resolved.attributes.except("rationale").merge("resource_scope" => resolved.scope),
         descriptor: Digest::SHA256.hexdigest(JSON.generate(resolved.descriptor.contract_key.map(&:to_s))),

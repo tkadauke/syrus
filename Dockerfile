@@ -9,6 +9,12 @@
 
 # Make sure RUBY_VERSION matches the Ruby version in .ruby-version
 ARG RUBY_VERSION=3.4.10
+
+# The image worker-dev is built on. Locally it is the in-file `worker-deps`
+# stage; bin/deploy points it at a prebuilt toolchain image tagged by a digest
+# of that stage's Dockerfile text, so a code deploy rebuilds and ships only
+# the code layers on top (see lib/deploy/images.rb).
+ARG WORKER_DEPS_IMAGE=worker-deps
 FROM docker.io/library/ruby:$RUBY_VERSION-slim-trixie AS base
 
 # Connect published images to the source repo. GHCR reads this label to link a
@@ -561,7 +567,7 @@ ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
 # Muse is an agent-only tool, so keep it out of the web image. Both the
 # launcher and the native binary it dispatches to are immutable build inputs.
 ARG MUSE_LAUNCHER_URL=https://api.meta.ai/muse-launcher.sh
-ARG MUSE_LAUNCHER_SHA256=c6db294799a190ca380da274beb3b9c0e160e0da9681a3d364ce8b0e5fa3a4bc
+ARG MUSE_LAUNCHER_SHA256=ffb95b823e2a71f49ce98f9ddcb7cd7c731b77615aae9f5f253819c69453079f
 ARG MUSE_VERSION=1.4.9-R6297.1
 ARG MUSE_LINUX_AMD64_SHA256=a228010021276e112aa8422eb56ae82c0375405701950f6529bed4c9fe8abe05
 ARG MUSE_LINUX_ARM64_SHA256=d64c61f4357b246fb46ab4f01332b36066bb4ac17541a88f520680354a32e06a
@@ -624,7 +630,7 @@ RUN set -eu; \
 # wiring; intentionally parallel to `app` so the two diverge only on
 # the worker tooling (above) and not on runtime contract.
 # ============================================================================
-FROM worker-deps AS worker-dev
+FROM ${WORKER_DEPS_IMAGE} AS worker-dev
 
 USER 1000:1000
 

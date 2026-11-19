@@ -43,6 +43,7 @@ module SyrusDev
           capability: CAPABILITY, operation:,
           presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
           effects: %i[confidential_read], risk: :medium,
+          deniable_reason: :instance_wide_observability,
           requestable_roles: roles, defaults:, maximum_autonomy: :job,
           authority_durations: %i[invocation chat_session job], resource_scope: { type: :none },
           classifier: classifier(operation), fingerprint_normalizer: method(:normalize_arguments),

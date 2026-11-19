@@ -6,7 +6,15 @@ RSpec.describe "Dockerfile" do
   end
 
   def worker_deps_stage
-    dockerfile.match(/FROM base AS worker-deps(?<stage>.*?)FROM worker-deps AS worker-dev/m)[:stage]
+    dockerfile.match(/FROM base AS worker-deps(?<stage>.*?)FROM \$\{WORKER_DEPS_IMAGE\} AS worker-dev/m)[:stage]
+  end
+
+  # bin/deploy builds worker-dev on a prebuilt, digest-tagged toolchain image;
+  # every other build keeps using the in-file stage.
+  it "builds worker-dev on the toolchain image argument, defaulting to the in-file stage" do
+    expect(dockerfile).to match(/^ARG WORKER_DEPS_IMAGE=worker-deps$/)
+    expect(dockerfile).to include("FROM ${WORKER_DEPS_IMAGE} AS worker-dev")
+    expect(dockerfile.index("ARG WORKER_DEPS_IMAGE")).to be < dockerfile.index(/^FROM /)
   end
 
   def stage(name, until_stage = nil)
@@ -22,7 +30,7 @@ RSpec.describe "Dockerfile" do
   it "creates the data root with rails ownership before runtime stages drop privileges" do
     user_setup = dockerfile.match(/RUN groupadd --system --gid 1000 rails(?<setup>.*?)FROM base AS build/m)[:setup]
     app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
-    worker_stage = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+    worker_stage = dockerfile.match(/FROM \$\{WORKER_DEPS_IMAGE\} AS worker-dev(?<stage>.*)\z/m)[:stage]
 
     expect(user_setup).to include("mkdir -p /home/rails/.syrus")
     expect(user_setup).to include("chown 1000:1000 /home/rails/.syrus")
@@ -116,7 +124,7 @@ RSpec.describe "Dockerfile" do
   it "builds and installs the Syrus CLI into app and worker runtime images" do
     cli_stage = stage("cli-build", "base AS app")
     app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
-    worker_stage = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+    worker_stage = dockerfile.match(/FROM \$\{WORKER_DEPS_IMAGE\} AS worker-dev(?<stage>.*)\z/m)[:stage]
 
     expect(dockerfile).to include("FROM docker.io/library/golang:1.26.5-bookworm AS cli-build")
     expect(cli_stage).to include("COPY cli/go.mod cli/go.sum ./cli/")
@@ -169,7 +177,7 @@ RSpec.describe "Dockerfile" do
   it "preinstalls Go for the worker image" do
     runtime_stage = stage("runtime-go-cache")
     worker_deps = worker_deps_stage
-    worker_dev = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+    worker_dev = dockerfile.match(/FROM \$\{WORKER_DEPS_IMAGE\} AS worker-dev(?<stage>.*)\z/m)[:stage]
 
     expect(runtime_stage).to include("ARG MISE_GO_VERSION=\"1.26.5\"")
     expect(runtime_stage).to include("/usr/local/bin/mise install go@$MISE_GO_VERSION")
@@ -184,7 +192,7 @@ RSpec.describe "Dockerfile" do
 
   it "installs version-matched Mull tools when available without blocking the worker image" do
     stage = worker_deps_stage
-    worker_dev = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+    worker_dev = dockerfile.match(/FROM \$\{WORKER_DEPS_IMAGE\} AS worker-dev(?<stage>.*)\z/m)[:stage]
     app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
 
     expect(stage).to include("ARG MULL_LLVM_VERSION=18")
@@ -223,7 +231,7 @@ RSpec.describe "Dockerfile" do
   end
 
   it "fails worker image builds when native compilation is unavailable as the rails user" do
-    worker_dev = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
+    worker_dev = dockerfile.match(/FROM \$\{WORKER_DEPS_IMAGE\} AS worker-dev(?<stage>.*)\z/m)[:stage]
 
     expect(worker_dev.index("USER 1000:1000")).to be < worker_dev.index("try_compile")
     expect(worker_dev).to include(%q{cd "$(mktemp -d)" && ruby -rmkmf -e 'abort "native compiler smoke check failed" unless try_compile("int main(){return 0;}")'})

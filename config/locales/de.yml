@@ -42,6 +42,14 @@ de:
     errors:
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
+      plugin_installation:
+        release_name_mismatch: "muss mit dem Namen der Veröffentlichung übereinstimmen"
+        invalid_roles_shape: "muss eine Liste nicht leerer Namen sein"
+        invalid_roles: "enthält ungültige Rollen: %{roles}"
+        missing_verified_artifact: "muss ein verifiziertes Artefakt haben"
+      plugin_release:
+        bundled_archive_present: "muss für gebündelte Veröffentlichungen fehlen"
+        artifact_identity_immutable: "Die Artefaktidentität der Plugin-Veröffentlichung ist nach Speicherung oder Auswahl unveränderlich."
       chat_attachments:
         default_name: "Anhang"
         must_be_array: "Anhänge müssen als Array angegeben werden."
@@ -127,8 +135,6 @@ de:
       file_too_large: "darf höchstens %{size} MB groß sein"
       unsupported_file_type: "muss eine unterstützte Text-, PDF-, Office- oder Bilddatei sein"
       must_be_blank_for_file: "muss bei Dateidokumenten leer sein"
-      invalid_google_doc_url: "muss eine HTTPS-URL von docs.google.com sein"
-      cannot_attach_to_google_doc: "kann nicht an einen Google-Doc-Link angehängt werden"
       content_cache_too_large: "darf höchstens %{size} KB groß sein"
       too_many_job_attachments: "Jobs dürfen höchstens %{count} Anhänge haben"
       already_recorded: "wurde für diese Quelle und Verankerung bereits erfasst"
@@ -252,6 +258,9 @@ de:
       errors:
         unknown_rule: "Diese Berechtigungsregel wurde nicht gefunden."
         operation_required: "Wähle die genaue Operation dieser Regel."
+        essential_operation: "Diese Operation ist für Agenten unverzichtbar und immer erlaubt; keine Regel kann das ändern."
+        exceeds_breadth_ceiling: "Diese Operation kann auf Ebene %{breadth} nicht für %{duration} erlaubt werden. Beschränke die Regel auf eine bestimmte Ressource oder erlaube sie einmalig."
+        unknown_breadth: "Wähle, ob die Regel diese Ressource, das ganze Werkzeug oder die ganze Familie abdeckt."
         unknown_capability: "Diese Fähigkeit oder Operation ist nicht im Berechtigungskatalog."
         unknown_policy: "Unbekannte Regelrichtlinie."
         unsupported_duration: "Wähle Chat-Sitzung, Job oder dauerhafte Berechtigung."
@@ -640,7 +649,7 @@ de:
       documents:
         added: "Dokument hinzugefügt."
         partially_added: "Einige Dokumente konnten nicht hinzugefügt werden: %{errors}"
-        choose_source: "Wähle eine Datei oder gib eine Google-Doc-URL ein."
+        choose_source: "Wähle eine Datei."
         removed: "Dokument entfernt."
       labels:
         github_token: "GitHub-Token"
@@ -904,6 +913,7 @@ de:
         legacy: "%{count} nicht öffentliche Host-API-Referenz(en)"
         dynamic: "%{count} dynamische, nicht öffentliche Host-API-Referenz(en)"
         minimum: "requires_syrus beginnt bei %{declared} und liegt unter dem abgeleiteten Minimum %{derived}"
+      quarantine_not_locally_clearable: "Diese Quarantäne muss an ihrer Quelle aufgehoben werden."
 
     job_lifecycle:
       direct_only: "Nur direkte Jobs können manuell gestartet werden."
@@ -1029,3 +1039,7 @@ de:
       syrus_communication_spawn_chats: "Neue Chats starten"
       syrus_documents_create: "Ein Repository-Dokument erstellen"
       syrus_documents_delete: "Ein Repository-Dokument löschen"
+  mcp_bridge:
+    chat_title: "MCP-Brücke: %{name}"
+    unauthorized: "Ein gültiges MCP-Brücken-Token ist erforderlich."
+    name_required: "Gib dem Token einen Namen."

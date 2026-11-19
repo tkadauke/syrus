@@ -67,11 +67,13 @@ module Coworkers
     def self.coworker_descriptor(klass)
       name = klass.tool_name
       if WORKSPACE_TOOLS.include?(klass)
+        # Deniable: the operator protects paths inside the coworker workspace.
         Permissions::CoworkerActions.descriptor(tool_name: name, family: "workspace.files", effects: %i[isolated_workspace_write],
-          risk: :low, default: :allow, maximum_autonomy: :invocation)
+          risk: :low, default: :allow, maximum_autonomy: :invocation, deniable_reason: :operator_scoping)
       elsif klass == ReplyInChatThreadTool
+        # Replying to the owner in its own thread is owner interaction: essential.
         Permissions::CoworkerActions.descriptor(tool_name: name, family: "chat.reply_owner_thread", effects: %i[internal_write],
-          risk: :low, default: :allow, benign_internal: :owner_interaction)
+          risk: :low, default: :allow, benign_internal: :owner_interaction, essential: true)
       elsif klass == ManageScheduleTool
         Permissions::CoworkerActions.descriptor(tool_name: name, family: "schedule.manage_self",
           effects: %i[internal_write persistent_autonomy], risk: :medium, default: :ask)
@@ -86,6 +88,8 @@ module Coworkers
     def self.available_for?(chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
     end
+
+    def self.coworker_specific_availability? = true
 
     def self.available_for_coworker?(_chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :essential
@@ -123,7 +127,9 @@ module Coworkers
 
       return [] unless tier.to_sym == :deferred
 
-      TOOLS.map { |tool| { name: tool.tool_name, description: tool.description_value, input_schema: tool.input_schema_value.to_h } }
+      # Reading the owner's coworkers and drafting a coworker or grant proposal
+      # (whose card the owner confirms) are essential: never deniable.
+      TOOLS.map { |tool| { name: tool.tool_name, description: tool.description_value, input_schema: tool.input_schema_value.to_h, essential: true } }
     end
 
     def handle(tool_name, params, server_context)

@@ -36,7 +36,7 @@ module Permissions
       return enforcement_disabled_decision(classification) if Enforcement.disabled?
 
       normalized = @descriptor.resource_scope.normalize(@resource_scope, context: @context)
-      return normalization_failure(classification, normalized) if normalized.fail_closed?
+      return normalization_failure(classification, normalized) if normalized.fail_closed? && !@descriptor.essential?
 
       invocation = Invocation.new(capability: @descriptor.capability, operation: classification.operation,
         effects: classification.effects, risk: classification.risk,
@@ -45,15 +45,30 @@ module Permissions
       match_statuses = @rules.to_h do |rule|
         [ rule, rule.match_status(invocation, descriptor: @descriptor, context: @context, arguments: normalized_arguments) ]
       end
-      return matching_failure(invocation) if match_statuses.value?(:failure)
+      return matching_failure(invocation) if match_statuses.value?(:failure) && !@descriptor.essential?
 
       matching = match_statuses.filter_map { |rule, status| rule if status == :match }
+      return essential_decision(invocation, matching) if @descriptor.essential?
+
+      # An allow broader than the descriptor permits for its duration (say a
+      # permanent family-wide allow for raw SQL) does not grant authority; the
+      # invocation falls through to narrower rules or the default.
+      # A permission profile is the operator's own central declaration (say
+      # "full access"), not a grant proposed on a card, so it is not capped.
+      over_broad = matching.select do |rule|
+        rule.policy == :allow && !profile_rule?(rule) && !@descriptor.breadth_permits?(rule.breadth, rule.effective_duration)
+      end
+      matching -= over_broad
       selected = LAYERS.to_h { |layer| [ layer, select_rule(matching.select { |rule| rule.layer == layer }) ] }
 
       chain = LAYERS.map do |layer|
         rule = selected[layer]
         Explanation.new(layer:, status: rule ? :matched : :no_match, rule:, policy: rule&.policy,
           detail: rule ? :explicit_rule : :no_matching_rule)
+      end
+
+      chain += over_broad.map do |rule|
+        Explanation.new(layer: rule.layer, status: :inert, rule:, policy: rule.policy, detail: :exceeds_breadth_ceiling)
       end
 
       deny = LAYERS.filter_map { |layer| selected[layer] }.find { |rule| rule.policy == :deny }
@@ -93,6 +108,19 @@ module Permissions
     private
 
     def profile_rule?(rule) = rule.source.start_with?("permission_profile:")
+
+    # An essential operation is evaluated -- classified, matched and recorded
+    # like any other, so audits and the explainer see it -- but no rule,
+    # preset, lease or default can change the outcome. Rules that matched are
+    # reported as overridden, so a stale deny rule is visible rather than
+    # silently ignored.
+    def essential_decision(invocation, matching)
+      overridden = matching.map do |rule|
+        Explanation.new(layer: rule.layer, status: :overridden, rule:, policy: rule.policy, detail: :essential_operation)
+      end
+      essential = Explanation.new(layer: :core, status: :decisive_default, rule: nil, policy: :allow, detail: :essential)
+      decision(:allow, nil, overridden + [ essential ], invocation)
+    end
 
     def select_rule(rules)
       rules.min_by do |rule|

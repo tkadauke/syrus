@@ -65,6 +65,25 @@ RSpec.describe Deploy::ImagePins do
     ])
   end
 
+  # Regression: the pre-pull starts right after the image push, so it is live
+  # when the watchdog budget first reads this list; it is deleted before
+  # pinning, and waiting on it hung a production rollout until it unwound.
+  it "never pins or waits on the deploy's own pre-pull DaemonSet" do
+    subject, fake = pins([
+      workload("DaemonSet", "syrus-image-prepull",
+        containers: [ container("prepull", "ghcr.io/tkadauke/syrus-worker-dev:abc1234") ]),
+      workload("DaemonSet", "syrus-worker-compute",
+        containers: [ container("syrus-worker", "ghcr.io/tkadauke/syrus-worker-dev:old") ])
+    ])
+
+    expect(subject.our_containers.map(&:target)).to eq([ "daemonset/syrus-worker-compute" ])
+
+    subject.pin!
+
+    expect(subject.pinned_targets).to eq([ "daemonset/syrus-worker-compute" ])
+    expect(fake.actions.join).not_to include("prepull")
+  end
+
   it "leaves containers running somebody else's images alone" do
     subject, fake = pins([
       workload("Deployment", "syrus-web", containers: [

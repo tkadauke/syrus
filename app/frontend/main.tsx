@@ -16,10 +16,12 @@ import { StartupRenderMarker } from "./lib/StartupRenderMarker"
 import { createQueryClient } from "./queryClient"
 import "./builtInPluginContributions"
 import { loadExternalPluginFrontends } from "./externalPluginFrontends"
+import { installRecoverableErrorInteractionCapture, reportRecoverableError } from "./lib/recoverableErrorDiagnostics"
 
 installStaleChunkRecovery()
 configureExcalidrawAssets()
 initErrorRingBuffer()
+installRecoverableErrorInteractionCapture()
 startBrowserPerformanceObservers()
 markStartupMilestone("react_module_evaluated")
 
@@ -34,7 +36,11 @@ async function renderApplication() {
       return
     }
 
-    createRoot(root).render(
+    createRoot(root, {
+      onRecoverableError(error, errorInfo) {
+        reportRecoverableError(error, errorInfo)
+      }
+    }).render(
       <StrictMode>
         <I18nextProvider i18n={i18n}>
           <I18nStartupGate>

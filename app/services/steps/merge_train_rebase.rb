@@ -33,6 +33,7 @@ module Steps
           "onto #{train.base_branch}@#{new_base_sha.first(9)} (was #{old_base_sha.first(9)})")
 
       begin
+        GitMergeDrivers.register!(git: git, path: chdir)
         git.run("rebase", "FETCH_HEAD", chdir: chdir)
       rescue GitRunner::GitError => e
         workflow.set_artifact!("merge_train_rebase_reason", e.message.truncate(500))

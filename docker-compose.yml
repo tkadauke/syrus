@@ -29,8 +29,9 @@ services:
     # A single list element so Compose passes the whole script as one arg to
     # `bash -euc` (a string command would be word-split, leaving bash only the
     # first word). `$$` escapes Compose interpolation so bash expands the var.
-    entrypoint: ["/bin/bash", "-euc"]
     command:
+      - /bin/bash
+      - -euc
       - |
         mkdir -p "$$SYRUS_DATA_ROOT/db"
         mkdir -p "$$(dirname "$$SEARCH_DATABASE_PATH")"
@@ -41,6 +42,9 @@ services:
       - syrus-search:/home/rails/.syrus-search
       - syrus-plugins:/home/rails/.syrus-plugins:ro
     restart: "no"
+    environment:
+      SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
+      SYRUS_PLUGIN_PATH: /home/rails/.syrus-plugins
 
   web:
     <<: *app

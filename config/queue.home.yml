@@ -9,6 +9,7 @@
     pods and the search volume:
       - `control_plane` — schedulers, landing admission, reconciliation,
                           retries, and chat wakeups.
+      - `operator_actions` — operator-confirmed pending actions.
       - `polling`       — GitHub/repository/main-branch/deployment pollers.
       - `indexing`      — search index writes and issue-image ingestion.
       - `cleanup`       — pruning and filesystem/data-root cleanup.
@@ -43,6 +44,14 @@ default: &default
         - "<%= WorkerStorageIdentity.queue_name %>"
         - "control_plane"
       threads: <%= ENV.fetch("CONTROL_PLANE_CONCURRENCY", 3) %>
+      processes: 1
+      polling_interval: 0.1
+    # Operator-confirmed pending actions. A confirmation is a person waiting
+    # on a spinner; on control_plane it queued behind reconciler sweeps and
+    # domain-event bursts for minutes, and a long one (a 10-minute SSH call)
+    # held a scheduler thread for its whole run.
+    - queues: "operator_actions"
+      threads: <%= ENV.fetch("OPERATOR_ACTION_CONCURRENCY", 2) %>
       processes: 1
       polling_interval: 0.1
     # Bulk polling is bursty and GitHub/API-bound; keep it off control-plane

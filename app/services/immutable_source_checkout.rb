@@ -5,6 +5,8 @@ require "rbconfig"
 require "securerandom"
 
 class ImmutableSourceCheckout
+  include WorkspaceGitTransportPreference
+
   # Relative to WorkflowWorkspace.scratch_path_for, which is beside the
   # workflow workspace rather than inside it -- see the note there for what
   # putting this scratch under the workspace cost.
@@ -15,8 +17,25 @@ class ImmutableSourceCheckout
   PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
   PREPARED_ARCHIVE_CONTENT_TYPE = PreparedWorkspaceArchive::CONTENT_TYPE
   PREPARED_ARCHIVE_MAX_BYTES = PreparedWorkspaceArchive::MAX_BYTES
+  # A grader fan-out materializes ~20 checkouts at once. When the hosting
+  # fetch is the only source, GitHub resets some of those concurrent HTTP/2
+  # streams; one reset used to fail the grader -- and, through grader_collect,
+  # the whole workflow -- as infrastructure. Retry connection-level failures
+  # in place, a few times, with jitter so the retries do not stampede again.
+  HOSTING_FETCH_ATTEMPTS = 4
+  HOSTING_FETCH_BACKOFF = [ 2, 5, 10 ].freeze
+  TRANSIENT_FETCH_FAILURE = %r{RPC failed|curl \d+ |early EOF|unexpected disconnect|remote end hung up|Recv failure|connection (?:reset|refused|timed out)|operation timed out|could not resolve host|SSL_ERROR_SYSCALL|TLS connection was non-properly terminated|HTTP/2 stream|returned error: 5\d\d|HTTP 50[0234]}i
+  PERMANENT_FETCH_FAILURE = /authentication failed|could not read username|permission denied|repository not found|couldn't find remote ref|returned error: 4\d\d|invalid refspec/i
+  MIRROR_SEED_REF_PREFIX = "refs/syrus/mirror-seed/".freeze
 
   attr_reader :path
+
+  class << self
+    # Test seam: specs replace the wait between hosting fetch attempts.
+    attr_writer :retry_sleeper
+
+    def retry_sleeper = @retry_sleeper || ->(seconds) { sleep(seconds) }
+  end
 
   def self.path_for(step)
     WorkflowWorkspace.scratch_path_for(step.workflow).join(CHECKOUT_ROOT, step.id.to_s)
@@ -138,13 +157,74 @@ class ImmutableSourceCheckout
 
   def fetch_snapshot!(snapshot)
     log("[immutable_source_checkout] fetching #{snapshot.source_ref} for snapshot ##{snapshot.id}")
-    authenticated_git("git_immutable_source_fetch") do |url|
-      @git.run("fetch", "--no-tags", url, source_refspec(snapshot), chdir: path.to_s, env: @env)
+    log("[immutable_source_checkout] trying preferred workspace Git transport for #{snapshot.source_ref}")
+    fetch_via_transport!(
+      repository: @repository,
+      user: @job.user,
+      refspec: source_refspec(snapshot),
+      chdir: path.to_s,
+      verify_sha: snapshot.source_sha,
+      env: @env,
+      fetch_args: [ "--no-tags" ]
+    ) do
+      log("[immutable_source_checkout] preferred transport unavailable or stale; falling back to authenticated hosting fetch for #{snapshot.source_ref}")
+      seed_objects_from_mirror!
+      with_hosting_fetch_retries(snapshot.source_ref) do
+        authenticated_git("git_immutable_source_fetch") do |url|
+          @git.run("fetch", "--no-tags", url, source_refspec(snapshot), chdir: path.to_s, env: @env)
+        end
+      end
     end
+    raise GitRunner::GitError.new([ "fetch", snapshot.source_ref ], 128, "fetched ref does not contain expected snapshot SHA #{snapshot.source_sha}") unless git_object_present?(snapshot.source_sha)
+
     record_origin_head!(snapshot)
     log("[immutable_source_checkout] fetched #{snapshot.source_ref} for snapshot ##{snapshot.id}")
   rescue GitRunner::GitError => e
     raise_infrastructure!("immutable source checkout missing ref #{snapshot.source_ref}: #{e.message}")
+  end
+
+  # The mirror carries branches and tags but not the snapshot refs, so a
+  # snapshot fetch falls back to the hosting platform -- which, into an empty
+  # repository, is a full clone per grader. Seeding the default branch from
+  # the mirror first leaves the hosting fetch only the snapshot's own delta.
+  # Best effort: without a mirror, or if it fails, the hosting fetch simply
+  # transfers everything as before.
+  def seed_objects_from_mirror!
+    branch = @repository.default_branch.to_s.presence
+    return unless branch
+
+    seed_ref = "#{MIRROR_SEED_REF_PREFIX}#{branch}"
+    seeded = try_mirror_transport(repository: @repository, user: @job.user, verify: -> { true }) do |url, mirror_env|
+      @git.run("fetch", "--no-tags", url, "+refs/heads/#{branch}:#{seed_ref}", chdir: path.to_s, env: @env.merge(mirror_env))
+    end
+    return unless seeded
+
+    # The objects are what matter; the ref would only be noise in the checkout.
+    @git.run("update-ref", "-d", seed_ref, chdir: path.to_s)
+    log("[immutable_source_checkout] seeded objects from the workspace Git transport (#{branch})")
+  rescue GitRunner::GitError => e
+    log("[immutable_source_checkout] mirror seed skipped: #{e.message}")
+  end
+
+  def with_hosting_fetch_retries(label)
+    attempt = 0
+    begin
+      attempt += 1
+      yield
+    rescue GitRunner::GitError => e
+      raise unless attempt < HOSTING_FETCH_ATTEMPTS && transient_fetch_failure?(e)
+
+      delay = HOSTING_FETCH_BACKOFF.fetch(attempt - 1, HOSTING_FETCH_BACKOFF.last)
+      delay += rand * delay
+      log("[immutable_source_checkout] transient hosting fetch failure for #{label} (attempt #{attempt}/#{HOSTING_FETCH_ATTEMPTS}); retrying in #{delay.round(1)}s: #{e.message.lines.first.to_s.strip}")
+      self.class.retry_sleeper.call(delay)
+      retry
+    end
+  end
+
+  def transient_fetch_failure?(error)
+    message = error.message.to_s
+    !message.match?(PERMANENT_FETCH_FAILURE) && message.match?(TRANSIENT_FETCH_FAILURE)
   end
 
   def source_refspec(snapshot)
@@ -190,9 +270,10 @@ class ImmutableSourceCheckout
   end
 
   def ensure_base_ref!
-    return if git_ref_exists?(base_ref)
-
     remote, branch = remote_tracking_ref_parts(base_ref)
+    repository = remote_repository(remote)
+    return if git_ref_exists?(base_ref) && !WorkspaceGitTransports.for(repository, user: @job.user)
+
     log("[immutable_source_checkout] fetching base ref #{base_ref}")
     ensure_remote!(remote)
     begin
@@ -250,14 +331,54 @@ class ImmutableSourceCheckout
   end
 
   def fetch_remote_branch!(remote, branch, destination_ref:)
-    authenticated_git_for(remote_repository(remote), "git_immutable_source_base_fetch") do |url|
-      @git.run(
-        "fetch", "--no-tags", url,
-        "+refs/heads/#{branch}:#{destination_ref}",
-        chdir: path.to_s,
-        env: @env
-      )
+    repository = remote_repository(remote)
+    refspec = "+refs/heads/#{branch}:#{destination_ref}"
+    expected_sha = expected_base_sha(remote, branch)
+    unless expected_sha && WorkspaceGitTransports.for(repository, user: @job.user)
+      return authenticated_base_fetch!(repository, refspec)
     end
+
+    log("[immutable_source_checkout] trying preferred workspace Git transport for #{remote}/#{branch}")
+    fetch_via_transport!(
+      repository: repository,
+      user: @job.user,
+      refspec: refspec,
+      chdir: path.to_s,
+      verify: -> { git_ref_sha(destination_ref) == expected_sha },
+      env: @env,
+      fetch_args: [ "--no-tags" ]
+    ) do
+      log("[immutable_source_checkout] preferred transport unavailable or stale; falling back to authenticated hosting fetch for #{remote}/#{branch}")
+      authenticated_base_fetch!(repository, refspec)
+    end
+  end
+
+  def expected_base_sha(remote, branch)
+    snapshot = source_snapshot
+    return snapshot.source_sha if remote == "origin" && snapshot.source_ref == "refs/heads/#{branch}"
+    return unless branch == @job.effective_base_branch
+
+    @workflow.artifact(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY).presence ||
+      @job.mergeability_base_sha.presence
+  end
+
+  def authenticated_base_fetch!(repository, refspec)
+    authenticated_git_for(repository, "git_immutable_source_base_fetch") do |url|
+      @git.run("fetch", "--no-tags", url, refspec, chdir: path.to_s, env: @env)
+    end
+  end
+
+  def git_ref_sha(ref)
+    @git.run("rev-parse", "--verify", ref, chdir: path.to_s).strip
+  rescue GitRunner::GitError
+    nil
+  end
+
+  def git_object_present?(revision)
+    @git.run("cat-file", "-e", "#{revision}^{commit}", chdir: path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
   end
 
   def parent_landed_sha_for(repository)

@@ -17,6 +17,7 @@ module Steps
       verify_fetched_source!(git, source_head, source_tree)
 
       log("speculative_landing: rebasing #{job.slug} onto predicted base #{source_head.first(7)}", kind: "system")
+      GitMergeDrivers.register!(git: git, path: workspace.path)
       git.run("rebase", "FETCH_HEAD", chdir: workspace.path.to_s)
 
       head_sha = git.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip

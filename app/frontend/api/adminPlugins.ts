@@ -27,6 +27,7 @@ export type AdminPlugin = {
       error?: string | null
     }
   }
+  quarantine_clearable?: boolean
   name: string
   display_name: string
   display_name_i18n_key?: string | null
@@ -61,13 +62,31 @@ export type AdminPlugin = {
 }
 
 export type AdminPluginsPayload = {
+  recovery?: { safe_mode: string | null; quarantines: Record<string, string>; locally_clearable: string[] }
   beta_mode_enabled?: boolean
+  convergence?: PluginConvergencePayload
   plugins: AdminPlugin[]
   // Present on the index response (filtered by the FilterBar chip tree);
   // absent from the enable/disable cascade responses, which always return
   // the full unfiltered plugin list.
   filter?: Record<string, unknown>
   controls?: { filter_schema: FilterSchemaField[] }
+}
+
+export type PluginConvergencePayload = {
+  desired_revision: number
+  divergence_threshold_seconds: number
+  processes: Array<{
+    hostname: string
+    role: string
+    state: "converged" | "pending_restart" | "behind" | "ahead" | "unreachable"
+    running_revision: number | null
+    running_digest: string | null
+    last_heartbeat_at: string | null
+    diverged_since: string | null
+    diverged_too_long: boolean
+    plugins: Array<{ name: string; desired_version: string; running_version: string | null; state: string; reasons: string[] }>
+  }>
 }
 
 export type AdminPluginTogglePayload = { ok: true; plugin: { name: string; enabled: boolean } }
@@ -100,6 +119,10 @@ export function disableAdminPlugin(name: string, confirmCascade = false) {
     `/api/v1/app/admin/plugins/${encodeURIComponent(name)}/disable`,
     confirmCascade ? { confirm_cascade: true } : undefined
   )
+}
+
+export function clearAdminPluginQuarantine(name: string) {
+  return postJson<{ ok: true; plugin: string; restart_required: boolean }>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}/clear_quarantine`)
 }
 
 export function enableBetaModeForInstance() {

@@ -4,6 +4,36 @@ External plugins are trusted, in-process code. Installing one gives it the same
 database, filesystem, network, and credential access as Syrus. Review its source
 and obtain it through a trusted channel before placing it on an instance.
 
+## Desired-state storage and signatures
+
+The control plane stores external release archives in the primary Active
+Storage service. Archives use the content-addressed object key
+`plugins/artifacts/<sha256>`. The declared SHA-256 digest and byte size are
+checked before the archive is attached to a release.
+
+The desired set is published for pre-boot readers at:
+
+- `plugins/desired/manifest.json`
+- `plugins/desired/manifest.json.sig`
+
+The JSON contains schema version `1`, a monotonically increasing revision, and
+the enabled external releases with their name, version, SHA-256 digest, byte
+size, process roles, and fleet-quarantine state. Publication writes the
+detached signature before atomically replacing the manifest, so the manifest
+is the commit point. Readers must verify the signature over the manifest's
+exact bytes before parsing or acting on it. A verification failure, unknown
+schema version, missing artifact, size mismatch, or digest mismatch makes the
+publication unusable.
+
+Generate the control-plane Ed25519 key once with
+`bin/rails plugin_manifest:keygen`. The private seed is encrypted in the
+singleton application settings record. Distribute the command's base64 public
+key to every pre-boot sync process as `SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY`; never
+distribute the private seed. The control plane refuses publication when that
+configured public key does not match its stored private key. Back up the
+encrypted application setting with the database and treat key rotation as a
+coordinated configuration rollout.
+
 The plugin package is one directory containing its gemspec, Ruby entry file,
 application code, migrations, and any prebuilt frontend assets. Plugin authors
 can follow [Authoring an external plugin](../conventions/plugins/external.md).
@@ -24,6 +54,10 @@ or installer workflow yet. Populate the volume through an operator-controlled
 helper container or volume-management procedure while the application is
 stopped. Kubernetes deployments should provide the equivalent shared,
 read-only application mount through their normal storage and rollout system.
+The shipped k3s workloads continue to use plugins baked into the image; when
+no signed desired-state storage is configured, the shared entrypoint's sync is
+a no-op. Third-party plugin distribution to k3s and native macOS workers
+remains outside this mechanism.
 
 ## Install or replace a plugin
 

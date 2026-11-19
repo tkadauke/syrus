@@ -357,7 +357,7 @@ module JavaScript
             "coverage" => coverage,
             "typecheck" => typecheck?
           }
-        }
+        }.merge(mode == "ci" ? { "supersedes" => full_name } : {})
       )
     end
   end

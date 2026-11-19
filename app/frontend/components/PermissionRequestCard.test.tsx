@@ -40,6 +40,7 @@ const request: PermissionRequest = {
       smart_option: {
         kind: "allow_job",
         duration: "job",
+        breadth: "resource",
         digest: "d1",
         summary: { allows: ["Maya may draft in this job."], excludes: ["Other operations"] },
         draft: {},
@@ -93,7 +94,7 @@ describe("PermissionRequestCard smart actions", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
     const [url, init] = fetchSpy.mock.calls[0]
     expect(url).toBe("/api/v1/app/permission_requests/9/items/33/smart_decision")
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ duration: "job", digest: "d1" })
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ duration: "job", breadth: "resource", digest: "d1" })
   })
 
   it("keeps long statements inside a 402px card without raw structures or identifiers", () => {

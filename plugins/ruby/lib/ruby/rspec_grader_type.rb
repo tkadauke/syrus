@@ -250,6 +250,10 @@ module Ruby
     end
 
     def ci_command(coverage:)
+      if parallel_rspec_enabled_for?("ci") && tag_args_for("ci").any? && (combined = combined_ci_command(coverage))
+        return combined
+      end
+
       if parallel_rspec_enabled_for?("ci") && tag_args_for("ci").any?
         return parallel_rspec_command(
           mode: "ci",
@@ -275,6 +279,52 @@ module Ruby
         env: { "RUN_CI_ONLY_SPECS" => "true" },
         args: [ *tag_args_for("ci"), *rspec_paths ]
       )
+    end
+
+    # With `parallel_rspec.serial_paths`, the CI-tag examples join the parallel
+    # pass instead of running in a serial pass of their own -- parallel_rspec
+    # gives each worker its own database, so a CI-only example is no less
+    # isolated there -- and only the listed paths (schema-changing migration
+    # specs, subprocess-heavy scripts, non-transactional specs) stay serial.
+    # The serial CI pass otherwise ran a quarter of the suite on one core and
+    # was the longest part of the CI grader.
+    def combined_ci_command(coverage)
+      serial_paths = parallel_serial_paths
+      return nil if serial_paths.empty?
+      return nil if tags_for("full", "include").any?
+
+      combined_tags = combined_ci_tag_args
+      parallel_rspec_command(
+        mode: "ci",
+        junit_output: junit_output(ci_name),
+        json_output: json_output(ci_name),
+        coverage: coverage,
+        env: { "RUN_CI_ONLY_SPECS" => "true" },
+        args: [ *combined_tags, *rspec_paths ],
+        exclude_paths: serial_paths,
+        extra_serial: {
+          env: { "RUN_CI_ONLY_SPECS" => "true" },
+          args: [ *combined_tags, *serial_paths ],
+          json_output: extra_json_output(ci_name, "serial"),
+          junit_output: extra_junit_output(ci_name, "serial")
+        }
+      )
+    end
+
+    # Everything the full pass runs plus the CI-tag examples: the full mode's
+    # exclusions minus the tags the CI mode includes. An empty tag list would
+    # make a worker fall back to its own default exclusions (which drop the
+    # CI-only examples), so an exclusion of a tag nothing carries stands in.
+    COMBINED_PASS_NOOP_TAG = "syrus_no_such_tag"
+
+    def combined_ci_tag_args
+      excluded = tags_for("full", "exclude") - tags_for("ci", "include")
+      excluded = [ COMBINED_PASS_NOOP_TAG ] if excluded.empty?
+      excluded.flat_map { |tag| [ "--tag", "~#{tag}" ] }
+    end
+
+    def parallel_serial_paths
+      Array(parallel_config["serial_paths"]).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
     end
 
     def rspec_paths
@@ -305,6 +355,9 @@ module Ruby
         ruby -e #{Shellwords.escape(focused_selector_ruby)} > .syrus/rspec-focused-files &&
         if grep -qx '__SYRUS_NO_SCOPED_RUBY_CHANGES__' .syrus/rspec-focused-files; then
           echo "No changed Ruby files matched this RSpec grader's scope; skipping";
+          : > .syrus/rspec-focused-files;
+        elif grep -qx '__SYRUS_NO_FOCUSED_SPECS__' .syrus/rspec-focused-files; then
+          echo "No RSpec files cover the changed Ruby files; skipping the focused run (the full RSpec graders cover it before landing)";
           : > .syrus/rspec-focused-files;
         elif [ ! -s .syrus/rspec-focused-files ]; then
           echo "No focused RSpec files matched changed Ruby files; falling back to full RSpec suite";
@@ -365,7 +418,7 @@ module Ruby
       skip_setup ? command : "#{setup_prefix} && #{command}"
     end
 
-    def parallel_rspec_command(mode:, junit_output:, json_output:, coverage:, env: {}, args: [], shell_expand_args: false, skip_setup: false, extra_serial: nil)
+    def parallel_rspec_command(mode:, junit_output:, json_output:, coverage:, env: {}, args: [], shell_expand_args: false, skip_setup: false, extra_serial: nil, exclude_paths: [])
       raise ArgumentError, "parallel_rspec cannot use shell-expanded args without exec_args" if shell_expand_args && parallel_exec_args.blank?
 
       env = {
@@ -390,6 +443,7 @@ module Ruby
         *parallel_process_args,
         "--quiet",
         *parallel_static_group_args,
+        *parallel_exclude_args(exclude_paths),
         *parallel_execution_args(mode, args, json_output: json_output, junit_output: junit_output, shell_expand_args: shell_expand_args)
       ]
       parallel_command = parallel_shell_command(parallel_args, shell_expand_args: shell_expand_args)
@@ -603,6 +657,14 @@ module Ruby
     end
 
     PARALLEL_PROCESS_PLACEHOLDER = "__SYRUS_RSPEC_PROCESSES__"
+
+    # parallel_rspec matches --exclude-pattern against each spec file path.
+    def parallel_exclude_args(paths)
+      return [] if paths.empty?
+
+      alternatives = paths.map { |path| Regexp.escape(path.delete_prefix("./")) }
+      [ "--exclude-pattern", "\\A(?:\\./)?(?:#{alternatives.join("|")})" ]
+    end
 
     def parallel_static_group_args
       group_by = parallel_config["group_by"].to_s.strip.presence
@@ -823,7 +885,30 @@ module Ruby
             ].compact.map { |candidate| prefixed.call(candidate) }
           end
         end
-        puts specs.uniq.sort.select { |path| File.exist?(path) }
+        selected = specs.uniq.sort.select { |path| File.exist?(path) }
+        if selected.empty?
+          # No spec shares a changed file's name: look for specs that mention
+          # the changed constants instead (app/services/foo/bar_baz.rb ->
+          # Foo::BarBaz, and the bare BarBaz).
+          constants = scoped_changed.flat_map do |path|
+            rel = relative.call(path).sub(/\A(?:app\/[^\/]+|lib)\//, "").sub(/\.rb\z/, "")
+            camel = rel.split("/").map { |part| part.split("_").map(&:capitalize).join }
+            [ camel.join("::"), camel.last ]
+          end.uniq.reject { |name| name.length < 4 }
+          spec_root = prefixed.call("spec")
+          if Dir.exist?(spec_root) && constants.any?
+            pattern = Regexp.union(constants.map { |name| /\b#{Regexp.escape(name)}\b/ })
+            selected = Dir.glob(File.join(spec_root, "**", "*_spec.rb")).sort.select do |spec|
+              File.read(spec).match?(pattern)
+            rescue StandardError
+              false
+            end
+          end
+        end
+        # The base is known and Ruby changed, but no spec covers it. The full
+        # suite cannot finish inside a focused grader's budget, so say so and
+        # leave it to the full RSpec graders that run before landing.
+        puts(selected.empty? ? "__SYRUS_NO_FOCUSED_SPECS__" : selected)
       RUBY
     end
 
@@ -859,7 +944,7 @@ module Ruby
             "ci" => mode == "ci",
             "coverage" => coverage
           }
-        }
+        }.merge(mode == "ci" ? { "supersedes" => full_name } : {})
       )
     end
   end

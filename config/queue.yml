@@ -80,6 +80,14 @@ default: &default
       threads: <%= ENV.fetch("CONTROL_PLANE_CONCURRENCY", 3) %>
       processes: 1
       polling_interval: 0.1
+    # Operator-confirmed pending actions. A confirmation is a person waiting
+    # on a spinner; on control_plane it queued behind reconciler sweeps and
+    # domain-event bursts for minutes, and a long one (a 10-minute SSH call)
+    # held a scheduler thread for its whole run.
+    - queues: "operator_actions"
+      threads: <%= ENV.fetch("OPERATOR_ACTION_CONCURRENCY", 2) %>
+      processes: 1
+      polling_interval: 0.1
     # External polling fans out into per-repository / per-PR checks. These jobs
     # can burst when many repositories are active, so they do not share threads
     # with the scheduler/control-plane queue.
@@ -150,6 +158,10 @@ development:
       polling_interval: 0.5
     - queues: "control_plane"
       threads: <%= ENV.fetch("DEV_CONTROL_PLANE_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
+    - queues: "operator_actions"
+      threads: <%= ENV.fetch("DEV_OPERATOR_ACTION_CONCURRENCY", 1) %>
       processes: 1
       polling_interval: 0.5
     - queues: "polling"

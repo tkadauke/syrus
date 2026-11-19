@@ -249,10 +249,17 @@
     "description": "Benannte Coworker-Prüfer verwenden Repository-Berechtigungen und geschützten Speicher.",
     "aria_label": "Zusammenfassung des Coworker-Prüfroutings"
   },
-  "chat": { "message_to": "an @{{handle}}", "bridge_link": "Chat #{{id}}: {{title}}", "new_title": "Neuer Chat" },
+  "chat": {
+    "message_to": "an @{{handle}}",
+    "bridge_link": "Chat #{{id}}: {{title}}",
+    "new_title": "Neuer Chat",
+    "view_working_session": "Arbeitssitzung ansehen"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Neuer Nebenchat",
+    "creating_side_chat": "Nebenchat wird erstellt…",
+    "edit": "Bearbeiten",
     "add_to_chat": "Zum Chat hinzufügen",
     "remove_from_chat": "Aus dem Chat entfernen",
     "choose_chat": "Chat auswählen",
@@ -262,5 +269,6 @@
     "soul_unavailable": "SOUL.md ist nicht verfügbar.",
     "engineer_capabilities": "Feste Entwicklerfähigkeiten",
     "existing_link": "Öffne diese Funktion über ihre bestehende Syrus-Seite."
-  }
+  },
+  "edit": { "title": "Coworker bearbeiten", "save": "Änderungen speichern", "saving": "Wird gespeichert…" }
 }

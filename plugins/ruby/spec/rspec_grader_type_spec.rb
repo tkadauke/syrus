@@ -49,6 +49,54 @@ RSpec.describe Ruby::RspecGraderType do
     end
   end
 
+  # The serial CI-tag pass ran a quarter of the suite on one core and was the
+  # longest part of the CI grader. With serial_paths, CI-only examples join
+  # the parallel pass and only the listed paths stay serial.
+  describe "CI grader with parallel_rspec.serial_paths" do
+    def ci_step(serial_paths: [ "spec/migrations/", "spec/bin/check_spec.rb" ], tags: { "ci" => { "include" => [ "ci_only" ] } })
+      described_class.grade_steps(
+        config: {
+          "tags" => tags,
+          "parallel_rspec" => {
+            "enabled" => true, "rspec_modes" => [ "ci" ], "exec_args" => "bin/rspec-worker", "serial_paths" => serial_paths
+          }
+        },
+        default_failures: "strict"
+      ).third
+    end
+
+    it "runs CI-only examples in the parallel pass and keeps only the serial paths serial" do
+      _stdout, _stderr, status, parallel_args = run_generated_rspec_command(ci_step.run, parallel_status: 0)
+
+      expect(status).to be_success
+      expect(parallel_args).to include("--exclude-pattern", "spec/migrations/|spec/bin/check_spec\\.rb")
+      expect(ci_step.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~syrus_no_such_tag RUN_CI_ONLY_SPECS=true")
+      expect(ci_step.run).to match(%r{RUN_CI_ONLY_SPECS=true bundle exec rspec .*--tag \\~syrus_no_such_tag spec/migrations/ spec/bin/check_spec\.rb})
+      expect(ci_step.run).not_to include("--tag ci_only")
+    end
+
+    it "excludes exactly the serial paths from parallel file discovery" do
+      pattern = Regexp.new(Shellwords.split(ci_step.run[/--exclude-pattern \S+/]).last)
+
+      expect(pattern).to match("spec/migrations/add_thing_spec.rb")
+      expect(pattern).to match("./spec/bin/check_spec.rb")
+      expect(pattern).not_to match("spec/models/migration_spec.rb")
+      expect(pattern).not_to match("spec/bin/check_spec_rb")
+    end
+
+    it "fails when either pass fails" do
+      expect(run_generated_rspec_command(ci_step.run, parallel_status: 1)[2]).not_to be_success
+      expect(run_generated_rspec_command(ci_step.run, parallel_status: 0, serial_status: 1)[2]).not_to be_success
+    end
+
+    it "keeps the separate serial CI-tag pass without serial_paths" do
+      run = ci_step(serial_paths: []).run
+
+      expect(run).not_to include("--exclude-pattern")
+      expect(run).to include("--tag ci_only")
+    end
+  end
+
   it "registers the rspec type name" do
     expect(described_class.type_name).to eq("rspec")
   end
@@ -185,6 +233,53 @@ RSpec.describe Ruby::RspecGraderType do
     end
 
     expect(stdout).to include("No changed Ruby files matched this RSpec grader's scope; skipping")
+    expect(status).to be_success
+  end
+
+  # A repository commit where the changed file has no same-named spec.
+  def commit_uncovered_change(dir, referencing_spec: nil)
+    run_git = ->(*args) { Open3.capture3("git", "-C", dir, *args) }
+    run_git.call("init", "-q", "-b", "main")
+    run_git.call("config", "user.email", "test@example.com")
+    run_git.call("config", "user.name", "Test")
+    run_git.call("config", "commit.gpgsign", "false")
+    FileUtils.mkdir_p(File.join(dir, ".syrus"))
+    FileUtils.mkdir_p(File.join(dir, "spec/services"))
+    File.write(File.join(dir, "spec/services/unrelated_spec.rb"), "RSpec.describe(Unrelated) {}\n")
+    File.write(File.join(dir, "spec/services/caller_spec.rb"), referencing_spec) if referencing_spec
+    run_git.call("add", "-A")
+    run_git.call("commit", "-q", "-m", "base")
+    run_git.call("checkout", "-q", "-b", "feature")
+    FileUtils.mkdir_p(File.join(dir, "app/services/billing"))
+    File.write(File.join(dir, "app/services/billing/invoice_mailer.rb"), "module Billing; class InvoiceMailer; end; end\n")
+    run_git.call("add", "-A")
+    run_git.call("commit", "-q", "-m", "change without a same-named spec")
+  end
+
+  it "selects specs that reference a changed constant when no same-named spec exists" do
+    command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+
+    Dir.mktmpdir do |dir|
+      commit_uncovered_change(dir, referencing_spec: "RSpec.describe(Billing::InvoiceMailer) {}\n")
+      stdout, stderr, status = Open3.capture3({ "SYRUS_BASE_REF" => "main" }, "ruby", "-e", focused_selector_from(command),
+        chdir: dir)
+
+      expect(status).to be_success, stderr
+      expect(stdout.lines.map(&:strip)).to eq([ "spec/services/caller_spec.rb" ])
+    end
+  end
+
+  # Regression: a change with no covering spec fell back to the full suite
+  # under the 10-minute focused budget, which it can never finish -- the
+  # grader timed out on every attempt and failed the workflow.
+  it "skips the focused run instead of running the full suite when no spec covers the change" do
+    command = described_class.grade_steps(config: {}, default_failures: "strict").second.run
+
+    stdout, _stderr, status = run_generated_rspec_command(command, parallel_status: 7, serial_status: 7,
+      extra_env: { "SYRUS_BASE_REF" => "main" }) { |dir| commit_uncovered_change(dir) }
+
+    expect(stdout).to include("No RSpec files cover the changed Ruby files; skipping the focused run")
+    expect(stdout).not_to include("falling back to full RSpec suite")
     expect(status).to be_success
   end
 
@@ -958,5 +1053,13 @@ RSpec.describe Ruby::RspecGraderType do
     selector_script = argv[argv.index("-e") + 1]
 
     expect { RubyVM::InstructionSequence.compile(selector_script) }.not_to raise_error
+  end
+end
+
+RSpec.describe Ruby::RspecGraderType, "CI variant" do
+  it "declares that its CI variant supersedes the full variant, and nothing else does" do
+    steps = described_class.grade_steps(config: { "type" => "rspec", "name" => "rspec", "phases" => %w[review landing ci] }, default_failures: "strict")
+
+    expect(steps.to_h { |step| [ step.name, step.metadata["supersedes"] ] }).to eq("rspec" => nil, "rspec-focused" => nil, "rspec-ci" => "rspec")
   end
 end

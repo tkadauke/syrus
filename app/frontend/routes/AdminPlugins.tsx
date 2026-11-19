@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   disableAdminPlugin,
+  clearAdminPluginQuarantine,
   enableBetaModeForInstance,
   enableAdminPlugin,
   fetchAdminPlugin,
@@ -24,7 +25,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { DataTable, Page } from "../components/ui"
+import { DataTable, Page, Surface } from "../components/ui"
 
 export function AdminPlugins() {
   const { t } = useT("admin")
@@ -48,6 +49,20 @@ export function AdminPlugins() {
         </Page.HeadingGroup>
       </Page.Header>
 
+      <PluginConvergencePanel data={plugins.data?.convergence} loading={plugins.isPending} />
+
+      {plugins.data?.recovery && (plugins.data.recovery.safe_mode || Object.keys(plugins.data.recovery.quarantines).length > 0) ? (
+        <Surface role="alert">
+          <SectionHeading>{t("plugins.recovery_active")}</SectionHeading>
+          <p className="mt-2 text-sm text-text-secondary">
+            {t("plugins.recovery_active_body", {
+              mode: plugins.data.recovery.safe_mode || t("plugins.none"),
+              count: Object.keys(plugins.data.recovery.quarantines).length
+            })}
+          </p>
+        </Surface>
+      ) : null}
+
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
       {plugins.isError ? <PanelMessage tone="error">{errorMessage(plugins.error, t("plugins.error_load"))}</PanelMessage> : null}
       {plugins.isSuccess ? (
@@ -65,6 +80,62 @@ export function AdminPlugins() {
         </AdminFiltersLayout>
       ) : null}
     </Page.Root>
+  )
+}
+
+function PluginConvergencePanel({ data, loading }: { data?: import("../api/adminPlugins").PluginConvergencePayload; loading: boolean }) {
+  const { t } = useT("admin")
+  return (
+    <Surface aria-label={t("plugins.convergence_aria")} role="region">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <SectionHeading>{t("plugins.convergence_heading")}</SectionHeading>
+        {data ? <span className="text-xs text-text-secondary">{t("plugins.desired_revision", { revision: data.desired_revision })}</span> : null}
+      </div>
+      {loading ? <p className="mt-3 text-sm text-text-secondary">{t("plugins.convergence_loading")}</p> : null}
+      {data && data.processes.length === 0 ? <p className="mt-3 text-sm text-text-secondary">{t("plugins.no_processes")}</p> : null}
+      {data && data.processes.length > 0 ? (
+        <div className="mt-3">
+          <DataTable.Root density="compact">
+            <DataTable.Header>
+              <DataTable.Row>
+                <DataTable.HeadCell>{t("plugins.process")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("plugins.convergence_state")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("plugins.running_revision")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("plugins.running_plugins")}</DataTable.HeadCell>
+              </DataTable.Row>
+            </DataTable.Header>
+            <DataTable.Body>
+              {data.processes.map((process) => (
+                <DataTable.Row className={process.diverged_too_long ? "bg-danger/5" : ""} key={`${process.role}-${process.hostname}`}>
+                  <DataTable.Cell>
+                    <span className="font-medium">{process.role}</span>
+                    <br />
+                    <span className="font-mono text-xs text-text-secondary">{process.hostname}</span>
+                  </DataTable.Cell>
+                  <DataTable.Cell>
+                    <span className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">{t(`plugins.convergence_states.${process.state}`)}</span>
+                    {process.diverged_too_long ? <p className="mt-1 text-xs text-danger">{t("plugins.diverged_too_long")}</p> : null}
+                  </DataTable.Cell>
+                  <DataTable.Cell className="font-mono">{process.running_revision ?? "—"}</DataTable.Cell>
+                  <DataTable.Cell>
+                    <ul className="space-y-1">
+                      {process.plugins.map((plugin) => (
+                        <li key={plugin.name}>
+                          <span className="font-mono">{plugin.name}</span> {plugin.running_version ?? "—"}{" "}
+                          <span className="text-xs text-text-secondary">
+                            ({t(`plugins.process_plugin_states.${plugin.state}`, { defaultValue: plugin.state })})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </DataTable.Cell>
+                </DataTable.Row>
+              ))}
+            </DataTable.Body>
+          </DataTable.Root>
+        </div>
+      ) : null}
+    </Surface>
   )
 }
 
@@ -131,6 +202,12 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
     }
   })
   const { disableBlocked, disableBlockers } = toggleState
+  const queryClient = useQueryClient()
+  const clearQuarantine = useMutation({
+    mutationFn: () => clearAdminPluginQuarantine(plugin.name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "plugins"] })
+  })
+  const quarantineClearable = plugin.quarantine_clearable === true
 
   return (
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -193,6 +270,11 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
           <PluginToggleButton plugin={plugin} state={toggleState} />
+          {quarantineClearable ? (
+            <Button disabled={clearQuarantine.isPending} onClick={() => clearQuarantine.mutate()} type="button" variant="secondary">
+              {clearQuarantine.isPending ? t("plugins.clearing_quarantine") : t("plugins.clear_quarantine")}
+            </Button>
+          ) : null}
         </div>
       </div>
 

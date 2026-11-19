@@ -84,10 +84,6 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
   })
 
   function openDocument(document: RepositoryDocument) {
-    if (document.kind === "google_doc") {
-      if (document.google_doc_url) window.open(document.google_doc_url, "_blank", "noopener")
-      return
-    }
     if (!document.file_path) return
     if (isPreviewableContentType(document.content_type)) {
       setPreviewDocument(document)
@@ -179,16 +175,12 @@ function DocumentForms({
   const documentsQueryKey = ["repositories", String(payload.repository.id), "documents"] as const
   const [fileTitle, setFileTitle] = useState("")
   const [file, setFile] = useState<File | null>(null)
-  const [docTitle, setDocTitle] = useState("")
-  const [googleDocUrl, setGoogleDocUrl] = useState("")
   const save = useMutation({
     mutationFn: (input: RepositoryDocumentInput) => createRepositoryDocument(payload.repository.id, input),
     onSuccess: (updated) => {
       void queryClient.invalidateQueries({ queryKey: documentsQueryKey })
       setFileTitle("")
       setFile(null)
-      setDocTitle("")
-      setGoogleDocUrl("")
       onNotice(updated.message || t("repository_documents.added"))
     }
   })
@@ -196,19 +188,13 @@ function DocumentForms({
   function submitFile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     onNotice(null)
-    save.mutate({ kind: "file", title: fileTitle, google_docs_url: "", file })
-  }
-
-  function submitGoogleDoc(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    onNotice(null)
-    save.mutate({ kind: "google_doc", title: docTitle, google_docs_url: googleDocUrl, file: null })
+    save.mutate({ kind: "file", title: fileTitle, file })
   }
 
   return (
-    <section className="grid gap-4 md:grid-cols-2">
+    <section>
       {save.isError ? (
-        <div className="md:col-span-2">
+        <div>
           <PanelMessage tone="error">{errorMessage(save.error, t("repository_documents.unable_to_add"))}</PanelMessage>
         </div>
       ) : null}
@@ -230,30 +216,6 @@ function DocumentForms({
           {save.isPending ? <>{t("repository_documents.uploading")}</> : <>{t("repository_documents.upload")}</>}
         </button>
       </form>
-
-      <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitGoogleDoc}>
-        <SectionHeading>{t("repository_documents.link_google_doc")}</SectionHeading>
-        <Field label={t("repository_documents.url")}>
-          <Form.Input
-            onChange={(event) => setGoogleDocUrl(event.target.value)}
-            placeholder="https://docs.google.com/document/..."
-            required
-            type="url"
-            value={googleDocUrl}
-          />
-        </Field>
-        <Field label={t("repository_documents.document_title")}>
-          <Form.Input
-            onChange={(event) => setDocTitle(event.target.value)}
-            placeholder={t("repository_documents.placeholder_optional")}
-            type="text"
-            value={docTitle}
-          />
-        </Field>
-        <button className={primaryButton()} disabled={save.isPending} type="submit">
-          {save.isPending ? <>{t("repository_documents.adding")}</> : <>{t("repository_documents.add_google_doc")}</>}
-        </button>
-      </form>
     </section>
   )
 }
@@ -261,7 +223,6 @@ function DocumentForms({
 function DocumentBadge({ document }: { document: RepositoryDocument }) {
   const { t } = useT("settings")
   let label = "DOC"
-  if (document.kind === "google_doc") label = "G"
   if (document.content_type?.startsWith("image/")) label = "IMG"
   if (document.content_type === "application/pdf") label = "PDF"
 
@@ -278,14 +239,10 @@ function DocumentSummary({ document }: { document: RepositoryDocument }) {
     <div className="min-w-0 flex-1">
       <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{document.title}</div>
       <div className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
-        {document.kind === "google_doc" && document.google_doc_url ? (
-          <span className="text-brand dark:text-brand-emphasis underline">{document.google_doc_url}</span>
-        ) : (
-          <span>
-            {document.filename || <>{t("repository_documents.no_file_attached")}</>}
-            {document.byte_size ? ` · ${formatBytes(document.byte_size)}` : ""}
-          </span>
-        )}
+        <span>
+          {document.filename || <>{t("repository_documents.no_file_attached")}</>}
+          {document.byte_size ? ` · ${formatBytes(document.byte_size)}` : ""}
+        </span>
       </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {document.uploaded_by || <>{t("repository_documents.unknown")}</>} · <RelativeTimestamp value={document.created_at} />

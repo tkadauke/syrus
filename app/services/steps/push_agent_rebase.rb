@@ -43,6 +43,7 @@ module Steps
     end
 
     def deterministic_rebase_succeeded?(git, remote_ref)
+      GitMergeDrivers.register!(git: git, path: workspace.path)
       git.run("rebase", remote_ref, chdir: workspace.path.to_s)
       true
     rescue GitRunner::GitError

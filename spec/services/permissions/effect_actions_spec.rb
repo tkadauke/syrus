@@ -29,12 +29,13 @@ RSpec.describe Permissions::EffectActions do
     expect(chat_entries.fetch("send_chat_message").descriptor.classify({})[:effects]).to include(:communication)
   end
 
-  it "caps document deletion and chat spawning at exact-invocation authority" do
+  it "keeps document deletion and chat spawning gated but permanently allowable" do
     %w[delete_repo_document spawn_chats].each do |name|
       descriptor = chat_entries.fetch(name).descriptor
 
-      expect(descriptor.maximum_autonomy).to eq(:invocation)
-      expect(descriptor.authority_durations).to eq([ :invocation ])
+      expect(descriptor).not_to be_essential
+      expect(descriptor.defaults.values.uniq).to eq([ :ask ])
+      expect(descriptor.maximum_autonomy).to eq(:permanent)
     end
     expect(chat_entries.fetch("delete_repo_document").descriptor.classify({})[:effects]).to include(:destructive)
   end

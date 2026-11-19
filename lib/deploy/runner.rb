@@ -25,7 +25,9 @@ module Deploy
         return 0
       end
 
-      config.clusters.each { |cluster| deploy_to(cluster) }
+      prepulls = config.clusters.to_h { |cluster| [ cluster, Prepull.new(context_for(cluster)) ] }
+      prepulls.each_value(&:start!)
+      config.clusters.each { |cluster| deploy_to(cluster, prepulls.fetch(cluster)) }
       report_success
       0
     rescue Interrupted => e
@@ -68,8 +70,17 @@ module Deploy
       raise Failure.new("eager_load probe failed") unless result.success?
     end
 
-    def deploy_to(cluster)
-      context = ClusterContext.new(
+    def deploy_to(cluster, prepull)
+      ClusterRollout.new(context: context_for(cluster), images: images, prepull:).roll!
+
+      # The release tag records what landed, so it moves only after the cluster
+      # it names has actually converged and been verified.
+      repo.move_release_tag(cluster.label)
+      reporter.step("#{cluster.label} tag → #{repo.sha}")
+    end
+
+    def context_for(cluster)
+      (@contexts ||= {})[cluster.label] ||= ClusterContext.new(
         label: cluster.label,
         sha: repo.sha,
         config: config,
@@ -80,13 +91,6 @@ module Deploy
         controls: controls,
         clock: clock
       )
-
-      ClusterRollout.new(context: context, images: images).roll!
-
-      # The release tag records what landed, so it moves only after the cluster
-      # it names has actually converged and been verified.
-      repo.move_release_tag(cluster.label)
-      reporter.step("#{cluster.label} tag → #{repo.sha}")
     end
 
     def report_success

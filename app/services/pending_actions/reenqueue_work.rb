@@ -54,10 +54,14 @@ module PendingActions
       return reenqueue_run!(queued_run) if queued_run
 
       raise ArgumentError, "#{workflow.slug} is running but has no queued Run to re-enqueue." if workflow.running?
-      raise ArgumentError, "#{workflow.slug} already has Runs." if workflow.runs.exists?
-
       first_step = workflow.first_step
       raise ArgumentError, "#{workflow.slug} has no first Step." unless first_step
+      # A first Step reopened after its Run failed before starting keeps that
+      # Run as history; it is still waiting for one, and starting it is the
+      # repair. Any other earlier Run means the Workflow already started.
+      unless first_step.awaiting_run? && workflow.runs.where.not(step_id: first_step.id).none?
+        raise ArgumentError, "#{workflow.slug} already has Runs."
+      end
 
       WorkUnits::Launcher.start!(workflow).run.tap do |started_run|
         raise ArgumentError, "#{workflow.slug} remained blocked and did not start." unless started_run

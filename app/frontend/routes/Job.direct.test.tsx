@@ -63,7 +63,6 @@ describe("App direct jobs", () => {
     fireEvent.click(screen.getByRole("button", { name: /Configure Syrus build dependencies/ }))
     expect(screen.getByDisplayValue("Configure Syrus build dependencies")).toBeInTheDocument()
     expect(screen.getByDisplayValue("Write a .syrus.yml setup file.")).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("Google Doc URL"), { target: { value: "https://docs.google.com/document/d/context/edit" } })
     fireEvent.click(screen.getByRole("button", { name: "Create job" }))
 
     await waitFor(() => {
@@ -84,7 +83,7 @@ describe("App direct jobs", () => {
     expect(body.get("prompt")).toBe("Write a .syrus.yml setup file.")
     expect(body.get("priority")).toBe("medium")
     expect(body.get("create_more")).toBe("1")
-    expect(body.get("job_attachment[google_doc_url]")).toBe("https://docs.google.com/document/d/context/edit")
+    expect(body.get("job_attachment[google_doc_url]")).toBeNull()
     expect(await screen.findByText("Direct job created.")).toBeInTheDocument()
   })
 

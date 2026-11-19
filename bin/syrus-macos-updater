@@ -311,7 +311,9 @@ prepare_release() {
   local release_path="$1"
   local command node_deps_path
   node_deps_path="$SHARED_DIR/node/$TARGET_SHA"
-  command='cd "$1" && bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci && cd "$1" && bin/macos-worker-check --env-file "$3"'
+  # Frozen: a host Bundler newer than the lockfile's BUNDLED WITH otherwise
+  # tries to rewrite Gemfile.lock, which the service user cannot write.
+  command='cd "$1" && BUNDLE_FROZEN=true bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci && cd "$1" && bin/macos-worker-check --env-file "$3"'
 
   if running_as_root; then
     mkdir -p "$node_deps_path"

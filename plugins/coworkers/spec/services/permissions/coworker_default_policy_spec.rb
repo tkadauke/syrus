@@ -133,7 +133,6 @@ RSpec.describe Permissions::CoworkerDefaultPolicy do
         expect(descriptor.benign_internal).to eq(:context_binding)
         expect(descriptor.risk).to eq(:low)
         expect(descriptor.defaults.values.uniq).to eq([ :allow ])
-        expect(descriptor.maximum_autonomy).to eq(:invocation)
       end
     end
 
@@ -143,12 +142,19 @@ RSpec.describe Permissions::CoworkerDefaultPolicy do
       end.to raise_error(ArgumentError, /not fully benign/)
     end
 
-    it "keeps every core coworker registration consistent with the table" do
+    it "keeps coworker-specific registrations consistent with the table and inherited registrations canonical" do
       McpToolRegistry.entries(surface: :coworker).each do |entry|
-        expect(described_class.covers?(entry.tool_name)).to be(true), "#{entry.tool_name} is missing from CoworkerActions"
         expect(entry.explicit_descriptor).to be(true)
-        expected = described_class.send(:const_get, :OPERATIONS).fetch(entry.tool_name).default
-        expect(entry.descriptor.defaults.values_at(*Permissions::CoworkerDefaultPolicy::ROLES)).to all(eq(expected))
+        expect(entry.descriptor.requestable_roles).to include(AgentRole::COWORKER_CHAT, AgentRole::COWORKER)
+        if described_class.covers?(entry.tool_name)
+          expect(described_class.send(:const_get, :OPERATIONS).fetch(entry.tool_name).default)
+            .to eq(entry.descriptor.defaults.values.first)
+        else
+          chat_entry = McpToolRegistry.entries(surface: :chat).find { |candidate| candidate.tool == entry.tool }
+          expect(chat_entry).to be_present, "#{entry.tool_name} is neither coworker-specific nor inherited from chat"
+          expect(entry.descriptor.capability).to eq(chat_entry.descriptor.capability)
+          expect(entry.descriptor.operation).to eq(chat_entry.descriptor.operation)
+        end
       end
     end
   end

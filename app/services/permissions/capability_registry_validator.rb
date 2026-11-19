@@ -38,7 +38,7 @@ module Permissions
           )
         end
       end
-      new(core + plugin + permission_providers)
+      new(core + plugin + permission_providers, complete: true)
     end
 
     def self.plugin_registrations(provider, extension_point)
@@ -58,8 +58,11 @@ module Permissions
     end
     private_class_method :plugin_registrations
 
-    def initialize(registrations)
+    # +complete+ marks the whole application's registrations, the only set
+    # against which a classification entry can be called stale.
+    def initialize(registrations, complete: false)
       @registrations = registrations
+      @complete = complete
     end
 
     def validate!
@@ -70,7 +73,8 @@ module Permissions
 
     def findings
       missing_descriptor_findings + bundle_findings +
-        tool_mapping_findings + descriptor_conflict_findings + identifier_findings
+        tool_mapping_findings + descriptor_conflict_findings + identifier_findings +
+        consequence_findings + ungated_findings + stale_classification_findings
     end
 
     def coverage
@@ -85,6 +89,7 @@ module Permissions
         described_tools: descriptors.length,
         explicit_descriptors: explicit_descriptors,
         ungated_tools: registrations.count(&:ungated),
+        essential_operations: registrations.count { |registration| registration.descriptor&.essential? },
         roles: roles.index_with do |role|
           role_descriptors = descriptors.select { |descriptor| descriptor.requestable_roles.include?(role) }
           { descriptors: role_descriptors.length, defaults: role_descriptors.map { |descriptor| descriptor.defaults.fetch(role) }.tally }
@@ -95,6 +100,54 @@ module Permissions
     end
 
     private
+
+    # Every operation must be classified on purpose: essential, gated by a
+    # barrier effect it declares, or deniable for a named reason. A descriptor
+    # that is merely "ask by default" with no stated consequence is how an
+    # essential operation silently becomes requestable.
+    def consequence_findings
+      registrations.filter_map do |registration|
+        descriptor = registration.descriptor
+        next unless descriptor
+        next if descriptor.essential? || descriptor.barrier_effects.any? || descriptor.deniable_reason
+
+        finding(:unclassified_consequence, registration,
+          "declares no barrier effect, is not essential and names no deniable_reason")
+      end
+    end
+
+    # `ungated` (registry entries and plugin definitions) must mean exactly
+    # what `essential` means on the descriptor every gate evaluates.
+    def ungated_findings
+      registrations.filter_map do |registration|
+        next unless registration.ungated
+        next if registration.descriptor&.essential?
+
+        finding(:ungated_not_essential, registration, "is registered ungated but its descriptor is not essential")
+      end
+    end
+
+    # The core classification table must only name tools that exist on the
+    # surface it classifies, so a renamed tool cannot keep a stale entry while
+    # its replacement goes unclassified.
+    def stale_classification_findings
+      return [] unless @complete
+
+      core = registrations.select { |registration| registration.source == "core" }
+      registered = core.group_by(&:surface).transform_values { |group| group.map(&:tool_name).to_set }
+      return [] if registered.empty?
+
+      stale = ConsequenceClassification::ESSENTIAL.flat_map do |surface, tools|
+        tools.reject { |tool| registered.fetch(surface, Set.new).include?(tool) }.map { |tool| [ surface, tool ] }
+      end
+      core_tools = core.map(&:tool_name).to_set
+      stale += ConsequenceClassification::DENIABLE_BY_TOOL.keys.reject { |tool| core_tools.include?(tool) }.map { |tool| [ :any, tool ] }
+      stale.map do |surface, tool|
+        Finding.new(code: :stale_classification,
+          message: "Consequence classification lists #{tool.inspect} on #{surface}, but no core tool by that name is registered there",
+          registrations: [])
+      end
+    end
 
     def bundle_findings
       registrations.filter_map do |registration|
@@ -137,7 +190,7 @@ module Permissions
       registrations.select { |registration| registration.explicit_descriptor && registration.descriptor }
         .group_by { |registration| registration.descriptor.operation }.filter_map do |operation, group|
         contracts = group.group_by { |registration| registration.descriptor.contract_key }
-        next if contracts.one?
+        next if contracts.one? || coworker_role_projection?(group)
         Finding.new(
           code: :conflicting_descriptor,
           message: I18n.t("server.permissions.capability_registry.conflicting_descriptor",
@@ -145,6 +198,26 @@ module Permissions
           registrations: group
         )
       end
+    end
+
+    def coworker_role_projection?(registrations)
+      return false unless registrations.map(&:source).uniq.one?
+      return false unless registrations.map(&:tool_name).uniq.one?
+      return false unless registrations.map { |registration| registration.descriptor.authorization_contract_key }.uniq.one?
+
+      coworker_registrations, ordinary_registrations = registrations.partition { |registration| registration.surface == :coworker }
+      return false unless coworker_registrations.one? && ordinary_registrations.any?
+      return false unless ordinary_registrations.map { |registration| registration.descriptor.contract_key }.uniq.one?
+
+      chat = ordinary_registrations.find { |registration| registration.surface == :chat }&.descriptor
+      return false unless chat
+
+      coworker = coworker_registrations.first.descriptor
+      original_roles = chat.requestable_roles
+      added_roles = [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].map(&:to_s)
+
+      coworker.requestable_roles.sort == (original_roles + added_roles).uniq.sort &&
+        coworker.defaults.slice(*original_roles) == chat.defaults
     end
 
     def canonical_and_alias_findings(kind)

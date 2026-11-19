@@ -45,6 +45,10 @@ class ChatTurnJob < ApplicationJob
       attached_epics: [ :repository, { jobs: :repository } ]
     ).find(chat_session_id)
     return if chat.deleted?
+    # The external MCP client is this chat's agent. A card outcome or an
+    # operator message here is for that client to read, not a turn for
+    # Syrus's own chat agent to take.
+    return if chat.mcp_bridge?
 
     user_message = chat.messages.find(user_message_id)
     lifecycle = ChatTurnLifecycles.for(chat_session: chat, user_message: user_message)

@@ -19,7 +19,6 @@ function documentsPayload(overrides: Record<string, unknown> = {}) {
         id: 20,
         kind: "file",
         title: "Architecture notes",
-        google_doc_url: null,
         filename: "architecture.pdf",
         content_type: "application/pdf",
         byte_size: 1024,
@@ -144,66 +143,6 @@ describe("RepositoryDocumentsRoute delete", () => {
   })
 })
 
-describe("RepositoryDocumentsRoute create", () => {
-  afterEach(() => vi.restoreAllMocks())
-
-  it("refetches the paginated document list after creating a Google Doc", async () => {
-    const createdDocument = {
-      id: 21,
-      kind: "google_doc",
-      title: "Launch plan",
-      google_doc_url: "https://docs.google.com/document/d/launch/edit",
-      filename: null,
-      content_type: null,
-      byte_size: null,
-      uploaded_by: "Ada Lovelace",
-      created_at: "2026-01-02T00:00:00Z",
-      file_path: null
-    }
-    let listRequests = 0
-    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const url = String(input)
-      if (url === "/api/v1/app/repositories/1/documents" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({ document: createdDocument, message: "Document added." }, 201))
-      }
-      if (url === "/api/v1/app/repositories/1/documents?page=1") {
-        listRequests += 1
-        return Promise.resolve(
-          jsonResponse(
-            documentsPayload(
-              listRequests > 1
-                ? {
-                    documents: [createdDocument, ...documentsPayload().documents],
-                    pagination: { page: 1, per_page: 25, total: 2, total_pages: 1 }
-                  }
-                : {}
-            )
-          )
-        )
-      }
-      return Promise.reject(new Error(`Unexpected request: ${url}`))
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}>
-          <Routes>
-            <Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    await screen.findByText("Architecture notes")
-    fireEvent.change(screen.getByLabelText("URL"), { target: { value: createdDocument.google_doc_url } })
-    fireEvent.change(screen.getByLabelText("Document title"), { target: { value: createdDocument.title } })
-    fireEvent.click(screen.getByRole("button", { name: "Add Google Doc" }))
-
-    expect(await screen.findByText("Launch plan")).toBeInTheDocument()
-    expect(listRequests).toBe(2)
-  })
-})
-
 describe("RepositoryDocumentsRoute preview", () => {
   afterEach(() => vi.restoreAllMocks())
 
@@ -214,7 +153,6 @@ describe("RepositoryDocumentsRoute preview", () => {
           id: 21,
           kind: "file",
           title: "Notes",
-          google_doc_url: null,
           filename: "notes.md",
           content_type: "text/markdown",
           byte_size: 12,
@@ -240,7 +178,6 @@ describe("RepositoryDocumentsRoute preview", () => {
         id: 22,
         kind: "file",
         title: "Screenshot",
-        google_doc_url: null,
         filename: "screenshot.png",
         content_type: "image/png",
         byte_size: 512,
@@ -264,7 +201,6 @@ describe("RepositoryDocumentsRoute preview", () => {
         id: 23,
         kind: "file",
         title: "Architecture notes",
-        google_doc_url: null,
         filename: "architecture.pdf",
         content_type: "application/pdf",
         byte_size: 1024,
@@ -278,31 +214,6 @@ describe("RepositoryDocumentsRoute preview", () => {
 
     await waitFor(() => {
       expect(openSpy).toHaveBeenCalledWith("/api/v1/app/repository_documents/23/file", "_blank", "noopener")
-    })
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-  })
-
-  it("opens Google Docs directly in a new tab instead of the preview modal", async () => {
-    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null)
-    renderRouteWithDocuments([
-      {
-        id: 24,
-        kind: "google_doc",
-        title: "Launch plan",
-        google_doc_url: "https://docs.google.com/document/d/launch/edit",
-        filename: null,
-        content_type: null,
-        byte_size: null,
-        uploaded_by: "Ada Lovelace",
-        created_at: "2026-01-01T00:00:00Z",
-        file_path: null
-      }
-    ])
-
-    fireEvent.click(await screen.findByRole("button", { name: /Launch plan/ }))
-
-    await waitFor(() => {
-      expect(openSpy).toHaveBeenCalledWith("https://docs.google.com/document/d/launch/edit", "_blank", "noopener")
     })
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })

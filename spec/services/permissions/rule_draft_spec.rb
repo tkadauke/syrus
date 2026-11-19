@@ -20,11 +20,14 @@ RSpec.describe Permissions::RuleDraft do
   let(:descriptor) { build_descriptor }
 
   def build_descriptor(**overrides)
+    cap = overrides.fetch(:maximum_autonomy, maximum_autonomy)
     Permissions::CapabilityDescriptor.new(**{
       capability: "syrus.deploys@v1", operation: "syrus.deploys/run@v1",
       effects: %i[internal_write], risk: :medium,
       requestable_roles: [ chat_role, "implementer", AgentRole::WORKFLOW_IMPLEMENT ], defaults: { chat_role => :ask, "implementer" => :ask, AgentRole::WORKFLOW_IMPLEMENT => :ask },
       maximum_autonomy:, authority_durations: %i[invocation chat_session job permanent],
+      # Durations are capped through breadth ceilings; mirror the spec's cap.
+      breadth_ceilings: (%i[family tool resource].index_with { cap } unless cap == :none),
       resource_scope: schema, constraint_fields:,
       classifier: ->(_arguments) { { operation: "syrus.deploys/run@v1", confidence: :certain } },
       fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }
@@ -117,17 +120,17 @@ RSpec.describe Permissions::RuleDraft do
       let(:maximum_autonomy) { :job }
 
       it "is rejected" do
-        expect(error_codes(draft.preview)).to eq([ "permanent_forbidden" ])
+        expect(error_codes(draft.preview)).to include("permanent_forbidden")
         expect(Permissions::RuleDraftOptions.new(descriptor, user:).as_json)
           .to include(permanent_allowed: false, authority_durations: %w[chat_session job])
       end
     end
 
-    context "when the descriptor does not list it" do
+    context "when no breadth may hold it" do
       let(:descriptor) { build_descriptor(authority_durations: %i[invocation chat_session], maximum_autonomy: :chat_session) }
 
       it "is rejected" do
-        expect(error_codes(draft.preview)).to include("duration_not_offered")
+        expect(error_codes(draft.preview)).to include("permanent_forbidden")
       end
     end
 
@@ -144,6 +147,55 @@ RSpec.describe Permissions::RuleDraft do
       expect(error_codes(preview)).to eq([ "exceeds_policy_ceiling" ])
       expect(Permissions::RuleDraftOptions.new(descriptor, user:).as_json[:ceilings])
         .to contain_exactly(include(layer: "instance", policy: "ask"))
+    end
+  end
+
+  describe "breadth" do
+    # A scope that accepts "every resource" ({}); a schema whose scope must
+    # name a resource cannot be granted tool- or family-wide.
+    let(:schema) { Permissions::ResourceScopeSchema.new(type: :none) }
+
+    it "drafts a tool-wide rule without the resource it was built from" do
+      tool_wide = draft("breadth" => "tool")
+      rule = tool_wide.apply!(digest: tool_wide.preview.digest, actor: user)
+
+      expect(rule).to have_attributes(operation: "syrus.deploys/run@v1", resource_scope: {})
+      expect(tool_wide.preview.draft).to include(breadth: "tool")
+    end
+
+    it "drafts a family-wide rule that targets the capability alone" do
+      family = draft("breadth" => "family")
+      expect(family.preview.errors).to eq([])
+      rule = family.apply!(digest: family.preview.digest, actor: user)
+
+      expect(rule).to have_attributes(capability: "syrus.deploys@v1", operation: nil, resource_scope: {})
+      expect(family.preview.draft).to include(operation: nil, breadth: "family")
+    end
+
+    it "rejects an unknown breadth" do
+      expect(error_codes(draft("breadth" => "galaxy").preview)).to include("unknown_breadth")
+    end
+
+    context "for an operation that may only be allowed forever per resource (raw SQL, say)" do
+      let(:descriptor) do
+        build_descriptor(breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent })
+      end
+
+      it "allows a named resource forever" do
+        expect(draft.preview).to be_valid
+      end
+
+      it "refuses to allow the whole tool or family beyond one call" do
+        %w[tool family].each do |breadth|
+          expect(error_codes(draft("breadth" => breadth).preview)).to include("exceeds_breadth_ceiling"), breadth
+          expect(error_codes(draft("breadth" => breadth, "duration" => "chat_session",
+            "chat_session_id" => ChatSession.create!(user:).id).preview)).to include("exceeds_breadth_ceiling"), breadth
+        end
+      end
+
+      it "still lets a deny cover the whole tool" do
+        expect(draft("breadth" => "tool", "policy" => "deny").preview).to be_valid
+      end
     end
   end
 
@@ -193,15 +245,29 @@ RSpec.describe Permissions::RuleDraft do
       expect { draft.apply!(digest: "forged", actor: user) }.to raise_error(described_class::Stale)
     end
 
-    it "goes stale when the owner's rules change after review" do
-      preview = draft.preview
+    def owner_rule!(capability)
       PermissionRule.create!(
         owner_user: user, created_by_user: user, updated_by_user: user, subject_selector_type: "coding_chat",
-        capability: "other@v1", resource_type: "none", resource_scope: {}, constraints: {}, policy: "deny",
+        capability:, resource_type: "none", resource_scope: {}, constraints: {}, policy: "deny",
         policy_layer: "agent", source: "operator", provenance: {}, subject_role_keys: []
       )
+    end
+
+    it "goes stale when the owner's rules for the same capability change after review" do
+      preview = draft.preview
+      owner_rule!("syrus.deploys@v1")
 
       expect { draft.apply!(digest: preview.digest, actor: user) }.to raise_error(described_class::Stale)
+    end
+
+    # Regression: other chats and coworkers create and expire rules all day,
+    # and binding the digest to every rule the owner has rejected nearly every
+    # approval click with "this request changed since the preview was shown".
+    it "stays valid when an unrelated rule changes after review" do
+      preview = draft.preview
+      owner_rule!("other@v1")
+
+      expect(draft.apply!(digest: preview.digest, actor: user)).to be_a(PermissionRule)
     end
 
     it "goes stale when the descriptor contract is upgraded" do

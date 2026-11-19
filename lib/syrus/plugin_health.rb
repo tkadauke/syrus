@@ -26,7 +26,7 @@ module Syrus
       def healthy? = %i[ok warning].include?(state)
     end
 
-    UNHEALTHY_STATES = %i[degraded cycle incompatible failed duplicate_name skipped_dependency].freeze
+    UNHEALTHY_STATES = %i[degraded cycle incompatible failed duplicate_name skipped_dependency skipped_role quarantined].freeze
 
     # `enabled_names` is the set of plugin names currently enabled. Manifests
     # that are installed but disabled still count as "present" for cycle

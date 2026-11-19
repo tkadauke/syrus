@@ -9,6 +9,30 @@ caused production incidents here. The rule, the expand/migrate/contract
 sequence, and how to read a new column defensively are in
 [Rollout Compatibility](../conventions/rollout_compatibility.md).
 
+## Draining in-flight work
+
+A deploy never waits for work to finish, and a restart should lose as little
+of it as possible. Compute workers roll with `maxSurge` and `maxUnavailable: 0`:
+each node starts the new pod next to the old one, the new pod takes all new
+work as soon as it is ready, and the old pod drains. On SIGTERM a SolidQueue
+worker stops claiming jobs and waits `SOLID_QUEUE_SHUTDOWN_TIMEOUT` seconds for
+the ones it holds (SolidQueue's own default is five seconds, which killed every
+running grader on every deploy); the pod's termination grace must exceed it.
+
+The rollout counts as done once the new pods are ready -- a DaemonSet's status
+counts nodes, not pods, so draining old pods do not hold it -- and
+`Verifications` asks the newest ready pod that is not terminating, never a
+draining one. Old code keeps running against the new schema for as long as a
+drain lasts, which is why two-version compatibility above is not optional.
+
+To prove a cluster drains, enqueue a few `DrainProbeJob`s (each holds a `runs`
+worker thread for the given seconds), deploy, and check that every probe's
+SolidQueue job finished rather than landing in the failed executions:
+
+```bash
+bin/rails runner '3.times { DrainProbeJob.perform_later(900) }'
+```
+
 ## Client behavior during a rollout
 
 The web Deployment runs `replicas=2` with `RollingUpdate(maxSurge=1,
@@ -42,6 +66,25 @@ The cache name carries the build SHA, so each deploy's worker drops the
 previous cache on activate. `/service-worker.js` is served `no-cache` and
 `skip_forgery_protection`, because Rails' cross-origin JavaScript protection
 otherwise rejects a `.js`-format response fetched as a worker.
+
+## Keeping deploys fast on a small build disk
+
+The worker image is ~12GB, almost all of it the `worker-deps` toolchain stage.
+Two things keep a routine code deploy from rebuilding and re-shipping it:
+
+- **Toolchain image.** `bin/deploy` builds `worker-deps` as its own image,
+  `ghcr.io/tkadauke/syrus-worker-deps:<digest>`, where the digest covers only
+  the Dockerfile text that stage is built from (comments and code stages do
+  not count). worker-dev is then built `FROM` it via the `WORKER_DEPS_IMAGE`
+  build argument. The registry, not the build machine, is the cache: an
+  unchanged digest is reused (and pulled locally only if missing), one local
+  copy is kept, and the local BuildKit cache can be pruned freely. Nodes keep
+  the toolchain layers they already have and pull only the code layers.
+  `SYRUS_WORKER_DEPS_REFRESH=1` forces a rebuild to take newer upstream
+  packages; `SYRUS_WORKER_DEPS_IMAGE=0` builds the in-file stage as before.
+- **Overlapped pre-pull.** Every cluster's pre-pull DaemonSet starts as soon
+  as the images are pushed, so production's nodes pull while staging rolls
+  out; each cluster's rollout then only waits for its own pull.
 
 ## Syrus Kubernetes rollout ordering
 
