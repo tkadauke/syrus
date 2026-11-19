@@ -21,11 +21,17 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
     end
 
     Bundler.with_unbundled_env do
-      # The queue configs size their pools from RunProcessParallelism, which
-      # warns on stderr whenever it cannot see a CPU quota -- true of every
-      # GitHub runner and most developer machines -- so pin the budget and
-      # keep the empty-stderr assertions about the script, not the host.
-      env = ENV.to_h.merge(bundler_install_env, "DB_POOL" => nil, "SYRUS_WORKER_CPU_LIMIT" => "4").merge(env_overrides)
+      # Keep ERB-rendering examples independent of the CI runner's CPU quota,
+      # which may emit a warning when absent, and pin the queue to the supported
+      # six-thread worker baseline.
+      env = ENV.to_h
+        .merge(
+          bundler_install_env,
+          "DB_POOL" => nil,
+          "JOB_CONCURRENCY" => "6",
+          "SYRUS_WORKER_CPU_LIMIT" => "4"
+        )
+        .merge(env_overrides)
       Open3.capture3(env, RbConfig.ruby, script, unsetenv_others: true, chdir: root)
     end
   end
