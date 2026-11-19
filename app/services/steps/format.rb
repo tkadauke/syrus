@@ -94,10 +94,11 @@ module Steps
     # they recreate paths this Job deleted or renamed away.
     def revert_out_of_scope_changes(files)
       git = GitRunner.new
-      modified_files = git.run(
-        "diff", "--name-only", "--diff-filter=MD", "HEAD", chdir: workspace.path.to_s
+      tracked_changes = git.run(
+        "diff", "--name-only", "--no-renames", "--diff-filter=DMRTUXB", "HEAD",
+        chdir: workspace.path.to_s
       ).split("\n").map(&:strip).reject(&:empty?)
-      out_of_scope_files = modified_files - files
+      out_of_scope_files = tracked_changes - files
       deleted_files = git.run(
         "diff", "--name-only", "--no-renames", "--diff-filter=D", "#{default_branch_ref}...HEAD",
         chdir: workspace.path.to_s

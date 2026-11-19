@@ -248,6 +248,30 @@ RSpec.describe Steps::Format do
       )
     end
 
+    it "restores an out-of-scope tracked file replaced with a symlink" do
+      initialize_git_workspace(
+        "app/models/in_diff.rb" => "before\n",
+        "app/models/untouched.rb" => "original\n"
+      )
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: >-
+              printf 'formatted\\n' > app/models/in_diff.rb;
+              ln -sf in_diff.rb app/models/untouched.rb
+            files: "**/*.rb"
+      YAML
+      allow(handler).to receive(:changed_files).and_return([ "app/models/in_diff.rb" ])
+
+      handler.call
+
+      expect(@ws_path.join("app/models/in_diff.rb").read).to eq("formatted\n")
+      expect(@ws_path.join("app/models/untouched.rb")).not_to be_symlink
+      expect(@ws_path.join("app/models/untouched.rb").read).to eq("original\n")
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+        "[format] reverted 1 formatter change(s) outside this Job's diff: app/models/untouched.rb"
+      )
+    end
+
     it "does not log a revert when formatters modify only files in the Job diff" do
       initialize_git_workspace("app/models/in_diff.rb" => "before\n")
       write_syrus_yml(<<~YAML)
