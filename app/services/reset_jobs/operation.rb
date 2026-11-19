@@ -16,8 +16,15 @@ module ResetJobs
         open_pr_number: job.pr_number,
         branch: job.branch_name,
         checkpoints: RunCheckpoint.where(job: job).count,
-        active_workflows: job.active_runtime_workflows.map(&:id)
+        active_workflows: active_workflows(job).map(&:id)
       }.compact
+    end
+
+    def self.active_workflows(job)
+      owned_ids = job.active_runtime_workflows.map(&:id)
+      job.workflows.where(state: Workflow::OPERATOR_DISMISSABLE_STATES).or(
+        job.workflows.where(id: owned_ids)
+      ).order(:created_at, :id)
     end
 
     def initialize(job:, user:, reason:, pending_action:)
@@ -40,10 +47,14 @@ module ResetJobs
     def cancel_and_supersede!
       active_units = WorkUnits::Ownership.active_units_for_job(job)
       job.spawned_processes.running.find_each { |process| process.request_kill!(user:) }
-      job.active_runtime_workflows.each do |workflow|
-        WorkUnits::WorkflowCancellation.cancel!(workflow, reason: "operator_job_reset", artifacts: reset_artifacts)
+      self.class.active_workflows(job).each do |workflow|
+        WorkUnits::WorkflowCancellation.cancel!(workflow, reason: Workflow::SUPERSEDED_BY_RESET_REASON, artifacts: reset_artifacts)
       end
-      active_units.each { |unit| unit.preempt!(reason: "operator_job_reset") }
+      job.runs.active.find_each do |run|
+        run.cancel! if run.may_cancel?
+        run.save!
+      end
+      active_units.each { |unit| unit.preempt!(reason: Workflow::SUPERSEDED_BY_RESET_REASON) }
       job.workflows.find_each { |workflow| workflow.update!(artifacts: workflow.artifacts.to_h.merge(reset_artifacts)) }
       job.runs.find_each { |run| run.update!(artifacts: run.artifacts.to_h.merge(reset_artifacts)) }
     end
@@ -62,14 +73,15 @@ module ResetJobs
 
     def restart!
       job.with_lock do
-        job.assign_attributes(pr_number: nil, branch_name: nil, branch_deleted_at: Time.current,
+        job.update!(pr_number: nil, branch_name: nil, branch_deleted_at: Time.current,
           closure_reason: nil, landed_sha: nil)
         job.reset_from_scratch!
       end
     end
 
     def reset_artifacts
-      { "superseded_by_reset_at" => Time.current.iso8601, "reset_reason" => reason,
+      { "superseded_by_reset_at" => Time.current.iso8601, "cancelled_reason" => Workflow::SUPERSEDED_BY_RESET_REASON,
+        "reset_reason" => reason,
         "reset_actor_type" => user.class.polymorphic_name, "reset_actor_id" => user.id,
         "reset_pending_action_id" => pending_action.id }
     end
