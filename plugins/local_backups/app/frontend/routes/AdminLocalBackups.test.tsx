@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "@app/testSupport"
-import { AdminLocalBackups } from "./AdminLocalBackups"
+import AdminLocalBackups from "./AdminLocalBackups"
 
 describe("AdminLocalBackups", () => {
   afterEach(() => vi.restoreAllMocks())
