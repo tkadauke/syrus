@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe K8sCluster::RefreshCredentialsJob do
-  it "runs on a consumed maintenance queue" do
-    expect(described_class.new.queue_name).to eq("low_priority_maintenance")
+  it "runs on the plugin queue" do
+    expect(described_class.new.queue_name).to eq("plugin_k8s_cluster")
   end
 
   it "checks every cluster while the plugin is enabled" do

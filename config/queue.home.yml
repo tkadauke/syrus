@@ -98,7 +98,7 @@ default: &default
       processes: 1
       polling_interval: 1
     - queues: "plugin_*"
-      threads: <%= ENV.fetch("PLUGIN_JOB_THREADS", 10) %>
+      threads: <%= ENV.fetch("PLUGIN_JOB_THREADS", 6) %>
       processes: 1
       polling_interval: 0.2
 
