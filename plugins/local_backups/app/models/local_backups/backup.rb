@@ -5,6 +5,7 @@ module LocalBackups
     STATES = %w[pending snapshotting exporting_objects validating completed failed deleting deleted].freeze
 
     has_many :replications, class_name: "LocalBackups::Replication", dependent: :destroy, inverse_of: :backup
+    has_many :object_holds, class_name: "LocalBackups::ObjectHold", dependent: :destroy, inverse_of: :backup
 
     validates :uuid, presence: true, uniqueness: true
     validates :state, inclusion: { in: STATES }
