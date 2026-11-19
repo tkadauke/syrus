@@ -399,6 +399,23 @@ function renderProposalEditModal(p: ChatProposal, onNotice = vi.fn()) {
 describe("PendingActionCard", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("shows only the execution progress indicator while confirming", () => {
+    renderCard(
+      pendingAction({
+        state: "confirming",
+        execution_status: "running",
+        execution_step: "Creating feedback workflow...",
+        execution_error: undefined
+      })
+    )
+
+    const card = document.getElementById("pending-action-501")
+    expect(card).not.toBeNull()
+    expect(within(card as HTMLElement).queryByText("Working…")).not.toBeInTheDocument()
+    expect(within(card as HTMLElement).getByText("Creating feedback workflow...")).toBeInTheDocument()
+    expect(card?.querySelectorAll(".animate-spin")).toHaveLength(1)
+  })
+
   it("shows a cosmetic hide button for a terminal pending action", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ messages: [], pending_actions: [], message: "Pending action hidden." }))
     const { client, onNotice } = renderCard(pendingAction())
