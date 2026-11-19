@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_164147) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_050009) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2208,6 +2208,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_164147) do
     t.index ["landable_type", "landable_id", "position"], name: "idx_on_landable_type_landable_id_position_4087ee989f"
     t.index ["landable_type", "landable_id"], name: "index_landed_commits_on_landable"
     t.index ["sha", "landable_type", "landable_id"], name: "index_landed_commits_on_sha_and_landable", unique: true
+  end
+
+  create_table "local_backups_backups", force: :cascade do |t|
+    t.string "uuid", null: false
+    t.string "state", null: false
+    t.string "reason"
+    t.string "artifact_path", null: false
+    t.integer "manifest_version", null: false
+    t.string "database_adapter"
+    t.bigint "logical_bytes", default: 0, null: false
+    t.bigint "stored_bytes", default: 0, null: false
+    t.bigint "blob_count", default: 0, null: false
+    t.string "checksum_algorithm"
+    t.string "checksum"
+    t.string "verification_state", null: false
+    t.string "source_application_version"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "validated_at"
+    t.datetime "failed_at"
+    t.datetime "expires_at"
+    t.boolean "pinned", default: false, null: false
+    t.json "encryption_fingerprints"
+    t.string "error_class"
+    t.text "error_summary"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["completed_at"], name: "index_local_backups_backups_on_completed_at"
+    t.index ["state"], name: "index_local_backups_backups_on_state"
+    t.index ["uuid"], name: "index_local_backups_backups_on_uuid", unique: true
+  end
+
+  create_table "local_backups_replications", force: :cascade do |t|
+    t.integer "backup_id", null: false
+    t.string "destination_key", null: false
+    t.string "remote_reference"
+    t.string "state", null: false
+    t.string "remote_checksum"
+    t.datetime "uploaded_at"
+    t.datetime "verified_at"
+    t.text "error_summary"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["backup_id", "destination_key"], name: "idx_local_backup_replications_identity", unique: true
   end
 
   create_table "local_daemon_sessions", force: :cascade do |t|

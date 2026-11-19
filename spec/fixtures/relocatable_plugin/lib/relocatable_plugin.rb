@@ -1,8 +1,11 @@
+require "syrus/plugin/backup_destination"
+
 module RelocatablePlugin
   extend Syrus::PluginApi
 
   syrus_plugin "relocatable_plugin" do
-    provides callbacks: "RelocatablePlugin::Callbacks"
+    provides callbacks: "RelocatablePlugin::Callbacks",
+             backup_destination: "RelocatablePlugin::BackupDestination"
 
     cli_commands [
       {
@@ -17,5 +20,11 @@ module RelocatablePlugin
   end
 
   class Callbacks
+  end
+
+  class BackupDestination
+    include Syrus::Plugin::BackupDestination
+
+    def self.destination_key = "relocatable"
   end
 end

@@ -21,6 +21,7 @@ module Syrus
           )
         }x,
         "git_history" => %r{\A\./plugins/git_history/spec/},
+        "local_backups" => %r{\A\./plugins/local_backups/spec/},
         "operator_briefing" => %r{\A\./plugins/operator_briefing/spec/}
       }.freeze
       TEST_DISABLED_PLUGIN_NAMES = EXAMPLE_ENABLED_PLUGIN_PATHS.keys.freeze

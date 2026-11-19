@@ -75,6 +75,8 @@ module Syrus
       problem_provider
       repository_configuration
       review_gate
+      backup_artifact_source
+      backup_destination
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -152,7 +154,9 @@ module Syrus
       review_presentation_contributor: -> { Syrus::Plugin::ReviewPresentationContributor },
       problem_provider:          -> { Syrus::Plugin::ProblemProvider },
       repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration },
-      review_gate:             -> { Syrus::Plugin::ReviewGate }
+      review_gate:             -> { Syrus::Plugin::ReviewGate },
+      backup_artifact_source:  -> { Syrus::Plugin::BackupArtifactSource },
+      backup_destination:      -> { Syrus::Plugin::BackupDestination }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
