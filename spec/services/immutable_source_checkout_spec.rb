@@ -129,6 +129,82 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     FileUtils.rm_rf(mirror) if mirror
   end
 
+  describe "a snapshot ref the mirror does not carry" do
+    # A real mirror syncs branches and tags only, so snapshot refs always fall
+    # back to the hosting platform.
+    let(:branch_mirror) { Pathname.new(Dir.mktmpdir("syrus-immutable-source-branch-mirror")).tap { |dir| sh("git clone -q --bare #{bare_remote_dir} #{dir}") } }
+    let(:logs) { [] }
+    let(:sleeps) { [] }
+
+    before do
+      snapshot.update!(source_ref: "refs/syrus/source-snapshots/runs/123", source_sha: feature_sha, tree_sha: feature_tree_sha)
+      register_workspace_transport(url: "file://#{branch_mirror}")
+      described_class.retry_sleeper = ->(seconds) { sleeps << seconds }
+    end
+
+    after do
+      described_class.retry_sleeper = nil
+      FileUtils.rm_rf(branch_mirror)
+    end
+
+    def hosting_fetches(failures: [])
+      remaining = failures.dup
+      calls = []
+      allow(GithubAuthenticatedGit).to receive(:run) do |repository:, user:, git:, operation_type:, log:, &block|
+        calls << operation_type
+        if operation_type == "git_immutable_source_fetch" && (failure = remaining.shift)
+          raise GitRunner::GitError.new([ "fetch" ], 128, failure)
+        end
+
+        block.call("file://#{bare_remote_dir}")
+      end
+      calls
+    end
+
+    it "seeds the default branch from the mirror so the hosting fetch only sends the snapshot's delta" do
+      hosting_fetches
+      checkout = described_class.new(step, log: ->(line, **) { logs << line })
+
+      checkout.setup
+
+      expect(sh("git -C #{checkout.path} rev-parse HEAD").strip).to eq(feature_sha)
+      expect(logs.join("\n")).to include("seeded objects from the workspace Git transport (main)")
+      expect(sh("git -C #{checkout.path} for-each-ref --format='%(refname)' #{described_class::MIRROR_SEED_REF_PREFIX}").strip).to eq("")
+    end
+
+    # Regression: a grader fan-out's concurrent hosting fetches had HTTP/2
+    # streams reset, and each reset failed the grader -- and the workflow.
+    it "retries a reset hosting fetch in place instead of failing the grader" do
+      calls = hosting_fetches(failures: [
+        "error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly: CANCEL (err 8)",
+        "error: RPC failed; curl 56 Recv failure: Connection reset by peer"
+      ])
+      checkout = described_class.new(step, log: ->(line, **) { logs << line })
+
+      checkout.setup
+
+      expect(sh("git -C #{checkout.path} rev-parse HEAD").strip).to eq(feature_sha)
+      expect(calls.count("git_immutable_source_fetch")).to eq(3)
+      expect(sleeps.size).to eq(2)
+      expect(logs.join("\n")).to include("transient hosting fetch failure", "attempt 1/4")
+    end
+
+    it "gives up after the bounded number of attempts" do
+      hosting_fetches(failures: Array.new(described_class::HOSTING_FETCH_ATTEMPTS, "error: RPC failed; curl 92 HTTP/2 stream 1 was not closed cleanly"))
+
+      expect { described_class.new(step).setup }.to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /curl 92/)
+      expect(sleeps.size).to eq(described_class::HOSTING_FETCH_ATTEMPTS - 1)
+    end
+
+    it "never retries a permanent failure" do
+      calls = hosting_fetches(failures: [ "fatal: couldn't find remote ref refs/syrus/source-snapshots/runs/123" ])
+
+      expect { described_class.new(step).setup }.to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /couldn't find remote ref/)
+      expect(calls.count("git_immutable_source_fetch")).to eq(1)
+      expect(sleeps).to be_empty
+    end
+  end
+
   it "refreshes an existing base ref before accepting a restored checkout" do
     register_workspace_transport(url: "file://#{bare_remote_dir}")
     snapshot.update!(source_ref: "refs/syrus/source-snapshots/runs/123", source_sha: feature_sha, tree_sha: feature_tree_sha)

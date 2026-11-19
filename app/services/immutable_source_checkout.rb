@@ -17,8 +17,25 @@ class ImmutableSourceCheckout
   PREPARED_MARKER = ".syrus/immutable-source-prepared.json".freeze
   PREPARED_ARCHIVE_CONTENT_TYPE = PreparedWorkspaceArchive::CONTENT_TYPE
   PREPARED_ARCHIVE_MAX_BYTES = PreparedWorkspaceArchive::MAX_BYTES
+  # A grader fan-out materializes ~20 checkouts at once. When the hosting
+  # fetch is the only source, GitHub resets some of those concurrent HTTP/2
+  # streams; one reset used to fail the grader -- and, through grader_collect,
+  # the whole workflow -- as infrastructure. Retry connection-level failures
+  # in place, a few times, with jitter so the retries do not stampede again.
+  HOSTING_FETCH_ATTEMPTS = 4
+  HOSTING_FETCH_BACKOFF = [ 2, 5, 10 ].freeze
+  TRANSIENT_FETCH_FAILURE = %r{RPC failed|curl \d+ |early EOF|unexpected disconnect|remote end hung up|Recv failure|connection (?:reset|refused|timed out)|operation timed out|could not resolve host|SSL_ERROR_SYSCALL|TLS connection was non-properly terminated|HTTP/2 stream|returned error: 5\d\d|HTTP 50[0234]}i
+  PERMANENT_FETCH_FAILURE = /authentication failed|could not read username|permission denied|repository not found|couldn't find remote ref|returned error: 4\d\d|invalid refspec/i
+  MIRROR_SEED_REF_PREFIX = "refs/syrus/mirror-seed/".freeze
 
   attr_reader :path
+
+  class << self
+    # Test seam: specs replace the wait between hosting fetch attempts.
+    attr_writer :retry_sleeper
+
+    def retry_sleeper = @retry_sleeper || ->(seconds) { sleep(seconds) }
+  end
 
   def self.path_for(step)
     WorkflowWorkspace.scratch_path_for(step.workflow).join(CHECKOUT_ROOT, step.id.to_s)
@@ -151,8 +168,11 @@ class ImmutableSourceCheckout
       fetch_args: [ "--no-tags" ]
     ) do
       log("[immutable_source_checkout] preferred transport unavailable or stale; falling back to authenticated hosting fetch for #{snapshot.source_ref}")
-      authenticated_git("git_immutable_source_fetch") do |url|
-        @git.run("fetch", "--no-tags", url, source_refspec(snapshot), chdir: path.to_s, env: @env)
+      seed_objects_from_mirror!
+      with_hosting_fetch_retries(snapshot.source_ref) do
+        authenticated_git("git_immutable_source_fetch") do |url|
+          @git.run("fetch", "--no-tags", url, source_refspec(snapshot), chdir: path.to_s, env: @env)
+        end
       end
     end
     raise GitRunner::GitError.new([ "fetch", snapshot.source_ref ], 128, "fetched ref does not contain expected snapshot SHA #{snapshot.source_sha}") unless git_object_present?(snapshot.source_sha)
@@ -161,6 +181,50 @@ class ImmutableSourceCheckout
     log("[immutable_source_checkout] fetched #{snapshot.source_ref} for snapshot ##{snapshot.id}")
   rescue GitRunner::GitError => e
     raise_infrastructure!("immutable source checkout missing ref #{snapshot.source_ref}: #{e.message}")
+  end
+
+  # The mirror carries branches and tags but not the snapshot refs, so a
+  # snapshot fetch falls back to the hosting platform -- which, into an empty
+  # repository, is a full clone per grader. Seeding the default branch from
+  # the mirror first leaves the hosting fetch only the snapshot's own delta.
+  # Best effort: without a mirror, or if it fails, the hosting fetch simply
+  # transfers everything as before.
+  def seed_objects_from_mirror!
+    branch = @repository.default_branch.to_s.presence
+    return unless branch
+
+    seed_ref = "#{MIRROR_SEED_REF_PREFIX}#{branch}"
+    seeded = try_mirror_transport(repository: @repository, user: @job.user, verify: -> { true }) do |url, mirror_env|
+      @git.run("fetch", "--no-tags", url, "+refs/heads/#{branch}:#{seed_ref}", chdir: path.to_s, env: @env.merge(mirror_env))
+    end
+    return unless seeded
+
+    # The objects are what matter; the ref would only be noise in the checkout.
+    @git.run("update-ref", "-d", seed_ref, chdir: path.to_s)
+    log("[immutable_source_checkout] seeded objects from the workspace Git transport (#{branch})")
+  rescue GitRunner::GitError => e
+    log("[immutable_source_checkout] mirror seed skipped: #{e.message}")
+  end
+
+  def with_hosting_fetch_retries(label)
+    attempt = 0
+    begin
+      attempt += 1
+      yield
+    rescue GitRunner::GitError => e
+      raise unless attempt < HOSTING_FETCH_ATTEMPTS && transient_fetch_failure?(e)
+
+      delay = HOSTING_FETCH_BACKOFF.fetch(attempt - 1, HOSTING_FETCH_BACKOFF.last)
+      delay += rand * delay
+      log("[immutable_source_checkout] transient hosting fetch failure for #{label} (attempt #{attempt}/#{HOSTING_FETCH_ATTEMPTS}); retrying in #{delay.round(1)}s: #{e.message.lines.first.to_s.strip}")
+      self.class.retry_sleeper.call(delay)
+      retry
+    end
+  end
+
+  def transient_fetch_failure?(error)
+    message = error.message.to_s
+    !message.match?(PERMANENT_FETCH_FAILURE) && message.match?(TRANSIENT_FETCH_FAILURE)
   end
 
   def source_refspec(snapshot)
