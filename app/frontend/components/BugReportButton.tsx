@@ -11,6 +11,7 @@ import { ConfirmDialog } from "./ConfirmDialog"
 import { Input } from "./Input"
 import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 import { NoticeToast } from "./NoticeToast"
+import { Notice } from "./ui/Notice"
 import { errorMessage } from "../lib/errorMessage"
 import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
 import { formatBytes } from "../lib/format"
@@ -523,12 +524,7 @@ export const BugReportButton = forwardRef<
                     {captureError}
                   </p>
                 ) : capturing ? (
-                  <p
-                    className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-600 dark:text-gray-300"
-                    role="status"
-                  >
-                    {t("bug_report.capturing")}
-                  </p>
+                  <Notice role="status">{t("bug_report.capturing")}</Notice>
                 ) : null}
                 <div className="grid gap-3 sm:grid-cols-3">
                   <ScreenshotOption
