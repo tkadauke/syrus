@@ -1576,6 +1576,9 @@ export type JobSourceDiffPayload = {
     deletions: number
     patch?: string | null
     is_image?: boolean
+    generated?: boolean
+    generated_reason?: string | null
+    generated_source?: string | null
     patch_status?: "binary" | "oversized" | null
     patch_bytes?: number | null
   }>
