@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
-import { Notice, Page } from "@app/components/ui"
+import { DataTable, Notice, Page, Surface } from "@app/components/ui"
 import { fetchMetricsDashboard } from "../api/metricsDashboard"
 import { MetricsChart } from "./MetricsChart"
 
@@ -69,6 +69,7 @@ export function MetricsDashboardRoute() {
   const tabs = [...payload.categories.map((id) => ({ id, label: t(`tabs.${id}`) })), ...payload.plugin_tabs]
   const activeTab = tabs.some((tab) => tab.id === selectedTab) ? selectedTab : tabs[0]?.id
   const visiblePanels = payload.panels.filter((panel) => panel.category === activeTab)
+  const activeSummary = payload.plugin_tabs.find((tab) => tab.id === activeTab)?.summary
 
   return (
     <Page.Root aria-label={t("aria_page")} className="space-y-5" gutter="responsive" size="extra-wide">
@@ -129,6 +130,7 @@ export function MetricsDashboardRoute() {
       </Page.Nav>
 
       <div className="grid gap-5 2xl:grid-cols-2" role="tabpanel">
+        {activeSummary ? <MetricsSummaryTable summary={activeSummary} /> : null}
         {visiblePanels.map((panel) => (
           <MetricsChart
             bucketSeconds={payload.bucket_seconds}
@@ -142,6 +144,26 @@ export function MetricsDashboardRoute() {
         ))}
       </div>
     </Page.Root>
+  )
+}
+
+function MetricsSummaryTable({ summary }: { summary: NonNullable<import("../api/metricsDashboard").MetricsPluginTab["summary"]> }) {
+  return (
+    <Surface className="overflow-hidden 2xl:col-span-2" padding="none">
+      <h2 className="border-b border-border px-4 py-3 text-sm font-semibold text-text-primary">{summary.title}</h2>
+      <DataTable.Root density="compact" wrapperClassName="rounded-none border-0">
+        <DataTable.Header>
+          <DataTable.Row>{summary.columns.map((column) => <DataTable.HeadCell key={column.key}>{column.label}</DataTable.HeadCell>)}</DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
+          {summary.rows.map((row) => (
+            <DataTable.Row className={row.stale ? "bg-warning-surface text-warning-text" : ""} data-stale={row.stale} key={row.key}>
+              {summary.columns.map((column) => <DataTable.Cell className="whitespace-nowrap" key={column.key}>{row.values[column.key]}</DataTable.Cell>)}
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
+    </Surface>
   )
 }
 
