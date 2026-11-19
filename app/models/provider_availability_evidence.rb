@@ -46,8 +46,9 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     scope.where(model: matching_models_for(model))
   }
 
-  def self.record_codex_success!(user:, source:, model: nil, run: nil, chat_session: nil, chat_message: nil, observed_at: Time.current, details: {})
-    account_id = CodexAccountScope.for_user(user)
+  def self.record_codex_success!(user:, source:, provider_account: nil, model: nil, run: nil, chat_session: nil, chat_message: nil, observed_at: Time.current, details: {})
+    provider_account ||= run&.provider_account || chat_session&.provider_session_metadata&.provider_account || user.default_provider_account("codex")
+    account_id = provider_account&.public_id || CodexAccountScope.for_user(user)
     evidence = create!(
       user: user,
       run: run,
@@ -61,7 +62,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       observed_at: observed_at,
       details: sanitized_details(details)
     )
-    clear_codex_usage_cache_after_success!(user, evidence)
+    clear_codex_usage_cache_after_success!(user, evidence) if provider_account.nil? || provider_account.default?
     clear_override_if_codex_recovered!(user, details)
     App::ProviderAvailability.clear_cache!(user: user, provider: "codex")
     evidence
@@ -74,8 +75,9 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     nil
   end
 
-  def self.record_codex_probe!(user:, status:, snapshot:, message:, http_status: nil, observed_at: Time.current)
-    account_id = CodexAccountScope.for_user(user)
+  def self.record_codex_probe!(user:, status:, snapshot:, message:, provider_account: nil, http_status: nil, observed_at: Time.current)
+    provider_account ||= user.default_provider_account("codex")
+    account_id = provider_account&.public_id || CodexAccountScope.for_user(user)
     evidence = create!(
       user: user,
       provider: "codex",
@@ -98,12 +100,14 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   # this model's STATUSES vocabulary (available/warning/exhausted/
   # probe_inconclusive/auth_error/unsupported/probe_unavailable), so no
   # evidence_status_for_probe translation is needed. There is no Claude
-  # equivalent of CodexAccountScope, so account_id stays nil.
-  def self.record_claude_probe!(user:, status:, snapshot:, message:, http_status: nil, observed_at: Time.current)
+  # equivalent of CodexAccountScope, so the migrated default provider account
+  # supplies the stable scope for callers that do not pass one explicitly.
+  def self.record_claude_probe!(user:, status:, snapshot:, message:, provider_account: nil, http_status: nil, observed_at: Time.current)
+    provider_account ||= user.default_provider_account("claude")
     create!(
       user: user,
       provider: "claude",
-      account_id: nil,
+      account_id: provider_account&.public_id,
       model: nil,
       status: status,
       source: "usage_probe",

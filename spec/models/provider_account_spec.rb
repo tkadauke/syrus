@@ -103,4 +103,20 @@ RSpec.describe ProviderAccount do
     expect(legacy_provider.configured_for_account?(user.default_provider_account("claude"), user: user)).to be(true)
     expect(legacy_provider.configured_for_account?(create_account(position: 1), user: user)).to be(false)
   end
+
+
+  it "rejects a resumable session pinned to another user's provider account" do
+    user.update!(claude_oauth_token: "owner-token")
+    other_user = Factories.user(claude_oauth_token: "other-token")
+    run = Factories.job(repository: Factories.repository(user: user), agent_provider: "claude").initial_run
+
+    session = run.build_provider_session(
+      provider: "claude",
+      provider_account: other_user.default_provider_account("claude"),
+      session_id: "wrong-owner"
+    )
+
+    expect(session).not_to be_valid
+    expect(session.errors[:provider_account]).to include("must belong to the resumable user and match the session provider")
+  end
 end
