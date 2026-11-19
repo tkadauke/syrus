@@ -1645,6 +1645,7 @@ class Job < ApplicationRecord
   private
 
   def repin_provider_paused_unstarted_workflows!(from:, to:)
+    provider_account_id = user.default_provider_account(to)&.id
     workflows
       .joins(:work_unit)
       .where(state: %w[queued running], agent_provider: from)
@@ -1655,7 +1656,7 @@ class Job < ApplicationRecord
       .where.not(
         id: Workflow.joins(steps: :runs).select("workflows.id")
       )
-      .update_all(agent_provider: to, updated_at: Time.current)
+      .update_all(agent_provider: to, provider_account_id: provider_account_id, updated_at: Time.current)
   end
 
   def finish_stale_work_units_after_close
