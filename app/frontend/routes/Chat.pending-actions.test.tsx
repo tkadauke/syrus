@@ -305,8 +305,8 @@ describe("App chat pending actions", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Working…")).toBeInTheDocument()
-    expect(screen.getAllByText("Cancelling workflow...")).toHaveLength(1)
+    expect(await screen.findByText("Cancelling workflow...")).toBeInTheDocument()
+    expect(screen.queryByText("Working…")).not.toBeInTheDocument()
     expect(screen.queryByText("ArgumentError: Job is not accessible.")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
     expect(screen.getAllByText("Failed").length).toBeGreaterThan(0)
