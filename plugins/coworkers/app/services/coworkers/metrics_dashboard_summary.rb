@@ -24,18 +24,18 @@ module Coworkers
         labels["coworker"] if metric == "syrus_coworkers_journaling_state" && at >= CURRENT_WITHIN.ago
       end.uniq.sort
 
-      { key: "coworkers_health", label: "Coworker health", columns:, rows: handles.map { |handle| row(handle, by_metric) } }
+      { key: "coworkers_health", label: translate(:title), columns:, rows: handles.map { |handle| row(handle, by_metric) } }
     end
 
     private
 
     def columns
       [
-        { key: "coworker", label: "Coworker" },
-        { key: "journaling_state", label: "Journaling state" },
-        { key: "journaling_age", label: "Last journaled" },
-        { key: "unsaved_age", label: "Unsaved workspace" },
-        { key: "spend_7d", label: "7-day spend" }
+        { key: "coworker", label: translate("columns.coworker") },
+        { key: "journaling_state", label: translate("columns.journaling_state") },
+        { key: "journaling_age", label: translate("columns.journaling_age") },
+        { key: "unsaved_age", label: translate("columns.unsaved_age") },
+        { key: "spend_7d", label: translate("columns.spend_7d") }
       ]
     end
 
@@ -50,10 +50,10 @@ module Coworkers
         tone: tone(state:, journaling_age:, unsaved_age:),
         cells: {
           coworker: handle,
-          journaling_state: state || "No schedule",
+          journaling_state: state ? translate("states.#{state}") : translate(:no_schedule),
           journaling_age: duration(journaling_age),
-          unsaved_age: unsaved_age.to_f.positive? ? duration(unsaved_age) : "None",
-          spend_7d: format("$%.2f", spend)
+          unsaved_age: unsaved_age.to_f.positive? ? duration(unsaved_age) : translate(:none),
+          spend_7d: spend_value(spend)
         }
       }.compact
     end
@@ -89,13 +89,20 @@ module Coworkers
     end
 
     def duration(seconds)
-      return "Never" if seconds.nil?
+      return translate(:never) if seconds.nil?
 
       value = seconds.to_f
-      return "#{(value / 1.day).floor}d" if value >= 1.day
-      return "#{(value / 1.hour).floor}h" if value >= 1.hour
+      return translate(:days, count: (value / 1.day).floor) if value >= 1.day
+      return translate(:hours, count: (value / 1.hour).floor) if value >= 1.hour
 
-      "#{(value / 1.minute).floor}m"
+      translate(:minutes, count: (value / 1.minute).floor)
     end
+
+    def spend_value(spend)
+      amount = format("%.2f", spend).tr(".", translate(:decimal_separator))
+      translate(:spend, amount:)
+    end
+
+    def translate(key, **) = I18n.t("api.coworkers.metrics_dashboard.#{key}", **)
   end
 end

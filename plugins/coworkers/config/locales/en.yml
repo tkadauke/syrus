@@ -23,3 +23,23 @@ en:
       needs_attention: "This failure needs your attention; use Retry save after correcting it."
       workspace_save_resolved: "The preserved workspace changes were saved successfully."
       retry_save: "Review workspace and retry"
+      metrics_dashboard:
+        title: "Coworker health"
+        columns:
+          coworker: "Coworker"
+          journaling_state: "Journaling state"
+          journaling_age: "Last journaled"
+          unsaved_age: "Unsaved workspace"
+          spend_7d: "7-day spend"
+        states:
+          scheduled: "Scheduled"
+          paused: "Paused"
+          auto_paused: "Auto-paused"
+        no_schedule: "No schedule"
+        never: "Never"
+        none: "None"
+        days: "%{count}d"
+        hours: "%{count}h"
+        minutes: "%{count}m"
+        decimal_separator: "."
+        spend: "$%{amount}"
