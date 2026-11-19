@@ -370,6 +370,8 @@
     "no_tasks": "Nulla officia schedulata pro hoc receptaculo.",
     "name": "Nomen",
     "schedule": "Schema",
+    "next_run": "Executio proxima",
+    "no_upcoming_run": "Nulla executio futura",
     "next_window": "Fenestra Proxima",
     "state": "Status",
     "actions": "Actiones",
