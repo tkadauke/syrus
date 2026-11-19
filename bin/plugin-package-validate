@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "optparse"
+
+options = { json: false }
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: bin/plugin-package-validate [--json] ARCHIVE"
+  opts.on("--json", "Print machine-readable JSON") { options[:json] = true }
+end
+parser.parse!
+abort parser.to_s unless ARGV.one?
+
+ENV["RAILS_ENV"] ||= "test"
+require_relative "../config/environment"
+
+result = Syrus::PluginPackage::Validator.new(ARGV.first).call
+if options[:json]
+  puts JSON.generate(valid: result.valid?, errors: result.errors, manifest: result.manifest)
+elsif result.valid?
+  puts "Valid plugin package: #{result.manifest.fetch('name')} #{result.manifest.fetch('version')}"
+else
+  warn result.errors.join("\n")
+end
+
+exit(result.valid? ? 0 : 1)
