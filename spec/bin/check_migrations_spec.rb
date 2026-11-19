@@ -46,6 +46,44 @@ RSpec.describe "bin/check-migrations", :ci_only do
     stdout.strip
   end
 
+  # Rails' own `if_not_exists: true` is idempotent; only the explicit
+  # `unless index_exists?` spelling used to count, which failed a merge train
+  # on a migration that was already safe to retry.
+  it "accepts if_not_exists as an idempotency guard, also across continuation lines" do
+    write_migration("db/migrate/20261119120000_add_widget_indexes.rb", <<~RUBY)
+      class AddWidgetIndexes < ActiveRecord::Migration[8.1]
+        def change
+          add_index :widgets, :name, unique: true, if_not_exists: true
+          add_index :widgets, :kind,
+            name: "idx_widgets_kind",
+            if_not_exists: true
+          add_column :widgets, :note, :string, if_not_exists: true
+          remove_column :widgets, :legacy, :string, if_exists: true
+        end
+      end
+    RUBY
+
+    stdout, stderr, status = run_check("--all")
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("no offenses")
+  end
+
+  it "still rejects a bare add_index" do
+    write_migration("db/migrate/20261119120000_add_widget_index.rb", <<~RUBY)
+      class AddWidgetIndex < ActiveRecord::Migration[8.1]
+        def change
+          add_index :widgets, :name, unique: true
+        end
+      end
+    RUBY
+
+    _stdout, stderr, status = run_check("--all")
+
+    expect(status.exitstatus).to eq(1)
+    expect(stderr).to include("[non_idempotent_add_index] db/migrate/20261119120000_add_widget_index.rb:3")
+  end
+
   it "rejects post-policy references with foreign_key true without booting Rails" do
     write_migration("db/migrate/20260830120000_create_widgets.rb", <<~RUBY)
       class CreateWidgets < ActiveRecord::Migration[8.0]

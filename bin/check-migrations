@@ -131,7 +131,7 @@ end
 rule "non_idempotent_add_column" do |offenses, path, lines|
   lines.each_with_index do |line, i|
     next unless line =~ /^\s*add_column\b/
-    next if guarded_by?(lines, i, /column_exists\?/)
+    next if guarded_by?(lines, i, /column_exists\?/) || self_guarded?(lines, i, "if_not_exists")
     offenses << Offense.new(
       rule: "non_idempotent_add_column",
       path: path,
@@ -145,7 +145,7 @@ end
 rule "non_idempotent_remove_column" do |offenses, path, lines|
   lines.each_with_index do |line, i|
     next unless line =~ /^\s*remove_column\b/
-    next if guarded_by?(lines, i, /column_exists\?/)
+    next if guarded_by?(lines, i, /column_exists\?/) || self_guarded?(lines, i, "if_exists")
     offenses << Offense.new(
       rule: "non_idempotent_remove_column",
       path: path,
@@ -159,7 +159,7 @@ end
 rule "non_idempotent_add_reference" do |offenses, path, lines|
   lines.each_with_index do |line, i|
     next unless line =~ /^\s*add_(?:reference|belongs_to)\b/
-    next if guarded_by?(lines, i, /column_exists\?/)
+    next if guarded_by?(lines, i, /column_exists\?/) || self_guarded?(lines, i, "if_not_exists")
     offenses << Offense.new(
       rule: "non_idempotent_add_reference",
       path: path,
@@ -173,7 +173,7 @@ end
 rule "non_idempotent_add_index" do |offenses, path, lines|
   lines.each_with_index do |line, i|
     next unless line =~ /^\s*add_index\b/
-    next if guarded_by?(lines, i, /index_exists\?/)
+    next if guarded_by?(lines, i, /index_exists\?/) || self_guarded?(lines, i, "if_not_exists")
     offenses << Offense.new(
       rule: "non_idempotent_add_index",
       path: path,
@@ -315,6 +315,18 @@ end
 # up to LOOKBACK lines for a matching guard pattern; also matches
 # inline `... unless column_exists?(...)` on the same line.
 LOOKBACK = 3
+# Rails' own guard: `add_index ..., if_not_exists: true` (and `if_exists: true`
+# for removals) is idempotent without an explicit `*_exists?` check. Reads the
+# whole statement, continuation lines included, so a multi-line call counts.
+def self_guarded?(lines, index, option)
+  statement = +""
+  lines[index..].each do |line|
+    statement << line
+    break unless line.rstrip.end_with?(",", "(", "\\")
+  end
+  statement.match?(/\b#{option}:\s*true\b/)
+end
+
 def guarded_by?(lines, index, pattern)
   return true if lines[index] =~ pattern
   ((index - LOOKBACK)..(index - 1)).any? { |i| i >= 0 && lines[i] =~ pattern }

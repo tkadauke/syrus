@@ -742,6 +742,20 @@ grade:
       failures: strict
 ```
 
+`metadata: { landing_parity: false }` keeps a required CI-phase grader out of
+landing validation, which otherwise runs every required CI-phase grader before
+merge (see the landing queue docs). Use it for a suite too slow or too
+unreliable to gate landings on; main grading still runs it.
+
+```yaml
+grade:
+  - name: e2e
+    run: bin/test-e2e
+    phases: [ci]
+    metadata:
+      landing_parity: false
+```
+
 `strict` is the default and means any required failure blocks the workflow.
 `allow_inherited` lets Syrus compare the candidate failure with failed
 base-revision evidence. A JUnit grader that opts into `base_retry` parses its

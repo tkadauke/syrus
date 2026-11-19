@@ -10,6 +10,17 @@ module AgentInsights
     KNOWN_PENDING_INSIGHT_LIMIT = 50
     KNOWN_RESOLVED_INSIGHT_LIMIT = 25
     RECENT_JOB_LIMIT = 50
+    # Infrastructure jobs are dropped after loading (Job#infrastructure? reads
+    # the latest workflow), so fetch some spare candidates.
+    RECENT_JOB_CANDIDATES = RECENT_JOB_LIMIT * 2
+    LATEST_WORKFLOW_FINISH_SQL = "(SELECT MAX(workflows.finished_at) FROM workflows WHERE workflows.job_id = jobs.id)".freeze
+    # When the job finished or its latest workflow did, whichever is later --
+    # the same recency the prompt ranks by. CASE rather than GREATEST, which
+    # SQLite lacks.
+    RECENT_COMPLETION_SQL = <<~SQL.squish.freeze
+      CASE WHEN #{LATEST_WORKFLOW_FINISH_SQL} IS NULL OR jobs.finished_at >= #{LATEST_WORKFLOW_FINISH_SQL}
+      THEN jobs.finished_at ELSE #{LATEST_WORKFLOW_FINISH_SQL} END
+    SQL
     FALLBACK_ANALYSIS_WINDOW = 14.days
     EXCLUDED_RECENT_JOB_KINDS = %w[ agent_insight main_grader deploy ].freeze
 
@@ -69,6 +80,15 @@ module AgentInsights
                              AND workflows.finished_at >= :window_start
                          )
                        SQL
+                       # Rank and cap in SQL, then load history only for those.
+                       # Loading every job in the window first -- each with its
+                       # workflows, steps (grader output) and runs (full prompts)
+                       # -- and keeping 50 afterwards ran an insight past its
+                       # pod's 16Gi memory limit, OOM-killing every run on that
+                       # compute worker; a failed insight never moves the window,
+                       # so each retry loaded more.
+                       .reorder(Arel.sql("#{RECENT_COMPLETION_SQL} DESC, jobs.id DESC"))
+                       .limit(RECENT_JOB_CANDIDATES)
                        .to_a
       preload_workflows_steps_and_runs(jobs)
 

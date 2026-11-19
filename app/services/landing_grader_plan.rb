@@ -39,6 +39,15 @@ class LandingGraderPlan
     ).effective
   end
 
+  # A required CI-phase grader can opt out of running before merge with
+  # `metadata: { landing_parity: false }`. It still runs wherever the CI phase
+  # runs (main grading, CI repair, main-branch repair); landing names it as a
+  # post-merge delta instead of running it or blocking on it. For a suite too
+  # slow or too red to gate a landing on.
+  def self.landing_parity?(grader)
+    grader.metadata.to_h["landing_parity"] != false
+  end
+
   def self.phase_for(trigger_kind:, iteration:, repository: nil, job: nil)
     new(nil, trigger_kind: trigger_kind, iteration: iteration, repository: repository, job: job).phase
   end
@@ -101,7 +110,9 @@ class LandingGraderPlan
     return [] if ci_phase == phase.to_s
 
     names = selected.map(&:name)
-    plan.graders.select { |grader| grader.required && grader.phases.include?(ci_phase) && names.exclude?(grader.name) }.map do |grader|
+    plan.graders.select do |grader|
+      grader.required && self.class.landing_parity?(grader) && grader.phases.include?(ci_phase) && names.exclude?(grader.name)
+    end.map do |grader|
       grader.with(metadata: grader.metadata.merge("phase" => ci_phase, "configured_phases" => grader.phases, "main_grading_parity" => true))
     end
   end

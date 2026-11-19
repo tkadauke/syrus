@@ -78,11 +78,19 @@ RSpec.describe LandingGraderPlan do
       # This repository's own merge trains ran the full RSpec, Vitest and
       # plugin suites twice -- once as the landing variant and again as the
       # CI parity variant that already contains it.
+      it "keeps a grader that opted out of landing parity out of landing" do
+        plan_with_e2e = plan.with(graders: [ grader("lint", phases: %w[landing ci]),
+          grader("e2e", phases: %w[ci]).with(metadata: { "landing_parity" => false }) ])
+
+        expect(described_class.effective(plan_with_e2e, trigger_kind: "merge_train", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[lint])
+        expect(described_class.effective(plan_with_e2e, trigger_kind: "main_grader", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[lint e2e])
+      end
+
       it "runs each suite once in this repository's merge-train landing" do
         names = described_class.effective(RepoGradePlan.for(Rails.root), trigger_kind: "merge_train", iteration: 1, repository: repository).graders.map(&:name)
 
         expect(names).to include("rspec-ci", "react-tests-ci")
-        expect(names).not_to include("rspec", "react-tests")
+        expect(names).not_to include("rspec", "react-tests", "e2e")
         names.select { |name| name.end_with?("-ci") }.each do |ci_name|
           expect(names).not_to include(ci_name.delete_suffix("-ci")), ci_name
         end
