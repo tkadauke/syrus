@@ -245,15 +245,29 @@ RSpec.describe Permissions::RuleDraft do
       expect { draft.apply!(digest: "forged", actor: user) }.to raise_error(described_class::Stale)
     end
 
-    it "goes stale when the owner's rules change after review" do
-      preview = draft.preview
+    def owner_rule!(capability)
       PermissionRule.create!(
         owner_user: user, created_by_user: user, updated_by_user: user, subject_selector_type: "coding_chat",
-        capability: "other@v1", resource_type: "none", resource_scope: {}, constraints: {}, policy: "deny",
+        capability:, resource_type: "none", resource_scope: {}, constraints: {}, policy: "deny",
         policy_layer: "agent", source: "operator", provenance: {}, subject_role_keys: []
       )
+    end
+
+    it "goes stale when the owner's rules for the same capability change after review" do
+      preview = draft.preview
+      owner_rule!("syrus.deploys@v1")
 
       expect { draft.apply!(digest: preview.digest, actor: user) }.to raise_error(described_class::Stale)
+    end
+
+    # Regression: other chats and coworkers create and expire rules all day,
+    # and binding the digest to every rule the owner has rejected nearly every
+    # approval click with "this request changed since the preview was shown".
+    it "stays valid when an unrelated rule changes after review" do
+      preview = draft.preview
+      owner_rule!("other@v1")
+
+      expect(draft.apply!(digest: preview.digest, actor: user)).to be_a(PermissionRule)
     end
 
     it "goes stale when the descriptor contract is upgraded" do

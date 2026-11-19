@@ -514,9 +514,14 @@ module Permissions
 
     # Binds the preview to every input that determines whether and how the draft
     # applies: the normalized draft, the descriptor contract and the owner's
-    # active rules (a changed ceiling or an upgraded descriptor goes stale).
+    # active rules for the same capability -- the only ones that can shadow,
+    # conflict with or cap it (a changed ceiling or an upgraded descriptor goes
+    # stale). Every other rule is deliberately left out: on a busy instance
+    # other chats and coworkers create and expire rules all day, and binding
+    # the digest to all of them rejected nearly every approval click as stale.
     def digest_for(resolved)
-      rules_state = Management.new(user).rules.pluck(:id, :updated_at, :policy).map { |id, at, policy| [ id, at.to_f, policy ] }
+      rules_state = Management.new(user).rules.where(capability: resolved.descriptor.capability)
+        .pluck(:id, :updated_at, :policy).map { |id, at, policy| [ id, at.to_f, policy ] }
       material = {
         user: user.id, draft: resolved.attributes.except("rationale").merge("resource_scope" => resolved.scope),
         descriptor: Digest::SHA256.hexdigest(JSON.generate(resolved.descriptor.contract_key.map(&:to_s))),
