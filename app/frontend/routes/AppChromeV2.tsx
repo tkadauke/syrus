@@ -2127,7 +2127,7 @@ function SettingsPopup({
   return (
     <div className="relative" ref={menuRef}>
       <button
-        aria-label={collapsed ? user.email_address : undefined}
+        aria-label={collapsed ? user.display_name : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
         className={`${SETTINGS_TRIGGER_BASE_CLASS} ${collapsed ? "mx-auto w-9 justify-center px-0" : "w-full px-2"}`}
@@ -2135,7 +2135,7 @@ function SettingsPopup({
         type="button"
       >
         <UserIcon />
-        {collapsed ? null : <span className="min-w-0 flex-1 truncate">{user.email_address}</span>}
+        {collapsed ? null : <span className="min-w-0 flex-1 truncate">{user.display_name}</span>}
         {collapsed ? null : <ChevronDownIcon className="rotate-180" />}
       </button>
       {open ? (
