@@ -89,17 +89,37 @@ module Steps
 
     # Explicit formatter commands may operate on the whole repository even
     # though their configuration is gated by this Job's diff. Keep formatter
-    # edits to tracked files within that diff; untracked files are deliberately
-    # left alone because they may be legitimate formatter output.
+    # edits to tracked files within that diff. Untracked files are deliberately
+    # left alone because they may be legitimate formatter output, except when
+    # they recreate paths this Job deleted or renamed away.
     def revert_out_of_scope_changes(files)
       git = GitRunner.new
       modified_files = git.run(
         "diff", "--name-only", "--diff-filter=MD", "HEAD", chdir: workspace.path.to_s
       ).split("\n").map(&:strip).reject(&:empty?)
-      reverted_files = modified_files - files
+      out_of_scope_files = modified_files - files
+      deleted_files = git.run(
+        "diff", "--name-only", "--no-renames", "--diff-filter=D", "#{default_branch_ref}...HEAD",
+        chdir: workspace.path.to_s
+      ).split("\n").map(&:strip).reject(&:empty?)
+      resurrected_files = if deleted_files.empty?
+        []
+      else
+        git.run(
+          "ls-files", "--others", "--exclude-standard", "-z", "--", *deleted_files,
+          chdir: workspace.path.to_s
+        ).split("\0").reject(&:empty?)
+      end
+      reverted_files = (out_of_scope_files + resurrected_files).uniq
       return if reverted_files.empty?
 
-      git.run("restore", "--source=HEAD", "--staged", "--worktree", "--", *reverted_files, chdir: workspace.path.to_s)
+      unless out_of_scope_files.empty?
+        git.run(
+          "restore", "--source=HEAD", "--staged", "--worktree", "--", *out_of_scope_files,
+          chdir: workspace.path.to_s
+        )
+      end
+      git.run("clean", "-f", "--", *resurrected_files, chdir: workspace.path.to_s) unless resurrected_files.empty?
       log("[format] reverted #{reverted_files.size} formatter change(s) outside this Job's diff: #{reverted_files.join(', ')}")
     rescue GitRunner::GitError => e
       log("[format] WARNING (non-fatal): could not revert formatter changes outside this Job's diff: #{e.message}")
