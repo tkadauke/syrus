@@ -235,11 +235,39 @@ module App
 
     def review_tab_payload
       {
+        summary: summary_json,
+        test_plan: test_plan_json,
+        review_artifacts: review_artifacts_json,
         typed_artifacts: typed_artifacts_json,
         review_contributions: ReviewPresentationContributions.frontend_payload,
         visual_evidence: visual_evidence_json,
         coverage: latest_coverage_json
       }
+    end
+
+    def review_artifacts_json
+      keys = %w[test_plan adversarial_review_iterations security_review_iterations visual_review_iterations]
+      workflows = keys.flat_map { |key| artifact_workflows_matching(key) }.uniq(&:id)
+      workflows.sort_by { |workflow| [ workflow.created_at || Time.zone.at(0), workflow.id ] }.reverse.flat_map do |workflow|
+        test_plan = workflow.artifact("test_plan")
+        test_plan_notes = test_plan.is_a?(Hash) && test_plan["notes"].present? ? [ test_plan["notes"] ] : []
+        test_plan_notes + review_iteration_summaries(workflow, "adversarial_review_iterations", "Adversarial review") +
+          review_iteration_summaries(workflow, "security_review_iterations", "Security review") +
+          review_iteration_summaries(workflow, "visual_review_iterations", "Visual review", critique_separator: " - ")
+      end.first(6)
+    end
+
+    def review_iteration_summaries(workflow, artifact_key, label, critique_separator: nil)
+      Array(workflow.artifact(artifact_key)).filter_map do |iteration|
+        next unless iteration.is_a?(Hash)
+        next unless iteration["iteration"].is_a?(Numeric)
+        next unless %w[approved needs_work skipped].include?(iteration["verdict"])
+        next if iteration["panel_id"].present? && iteration["aggregate"] != true
+
+        critique = iteration["critique"].to_s
+        separator = critique_separator || (critique.present? ? " - " : "")
+        "#{label} #{iteration["iteration"]}: #{iteration["verdict"]}#{separator}#{critique}"
+      end
     end
 
     def attachments_tab_payload = { attachments: attachments_json }
