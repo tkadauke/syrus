@@ -24,7 +24,6 @@ module Api
 
         HIDDEN_CHATS_PAGE_SIZE = 20
         MEDIA_PAGE_SIZE = 24
-        MEDIA_THUMBNAIL_CONTENT_TYPES = (Document::ACCEPTED_IMAGE_CONTENT_TYPES & ActiveStorage.variable_content_types).freeze
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
         CODING_RELAY_READ_TIMEOUT_SECONDS = 10
         CODING_TREE_MAX_BYTES = 16.megabytes
@@ -1251,7 +1250,7 @@ module Api
                                     .joins(file_attachment: :blob)
                                     .with_attached_file
                                     .where(kind: "file")
-                                    .where(active_storage_blobs: { content_type: MEDIA_THUMBNAIL_CONTENT_TYPES })
+                                    .where(active_storage_blobs: { content_type: media_thumbnail_content_types })
                                     .order(:created_at, :id)
           image_page = image_scope.offset(image_offset).limit(MEDIA_PAGE_SIZE + 1).to_a
           image_has_more = image_page.length > MEDIA_PAGE_SIZE
@@ -1301,6 +1300,10 @@ module Api
             filename: document.filename || "image",
             type: document.content_type || "application/octet-stream"
           )
+        end
+
+        def media_thumbnail_content_types
+          Document::ACCEPTED_IMAGE_CONTENT_TYPES & ActiveStorage.variable_content_types
         end
 
         def media_chat_image
