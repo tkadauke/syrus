@@ -43,6 +43,25 @@ previous cache on activate. `/service-worker.js` is served `no-cache` and
 `skip_forgery_protection`, because Rails' cross-origin JavaScript protection
 otherwise rejects a `.js`-format response fetched as a worker.
 
+## Keeping deploys fast on a small build disk
+
+The worker image is ~12GB, almost all of it the `worker-deps` toolchain stage.
+Two things keep a routine code deploy from rebuilding and re-shipping it:
+
+- **Toolchain image.** `bin/deploy` builds `worker-deps` as its own image,
+  `ghcr.io/tkadauke/syrus-worker-deps:<digest>`, where the digest covers only
+  the Dockerfile text that stage is built from (comments and code stages do
+  not count). worker-dev is then built `FROM` it via the `WORKER_DEPS_IMAGE`
+  build argument. The registry, not the build machine, is the cache: an
+  unchanged digest is reused (and pulled locally only if missing), one local
+  copy is kept, and the local BuildKit cache can be pruned freely. Nodes keep
+  the toolchain layers they already have and pull only the code layers.
+  `SYRUS_WORKER_DEPS_REFRESH=1` forces a rebuild to take newer upstream
+  packages; `SYRUS_WORKER_DEPS_IMAGE=0` builds the in-file stage as before.
+- **Overlapped pre-pull.** Every cluster's pre-pull DaemonSet starts as soon
+  as the images are pushed, so production's nodes pull while staging rolls
+  out; each cluster's rollout then only waits for its own pull.
+
 ## Syrus Kubernetes rollout ordering
 
 `bin/deploy` is a Ruby program. It loads no Rails -- it runs on an operator's
