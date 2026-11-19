@@ -370,6 +370,8 @@
     "no_tasks": "No scheduled tasks for this repository.",
     "name": "Name",
     "schedule": "Schedule",
+    "next_run": "Next run",
+    "no_upcoming_run": "No upcoming run",
     "next_window": "Next window",
     "state": "State",
     "actions": "Actions",
