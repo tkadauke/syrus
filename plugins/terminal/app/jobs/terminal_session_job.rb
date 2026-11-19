@@ -1,5 +1,5 @@
-class TerminalSessionJob < ApplicationJob
-  queue_as :chat
+class TerminalSessionJob < PluginJob
+  plugin :terminal
 
   def perform(terminal_session_id, runtime_session_id: nil, provider_key: nil)
     session = Terminal::Session.find(terminal_session_id)

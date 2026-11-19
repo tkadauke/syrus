@@ -1,6 +1,5 @@
-class Coworkers::BranchRetentionSweepJob < ApplicationJob
-  queue_as :cleanup
-  retry_on StandardError, wait: :polynomially_longer, attempts: 5
+class Coworkers::BranchRetentionSweepJob < PluginJob
+  plugin :coworkers
 
   def perform
     remaining = Coworkers::BranchRetentionSweep::MAX_DELETIONS

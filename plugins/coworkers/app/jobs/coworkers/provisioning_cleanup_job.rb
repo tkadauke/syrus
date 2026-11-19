@@ -1,7 +1,5 @@
-class Coworkers::ProvisioningCleanupJob < ApplicationJob
-  MAX_ATTEMPTS = 5
-  queue_as :cleanup
-  retry_on StandardError, wait: :polynomially_longer, attempts: MAX_ATTEMPTS
+class Coworkers::ProvisioningCleanupJob < PluginJob
+  plugin :coworkers
   discard_on ActiveRecord::RecordNotFound
 
   def perform(attempt_id)

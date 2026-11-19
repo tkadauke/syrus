@@ -1,7 +1,5 @@
-class Throughput::RefreshRepositorySnapshotJob < ApplicationJob
-  queue_as :polling
-
-  limits_concurrency to: 1, key: ->(repository_id) { "throughput-snapshot:#{repository_id}" }
+class Throughput::RefreshRepositorySnapshotJob < PluginJob
+  plugin :throughput, concurrency: 1
 
   def perform(repository_id)
     repository = Repository.active.find_by(id: repository_id)
