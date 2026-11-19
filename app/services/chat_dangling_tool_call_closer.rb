@@ -60,6 +60,7 @@ class ChatDanglingToolCallCloser
 
       @chat_session.messages.create!(
         role: "tool_result",
+        turn_message_id: tool_use.turn_message_id,
         tool_name: tool_use.tool_name,
         tool_use_id: tool_use.tool_use_id,
         content: {
