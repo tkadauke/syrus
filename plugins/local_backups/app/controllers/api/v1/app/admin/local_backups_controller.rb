@@ -4,9 +4,10 @@ module Api
       module Admin
         class LocalBackupsController < BaseController
           def index
-            scan = LocalBackups::InventoryScanner.new.call
+            root = LocalBackups::StorageRoot.new
+            scan = LocalBackups::InventoryScanner.new(root:).call
             render json: {
-              root: root_payload,
+              root: root_payload(root),
               scan: { discovered: scan.discovered, invalid: scan.invalid },
               backups: LocalBackups::Backup.where(state: "completed").order(completed_at: :desc).map { |backup| backup_payload(backup) }
             }
@@ -16,9 +17,8 @@ module Api
 
           private
 
-          def root_payload
-            root = LocalBackups::StorageRoot.new.path
-            { configured: true, path: root.to_s }
+          def root_payload(root)
+            { configured: true, path: root.path.to_s }
           end
 
           def backup_payload(backup)
