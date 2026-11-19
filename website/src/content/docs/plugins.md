@@ -86,7 +86,10 @@ packing unchanged input twice produces the same digest. Its root contains a
 generated `package.json` capability manifest and `CHECKSUMS.sha256`; the source
 tree and prebuilt frontend assets live under `plugin/`. Syrus rejects packages
 with changed or undeclared files, unsafe paths or links, excessive file sizes
-or counts, third-party Ruby gems, or non-public host API use.
+or counts, third-party Ruby gems, or non-public host API use. Package consumers
+and registry automation can enforce those checks with
+`bin/plugin-package-validate [--json] ARCHIVE`; invalid packages return a
+nonzero exit status.
 
 ## Develop with live reload
 
