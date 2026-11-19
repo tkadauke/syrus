@@ -1,8 +1,8 @@
 require "rails_helper"
 
 RSpec.describe Throughput::RefreshRepositorySnapshotJob do
-  it "runs refreshes on the polling queue" do
-    expect(described_class.queue_name).to eq("polling")
+  it "runs refreshes on the plugin queue" do
+    expect(described_class.new.queue_name).to eq("plugin_throughput")
   end
 
   it "refreshes an active repository" do
