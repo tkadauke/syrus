@@ -49,7 +49,10 @@ Packages may contain only regular files and directories. Absolute paths,
 traversal components, links, duplicate entries, unlisted files, digest changes,
 non-public host APIs, and third-party Ruby gem dependencies are rejected. The
 validator also applies bounded file-count, individual-file, and total-size
-limits before installation or registry acceptance.
+limits. Package consumers and registry automation run
+`bin/plugin-package-validate [--json] ARCHIVE`; a nonzero exit status means the
+archive must not be accepted. Installer and registry integrations must consume
+this same validation boundary instead of implementing parallel package checks.
 
 `syrus plugin new NAME` creates a complete external plugin project in `./NAME`
 or the empty directory selected by `--path`. It rejects invalid Ruby namespace
