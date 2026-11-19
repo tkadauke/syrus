@@ -1,17 +1,12 @@
 require "rails_helper"
 
 RSpec.describe "Built-in plugin host surface", :ci_only do
-  def public_member_exists?(constant, kind, name)
-    if kind == "class"
-      return true if constant.respond_to?(name)
-      return constant.const_get(:ClassMethods, false).method_defined?(name) if constant.const_defined?(:ClassMethods, false)
+  def member_exists?(constant, name)
+    return true if constant.respond_to?(name) || constant.method_defined?(name)
+    return true if constant.is_a?(Class) && constant.allocate.respond_to?(name)
 
-      return false
-    end
-
-    return true if constant.method_defined?(name)
-    return constant.new.respond_to?(name) if constant.is_a?(Class)
-
+    constant.const_defined?(:ClassMethods, false) && constant.const_get(:ClassMethods, false).method_defined?(name)
+  rescue TypeError
     false
   end
 
@@ -19,24 +14,22 @@ RSpec.describe "Built-in plugin host surface", :ci_only do
     findings = Admin::PluginHostSurfaceAudit.new.findings
 
     expect(findings).to eq([]), findings.join("\n")
+    expect(Syrus::PluginHostSurface.new.lookup("Syrus::PluginApi")).to be_present
+    expect(Syrus::PluginHostSurface.new.lookup("Syrus::Plugin::Callbacks")).to be_present
   end
 
-  it "documents every public entry with a release version" do
-    entries = Syrus::PluginHostSurface.new.public_entries
+  it "keeps every public contract documented and resolvable" do
+    expect(Syrus::Host.apis.size).to be_between(25, 40)
+    expect(Syrus::Host.apis.map(&:name)).to all(start_with("Syrus::Host::"))
 
-    expect(entries).to all(have_attributes(contract: be_present, since: satisfy { |version| Gem::Version.correct?(version) }))
-  end
+    failures = Syrus::Host.apis.flat_map do |api|
+      constant = api.name.safe_constantize
+      next [ "#{api.name} does not resolve" ] unless constant
+      next [ "#{api.name} has no summary" ] if api.summary.blank?
+      next [ "#{api.name} has invalid since #{api.since.inspect}" ] unless Gem::Version.correct?(api.since)
 
-  it "keeps every public constant and supported member resolvable" do
-    surface = Syrus::PluginHostSurface.new
-    failures = surface.public_entries.flat_map do |entry|
-      constant = entry.name.safe_constantize
-      next [ "#{entry.name} does not resolve" ] unless constant
-
-      entry.members.flat_map do |kind, names|
-        names.filter_map do |name|
-          "#{entry.name} is missing #{kind} member #{name}" unless public_member_exists?(constant, kind, name)
-        end
+      api.members.filter_map do |member|
+        "#{api.name} is missing #{member}" unless member_exists?(constant, member)
       end
     end
 

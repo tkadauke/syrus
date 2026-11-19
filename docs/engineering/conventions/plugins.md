@@ -9,27 +9,27 @@ this repository, start with [Authoring an external plugin](plugins/external.md).
 
 ## Choosing the public host API
 
-The machine-readable host contract is `config/plugin_host_surface.yml`. A core
-constant belongs in its `public` tier only when a typical external plugin needs
-it, its useful contract is small enough to describe and test, and core can keep
-that contract stable through a deprecation period. Cross-plugin usage is useful
-evidence, but frequency alone never makes an API public.
+Public host APIs live under `Syrus::Host` and declare their contract beside the
+facade with `Syrus::Host.api(name, since:, summary:, members:)`.
+`Syrus::Host.apis` is the authoritative registry. A facade belongs there when
+a typical external plugin needs it, its useful contract is small enough to
+describe and smoke-test, and core can preserve it through a deprecation period.
+Usage across bundled plugins is evidence for that choice, never the decision.
 
-A referenced constant stays `legacy` when bundled plugins still need it but the
-API is too broad, mutable, specialized, or coupled to a core subsystem to
-support externally. Constants that plugins do not need, including incidental
-implementation classes behind a public entry point, remain unlisted and
-internal. Prefer a narrow public member list over promising an entire class;
-anything not named by an entry's contract and `members` is deliberately not
-supported, even though Ruby makes it callable.
+A core constant stays in the legacy inventory when bundled plugins still use
+it but it is too broad, mutable, specialized, or coupled to a core subsystem
+to support externally. The inventory is tolerated only for bundled plugins and
+must shrink. Everything outside a declared host facade or the legacy inventory
+is internal by default.
 
-Every public entry records the release where its contract became supported, a
-short purpose and boundary statement, and any class or instance methods that
-external plugins may rely on. Public Active Record models are read contracts:
-only the listed attributes, associations, scopes, and query methods are stable;
-their callbacks, validations, persistence helpers, and unlisted relations are
-not host API. Inheriting from the public record and job bases is supported for
-plugin-owned classes, but their core implementation hooks remain internal.
+Alias a core constant into `Syrus::Host` only when the declared members are the
+entire surface plugins should use and can be kept stable. Domain records are
+never aliased: expose a read-oriented facade that wraps records and related
+facades, names each supported lookup, attribute, and association, and does not
+leak persistence, callbacks, credentials, state transitions, or unlisted
+relations. Keep each summary short enough to state both its purpose and what it
+deliberately does not promise; APIs needing a longer contract are not ready to
+be public.
 
 ## Frontend contribution registry
 
@@ -112,10 +112,13 @@ The currently registered contribution kinds are:
   why. Bundled plugins ship with core and are not checked.
   Run `bin/plugin-host-surface scan PATH` (optionally with `--json`) against an
   external plugin before publishing it. The scanner parses Ruby without
-  executing it, reports legacy and unsupported core references, and derives
-  the newest `since` release among the public APIs in use. Declare the oldest
+  executing it, allows APIs registered beneath `Syrus::Host`, reports legacy
+  and unsupported core references, and derives the newest `since` release
+  among the registered host APIs in use. Declare the oldest
   release actually tested as `requires_syrus`, but never below that derived
-  floor.
+  floor. Static analysis cannot follow arbitrary dynamic constant lookup; it
+  warns when literal core names are passed through `class_name`, `constantize`,
+  `safe_constantize`, or `const_get`, but computed strings remain invisible.
 - **Server-backed CLI commands** — A manifest may declare `cli_commands` as an
   array of command objects. Each object has a `path` array (nested command
   words), a one-line `summary`, a string `handler`, and optional `arguments`

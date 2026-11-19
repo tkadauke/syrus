@@ -61,6 +61,27 @@ module Syrus
       def remember_plugins(plugins)
         @plugins_by_name = plugins.index_by(&:name)
       end
+
+      # Plugin declarations must load before the application class is built so
+      # Rails engines can participate in initialization. Host-surface scanning
+      # cannot run that early: it needs application autoloading and the public
+      # API registry installed by to_prepare.
+      def scan_external_plugins!
+        Syrus::PluginRegistry.all_plugins.select(&:external).each do |manifest|
+          next unless manifest.plugin_root
+
+          Syrus::PluginRegistry.record_host_surface_scan(manifest.name, scan_plugin_root(manifest.plugin_root))
+        end
+      end
+
+      private
+
+      def scan_plugin_root(directory)
+        Syrus::PluginHostSurface::Scanner.cached(directory)
+      rescue *RESCUED_ERRORS => error
+        Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [],
+          minimum_syrus_version: nil, content_hash: nil, error: "#{error.class}: #{error.message}")
+      end
     end
 
     def self.load!(plugin_roots: Syrus::PluginRoots.default)
@@ -85,10 +106,9 @@ module Syrus
         end
 
         if plugin.external
-          scan = scan_plugin(plugin)
           Syrus::PluginRegistry.register(name: plugin.name, version: plugin.version.to_s,
             requires_syrus: plugin.requires_syrus, external: true, loaded: compatible?(plugin),
-            plugin_root: plugin.directory, plugin_host_surface_scan: scan)
+            plugin_root: plugin.directory)
           next unless compatible?(plugin)
         end
         lib_dir = plugin.directory.join("lib").to_s
@@ -129,13 +149,6 @@ module Syrus
     end
 
     private
-
-    def scan_plugin(plugin)
-      Syrus::PluginHostSurface::Scanner.cached(plugin.directory)
-    rescue *RESCUED_ERRORS => error
-      Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [],
-        minimum_syrus_version: nil, content_hash: nil, error: "#{error.class}: #{error.message}")
-    end
 
     def safely_discovered_plugins
       inspected = @plugin_roots.plugin_directories.filter_map do |directory|

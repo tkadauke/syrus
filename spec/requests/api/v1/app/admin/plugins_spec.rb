@@ -782,7 +782,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       finding = Syrus::PluginHostSurface::Scanner::Finding.new(
         constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7
       )
-      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ],
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ], dynamic: [],
         minimum_syrus_version: nil, content_hash: "digest", error: nil)
       Syrus::PluginRegistry.register(name: "external_scan", version: "1.0.0", external: true,
         plugin_host_surface_scan: scan)
@@ -794,6 +794,23 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(response.parsed_body.dig("plugin", "health", "state")).to eq("warning")
       expect(response.parsed_body.dig("plugin", "health", "host_surface", "unlisted", 0)).to include(
         "constant" => "InternalService", "path" => "lib/external.rb", "line" => 7
+      )
+    end
+
+    it "serializes dynamic host API findings for the admin plugin page" do
+      finding = Syrus::PluginHostSurface::Scanner::StringFinding.new(
+        constant: "Job", tier: "dynamic", path: "lib/external.rb", line: 9, method: "class_name"
+      )
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [ finding ],
+        minimum_syrus_version: nil, content_hash: "digest", error: nil)
+      Syrus::PluginRegistry.register(name: "external_dynamic_scan", version: "1.0.0", external: true,
+        plugin_host_surface_scan: scan)
+      sign_in_as(Factories.user(admin: true))
+
+      get "/api/v1/app/admin/plugins/external_dynamic_scan"
+
+      expect(response.parsed_body.dig("plugin", "health", "host_surface", "dynamic", 0)).to include(
+        "constant" => "Job", "method" => "class_name", "line" => 9
       )
     end
 

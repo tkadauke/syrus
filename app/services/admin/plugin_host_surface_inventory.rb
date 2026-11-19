@@ -3,6 +3,7 @@ require "prism"
 module Admin
   class PluginHostSurfaceInventory
     Reference = Data.define(:constant, :plugin, :path, :line)
+    StringReference = Data.define(:constant, :path, :line, :method)
     CollectedReference = Data.define(:name, :nesting, :absolute, :line)
     Result = Data.define(:constant, :tier, :plugins, :count)
 
@@ -10,11 +11,13 @@ module Admin
     NON_RUBY_APP_ROOTS = %w[assets frontend views].freeze
 
     class ConstantCollector < Prism::Visitor
-      attr_reader :references, :definitions
+      attr_reader :references, :definitions, :aliases, :string_references
 
       def initialize
         @references = []
         @definitions = []
+        @aliases = {}
+        @string_references = []
         @nesting = []
       end
 
@@ -39,7 +42,29 @@ module Admin
       end
 
       def visit_constant_write_node(node)
-        @definitions << qualify(node.name.to_s)
+        name = qualify(node.name.to_s)
+        @definitions << name
+        record_alias(name, node.value)
+        super
+      end
+
+      def visit_constant_path_write_node(node)
+        name = constant_name(node.target)
+        if name
+          qualified = qualify(name)
+          @definitions << qualified
+          record_alias(qualified, node.value)
+        end
+        super
+      end
+
+      def visit_call_node(node)
+        if %i[constantize safe_constantize const_get].include?(node.name)
+          string = node.receiver if node.receiver.is_a?(Prism::StringNode)
+          string ||= node.arguments&.arguments&.find { |argument| argument.is_a?(Prism::StringNode) }
+          record_string_reference(string, node.name) if string
+        end
+        keyword_string(node, :class_name)&.then { |string| record_string_reference(string, :class_name) }
         super
       end
 
@@ -59,6 +84,23 @@ module Admin
         @definitions << qualify(name) if name
       end
 
+      def record_alias(name, value)
+        target = constant_name(value)
+        @aliases[name] = target.delete_prefix("::") if target
+      end
+
+      def record_string_reference(node, method)
+        @string_references << { name: node.unescaped, line: node.location.start_line, method: method.to_s }
+      end
+
+      def keyword_string(node, keyword)
+        hash = node.arguments&.arguments&.find { |argument| argument.is_a?(Prism::KeywordHashNode) }
+        pair = hash&.elements&.find do |element|
+          element.is_a?(Prism::AssocNode) && element.key.respond_to?(:unescaped) && element.key.unescaped.to_s == keyword.to_s
+        end
+        pair&.value if pair&.value.is_a?(Prism::StringNode)
+      end
+
       def with_nesting(node)
         name = constant_name(node)
         previous = @nesting
@@ -69,7 +111,10 @@ module Admin
       end
 
       def constant_name(node)
-        node.respond_to?(:full_name) ? node.full_name : node.name.to_s
+        return node.full_name if node.respond_to?(:full_name)
+        return node.name.to_s if node.respond_to?(:name) && node.class.name.match?(/Constant/)
+
+        nil
       rescue Prism::ConstantPathNode::DynamicPartsInConstantPathError
         nil
       end
@@ -94,7 +139,7 @@ module Admin
           collector = parse(path)
           owned_constants = plugin_constants.fetch(plugin).difference(core)
           collector.references.filter_map do |reference|
-            resolved = resolve(reference, core, owned_constants)
+            resolved = resolve(reference, core, owned_constants, collector.aliases)
             next unless resolved
 
             Reference.new(constant: resolved, plugin:, path: relative(path), line: reference.line)
@@ -106,7 +151,14 @@ module Admin
     def results
       references.group_by(&:constant).map do |constant, refs|
         counts = refs.group_by(&:plugin).transform_values(&:count).sort.to_h
-        Result.new(constant:, tier: @surface.lookup(constant)&.tier || "unlisted", plugins: counts, count: refs.size)
+        tier = if Syrus::Host.public?(constant)
+          "public"
+        elsif @surface.lookup(constant)
+          "legacy"
+        else
+          "internal"
+        end
+        Result.new(constant:, tier:, plugins: counts, count: refs.size)
       end.sort_by(&:constant)
     end
 
@@ -117,10 +169,24 @@ module Admin
       owned = collectors.values.each_with_object(Set.new) { |collector, constants| constants.merge(collector.definitions) }
       collectors.flat_map do |path, collector|
         collector.references.filter_map do |reference|
-          resolved = resolve(reference, core_constants, owned)
+          resolved = resolve(reference, core_constants, owned, collector.aliases)
           next unless resolved
           Reference.new(constant: resolved, plugin: directory.basename.to_s,
             path: path.relative_path_from(directory).to_s, line: reference.line)
+        end
+      end
+    end
+
+    def string_references_for(directory)
+      directory = Pathname.new(directory).expand_path
+      SOURCE_GLOBS.flat_map { |glob| Dir.glob(directory.join(glob)).sort }.flat_map do |file|
+        path = Pathname.new(file)
+        parse(path).string_references.filter_map do |reference|
+          resolved = longest_constant_prefix(reference.fetch(:name).delete_prefix("::"), core_constants)
+          next unless resolved
+
+          StringReference.new(constant: resolved, path: path.relative_path_from(directory).to_s,
+            line: reference.fetch(:line), method: reference.fetch(:method))
         end
       end
     end
@@ -130,7 +196,7 @@ module Admin
         constants.merge(parse(path).definitions)
         path_constant = core_path_constant(path)
         constants << path_constant if path_constant
-      end
+      end.tap { |constants| constants.merge(Syrus::Host.apis.map(&:name)) }
     end
 
     private
@@ -147,8 +213,9 @@ module Admin
       end
     end
 
-    def resolve(reference, core, plugin_constants)
+    def resolve(reference, core, plugin_constants, aliases = {})
       candidates(reference).each do |candidate, lexical_prefix_length|
+        candidate = expand_alias(candidate, aliases)
         plugin_match = longest_constant_prefix(candidate, plugin_constants)
         resolved = longest_constant_prefix(candidate, core)
         plugin_match_length = plugin_match&.split("::")&.length.to_i
@@ -159,6 +226,13 @@ module Admin
       end
 
       nil
+    end
+
+    def expand_alias(name, aliases)
+      match = longest_constant_prefix(name, aliases.keys)
+      return name unless match
+
+      [ aliases.fetch(match), name.delete_prefix(match).delete_prefix("::") ].compact_blank.join("::")
     end
 
     def candidates(reference)

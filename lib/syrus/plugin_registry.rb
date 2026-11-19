@@ -593,6 +593,18 @@ module Syrus
           default_enabled: false, disableable: false, **details)
       end
 
+      def record_host_surface_scan(name, scan)
+        @mutex.synchronize do
+          index = @plugins.index { |manifest| manifest.name == name }
+          return unless index
+
+          manifest = @plugins.fetch(index)
+          metadata = manifest.metadata.to_h.merge(plugin_host_surface_scan: scan)
+          @plugins[index] = manifest.with(metadata:)
+          @generation += 1
+        end
+      end
+
       def validate_dependencies!
         plugins = @mutex.synchronize { @plugins.dup }
         names = plugins.map(&:name).to_set
