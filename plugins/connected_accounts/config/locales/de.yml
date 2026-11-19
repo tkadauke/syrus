@@ -4,3 +4,11 @@ de:
       display_name: "Verbundene Konten"
       description: "Vermittle Zugriff auf benutzereigene externe Konten, ohne langlebige Zugangsdaten offenzulegen."
       long_description: "Verbundene Konten verwaltet sichere Kontometadaten und vermittelt kurzlebigen, autorisierten OAuth-Zugriff über den Zugangsdaten-Speicher."
+    oauth:
+      connected: "Konto verbunden."
+      denied: "Der Anbieter hat den Zugriff abgelehnt."
+      invalid_state: "Diese Verbindungsanfrage ist abgelaufen oder wurde bereits verwendet."
+      invalid_request: "Die Verbindungsanfrage ist ungültig."
+      failed: "Der Anbieter konnte das Konto nicht verbinden."
+    settings:
+      saved: "Anbieterkonfiguration gespeichert."

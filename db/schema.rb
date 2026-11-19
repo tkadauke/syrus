@@ -1117,6 +1117,38 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_224806) do
     t.index ["owner_user_id"], name: "index_connected_accounts_accounts_on_owner_user_id"
   end
 
+  create_table "connected_accounts_oauth_states", force: :cascade do |t|
+    t.string "digest", null: false
+    t.string "session_digest", null: false
+    t.text "code_verifier", null: false
+    t.json "requested_scopes", null: false
+    t.boolean "read_only", null: false
+    t.string "provider", null: false
+    t.integer "user_id", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "used_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["digest"], name: "idx_connected_accounts_oauth_state_digest", unique: true
+    t.index ["user_id"], name: "index_connected_accounts_oauth_states_on_user_id"
+  end
+
+  create_table "connected_accounts_provider_configs", force: :cascade do |t|
+    t.string "provider_key", null: false
+    t.string "authorize_url", null: false
+    t.string "token_url", null: false
+    t.string "revoke_url"
+    t.string "identity_url", null: false
+    t.string "validate_url"
+    t.string "client_id", null: false
+    t.text "client_secret", null: false
+    t.json "scope_catalog", null: false
+    t.json "api_origins", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider_key"], name: "idx_connected_accounts_provider_key", unique: true
+  end
+
   create_table "coverage_snapshots", force: :cascade do |t|
     t.integer "repository_id", null: false
     t.integer "workflow_id", null: false

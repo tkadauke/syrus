@@ -37,6 +37,15 @@ module ConnectedAccounts
             syrus_capabilities: [ "records.write@v1" ]
           }
         ]
+      },
+      {
+        provider: "ConnectedAccounts::GenericOauth2Provider", key: "generic_oauth2", display_name: "Generic OAuth 2",
+        capabilities: %w[authorization exchange_code refresh revoke identity validate],
+        callback_route: "/connected_accounts/callback/generic_oauth2", supports_read_only: true,
+        scopes: [
+          { key: "read", label: "Read account data", risk: "low", syrus_capabilities: [ "account.read@v1" ] },
+          { key: "write", label: "Change account data", risk: "high", syrus_capabilities: [ "account.write@v1" ] }
+        ]
       }
     ]
     credential_types [
@@ -54,5 +63,14 @@ module ConnectedAccounts
       ConnectedAccounts::ProviderRegistry.load!
       nil
     end
+    provides admin_page: "ConnectedAccounts::AdminPages"
+    route :get, "/connected_accounts/connect/:provider", to: "connected_accounts/oauth#start"
+    route :get, "/connected_accounts/callback/:provider", to: "connected_accounts/oauth#callback"
+    route :delete, "/api/v1/app/connected_accounts/accounts/:id", to: "api/v1/app/connected_accounts/accounts#destroy"
+    route :get, "/api/v1/app/admin/connected_accounts/provider_config", to: "api/v1/app/connected_accounts/provider_configs#show"
+    route :put, "/api/v1/app/admin/connected_accounts/provider_config", to: "api/v1/app/connected_accounts/provider_configs#update"
+    route :get, "/admin/connected_accounts", to: "spa#show"
+    frontend routes: { "connected_accounts/ConnectedAccountsAdmin" => "app/frontend/routes/ConnectedAccountsAdmin.tsx" },
+      i18n: [ "app/frontend/i18n/locales/*/connected_accounts.json" ]
   end
 end
