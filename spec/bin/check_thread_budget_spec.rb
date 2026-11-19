@@ -21,7 +21,12 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
     end
 
     Bundler.with_unbundled_env do
-      env = ENV.to_h.merge(bundler_install_env, "DB_POOL" => nil).merge(env_overrides)
+      # Keep ERB-rendering examples independent of the CI runner's CPU quota.
+      # queue.yml otherwise derives this value from the host and may exceed the
+      # supported six-thread worker baseline on larger runners.
+      env = ENV.to_h
+        .merge(bundler_install_env, "DB_POOL" => nil, "JOB_CONCURRENCY" => "6")
+        .merge(env_overrides)
       Open3.capture3(env, RbConfig.ruby, script, unsetenv_others: true, chdir: root)
     end
   end
