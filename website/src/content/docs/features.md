@@ -2384,8 +2384,10 @@ thread, and the other chat must be an ordinary, non-coworker chat belonging to
 that owner. Replies retain the
 bridge's hop limit and automatic closure. The coworker must call the reply tool;
 plain text written only in its own chat is not relayed to the owner chat.
-Coworker conversations are kept
-in a separate chat-list group and carry the coworker's avatar and color. Search
+Coworker conversations are kept in a separate chat-list group. Each coworker's
+main chat acts as a collapsed folder for its side chats; expanding it initially
+shows the configured number of chats, with controls to show more or fewer.
+Conversations carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
 Syrus option. Messages between coworkers show the other coworker's name,
 avatar, and accent color in both the sender's and receiver's chats. A chat owner
