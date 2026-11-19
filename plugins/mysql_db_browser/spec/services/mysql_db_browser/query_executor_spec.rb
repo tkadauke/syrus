@@ -197,7 +197,44 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
 
       expect(payload[:truncated]).to be(true)
       expect(payload[:rows].sum { |row| row.sum { |key, value| key.to_s.bytesize + value.to_s.bytesize } }).to be <= described_class::MAX_RESULT_BYTES
-      expect(client).to have_received(:abandon_results!)
+      expect(client).not_to have_received(:query).with("ROLLBACK")
+    end
+
+    # Regression: a SELECT that hit its row limit left the rest of the stream
+    # unread, the ROLLBACK that followed failed with MySQL's "Commands out of
+    # sync", and that error replaced the (truncated) result.
+    it "returns a truncated result instead of failing on the unread rest of the stream" do
+      result = instance_double(Mysql2::Result, fields: [ "id" ])
+      stream_open = false
+      allow(result).to receive(:each) do |&block|
+        stream_open = true
+        (1..200).each { |i| block.call([ i ]) }
+        stream_open = false
+      end
+      client = instance_double(Mysql2::Client, close: nil)
+      allow(client).to receive(:query) do |sql, *|
+        raise Mysql2::Error, "Commands out of sync; you can't run this command now" if stream_open
+        sql.start_with?("SELECT") ? result : nil
+      end
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute("SELECT id FROM files", user: user, limit: 120)
+
+      expect(payload[:available]).to be(true)
+      expect(payload[:row_count]).to eq(120)
+      expect(payload[:truncated]).to be(true)
+      expect(client).to have_received(:close)
+    end
+
+    it "never lets a failed ROLLBACK replace a complete read-only result" do
+      client = fake_client(rows: [ { "id" => 1 } ])
+      allow(client).to receive(:query).with("ROLLBACK").and_raise(Mysql2::Error, "Lost connection to MySQL server")
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute("SELECT id FROM users", user: user)
+
+      expect(payload[:available]).to be(true)
+      expect(payload[:rows]).to eq([ [ 1 ] ])
     end
 
     it "persists a bounded pending audit before executing and finalizes it afterward" do
