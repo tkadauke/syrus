@@ -56,6 +56,7 @@ class ChatPendingAction < ApplicationRecord
     reconcile_job_state
     force_state_transition
     cancel_stale_work
+    reset_job
     reenqueue_work
     repair_queue_affinity
     force_landing_recheck
@@ -125,6 +126,7 @@ class ChatPendingAction < ApplicationRecord
     reconcile_job_state
     force_state_transition
     cancel_stale_work
+    reset_job
     reenqueue_work
     repair_queue_affinity
     rerun_ci_repair
