@@ -63,7 +63,6 @@ class ProviderAccount < ApplicationRecord
 
     user.provider_availability_pause_threshold_for(provider_key)
   end
-
   private
 
   def assign_public_id
