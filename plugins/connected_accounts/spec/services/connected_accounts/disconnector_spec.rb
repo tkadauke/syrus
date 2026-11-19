@@ -12,6 +12,19 @@ RSpec.describe ConnectedAccounts::Disconnector do
       read_only: true, scope_ceiling: [ "fake.read" ], acting_modes: [ "as_self" ], owner_user: user, credential_store_credential: credential)
   end
 
+  it "revokes through the provider and locally records success" do
+    declaration = instance_double(ConnectedAccounts::ProviderDeclaration)
+    allow(declaration).to receive(:call).with("revoke", anything).and_return(revoked: true)
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).and_return(declaration)
+
+    described_class.call(account: account, user: user)
+
+    expect(declaration).to have_received(:call).with("revoke", anything)
+    expect(account.reload).to be_revoked
+    expect(credential.reload).to be_revoked
+    expect(credential.access_events.last).to have_attributes(action: "revoke", result: "allowed")
+  end
+
   it "revokes locally even when the provider fails, without auditing tokens" do
     declaration = instance_double(ConnectedAccounts::ProviderDeclaration)
     allow(declaration).to receive(:call).and_raise(StandardError, "provider failed near access-secret")

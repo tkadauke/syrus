@@ -24,6 +24,12 @@ RSpec.describe ConnectedAccounts::GenericOauth2Provider do
     expect(result[:authorize_url]).not_to include("secret", "verifier")
   end
 
+  it "exposes the instance-configured scopes to the connect flow" do
+    config.update!(scope_catalog: %w[profile calendar.read])
+
+    expect(provider_declaration.connect_scope_keys).to eq(%w[profile calendar.read])
+  end
+
   it "classifies invalid grants as permanent without including response bodies" do
     response = instance_double(Net::HTTPBadRequest, code: "400", body: "access-token-secret")
     http = class_double(Net::HTTP)

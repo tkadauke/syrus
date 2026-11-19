@@ -8,7 +8,7 @@ Before access is yielded, the client validates the stored token expiry. Expired 
 
 Connections use authorization code with PKCE. The opaque state is bound to the signed-in user and browser session, expires after ten minutes, and can be consumed only once. The callback stores access and refresh material together as one encrypted Credential Store value. Providers may return fewer scopes than requested; the recorded grant and ceiling are reduced to the scopes actually returned.
 
-The bundled generic OAuth 2 provider is configured per instance with HTTPS authorization, token, identity, optional validation and revocation endpoints, a client ID and encrypted secret, a scope catalog, and permitted API origins. Its API origins become URL-prefix constraints on every stored credential.
+The bundled generic OAuth 2 provider is configured per instance with HTTPS authorization, token, identity, optional validation and revocation endpoints, a client ID and encrypted secret, a scope catalog, and permitted API origins. Its configured scope catalog is the source of the scopes offered by its connect flow. Its API origins become URL-prefix constraints on every stored credential.
 
 A maintenance job refreshes credentials shortly before expiry under Credential Store's row lock and probes provider health. Temporary provider failures use bounded job backoff. Invalid refresh authorization and unhealthy validation move the account to `needs_reauth`. Disconnect attempts provider revocation, then always revokes the local credential and marks the account revoked; provider failures are recorded without token material.
 
