@@ -548,6 +548,12 @@
       "input_source": "input_source"
     },
     "required": "Erforderlich",
+    "trust_labels": {
+      "official": "Offiziell",
+      "verified": "Verifizierter Herausgeber",
+      "community": "Community-Herausgeber",
+      "unsigned_local": "Lokal unsigniert"
+    },
     "enable": "Aktivieren",
     "enable_beta_mode": "Beta-Modus aktivieren",
     "experimental_opt_in_body": "Dieses Plugin ist in diesem Syrus-Build verfügbar, aber diese Instanz hat den Beta-Modus nicht aktiviert.",

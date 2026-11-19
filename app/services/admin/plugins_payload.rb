@@ -96,6 +96,7 @@ module Admin
           display_name: manifest.display_name.presence || metadata[:display_name].presence || manifest.name.to_s.titleize,
           display_name_i18n_key: manifest.display_name_i18n_key,
           version: manifest.version,
+          trust_label: trust_label_for(manifest, metadata),
           enabled: manifest.enabled?,
           default_enabled: manifest.default_enabled?,
           disableable: manifest.disableable?,
@@ -138,6 +139,14 @@ module Admin
       Array(manifest.links).map do |link|
         link.with_indifferent_access.slice(:label, :href, :description, :kind, :enabled_only)
       end
+    end
+
+    def trust_label_for(manifest, metadata)
+      declared = metadata[:trust_label].to_s
+      return declared if %w[official verified community unsigned_local].include?(declared)
+
+      root = Syrus::PluginRoots.default.resolve(manifest.name)
+      root&.to_s&.start_with?(Rails.root.join("plugins").to_s) ? "official" : "unsigned_local"
     end
 
     def docs_payload(manifest, spec)

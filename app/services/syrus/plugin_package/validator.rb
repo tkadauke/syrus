@@ -19,11 +19,16 @@ module Syrus
         def valid? = valid
       end
 
-      def initialize(archive, max_files: MAX_FILES, max_file_size: MAX_FILE_SIZE, max_total_size: MAX_TOTAL_SIZE)
+      def initialize(archive, max_files: MAX_FILES, max_file_size: MAX_FILE_SIZE, max_total_size: MAX_TOTAL_SIZE,
+        trust_store: nil, signature: nil, release_name: nil, release_version: nil)
         @archive = archive
         @max_files = max_files
         @max_file_size = max_file_size
         @max_total_size = max_total_size
+        @trust_store = trust_store
+        @signature = signature
+        @release_name = release_name
+        @release_version = release_version
       end
 
       def call
@@ -32,6 +37,7 @@ module Syrus
         errors = validate_manifest(manifest, entries)
         errors.concat(validate_checksums(entries))
         errors.concat(validate_plugin(entries, manifest))
+        errors.concat(validate_signature(manifest))
         Result.new(valid: errors.empty?, errors:, manifest:)
       rescue Error, KeyError, JSON::ParserError, Zlib::GzipFile::Error, Gem::Package::TarInvalidError => error
         Result.new(valid: false, errors: [ error.message ], manifest: nil)
@@ -44,6 +50,18 @@ module Syrus
       end
 
       private
+
+      def validate_signature(manifest)
+        return [] unless @trust_store
+        return [ "package signature is required" ] unless @signature
+        return [ "package signature verification requires an archive path" ] if @archive.respond_to?(:read)
+
+        verification = @trust_store.verify(
+          package: @archive, signature: @signature,
+          name: @release_name || manifest["name"], version: @release_version || manifest["version"]
+        )
+        verification.trusted? ? [] : [ "package signature is not trusted: #{verification.reason}" ]
+      end
 
       def read_entries
         entries = {}

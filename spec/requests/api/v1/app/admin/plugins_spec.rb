@@ -82,6 +82,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
         }
       ],
       "version" => "1.2.3",
+      "trust_label" => "unsigned_local",
       "enabled" => true,
       "default_enabled" => true,
       "disableable" => true,

@@ -640,6 +640,12 @@
     "disabled": "Disabled",
     "experimental": "Experimental",
     "required": "Required",
+    "trust_labels": {
+      "official": "Official",
+      "verified": "Verified publisher",
+      "community": "Community publisher",
+      "unsigned_local": "Unsigned local"
+    },
     "suggested": "Suggested for this instance:",
     "enable": "Enable",
     "enable_beta_mode": "Enable beta mode",

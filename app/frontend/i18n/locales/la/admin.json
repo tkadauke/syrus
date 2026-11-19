@@ -548,6 +548,12 @@
       "input_source": "input_source"
     },
     "required": "Necessarium",
+    "trust_labels": {
+      "official": "Officiale",
+      "verified": "Editor verificatus",
+      "community": "Editor communitatis",
+      "unsigned_local": "Locale sine signo"
+    },
     "enable": "Activa",
     "enable_beta_mode": "Modum beta activa",
     "experimental_opt_in_body": "Hoc plugin in hoc aedificio Syrus praesto est, sed haec instantia modum beta nondum activavit.",

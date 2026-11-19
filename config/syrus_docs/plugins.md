@@ -54,6 +54,18 @@ limits. Package consumers and registry automation run
 archive must not be accepted. Installer and registry integrations must consume
 this same validation boundary instead of implementing parallel package checks.
 
+Publishers create an Ed25519 key with `syrus plugin keygen`, keep the private
+key off source control and build systems they do not control, and create a
+detached signature with `syrus plugin sign PACKAGE --key KEY`. Registry trust
+stores contain public keys, SHA-256 fingerprints, `official`, `verified`, or
+`community` labels, and revoked keys and releases. `syrus plugin verify` checks
+all of them. Unsigned development installs are labeled `unsigned local`.
+
+Signing proves that one key signed the exact package bytes, and a trust label
+states how the registry classifies that key. It does not sandbox the plugin,
+review its source, enforce its capability declaration, or make in-process code
+safe. A refreshed revocation list can withdraw previously granted trust.
+
 `syrus plugin new NAME` creates a complete external plugin project in `./NAME`
 or the empty directory selected by `--path`. It rejects invalid Ruby namespace
 names and names that collide with installed or CLI-bundled plugins. The
