@@ -442,6 +442,37 @@ RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
       expect(job.reload.depends_on_jobs).to contain_exactly(old_dependency)
     end
 
+    it "rejects a replacement that creates a multi-Job cycle and keeps the old edge" do
+      job = Factories.job_record(user: user, repository: repository)
+      old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      middle = Factories.job_record(user: user, repository: repository, issue_number: 44)
+      leaf = Factories.job_record(user: user, repository: repository, issue_number: 45)
+      JobDependency.create!(job:, depends_on_job: old_dependency, source: "manual")
+      JobDependency.create!(job: middle, depends_on_job: job, source: "manual")
+      JobDependency.create!(job: leaf, depends_on_job: middle, source: "manual")
+
+      response = call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: leaf.id)
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("cycle")
+      expect(job.reload.depends_on_jobs).to contain_exactly(old_dependency)
+    end
+
+    it "rejects a replacement from another repository and keeps the old edge" do
+      job = Factories.job_record(user: user, repository: repository)
+      old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      replacement = Factories.job_record(user: user, repository: Factories.repository(user: user), issue_number: 44)
+      JobDependency.create!(job:, depends_on_job: old_dependency, source: "manual")
+
+      response = call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: replacement.id)
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("same repository")
+      expect(job.reload.depends_on_jobs).to contain_exactly(old_dependency)
+    end
+
     it "does not run dependency wakeups until the final edge set commits" do
       job = Factories.job_record(user: user, repository: repository)
       old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 43)
