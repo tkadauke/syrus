@@ -36,3 +36,80 @@ groups:
         annotations:
           summary: "Syrus recurring job {{ $labels.job }} is stale"
           description: "Recurring job {{ $labels.job }} has not completed successfully within the expected window."
+
+  # Coworker thresholds are intentionally literal here so operators can tune
+  # them in one deployed rules file. Spend defaults to a 3x anomaly and a
+  # $100/day absolute cap.
+  - name: syrus.coworkers
+    rules:
+      - alert: SyrusCoworkerJournalingStale
+        expr: syrus_coworkers_journaling_last_result_age_seconds > 129600 unless on (coworker) (syrus_coworkers_journaling_state{state="paused"} == 1)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Coworker {{ $labels.coworker }} journaling is stale"
+          description: "No journaled or dormant-skipped result has been recorded for 36 hours."
+
+      - alert: SyrusCoworkerJournalingStaleCritical
+        expr: syrus_coworkers_journaling_last_result_age_seconds > 259200 unless on (coworker) (syrus_coworkers_journaling_state{state="paused"} == 1)
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "Coworker {{ $labels.coworker }} journaling is critically stale"
+          description: "No journaled or dormant-skipped result has been recorded for 72 hours."
+
+      - alert: SyrusCoworkerJournalingFailed
+        expr: syrus_coworkers_journaling_consecutive_failures >= 3 and on (coworker) (syrus_coworkers_journaling_state{state="auto_paused"} == 1 or syrus_coworkers_journaling_last_result{result="failed"} == 1)
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Coworker {{ $labels.coworker }} journaling repeatedly failed"
+          description: "Journaling is auto-paused or last failed after at least three consecutive failures."
+
+      - alert: SyrusCoworkerUnsavedWorkspace
+        expr: syrus_coworkers_unsaved_workspace_age_seconds > 3600
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Coworker {{ $labels.coworker }} has an unsaved workspace"
+          description: "Workspace changes have remained unsaved for more than one hour."
+
+      - alert: SyrusCoworkerUnsavedWorkspaceCritical
+        expr: syrus_coworkers_unsaved_workspace_age_seconds > 21600
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "Coworker {{ $labels.coworker }} has a critically stale unsaved workspace"
+          description: "Workspace changes have remained unsaved for more than six hours."
+
+      - alert: SyrusCoworkerWorkspacePushFailures
+        expr: sum by (coworker) (rate(syrus_coworkers_workspace_push_failures_total[15m])) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Coworker {{ $labels.coworker }} workspace pushes keep failing"
+          description: "Workspace push failures have continued for 30 minutes."
+
+      - alert: SyrusCoworkerSpendAnomaly
+        expr: sum by (coworker) (increase(syrus_coworkers_spend_usd_total[24h])) > 3 * (sum by (coworker) (increase(syrus_coworkers_spend_usd_total[7d] offset 1d)) / 7)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Coworker {{ $labels.coworker }} daily spend is anomalous"
+          description: "The last 24 hours exceed three times the trailing seven-day daily average."
+
+      - alert: SyrusCoworkerDailySpendCap
+        expr: sum by (coworker) (increase(syrus_coworkers_spend_usd_total[24h])) > 100
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "Coworker {{ $labels.coworker }} exceeded the daily spend cap"
+          description: "The last 24 hours exceeded the configured default cap of $100."

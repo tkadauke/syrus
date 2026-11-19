@@ -18,7 +18,7 @@ module Coworkers
     default_enabled false
     disableable true
     depends_on [ "scheduled_tasks" ]
-    optionally_depends_on [ "credential_store", "calendar" ]
+    optionally_depends_on [ "credential_store", "calendar", "metrics_dashboard" ]
     provides mentionable: "Coworkers::MentionableProvider",
              chat_identity_provider: "Coworkers::ChatIdentityProvider",
              callbacks: "Coworkers::Callbacks",
@@ -41,6 +41,7 @@ module Coworkers
              review_gate: "Coworkers::ReviewGate",
              mcp_tool_set: "Coworkers::ReviewToolSet",
              retention_policy: "Coworkers::ReviewContextRetentionPolicy",
+             "metrics_dashboard:tab" => "Coworkers::MetricsDashboardTabs",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
@@ -82,10 +83,23 @@ module Coworkers
         i18n: [ "app/frontend/i18n/locales/*/coworkers.json" ]
 
     metrics do
-      gauge :journaling_unhealthy_total,
-            comment: "Active coworkers without a journaling fire or recorded skip in the last 25 hours" do
-        Coworkers::SystemSchedules.unhealthy_count
-      end
+      gauge :journaling_last_result_age_seconds, tags: %i[coworker],
+            comment: "Seconds since the coworker's last journaled or dormant-skipped result"
+      gauge :journaling_state, tags: %i[coworker state],
+            comment: "Current journaling schedule state (the active state series has value 1)"
+      gauge :journaling_last_result, tags: %i[coworker result],
+            comment: "Last journaling result (the active result series has value 1)"
+      gauge :journaling_consecutive_failures, tags: %i[coworker],
+            comment: "Consecutive failures of the coworker's journaling schedule"
+      gauge :unsaved_workspace_age_seconds, tags: %i[coworker],
+            comment: "Age of the coworker's oldest unsaved workspace state, or zero"
+      gauge :unsaved_workspace_attempts, tags: %i[coworker],
+            comment: "Push attempts for the coworker's current unsaved workspace state"
+      counter :workspace_push_failures_total, tags: %i[coworker kind], cluster: true,
+              comment: "Workspace push failures by coworker and transient or permanent kind"
+      counter :spend_usd_total, tags: %i[coworker source],
+              comment: "Cumulative coworker spend in USD from chat or background runs"
+      sampler MetricsSampler
     end
 
     always { |scope| Coworkers::DataCleanup.install_into(scope) }
