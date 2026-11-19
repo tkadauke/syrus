@@ -98,6 +98,19 @@ RSpec.describe Steps::Generate do
       expect(chunks).to include("$ echo buf-generated")
     end
 
+    it "keeps generated changes outside the source-file diff" do
+      write_syrus_yml(<<~YAML)
+        generated:
+          - command: mkdir -p lib/proto && printf 'generated\\n' > lib/proto/thing.rb
+            sources: "proto/**/*.proto"
+            generates: "lib/proto/thing.rb"
+      YAML
+
+      handler.call
+
+      expect(@ws_path.join("lib/proto/thing.rb").read).to eq("generated\n")
+    end
+
     it "skips an entry whose sources glob matches nothing in the diff" do
       write_syrus_yml(<<~YAML)
         generated:
