@@ -8,6 +8,7 @@
   "share_people": "Share",
   "mention_add_to_chat": "Add to chat",
   "unable_to_create_side_chat": "Unable to create the side chat.",
+  "unable_to_load_chats": "Unable to load chats.",
   "mention_add_error": "Could not add this coworker to the chat.",
   "agent_roster": "Agents in this chat",
   "after_reply_for": "After {{name}} replies",
