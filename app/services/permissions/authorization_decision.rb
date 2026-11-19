@@ -25,6 +25,7 @@ module Permissions
         raise ArgumentError, I18n.t("api.permission_requests.smart_decision.duration_required")
       end
 
+      permanent_rule = nil
       ready = request.with_lock do
         unless request.pending? && item.reload.actionable?
           raise SmartDecision::AlreadyDecided, I18n.t("api.permission_requests.smart_decision.stale") if smart
@@ -53,17 +54,20 @@ module Permissions
         # preview, ceiling or failed invocation rolls back both.
         rule = SmartDecision.new(request:, item:, user:).apply_rule!(duration: smart.fetch(:duration), digest: smart[:digest], prefix: smart[:prefix],
           breadth: smart[:breadth]) if smart
+        permanent_rule = rule if smart&.fetch(:duration) == "permanent" && rule.is_a?(PermissionRule)
         item.decide!(decision, principal: user, duration: smart ? smart.fetch(:duration) : "invocation", resulting_authority: rule)
         if permission_request
           # Nothing is waiting to run: the approval is the rule or lease itself.
           request.update!(state: "confirmed")
           audit(:coworker_permission_granted, authority: SmartDecision.authority_reference(item), duration: smart.fetch(:duration))
-          return Result.new(request:, execution_enqueued: false)
+          false
+        else
+          issue_invocation!(item, authority: rule) if item.kind == "operation"
+          request.reload.ready_for_authorized_invocation?
         end
-        issue_invocation!(item) if item.kind == "operation"
-        request.reload.ready_for_authorized_invocation?
       end
       enqueued = ready && request.enqueue_confirmation!(user: user)
+      PermanentAuthorityReconciler.call(rule: permanent_rule, source_request: request) if permanent_rule
       Result.new(request:, execution_enqueued: enqueued)
     end
 
@@ -78,11 +82,11 @@ module Permissions
         capability: item.capability, operation: item.operation, **details)
     end
 
-    def issue_invocation!(operation)
+    def issue_invocation!(operation, authority: nil)
       descriptor = permission_descriptor
       arguments = request.payload.fetch("arguments")
       selector_type, selector_id = subject_selector
-      authority = Management.new(user).grant_authority!(
+      authority ||= Management.new(user).grant_authority!(
         duration: :invocation, descriptor:, actor: user,
         subject_selector_type: selector_type, subject_selector_id: selector_id,
         subject_repository: request.repository, role: request.runtime_role,
