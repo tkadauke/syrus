@@ -40,7 +40,8 @@ module LocalBackups
     private
 
     def estimated_sealed_bytes(database_bytes:, blob_bytes:)
-      recent = Backup.where(state: "completed").where("stored_bytes > 0").order(completed_at: :desc).limit(3).maximum(:stored_bytes)
+      recent = Backup.where(state: "completed").where("stored_bytes > 0")
+        .order(completed_at: :desc).limit(3).pluck(:stored_bytes).max
       [recent.to_i, database_bytes + blob_bytes].max
     end
 
