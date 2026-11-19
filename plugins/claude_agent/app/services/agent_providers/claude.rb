@@ -82,17 +82,21 @@ module AgentProviders
       nil
     end
 
-    def self.refresh_stale_usage!(user:, now: Time.current)
-      return unless user.claude_oauth_token.present?
-      return unless ClaudeUsageProbe.stale?(user, now: now)
+    def self.refresh_stale_usage!(user:, provider_account: nil, now: Time.current)
+      provider_account ||= user.default_provider_account(provider_key)
+      token = provider_account&.credential(:claude_oauth_token) || user.claude_oauth_token
+      return unless token.present?
+      return unless ClaudeUsageProbe.stale?(user, provider_account: provider_account, now: now)
 
-      ClaudeUsageProbe.refresh_for(user: user)
+      ClaudeUsageProbe.refresh_for(user: user, provider_account: provider_account)
     end
 
-    def self.refresh_usage!(user:, force: false)
-      return unless user.claude_oauth_token.present?
+    def self.refresh_usage!(user:, provider_account: nil, force: false)
+      provider_account ||= user.default_provider_account(provider_key)
+      token = provider_account&.credential(:claude_oauth_token) || user.claude_oauth_token
+      return unless token.present?
 
-      ClaudeUsageProbe.refresh_for(user: user, force: force)
+      ClaudeUsageProbe.refresh_for(user: user, provider_account: provider_account, force: force)
     end
 
     def session_capture(result)

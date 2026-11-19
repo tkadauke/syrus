@@ -702,7 +702,7 @@ module App
       return batch.usage_limit_runs_for(provider).first(50) if batch
 
       provider_run_scope.left_outer_joins(:run_failure_classification)
-         .select(:id, :job_id, :step_id, :user_id, :agent_provider, :state, :agent_outcome, :finished_at, :updated_at, :model)
+         .select(:id, :job_id, :step_id, :user_id, :provider_account_id, :agent_provider, :state, :agent_outcome, :finished_at, :updated_at, :model)
          .includes(:run_diagnostic, :run_failure_classification, :step)
          .where(state: "failed")
          .where("runs.finished_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)

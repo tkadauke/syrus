@@ -241,6 +241,7 @@ module Runs
 
       ProviderAvailabilityEvidence.record_codex_success!(
         user: user,
+        provider_account: provider_account,
         source: "run_success",
         model: ProviderAvailabilityEvidence.codex_configured_model,
         run: run,

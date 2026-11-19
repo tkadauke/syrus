@@ -38,6 +38,7 @@ class ProviderCircuitClearance
     if provider == "codex"
       return ProviderAvailabilityEvidence.record_codex_success!(
         user: target_user,
+        provider_account: target_user.default_provider_account(provider),
         source: "operator_circuit_repair",
         observed_at: Time.current,
         details: {

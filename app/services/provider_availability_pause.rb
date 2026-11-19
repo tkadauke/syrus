@@ -147,7 +147,11 @@ class ProviderAvailabilityPause
   end
 
   def refresh_stale_usage
-    AgentProviders.for(provider).refresh_stale_usage!(user: user, now: now)
+    AgentProviders.for(provider).refresh_stale_usage!(
+      user: user,
+      provider_account: (workflow.provider_account if workflow.agent_provider == provider),
+      now: now
+    )
   rescue AgentProviders::ConfigurationError
     nil
   end

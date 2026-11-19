@@ -34,10 +34,10 @@ module AgentProviders
 
     # Refreshes this provider's cached usage snapshot when it looks stale.
     # Providers with no usage probe (the default) do nothing.
-    def self.refresh_stale_usage!(user:, now: Time.current)
+    def self.refresh_stale_usage!(user:, provider_account: nil, now: Time.current)
     end
 
-    def self.refresh_usage!(user:, force: false)
+    def self.refresh_usage!(user:, provider_account: nil, force: false)
     end
 
     def self.mcp_tool_name(tool_name, server_name:)
