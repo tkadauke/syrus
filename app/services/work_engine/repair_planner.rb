@@ -522,7 +522,7 @@ module WorkEngine
               workflow_state: "running",
               step_state: "queued",
               step_has_no_runs: true,
-              previous_step_state: "succeeded"
+              upstream_handoff_ready: true
             }
           )
         end
