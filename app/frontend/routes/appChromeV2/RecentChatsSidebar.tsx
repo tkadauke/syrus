@@ -566,7 +566,7 @@ export function RecentChatsSidebar({
                     ? section.chats.filter((candidate) => candidate.agent_appearance?.coworker_chat_role === "side" && candidate.agent_appearance.coworker_id === coworkerId)
                     : []
                   const sideChats = isCoworkerMain
-                    ? uniqueChats([...(loadedCoworkerSideChats[coworkerId] || []), ...payloadSideChats])
+                    ? uniqueChats([...payloadSideChats, ...(loadedCoworkerSideChats[coworkerId] || [])])
                     : []
                   const expanded = isCoworkerMain && expandedCoworkerIds.has(coworkerId)
                   const showAllSideChats = isCoworkerMain && expandedCoworkerChatIds.has(coworkerId)
@@ -732,11 +732,11 @@ export function RecentChatsSidebar({
                       <div className="ml-8 flex gap-1">
                         {!showAllSideChats ? (
                           <button className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => new Set(current).add(coworkerId))} type="button">
-                            {t("common:show_more")}
+                            {t("nav:show_more_coworker_chats", { name: chat.agent_appearance?.name })}
                           </button>
                         ) : (
                           <button className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => { const next = new Set(current); next.delete(coworkerId); return next })} type="button">
-                            {t("common:show_less")}
+                            {t("nav:show_less_coworker_chats", { name: chat.agent_appearance?.name })}
                           </button>
                         )}
                       </div>
