@@ -54,7 +54,7 @@ class ProviderAvailabilityPause
     return admit unless provider.present?
 
     refresh_stale_usage
-    availability = App::ProviderAvailability.for_user(user, provider, now: now)
+    availability = App::ProviderAvailability.for_user(user, provider, provider_account: selected_provider_account, now: now)
     return admit if overridden?(availability)
     return decide_unavailable("provider_usage_exhausted", availability) if usage_exhausted?(availability)
     return decide_unavailable("provider_usage_low", availability) if low_usage?(availability)
@@ -149,11 +149,15 @@ class ProviderAvailabilityPause
   def refresh_stale_usage
     AgentProviders.for(provider).refresh_stale_usage!(
       user: user,
-      provider_account: (workflow.provider_account if workflow.agent_provider == provider),
+      provider_account: selected_provider_account,
       now: now
     )
   rescue AgentProviders::ConfigurationError
     nil
+  end
+
+  def selected_provider_account
+    workflow.provider_account if workflow.agent_provider == provider
   end
 
   def usage_exhausted?(availability)

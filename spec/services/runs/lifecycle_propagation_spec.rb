@@ -20,6 +20,18 @@ RSpec.describe Runs::LifecyclePropagation, :ci_only do
     expect(run.run_failure_classification).to be_nil
   end
 
+  it "records Codex success against the run's provider account" do
+    user = Factories.user(codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    job = Factories.job(user: user, repository: Factories.repository(user: user), agent_provider: "codex")
+    run = job.initial_run
+    account = user.default_provider_account("codex")
+    run.update!(state: "succeeded", step: nil, agent_provider: "codex", provider_account: account, finished_at: Time.current)
+
+    described_class.succeeded!(run.reload)
+
+    expect(ProviderAvailabilityEvidence.find_by!(run: run, status: "available").account_id).to eq(account.public_id)
+  end
+
   it "records usage evidence from structured outcome and run model, not diagnostic prose extraction" do
     job = Factories.job(agent_provider: "codex")
     run = job.initial_run
