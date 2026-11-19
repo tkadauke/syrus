@@ -171,7 +171,7 @@ class ChatMessage < ApplicationRecord
 
   def anchor_pending_action_from_tool_result
     result = content.is_a?(Hash) ? (content["content"] || content["result"]) : content
-    ChatPendingAction.anchor_to_tool_call!(
+    ChatPendingAction.anchor_recent_to_tool_call!(
       chat_session: chat_session,
       pending_action_id: ChatPendingAction.pending_action_id_from_tool_result(result),
       tool_use_id: tool_use_id

@@ -116,6 +116,27 @@ RSpec.describe ChatMessage do
     expect(original.reload.pending_action_id).to be_nil
   end
 
+  it "does not re-anchor a stale pending action when a tool result is recorded" do
+    action = session.pending_actions.create!(
+      action: "pause_landing_queue", payload: {}, created_at: 2.days.ago, updated_at: 2.days.ago
+    )
+    tool_use = session.messages.create!(
+      role: "tool_use", tool_name: "write_memory", tool_use_id: "toolu_stale",
+      content: { "type" => "tool_use", "id" => "toolu_stale", "name" => "write_memory", "input" => {} }
+    )
+
+    session.messages.create!(
+      role: "tool_result", tool_name: "write_memory", tool_use_id: "toolu_stale",
+      content: {
+        "type" => "tool_result", "tool_use_id" => "toolu_stale",
+        "content" => JSON.generate(pending_action_id: action.id, state: "pending")
+      }
+    )
+
+    expect(action.reload.tool_call_message).to be_nil
+    expect(tool_use.reload.pending_action_id).to be_nil
+  end
+
   describe "tool result size cap" do
     def tool_result(payload)
       session.messages.create!(role: "tool_result", tool_name: "t", tool_use_id: "u1",
