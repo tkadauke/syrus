@@ -104,6 +104,31 @@ RSpec.describe "plugin-sync" do
     end
   end
 
+  it "activates one fleet-wide set and leaves role filtering to the plugin loader" do
+    require "ed25519"
+    Dir.mktmpdir do |directory|
+      storage = File.join(directory, "storage")
+      data = File.join(directory, "data")
+      key = Ed25519::SigningKey.generate
+      web = add_plugin(storage, name: "web_tools", version: "v1", roles: [ "web" ])
+      sidecar = add_plugin(storage, name: "sidecar_tools", version: "v1", roles: [ "sidecar" ])
+      publish(storage, key, revision: 1, plugins: [ web, sidecar ])
+
+      env = {
+        "SYRUS_PLUGIN_SYNC_STORAGE_PATH" => storage,
+        "SYRUS_DATA_ROOT" => data,
+        "SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY" => Base64.strict_encode64(key.verify_key.to_bytes),
+        "SYRUS_ROLE" => "web",
+        "BUNDLE_GEMFILE" => File.expand_path("../../Gemfile", __dir__)
+      }
+      _stdout, stderr, status = Open3.capture3(env, "bundle", "exec", "ruby", script)
+
+      expect(status).to be_success, stderr
+      expect(File).to exist(active(data, "web_tools"))
+      expect(File).to exist(active(data, "sidecar_tools"))
+    end
+  end
+
   it "keeps the active set on tampering, bad signatures, and unreachable storage, failing only in strict mode" do
     require "ed25519"
     Dir.mktmpdir do |directory|

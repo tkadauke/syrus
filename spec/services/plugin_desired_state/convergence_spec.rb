@@ -12,7 +12,7 @@ RSpec.describe PluginDesiredState::Convergence do
 
   it "classifies converged, pending, behind, ahead, and unreachable processes" do
     desired_digest = Digest::SHA256.hexdigest(JSON.generate([
-      { "name" => "weather", "version" => "1.0.0", "digest" => "a" * 64, "size" => 0 }
+      { "name" => "weather", "version" => "1.0.0", "digest" => "a" * 64, "size" => 0, "roles" => [ "web" ] }
     ]))
     state = PluginDesiredState.current
     state.update!(revision: 4, apply_revision: 4, apply_requested_at: now - 1.minute)
@@ -26,6 +26,20 @@ RSpec.describe PluginDesiredState::Convergence do
     expect(rows.transform_values { |row| row[:state] }).to include(
       "converged" => "converged", "pending" => "pending_restart", "ahead" => "ahead", "unreachable" => "unreachable"
     )
+  end
+
+  it "uses one desired set digest for every process role" do
+    desired_digest = Digest::SHA256.hexdigest(JSON.generate([
+      { "name" => "weather", "version" => "1.0.0", "digest" => "a" * 64, "size" => 0, "roles" => [ "web" ] }
+    ]))
+    state = PluginDesiredState.current
+    state.update!(revision: 1)
+    create_process("web", 1, now, digest: desired_digest, role: "web")
+    create_process("sidecar-host", 1, now, digest: desired_digest, role: "sidecar")
+
+    rows = described_class.new(state:, now:).as_json.fetch(:processes)
+
+    expect(rows.pluck(:state)).to contain_exactly("converged", "converged")
   end
 
   it "marks divergence beyond the configurable threshold" do
@@ -82,8 +96,8 @@ RSpec.describe PluginDesiredState::Convergence do
     expect(SystemAlertNotification.find_by!(alert_id: "plugin_fleet_divergence").payload.dig("cta", "url")).to end_with("/admin/plugins")
   end
 
-  def create_process(hostname, revision, heartbeat, digest: nil, started_at: now - 5.minutes)
-    InstanceVersion.create!(hostname:, role: "web", version: "sha", started_at:, last_heartbeat_at: heartbeat,
+  def create_process(hostname, revision, heartbeat, digest: nil, started_at: now - 5.minutes, role: "web")
+    InstanceVersion.create!(hostname:, role:, version: "sha", started_at:, last_heartbeat_at: heartbeat,
       plugin_set_revision: revision, plugin_set_digest: digest, plugin_set_details: { "plugins" => [] })
   end
 end

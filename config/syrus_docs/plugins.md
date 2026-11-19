@@ -151,9 +151,10 @@ activated set. Rails and spawned sidecars receive `SYRUS_PLUGIN_SET_DIGEST` and
 
 Plugin manifests may declare `roles %w[web worker preview sidecar]`. Omitting
 `roles` (or using an empty desired-state list) loads the plugin everywhere.
-Only those four names are valid. An unlisted process skips the plugin and
-records the reason in plugin health. Preview-provider, language, and framework
-plugins must remain available to the `preview` role.
+Only those four names are valid. Every process syncs the same artifact set;
+the loader skips plugins not assigned to that process and records the reason
+in plugin health. Preview-provider, language, and framework plugins must remain
+available to the `preview` role.
 
 Desired-state changes do not hot-unload Ruby code. **Apply changes** records
 the desired revision, gracefully drains web, worker, and preview processes,
@@ -165,7 +166,7 @@ tested with Docker Compose restart policies; native macOS workers and external
 plugin distribution on Kubernetes are not supported by this flow.
 
 Admin → Plugins also shows fleet convergence. A process is **converged** when
-its role-specific plugin-set digest matches desired state. **Pending restart**
+its fleet-wide plugin-set digest matches desired state. **Pending restart**
 means an applied revision has not started there; **behind** means an older set
 without a current restart request; **ahead** usually indicates the process is
 connected to the wrong control plane or manifest store; and **unreachable**

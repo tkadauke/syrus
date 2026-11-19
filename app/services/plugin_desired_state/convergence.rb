@@ -65,7 +65,7 @@ class PluginDesiredState::Convergence
   def convergence_state(process, heartbeat, revision)
     return "unreachable" if heartbeat.blank? || heartbeat < now - InstanceVersion::HEARTBEAT_STALE_THRESHOLD
     return "converged" if state.revision.zero? && enabled_installations.empty?
-    return "converged" if value(process, :plugin_set_digest).present? && value(process, :plugin_set_digest) == desired_digest(value(process, :role))
+    return "converged" if value(process, :plugin_set_digest).present? && value(process, :plugin_set_digest) == desired_digest
     return "ahead" if revision.present? && revision.to_i > state.revision
     return "pending_restart" if state.apply_revision == state.revision && state.apply_requested_at.present? && revision.to_i < state.revision
 
@@ -93,17 +93,21 @@ class PluginDesiredState::Convergence
     end
   end
 
-  def desired_digest(role)
-    @desired_digests ||= {}
-    @desired_digests[role] ||= Digest::SHA256.hexdigest(JSON.generate(desired_entries(role)))
+  def desired_digest
+    @desired_digest ||= Digest::SHA256.hexdigest(JSON.generate(desired_entries))
   end
 
-  def desired_entries(role)
+  def desired_entries
     enabled_installations.filter_map do |installation|
       next if installation.fleet_quarantined?
-      next if installation.roles.any? && !installation.roles.include?(role)
       release = installation.plugin_release
-      { "name" => installation.plugin_name, "version" => release.version, "digest" => release.content_digest, "size" => release.size_bytes }
+      {
+        "name" => installation.plugin_name,
+        "version" => release.version,
+        "digest" => release.content_digest,
+        "size" => release.size_bytes,
+        "roles" => installation.roles
+      }
     end.sort_by { |entry| entry.fetch("name") }
   end
 
