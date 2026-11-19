@@ -18,6 +18,12 @@ module AgentProviders
       attr ? user.public_send(attr).present? : false
     end
 
+    def self.configured_for_account?(account, user:)
+      mode = account.credential(:codex_auth_mode)
+      credential = { "api_key" => :codex_api_key, "chatgpt_login" => :codex_auth_json }[mode]
+      credential && account.credential(credential).present?
+    end
+
     def self.mcp_tool_name(tool_name, server_name:)
       "#{server_name}.#{tool_name}"
     end
@@ -156,8 +162,12 @@ module AgentProviders
     def invoke_with_auth(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:,
                          model: nil, effort_level: nil, workload_policy: nil)
       codex_home = WorkflowWorkspace.agent_home_for(workflow, provider)
-      codex_auth = CodexAuth.new(user: job.user, codex_home: codex_home)
-      auth = CodexAuth.with_refresh_lock(user: job.user) { codex_auth.prepare! }
+      codex_auth = CodexAuth.new(user: job.user, provider_account: provider_account, codex_home: codex_home)
+      auth = if provider_account
+        CodexAuth.with_refresh_lock(user: job.user, provider_account: provider_account) { codex_auth.prepare! }
+      else
+        CodexAuth.with_refresh_lock(user: job.user) { codex_auth.prepare! }
+      end
 
       begin
         CodexInvocation.new(

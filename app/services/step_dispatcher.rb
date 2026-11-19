@@ -674,6 +674,7 @@ class StepDispatcher
           job: workflow.job,
           trigger_kind: workflow.trigger_kind,
           agent_provider: run_provider_candidate.provider,
+          provider_account: (workflow.provider_account if workflow.agent_provider == run_provider_candidate.provider),
           model: run_provider_candidate.model,
           effort_level: run_provider_candidate.effort_level,
           iteration: step.iteration,

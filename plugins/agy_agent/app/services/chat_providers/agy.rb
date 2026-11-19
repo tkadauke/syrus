@@ -32,7 +32,7 @@ module ChatProviders
     end
 
     def credentials_missing?
-      chat.user.gemini_api_key.blank?
+      credential(:gemini_api_key).blank?
     end
 
     def credentials_missing_message
@@ -42,7 +42,7 @@ module ChatProviders
     def invoke(workspace_path:, prompt:, log_sink:, mcp_config:, resume_session_id:,
                stop_requested:, process_started:, workload_policy: nil)
       require_full_coworker_workspace_access!
-      api_key = chat.user.reload.gemini_api_key.presence
+      api_key = credential(:gemini_api_key).presence
       raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
 
       AgyInvocation.new(

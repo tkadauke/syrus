@@ -14,6 +14,7 @@ module ChatProviders
       @image_paths = Array(image_paths).compact
       @file_paths = Array(file_paths).compact
       @env = env || {}
+      @provider_account = chat.provider_session_metadata&.provider_account || chat.user.default_provider_account(self.class.provider)
     end
 
     def self.provider
@@ -52,7 +53,11 @@ module ChatProviders
 
     private
 
-    attr_reader :chat, :runner, :image_paths, :file_paths, :env
+    attr_reader :chat, :runner, :image_paths, :file_paths, :env, :provider_account
+
+    def credential(name)
+      provider_account ? provider_account.credential(name) : chat.user.public_send(name)
+    end
 
     def coworker_capabilities
       context = McpToolContext.from_chat_session(chat)

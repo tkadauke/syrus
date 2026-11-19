@@ -12,6 +12,7 @@ module AgentProviders
       @parent_session_id = parent_session_id
       @workflow = run.step.workflow
       @job = workflow.job
+      @provider_account = run.provider_account || job.user.default_provider_account(self.class.provider_key)
     end
 
     def self.provider
@@ -20,6 +21,15 @@ module AgentProviders
 
     def self.provider_key
       provider
+    end
+
+    # Compatibility contract for plugins that still implement only the
+    # singular User credential API. Those plugins remain usable with the
+    # migrated default account; account-aware providers override this method.
+    def self.configured_for_account?(account, user:)
+      return configured_for_user?(user) if account&.default?
+
+      false
     end
 
     # Refreshes this provider's cached usage snapshot when it looks stale.
@@ -161,7 +171,13 @@ module AgentProviders
 
     private
 
-    attr_reader :workspace, :parent_session_id, :workflow, :job
+    attr_reader :workspace, :parent_session_id, :workflow, :job, :provider_account
+
+    def credential(name, user: job.user)
+      return provider_account.credential(name) if provider_account
+
+      user.public_send(name)
+    end
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:,
               required_mcp_tools: nil, disallowed_tools: nil, model: nil, effort_level: nil)
