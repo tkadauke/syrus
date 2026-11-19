@@ -69,6 +69,34 @@ it("preserves progress, tool, and final-answer ordering across a refreshed trans
   ])
 })
 
+it("keeps final replies from separate logical turns visible after refresh", () => {
+  const items = renderChatMessages([
+    {
+      type: "message",
+      id: 2,
+      role: "assistant",
+      text: "First result.",
+      bookmarkable: true,
+      turn_message_id: 1,
+      assistant_presentation: "final"
+    } as ChatMessageItem,
+    {
+      type: "message",
+      id: 4,
+      role: "assistant",
+      text: "Second result.",
+      bookmarkable: true,
+      turn_message_id: 3,
+      assistant_presentation: "final"
+    } as ChatMessageItem
+  ])
+
+  expect(items.map((item) => (item.type === "message" ? [item.text, item.turn_message_id, item.assistant_presentation] : [item.type]))).toEqual([
+    ["First result.", 1, "final"],
+    ["Second result.", 3, "final"]
+  ])
+})
+
 describe("renderChatMessages tool grouping", () => {
   it("removes a retired pending action's anchored tool call and paired result", () => {
     const messages = [

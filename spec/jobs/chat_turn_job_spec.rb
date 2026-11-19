@@ -2431,6 +2431,26 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(replies.last.extract_text_from_content).to eq("Authorized result.")
   end
 
+  it "does not suppress final replies produced by separate logical turn executions" do
+    chat.messages.create!(
+      role: "assistant", content: [ { "type" => "text", "text" => "First result." } ],
+      turn_message_id: user_message.id, assistant_presentation: "final"
+    )
+    second_trigger = chat.messages.create!(
+      role: "system", content: { "text" => "Another pending action completed." }
+    )
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("Second result.", kind: "assistant_text")
+      result_fixture(session_id: "chat-session-2", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, second_trigger.id)
+
+    finals = chat.messages.where(role: "assistant", assistant_presentation: "final").order(:id)
+    expect(finals.pluck(:turn_message_id)).to eq([ user_message.id, second_trigger.id ])
+    expect(finals.map(&:extract_text_from_content)).to eq([ "First result.", "Second result." ])
+  end
+
   it "stores tool_use messages in canonical content-blocks format with id, name, and input" do
     ChatTurnJob.agent_runner = ->(log_sink:, **_) {
       log_sink.call("● propose_job(...)", kind: "tool_call",
