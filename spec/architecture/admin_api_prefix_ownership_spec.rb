@@ -21,6 +21,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/plugins/:name/config api/v1/app/admin/plugins#show_config
     PATCH /api/v1/app/admin/plugins/:name/config api/v1/app/admin/plugins#update_config
     GET /api/v1/app/admin/plugins/:name api/v1/app/admin/plugins#show
+    POST /api/v1/app/admin/plugins/:name/clear_quarantine api/v1/app/admin/plugins#clear_quarantine
     GET /api/v1/app/admin/plugin_pages api/v1/app/admin/plugin_pages#index
     GET /api/v1/app/admin/plugin_services api/v1/app/admin/plugin_services#index
     GET /api/v1/app/admin/queue/:tab api/v1/app/admin/queue#show

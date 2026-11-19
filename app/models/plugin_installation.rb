@@ -21,22 +21,22 @@ class PluginInstallation < ApplicationRecord
 
   def plugin_name_matches_release
     return unless plugin_release && plugin_name.present?
-    errors.add(:plugin_name, "must match the release name") unless plugin_name == plugin_release.name
+    errors.add(:plugin_name, I18n.t("server.errors.plugin_installation.release_name_mismatch")) unless plugin_name == plugin_release.name
   end
 
   def roles_are_names
     unless roles.is_a?(Array) && roles.all? { |role| role.is_a?(String) && role.present? }
-      errors.add(:roles, "must be an array of non-empty names")
+      errors.add(:roles, I18n.t("server.errors.plugin_installation.invalid_roles_shape"))
       return
     end
 
     invalid = roles - PROCESS_ROLES
-    errors.add(:roles, "contains invalid roles: #{invalid.join(', ')}") if invalid.any?
+    errors.add(:roles, I18n.t("server.errors.plugin_installation.invalid_roles", roles: invalid.join(", "))) if invalid.any?
   end
 
   def release_artifact_is_available
     return unless enabled_for_sync && plugin_release && plugin_release.source != "bundled"
-    errors.add(:plugin_release, "must have a verified artifact") unless plugin_release.archive.attached?
+    errors.add(:plugin_release, I18n.t("server.errors.plugin_installation.missing_verified_artifact")) unless plugin_release.archive.attached?
   end
 
   def publish_desired_state

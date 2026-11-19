@@ -18,7 +18,7 @@ class PluginRelease < ApplicationRecord
   private
 
   def bundled_release_has_no_archive
-    errors.add(:archive, "must be absent for bundled releases") if source == "bundled" && archive.attached?
+    errors.add(:archive, I18n.t("server.errors.plugin_release.bundled_archive_present")) if source == "bundled" && archive.attached?
   end
 
   def artifact_identity_is_immutable
@@ -26,7 +26,7 @@ class PluginRelease < ApplicationRecord
     return if changed.empty?
     return unless archive.attached? || plugin_installations.exists?
 
-    errors.add(:base, "plugin release artifact identity is immutable after storage or selection")
+    errors.add(:base, I18n.t("server.errors.plugin_release.artifact_identity_immutable"))
   end
   def publish_if_desired
     PluginDesiredState::Publisher.publish! if plugin_installations.exists?

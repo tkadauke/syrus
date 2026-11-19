@@ -249,6 +249,18 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
+      key: :plugin_manifest_signing_key,
+      type: :text,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "Plugins",
+      operational_meaning: "Encrypted private seed used to sign the external-plugin desired-state manifest.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: true
+    ),
+    Definition.new(
       key: :telegram_bot_token,
       type: :string,
       default: nil,
