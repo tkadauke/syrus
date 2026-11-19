@@ -32,7 +32,7 @@ describe("ConnectedAccountsAdmin", () => {
       read_only_scopes: [ "profile" ], api_origins: [ "https://api.example/" ] }
     vi.spyOn(window, "fetch")
       .mockResolvedValueOnce(jsonResponse({ provider_config: config }))
-      .mockResolvedValueOnce(jsonResponse({ message: "Provider URLs must use HTTPS" }, 422))
+      .mockResolvedValueOnce(jsonResponse({ error: { code: "validation_failed", message: "Provider URLs must use HTTPS" } }, 422))
 
     renderPage()
     fireEvent.click(await screen.findByRole("button", { name: "Save configuration" }))
