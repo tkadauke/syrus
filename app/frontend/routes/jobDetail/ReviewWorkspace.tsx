@@ -226,7 +226,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     surface: SURFACE,
     versions
   })
-  const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
+  const reviewArtifacts = payload.review_artifacts ?? reviewArtifactSummaries(payload.workflows)
   const coverageMetricProviders = useMemo(
     () => coverageDiffLineMetricProviders(activeDiff?.coverage_annotations, commonT),
     [activeDiff?.coverage_annotations, commonT]
