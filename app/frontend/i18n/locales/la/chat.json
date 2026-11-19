@@ -8,6 +8,7 @@
   "share_people": "Communicare",
   "mention_add_to_chat": "Ad colloquium adde",
   "unable_to_create_side_chat": "Colloquium creari non potuit.",
+  "unable_to_load_chats": "Colloquia onerari non potuerunt.",
   "mention_add_error": "Hic collega colloquio addi non potuit.",
   "agent_roster": "Agentes in hoc colloquio",
   "after_reply_for": "Postquam {{name}} respondet",

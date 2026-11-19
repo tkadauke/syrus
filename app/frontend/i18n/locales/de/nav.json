@@ -331,6 +331,8 @@
   "recent_chats_unread_only": "Nur ungelesene",
   "recent_chats_new_in": "Neuer Chat in {{group}}",
   "new_coworker_side_chat": "Neuer Nebenchat mit {{name}}",
+  "expand_coworker_chats": "Chats mit {{name}} ausklappen",
+  "collapse_coworker_chats": "Chats mit {{name}} einklappen",
   "recent_chats_options": {
     "all": "Alle",
     "status_label": "Status",

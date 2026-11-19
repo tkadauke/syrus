@@ -127,6 +127,36 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     expect(screen.getAllByRole("button", { name: "New side chat with Maya" })).toHaveLength(1)
   })
 
+  it("lazily loads named side chats under their coworker and uses the per-section limit", async () => {
+    const appearance = {
+      name: "Maya",
+      accent_hex: "#B6492E",
+      avatar_key: null,
+      avatar_url: null,
+      coworker_id: 7,
+      side_chat_action_path: "/api/v1/app/coworkers/7/chats"
+    }
+    const fetchSpy = vi.fn(async () => jsonResponse({
+      chats: [
+        { id: 1, role: "main", title: "Maya", path: "/chats/1" },
+        ...Array.from({ length: 11 }, (_, index) => ({ id: index + 2, role: "side", title: `Research ${index + 1}`, path: `/chats/${index + 2}` }))
+      ]
+    }))
+    vi.stubGlobal("fetch", fetchSpy)
+    renderSidebar([chatNav({ id: 1, title: "Maya", agent_appearance: { ...appearance, coworker_chat_role: "main" } })])
+
+    expect(screen.queryByText("Research 1")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Expand chats with Maya" }))
+    await waitFor(() => expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(10))
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/chats", expect.any(Object))
+    expect(screen.queryByText("Research 11")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(11)
+    fireEvent.click(screen.getByRole("button", { name: "Show less" }))
+    expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(10)
+  })
+
   it("reports side-chat creation errors and restores the action", async () => {
     const onNotice = vi.fn()
     vi.stubGlobal(

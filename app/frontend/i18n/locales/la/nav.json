@@ -331,6 +331,8 @@
   "recent_chats_unread_only": "Tantum non lecta",
   "recent_chats_new_in": "Colloquium novum in {{group}}",
   "new_coworker_side_chat": "Novum colloquium cum {{name}}",
+  "expand_coworker_chats": "Colloquia cum {{name}} expande",
+  "collapse_coworker_chats": "Colloquia cum {{name}} contrahe",
   "recent_chats_options": {
     "all": "Omnia",
     "status_label": "Status",

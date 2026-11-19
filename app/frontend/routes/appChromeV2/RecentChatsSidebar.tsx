@@ -2,7 +2,7 @@ import { ChevronDownIcon, HideIcon, PlusIcon, TargetIcon, TeamIcon } from "./ico
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
 import { FloatingPortal, autoUpdate, flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { TFunction } from "i18next"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
@@ -12,6 +12,7 @@ import {
   cancelCodingCheckout,
   createChatFromAction,
   deleteChat,
+  fetchCoworkerChatsFromAction,
   fetchChatGroupsPage,
   fetchChats,
   fetchMoreChatsForGroup,
@@ -192,6 +193,9 @@ export function RecentChatsSidebar({
   const codingModeEnabled = featureFlags.coding_mode === true
   const localModeEnabled = featureFlags.local_mode === true
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
+  const [expandedCoworkerIds, setExpandedCoworkerIds] = useState<Set<number>>(() => new Set())
+  const [expandedCoworkerChatIds, setExpandedCoworkerChatIds] = useState<Set<number>>(() => new Set())
+  const [loadedCoworkerSideChats, setLoadedCoworkerSideChats] = useState<Record<number, ChatNavRecord[]>>({})
   const [loadingMoreGroups, setLoadingMoreGroups] = useState(false)
   const [failedGroupOffset, setFailedGroupOffset] = useState<number | null>(null)
   const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
@@ -218,6 +222,32 @@ export function RecentChatsSidebar({
   })
   const settingsKey = useMemo(() => JSON.stringify([sidebarSettings, sidebarSettings.unread_only ? activeChatId : null]), [activeChatId, sidebarSettings])
   const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
+
+  function toggleCoworker(coworkerId: number, mainChat: ChatNavRecord) {
+    if (!expandedCoworkerIds.has(coworkerId) && loadedCoworkerSideChats[coworkerId] === undefined) {
+      const path = mainChat.agent_appearance?.side_chat_action_path
+      if (path) {
+        void fetchCoworkerChatsFromAction(path)
+          .then(({ chats: linkedChats }) => {
+            setLoadedCoworkerSideChats((current) => ({
+              ...current,
+              [coworkerId]: linkedChats.filter((link) => link.role === "side").map((link) => ({
+                ...mainChat,
+                id: link.id,
+                title: link.title,
+                title_pending: link.title == null,
+                pinned: false,
+                chat_path: link.path,
+                unread: false,
+                agent_appearance: mainChat.agent_appearance ? { ...mainChat.agent_appearance, coworker_chat_role: "side" } : undefined
+              }))
+            }))
+          })
+          .catch((error) => onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_load_chats")))
+      }
+    }
+    setExpandedCoworkerIds((current) => toggleSetValue(current, coworkerId))
+  }
   const canLoadMoreGroups = Boolean(chats.data?.groups_has_more && chats.data.groups_next_offset != null)
   const availableChatTypes = useMemo(() => chats.data?.available_chat_types ?? [], [chats.data?.available_chat_types])
   const availableChatTypesKey = availableChatTypes.join(",")
@@ -490,7 +520,7 @@ export function RecentChatsSidebar({
           const collapsed = collapsedSections.has(section.key)
           const loaded = loadedSections[section.key]
           const loading = loadingSections.has(section.key)
-          const visibleChats = collapsed ? [] : section.chats
+          const visibleChats = collapsed ? [] : section.chats.filter((chat) => chat.agent_appearance?.coworker_chat_role !== "side")
           const canShowMore = !collapsed && section.has_more
           const canShowLess = !collapsed && Boolean(loaded)
           const quickStartRepositoryId = section.group_by === "repository" ? section.repository_id : undefined
@@ -530,10 +560,21 @@ export function RecentChatsSidebar({
                   const active = chat.id === activeChatId
                   const unread = chat.unread && !active
                   const title = sidebarChatTitle(chat, t("chat:new_title"))
+                  const coworkerId = chat.agent_appearance?.coworker_id
+                  const isCoworkerMain = chat.agent_appearance?.coworker_chat_role === "main" && coworkerId != null
+                  const payloadSideChats = isCoworkerMain
+                    ? section.chats.filter((candidate) => candidate.agent_appearance?.coworker_chat_role === "side" && candidate.agent_appearance.coworker_id === coworkerId)
+                    : []
+                  const sideChats = isCoworkerMain
+                    ? uniqueChats([...(loadedCoworkerSideChats[coworkerId] || []), ...payloadSideChats])
+                    : []
+                  const expanded = isCoworkerMain && expandedCoworkerIds.has(coworkerId)
+                  const showAllSideChats = isCoworkerMain && expandedCoworkerChatIds.has(coworkerId)
+                  const visibleSideChats = expanded ? sideChats.slice(0, showAllSideChats ? undefined : sidebarSettings.per_group) : []
                   return (
+                    <Fragment key={chat.id}>
                     <div
                       className={`group/recent-chat relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
-                      key={chat.id}
                       onMouseEnter={() => setHoveredChatId(chat.id)}
                       onMouseLeave={() => setHoveredChatId((current) => (current === chat.id ? null : current))}
                       onDragEnter={(e) => {
@@ -554,10 +595,21 @@ export function RecentChatsSidebar({
                       }}
                       onDragOver={(e) => e.preventDefault()}
                     >
+                      {isCoworkerMain ? (
+                        <button
+                          aria-expanded={expanded}
+                          aria-label={t(expanded ? "nav:collapse_coworker_chats" : "nav:expand_coworker_chats", { name: chat.agent_appearance?.name })}
+                          className="absolute left-1 z-10 inline-flex h-6 w-5 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
+                          onClick={() => toggleCoworker(coworkerId, chat)}
+                          type="button"
+                        >
+                          <ChevronDownIcon className={expanded ? "" : "-rotate-90"} />
+                        </button>
+                      ) : null}
                       <Link
                         aria-disabled={Boolean(chat.archived_at)}
                         aria-label={title}
-                        className={`${recentChatLinkClass(active)} ${chat.archived_at ? "cursor-default opacity-60" : ""}`}
+                        className={`${recentChatLinkClass(active)} ${isCoworkerMain ? "pl-7" : ""} ${chat.archived_at ? "cursor-default opacity-60" : ""}`}
                         onClick={(event) => {
                           if (chat.archived_at) {
                             event.preventDefault()
@@ -664,6 +716,32 @@ export function RecentChatsSidebar({
                         />
                       )}
                     </div>
+                    {visibleSideChats.map((sideChat) => (
+                      <CoworkerSideChatRow
+                        activeChatId={activeChatId}
+                        chat={sideChat}
+                        codingModeEnabled={codingModeEnabled}
+                        key={sideChat.id}
+                        localModeEnabled={localModeEnabled}
+                        onCloseDrawer={onCloseDrawer}
+                        prefix={prefix}
+                        providerAvailability={providerAvailability}
+                      />
+                    ))}
+                    {expanded && sideChats.length > sidebarSettings.per_group ? (
+                      <div className="ml-8 flex gap-1">
+                        {!showAllSideChats ? (
+                          <button className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => new Set(current).add(coworkerId))} type="button">
+                            {t("common:show_more")}
+                          </button>
+                        ) : (
+                          <button className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => { const next = new Set(current); next.delete(coworkerId); return next })} type="button">
+                            {t("common:show_less")}
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
+                    </Fragment>
                   )
                 })}
               </div>
@@ -694,6 +772,45 @@ export function RecentChatsSidebar({
           )
         })}
       </nav>
+    </div>
+  )
+}
+
+function toggleSetValue<T>(current: Set<T>, value: T) {
+  const next = new Set(current)
+  if (next.has(value)) next.delete(value)
+  else next.add(value)
+  return next
+}
+
+function uniqueChats(chats: ChatNavRecord[]) {
+  const seen = new Set<number>()
+  return chats.filter((chat) => !seen.has(chat.id) && Boolean(seen.add(chat.id)))
+}
+
+function CoworkerSideChatRow({ activeChatId, chat, codingModeEnabled, localModeEnabled, onCloseDrawer, prefix, providerAvailability }: {
+  activeChatId: number | null
+  chat: ChatNavRecord
+  codingModeEnabled: boolean
+  localModeEnabled: boolean
+  onCloseDrawer: () => void
+  prefix: string
+  providerAvailability?: Record<string, ProviderAvailability>
+}) {
+  const { t } = useTranslation(["chat"])
+  const active = chat.id === activeChatId
+  const unread = chat.unread && !active
+  const title = sidebarChatTitle(chat, t("chat:new_title"))
+  return (
+    <div className="group/recent-chat relative ml-6 flex min-w-0 items-center rounded" data-testid="coworker-side-chat-row">
+      <Link className={recentChatLinkClass(active)} onClick={onCloseDrawer} title={title} to={withRoutePrefix(chat.chat_path, prefix)}>
+        {unread ? <span aria-label={t("chat:unread_indicator")} className="h-2 w-2 shrink-0 rounded-full bg-brand" role="img" /> : null}
+        <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
+        {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
+        <ProviderAvailabilityWarning availability={chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)} className="mt-0.5" />
+        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>{title}</span>
+        <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} />
+      </Link>
     </div>
   )
 }
