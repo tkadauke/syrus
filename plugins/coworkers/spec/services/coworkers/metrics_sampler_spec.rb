@@ -16,6 +16,7 @@ RSpec.describe Coworkers::MetricsSampler do
       gauge :unsaved_workspace_age_seconds, tags: %i[coworker]
       gauge :unsaved_workspace_attempts, tags: %i[coworker]
       counter :spend_usd_total, tags: %i[coworker source]
+      counter :workspace_push_failures_total, tags: %i[coworker kind]
     end
     example.run
   ensure
@@ -41,8 +42,10 @@ RSpec.describe Coworkers::MetricsSampler do
     job = Factories.job_with_run(repository:, user: owner, issue_number: nil, kind: "coworker_task", origin: "coworkers", origin_id: fresh.id.to_s,
       run_attrs: { cost_usd: 2.5 })
 
-    travel_to(now) { expect(described_class.sample!).to be(true) }
-    expect(described_class.refresh_gauges!).to be(true)
+    travel_to(now) do
+      expect(described_class.sample!).to be(true)
+      expect(described_class.refresh_gauges!).to be(true)
+    end
     rendered = Syrus::Metrics.render
 
     expect(rendered).to include('syrus_coworkers_journaling_state{coworker="stale",state="auto_paused"} 1')
@@ -59,6 +62,31 @@ RSpec.describe Coworkers::MetricsSampler do
     expect(series.flat_map { |line| line[/\{([^}]*)\}/, 1].to_s.scan(/(\w+)=/).flatten }.uniq)
       .to contain_exactly("coworker", "result", "source", "state")
     expect(fresh_task).to be_present
+  end
+
+  it "removes obsolete gauge and reconciled-counter series after a handle changes" do
+    now = Time.zone.parse("2026-11-19 12:00:00 UTC")
+    owner = Factories.user
+    repository = Factories.repository(user: owner)
+    coworker = create_coworker(owner:, repository:, handle: "before")
+    create_schedule(coworker, repository)
+
+    travel_to(now) do
+      expect(described_class.sample!).to be(true)
+      expect(described_class.refresh_gauges!).to be(true)
+    end
+    expect(Syrus::Metrics.render).to include('coworker="before"')
+    Syrus::Metrics.counter(:syrus_coworkers_workspace_push_failures_total).increment(tags: { coworker: "before", kind: "transient" })
+
+    coworker.update!(handle: "after")
+    travel_to(now) do
+      expect(described_class.sample!).to be(true)
+      expect(described_class.refresh_gauges!).to be(true)
+    end
+
+    rendered = Syrus::Metrics.render
+    expect(rendered).not_to include('coworker="before"')
+    expect(rendered).to include('coworker="after"')
   end
 
   def create_coworker(owner:, repository:, handle:)

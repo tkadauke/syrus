@@ -23,3 +23,24 @@ de:
       needs_attention: "Dieser Fehler benötigt deine Aufmerksamkeit; versuche das Speichern nach der Korrektur erneut."
       workspace_save_resolved: "Die erhaltenen Workspace-Änderungen wurden erfolgreich gespeichert."
       retry_save: "Workspace prüfen und erneut versuchen"
+      metrics_dashboard:
+        tab: "Mitarbeiter"
+        title: "Coworker-Zustand"
+        columns:
+          coworker: "Coworker"
+          journaling_state: "Journalstatus"
+          journaling_age: "Letzter Journaleintrag"
+          unsaved_age: "Ungespeicherter Workspace"
+          spend: "Ausgaben in 7 Tagen"
+        charts:
+          journaling_age: "Alter des letzten Journalergebnisses"
+          unsaved_age: "Alter des ungespeicherten Workspace"
+          spend: "Coworker-Ausgaben"
+        states:
+          scheduled: "Geplant"
+          paused: "Pausiert"
+          auto_paused: "Automatisch pausiert"
+        no_schedule: "Kein Zeitplan"
+        never: "Nie"
+        none: "Keine"
+        age_hours: "%{count} Std."

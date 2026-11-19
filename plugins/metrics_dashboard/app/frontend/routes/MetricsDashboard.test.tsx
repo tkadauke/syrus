@@ -189,6 +189,20 @@ describe("MetricsDashboardRoute plugin tabs", () => {
     await waitFor(() => expect(screen.getByTestId("location").textContent).toContain("tab=throughput"))
   })
 
+  it("renders a contributed summary table and highlights stale rows", async () => {
+    renderRoute(payload({
+      plugin_tabs: [{ id: "coworkers", label: "Coworkers", summary: {
+        title: "Coworker health",
+        columns: [{ key: "coworker", label: "Coworker" }, { key: "state", label: "State" }],
+        rows: [{ key: "adrian", stale: true, values: { coworker: "adrian", state: "Auto-paused" } }]
+      }}],
+      panels: []
+    }), "/app-shell/metrics_dashboard?tab=coworkers")
+
+    expect(await screen.findByText("Coworker health")).toBeInTheDocument()
+    expect(screen.getByText("Auto-paused").closest("tr")).toHaveAttribute("data-stale", "true")
+  })
+
   it("contributes no tab when no plugin declares one", async () => {
     renderRoute(payload({ plugin_tabs: [] }))
 

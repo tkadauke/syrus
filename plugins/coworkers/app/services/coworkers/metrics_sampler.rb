@@ -22,6 +22,11 @@ module Coworkers
         .where(coworker_chats: { coworker_id: ids }).group("coworker_chats.coworker_id").sum(:cost_usd)
       run_spend = Run.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) })
         .group("jobs.origin_id").sum(:cost_usd)
+      seven_days_ago = now - 7.days
+      weekly_chat_spend = ChatSpendEntry.joins("INNER JOIN coworker_chats ON coworker_chats.chat_session_id = chat_spend_entries.chat_session_id")
+        .where(coworker_chats: { coworker_id: ids }, incurred_at: seven_days_ago..now).group("coworker_chats.coworker_id").sum(:cost_usd)
+      weekly_run_spend = Run.joins(:job).where(jobs: { kind: "coworker_task", origin: "coworkers", origin_id: ids.map(&:to_s) }, finished_at: seven_days_ago..now)
+        .group("jobs.origin_id").sum(:cost_usd)
 
       coworkers.each do |id, handle|
         task = schedules[id]
@@ -34,7 +39,8 @@ module Coworkers
           "unsaved_age" => oldest ? [ now - time_value(oldest), 0 ].max : 0,
           "unsaved_attempts" => attempts.to_i,
           "chat_spend" => chat_spend.fetch(id, 0).to_f,
-          "background_run_spend" => run_spend.fetch(id.to_s, 0).to_f
+          "background_run_spend" => run_spend.fetch(id.to_s, 0).to_f,
+          "weekly_spend" => weekly_chat_spend.fetch(id, 0).to_f + weekly_run_spend.fetch(id.to_s, 0).to_f
         }
       end
       Rails.cache.write(CACHE_KEY, snapshot, expires_in: CACHE_TTL)
@@ -47,6 +53,8 @@ module Coworkers
     def refresh_gauges!
       snapshot = Rails.cache.read(CACHE_KEY)
       return false unless snapshot
+
+      clear_published_series!(snapshot.fetch("coworkers").keys)
 
       snapshot.fetch("coworkers").each do |handle, values|
         tags = { coworker: handle }
@@ -84,5 +92,16 @@ module Coworkers
 
     def set(name, value, tags) = Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").set(value, tags: tags)
     def counter(name) = Syrus::Metrics.counter(:"syrus_coworkers_#{name}")
+
+    def clear_published_series!(active_handles)
+      %i[journaling_last_result_age_seconds journaling_consecutive_failures unsaved_workspace_age_seconds unsaved_workspace_attempts journaling_state journaling_last_result].each do |name|
+        Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").samples.each { |tags, _| Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").clear(tags:) }
+      end
+      %i[spend_usd_total workspace_push_failures_total].each do |name|
+        counter(name).samples.each do |tags, _|
+          counter(name).clear(tags:) unless active_handles.include?(tags[:coworker])
+        end
+      end
+    end
   end
 end
