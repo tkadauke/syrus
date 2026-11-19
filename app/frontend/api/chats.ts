@@ -1396,6 +1396,12 @@ export function createChatFromAction(path: string) {
   return postJson<{ chat_path: string }>(path)
 }
 
+export type CoworkerChatLink = { id: number; role: "main" | "side" | "mention"; title: string | null; path: string }
+
+export function fetchCoworkerChatsFromAction(path: string) {
+  return getJson<{ chats: CoworkerChatLink[] }>(path)
+}
+
 function withChatNavAppearances<
   T extends { agent_appearances?: Record<string, ChatAgentAppearance>; provider_availability?: Record<string, ProviderAvailability> } & (
     { groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] }
