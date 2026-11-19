@@ -1561,7 +1561,13 @@ function DiffFileSection({
           />
         )
       ) : file.patch_status === "oversized" && onLoadFileDiff ? (
-        <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} file={file} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
+        <OmittedPatchPlaceholder
+          downloadUrl={fileDiffDownloadUrl?.(file)}
+          file={file}
+          limitMessage={patchLimitMessage}
+          loadState={patchLoadState}
+          onLoad={loadFullDiff}
+        />
       ) : file.patch_status === "oversized" ? (
         <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{t("diff_review.oversized_diff_unavailable")}</div>
       ) : (
