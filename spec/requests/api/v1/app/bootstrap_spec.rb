@@ -173,7 +173,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     queries = capture_sql { get api_v1_app_bootstrap_path }
 
     expect(response).to have_http_status(:ok)
-    expect(queries.size).to be <= 50
+    # Plugin fleet divergence adds one bounded desired-state lookup to the
+    # authenticated admin alert payload.
+    expect(queries.size).to be <= 51
   end
 
   it "does not compute provider availability as bootstrap state" do
