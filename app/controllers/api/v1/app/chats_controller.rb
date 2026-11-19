@@ -1243,6 +1243,7 @@ module Api
 
         def media
           chat_session = find_chat_session
+          ChatMediaLibrary.materialize_inline_images!(chat_session)
           image_offset = non_negative_offset(params[:chat_images_offset])
           artifact_offset = non_negative_offset(params[:typed_artifacts_offset])
 
