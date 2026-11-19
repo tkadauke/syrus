@@ -86,8 +86,16 @@ RSpec.describe LandingGraderPlan do
         expect(described_class.effective(plan_with_e2e, trigger_kind: "main_grader", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[lint e2e])
       end
 
+      # Graded through the full target-graph plan, as the fan-out does: a
+      # root-only plan has no plugin projects, which is how every plugin
+      # suite kept running twice -- nested graders are renamed with their
+      # package prefix and `supersedes` was not.
       it "runs each suite once in this repository's merge-train landing" do
-        names = described_class.effective(RepoGradePlan.for(Rails.root), trigger_kind: "merge_train", iteration: 1, repository: repository).graders.map(&:name)
+        full_plan = TargetGraph::GradePlan.for(workspace_path: Rails.root, graph: TargetGraph::Compiler.compile(Rails.root))
+        names = described_class.effective(full_plan, trigger_kind: "merge_train", iteration: 1, repository: repository).graders.map(&:name)
+
+        expect(names).to include("plugins-coworkers-rspec-ci")
+        expect(names).not_to include("plugins-coworkers-rspec")
 
         expect(names).to include("rspec-ci", "react-tests-ci")
         expect(names).not_to include("rspec", "react-tests", "e2e")
