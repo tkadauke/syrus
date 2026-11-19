@@ -660,7 +660,7 @@ func tempSecretDirSafe(candidate string) (bool, error) {
 	if err := os.MkdirAll(candidate, 0o700); err != nil {
 		return false, err
 	}
-	candidate, err := filepath.Abs(candidate)
+	candidate, err := resolvedPath(candidate)
 	if err != nil {
 		return false, err
 	}
@@ -688,11 +688,10 @@ func unsafeTempSecretRoots() []string {
 		if strings.TrimSpace(root) == "" {
 			continue
 		}
-		cleaned, err := filepath.Abs(root)
+		cleaned, err := resolvedPath(root)
 		if err != nil {
 			continue
 		}
-		cleaned = filepath.Clean(cleaned)
 		if seen[cleaned] {
 			continue
 		}
@@ -700,6 +699,23 @@ func unsafeTempSecretRoots() []string {
 		unique = append(unique, cleaned)
 	}
 	return unique
+}
+
+// resolvedPath is the absolute path with symlinks resolved. Containment is
+// only meaningful between resolved paths: os.Getwd and `git rev-parse` can
+// report a symlink-resolved root (/private/var/... on macOS, or any checkout
+// reached through a symlink) while TMPDIR names the same tree through the
+// link, and comparing the two spellings let a repo-local temp directory
+// pass as outside the repo -- where a credential file could be committed.
+func resolvedPath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+		return filepath.Clean(resolved), nil
+	}
+	return filepath.Clean(absolute), nil
 }
 
 func pathInside(path string, root string) bool {
