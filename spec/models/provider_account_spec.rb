@@ -10,7 +10,6 @@ RSpec.describe ProviderAccount do
     account.update!(proactive_pause_threshold: 0)
     expect(account.effective_proactive_pause_threshold).to eq(0)
   end
-
   let(:user) { Factories.user }
 
   def create_account(**attributes)
@@ -87,7 +86,6 @@ RSpec.describe ProviderAccount do
 
     expect(user.provider_accounts.where(provider_key: "claude")).to be_empty
   end
-
   it "pins workflow, run, and captured session provenance to one account" do
     user.update!(claude_oauth_token: "legacy-token")
     account = user.default_provider_account("claude")
