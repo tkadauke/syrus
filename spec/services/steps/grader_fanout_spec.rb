@@ -1415,7 +1415,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(grader_step.details).to include(
       "name" => "cli-go-tests",
       "target_label" => "//cli:grade/go-tests",
-      "command" => "mise exec go@1.26.5 -- sh -c 'cd cli && go test ./...'"
+      "command" => "mise exec go@1.26.5 -- sh -c 'cd cli && { go list ./... >/dev/null 2>&1 || export GOWORK=off; } && go test ./...'"
     )
     expect(grader_step.details["prepare_targets"]).to eq([
       { "target_label" => "//cli:prepare", "commands" => [ "GOWORK=off mise exec go@1.26.5 -- go mod download" ], "project_path" => "cli" }
