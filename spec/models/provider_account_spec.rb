@@ -10,7 +10,6 @@ RSpec.describe ProviderAccount do
     account.update!(proactive_pause_threshold: 0)
     expect(account.effective_proactive_pause_threshold).to eq(0)
   end
-
   let(:user) { Factories.user }
 
   def create_account(**attributes)
