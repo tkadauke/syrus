@@ -85,7 +85,7 @@ module Coworkers
 
     def tone(state:, journaling_age:, unsaved_age:)
       return "critical" if state == "auto_paused" || (state != "paused" && journaling_age.to_f > STALE_CRITICAL) || unsaved_age.to_f > UNSAVED_CRITICAL
-      return "warning" if (state != "paused" && journaling_age.to_f > STALE_WARNING) || unsaved_age.to_f > UNSAVED_WARNING
+      "warning" if (state != "paused" && journaling_age.to_f > STALE_WARNING) || unsaved_age.to_f > UNSAVED_WARNING
     end
 
     def duration(seconds)

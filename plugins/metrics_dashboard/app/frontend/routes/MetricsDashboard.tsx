@@ -157,7 +157,11 @@ function MetricsSummaryTable({ summary }: { summary: MetricsSummary }) {
       </h2>
       <DataTable.Root aria-label={summary.label}>
         <DataTable.Header>
-          <DataTable.Row>{summary.columns.map((column) => <DataTable.HeadCell key={column.key}>{column.label}</DataTable.HeadCell>)}</DataTable.Row>
+          <DataTable.Row>
+            {summary.columns.map((column) => (
+              <DataTable.HeadCell key={column.key}>{column.label}</DataTable.HeadCell>
+            ))}
+          </DataTable.Row>
         </DataTable.Header>
         <DataTable.Body>
           {summary.rows.map((row) => (

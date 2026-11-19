@@ -192,19 +192,24 @@ describe("MetricsDashboardRoute plugin tabs", () => {
   it("renders a plugin summary table and highlights warning and critical rows", async () => {
     renderRoute(
       payload({
-        plugin_tabs: [{
-          id: "widgets",
-          label: "Widgets",
-          summary: {
-            key: "widgets_health",
-            label: "Widget health",
-            columns: [{ key: "widget", label: "Widget" }, { key: "state", label: "State" }],
-            rows: [
-              { key: "one", tone: "warning", cells: { widget: "One", state: "Delayed" } },
-              { key: "two", tone: "critical", cells: { widget: "Two", state: "Stopped" } }
-            ]
+        plugin_tabs: [
+          {
+            id: "widgets",
+            label: "Widgets",
+            summary: {
+              key: "widgets_health",
+              label: "Widget health",
+              columns: [
+                { key: "widget", label: "Widget" },
+                { key: "state", label: "State" }
+              ],
+              rows: [
+                { key: "one", tone: "warning", cells: { widget: "One", state: "Delayed" } },
+                { key: "two", tone: "critical", cells: { widget: "Two", state: "Stopped" } }
+              ]
+            }
           }
-        }],
+        ],
         panels: [panel("queue_ready", "queue_throughput")]
       })
     )
