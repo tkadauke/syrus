@@ -70,6 +70,10 @@ default: &default
     class: MaintenanceTaskDiscoveryJob
     queue: low_priority_maintenance
     schedule: every 5 minutes
+  refresh_connected_accounts:
+    class: ConnectedAccounts::RefreshAccountsJob
+    queue: low_priority_maintenance
+    schedule: every 5 minutes
 
   poll_scheduled_chat_messages:
     class: PollScheduledChatMessagesJob

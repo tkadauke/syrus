@@ -4,3 +4,11 @@ en:
       display_name: "Connected accounts"
       description: "Broker access to user-owned external accounts without exposing long-lived credentials."
       long_description: "Connected Accounts owns external account metadata and brokers short-lived, authorized OAuth access through Credential Store."
+    oauth:
+      connected: "Account connected."
+      denied: "The provider denied access."
+      invalid_state: "This connection request expired or was already used."
+      invalid_request: "The connection request is invalid."
+      failed: "The provider could not connect the account."
+    settings:
+      saved: "Provider configuration saved."
