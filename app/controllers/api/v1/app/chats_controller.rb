@@ -1290,6 +1290,10 @@ module Api
           render json: { typed_artifact: artifact }
         end
 
+        def media_thumbnail_content_types
+          Document::ACCEPTED_IMAGE_CONTENT_TYPES & ActiveStorage.variable_content_types
+        end
+
         def media_chat_image_thumbnail
           document = find_chat_media_image
           raise ActiveRecord::RecordNotFound, "Chat image thumbnail not available" unless document.file.variable?
