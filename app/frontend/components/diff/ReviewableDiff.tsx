@@ -1554,13 +1554,14 @@ function DiffFileSection({
         ) : (
           <OmittedPatchPlaceholder
             downloadUrl={fileDiffDownloadUrl?.(file)}
+            file={file}
             limitMessage={patchLimitMessage}
             loadState={patchLoadState}
             onLoad={loadFullDiff}
           />
         )
       ) : file.patch_status === "oversized" && onLoadFileDiff ? (
-        <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
+        <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} file={file} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
       ) : file.patch_status === "oversized" ? (
         <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{t("diff_review.oversized_diff_unavailable")}</div>
       ) : (
@@ -1572,11 +1573,13 @@ function DiffFileSection({
 
 function OmittedPatchPlaceholder({
   downloadUrl,
+  file,
   limitMessage,
   loadState,
   onLoad
 }: {
   downloadUrl?: string
+  file: ReviewableDiffFile
   limitMessage: string | null
   loadState: "idle" | "loading" | "error" | "limited"
   onLoad: () => void
@@ -1584,7 +1587,14 @@ function OmittedPatchPlaceholder({
   const { t } = useT("common")
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-4 py-6 font-sans text-sm text-gray-600 dark:border-gray-800 dark:text-gray-300">
-      <span className="w-full">{limitMessage || (loadState === "error" ? t("diff_review.full_diff_error") : t("diff_review.full_diff_omitted"))}</span>
+      <span className="w-full">
+        {limitMessage ||
+          (loadState === "error"
+            ? t("diff_review.full_diff_error")
+            : file.generated
+              ? t("diff_review.generated_full_diff_omitted")
+              : t("diff_review.full_diff_omitted"))}
+      </span>
       {loadState !== "limited" ? (
         <Button onClick={onLoad} size="sm" variant="secondary">
           {loadState === "loading" ? t("diff_review.loading_full_diff") : t("diff_review.load_full_diff")}

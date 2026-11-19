@@ -531,6 +531,7 @@
     "large_file_hidden": "Das Diff dieser Datei ist groß (~{{rowCount}} gerenderte Zeilen) und standardmäßig ausgeblendet.",
     "load_file_diff": "Diff für diese Datei laden",
     "full_diff_omitted": "Der vollständige Text-Diff wurde in der ersten Antwort ausgelassen.",
+    "generated_full_diff_omitted": "Das Diff dieser generierten Datei wurde ausgelassen, weil ihre ungewöhnlich langen Zeilen beim Laden und Darstellen sehr aufwendig sind.",
     "load_full_diff": "Vollständigen Diff laden",
     "loading_full_diff": "Vollständiger Diff wird geladen…",
     "download_raw_diff": "Rohen .diff herunterladen",
