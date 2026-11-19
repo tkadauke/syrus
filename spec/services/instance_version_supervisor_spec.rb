@@ -12,6 +12,21 @@ RSpec.describe InstanceVersionSupervisor do
     allow(WorkerCapabilities).to receive(:current).and_return(capability_snapshot)
   end
 
+  it "reports the active plugin versions and local load states in the existing heartbeat payload" do
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "weather", version: "1.2.3", provides: {})
+    sp = InstanceVersion.create!(hostname: "syrus-web-plugins", role: "web", version: "abc",
+      started_at: 2.minutes.ago, last_heartbeat_at: 75.seconds.ago)
+
+    described_class.heartbeat(sp)
+
+    expect(sp.reload.plugin_set_details.fetch("plugins").sole).to include(
+      "name" => "weather", "version" => "1.2.3", "state" => "ok"
+    )
+  ensure
+    Syrus::PluginRegistry.reset!
+  end
+
   describe ".heartbeat" do
     it "bumps last_heartbeat_at on the supplied instance" do
       sp = InstanceVersion.create!(hostname: "syrus-web-abc", role: "web", version: "abc",

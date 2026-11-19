@@ -26,6 +26,10 @@ to drive React UI state belong under `/api/v1/app/admin/*`. If the same
 capability needs both consumers, expose it deliberately on both prefixes and
 keep the payload/auth contract for each consumer explicit.
 
+The plugin convergence read and local-quarantine recovery action are UI-only
+app-admin routes. Desired-state inspection and apply remain token-authenticated
+operator API operations under `/api/v1/admin/*`.
+
 `POST /api/v1/admin/pending_actions/invoke` is the generic operator
 automation bridge for `PendingActions` operations. The request names an
 `action_key`, a JSON `payload`, and a required `reason`; the API call itself is
@@ -79,6 +83,8 @@ without a deliberate migration choice:
 - overview and stuck queues
 - permission parity diagnostics
 - plugin enablement/configuration
+- plugin desired-state convergence (the UI reads the page-shaped convergence
+  payload; operator automation reads desired state and applies changes)
 - process inventory and kill
 - provider-routing hold release
 - queue introspection and stale-run reaping

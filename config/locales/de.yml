@@ -42,6 +42,14 @@ de:
     errors:
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
+      plugin_installation:
+        release_name_mismatch: "muss mit dem Namen der Veröffentlichung übereinstimmen"
+        invalid_roles_shape: "muss eine Liste nicht leerer Namen sein"
+        invalid_roles: "enthält ungültige Rollen: %{roles}"
+        missing_verified_artifact: "muss ein verifiziertes Artefakt haben"
+      plugin_release:
+        bundled_archive_present: "muss für gebündelte Veröffentlichungen fehlen"
+        artifact_identity_immutable: "Die Artefaktidentität der Plugin-Veröffentlichung ist nach Speicherung oder Auswahl unveränderlich."
       chat_attachments:
         default_name: "Anhang"
         must_be_array: "Anhänge müssen als Array angegeben werden."
@@ -899,6 +907,7 @@ de:
     plugins:
       disabled: "Das Plugin %{plugin} ist deaktiviert."
       route_not_found: "Plugin-Route nicht gefunden."
+      quarantine_not_locally_clearable: "Diese Quarantäne muss an ihrer Quelle aufgehoben werden."
 
     job_lifecycle:
       direct_only: "Nur direkte Jobs können manuell gestartet werden."

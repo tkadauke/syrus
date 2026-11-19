@@ -488,8 +488,10 @@ Rails.application.routes.draw do
           post "macos_worker_update/clear", to: "macos_worker_updates#clear"
           post "macos_worker_update/force_terminate", to: "macos_worker_updates#force_terminate"
           get "plugins", to: "plugins#index"
+          get "plugin_convergence", to: "plugin_convergence#show"
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
+          post "plugins/:name/clear_quarantine", to: "plugins#clear_quarantine", constraints: { name: /[^\/]+/ }
           get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
           patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
           get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }
@@ -571,6 +573,8 @@ Rails.application.routes.draw do
       end
 
       namespace :admin do
+        get "plugin_desired_state", to: "plugin_desired_state#show"
+        post "plugin_desired_state/apply", to: "plugin_desired_state#apply"
         # `#show` returns the deep-nested Job state (workflows + steps
         # + runs + diagnostics + provider_session metadata). `#index`
         # is a compact list — supports `?pr_number=`, `?issue_number=`,

@@ -327,6 +327,15 @@ migrations from a runtime toggle would mean choosing which of several processes
 runs them while the others serve traffic against a changing schema, with no
 rollout gate -- the deploy path exists precisely to avoid that.
 
+Declare `roles %w[web worker preview sidecar]` only for genuinely
+process-specific plugins; omission means all roles. Invalid names are rejected,
+and an unlisted process records a skipped-role health reason. Language,
+framework, prepare, and preview providers must remain available to `preview`.
+Installing, replacing, removing, or changing roles requires **Apply changes**,
+which drains long-lived processes and lets the supervisor restart containers
+through pre-boot sync. It does not hot-unload plugin code or run a second
+migration mechanism.
+
 ## Telling an admin a plugin exists
 
 The three states above all assume somebody already knows the plugin is there.

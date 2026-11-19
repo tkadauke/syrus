@@ -91,6 +91,14 @@ RSpec.describe "agent-visible sidecar configuration" do
     expect(serialized).not_to include("SYRUS_GIT_MIRROR_TOKEN", "poison-git-mirror-token")
   end
 
+  it "forwards the active plugin set identity to spawned sidecars" do
+    env = AgentSidecarEnvironment.build_boot(env: SAFE_ENV.merge(
+      "SYRUS_PLUGIN_SET_DIGEST" => "abc123", "SYRUS_PLUGIN_SET_REVISION" => "7"
+    ))
+
+    expect(env).to include("SYRUS_PLUGIN_SET_DIGEST" => "abc123", "SYRUS_PLUGIN_SET_REVISION" => "7", "SYRUS_ROLE" => "sidecar")
+  end
+
   it "keeps the public allowlist disjoint from instance secret keys" do
     expect(AgentSidecarEnvironment::SAFE_ENV_FORWARD & AgentSidecarEnvironment::SECRET_ENV_KEYS).to be_empty
     expect(AgentProviders::Base::SIDECAR_ENV_FORWARD & AgentSidecarEnvironment::SECRET_ENV_KEYS).to be_empty

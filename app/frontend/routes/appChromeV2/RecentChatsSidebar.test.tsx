@@ -123,7 +123,7 @@ describe("RecentChatsSidebar active chat highlighting", () => {
 
     await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1))
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
-    expect(await screen.findByTestId("location")).toHaveTextContent("/chats/44")
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/chats/44"))
     expect(screen.getAllByRole("button", { name: "New side chat with Maya" })).toHaveLength(1)
   })
 

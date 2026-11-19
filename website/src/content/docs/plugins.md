@@ -63,6 +63,76 @@ container, move its directory out of the shared root, and restart all
 containers. Keep its data for rollback; destructive purge is a separate,
 explicit operation.
 
+Multi-process installations can also publish external plugin releases as a
+signed desired set in the configured attachment storage. Archives are addressed
+by SHA-256, and each manifest revision names the exact release, size, process
+roles, and quarantine state. Pre-boot consumers verify the detached Ed25519
+signature and every artifact digest before activating a set. Operators
+distribute only the public verification key; Syrus keeps the signing key
+encrypted with its other application credentials.
+
+Set `SYRUS_PLUGIN_SYNC_ENABLED=1` on each Rails process and provide
+`SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY`. The pre-boot sync reads from the configured
+S3-compatible attachment bucket using `S3_BUCKET`, `S3_ENDPOINT`, `S3_REGION`,
+`S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`. Single-node installations can
+instead set `SYRUS_PLUGIN_SYNC_STORAGE_PATH` to the local attachment-storage
+root. Synced sets live under `$SYRUS_DATA_ROOT/plugin-sync`; activation changes
+the `current` symlink atomically, and the previous set remains available as
+`last-good`.
+
+Sync failures do not block boot by default. An unreachable store, invalid
+signature, malformed manifest, unsafe archive, or artifact size/digest mismatch
+prints one error and retains the active set. Set `SYRUS_PLUGIN_SYNC_STRICT=1`
+when a process should fail instead. `SYRUS_PLUGIN_SYNC_RETENTION` controls the
+number of additional inactive sets retained beyond `current` and `last-good`
+(default `2`). The entrypoint exports `SYRUS_PLUGIN_SET_DIGEST` and
+`SYRUS_PLUGIN_SET_REVISION` to Rails and its sidecars. Fleet-quarantined or
+revoked entries are omitted from the activated set. A hand-placed plugin root
+still takes precedence over a same-named synced plugin and the collision is
+reported by plugin health.
+
+Plugin authors may limit loading with `roles %w[web worker preview sidecar]`;
+the default is every role. After changing desired plugins, **Apply changes**
+drains web, worker, and preview processes and lets the container restart policy
+rerun pre-boot sync. The status identifies processes still pending or stuck.
+Setup and web apply plugin migrations normally, while workers stop at boot if
+any migration remains pending.
+
+### Reading fleet convergence
+
+**Admin → Plugins** compares the desired revision with every process heartbeat.
+`Converged` means the process reports the role-specific desired digest. `Pending
+restart` means an applied revision has not started there yet; restart that
+process. `Behind` means it is running an older set without a current restart
+request; verify sync configuration and restart it. `Ahead` means the process is
+running a revision newer than this control plane; verify that it points at the
+correct database and manifest store. `Unreachable` means its heartbeat is stale;
+restore or replace the process before trusting its plugin state.
+
+Each row lists the running version and local load state for every desired plugin,
+including role skips, load failures, missing plugins, and fleet quarantine. Rows
+that remain divergent longer than
+`SYRUS_PLUGIN_DIVERGENCE_THRESHOLD_SECONDS` (five minutes by default) are
+highlighted and produce the standard system alarm with a link back to Plugins.
+
+### Recovering from a broken plugin
+
+Set `SYRUS_SAFE_MODE=third_party` to withhold external plugins, `recent` to
+withhold external plugins changed since the last good boot, or `all` to boot
+without plugins. Syrus core requires no plugin to boot. Safe-mode and
+quarantine reasons appear in Admin → Plugins and in the global admin warning.
+
+Syrus records boot attempts outside the database. After three incomplete boots
+within ten minutes, it quarantines changed external plugins on the next start;
+a process that remains up for 60 seconds promotes its plugin set to last-good.
+Fleet quarantine from desired state takes effect on restart as well.
+
+If the UI works, correct the plugin and choose **Re-enable after restart** one
+plugin at a time. If Rails does not boot, use `bin/plugin-recovery list`,
+`bin/plugin-recovery quarantine NAME`, and `bin/plugin-recovery clear NAME`.
+Restart after changes. Clear fleet quarantine in desired state, and remove
+`SYRUS_SAFE_MODE` only after the recovered process remains healthy.
+
 ## What Plugins Can Add
 
 Plugins can contribute:

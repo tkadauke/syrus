@@ -73,6 +73,14 @@ en:
     errors:
       invalid_request: "The request is invalid."
       unavailable: "This action is temporarily unavailable."
+      plugin_installation:
+        release_name_mismatch: "must match the release name"
+        invalid_roles_shape: "must be an array of non-empty names"
+        invalid_roles: "contains invalid roles: %{roles}"
+        missing_verified_artifact: "must have a verified artifact"
+      plugin_release:
+        bundled_archive_present: "must be absent for bundled releases"
+        artifact_identity_immutable: "plugin release artifact identity is immutable after storage or selection"
       chat_attachments:
         default_name: "Attachment"
         must_be_array: "Attachments must be an array."
@@ -959,6 +967,7 @@ en:
     plugins:
       disabled: "The %{plugin} plugin is disabled."
       route_not_found: "Plugin route not found."
+      quarantine_not_locally_clearable: "This quarantine must be cleared at its source."
 
     job_lifecycle:
       direct_only: "Only direct Jobs can be started manually."

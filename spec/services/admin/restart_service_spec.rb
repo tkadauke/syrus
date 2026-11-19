@@ -23,11 +23,12 @@ RSpec.describe Admin::RestartService do
       expect(Rails.cache.read("syrus:restart_worker")).to be_nil
     end
 
-    it "writes poison-pill timestamps for both roles when component is all" do
+    it "writes poison-pill timestamps for every long-lived role when component is all" do
       service.request(component: "all", source: "test")
 
       expect(Rails.cache.read("syrus:restart_web")).to be_a(Float)
       expect(Rails.cache.read("syrus:restart_worker")).to be_a(Float)
+      expect(Rails.cache.read("syrus:restart_preview")).to be_a(Float)
     end
 
     it "does not require an active-run check for web" do
