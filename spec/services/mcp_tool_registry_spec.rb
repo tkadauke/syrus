@@ -29,6 +29,17 @@ RSpec.describe McpToolRegistry do
   end
 
   describe ".summaries" do
+    it "registers reset and dependency replacement on their intended chat tiers" do
+      summaries = described_class.summaries(surface: :chat)
+
+      expect(summaries.find { |entry| entry[:tool_name] == "reset_job" }).to include(
+        tier: :essential, admin_only: true, mutation: true
+      )
+      expect(summaries.find { |entry| entry[:tool_name] == "replace_job_dependency" }).to include(
+        tier: :deferred, mutation: true
+      )
+    end
+
     it "registers spawn_chats only on the deferred chat surface" do
       chat_entry = described_class.summaries(surface: :chat).find { |entry| entry[:tool_name] == "spawn_chats" }
 
