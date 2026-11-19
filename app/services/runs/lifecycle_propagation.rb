@@ -261,9 +261,13 @@ module Runs
     def broadcast_provider_availability_after_failure!
       return if agent_provider.blank?
 
-      availability = App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider)
+      availability = App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider, provider_account: run.provider_account)
       retry_after = availability&.dig(:retry_after)
-      ProviderAvailabilityBroadcastJob.set(wait_until: Time.zone.parse(retry_after)).perform_later(user_id, agent_provider) if retry_after.present?
+      if retry_after.present?
+        ProviderAvailabilityBroadcastJob
+          .set(wait_until: Time.zone.parse(retry_after))
+          .perform_later(user_id, agent_provider, run.provider_account_id)
+      end
     rescue StandardError => e
       Rails.logger.warn("[ProviderAvailability] failed to broadcast for Run ##{run.id}: #{e.class}: #{e.message}")
       nil
@@ -272,7 +276,7 @@ module Runs
     def broadcast_provider_availability_after_success!
       return if agent_provider.blank?
 
-      App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider)
+      App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider, provider_account: run.provider_account)
     rescue StandardError => e
       Rails.logger.warn("[ProviderAvailability] failed to broadcast success for Run ##{run.id}: #{e.class}: #{e.message}")
       nil

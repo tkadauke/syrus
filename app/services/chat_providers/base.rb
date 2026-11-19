@@ -21,6 +21,8 @@ module ChatProviders
       name.to_s.demodulize.underscore.presence || "unknown"
     end
 
+    def selected_provider_account = @provider_account
+
     def provider
       self.class.provider
     end
