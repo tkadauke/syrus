@@ -3733,6 +3733,40 @@ describe("JobDetailRoute", () => {
     expect(screen.getByRole("button", { name: "Summary" })).not.toHaveClass("border-brand")
   })
 
+  it("falls back to a plugin-contributed tab's public label while its translation namespace is unavailable", async () => {
+    const payload = jobPayload({
+      ui_tabs: [
+        {
+          id: "test-insights-tab",
+          component: "test_insights/JobTests",
+          order: 1,
+          key: "tests",
+          label: "Tests",
+          label_key: "unavailable_test_insights:tab_tests"
+        }
+      ]
+    })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Tests" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "tab_tests" })).not.toBeInTheDocument()
+  })
+
   it("does not let previous workflow placeholder paths approve the newly displayed Job", async () => {
     const job1 = jobPayload({
       job: { ...baseJob(), id: 1, state: "implemented", summary_state: "implemented", issue_title: "First Job" },
