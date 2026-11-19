@@ -91,7 +91,16 @@ module AgentInsights
         attach!(recent_job, :workflows, workflows_by_job_id.fetch(recent_job.id, []).sort_by { |workflow| [ workflow.created_at, workflow.id ] })
       end
 
-      steps = Workflows::StepPreloader.attach!(jobs.flat_map(&:workflows)).flat_map(&:steps)
+      # Done here rather than through core's internal step preloader: a plugin
+      # may only reach core through the declared host surface.
+      workflows = jobs.flat_map(&:workflows)
+      steps_by_workflow_id = ::Step.where(workflow_id: workflows.map(&:id)).reorder(nil).to_a.group_by(&:workflow_id)
+      workflows.each do |workflow|
+        ordered = steps_by_workflow_id.fetch(workflow.id, []).sort_by { |step| [ step.position, step.id ] }
+        ordered.each { |step| step.association(:workflow).target = workflow }
+        attach!(workflow, :steps, ordered)
+      end
+      steps = workflows.flat_map(&:steps)
       return if steps.empty?
 
       runs_by_step_id = Run.where(step_id: steps.map(&:id)).reorder(nil).to_a.group_by(&:step_id)

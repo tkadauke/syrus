@@ -6,6 +6,7 @@ import { previewRuleDraftFromRequest } from "../api/permissionRuleDrafts"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Input } from "./Input"
+import { Select } from "./Select"
 import { Modal } from "./Modal"
 import { hubRuleLink, PermissionRuleEditor } from "./PermissionRuleEditor"
 
@@ -270,8 +271,8 @@ export function SmartPermissionActions({
         <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-surface-subtle p-3 text-xs" data-testid="smart-permission-chooser">
           <label className="flex min-w-0 flex-col gap-1" htmlFor={durationSelectId}>
             <span className="font-medium text-text-muted">{t("permission_smart.choose_duration")}</span>
-            <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary"
+            <Select
+              fullWidth={false}
               disabled={busy}
               id={durationSelectId}
               onChange={(event) => setChosenDuration(event.target.value as SmartPermissionOption["duration"])}
@@ -282,12 +283,12 @@ export function SmartPermissionActions({
                   {t(`permission_smart.durations.${value}`)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex min-w-0 flex-col gap-1" htmlFor={breadthSelectId}>
             <span className="font-medium text-text-muted">{t("permission_smart.choose_breadth")}</span>
-            <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary"
+            <Select
+              fullWidth={false}
               disabled={busy}
               id={breadthSelectId}
               onChange={(event) => setChosenBreadth(event.target.value as SmartPermissionBreadth)}
@@ -298,7 +299,7 @@ export function SmartPermissionActions({
                   {t(`permission_smart.breadths.${value}`)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <button
             className={`${BUTTON} border border-brand text-brand`}
