@@ -442,14 +442,22 @@ module Permissions
 
     def scope_label(resolved)
       result = resolved.descriptor.resource_scope.label(resolved.scope, context: { user: })
-      ToolPayloadRedactor.redact(result.success? ? result.value : resolved.scope.to_json)
+      return ToolPayloadRedactor.redact(result.value) if result.success?
+
+      # An unscoped rule has no resource to name; never surface a raw "{}".
+      resolved.scope.present? ? ToolPayloadRedactor.redact(resolved.scope.to_json) : ""
+    end
+
+    # Human wording for the resource in summaries and examples.
+    def scope_phrase(resolved)
+      scope_label(resolved).presence || I18n.t("api.permission_rule_drafts.summary.any_resource")
     end
 
     def summary_for(resolved)
       attrs = resolved.attributes
       descriptor = resolved.descriptor
       subject = subject_label(resolved)
-      scope = scope_label(resolved)
+      scope = scope_phrase(resolved)
       constraints = attrs["constraints"].map { |key, value| "#{key} = #{ToolPayloadRedactor.redact(value)}" }
       allows = [ I18n.t("api.permission_rule_drafts.summary.allows.#{attrs['policy']}", subject:,
         operation: descriptor.operation, resource: scope, duration: duration_label(resolved)) ]
@@ -470,7 +478,14 @@ module Permissions
       attrs = resolved.attributes
       id = attrs["subject_selector_id"]
       key = attrs["subject_selector_type"]
+      id = agent_display_name(attrs["subject_type"], id) || id if key == "agent"
       I18n.t("api.permission_rule_drafts.summary.subjects.#{key}", id: id, default: key)
+    end
+
+    def agent_display_name(subject_type, id)
+      klass = self.class.agent_subject_class(subject_type)
+      record = klass&.find_by(id:)
+      record.try(:display_name).presence
     end
 
     def ceiling_for(resolved)
@@ -490,7 +505,7 @@ module Permissions
       attrs = resolved.attributes
       subject = subject_label(resolved)
       operation = resolved.descriptor.operation
-      scope = scope_label(resolved)
+      scope = scope_phrase(resolved)
       key = "api.permission_rule_drafts.examples"
       matches = [ I18n.t("#{key}.matches.exact", subject:, operation:, resource: scope) ]
       matches << I18n.t("#{key}.matches.constrained", constraints: attrs["constraints"].map { |k, v| "#{k} = #{ToolPayloadRedactor.redact(v)}" }.join(", ")) if attrs["constraints"].present?

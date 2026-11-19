@@ -289,6 +289,7 @@ la:
           allow: "Permittit %{subject} %{operation} in %{resource} exsequi, %{duration}."
           ask: "Semper rogat antequam %{subject} %{operation} in %{resource} exsequitur."
           deny: "Semper negat %{subject} %{operation} in %{resource} exsequi."
+        any_resource: "quaelibet res"
         only_when: "Solum cum %{constraints}."
         excludes:
           other_operations: "Omnem aliam operationem et facultatem excludit."
@@ -301,7 +302,7 @@ la:
           job: "pro hoc opere"
           permanent: "donec revocetur"
         subjects:
-          agent: "collega %{id}"
+          agent: "%{id}"
           interactive_chat: "colloquia interactiva"
           coding_chat: "colloquia codicis"
           local_chat: "colloquia localia"
