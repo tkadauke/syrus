@@ -119,7 +119,7 @@ default: &default
     # that were not present when this file was rendered. PluginJob's shared
     # concurrency semaphore enforces the per-plugin cap across job classes.
     - queues: "plugin_*"
-      threads: <%= ENV.fetch("PLUGIN_JOB_THREADS", 10) %>
+      threads: <%= ENV.fetch("PLUGIN_JOB_THREADS", 6) %>
       processes: 1
       polling_interval: 0.2
 
