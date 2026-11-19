@@ -13,5 +13,4 @@ RSpec.describe "Plugin migration paths" do
     expect(Rails.application.paths["db/migrate"].to_a).to include(*plugin_migration_dirs)
     expect(ActiveRecord::Migrator.migrations_paths).to include(*plugin_migration_dirs)
   end
-
 end
