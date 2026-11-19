@@ -289,7 +289,7 @@ snapshot calls out the launch-relevant groups:
 | Work inputs and planning | Walkthrough Videos, Scheduled Tasks, GitHub Source, Linear Source, Design Docs, Operator Briefing |
 | Repository intelligence | Agent Insights, Agent Memory, Git History, Search, Test Insights, Throughput, Metrics Dashboard, Spending Insights, Attention Report |
 | Language and platform support | Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
-| Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache |
+| Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache, Local Backups |
 
 Worker Timeline uses the shared composable filter bar and Smart Folders. Saved
 timeline expressions can combine supported fields with nested AND, OR, and NOT
