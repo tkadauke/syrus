@@ -36,8 +36,17 @@ RSpec.describe Permissions::RuleDraft, "with exact coworker subjects" do
 
     expect(preview).to be_valid
     expect(preview.draft[:subject]).to include(type: "agent", id: coworker.id.to_s, subject_type: "Coworkers::Coworker")
+    expect(preview.summary[:allows].first).to include("Maya")
+    expect(preview.examples.values.flatten.join(" ")).to include("Maya")
     lease = draft.apply!(digest: preview.digest, actor: user)
     expect(lease).to have_attributes(subject_selector_type: "agent", subject_selector_id: coworker.id.to_s, chat_session:)
+  end
+
+  it "labels an unresolvable coworker id instead of showing a bare number" do
+    draft = described_class.from_request_item(user:, request:, item:, duration: "chat_session")
+    coworker.update_columns(name: "")
+
+    expect(draft.preview.summary[:allows].first).to include("coworker #{coworker.id}")
   end
 
   it "rejects a coworker owned by another user" do
