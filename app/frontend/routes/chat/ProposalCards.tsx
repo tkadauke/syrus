@@ -1097,10 +1097,12 @@ export function PendingActionCard({
               <span className={`rounded px-2 py-0.5 text-xs font-medium ${isEmergencyLand ? "bg-warning text-surface" : "bg-info-surface text-info-text"}`}>
                 {pendingActionBadgeLabel(pendingAction)}
               </span>
-              <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${statusClass}`}>
-                {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
-                {isConfirming ? t("working") : isQueued ? t("waiting") : terminalLabel || t("needs_confirmation")}
-              </span>
+              {!isConfirming ? (
+                <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${statusClass}`}>
+                  {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
+                  {isQueued ? t("waiting") : terminalLabel || t("needs_confirmation")}
+                </span>
+              ) : null}
             </div>
             {canDismiss ? (
               <button
