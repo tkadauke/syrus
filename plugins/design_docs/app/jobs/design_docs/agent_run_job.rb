@@ -1,19 +1,13 @@
 module DesignDocs
-  class AgentRunJob < ApplicationJob
+  class AgentRunJob < PluginJob
+    plugin :design_docs, concurrency: 1
     DEFAULT_TIMEOUT_SECONDS = 2.minutes.to_i
     DEFAULT_MAX_TURNS = 2
-
-    queue_as :chat
     discard_on ActiveRecord::RecordNotFound
 
     class << self
       attr_accessor :agent_runner
     end
-
-    limits_concurrency to: 1, group: "design_doc_thread_agent", key: ->(run_id) {
-      run = DesignDocs::DesignDocAgentRun.find_by(id: run_id)
-      run ? "design_doc_thread:#{run.design_doc_thread_id}" : "design_doc_agent_run:#{run_id}"
-    }, duration: 15.minutes
 
     def perform(run_id)
       run = DesignDocs::DesignDocAgentRun.includes(:design_doc, :thread, :triggering_comment, :requested_by_user).find(run_id)

@@ -65,6 +65,19 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "shows queue depth and failures grouped by plugin" do
+    sign_in_as(admin)
+    process = solid_queue_process(hostname: "worker-a", pid: 101)
+    plugin_job = solid_queue_job(class_name: "ExternalPluginJob", queue_name: "plugin_external_example")
+    SolidQueue::ClaimedExecution.create!(job: plugin_job, process: process)
+
+    get "/api/v1/app/admin/queue/active"
+
+    expect(parse_body.fetch("plugin_queues")).to contain_exactly(
+      include("plugin" => "external_example", "queue" => "plugin_external_example", "depth" => 1, "failed_count" => 0)
+    )
+  end
+
   it "truncates large job arguments unless full arguments are requested" do
     sign_in_as(admin)
     process = solid_queue_process(hostname: "worker-a", pid: 101)

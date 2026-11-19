@@ -1,5 +1,5 @@
-class InsightSweepJob < ApplicationJob
-  queue_as :low_priority_maintenance
+class InsightSweepJob < PluginJob
+  plugin :agent_insights
 
   def perform
     return unless AgentInsights.enabled?

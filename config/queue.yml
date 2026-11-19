@@ -114,6 +114,14 @@ default: &default
       threads: 1
       processes: 1
       polling_interval: 1
+    # Solid Queue treats a trailing `*` as a queue-name prefix match. PluginJob
+    # uses plugin_<slug>, so this also consumes queues from external plugins
+    # that were not present when this file was rendered. PluginJob's shared
+    # concurrency semaphore enforces the per-plugin cap across job classes.
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("PLUGIN_JOB_THREADS", 10) %>
+      processes: 1
+      polling_interval: 0.2
 
 development:
   dispatchers:
@@ -172,6 +180,10 @@ development:
       threads: 1
       processes: 1
       polling_interval: 1
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("DEV_PLUGIN_JOB_THREADS", 2) %>
+      processes: 1
+      polling_interval: 0.5
 
 test:
   <<: *default

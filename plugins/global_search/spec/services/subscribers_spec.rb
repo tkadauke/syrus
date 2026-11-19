@@ -34,7 +34,7 @@ RSpec.describe GlobalSearch::Subscribers do
       perform_enqueued_jobs(only: DomainEventJob) do
         Factories.job_record(user: repo.user, repository: repo, issue_title: "Search me")
       end
-    }.to have_enqueued_job(IndexJobSearchJob).with(kind_of(Integer)).on_queue("indexing")
+    }.to have_enqueued_job(IndexJobSearchJob).with(kind_of(Integer)).on_queue("plugin_global_search")
   end
 
   it "indexes a Job updated in core, through the event", :ci_only do
@@ -45,7 +45,7 @@ RSpec.describe GlobalSearch::Subscribers do
       perform_enqueued_jobs(only: DomainEventJob) do
         job.update!(issue_title: "Search me again")
       end
-    }.to have_enqueued_job(IndexJobSearchJob).with(job.id).on_queue("indexing")
+    }.to have_enqueued_job(IndexJobSearchJob).with(job.id).on_queue("plugin_global_search")
   end
 
   it "indexes an Epic created in core, through the event", :ci_only do
@@ -55,7 +55,7 @@ RSpec.describe GlobalSearch::Subscribers do
       perform_enqueued_jobs(only: DomainEventJob) do
         Factories.epic(user: repository.user, repository: repository, title: "Search me")
       end
-    }.to have_enqueued_job(IndexEpicSearchJob).with(kind_of(Integer)).on_queue("indexing")
+    }.to have_enqueued_job(IndexEpicSearchJob).with(kind_of(Integer)).on_queue("plugin_global_search")
   end
 
   it "indexes an Epic updated in core, through the event", :ci_only do
@@ -66,7 +66,7 @@ RSpec.describe GlobalSearch::Subscribers do
       perform_enqueued_jobs(only: DomainEventJob) do
         epic.update!(title: "Search me again")
       end
-    }.to have_enqueued_job(IndexEpicSearchJob).with(epic.id).on_queue("indexing")
+    }.to have_enqueued_job(IndexEpicSearchJob).with(epic.id).on_queue("plugin_global_search")
   end
 
   it "subscribes to the events it handles" do

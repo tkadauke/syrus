@@ -36,6 +36,7 @@ RSpec.describe "queue partitioning" do
     cleanup
     low_priority_maintenance
     connectivity
+    plugin_*
   ].freeze
   CAPABILITY_COMPUTE_QUEUES = %w[
     runs-linux-amd64
@@ -54,6 +55,7 @@ RSpec.describe "queue partitioning" do
     cleanup
     low_priority_maintenance
     connectivity
+    plugin_*
   ].freeze
   LINUX_COMPUTE_QUEUES = %w[
     runs
@@ -183,6 +185,14 @@ RSpec.describe "queue partitioning" do
     message = "job classes declare unconsumed queues: " \
               "#{unknown.map { |path, queue| "#{path} => #{queue}" }.join(", ")}"
     expect(unknown).to be_empty, message
+  end
+
+  it "uses Solid Queue's trailing wildcard to consume external plugin queues" do
+    expect(queues_for("config/queue.yml")[:regular]).to include("plugin_*")
+    expect(queues_for("config/queue.home.yml")[:regular]).to include("plugin_*")
+    selector = SolidQueue::QueueSelector.new([ "plugin_*" ], SolidQueue::ReadyExecution)
+    expect(selector.send(:prefixed_name?, "plugin_*")).to be(true)
+    expect(selector.send(:prefixes)).to eq([ "plugin!_%" ])
   end
 
   # The check above only sees `queue_as` in app/jobs. Framework jobs subclass

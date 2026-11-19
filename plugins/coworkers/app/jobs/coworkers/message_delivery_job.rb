@@ -1,6 +1,6 @@
 module Coworkers
-  class MessageDeliveryJob < ApplicationJob
-    queue_as :chat
+  class MessageDeliveryJob < PluginJob
+    plugin :coworkers
 
     discard_on ActiveRecord::RecordNotFound
 

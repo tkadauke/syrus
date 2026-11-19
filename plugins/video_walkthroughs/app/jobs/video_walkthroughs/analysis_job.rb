@@ -15,7 +15,7 @@ require "tempfile"
 # best-effort: a transcode failure keeps the original; a frame failure ships
 # the turn text-only.
 #
-# Runs on the dedicated low-concurrency `videos` queue (config/queue.yml):
+# Runs on the plugin's low-concurrency queue:
 # a single analysis can pin a thread for many minutes (500MB streamed upload,
 # ACTIVE polling, long generateContent), which would starve the pollers,
 # reapers, and app-event broadcasts if it shared their lanes.
@@ -23,8 +23,8 @@ require "tempfile"
 # Failure contract: NOTHING may strand a walkthrough in "analyzing" — every
 # exit path either marks it analyzed or failed (the retry endpoint only
 # accepts failed rows, and the chat chip spins until a terminal broadcast).
-class VideoWalkthroughs::AnalysisJob < ApplicationJob
-  queue_as :videos
+class VideoWalkthroughs::AnalysisJob < PluginJob
+  plugin :video_walkthroughs
 
   # Test seam, mirroring RunJob.agent_runner: specs swap in a fake client
   # factory instead of stubbing Net::HTTP.
@@ -165,7 +165,7 @@ class VideoWalkthroughs::AnalysisJob < ApplicationJob
   # Orient Gemini to WHICH app it's watching so it can name UI surfaces and read
   # intent precisely (the chat scopes the walkthrough to a repository). Kept to
   # cheap, already-loaded signal — the repo slug and the operator's pinned chat
-  # context — so no GitHub fetch or checkout is needed on the videos queue. nil
+  # context — so no GitHub fetch or checkout is needed on the plugin queue. nil
   # for an unscoped chat, which the prompt handles by omitting the section.
   def repo_context_for(walkthrough)
     chat = walkthrough.chat_session

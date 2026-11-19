@@ -77,7 +77,7 @@ RSpec.describe "Design Docs @syrus agent mentions" do
     expect {
       thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus suggest clearer wording")
     }.to change(DesignDocs::DesignDocAgentRun, :count).by(1)
-      .and have_enqueued_job(DesignDocs::AgentRunJob).on_queue("chat")
+      .and have_enqueued_job(DesignDocs::AgentRunJob).on_queue("plugin_design_docs")
 
     run = DesignDocs::DesignDocAgentRun.last
     expect(run).to have_attributes(

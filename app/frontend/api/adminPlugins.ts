@@ -20,6 +20,7 @@ export type AdminPlugin = {
     reasons: string[]
     failures?: Array<{ extension_point: string; operation: string; exception_class: string; message: string; count: number; last_at: string }>
     circuits?: Array<{ extension_point: string; state: string; failure_count: number; opened_at: string; retry_at: string }>
+    jobs?: { queue: string; depth: number; failed_count: number; discarded_count: number; last_error?: string | null; last_discarded_at?: string | null }
   }
   name: string
   display_name: string

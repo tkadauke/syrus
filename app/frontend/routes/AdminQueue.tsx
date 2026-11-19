@@ -219,6 +219,14 @@ function QueueContent({
         ) : null
       }
     >
+      {"plugin_queues" in payload && payload.plugin_queues?.length ? (
+        <div className="mb-4 rounded border border-gray-200 p-3 text-sm dark:border-gray-700">
+          <p className="font-medium">{t("queue.plugin_queues")}</p>
+          <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+            {payload.plugin_queues.map((item) => <li key={item.queue}>{t("queue.plugin_queue_summary", { plugin: item.plugin, depth: item.depth, failed: item.failed_count })}</li>)}
+          </ul>
+        </div>
+      ) : null}
       <QueueTabPanel onNavigate={onNavigate} pathname={pathname} payload={payload} search={search} tab={tab} />
     </AdminFiltersLayout>
   )

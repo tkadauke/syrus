@@ -144,6 +144,12 @@ RSpec.describe "Plugin API routes", type: :request do
       request_count: 1,
       last_error_at: record.last_error_at.iso8601
     )
+    expect(health.fetch(:jobs)).to include(
+      queue: "plugin_raising_route_fixture",
+      depth: 0,
+      failed_count: 0,
+      discarded_count: 0
+    )
     expect(Syrus::PluginInvocation.runtime_health.circuits(plugin: record.name)).to be_empty
   end
 
