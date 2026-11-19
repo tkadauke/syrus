@@ -106,7 +106,7 @@ export function renderChatMessages(messages: ChatMessageItem[], cache?: ChatRend
 function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatRenderCache): ChatRenderItem[] {
   const retiredToolUseIds = new Set(
     messages
-      .filter((message) => message.pending_action_retired)
+      .filter((message) => message.pending_action_retired && message.pending_action_retirement_hides_message)
       .map(toolUseIdFor)
       .filter((id): id is string => Boolean(id))
   )
@@ -131,7 +131,11 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
     const message = messages[messageIndex]
     const messageRevision = sequence[messageIndex].revision
     messageRevisions.set(message.id, messageRevision)
-    if (message.pending_action_retired || (message.role === "tool_result" && retiredToolUseIds.has(toolResultRefIdFor(message) || ""))) continue
+    if (
+      (message.pending_action_retired && message.pending_action_retirement_hides_message) ||
+      (message.role === "tool_result" && retiredToolUseIds.has(toolResultRefIdFor(message) || ""))
+    )
+      continue
     if (groupableToolUse(message)) {
       const toolName = message.tool_name || ""
       const presentation = toolPresentation(toolName, contentInput(message.content))
