@@ -721,7 +721,8 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 }
 
 function statusTone(status: string) {
-  if (["available", "configured", "enabled", "registered", "official", "verified"].includes(status)) return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+  if (["available", "configured", "enabled", "registered", "official", "verified"].includes(status))
+    return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
   if (status === "required") return "bg-info/10 text-info"
   if (status === "experimental") return "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
   if (["disabled", "not_configured", "unsigned_local"].includes(status)) return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"

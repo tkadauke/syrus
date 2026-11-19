@@ -102,16 +102,38 @@ describe("AdminPlugins", () => {
         recovery: { safe_mode: null, quarantines: {}, locally_clearable: [] },
         plugins: [
           {
-            name: "verified-plugin", display_name: "Verified", version: "1.0.0", trust_label: "verified",
-            enabled: true, default_enabled: true, disableable: true, experimental: false,
-            category: null, category_label: null, description: null, icon_url: null,
-            disable_blockers: [], health: { state: "ok", reasons: [] }, quarantine_clearable: false
+            name: "verified-plugin",
+            display_name: "Verified",
+            version: "1.0.0",
+            trust_label: "verified",
+            enabled: true,
+            default_enabled: true,
+            disableable: true,
+            experimental: false,
+            category: null,
+            category_label: null,
+            description: null,
+            icon_url: null,
+            disable_blockers: [],
+            health: { state: "ok", reasons: [] },
+            quarantine_clearable: false
           },
           {
-            name: "local-plugin", display_name: "Local", version: "1.0.0", trust_label: "unsigned_local",
-            enabled: true, default_enabled: true, disableable: true, experimental: false,
-            category: null, category_label: null, description: null, icon_url: null,
-            disable_blockers: [], health: { state: "ok", reasons: [] }, quarantine_clearable: false
+            name: "local-plugin",
+            display_name: "Local",
+            version: "1.0.0",
+            trust_label: "unsigned_local",
+            enabled: true,
+            default_enabled: true,
+            disableable: true,
+            experimental: false,
+            category: null,
+            category_label: null,
+            description: null,
+            icon_url: null,
+            disable_blockers: [],
+            health: { state: "ok", reasons: [] },
+            quarantine_clearable: false
           }
         ]
       })
