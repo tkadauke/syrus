@@ -24,7 +24,9 @@ compiled into the Syrus binary.
 Local plugin SDK commands are built in. `syrus plugin new NAME` creates a
 tested external plugin project; `--frontend`, `--model`, and `--cli` add
 optional examples. `syrus plugin validate` and `syrus plugin test` exercise a
-project against a release-matched Syrus test host.
+project against a release-matched Syrus test host. `syrus plugin dev [DIR]`
+starts a disposable local instance and rebuilds or restarts it as plugin files
+change.
 
 For commands that need local behavior, the CLI next searches `PATH` for an
 executable named after the command path. For example, `syrus acme scan ./src`

@@ -42,6 +42,20 @@ CI that runs `syrus plugin test`. `--frontend`, `--model`, and `--cli` add the
 corresponding examples; `--syrus-version` overrides the generated
 `requires_syrus` requirement.
 
+`syrus plugin dev [DIR]` starts a disposable, release-matched Syrus in Docker
+with the one local plugin mounted and enabled. It prints the local URL, demo
+credentials, and plugin health. Frontend source changes run the conventional
+frontend build inside the container; reload the browser to fetch the new
+content-hashed bundle. Ruby, gemspec/manifest, and locale changes restart the
+app and print the new health, including load failures. Changes are debounced.
+Interrupting the command removes the container and its data volume unless
+`--keep-data` is set.
+
+The dev instance supports one plugin, SQLite, and no real agent provider by
+default. To exercise agent-backed behavior, sign in and configure one of the
+normal provider integrations in Settings; provider credentials then live only
+in the disposable instance data (or its retained `--keep-data` volume).
+
 ## Per-origin Job visibility
 
 Repository membership remains the outer visibility boundary for Jobs. A plugin

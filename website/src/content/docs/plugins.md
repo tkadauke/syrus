@@ -70,6 +70,23 @@ and mounts only the plugin directory; no instance credentials enter the
 container. Syrus contributors can use `--checkout PATH` to execute the same
 runner from a local Syrus checkout without Docker.
 
+## Develop with live reload
+
+Run `syrus plugin dev [DIR]` for a disposable, release-matched Syrus with the
+local plugin mounted and enabled. The command prints its loopback URL, demo
+sign-in credentials, and current plugin health. It watches the plugin directory
+and debounces rapid edits. Frontend source changes run the standard plugin
+frontend build inside the container; reload the browser to fetch the new
+content-hashed bundle. Ruby, gemspec/manifest, and locale changes restart the
+app and print the refreshed health, including plugin load failures.
+
+Interrupting the command removes the container and SQLite data. Pass
+`--keep-data` to retain the named Docker volume for inspection. The instance
+intentionally supports one plugin, SQLite, and no real agent provider by
+default. To exercise agent-backed plugin behavior, sign in and use the normal
+Settings screens to configure a provider; those credentials stay in the
+disposable instance data or the retained volume.
+
 ## Hand-install an external plugin
 
 External plugins are trusted, in-process code. Review the source before
