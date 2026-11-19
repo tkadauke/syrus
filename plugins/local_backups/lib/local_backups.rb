@@ -3,8 +3,8 @@ module LocalBackups
 
   syrus_plugin "local_backups" do
     display_name "Local Backups"
-    description "Discovers and inventories sealed, portable recovery bundles stored on installation-local storage."
-    long_description "Local Backups provides the immutable backup-manifest contract and a read-only inventory reconstructed from sealed artifacts. Backup creation, retention, download, and restore are intentionally delivered separately."
+    description "Creates and inventories sealed, portable recovery bundles on installation-local storage."
+    long_description "Local Backups creates consistent SQLite and Disk Active Storage recovery bundles, and provides an immutable backup-manifest contract with inventory reconstructed from sealed artifacts. Scheduling, retention, download, and restore are delivered separately."
     homepage "https://github.com/tkadauke/syrus"
     author "Thomas Kadauke"
     category "tooling"
@@ -17,6 +17,10 @@ module LocalBackups
            "local_backups.backup.validated" => :async,
            "local_backups.backup.expiring" => :async,
            "local_backups.backup.deleted" => :async
+    always "Active Storage purge guard" do |_scope|
+      ActiveStorage::Blob.prepend(LocalBackups::PurgeGuard) unless ActiveStorage::Blob < LocalBackups::PurgeGuard
+      nil
+    end
     route :get, "/api/v1/app/admin/local_backups", to: "api/v1/app/admin/local_backups#index"
     route :get, "/admin/local_backups", to: "spa#show"
     frontend routes: { "local_backups/AdminLocalBackups" => "app/frontend/routes/AdminLocalBackups.tsx" },
