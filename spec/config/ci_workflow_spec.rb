@@ -10,8 +10,9 @@ RSpec.describe "CI workflow" do
   it "installs Node dependencies before running RSpec" do
     steps = workflow.dig("jobs", "rspec", "steps")
     run_steps = steps.filter_map { |step| step["run"] }
+    rspec_step = run_steps.index { |command| command.start_with?("bin/rspec-ci ") }
 
-    expect(run_steps.index("npm ci")).to be < run_steps.index("bin/rspec-ci")
+    expect(run_steps.index("npm ci")).to be < rspec_step
     expect(steps).to include(
       a_hash_including(
         "uses" => "actions/setup-node@v7",
