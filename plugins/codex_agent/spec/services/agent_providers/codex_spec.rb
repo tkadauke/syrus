@@ -203,7 +203,7 @@ RSpec.describe AgentProviders::Codex do
       received = nil
       runner_lock_depth = nil
       lock_depth = 0
-      allow(CodexAuth).to receive(:with_refresh_lock) do |user:, timeout: CodexAuth::DEFAULT_REFRESH_LOCK_TIMEOUT_SECONDS, &block|
+      allow(CodexAuth).to receive(:with_refresh_lock) do |user:, provider_account: nil, timeout: CodexAuth::DEFAULT_REFRESH_LOCK_TIMEOUT_SECONDS, &block|
         lock_depth += 1
         block.call
       ensure
