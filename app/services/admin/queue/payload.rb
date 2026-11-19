@@ -181,13 +181,7 @@ module Admin
       private
 
       def plugin_queue_counts
-        pending_scope = SolidQueue::Job.where(finished_at: nil).where("queue_name LIKE ?", "plugin_%")
-        failed_scope = SolidQueue::FailedExecution.joins(:job).where("solid_queue_jobs.queue_name LIKE ?", "plugin_%")
-        pending = pending_scope.group(:queue_name).count
-        failed = failed_scope.group("solid_queue_jobs.queue_name").count
-        (pending.keys | failed.keys).sort.map do |queue|
-          { plugin: queue.delete_prefix("plugin_"), queue: queue, depth: pending[queue].to_i, failed_count: failed[queue].to_i }
-        end
+        @plugin_queue_counts ||= Admin::PluginJobHealth.new.summaries
       end
 
       attr_reader :params, :user

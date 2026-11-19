@@ -69,12 +69,15 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     sign_in_as(admin)
     process = solid_queue_process(hostname: "worker-a", pid: 101)
     plugin_job = solid_queue_job(class_name: "ExternalPluginJob", queue_name: "plugin_external_example")
+    video_job = solid_queue_job(class_name: "VideoWalkthroughs::AnalysisJob", queue_name: "videos")
     SolidQueue::ClaimedExecution.create!(job: plugin_job, process: process)
+    SolidQueue::ClaimedExecution.create!(job: video_job, process: process)
 
     get "/api/v1/app/admin/queue/active"
 
     expect(parse_body.fetch("plugin_queues")).to contain_exactly(
-      include("plugin" => "external_example", "queue" => "plugin_external_example", "depth" => 1, "failed_count" => 0)
+      include("plugin" => "external_example", "queue" => "plugin_external_example", "depth" => 1, "failed_count" => 0),
+      include("plugin" => "video_walkthroughs", "queue" => "videos", "depth" => 1, "failed_count" => 0)
     )
   end
 
@@ -167,8 +170,11 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     expect(folders.fetch("Runs")["count"]).to eq(1)
     expect(folders.fetch("Chat")["count"]).to eq(1)
     grouped_queue_count_queries = queries.select { |sql| grouped_queue_count_query?(sql) }
+    plugin_health_queries = grouped_queue_count_queries.select { |sql| sql.downcase.include?("class_name") }
+    folder_count_queries = grouped_queue_count_queries - plugin_health_queries
     per_folder_queue_count_queries = queries.select { |sql| per_folder_queue_count_query?(sql) }
-    expect(grouped_queue_count_queries.size).to eq(1)
+    expect(folder_count_queries.size).to eq(1)
+    expect(plugin_health_queries.size).to eq(2)
     expect(per_folder_queue_count_queries).to be_empty
   end
 

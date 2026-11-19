@@ -5,20 +5,16 @@ module DesignDocs
     DEFAULT_MAX_TURNS = 2
     discard_on ActiveRecord::RecordNotFound
 
-    limits_concurrency to: 1, group: "design_doc_thread_agent", key: ->(run_id) {
-      run = DesignDocs::DesignDocAgentRun.find_by(id: run_id)
-      run ? "design_doc_thread:#{run.design_doc_thread_id}" : "design_doc_agent_run:#{run_id}"
-    }, duration: 15.minutes
-
     class << self
       attr_accessor :agent_runner
     end
 
     def perform(run_id)
       run = DesignDocs::DesignDocAgentRun.includes(:design_doc, :thread, :triggering_comment, :requested_by_user).find(run_id)
-      return unless run.status == "queued"
+      provider_configured = run.requested_by_user.agent_provider_configured?(run.agent_provider)
+      return unless claim(run)
 
-      if run.requested_by_user.agent_provider_configured?(run.agent_provider)
+      if provider_configured
         execute(run)
       else
         fail_run!(run, "Agent provider #{run.agent_provider} is not configured for #{run.requested_by_user.email_address}.")
@@ -27,8 +23,18 @@ module DesignDocs
 
     private
 
+    def claim(run)
+      started_at = Time.current
+      claimed = DesignDocs::DesignDocAgentRun.where(id: run.id, status: "queued")
+        .update_all(status: "running", started_at:)
+      return false unless claimed == 1
+
+      run.status = "running"
+      run.started_at = started_at
+      true
+    end
+
     def execute(run)
-      run.update!(status: "running", started_at: Time.current)
       broadcast(run)
       agent = Agent.find_or_create_for!(run)
       result = AgentProviders.run_one_shot(

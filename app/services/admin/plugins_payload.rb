@@ -231,19 +231,16 @@ module Admin
 
     def plugin_job_health(manifest, record)
       queue_name = "plugin_#{manifest.name}"
-      depth = SolidQueue::Job.where(queue_name:, finished_at: nil).count
-      failures = SolidQueue::FailedExecution.joins(:job).where(solid_queue_jobs: { queue_name: }).count
       recorded = record&.config&.dig("job_health") || {}
-      {
-        queue: queue_name,
-        depth: depth,
-        failed_count: failures,
+      plugin_job_counts.for(manifest.name, default_queue: queue_name).merge(
         discarded_count: recorded["discarded_count"].to_i,
         last_error: recorded["last_error"],
         last_discarded_at: recorded["last_discarded_at"]
-      }
-    rescue ActiveRecord::StatementInvalid
-      { queue: queue_name, depth: 0, failed_count: 0, discarded_count: record&.config&.dig("job_health", "discarded_count").to_i }
+      )
+    end
+
+    def plugin_job_counts
+      @plugin_job_counts ||= Admin::PluginJobHealth.new
     end
 
     def plugin_health

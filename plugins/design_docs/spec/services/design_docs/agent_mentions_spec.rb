@@ -91,25 +91,29 @@ RSpec.describe "Design Docs @syrus agent mentions" do
     expect(run.context_snapshot.dig("thread", "comments").map { |comment| comment.fetch("body") }).to include("Needs evidence", "@syrus suggest clearer wording")
   end
 
-  it "serializes agent runs per thread without blocking other threads" do
-    doc = create_design_doc
-    first_thread = create_thread(doc)
-    second_thread = create_thread(doc, user: owner)
-    first_thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus review the first thread")
-    first_run = DesignDocs::DesignDocAgentRun.last
-    first_run.update!(status: "succeeded", finished_at: Time.current)
-    first_thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus review the first thread again")
-    same_thread_run = DesignDocs::DesignDocAgentRun.last
-    second_thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus review the second thread")
-    second_thread_run = DesignDocs::DesignDocAgentRun.last
+  it "keeps the shared plugin cap while thread locking prevents duplicate active runs" do
+    expect(DesignDocs::AgentRunJob.concurrency_key.call).to eq("design_docs")
+    expect(DesignDocs::AgentRunJob.concurrency_group.call).to eq("plugin_design_docs")
+    expect(DesignDocs::AgentRunJob.concurrency_limit).to eq(PluginJob::DEFAULT_CONCURRENCY)
+  end
 
-    expect(DesignDocs::AgentRunJob.concurrency_key.call(first_run.id)).to eq("design_doc_thread:#{first_thread.id}")
-    expect(DesignDocs::AgentRunJob.concurrency_key.call(same_thread_run.id)).to eq("design_doc_thread:#{first_thread.id}")
-    expect(DesignDocs::AgentRunJob.concurrency_key.call(second_thread_run.id)).to eq("design_doc_thread:#{second_thread.id}")
-    expect(DesignDocs::AgentRunJob.concurrency_key.call(-1)).to eq("design_doc_agent_run:-1")
-    expect(DesignDocs::AgentRunJob.concurrency_group).to eq("design_doc_thread_agent")
-    expect(DesignDocs::AgentRunJob.concurrency_limit).to eq(1)
-    expect(DesignDocs::AgentRunJob.concurrency_duration).to eq(15.minutes)
+  it "atomically claims a run so duplicate deliveries execute it once" do
+    doc = create_design_doc
+    thread = create_thread(doc)
+    thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus review this once")
+    run = DesignDocs::DesignDocAgentRun.last
+    calls = 0
+    DesignDocs::AgentRunJob.agent_runner = ->(**_) {
+      calls += 1
+      result_fixture(final_text: { action: "comment", summary: "Reviewed.", comment_body: "Looks good." }.to_json)
+    }
+
+    described_class = DesignDocs::AgentRunJob
+    described_class.perform_now(run.id)
+    described_class.perform_now(run.id)
+
+    expect(calls).to eq(1)
+    expect(run.reload.status).to eq("succeeded")
   end
 
   it "enqueues for a reply mention and includes existing pending suggestions on the thread" do
