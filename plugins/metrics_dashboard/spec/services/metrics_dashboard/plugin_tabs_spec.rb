@@ -55,6 +55,15 @@ RSpec.describe MetricsDashboard::PluginTabs do
     )
   end
 
+  it "passes through a contributed summary table without knowing its domain" do
+    summary = { key: "widgets_health", label: "Widget health",
+      columns: [ { key: "widget", label: "Widget" } ],
+      rows: [ { key: "one", tone: "warning", cells: { widget: "One" } } ] }
+    register(provider([ { id: "widgets", label: "Widgets", panels: [], summary: summary } ]))
+
+    expect(described_class.build.find { |tab| tab[:id] == "widgets" }&.fetch(:summary)).to eq(summary)
+  end
+
   it "sorts tabs by label, alongside whatever else already contributed" do
     register(provider([ { id: "b_widgets", label: "B Widgets", panels: [] } ]), name: "b_widget_metrics")
     register(provider([ { id: "a_widgets", label: "A Widgets", panels: [] } ]), name: "a_widget_metrics")

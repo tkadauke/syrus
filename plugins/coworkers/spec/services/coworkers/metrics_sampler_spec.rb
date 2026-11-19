@@ -15,11 +15,43 @@ RSpec.describe Coworkers::MetricsSampler do
       gauge :journaling_consecutive_failures, tags: %i[coworker]
       gauge :unsaved_workspace_age_seconds, tags: %i[coworker]
       gauge :unsaved_workspace_attempts, tags: %i[coworker]
+      counter :workspace_push_failures_total, tags: %i[coworker kind]
       counter :spend_usd_total, tags: %i[coworker source]
     end
     example.run
   ensure
     Syrus::Metrics.instance_variable_set(:@registry, original)
+  end
+
+  it "removes live and persisted series when a coworker handle changes or is archived" do
+    owner = Factories.user
+    repository = Factories.repository(user: owner)
+    coworker = create_coworker(owner:, repository:, handle: "before")
+    create_schedule(coworker, repository)
+    failure_labels = { coworker: "before", kind: "transient" }
+    Syrus::Metrics.counter(:syrus_coworkers_workspace_push_failures_total).increment(tags: failure_labels)
+    MetricCounterTotal.create!(name: "syrus_coworkers_workspace_push_failures_total",
+      labels_digest: Digest::SHA256.hexdigest(failure_labels.stringify_keys.sort.to_h.to_json),
+      labels: failure_labels, value: 1)
+    cache.write(Metrics::ClusterCounterSampler::CACHE_KEY,
+      { "syrus_coworkers_workspace_push_failures_total" => [ [ failure_labels, 1 ] ] })
+
+    expect(described_class.sample!).to be(true)
+    expect(described_class.refresh_gauges!).to be(true)
+    expect(Syrus::Metrics.render).to include('coworker="before"')
+
+    coworker.update!(handle: "after")
+    expect(described_class.sample!).to be(true)
+    expect(described_class.refresh_gauges!).to be(true)
+    expect(Syrus::Metrics.render).not_to include('coworker="before"')
+    expect(Syrus::Metrics.render).to include('coworker="after"')
+    expect(MetricCounterTotal.where(name: "syrus_coworkers_workspace_push_failures_total")).to be_empty
+    expect(cache.read(Metrics::ClusterCounterSampler::CACHE_KEY).fetch("syrus_coworkers_workspace_push_failures_total")).to be_empty
+
+    coworker.update!(state: "archived")
+    expect(described_class.sample!).to be(true)
+    expect(described_class.refresh_gauges!).to be(true)
+    expect(Syrus::Metrics.render).not_to include("syrus_coworkers_")
   end
 
   before { allow(Rails).to receive(:cache).and_return(cache) }

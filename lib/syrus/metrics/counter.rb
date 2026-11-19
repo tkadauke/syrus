@@ -25,6 +25,15 @@ module Syrus
         @mutex.synchronize { @values[key] ||= 0 }
       end
 
+      # Removes a no-longer-valid label identity from the live process. This
+      # is absence, not a numeric reset: sampled counters use it when a
+      # mutable record is renamed or archived so historical labels do not
+      # remain resident forever.
+      def clear(tags: {})
+        key = key_for(tags)
+        @mutex.synchronize { @values.delete(key) }
+      end
+
       # Overwrites the tracked value for one tag combination to an externally
       # computed absolute total, for a counter whose true source of truth is a
       # periodic aggregate sample cached outside this process rather than an

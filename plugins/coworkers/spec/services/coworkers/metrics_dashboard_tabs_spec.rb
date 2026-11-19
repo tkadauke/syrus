@@ -7,5 +7,7 @@ RSpec.describe Coworkers::MetricsDashboardTabs do
     expect(tab).to include(id: "coworkers", label: "Coworkers")
     expect(tab.fetch(:panels).pluck(:metric)).to all(start_with("syrus_coworkers_"))
     expect(tab.fetch(:panels).pluck(:group_by)).to all(eq("coworker"))
+    expect(tab.fetch(:panels).pluck(:key)).to all(start_with("coworkers_"))
+    expect(tab.fetch(:summary)).to include(key: "coworkers_health", label: "Coworker health")
   end
 end

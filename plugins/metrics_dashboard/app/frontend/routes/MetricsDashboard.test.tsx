@@ -189,6 +189,33 @@ describe("MetricsDashboardRoute plugin tabs", () => {
     await waitFor(() => expect(screen.getByTestId("location").textContent).toContain("tab=throughput"))
   })
 
+  it("renders a plugin summary table and highlights warning and critical rows", async () => {
+    renderRoute(
+      payload({
+        plugin_tabs: [{
+          id: "widgets",
+          label: "Widgets",
+          summary: {
+            key: "widgets_health",
+            label: "Widget health",
+            columns: [{ key: "widget", label: "Widget" }, { key: "state", label: "State" }],
+            rows: [
+              { key: "one", tone: "warning", cells: { widget: "One", state: "Delayed" } },
+              { key: "two", tone: "critical", cells: { widget: "Two", state: "Stopped" } }
+            ]
+          }
+        }],
+        panels: [panel("queue_ready", "queue_throughput")]
+      })
+    )
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Widgets" }))
+
+    expect(await screen.findByRole("heading", { name: "Widget health" })).toBeInTheDocument()
+    expect(screen.getByText("Delayed").closest("tr")).toHaveClass("bg-warning-surface")
+    expect(screen.getByText("Stopped").closest("tr")).toHaveClass("bg-danger-surface")
+  })
+
   it("contributes no tab when no plugin declares one", async () => {
     renderRoute(payload({ plugin_tabs: [] }))
 

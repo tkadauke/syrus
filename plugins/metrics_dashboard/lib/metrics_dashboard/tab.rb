@@ -62,6 +62,12 @@ module MetricsDashboard
   #     its tab in some mode); this plugin discovers one tab per currently
   #     enabled, healthy contributor, so a disabled contributor's tab is
   #     absent rather than empty.
+  #
+  #     A tab may also provide a :summary table with :key, :label, :columns,
+  #     and :rows. Columns contain :key and :label. Rows contain a stable :key,
+  #     :cells keyed by column key, and an optional :tone of "warning" or
+  #     "critical". The contributor owns the values and health semantics;
+  #     this plugin only renders the generic table contract.
   module Tab
     def self.included(base)
       base.extend(ClassMethods)

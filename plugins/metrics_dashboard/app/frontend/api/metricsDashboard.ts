@@ -27,6 +27,18 @@ export type MetricsPanel = {
 export type MetricsPluginTab = {
   id: string
   label: string
+  summary?: MetricsSummary
+}
+
+export type MetricsSummary = {
+  key: string
+  label: string
+  columns: Array<{ key: string; label: string }>
+  rows: Array<{
+    key: string
+    tone?: "warning" | "critical"
+    cells: Record<string, string>
+  }>
 }
 
 export type MetricsDashboardPayload = {

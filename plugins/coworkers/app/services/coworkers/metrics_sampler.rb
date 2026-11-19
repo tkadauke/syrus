@@ -6,6 +6,9 @@ module Coworkers
     CACHE_TTL = 5.minutes
     STATES = %w[scheduled paused auto_paused].freeze
     RESULTS = %w[journaled skipped failed].freeze
+    GAUGES = %i[journaling_last_result_age_seconds journaling_consecutive_failures unsaved_workspace_age_seconds
+      unsaved_workspace_attempts journaling_state journaling_last_result].freeze
+    COUNTERS = %i[spend_usd_total workspace_push_failures_total].freeze
 
     def self.sample! = new.sample!
     def self.refresh_gauges! = new.refresh_gauges!
@@ -13,6 +16,7 @@ module Coworkers
     def sample!(now: Time.current)
       coworkers = Coworkers::Coworker.where.not(state: "archived").pluck(:id, :handle)
       ids = coworkers.map(&:first)
+      prune_cluster_failure_series!(coworkers.map(&:last))
       snapshot = { "observed_at" => now.iso8601(6), "coworkers" => {} }
       schedules = ScheduledTasks::Task.alive.where(coworker_id: ids, system_key: Coworkers::SystemSchedules::JOURNALING).index_by(&:coworker_id)
       unsaved = Coworkers::Chat.where(coworker_id: ids).where.not(unsaved_workspace_first_failed_at: nil)
@@ -48,6 +52,7 @@ module Coworkers
       snapshot = Rails.cache.read(CACHE_KEY)
       return false unless snapshot
 
+      clear_obsolete_series!(snapshot.fetch("coworkers").keys)
       snapshot.fetch("coworkers").each do |handle, values|
         tags = { coworker: handle }
         set(:journaling_last_result_age_seconds, values["journaling_age"], tags) if values["journaling_age"]
@@ -80,6 +85,32 @@ module Coworkers
 
     def time_value(value)
       value.respond_to?(:in_time_zone) && !value.is_a?(String) ? value.in_time_zone : Time.zone.parse(value.to_s)
+    end
+
+    def clear_obsolete_series!(handles)
+      GAUGES.each { |name| clear_obsolete!(Syrus::Metrics.gauge(:"syrus_coworkers_#{name}"), handles) }
+      COUNTERS.each { |name| clear_obsolete!(counter(name), handles) }
+    end
+
+    def clear_obsolete!(instrument, handles)
+      instrument.samples.each do |tags, _value|
+        instrument.clear(tags: tags) unless handles.include?(tags[:coworker])
+      end
+    end
+
+    # The cluster sink persists event counters across worker restarts. Remove
+    # labels that can no longer be emitted so renamed and archived coworkers
+    # do not create permanent active cardinality.
+    def prune_cluster_failure_series!(handles)
+      MetricCounterTotal.where(name: "syrus_coworkers_workspace_push_failures_total").find_each do |total|
+        total.destroy! unless handles.include?(total.labels.to_h["coworker"])
+      end
+      totals = Rails.cache.read(Metrics::ClusterCounterSampler::CACHE_KEY)
+      return unless totals
+
+      name = "syrus_coworkers_workspace_push_failures_total"
+      totals[name] = Array(totals[name]).select { |labels, _value| handles.include?(labels.to_h.with_indifferent_access[:coworker]) }
+      Rails.cache.write(Metrics::ClusterCounterSampler::CACHE_KEY, totals, expires_in: CACHE_TTL)
     end
 
     def set(name, value, tags) = Syrus::Metrics.gauge(:"syrus_coworkers_#{name}").set(value, tags: tags)

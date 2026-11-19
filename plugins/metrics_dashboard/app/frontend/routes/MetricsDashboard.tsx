@@ -4,8 +4,8 @@ import { useSearchParams } from "react-router-dom"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
-import { Notice, Page } from "@app/components/ui"
-import { fetchMetricsDashboard } from "../api/metricsDashboard"
+import { DataTable, Notice, Page } from "@app/components/ui"
+import { fetchMetricsDashboard, type MetricsSummary } from "../api/metricsDashboard"
 import { MetricsChart } from "./MetricsChart"
 
 const DEFAULT_WINDOW = "6h"
@@ -69,6 +69,7 @@ export function MetricsDashboardRoute() {
   const tabs = [...payload.categories.map((id) => ({ id, label: t(`tabs.${id}`) })), ...payload.plugin_tabs]
   const activeTab = tabs.some((tab) => tab.id === selectedTab) ? selectedTab : tabs[0]?.id
   const visiblePanels = payload.panels.filter((panel) => panel.category === activeTab)
+  const visibleSummary = payload.plugin_tabs.find((tab) => tab.id === activeTab)?.summary
 
   return (
     <Page.Root aria-label={t("aria_page")} className="space-y-5" gutter="responsive" size="extra-wide">
@@ -128,21 +129,56 @@ export function MetricsDashboardRoute() {
         </nav>
       </Page.Nav>
 
-      <div className="grid gap-5 2xl:grid-cols-2" role="tabpanel">
-        {visiblePanels.map((panel) => (
-          <MetricsChart
-            bucketSeconds={payload.bucket_seconds}
-            buckets={payload.buckets}
-            hoverIndex={hoverIndex}
-            key={panel.key}
-            onHover={setHoverIndex}
-            panel={panel}
-            title={panel.label ?? t(`panels.${panel.key}`)}
-          />
-        ))}
+      <div className="space-y-5" role="tabpanel">
+        {visibleSummary ? <MetricsSummaryTable summary={visibleSummary} /> : null}
+        <div className="grid gap-5 2xl:grid-cols-2">
+          {visiblePanels.map((panel) => (
+            <MetricsChart
+              bucketSeconds={payload.bucket_seconds}
+              buckets={payload.buckets}
+              hoverIndex={hoverIndex}
+              key={panel.key}
+              onHover={setHoverIndex}
+              panel={panel}
+              title={panel.label ?? t(`panels.${panel.key}`)}
+            />
+          ))}
+        </div>
       </div>
     </Page.Root>
   )
+}
+
+function MetricsSummaryTable({ summary }: { summary: MetricsSummary }) {
+  return (
+    <section aria-labelledby={`${summary.key}-heading`} className="space-y-2">
+      <h2 className="text-sm font-semibold text-text-primary" id={`${summary.key}-heading`}>
+        {summary.label}
+      </h2>
+      <DataTable.Root aria-label={summary.label}>
+        <DataTable.Header>
+          <DataTable.Row>{summary.columns.map((column) => <DataTable.HeadCell key={column.key}>{column.label}</DataTable.HeadCell>)}</DataTable.Row>
+        </DataTable.Header>
+        <DataTable.Body>
+          {summary.rows.map((row) => (
+            <DataTable.Row className={summaryRowClass(row.tone)} key={row.key}>
+              {summary.columns.map((column, index) => (
+                <DataTable.Cell className={index === 0 ? "whitespace-nowrap font-medium" : "whitespace-nowrap"} key={column.key}>
+                  {row.cells[column.key] ?? "—"}
+                </DataTable.Cell>
+              ))}
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
+    </section>
+  )
+}
+
+function summaryRowClass(tone?: "warning" | "critical") {
+  if (tone === "critical") return "bg-danger-surface"
+  if (tone === "warning") return "bg-warning-surface"
+  return ""
 }
 
 // A dashboard that silently shows nothing is worse than one that says why. The

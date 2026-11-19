@@ -68,6 +68,16 @@ RSpec.describe "Syrus::Metrics reconcile!" do
 
       expect(Syrus::Metrics.render).to include('syrus_reconciled_total{state="succeeded"} 1.75')
     end
+
+    it "can remove an obsolete sampled label identity without resetting other series" do
+      counter.reconcile!(5, tags: { state: "obsolete" })
+      counter.reconcile!(7, tags: { state: "current" })
+
+      counter.clear(tags: { state: "obsolete" })
+
+      expect(Syrus::Metrics.render).not_to include('state="obsolete"')
+      expect(Syrus::Metrics.render).to include('syrus_reconciled_total{state="current"} 7')
+    end
   end
 
   describe "Histogram#reconcile!" do

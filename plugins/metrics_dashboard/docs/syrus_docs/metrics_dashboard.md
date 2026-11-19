@@ -236,6 +236,11 @@ string instead. `metric` must name a series the contributor's own `metrics do ..
 `MetricsDashboard::Recorder` already captures every series `/metrics` exposes, core or plugin, with no wiring
 needed here.
 
+A contributed tab may also include a `summary` table with a stable `key`, a `label`, `columns`, and `rows`.
+Each column has a stable `key` and display `label`; each row has a stable `key`, a `cells` map keyed by the
+column keys, and may set `tone` to `warning` or `critical`. The contributing plugin computes the table values
+and health semantics from recorded metrics; Metrics Dashboard only renders the generic table contract.
+
 `MetricsDashboard::PluginTabs` resolves contributors through `Syrus::PluginRegistry.providers_for` at request
 time, so a tab is present only while **both** this plugin and the contributor are currently enabled and
 healthy -- consistent with the `while_enabled` semantics the contributor's own metric declaration already
