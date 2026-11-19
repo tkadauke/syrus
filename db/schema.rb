@@ -2294,6 +2294,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_004334) do
     t.index ["uuid"], name: "index_local_backups_backups_on_uuid", unique: true
   end
 
+  create_table "local_backups_object_holds", force: :cascade do |t|
+    t.integer "backup_id", null: false
+    t.bigint "active_storage_blob_id", null: false
+    t.string "storage_key", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active_storage_blob_id"], name: "index_local_backups_object_holds_on_active_storage_blob_id"
+    t.index ["backup_id", "active_storage_blob_id"], name: "idx_local_backup_holds_backup_blob", unique: true
+    t.index ["backup_id"], name: "index_local_backups_object_holds_on_backup_id"
+  end
+
   create_table "local_backups_replications", force: :cascade do |t|
     t.integer "backup_id", null: false
     t.string "destination_identity", null: false
