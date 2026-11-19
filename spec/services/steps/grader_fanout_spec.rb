@@ -2157,7 +2157,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       grader_steps = workflow.steps.where(kind: "grader").order(:position)
       expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
       chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-      expect(chunks).to include("affected_test_analyzer").and include("falling back to glob-only")
+      expect(chunks).to include("AffectedTestAnalyzer").and include("falling back to glob-only")
     end
 
     it "does not use analyzer-expanded files for the recorded changed-files fingerprint" do
