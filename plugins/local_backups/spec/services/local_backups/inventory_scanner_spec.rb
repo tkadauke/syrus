@@ -67,4 +67,22 @@ RSpec.describe LocalBackups::InventoryScanner do
       expect(winner.reload).to have_attributes(artifact_path: "syrus-backup-v1-valid", verification_state: "valid")
     end
   end
+
+  it "contains a uniqueness race when the winning row disappears before retry" do
+    Dir.mktmpdir do |dir|
+      root = Pathname(dir)
+      bundle = root.join("syrus-backup-v1-valid").tap(&:mkpath)
+      id = "123e4567-e89b-42d3-a456-426614174000"
+      LocalBackups::Manifest.new(data(id:)).write_once(bundle.join("manifest.json"))
+      allow(LocalBackups::Backup).to receive(:find_by).with(uuid: id).and_return(nil)
+      allow(LocalBackups::Backup).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique, "UUID was inserted concurrently")
+
+      result = described_class.new(root: LocalBackups::StorageRoot.new(root)).call
+
+      expect(result.discovered).to be_empty
+      expect(result.invalid).to contain_exactly(
+        path: "syrus-backup-v1-valid", error: "UUID was inserted concurrently"
+      )
+    end
+  end
 end

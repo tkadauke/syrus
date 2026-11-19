@@ -28,7 +28,7 @@ module LocalBackups
       backup = Backup.find_by(uuid:) || create_backup(attributes)
       backup.update!(attributes.except(:uuid))
       discovered << backup
-    rescue StorageRoot::Error, Manifest::Error, ActiveRecord::RecordInvalid => e
+    rescue StorageRoot::Error, Manifest::Error, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
       invalid << { path: entry.basename.to_s, error: e.message }
     end
 
