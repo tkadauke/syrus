@@ -39,8 +39,10 @@ class CreateLocalBackupsInventory < ActiveRecord::Migration[8.1]
       t.text :failure_summary
       t.timestamps
     end
-    add_index :local_backups_replications, [:backup_id, :destination_identity], unique: true,
-      name: "idx_local_backup_replications_identity" unless index_exists?(:local_backups_replications, [:backup_id, :destination_identity], name: "idx_local_backup_replications_identity")
+    unless index_exists?(:local_backups_replications, [:backup_id, :destination_identity], name: "idx_local_backup_replications_identity")
+      add_index :local_backups_replications, [:backup_id, :destination_identity], unique: true,
+        name: "idx_local_backup_replications_identity"
+    end
   end
 
   def down
