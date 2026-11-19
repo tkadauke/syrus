@@ -296,7 +296,7 @@ class ChatTurnJob < ApplicationJob
 
     ProviderAvailabilityEvidence.record_codex_success!(
       user: @chat.user,
-      provider_account: provider.send(:provider_account),
+      provider_account: provider.selected_provider_account,
       source: "chat_turn_success",
       model: active_chat.chat_model.presence || ProviderAvailabilityEvidence.codex_configured_model,
       chat_session: @chat,
@@ -306,7 +306,11 @@ class ChatTurnJob < ApplicationJob
         session_id: result.session_id
       }
     )
-    App::ProviderAvailability.broadcast_changed(user: @chat.user, provider: "codex")
+    App::ProviderAvailability.broadcast_changed(
+      user: @chat.user,
+      provider: "codex",
+      provider_account: provider.selected_provider_account
+    )
   rescue StandardError => e
     Rails.logger.warn("[ProviderAvailabilityEvidence] failed to record Codex chat success for ChatSession ##{@chat.id}: #{e.class}: #{e.message}")
   end
@@ -1236,7 +1240,7 @@ class ChatTurnJob < ApplicationJob
 
     attrs = {
       provider: capture.provider,
-      provider_account_id: provider.send(:provider_account)&.id,
+      provider_account_id: provider.selected_provider_account&.id,
       session_id: capture.session_id,
       transcript_jsonl: capture.transcript_jsonl
     }
