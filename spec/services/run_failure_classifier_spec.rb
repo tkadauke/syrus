@@ -1302,6 +1302,19 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.retryable).to eq(false)
   end
 
+  # A member that does not rebase onto the predicted base is a conflict the
+  # speculative validation exists to find early, not a corrupt workspace.
+  it "classifies a speculative merge-train integration conflict as a rebase conflict" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "speculative_merge_train: could not integrate JOB-9505 cleanly: git rebase __syrus_speculative_merge_train_65905 exited 1"
+    )
+
+    expect(classification.classification).to eq("merge_train_rebase_conflict")
+    expect(classification.retryable).to eq(false)
+  end
+
   it "classifies unresolved agentic merge-train rebases separately from generic git corruption" do
     run.update!(state: "failed")
     diagnostic(
