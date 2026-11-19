@@ -119,6 +119,19 @@ retain the requested mode and source failure context in their audit data.
 Agent-produced commits can be preserved through checkpoint refs, so a later
 retry can recover useful work even if the original workspace disappeared.
 
+When no previous output should survive, an administrator can request a full
+Job reset from chat. Confirmation shows and removes the pull request, branch,
+checkpoints, and active workflows, while preserving old workflow and run
+history as superseded audit evidence. Syrus then evaluates dependencies again:
+blocked Jobs remain blocked, while eligible Jobs start fresh from their current
+effective base. Landed work, active landing or merge-train work, and stack
+parents with live dependent branches must first resolve the named conflict.
+
+Administrators can also replace one Job dependency atomically, preventing the
+Job from briefly appearing dependency-free and starting between separate
+remove and add operations. The replacement preserves the prior satisfaction
+policy by default and validates repository, cycle, and Epic-chain rules.
+
 For a failed workflow whose completed mutations are still useful but whose base
 has moved, an operator can confirm a base-refresh retry. Syrus restores the
 published checkpoint into a new workflow, resolves the current effective base
