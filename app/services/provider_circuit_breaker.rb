@@ -345,8 +345,10 @@ class ProviderCircuitBreaker
     observed_at = run.finished_at || run.updated_at
     return false unless observed_at
 
+    account_id = run.provider_account&.public_id
+    account_id ||= CodexAccountScope.for_user(run.user) if provider == "codex"
     ProviderAvailabilityEvidence
-      .where(provider: provider)
+      .where(user_id: run.user_id, provider: provider, account_id: account_id)
       .positive
       .where("observed_at > ?", observed_at)
       .exists?
