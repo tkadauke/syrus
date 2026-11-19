@@ -17,6 +17,29 @@ RSpec.describe ChatMediaLibrary do
         described_class.materialize_inline_images!(chat_session)
       }.not_to change(Document, :count)
     end
+
+    it "materializes image attachments shared by the assistant" do
+      attachment = chat_session.chat_file_attachments.build(
+        name: "diagnosis.png",
+        mime_type: "image/png",
+        byte_size: png_bytes.bytesize,
+        checksum: "pending"
+      )
+      attachment.file.attach(io: StringIO.new(png_bytes), filename: "diagnosis.png", content_type: "image/png")
+      attachment.save!
+      chat_session.messages.create!(
+        role: "assistant",
+        content: { "text" => "Here is the diagnosis.", "attachments" => [ { "id" => attachment.id } ] }
+      )
+
+      expect {
+        described_class.materialize_inline_images!(chat_session)
+      }.to change(Document, :count).by(1)
+
+      document = chat_session.reload.attached_repository_documents.sole
+      expect(document).to have_attributes(filename: "diagnosis.png", content_type: "image/png")
+      expect(document.file.download).to eq(png_bytes)
+    end
   end
 
   describe ".materialize_captured_image!" do
