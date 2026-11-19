@@ -31,6 +31,7 @@ RSpec.describe "queue partitioning" do
     chat
     videos
     control_plane
+    operator_actions
     polling
     indexing
     cleanup
@@ -49,6 +50,7 @@ RSpec.describe "queue partitioning" do
     chat
     videos
     control_plane
+    operator_actions
     polling
     indexing
     cleanup

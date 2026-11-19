@@ -1,5 +1,7 @@
 class ChatPendingActionConfirmationJob < ApplicationJob
-  queue_as :control_plane
+  # Its own lane: a confirmation is an operator waiting on a spinner, and it
+  # must not queue behind control-plane sweeps (see config/queue.yml).
+  queue_as :operator_actions
 
   def perform(chat_pending_action_id)
     pending_action = ChatPendingAction

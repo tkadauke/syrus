@@ -19,7 +19,7 @@ queues across two worker configs and select one per pod with the
 
 | Config | Queues | Where |
 | --- | --- | --- |
-| `config/queue.home.yml` | `chat`, `videos`, `control_plane`, `polling`, `indexing`, `cleanup`, `low_priority_maintenance` (+ its `resume-<worker-storage-key>`) | one pod, on the node holding the search PVC / with the web pods |
+| `config/queue.home.yml` | `chat`, `videos`, `control_plane`, `operator_actions`, `polling`, `indexing`, `cleanup`, `low_priority_maintenance` (+ its `resume-<worker-storage-key>`) | one pod, on the node holding the search PVC / with the web pods |
 | `config/queue.compute.yml` | `runs`, `merges` (+ its `resume-<worker-storage-key>`) | one pod per worker node; local disk, no search mount |
 
 - **The home worker** runs everything bound to the single-node search index or
@@ -55,7 +55,7 @@ Example hybrid layout:
 | Tier | Location | Queue/role boundary |
 | --- | --- | --- |
 | Web | k3s | HTTP app, API, admin UI, metrics |
-| Home worker | one k3s pod | `chat`, `polling`, `indexing`, `cleanup`, `control_plane`, `videos`, home resume queue |
+| Home worker | one k3s pod | `chat`, `polling`, `indexing`, `cleanup`, `control_plane`, `operator_actions`, `videos`, home resume queue |
 | Linux compute | k3s pods | `runs`, `runs-linux-amd64`, `merges`, `merges-linux-amd64`, local resume queue |
 | Mac mini pool | external launchd | `runs-macos-arm64`, `merges-macos-arm64`, compatible `resume-<worker-storage-key>` queues |
 | Data services | k3s or managed | MySQL, storage, release artifacts, search/data volumes |
