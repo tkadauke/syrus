@@ -13,10 +13,11 @@ module App
     @cache_mutex = Mutex.new
     @process_cache = {}
 
-    def self.for_user(user, provider, now: Time.current, cached: true)
-      return PerformanceLogging.phase("provider_availability.status", provider: provider, cached: false) { new(user: user, provider: provider, now: now).status } unless cached
+    def self.for_user(user, provider, provider_account: nil, now: Time.current, cached: true)
+      provider_account ||= user&.default_provider_account(provider)
+      return PerformanceLogging.phase("provider_availability.status", provider: provider, cached: false) { new(user: user, provider: provider, provider_account: provider_account, now: now).status } unless cached
 
-      key = cache_key(user, provider)
+      key = cache_key(user, provider, provider_account: provider_account)
       return nil unless key
 
       cache = Current.provider_availability_cache ||= {}
@@ -24,7 +25,7 @@ module App
 
       cache[key] = PerformanceLogging.phase("provider_availability.for_user", provider: provider, cached: true) do
         fetch_process_cache(key, now: now) do
-          PerformanceLogging.phase("provider_availability.status", provider: provider, cached: true) { new(user: user, provider: provider, now: now).status }
+          PerformanceLogging.phase("provider_availability.status", provider: provider, cached: true) { new(user: user, provider: provider, provider_account: provider_account, now: now).status }
         end
       end
     end
@@ -71,14 +72,14 @@ module App
 
       user_id = user.respond_to?(:id) ? user.id : user
       provider = provider.to_s
-      cache&.delete_if { |(cached_user_id, cached_provider), _| cached_user_id == user_id && cached_provider == provider }
-      delete_process_cache([ user_id, provider ])
+      cache&.delete_if { |key, _| key[0] == user_id && key[1] == provider }
+      delete_process_cache_if { |key| key[0] == user_id && key[1] == provider }
     end
 
-    def self.cache_key(user, provider)
+    def self.cache_key(user, provider, provider_account: nil)
       return if user.blank? || provider.blank?
 
-      [ user.id, provider.to_s ]
+      [ user.id, provider.to_s, provider_account&.public_id ]
     end
 
     def self.fetch_process_cache(key, now:)
@@ -99,6 +100,10 @@ module App
       @cache_mutex.synchronize { @process_cache.delete(key) }
     end
 
+    def self.delete_process_cache_if(&block)
+      @cache_mutex.synchronize { @process_cache.delete_if { |key, _| block.call(key) } }
+    end
+
     def self.clear_process_cache!
       @cache_mutex.synchronize do
         @process_cache = {}
@@ -106,9 +111,10 @@ module App
       ProviderCircuitBreaker.clear_read_cache!
     end
 
-    def initialize(user:, provider:, now: Time.current, batch: nil)
+    def initialize(user:, provider:, provider_account: nil, now: Time.current, batch: nil)
       @user = user
       @provider = provider.to_s
+      @provider_account = provider_account
       @now = now
       @batch = batch
     end
@@ -138,7 +144,7 @@ module App
       return rate_limited_status(latest_signal) if latest_signal
 
       circuit = PerformanceLogging.phase("provider_availability.circuit_breaker", provider: provider) do
-        ProviderCircuitBreaker.call(provider, now: now, include_logs: false, user: user, provider_account: user.default_provider_account(provider))
+        ProviderCircuitBreaker.call(provider, now: now, include_logs: false, user: user, provider_account: provider_account || user.default_provider_account(provider))
       end
       return open_status(circuit) if circuit.open? && !circuit.usage_limit?
 
@@ -150,11 +156,12 @@ module App
         providers = User.agent_providers
         batch = Batch.new(user: user, providers: providers, now: now)
         providers.index_with do |provider|
+          provider_account = user.default_provider_account(provider)
           PerformanceLogging.phase("provider_availability.all_for_user.provider", provider: provider) do
-            key = cache_key(user, provider)
+            key = cache_key(user, provider, provider_account: provider_account)
             cache = Current.provider_availability_cache ||= {}
             cache[key] ||= fetch_process_cache(key, now: now) do
-              new(user: user, provider: provider, now: now, batch: batch).status
+              new(user: user, provider: provider, provider_account: provider_account, now: now, batch: batch).status
             end
           end
         end
@@ -210,7 +217,7 @@ module App
 
     private
 
-    attr_reader :user, :provider, :now, :batch
+    attr_reader :user, :provider, :provider_account, :now, :batch
 
     # Loads the provider-scoped inputs once for the whole bootstrap request.
     # The individual inspectors still own all interpretation and payload logic;
@@ -222,16 +229,19 @@ module App
         @now = now
       end
 
-      def evidence_for(provider)
-        evidence_by_provider.fetch(provider.to_s, EMPTY)
+      def evidence_for(provider, provider_account: nil)
+        rows = evidence_by_provider.fetch(provider.to_s, EMPTY)
+        provider_account ? rows.select { |row| row.account_id == provider_account.public_id } : rows
       end
 
-      def usage_limit_runs_for(provider)
-        usage_limit_runs_by_provider.fetch(provider.to_s, EMPTY)
+      def usage_limit_runs_for(provider, provider_account: nil)
+        rows = usage_limit_runs_by_provider.fetch(provider.to_s, EMPTY)
+        provider_account ? rows.select { |run| run.provider_account_id == provider_account.id } : rows
       end
 
-      def latest_terminal_run_for(provider)
-        terminal_runs_by_provider[provider.to_s]
+      def latest_terminal_run_for(provider, provider_account: nil)
+        rows = terminal_runs_by_provider.fetch(provider.to_s, EMPTY)
+        rows.find { |run| provider_account.nil? || run.provider_account_id == provider_account.id }
       end
 
       private
@@ -291,16 +301,16 @@ module App
       def terminal_runs_by_provider
         @terminal_runs_by_provider ||= begin
           scopes_by_provider = providers.to_h do |provider|
-            [ provider, Run.where(user_id: user.id, agent_provider: provider) ]
+            account = user.default_provider_account(provider)
+            scope = Run.where(user_id: user.id, agent_provider: provider)
+            scope = scope.where(provider_account_id: account.id) if account
+            [ provider, scope ]
           end
           run_ids_by_provider = ProviderAvailability.latest_terminal_run_ids(scopes_by_provider)
 
           Run.where(id: run_ids_by_provider.values.compact)
             .includes(:run_diagnostic, :run_failure_classification)
-            .index_by(&:id)
-            .then do |runs_by_id|
-              run_ids_by_provider.transform_values { |run_id| runs_by_id[run_id] }.compact
-            end
+            .group_by(&:agent_provider)
         end
       end
     end
@@ -448,6 +458,7 @@ module App
 
       @model_unsupported_evidence_candidates ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "model_unsupported")
+        .then { |scope| evidence_account_scope(scope) }
         .unrepaired_for_circuit
         .where("observed_at >= ?", now - MODEL_UNSUPPORTED_WINDOW)
         .recent
@@ -468,6 +479,7 @@ module App
 
       @auth_error_evidence_candidates ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "auth_error")
+        .then { |scope| evidence_account_scope(scope) }
         .unrepaired_for_circuit
         .where("observed_at >= ?", now - AUTH_ERROR_WINDOW)
         .recent
@@ -486,12 +498,13 @@ module App
         oldest_candidate_at = auth_error_evidence_candidates.filter_map(&:observed_at).min
         if oldest_candidate_at
           if batch
-            batch.evidence_for(provider).select do |evidence|
+            batch.evidence_for(provider, provider_account: provider_account).select do |evidence|
               evidence.positive? && evidence.observed_at > oldest_candidate_at
             end.first(DISPLAY_EVIDENCE_SCAN_LIMIT)
           else
             ProviderAvailabilityEvidence
               .where(user: user, provider: provider)
+              .then { |scope| evidence_account_scope(scope) }
               .positive
               .where("observed_at > ?", oldest_candidate_at)
               .recent
@@ -561,6 +574,7 @@ module App
 
       @usage_limit_evidence_candidates ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "exhausted")
+        .then { |scope| evidence_account_scope(scope) }
         .unrepaired_for_circuit
         .where("observed_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
         .recent
@@ -574,7 +588,7 @@ module App
 
     def positive_evidence_after?(account_id:, model:, observed_at:)
       positives = if batch
-        batch.evidence_for(provider).select(&:positive?)
+        batch.evidence_for(provider, provider_account: provider_account).select(&:positive?)
       else
         positive_suppression_evidence
       end
@@ -604,12 +618,13 @@ module App
         oldest_candidate_at = usage_limit_evidence_candidates.filter_map(&:observed_at).min
         if oldest_candidate_at
           if batch
-            batch.evidence_for(provider).select do |evidence|
+            batch.evidence_for(provider, provider_account: provider_account).select do |evidence|
               evidence.positive? && evidence.observed_at > oldest_candidate_at
             end.first(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
           else
             ProviderAvailabilityEvidence
               .where(user: user, provider: provider)
+              .then { |scope| evidence_account_scope(scope) }
               .positive
               .where("observed_at > ?", oldest_candidate_at)
               .recent
@@ -654,11 +669,12 @@ module App
         batch_evidence(status: "rate_limited", since: now - ProviderCircuitBreaker::WINDOW, unrepaired: true, limit: DISPLAY_EVIDENCE_SCAN_LIMIT)
       else
         ProviderAvailabilityEvidence
-        .where(user: user, provider: provider, status: "rate_limited")
-        .unrepaired_for_circuit
-        .where("observed_at >= ?", now - ProviderCircuitBreaker::WINDOW)
-        .recent
-        .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
+          .where(user: user, provider: provider, status: "rate_limited")
+          .then { |scope| evidence_account_scope(scope) }
+          .unrepaired_for_circuit
+          .where("observed_at >= ?", now - ProviderCircuitBreaker::WINDOW)
+          .recent
+          .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
       end
       candidates.detect do |evidence|
         suppressed = if batch
@@ -687,7 +703,7 @@ module App
     end
 
     def latest_terminal_provider_run
-      return batch.latest_terminal_run_for(provider) if batch
+      return batch.latest_terminal_run_for(provider, provider_account: provider_account) if batch
 
       run_id = self.class.latest_terminal_run_id(provider_run_scope)
       return unless run_id
@@ -699,7 +715,7 @@ module App
     end
 
     def usage_limit_failed_runs
-      return batch.usage_limit_runs_for(provider).first(50) if batch
+      return batch.usage_limit_runs_for(provider, provider_account: provider_account).first(50) if batch
 
       provider_run_scope.left_outer_joins(:run_failure_classification)
          .select(:id, :job_id, :step_id, :user_id, :provider_account_id, :agent_provider, :state, :agent_outcome, :finished_at, :updated_at, :model)
@@ -716,7 +732,8 @@ module App
     end
 
     def provider_run_scope
-      Run.where(user_id: user.id, agent_provider: provider)
+      scope = Run.where(user_id: user.id, agent_provider: provider)
+      provider_account ? scope.where(provider_account_id: provider_account.id) : scope
     end
 
     def usage_limit?(run, text)
@@ -815,7 +832,7 @@ module App
         source: "failed_run",
         observed_at: observed_at&.iso8601,
         provider: provider,
-        account_id: agent_provider_class&.usage_signal_account_id(user),
+        account_id: signal.run.provider_account&.public_id || agent_provider_class&.usage_signal_account_id(user),
         model: signal.model,
         run_id: signal.run.id,
         details: {
@@ -845,19 +862,24 @@ module App
     end
 
     def recent_display_evidence
-      return batch.evidence_for(provider).first(DISPLAY_EVIDENCE_SCAN_LIMIT) if batch
+      return batch.evidence_for(provider, provider_account: provider_account).first(DISPLAY_EVIDENCE_SCAN_LIMIT) if batch
 
       @recent_display_evidence ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider)
+        .then { |scope| evidence_account_scope(scope) }
         .recent
         .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
         .to_a
     end
 
     def batch_evidence(status:, since:, unrepaired:, limit:)
-      batch.evidence_for(provider).select do |evidence|
+      batch.evidence_for(provider, provider_account: provider_account).select do |evidence|
         evidence.status == status && evidence.observed_at >= since && (!unrepaired || evidence.repair_status.nil?)
       end.first(limit)
+    end
+
+    def evidence_account_scope(scope)
+      provider_account ? scope.where(account_id: provider_account.public_id) : scope
     end
 
     def latest_displayable_evidence(evidence_rows)
@@ -882,6 +904,10 @@ module App
     end
 
     def usage_snapshot_source
+      if provider_account && !provider_account.default?
+        return latest_usage_evidence&.details&.dig("snapshot") || {}
+      end
+
       agent_provider_class&.usage_snapshot(user: user, evidence: latest_usage_evidence) || {}
     end
 

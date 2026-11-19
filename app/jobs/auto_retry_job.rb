@@ -67,7 +67,14 @@ class AutoRetryJob < ApplicationJob
   def reschedule_if_provider_blocked(attempt)
     return false if attempt.retry_kind == "retry_workflow" && provider_failover_candidate?(attempt)
 
-    circuit = ProviderCircuitBreaker.call(attempt.agent_provider, include_logs: false)
+    account = attempt.workflow.provider_account if attempt.workflow.agent_provider == attempt.agent_provider
+    account ||= attempt.job&.user&.default_provider_account(attempt.agent_provider)
+    circuit = ProviderCircuitBreaker.call(
+      attempt.agent_provider,
+      include_logs: false,
+      user: attempt.job&.user,
+      provider_account: account
+    )
     return false unless circuit.open?
 
     reschedule_for_circuit(attempt, circuit)
