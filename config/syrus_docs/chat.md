@@ -84,6 +84,18 @@ or cancelled action returns an unchanged, idempotent result. Grouped members
 must be rejected together from their group confirmation card so a single
 withdrawal cannot leave a partially active group.
 
+Operators can use `reset_job(job_id, reason)` when an implementation must be
+discarded completely rather than retried. The destructive confirmation lists
+the open pull request, branch, checkpoints, and active Workflows it will
+remove. Confirmation cancels active execution and releases its locks, removes
+remote and local working state, preserves superseded history for audit, and
+starts fresh from the current effective base when dependencies permit.
+
+`replace_job_dependency(job_id, remove_dependency_job_id,
+add_dependency_job_id)` atomically swaps one prerequisite while preserving its
+satisfaction mode by default. Repository, cycle, and Epic-chain validation is
+applied to the final edge set, and dependency wakeups run only after commit.
+
 Nine chat-sidecar tools wire into this infrastructure: `reopen_job`,
 `retry_job`, `cancel_job`, `close_job_successfully`, `force_landing_recheck`,
 `admin_kill_process`, `approve_job`, `unapprove_job`, and `archive_epic`.

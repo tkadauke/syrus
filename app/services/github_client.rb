@@ -238,6 +238,9 @@ class GithubClient
   # button uses.
   def close_pull_request(repo_slug, pr_number)
     @client.update_pull_request(repo_slug, pr_number, state: "closed")
+    true
+  rescue Octokit::NotFound, Octokit::UnprocessableEntity
+    true
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited closing #{repo_slug}##{pr_number}: #{e.message}")
     raise

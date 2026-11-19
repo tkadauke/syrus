@@ -20,6 +20,47 @@ RSpec.describe ResetJobs::Operation do
     expect(job.workflows.where(trigger_kind: "initial")).to exist
   end
 
+  it "cancels active runtime history, every active WorkUnit, and releases its locks" do
+    job = Factories.job_with_run(user:, repository:, state: "running",
+      workflow_attrs: { state: "running" }, step_attrs: { state: "running" }, run_attrs: { state: "running" })
+    workflow = job.workflows.sole
+    historical_run = job.runs.sole
+    runtime_unit = attach_work_unit(workflow, state: "running")
+    intent = WorkIntent.create!(kind: "manual", state: "requested", repository:, scope_type: "job",
+      scope_id: job.id, actor: user, source_type: "spec")
+    other_unit = WorkUnit.create!(work_intent: intent, kind: "manual", state: "running", repository:,
+      scope_type: "job", scope_id: job.id)
+    other_unit.work_unit_members.create!(job:, role: "primary")
+    lock = other_unit.work_unit_locks.create!(lock_key: "reset-spec:#{job.id}")
+
+    described_class.new(job:, user:, reason: "Discard stale work", pending_action: action).call
+
+    expect([ runtime_unit.reload, other_unit.reload ]).to all(be_cancelled)
+    expect(lock.reload).not_to be_active
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifacts).to include("reset_reason" => "Discard stale work", "reset_actor_id" => user.id)
+    expect(historical_run.reload.artifacts).to include("reset_reason" => "Discard stale work")
+    expect(job.workflows.where(trigger_kind: "initial").count).to eq(2)
+  end
+
+  it "removes an implemented Job's PR, branch, checkpoints, and workspace while retaining history" do
+    job = Factories.job_with_run(user:, repository:, state: "implemented", branch_name: "syrus/old", pr_number: 12)
+    workflow = job.workflows.sole
+    run = job.runs.sole
+    checkpoint = RunCheckpoint.create!(run:, workflow:, step: run.step, job:, repository:, user:,
+      step_kind: run.step.kind, commit_sha: "a" * 40, remote_ref: RunCheckpoint.remote_ref_for(run), status: "published")
+
+    described_class.new(job:, user:, reason: "Start clean", pending_action: action).call
+
+    expect(client).to have_received(:close_pull_request).with(repository.slug, 12)
+    expect(client).to have_received(:delete_branch).with(repository.slug, "syrus/old")
+    expect(client).to have_received(:delete_ref).with(repository.slug, checkpoint.remote_ref)
+    expect(WorkflowWorkspace).to have_received(:cleanup_for).with(workflow, force_local: true, actor: "reset_job", reason: "Start clean")
+    expect(job.reload).to have_attributes(state: "queued", pr_number: nil, branch_name: nil)
+    expect(job.workflows).to include(workflow)
+    expect(RunCheckpoint.where(job:)).to be_empty
+  end
+
   it "returns a Job with an unsatisfied dependency to blocked without starting work" do
     prerequisite = Factories.job_record(user:, repository:, state: "failed", issue_number: 42)
     job = Factories.job_record(user:, repository:, state: "failed", issue_number: 43)
@@ -29,5 +70,19 @@ RSpec.describe ResetJobs::Operation do
 
     expect(job.reload).to be_blocked_by_epic
     expect(job.workflows).to be_empty
+  end
+
+  it "refuses merged Jobs, live stacked parents, and active merge-train members" do
+    merged = Factories.job_record(user:, repository:, state: "closed", closure_reason: "pr_merged")
+    parent = Factories.job_record(user:, repository:, state: "failed", issue_number: 44)
+    Factories.job_record(user:, repository:, state: "running", issue_number: 45,
+      parent_job_id: parent.id, branch_name: "syrus/child")
+    train_job = Factories.job_record(user:, repository:, state: "failed", issue_number: 46)
+    train = MergeTrain.create!(repository:, base_branch: repository.default_branch, priority: "medium", state: "grading")
+    MergeTrainMember.create!(merge_train: train, job: train_job, position: 0)
+
+    expect(described_class.preflight(merged)).to include("create a new Job")
+    expect(described_class.preflight(parent)).to include("Live stacked children", parent.stack_children.sole.slug)
+    expect(described_class.preflight(train_job)).to include("cancel the merge train")
   end
 end

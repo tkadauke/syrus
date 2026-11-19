@@ -5,6 +5,15 @@ RSpec.describe GithubClient do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
+  describe "#close_pull_request" do
+    it "is idempotent when GitHub reports that the PR is already closed or gone" do
+      stub_request(:patch, "https://api.github.com/repos/acme/widgets/pulls/12")
+        .to_return(status: 422, headers: { "Content-Type" => "application/json" }, body: { message: "Validation Failed" }.to_json)
+
+      expect(described_class.new(user).close_pull_request(repository.slug, 12)).to be(true)
+    end
+  end
+
   it "raises when the user has no github_token" do
     bare = Factories.user
     expect { GithubClient.new(bare) }.to raise_error(ArgumentError)

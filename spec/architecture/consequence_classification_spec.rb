@@ -80,6 +80,14 @@ RSpec.describe "consequence classification of every MCP tool" do
       end
     end
 
+    it "classifies reset as destructive and dependency replacement as material control" do
+      reset = registered("reset_job", source: "core").find { |entry| entry.surface == :chat }
+      replacement = registered("replace_job_dependency", source: "core").find { |entry| entry.surface == :chat }
+
+      expect(reset.descriptor.barrier_effects).to include(:destructive)
+      expect(replacement.descriptor.deniable_reason).to eq(:material_control)
+    end
+
     it "keeps deniable reads and Job edits deniable for their stated reasons" do
       {
         "read_run_transcript" => :confidential_cross_boundary, "get_job_diff" => :confidential_cross_boundary,
