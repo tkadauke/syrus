@@ -72,9 +72,20 @@ RSpec.describe ProviderAccount do
 
     account = user.default_provider_account("claude")
     expect(account.credential_payload).to eq("claude_oauth_token" => "oat-one")
+    expect(account.authentication_kind).to eq("oauth_token")
 
     user.clear_credential!("claude_oauth_token")
 
     expect(user.provider_accounts.where(provider_key: "claude")).to be_empty
+  end
+
+
+  it "uses stable semantic authentication kinds declared by each provider" do
+    user.codex_auth_mode = "chatgpt_login"
+
+    expect(AgentProviders::Claude.authentication_kind_for_user(user)).to eq("oauth_token")
+    expect(AgentProviders::Codex.authentication_kind_for_user(user)).to eq("chatgpt_login")
+    expect(AgentProviders::Agy.authentication_kind_for_user(user)).to eq("api_key")
+    expect(AgentProviders::Muse.authentication_kind_for_user(user)).to eq("api_key")
   end
 end

@@ -9,6 +9,7 @@ module Syrus
     #   .display_name   → String  – shown in the settings UI
     #   .available?     → bool    – true when the provider is configured
     #   .credential_attributes → Array<Symbol> – user credentials affecting availability
+    #   .authentication_kind_for_user(user) → String? – semantic kind for a legacy default account
     #   #invoke(job:, step:, workspace:, &block) – streams agent output
     #
     module AgentProvider
@@ -86,6 +87,9 @@ module Syrus
 
         def credential_attributes
           []
+        end
+
+        def authentication_kind_for_user(_user)
         end
 
         # Optional catalog of this provider's selectable models, for a

@@ -14,19 +14,28 @@ RSpec.describe CreateProviderAccounts, :ci_only do
     user.update_columns(
       claude_oauth_token: "oat-legacy",
       codex_auth_mode: "api_key",
-      codex_api_key: "sk-legacy"
+      codex_api_key: "sk-legacy",
+      gemini_api_key: "gemini-legacy",
+      muse_api_key: "muse-legacy"
     )
 
     migration.up
 
     accounts = ProviderAccount.where(user_id: user.id).order(:provider_key)
-    expect(accounts.map { |account| [ account.provider_key, account.position ] }).to eq(
-      [[ "claude", 0 ], [ "codex", 0 ]]
+    expect(accounts.map { |account| [ account.provider_key, account.authentication_kind, account.position ] }).to eq(
+      [
+        [ "agy", "api_key", 0 ],
+        [ "claude", "oauth_token", 0 ],
+        [ "codex", "api_key", 0 ],
+        [ "muse", "api_key", 0 ]
+      ]
     )
-    expect(accounts.first.credential_payload).to eq("claude_oauth_token" => "oat-legacy")
+    expect(accounts.find { |account| account.provider_key == "claude" }.credential_payload).to eq(
+      "claude_oauth_token" => "oat-legacy"
+    )
     expect(user.reload).to have_attributes(claude_oauth_token: "oat-legacy", codex_api_key: "sk-legacy")
 
     stored = ActiveRecord::Base.connection.select_values("SELECT credential_payload FROM provider_accounts")
-    expect(stored.join).not_to include("oat-legacy", "sk-legacy")
+    expect(stored.join).not_to include("oat-legacy", "sk-legacy", "gemini-legacy", "muse-legacy")
   end
 end

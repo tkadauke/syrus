@@ -14,6 +14,7 @@ module AgentProviders
     def self.provider = "claude"
     def self.default_model = DEFAULT_MODEL
     def self.credential_attributes = %i[claude_oauth_token]
+    def self.authentication_kind_for_user(_user) = "oauth_token"
 
     def self.configured_for_user?(user)
       user.claude_oauth_token.present?

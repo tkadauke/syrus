@@ -8,6 +8,7 @@ module AgentProviders
 
     def self.provider = "muse"
     def self.credential_attributes = %i[muse_api_key]
+    def self.authentication_kind_for_user(_user) = "api_key"
 
     def self.configured_for_user?(user)
       user.muse_api_key.present?

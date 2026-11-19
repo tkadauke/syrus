@@ -9,6 +9,7 @@ module AgentProviders
     def self.provider = "codex"
     def self.default_model = CodexInvocation.configured_model
     def self.credential_attributes = %i[codex_api_key codex_auth_json codex_auth_mode]
+    def self.authentication_kind_for_user(user) = user.codex_auth_mode
 
     def self.configured_for_user?(user)
       attr = {

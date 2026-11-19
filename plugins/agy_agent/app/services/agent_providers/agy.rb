@@ -9,6 +9,7 @@ module AgentProviders
     def self.provider = "agy"
     def self.default_model = AgyInvocation.configured_model || available_models.first.id
     def self.credential_attributes = %i[gemini_api_key]
+    def self.authentication_kind_for_user(_user) = "api_key"
 
     def self.configured_for_user?(user)
       user.gemini_api_key.present?

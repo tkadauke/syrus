@@ -14,11 +14,9 @@ class ProviderAccount < ApplicationRecord
         next
       end
 
-      authentication_kind = payload["codex_auth_mode"] || payload[:codex_auth_mode]
-      authentication_kind ||= attributes.find { |attribute| payload[attribute].present? }.to_s
       account ||= user.provider_accounts.build(provider_key: provider_key, position: 0)
       account.assign_attributes(
-        authentication_kind: authentication_kind,
+        authentication_kind: provider.authentication_kind_for_user(user),
         credential_payload: payload.stringify_keys,
         enabled: true
       )
