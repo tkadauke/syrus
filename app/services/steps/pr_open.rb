@@ -409,6 +409,7 @@ module Steps
         push_branch_to_remote(git, push_url)
       end
       record_accepted_push!
+      persist_pushed_all_changes_version!
       :pushed
     rescue GithubPushProtection::Rejected => e
       handle_push_protection_rejection!(e) do
@@ -417,6 +418,7 @@ module Steps
         end
       end
       record_accepted_push!
+      persist_pushed_all_changes_version!
       :pushed
     rescue GitRunner::GitError => e
       raise unless published_review_branch? && push_rejected?(e)

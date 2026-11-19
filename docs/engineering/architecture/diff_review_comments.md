@@ -53,13 +53,22 @@ version is immutable and pinned to exact `base_sha`/`head_sha` values, with
 optional display refs (`base_ref`/`head_ref`), source `workflow_id`/`run_id`,
 `trigger_kind`, a per-Job `version_index`, label/reason metadata, and a JSON
 `files_snapshot` containing the path/status/additions/deletions/patch payload
-needed to render that version later. Agentic change steps create a version as
-soon as they record `run.base_sha`/`run.head_sha`, so an initial implementation
-or feedback attempt is preserved even if the branch advances before an operator
-opens the source diff. The `source_diff` payload also resolves or idempotently
+needed to render that version later. Agentic change steps create both their
+step-scoped version and an idempotent `source_diff` version for the full
+merge-base-to-head range as soon as they record `run.base_sha`/`run.head_sha`.
+This preserves the PR diff after implementation and every later head-moving
+repair or rebase while retaining the smaller step ranges in the selector. The
+`source_diff` payload also resolves or idempotently
 persists a version for the displayed comparison, including explicit `base`/
 `head` selections from the source browser, and now includes `version` plus
 `versions` summary fields for clients that already load that endpoint.
+
+The Review tab defaults to the latest reviewable full-range version, even if a
+live repository comparison failed and the payload itself fell back to a stored
+step range. When no full-range version exists, the payload marks the fallback
+so the UI explicitly says that it is showing a step diff rather than the full
+PR diff. Empty branch history and comparison exceptions are warning-logged
+with the Job slug before a stored fallback is served.
 
 `GET /diff_review_versions` lists stable version metadata in ascending
 `version_index` order and includes `latest_version_id`. `GET

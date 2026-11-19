@@ -1,6 +1,6 @@
 module DiffReviewVersions
   class Creator
-    def self.call(job:, base_sha:, head_sha:, files:, truncated: false, base_ref: nil, head_ref: nil, workflow: nil, run: nil, trigger_kind: nil, label: nil, reason: nil, metadata: {})
+    def self.call(job:, base_sha:, head_sha:, files:, truncated: false, base_ref: nil, head_ref: nil, workflow: nil, run: nil, trigger_kind: nil, label: nil, reason: nil, metadata: {}, source_key: nil)
       new(
         job: job,
         base_sha: base_sha,
@@ -14,11 +14,12 @@ module DiffReviewVersions
         trigger_kind: trigger_kind,
         label: label,
         reason: reason,
-        metadata: metadata
+        metadata: metadata,
+        source_key: source_key
       ).call
     end
 
-    def initialize(job:, base_sha:, head_sha:, files:, truncated:, base_ref:, head_ref:, workflow:, run:, trigger_kind:, label:, reason:, metadata:)
+    def initialize(job:, base_sha:, head_sha:, files:, truncated:, base_ref:, head_ref:, workflow:, run:, trigger_kind:, label:, reason:, metadata:, source_key:)
       @job = job
       @base_sha = base_sha.to_s.strip.presence
       @head_sha = head_sha.to_s.strip.presence
@@ -32,6 +33,7 @@ module DiffReviewVersions
       @label = label
       @reason = reason
       @metadata = metadata
+      @explicit_source_key = source_key.to_s.strip.presence
     end
 
     def call
@@ -40,6 +42,8 @@ module DiffReviewVersions
       @job.with_lock do
         existing_version = @job.diff_review_versions
                                .where(base_sha: @base_sha, head_sha: @head_sha)
+        existing_version = existing_version.where(source_key: @explicit_source_key) if @explicit_source_key
+        existing_version = existing_version
                                .latest_first
                                .first
         return existing_version if existing_version
@@ -67,6 +71,8 @@ module DiffReviewVersions
     private
 
     def source_key
+      return @explicit_source_key if @explicit_source_key
+
       @source_key ||= [
         "workflow", @workflow&.id || "none",
         "run", @run&.id || "none"

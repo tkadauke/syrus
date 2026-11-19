@@ -2501,7 +2501,7 @@ describe("ReviewWorkspace", () => {
     expect(document.querySelector('[data-diff-review-annotation-ids~="historical-note"]')).toBeInTheDocument()
   })
 
-  it("defaults to the live payload version when a stale All changes row has a different range", async () => {
+  it("prefers a persisted All changes version over a payload-matched step version", async () => {
     const staleAllChanges = version({
       id: 3750,
       version_index: 3,
@@ -2539,17 +2539,49 @@ describe("ReviewWorkspace", () => {
         ]
       })
     )
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...staleAllChanges,
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: [
+        {
+          additions: 1,
+          deletions: 0,
+          path: "app/models/stored_all_changes.rb",
+          status: "modified",
+          patch: "@@ -1 +1 @@\n+stored"
+        }
+      ],
+      review_annotations: { annotations: {}, ranges: {}, panels: [], actions: [], counts: [] }
+    })
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 3795))
 
     renderWorkspace()
 
     const selector = await screen.findByLabelText("Version")
-    expect(selector).toHaveTextContent("Rebase")
-    expect(screen.getByTitle("app/services/current_rebase.rb")).toBeInTheDocument()
-    expect(fetchDiffReviewVersion).not.toHaveBeenCalledWith(42, 3750)
+    expect(selector).toHaveTextContent("All changes")
+    expect(await screen.findByTitle("app/models/stored_all_changes.rb")).toBeInTheDocument()
+    expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 3750)
 
     fireEvent.click(selector)
     expect(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "v11 Rebase" })).toBeInTheDocument()
+  })
+
+  it("warns when the review must fall back to a step diff", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        step_diff_fallback: true,
+        version: version({ id: 44, reason: "initial", label: "Initial implementation" }),
+        versions: [version({ id: 44, reason: "initial", label: "Initial implementation" })]
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 44))
+
+    renderWorkspace()
+
+    expect(await screen.findByText("Showing a step diff; the full PR diff is unavailable")).toBeInTheDocument()
+    expect(screen.getByLabelText("Version")).toHaveTextContent("Initial implementation")
   })
 
   it("loads stored-version annotation context from the snapshot head SHA instead of a stale branch ref", async () => {
@@ -3796,6 +3828,7 @@ function sourceDiffPayload(overrides: Partial<JobSourceDiffPayload> = {}): JobSo
     branch_commits: [],
     truncated: false,
     diff_error: null,
+    step_diff_fallback: false,
     version: version(),
     versions: [version()],
     review_annotations: {
