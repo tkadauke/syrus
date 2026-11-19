@@ -116,7 +116,6 @@ RSpec.describe ProviderCircuitBreaker do
 
     expect(described_class.call("codex", now: now, user: user, provider_account: account)).not_to be_open
   end
-
   it "counts repeated rate-limit job logs as retryable provider signals" do
     5.times do |index|
       run = failed_agent_run(
