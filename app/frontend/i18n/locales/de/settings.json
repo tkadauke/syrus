@@ -1960,7 +1960,17 @@
     "repository": "Repository",
     "scope": "Umfang",
     "stale": "Diese Anfrage hat sich seit der Vorschau geändert. Die aktuellen Optionen wurden geladen; prüfe sie und versuche es erneut.",
-    "status_preview": "Die Regel „{{action}}“ wird geprüft."
+    "status_preview": "Die Regel „{{action}}“ wird geprüft.",
+    "breadth": "Gilt für",
+    "more_options": "Weitere Optionen…",
+    "choose_duration": "Wie lange",
+    "choose_breadth": "Wie weit",
+    "review": "Prüfen",
+    "breadths": {
+      "resource": "Nur diese Ressource",
+      "tool": "Jede Nutzung dieses Werkzeugs",
+      "family": "Die ganze Werkzeugfamilie"
+    }
   },
   "permission_editor": {
     "title": "Berechtigungsregel anpassen",

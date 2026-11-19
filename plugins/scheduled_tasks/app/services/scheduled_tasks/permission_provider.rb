@@ -35,10 +35,10 @@ module ScheduledTasks
         ->(_arguments) { { operation:, effects:, risk:, confidence: :certain } }
       end
 
-      def define(capability:, name:, effects:, risk:, default:, maximum_autonomy:, durations:)
+      def define(capability:, name:, effects:, risk:, default:, maximum_autonomy:, durations:, essential: false)
         operation = "scheduled_tasks/#{name}@v1"
         register_capability(
-          capability:, operation:, effects:, risk:,
+          capability:, operation:, effects:, risk:, essential:,
           presentation: Permissions::CapabilityPresentation.for(capability:, operation:),
           requestable_roles: ROLES, defaults: ROLES.index_with { default },
           maximum_autonomy:, authority_durations: durations,
@@ -49,11 +49,12 @@ module ScheduledTasks
       end
     end
 
-    define(capability: OBSERVE, name: "list", effects: %i[local_read], risk: :low,
+    define(capability: OBSERVE, name: "list", effects: %i[local_read], risk: :low, essential: true,
            default: :allow, maximum_autonomy: :permanent, durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS)
-    define(capability: OBSERVE, name: "read", effects: %i[local_read], risk: :low,
+    define(capability: OBSERVE, name: "read", effects: %i[local_read], risk: :low, essential: true,
            default: :allow, maximum_autonomy: :permanent, durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS)
-    define(capability: AUTOMATION, name: "pause", effects: %i[internal_write], risk: :low,
+    # Pausing only removes autonomy, so it is essential.
+    define(capability: AUTOMATION, name: "pause", effects: %i[internal_write], risk: :low, essential: true,
            default: :allow, maximum_autonomy: :permanent, durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS)
     define(capability: AUTOMATION, name: "create", effects: %i[internal_write persistent_autonomy], risk: :medium,
            default: :ask, maximum_autonomy: :chat_session, durations: SESSION)

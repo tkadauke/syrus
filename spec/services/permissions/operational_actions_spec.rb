@@ -25,12 +25,11 @@ RSpec.describe Permissions::OperationalActions do
     expect(operations.uniq.size).to eq(operations.size)
   end
 
-  it "limits every operation to exact-invocation authority defaulting to ask" do
+  it "defaults every operation to ask while letting the operator allow it forever" do
     described_class.tool_names.each do |tool_name|
       descriptor = chat_entries.fetch(tool_name).descriptor
 
-      expect(descriptor.maximum_autonomy).to eq(:invocation)
-      expect(descriptor.authority_durations).to eq([ :invocation ])
+      expect(descriptor.maximum_autonomy).to eq(:permanent)
       expect(descriptor.defaults.values.uniq).to eq([ :ask ])
     end
   end

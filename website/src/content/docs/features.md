@@ -53,14 +53,19 @@ specifies another. Implementation workflow workers omit this context unless a
 specialized prompt actually needs calendar language.
 
 Being available to an ordinary Syrus Chat does not itself authorize a tool.
-Each call goes through the same permission evaluator. Safe defaults remain
-frictionless; an ask-on-first-use decision shows one compact approval for the
-tool's capability bundle and the scopes that are actually safe to grant. You
-can allow only the waiting call, the current chat, or a durable scoped rule
-when the capability supports it. Syrus then resumes the exact fingerprinted
-call once. Denials stop before execution and explain why. A proposal or
-transaction that already has its own confirmation does not add a redundant
-permission prompt in front of that review.
+Each call goes through the same permission evaluator and is audited. The work
+an agent needs to research, plan, and keep its own context -- reading its Jobs
+and docs, asking you a question, naming its chat, writing a private memory,
+drafting a Job proposal, submitting its summary or review -- is essential:
+it always runs, and no rule or confirmation can block it. Anything with a real
+consequence asks first. The approval card lets you allow just the waiting
+call, or choose under More options how long (this chat, this Job, or forever)
+and how broadly (this resource, the whole tool, or the tool family). Every
+operation that asks can be allowed forever at some breadth; arbitrary SQL,
+raw `kubectl`, and SSH commands only for a named database, cluster, or
+destination. Syrus then resumes the exact fingerprinted call once. Denials
+stop before execution and explain why. A transaction that already has its own
+confirmation card keeps that card as its only decision.
 
 The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show
@@ -73,12 +78,13 @@ Operators can filter the inbox by state, agent, requested action, consequence,
 and origin using searchable labeled choices; filters run on the server before
 pagination, so matches beyond the first page are found. Select requests with a shared duration and decide them atomically,
 dismiss obsolete requests without denying future work, and review completed
-history. Coworker approval cards offer Allow once, Deny, and one adaptive
-choice — "Always allow similar", "Allow for this job", or "Allow for this chat",
-whichever is the strongest the capability and your permission ceilings allow.
-It opens a short preview of the exact coworker, operation, scope, duration and
-exclusions; confirming creates a revocable rule and approves the request together,
-or neither.
+history. Approval cards offer Allow once, Deny, one adaptive choice --
+"Always allow similar", "Allow for this job", or "Allow for this chat",
+whichever is the strongest the capability and your permission ceilings allow --
+and More options for any other safe duration and breadth. Each opens a short
+preview of the exact agent, operation, scope, breadth, duration and
+exclusions; confirming creates a revocable rule and approves the request
+together, or neither.
 Customize opens the same fine-grained rule editor used by the Permissions page,
 prefilled from the exact request; it shows the effective rule, what it excludes,
 the ceilings that cap it and examples of what it does and does not match before

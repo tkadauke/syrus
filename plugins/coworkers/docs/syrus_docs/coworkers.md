@@ -226,12 +226,15 @@ Unified permission policy is enforced for every gated call, including read-only
 core tools and plugin-defined tools. `allow` runs immediately, `ask` creates an
 approval request, and `deny` fails closed. Confirming authorizes the stored tool
 name and fingerprinted arguments exactly once through the owning provider; the
-evaluator is rerun while the invocation is atomically claimed. Tools explicitly
-classified as `ungated` bypass this policy because they stay
-within the coworker's workspace or current chat, expose no additional owner
-data, and incur no external cost. The workspace file tools, read-only memory
-tools, `reply_in_chat_thread`, and the in-turn question/suggestion helpers use
-that classification. `message_coworker` remains gated by `coworker.message`
+evaluator is rerun while the invocation is atomically claimed. A coworker's
+rules are its own, separate from chat and from other coworkers, but its
+essentials are the same as a chat's: reading Jobs, Epics, docs and the
+repositories its grants select, writing private memories, drafting proposals,
+asking you questions, and managing its own chat are evaluated and audited but
+can never be denied. Coworker-only essentials are `reply_in_chat_thread`,
+capability discovery, and permission requests and surrender. The workspace
+file tools are allowed by default but stay deniable, because you can protect
+paths in the coworker workspace. `message_coworker` remains gated by `coworker.message`
 and defaults to confirmation.
 
 Tools marked `approval_effect` still evaluate capability policy and fail on an
@@ -275,7 +278,7 @@ uses `reply_in_chat_thread` for follow-ups; it gains no access to unrelated
 chats. Separate positive `max_spawns_per_run` and `max_spawns_per_day`
 constraints default to three and ten.
 
-`reply_in_chat_thread` is an ungated exception to grant approval: it needs no
+`reply_in_chat_thread` is an essential exception to grant approval: it needs no
 per-reply confirmation when the coworker's owner opened
 the bridge thread and both the coworker's chat and an ordinary, non-coworker
 chat belonging to that owner are its members. It can only reply to that

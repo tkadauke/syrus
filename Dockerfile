@@ -9,6 +9,12 @@
 
 # Make sure RUBY_VERSION matches the Ruby version in .ruby-version
 ARG RUBY_VERSION=3.4.10
+
+# The image worker-dev is built on. Locally it is the in-file `worker-deps`
+# stage; bin/deploy points it at a prebuilt toolchain image tagged by a digest
+# of that stage's Dockerfile text, so a code deploy rebuilds and ships only
+# the code layers on top (see lib/deploy/images.rb).
+ARG WORKER_DEPS_IMAGE=worker-deps
 FROM docker.io/library/ruby:$RUBY_VERSION-slim-trixie AS base
 
 # Connect published images to the source repo. GHCR reads this label to link a
@@ -604,7 +610,7 @@ RUN set -eu; \
 # wiring; intentionally parallel to `app` so the two diverge only on
 # the worker tooling (above) and not on runtime contract.
 # ============================================================================
-FROM worker-deps AS worker-dev
+FROM ${WORKER_DEPS_IMAGE} AS worker-dev
 
 USER 1000:1000
 

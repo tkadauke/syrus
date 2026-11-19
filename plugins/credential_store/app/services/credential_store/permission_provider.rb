@@ -199,7 +199,7 @@ module CredentialStore
     register_capability(
       capability: "credential.metadata@v1", operation: "credential.metadata/list@v1",
       presentation: Permissions::CapabilityPresentation.for(capability: "credential.metadata@v1", operation: "credential.metadata/list@v1"),
-      effects: %i[confidential_read], risk: :low,
+      effects: %i[confidential_read], risk: :low, deniable_reason: :confidential_cross_boundary,
       requestable_roles: ROLES, defaults: ROLES.index_with { :allow },
       maximum_autonomy: :permanent,
       authority_durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
@@ -215,6 +215,8 @@ module CredentialStore
       effects: %i[network_read confidential_read credential_use operational],
       risk: :high, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
+      # Arbitrary commands: never broadly, only per destination or command.
+      breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent },
       resource_scope: :ssh_destination, classifier: SshCommandClassification,
       fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments),
       resource_scope_resolver: method(:scope_from_arguments),
@@ -228,6 +230,8 @@ module CredentialStore
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
+      # Arbitrary commands: never broadly, only per destination or command.
+      breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent },
       resource_scope: :ssh_destination, classifier: SshCommandClassification,
       fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments),
       resource_scope_resolver: method(:scope_from_arguments),

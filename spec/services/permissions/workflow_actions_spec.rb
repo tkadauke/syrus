@@ -28,8 +28,7 @@ RSpec.describe Permissions::WorkflowActions do
         expect(descriptor.maximum_autonomy).to eq(:permanent)
       elsif entry.mutation
         expect(descriptor.defaults.values.uniq).to eq([ :ask ])
-        expect(descriptor.maximum_autonomy).to eq(:invocation)
-        expect(descriptor.authority_durations).to eq([ :invocation ])
+        expect(descriptor.maximum_autonomy).to eq(:permanent)
       else
         expect(descriptor.defaults.values.uniq).to eq([ :allow ])
         expect(descriptor.maximum_autonomy).to eq(:permanent)
@@ -63,7 +62,9 @@ RSpec.describe Permissions::WorkflowActions do
         descriptor: entry.descriptor, role:, resource_scope: {}, rules: [], context: {}, arguments: {}
       ).call
 
-      expected = entry.mutation && entry.tool_name != "submit_artifact" ? :ask : :allow
+      # Essential workflow output (summaries, reviews, reports) is always
+      # allowed; the remaining mutations ask.
+      expected = entry.mutation && entry.tool_name != "submit_artifact" && !entry.descriptor.essential? ? :ask : :allow
       expect(decision.policy).to eq(expected)
     end
   end

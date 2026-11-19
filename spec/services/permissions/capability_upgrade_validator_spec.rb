@@ -11,6 +11,7 @@ RSpec.describe Permissions::CapabilityUpgradeValidator do
       defaults: { chat_planner: :ask },
       maximum_autonomy: :job,
       authority_durations: %i[invocation job],
+      breadth_ceilings: %i[family tool resource].index_with(:job),
       maximum_duration: 1.day,
       resource_scope: { type: :example_account, options: { version: 1 } },
       classifier: ->(arguments) { arguments },
@@ -115,13 +116,23 @@ RSpec.describe Permissions::CapabilityUpgradeValidator do
       defaults: { chat_planner: :allow },
       maximum_autonomy: :permanent,
       authority_durations: %i[invocation job permanent],
+      breadth_ceilings: nil,
       maximum_duration: nil
     )
 
     finding = described_class.new(previous: [ descriptor ], current: [ current ]).findings
       .find { |candidate| candidate.code == :semantic_widening }
 
-    expect(finding.message).to include("effects", "maximum autonomy", "authority durations", "maximum duration", "role defaults")
+    expect(finding.message).to include("effects", "maximum autonomy", "authority durations", "maximum duration",
+      "role defaults", "breadth ceilings")
+  end
+
+  it "treats becoming essential as widening" do
+    current = descriptor(operation: "example.data/read@v2", operation_aliases: [ "example.data/read@v1" ], essential: true)
+
+    finding = described_class.new(previous: [ descriptor ], current: [ current ]).findings
+      .find { |candidate| candidate.code == :semantic_widening }
+    expect(finding.message).to include("essential")
   end
 
   it "allows a successor to narrow its authorization contract" do

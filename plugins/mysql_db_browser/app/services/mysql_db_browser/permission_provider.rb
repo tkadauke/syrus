@@ -141,6 +141,9 @@ module MysqlDbBrowser
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: READ_DEFAULTS,
       maximum_autonomy: :invocation, authority_durations: %i[invocation], resource_scope: :query,
+      # Raw SQL: once for the family or the tool, but a named connection,
+      # database or table (a staging database, say) may be allowed forever.
+      breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent },
       classifier: MysqlDbBrowser::QueryClassification,
       fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)
     )

@@ -98,8 +98,11 @@ module SyrusBrowser
 
     def self.register(operation:, capability:, effects:, risk:, defaults: ALLOW_DEFAULTS,
       maximum_autonomy: :job, authority_durations: %i[invocation chat_session job], classifier: nil)
+      # Sandboxed browsing of the agent's own preview is research: navigation
+      # is loopback-confined and page input stays behind the operator's input
+      # lease inside the tools, so the browser is essential (never deniable).
       register_capability(
-        capability:, operation:, effects:, risk:, requestable_roles: ROLES, defaults:,
+        capability:, operation:, effects:, risk:, requestable_roles: ROLES, defaults:, essential: true,
         presentation: Permissions::CapabilityPresentation.for(capability:, operation:),
         maximum_autonomy:, authority_durations:, resource_scope: :browser_session,
         classifier: classifier || fixed_classifier(operation, effects, risk),

@@ -156,6 +156,10 @@ module Permissions
       dimensions << "maximum duration" if duration_widened?(old_descriptor.maximum_duration, new_descriptor.maximum_duration)
       dimensions << "role defaults" if defaults_widened?(old_descriptor, new_descriptor)
       dimensions << "fresh authentication" if fresh_authentication_weakened?(old_descriptor, new_descriptor)
+      dimensions << "breadth ceilings" if CapabilityDescriptor::BREADTHS.any? { |breadth|
+        AUTONOMY_RANK.fetch(new_descriptor.breadth_ceiling(breadth)) > AUTONOMY_RANK.fetch(old_descriptor.breadth_ceiling(breadth))
+      }
+      dimensions << "essential" if new_descriptor.essential? && !old_descriptor.essential?
       dimensions
     end
 

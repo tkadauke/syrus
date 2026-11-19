@@ -2,6 +2,14 @@
 
 Use these rules for prompt composition, chat turn orientation, and agent invocation limits.
 
+- **Classify every new tool's consequences.** A tool is essential (never
+  deniable, still audited), gated by a barrier effect, or deniable for a named
+  reason. `default: allow` is not essential, and internal persistence alone is
+  not a consequence barrier. Core tools go in
+  `Permissions::ConsequenceClassification`; see "Consequence classification"
+  in [plugin authoring](plugins/authoring.md) for the rules and for
+  `breadth_ceilings`.
+
 - **`chat_turn_orientation` vs `chat_prompt_injector`.** An injector adds a
   section to the chat *session's* system prompt and is asked once per turn
   whatever arrived. `chat_turn_orientation` is asked about a *specific incoming

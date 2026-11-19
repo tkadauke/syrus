@@ -1960,7 +1960,17 @@
     "repository": "Repository",
     "scope": "Scope",
     "stale": "This request changed since the preview was shown. The latest options are loaded; review them and try again.",
-    "status_preview": "Reviewing the {{action}} rule."
+    "status_preview": "Reviewing the {{action}} rule.",
+    "breadth": "Applies to",
+    "more_options": "More options…",
+    "choose_duration": "How long",
+    "choose_breadth": "How broadly",
+    "review": "Review",
+    "breadths": {
+      "resource": "This resource only",
+      "tool": "Every use of this tool",
+      "family": "The whole tool family"
+    }
   },
   "permission_editor": {
     "title": "Customize permission rule",

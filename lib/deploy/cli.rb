@@ -41,6 +41,10 @@ module Deploy
       After a successful build and push, stale local image tags and unused
       BuildKit cache are pruned. Disable with SYRUS_DOCKER_POST_BUILD_PRUNE=0;
       set the free-space target with SYRUS_DOCKER_POST_BUILD_MIN_FREE_SPACE=20gb.
+
+      The worker toolchain is reused from a digest-tagged image in GHCR so code
+      deploys rebuild only the code layers. SYRUS_WORKER_DEPS_REFRESH=1 rebuilds
+      it; SYRUS_WORKER_DEPS_IMAGE=0 builds the in-file stage instead.
     TEXT
 
     class << self

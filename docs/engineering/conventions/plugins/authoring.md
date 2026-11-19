@@ -1029,9 +1029,10 @@ keeps its canonical capability descriptor, availability checks, resource
 scope, and handler. Definitions without a legacy `coworker_grants` declaration
 are grouped by their descriptor capability and default to confirmation.
 Existing grants remain supported for labels, scope choices, and compatibility.
-`ungated` remains reserved for tools confined to the coworker's workspace or
-current chat that reveal no data beyond the owner's visibility and incur no
-external cost. Approval replay resolves the tool by name through the enabled
+`ungated` on a definition must mean exactly what `essential: true` means on its
+descriptor (the registry validator rejects a mismatch): tools confined to the
+coworker's own conversation that reveal no data beyond the owner's visibility
+and incur no external cost. Approval replay resolves the tool by name through the enabled
 provider instead of coupling core code to plugin handler classes.
 
 Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
@@ -1044,6 +1045,41 @@ and implement:
 | `.tool_definitions` | `() → [{name:, description:, input_schema:}, ...]` (chat: `(tier:)`) | Every tool this set can offer |
 | `.available_for?` | `(repository) → bool` (chat: `(chat_session, tier:)`) | Whether the set is offered at all |
 | `#handle` | `(tool_name, params, server_context) → MCP::Tool::Response` | Dispatch a call |
+
+#### Consequence classification (required)
+
+Every operation must be classified on purpose, and
+`Permissions::CapabilityRegistryValidator` fails CI otherwise:
+
+- **`essential: true`** -- consequence-free work an agent needs for research,
+  planning, coordination, context management or bounded workflow execution.
+  It is still evaluated and audited, but the evaluator returns `allow` over
+  every rule, lease and preset, the gates never create a request, and the
+  permission UI never offers a rule for it. An essential descriptor may not
+  declare a barrier effect (`CapabilityDescriptor::BARRIER_EFFECTS`).
+- **Gated** -- the descriptor declares a barrier effect (external write,
+  communication, destructive, irreversible, credential use, privilege change,
+  operational, persistent autonomy, operator-host access, financial).
+- **`deniable_reason:`** -- no barrier effect, yet deniable for a named reason
+  from `CapabilityDescriptor::DENIABLE_REASONS` (confidential cross-boundary
+  reads, instance-wide observability, material control, shared state, ...).
+
+`default: allow` is **not** non-deniable: an explicit deny overrides any
+default. Internal persistence alone is **not** a consequence barrier -- a
+private memory, a draft, a bookmark or a workflow summary is essential;
+sharing or destroying it is gated. Split a family whose operations differ
+(read and write a private memory are essential; publish and delete are
+gated). Core tools are classified in `Permissions::ConsequenceClassification`;
+plugins classify their own operations in `register_capability` (or with
+`essential: true` on a legacy tool definition), so core never names a plugin
+tool. Coworkers have their own rules but the same essentials as chat: a chat
+essential stays essential on the coworker surface, and only tools that exist
+on one surface alone carry surface-specific classifications.
+
+Every operation that asks can be allowed forever. To keep a broad grant from
+being offered, narrow `breadth_ceilings:` instead of capping durations, for
+example raw SQL: `{ family: :invocation, tool: :invocation, resource: :permanent }`
+(once for the family or tool, forever for one named database).
 
 Every agent-callable definition is normalized to a
 `Permissions::CapabilityDescriptor` and audited in CI. New definitions must

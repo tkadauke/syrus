@@ -440,7 +440,7 @@ class McpToolRegistry
         )
         coworker(entry.tool, tier: entry.tier, feature_flag: entry.feature_flag,
           feature_flags_by_role: entry.feature_flags_by_role, available_if: entry.available_if,
-          interactive_only: entry.interactive_only, mutation: entry.mutation, ungated: entry.ungated,
+          interactive_only: entry.interactive_only, mutation: entry.mutation,
           approval_effect: entry.approval_effect || pending_action_tool?(entry.tool),
           capability: entry.capability || descriptor.capability.delete_suffix("@v1"), descriptor: descriptor)
       end
@@ -714,8 +714,13 @@ class McpToolRegistry
           default_policy: default_policy
         )
       end
+      resolved_descriptor = Permissions::ConsequenceClassification.apply(resolved_descriptor, tool_name:, surface:)
       # Invariant: a coworker tool can never silently inherit an unsafe `allow`.
       Permissions::CoworkerDefaultPolicy.validate!(resolved_descriptor) if surface.to_sym == :coworker && resolved_descriptor
+      # `ungated` is the registry's view of an essential descriptor. A caller
+      # that asks for an ungated tool the classification does not list gets a
+      # registry that fails CapabilityRegistryValidator, not a silent bypass.
+      ungated ||= resolved_descriptor&.essential? || false
       Entry.new(
         tool: tool,
         surface: surface.to_sym,

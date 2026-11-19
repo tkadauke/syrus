@@ -122,9 +122,11 @@ module Deploy
     end
 
     def build_worker_dev!
+      deps = ensure_worker_deps!
       pull_build_cache("#{config.worker_dev_registry}:latest")
       reporter.step("#{config.worker_dev_registry}:#{sha} build (linux/amd64, target=worker-dev)")
-      build!("worker-dev", config.worker_dev_registry)
+      build!("worker-dev", config.worker_dev_registry,
+        extra: deps ? [ "--build-arg", "WORKER_DEPS_IMAGE=#{deps}" ] : [])
       # Prove the toolchain layer survived the build before anything in a
       # cluster depends on it. The same check runs again against a live pod
       # after the rollout; this one fails before the image is pushed.
@@ -178,15 +180,63 @@ module Deploy
       )
     end
 
-    def build!(target, registry)
+    def build!(target, registry, extra: [])
       result = shell.docker_lib(
         "syrus_docker_build_image", target, sha,
         "--version=#{repo.release_version}", "--version-description=#{repo.version_description}",
         "--platform", "linux/amd64", "--provenance=false", "--sbom=false",
-        *inline_cache_args("#{registry}:latest"),
+        *inline_cache_args("#{registry}:latest"), *extra,
         "-t", "#{registry}:#{sha}", "-t", "#{registry}:latest", "."
       )
       raise Failure.new("#{registry}:#{sha} build failed") unless result.success?
+    end
+
+    # The worker toolchain (the `worker-deps` stage: mise, compilers, language
+    # runtimes -- most of the ~12GB worker image) as its own image, tagged by a
+    # digest of the Dockerfile text it is built from. worker-dev is then built
+    # FROM that image, so a code deploy rebuilds and ships only the code layers
+    # on top, however much local BuildKit cache was pruned to keep the build
+    # disk small, and every node keeps the toolchain layers it already pulled.
+    # The registry, not the laptop, is the cache: one local copy is kept.
+    #
+    # Returns the image reference, or nil when disabled (the build then uses the
+    # in-file stage exactly as before).
+    def ensure_worker_deps!
+      return nil unless config.worker_deps_image?
+
+      key = DockerfileStages.from_file("Dockerfile").digest("worker-deps")
+      registry = config.worker_deps_registry
+      image = "#{registry}:#{key}"
+
+      if !config.worker_deps_refresh? && pushed?(registry, key)
+        reporter.step("#{image}: toolchain unchanged; reusing the registry image")
+        ensure_local!(image)
+      else
+        reporter.step("#{image} build (linux/amd64, target=worker-deps)")
+        result = shell.docker_lib(
+          "syrus_docker_build_image", "worker-deps", sha,
+          "--platform", "linux/amd64", "--provenance=false", "--sbom=false", "-t", image, "."
+        )
+        raise Failure.new("#{image} build failed") unless result.success?
+
+        reporter.step("#{image} push")
+        run_docker!([ "docker", "push", image ])
+        verify_pushed!(registry, key)
+      end
+
+      # Keep exactly one toolchain image on the build disk.
+      shell.docker_lib("syrus_docker_prune_old_repo_tags", key, registry)
+      image
+    end
+
+    # A reused toolchain image must be in the local image store, not merely in
+    # BuildKit's cache, which the post-deploy prune is allowed to empty.
+    def ensure_local!(image)
+      return if shell.dry_run?
+      return if shell.read([ "docker", "image", "inspect", image ]).success?
+
+      reporter.step("#{image}: pulling the toolchain image")
+      run_docker!([ "docker", "pull", "--platform", "linux/amd64", image ])
     end
 
     def push!(registry)

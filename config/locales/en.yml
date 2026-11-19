@@ -284,6 +284,9 @@ en:
       errors:
         unknown_rule: "That permission rule could not be found."
         operation_required: "Choose the exact operation this rule covers."
+        essential_operation: "This operation is an agent essential: it is always allowed and no rule can change that."
+        exceeds_breadth_ceiling: "This operation cannot be allowed %{duration} at %{breadth} breadth. Narrow the rule to a specific resource or allow it once."
+        unknown_breadth: "Choose whether the rule covers this resource, the whole tool, or the whole family."
         unknown_capability: "That capability or operation is not in the permission catalog."
         unknown_policy: "Unknown rule policy."
         unsupported_duration: "Choose chat session, job, or permanent authority."

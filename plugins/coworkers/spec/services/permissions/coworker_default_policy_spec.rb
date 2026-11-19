@@ -133,7 +133,6 @@ RSpec.describe Permissions::CoworkerDefaultPolicy do
         expect(descriptor.benign_internal).to eq(:context_binding)
         expect(descriptor.risk).to eq(:low)
         expect(descriptor.defaults.values.uniq).to eq([ :allow ])
-        expect(descriptor.maximum_autonomy).to eq(:invocation)
       end
     end
 
