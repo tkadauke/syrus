@@ -3,6 +3,10 @@ require "rails_helper"
 RSpec.describe PluginJob do
   include ActiveJob::TestHelper
 
+  before(:all) { ensure_solid_queue_test_tables! }
+  after(:all) { drop_solid_queue_test_tables! }
+  before { clear_solid_queue_test_tables! }
+
   before do
     stub_const("ExamplePluginJob", Class.new(described_class) do
       plugin :example_plugin
@@ -30,11 +34,27 @@ RSpec.describe PluginJob do
 
   it "allows a plugin to raise its shared concurrency cap" do
     stub_const("ParallelPluginJob", Class.new(described_class) do
-      plugin :example_plugin, concurrency: 7
+      plugin :example_plugin, concurrency: 7, concurrency_duration: 30.minutes
     end)
 
     expect(ParallelPluginJob.concurrency_limit).to eq(7)
     expect(ParallelPluginJob.concurrency_group.call).to eq("plugin_example_plugin")
+    expect(ParallelPluginJob.concurrency_duration).to eq(30.minutes)
+  end
+
+  it "uses a renewable lease longer than Solid Queue's default" do
+    job = ExamplePluginJob.new
+    semaphore = SolidQueue::Semaphore.create!(
+      key: job.concurrency_key, value: 1, expires_at: 1.minute.from_now,
+      created_at: Time.current, updated_at: Time.current
+    )
+
+    expect(ExamplePluginJob.concurrency_duration).to eq(PluginJob::DEFAULT_CONCURRENCY_DURATION)
+    expect(ExamplePluginJob.concurrency_duration).to be > SolidQueue.default_concurrency_control_period
+
+    described_class.renew_concurrency_lease(job)
+
+    expect(semaphore.reload.expires_at).to be_within(1.second).of(ExamplePluginJob.concurrency_duration.from_now)
   end
 
   it "retries ordinary failures with backoff and records the final discard" do
