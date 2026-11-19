@@ -1,4 +1,5 @@
-class Coworkers::MentionDeliveryJob < ApplicationJob
+class Coworkers::MentionDeliveryJob < PluginJob
+  plugin :coworkers
   queue_as :chat
 
   discard_on ActiveRecord::RecordNotFound
