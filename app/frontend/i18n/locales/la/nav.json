@@ -335,6 +335,8 @@
   "collapse_coworker_chats": "Colloquia cum {{name}} contrahe",
   "show_more_coworker_chats": "Plura colloquia cum {{name}} ostende",
   "show_less_coworker_chats": "Pauciora colloquia cum {{name}} ostende",
+  "more_coworker_chats": "Plura colloquia",
+  "fewer_coworker_chats": "Pauciora colloquia",
   "recent_chats_options": {
     "all": "Omnia",
     "status_label": "Status",

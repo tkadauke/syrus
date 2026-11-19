@@ -335,6 +335,8 @@
   "collapse_coworker_chats": "Collapse chats with {{name}}",
   "show_more_coworker_chats": "Show more chats with {{name}}",
   "show_less_coworker_chats": "Show fewer chats with {{name}}",
+  "more_coworker_chats": "More chats",
+  "fewer_coworker_chats": "Fewer chats",
   "recent_chats_options": {
     "all": "All",
     "status_label": "Status",
