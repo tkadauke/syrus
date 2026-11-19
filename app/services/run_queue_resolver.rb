@@ -192,6 +192,7 @@ class RunQueueResolver
   def solid_queue_worker_payloads
     SolidQueue::Process.where.not(last_heartbeat_at: nil).filter_map do |process|
       next if process.last_heartbeat_at < InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago
+      next if Syrus::QueueDrain.draining?(process)
 
       capabilities = capabilities_for_process(process)
       {

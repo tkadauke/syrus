@@ -44,6 +44,7 @@ class InstanceVersion < ApplicationRecord
 
     SolidQueue::Process.where.not(last_heartbeat_at: nil).any? do |process|
       next false unless process.last_heartbeat_at >= HEARTBEAT_STALE_THRESHOLD.ago
+      next false if Syrus::QueueDrain.draining?(process)
 
       queue_names(process.metadata&.dig("queues")).include?(queue_name.to_s)
     end

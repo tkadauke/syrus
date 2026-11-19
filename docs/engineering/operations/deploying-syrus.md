@@ -18,6 +18,10 @@ work as soon as it is ready, and the old pod drains. On SIGTERM a SolidQueue
 worker stops claiming jobs and waits `SOLID_QUEUE_SHUTDOWN_TIMEOUT` seconds for
 the ones it holds (SolidQueue's own default is five seconds, which killed every
 running grader on every deploy); the pod's termination grace must exceed it.
+The worker's stop hook also marks its process record draining
+(`Syrus::QueueDrain`), so queue liveness and routing stop treating it as a
+consumer at once: work waiting on its private `worker-<hostname>` queue is
+re-routed on the next reconciler pass instead of sitting until the pod exits.
 
 The rollout counts as done once every node has a ready, non-terminating pod on
 the new template. A DaemonSet's own status is not enough: Kubernetes counts a
