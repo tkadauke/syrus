@@ -67,7 +67,7 @@ Installation and enablement are separate:
 - **Experimental** plugins also require instance beta mode. Beta mode only
   permits enablement; it never enables a plugin automatically.
 
-New installations leave agent-provider plugins, Build Cache, Design Docs,
+New installations leave agent-provider plugins, Build Cache, Local Backups, Design Docs,
 Spending Insights, Team Directory, Credential Store, and Git History disabled.
 Credential Store and Git History are also experimental. Existing installations
 keep their explicit enablement choices when defaults change.

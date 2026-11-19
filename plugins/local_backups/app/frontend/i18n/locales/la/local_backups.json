@@ -1,0 +1,21 @@
+{
+  "nav_local_backups": "Exemplaria Localia",
+  "page_title": "Exemplaria Localia — Administratio",
+  "aria_main": "Inventarium exemplarium localium",
+  "heading": "Exemplaria Localia",
+  "description": "Inventarium immutabile fasciculorum restitutionis obsignatorum in memoria locali.",
+  "loading": "Exemplaria localia onerantur...",
+  "load_error": "Exemplaria localia onerari non possunt.",
+  "not_configured": "SYRUS_BACKUP_ROOT non constitutum est.",
+  "storage": "Radix memoriae",
+  "available": "{{size}} praesto",
+  "invalid": "{{count}} artificia obsignata tuto legi non potuerunt.",
+  "inventory": "Inventarium exemplarium",
+  "empty": "Nulla manifesta exemplarium obsignata inventa sunt.",
+  "created": "Perfectum",
+  "source": "Versio Syrus",
+  "database": "Repositorium datorum",
+  "blobs": "Globuli",
+  "size": "Magnitudo servata",
+  "validation": "Validatio"
+}
