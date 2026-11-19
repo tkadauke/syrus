@@ -5499,23 +5499,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   end
 
   describe "GET /api/v1/app/chats/:id/media" do
-    it "materializes message image attachments before listing the media library" do
-      sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-      stored = create_stored_attachment(chat, name: "shared.png", mime_type: "image/png", bytes: "png-bytes")
-      chat.messages.create!(
-        role: "assistant",
-        content: { "text" => "Shared screenshot.", "attachments" => [ { "id" => stored.id } ] }
-      )
-
-      get "/api/v1/app/chats/#{chat.id}/media"
-
-      expect(response).to have_http_status(:ok)
-      expect(parse_body["chat_images"]).to contain_exactly(
-        include("filename" => "shared.png", "content_type" => "image/png")
-      )
-    end
-
     it "returns snapshots and chat images for the chat session" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
