@@ -99,6 +99,87 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     expect(resumed.steps).to eq(steps.drop(1).first(2))
   end
 
+  it "serializes headroom observation and reservation across workflows" do
+    workflows = [ workflow, Factories.job.workflows.last ]
+    contenders = workflows.map.with_index do |candidate, index|
+      candidate.steps.create!(kind: "grader", position: 200 + index)
+    end
+    lock = Mutex.new
+    settings = instance_double(AppSetting)
+    allow(settings).to receive(:with_lock) { |&block| lock.synchronize(&block) }
+    allow(AppSetting).to receive(:current).and_return(settings)
+    allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(1)
+    allow_any_instance_of(described_class).to receive(:fair_turn?).and_return(true)
+
+    active = 0
+    active_lock = Mutex.new
+    allow_any_instance_of(described_class).to receive(:active_grader_runs) do
+      active_lock.synchronize { active }
+    end
+
+    first_entered = Queue.new
+    release_first = Queue.new
+    results = Queue.new
+    errors = Queue.new
+    threads = workflows.zip(contenders).map.with_index do |(candidate, step), index|
+      Thread.new do
+        described_class.synchronize(workflow: candidate, steps: [ step ]) do |decision|
+          if index.zero?
+            first_entered << true
+            release_first.pop
+          end
+          active_lock.synchronize { active += decision.steps.size }
+          results << decision
+        end
+      rescue StandardError => e
+        errors << e
+      end.tap { first_entered.pop if index.zero? }
+    end
+
+    # The second workflow has attempted admission but cannot observe the same
+    # free slot while the first workflow is still reserving it.
+    expect(results).to be_empty
+    release_first << true
+    threads.each { |thread| thread.join(2) || raise("grader admission thread timed out") }
+    raise errors.pop unless errors.empty?
+
+    decisions = 2.times.map { results.pop }
+    expect(decisions.sum { |decision| decision.steps.size }).to eq(1)
+    expect(decisions.map(&:active_runs)).to contain_exactly(0, 1)
+  end
+
+  it "gives an older deferred workflow the next available turn" do
+    older_job = Factories.job
+    older_workflow = older_job.workflows.last
+    older_job.repository.update!(distributed_workflow_dag_enabled: true)
+    older_workflow.update!(
+      state: "running",
+      artifacts: {
+        "grader_fanout_admission" => {
+          "deferred_at" => 2.minutes.ago.iso8601,
+          "ready_count" => 2,
+          "released_count" => 1
+        }
+      }
+    )
+    older_workflow.steps.create!(
+      kind: "grader",
+      position: 200,
+      placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT
+    )
+    candidate = grader_steps(1).first
+    allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(1)
+
+    waiting = described_class.call(workflow: workflow, steps: [ candidate ])
+    older_workflow.update!(artifacts: older_workflow.artifacts.deep_merge(
+      "grader_fanout_admission" => { "deferred_at" => 1.minute.from_now.iso8601 }
+    ))
+    admitted = described_class.call(workflow: workflow, steps: [ candidate ])
+
+    expect(waiting).to have_attributes(reason: "waiting_for_fair_turn", steps: [])
+    expect(admitted.steps).to eq([ candidate ])
+  end
+
   it "bounds runnable fanout work and reaches collect as completions release slots" do
     workflow.update_columns(state: "running")
     fanout = workflow.steps.create!(kind: "grader_fanout", position: 90, state: "succeeded", finished_at: Time.current)
