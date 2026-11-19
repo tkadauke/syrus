@@ -819,6 +819,15 @@ Per-user credentials use Active Record Encryption:
 - `codex_auth_json`
 - `api_token`
 
+The experimental Connected Accounts plugin can connect a user-owned hosted
+account through an OAuth 2 authorization-code flow with PKCE. Administrators
+configure the generic provider's HTTPS authorization, token, identity,
+validation, and revocation endpoints, client credentials, offered scopes, and
+allowed API origins under **Admin > Connected accounts**. Syrus refreshes
+expiring access tokens and probes account health in the background. Disconnect
+attempts provider revocation and always revokes the local stored credential;
+token material is kept out of logs, audit metadata, and agent transcripts.
+
 Generic plugin-managed credentials live in the bundled `credential_store`
 plugin, which stores payloads as encrypted blobs and keeps only safe display
 metadata outside the encrypted payload. The plugin also exposes brokered MCP

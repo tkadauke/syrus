@@ -21,7 +21,7 @@ module ConnectedAccounts
         key: "fake",
         display_name: "Fake service",
         capabilities: %w[authorization exchange_code refresh revoke identity validate events],
-        callback_route: "/connected_accounts/callback/fake",
+        callback_route: "/api/v1/app/connected_accounts/callback/fake",
         supports_read_only: true,
         scopes: [
           {
@@ -41,7 +41,7 @@ module ConnectedAccounts
       {
         provider: "ConnectedAccounts::GenericOauth2Provider", key: "generic_oauth2", display_name: "Generic OAuth 2",
         capabilities: %w[authorization exchange_code refresh revoke identity validate],
-        callback_route: "/connected_accounts/callback/generic_oauth2", supports_read_only: true,
+        callback_route: "/api/v1/app/connected_accounts/callback/generic_oauth2", supports_read_only: true,
         scopes: [
           { key: "read", label: "Read account data", risk: "low", syrus_capabilities: [ "account.read@v1" ] },
           { key: "write", label: "Change account data", risk: "high", syrus_capabilities: [ "account.write@v1" ] }
@@ -64,8 +64,8 @@ module ConnectedAccounts
       nil
     end
     provides admin_page: "ConnectedAccounts::AdminPages"
-    route :get, "/connected_accounts/connect/:provider", to: "connected_accounts/oauth#start"
-    route :get, "/connected_accounts/callback/:provider", to: "connected_accounts/oauth#callback"
+    route :get, "/api/v1/app/connected_accounts/connect/:provider", to: "api/v1/app/connected_accounts/oauth#start"
+    route :get, "/api/v1/app/connected_accounts/callback/:provider", to: "api/v1/app/connected_accounts/oauth#callback"
     route :delete, "/api/v1/app/connected_accounts/accounts/:id", to: "api/v1/app/connected_accounts/accounts#destroy"
     route :get, "/api/v1/app/admin/connected_accounts/provider_config", to: "api/v1/app/connected_accounts/provider_configs#show"
     route :put, "/api/v1/app/admin/connected_accounts/provider_config", to: "api/v1/app/connected_accounts/provider_configs#update"

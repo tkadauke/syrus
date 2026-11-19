@@ -5,6 +5,8 @@ module ConnectedAccounts
     class << self
       attr_writer :http
 
+      def connect_scope_keys = Array(config!.scope_catalog).map(&:to_s)
+
       def authorization(context)
         config = config!
         challenge = Base64.urlsafe_encode64(Digest::SHA256.digest(context.code_verifier), padding: false)
@@ -24,8 +26,9 @@ module ConnectedAccounts
       end
 
       def revoke(context)
-        return { revoked: false } if config!.revoke_url.blank?
-        response = post_form(config!.revoke_url, token: context.tokens["refresh_token"] || context.tokens["access_token"])
+        config = config!
+        return { revoked: false } if config.revoke_url.blank?
+        response = post_form(config.revoke_url, token: context.tokens["refresh_token"] || context.tokens["access_token"])
         raise_for_response!(response)
         { revoked: true }
       end

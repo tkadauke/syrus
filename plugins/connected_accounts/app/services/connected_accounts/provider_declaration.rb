@@ -51,6 +51,13 @@ module ConnectedAccounts
       Invoker.call(provider: provider.constantize, capability: capability, context: context)
     end
 
+    def connect_scope_keys
+      klass = provider.constantize
+      return klass.connect_scope_keys if klass.respond_to?(:connect_scope_keys)
+
+      scopes.pluck("key")
+    end
+
     private
 
     def accepts_context?(klass, capability)

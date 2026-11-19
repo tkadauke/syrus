@@ -28,4 +28,19 @@ RSpec.describe ConnectedAccounts::OauthBroker do
         redirect_uri: "https://syrus.example/connected_accounts/callback/fake")
     }.to raise_error(ActiveRecord::RecordNotFound)
   end
+
+  it "records a provider scope downgrade without restoring ungranted scopes" do
+    token, = ConnectedAccounts::OauthState.issue!(user: user, session_binding: "browser", provider: "fake",
+      requested_scopes: %w[fake.read fake.write], read_only: false)
+    downgraded_declaration = instance_double(ConnectedAccounts::ProviderDeclaration)
+    allow(ConnectedAccounts::ProviderRegistry).to receive(:fetch).with("fake").and_return(downgraded_declaration)
+    allow(downgraded_declaration).to receive(:call).with("exchange_code", anything)
+      .and_return(access_token: "access", refresh_token: "refresh", expires_in: 3600, scope: "fake.read")
+    allow(downgraded_declaration).to receive(:call).with("identity", anything).and_return(label: "downgraded@example.com")
+
+    account = described_class.complete!(provider: "fake", state: token, code: "one", user: user,
+      session_binding: "browser", redirect_uri: "https://syrus.example/api/v1/app/connected_accounts/callback/fake")
+
+    expect(account).to have_attributes(granted_scopes: [ "fake.read" ], scope_ceiling: [ "fake.read" ])
+  end
 end
