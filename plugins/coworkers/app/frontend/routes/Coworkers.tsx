@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { FormEvent, useEffect, useState } from "react"
+import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Avatar } from "@app/components/Avatar"
 import { AvatarPicker } from "@app/components/AvatarPicker"
@@ -10,6 +10,7 @@ import { Select } from "@app/components/Select"
 import { Textarea } from "@app/components/Textarea"
 import { PageHeading } from "@app/components/Heading"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { ToolApprovalDetails } from "@app/components/ToolApprovalDetails"
 import { FilterBar, type FilterLinkBuilder, type FilterTree } from "@app/components/FilterBar"
 import { Page } from "@app/components/ui"
@@ -24,6 +25,10 @@ import {
   createCoworker,
   createSideChat,
   fetchCoworker,
+  fetchCoworkerConversationIndex,
+  renameCoworkerConversation,
+  archiveCoworkerConversation,
+  deleteCoworkerConversation,
   fetchCoworkerOptions,
   fetchCoworkerTab,
   fetchCoworkerActivity,
@@ -39,6 +44,7 @@ import {
   updateCoworker,
   updateCoworkerGrant,
   type CoworkerDetail,
+  type CoworkerConversation,
   type CoworkerSchedule,
   type CoworkerMemoryFile,
   type CoworkerSummary
@@ -452,7 +458,11 @@ function CoworkerPage({ id }: { id: string }) {
   const sideChat = useMutation({
     mutationFn: () => createSideChat(Number(id)),
     onSuccess: async (data) => {
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }), queryClient.invalidateQueries({ queryKey: ["chats"] })])
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }),
+        queryClient.invalidateQueries({ queryKey: ["coworkers", id, "conversation-index"] }),
+        queryClient.invalidateQueries({ queryKey: ["chats"] })
+      ])
       navigate(withRoutePrefix(data.chat_path, prefix))
     }
   })
@@ -480,17 +490,7 @@ function CoworkerPage({ id }: { id: string }) {
       </Page.Header>
       <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"]} />
       {tab === "chat" ? (
-        <section className="space-y-3">
-          <button className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60" disabled={sideChat.isPending} onClick={() => sideChat.mutate()}>
-            {sideChat.isPending ? t("detail.creating_side_chat") : t("detail.new_side_chat")}
-          </button>
-          {sideChat.isError ? <PanelMessage>{sideChat.error.message}</PanelMessage> : null}
-          {coworker.chats.map((chat) => (
-            <Link className="block rounded border border-border bg-surface p-3 text-brand" key={chat.id} to={withRoutePrefix(chat.path, prefix)}>
-              {chat.role === "main" ? t("detail.main_chat") : chat.title}
-            </Link>
-          ))}
-        </section>
+        <CoworkerConversationIndex id={id} create={sideChat} legacyChats={coworker.chats} prefix={prefix} />
       ) : null}
       {tab === "profile" ? (
         <section className="space-y-4 rounded border border-border bg-surface p-5">
@@ -515,6 +515,189 @@ function CoworkerPage({ id }: { id: string }) {
       ) : null}
     </Page.Root>
   )
+}
+
+function CoworkerConversationIndex({
+  id,
+  prefix,
+  create,
+  legacyChats
+}: {
+  id: string
+  prefix: string
+  create: { isPending: boolean; isError: boolean; error: Error | null; mutate: () => void }
+  legacyChats: CoworkerDetail["chats"]
+}) {
+  const { t } = useT("coworkers")
+  const location = useLocation()
+  const navigate = useNavigate()
+  const querySearch = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    params.delete("tab")
+    const value = params.toString()
+    return value ? `?${value}` : ""
+  }, [location.search])
+  const query = useQuery({
+    queryKey: ["coworkers", id, "conversation-index", querySearch],
+    queryFn: () => fetchCoworkerConversationIndex(id, querySearch),
+    placeholderData: (previous) => previous
+  })
+  const [older, setOlder] = useState<CoworkerConversation[]>([])
+  const [cursor, setCursor] = useState<string | null>(null)
+  const loadMore = useMutation({
+    mutationFn: () => {
+      const params = new URLSearchParams(querySearch)
+      if (cursor) params.set("cursor", cursor)
+      return fetchCoworkerConversationIndex(id, `?${params}`)
+    },
+    onSuccess: (page) => {
+      setOlder((current) => [...current, ...page.side_chats])
+      setCursor(page.next_cursor)
+    }
+  })
+  useEffect(() => {
+    setOlder([])
+    setCursor(query.data?.next_cursor || null)
+  }, [query.data, querySearch])
+
+  function setSort(event: React.ChangeEvent<HTMLSelectElement>) {
+    const params = new URLSearchParams(location.search)
+    if (event.target.value === "last_activity") params.delete("sort")
+    else params.set("sort", event.target.value)
+    params.delete("cursor")
+    navigate(`${location.pathname}?${params}`)
+  }
+
+  if (query.isPending) return <PanelMessage>{t("conversations.loading")}</PanelMessage>
+  if (query.isError || !query.data) return <PanelMessage>{t("conversations.error")}</PanelMessage>
+  const payload = Array.isArray(query.data.side_chats) && Array.isArray(query.data.filter_schema) ? query.data : legacyConversationPayload(legacyChats)
+  const sideChats = [...payload.side_chats, ...older]
+  return (
+    <section className="space-y-5" aria-label={t("conversations.index_label")}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">{t("conversations.heading")}</h2>
+          <p className="text-sm text-text-secondary">{t("conversations.description")}</p>
+        </div>
+        <button className="shrink-0 rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60" disabled={create.isPending} onClick={() => create.mutate()}>
+          {create.isPending ? t("detail.creating_side_chat") : t("detail.new_side_chat")}
+        </button>
+      </div>
+      {create.isError && create.error ? <PanelMessage>{create.error.message}</PanelMessage> : null}
+      {payload.main_chat ? (
+        <div>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("conversations.pinned")}</h3>
+          <ConversationRow chat={payload.main_chat} coworkerId={id} prefix={prefix} />
+        </div>
+      ) : null}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">{t("activity.side_chats")}</h3>
+            <p className="text-sm text-text-secondary">{t("conversations.result_count", { count: payload.result_count })}</p>
+          </div>
+          <label className="text-sm font-medium">
+            {t("conversations.sort")}
+            <Select className="ml-2" onChange={setSort} value={payload.sort}>
+              <option value="last_activity">{t("conversations.sort_last_activity")}</option>
+              <option value="title">{t("conversations.sort_title")}</option>
+              <option value="created_at">{t("conversations.sort_created")}</option>
+            </Select>
+          </label>
+        </div>
+        <div className="rounded border border-border bg-surface p-3">
+          <FilterBar filter={payload.filter} filterSchema={payload.filter_schema} pathname={location.pathname} search={location.search} />
+        </div>
+        {sideChats.length ? (
+          <ul className="divide-y divide-border rounded border border-border bg-surface">
+            {sideChats.map((chat) => <li key={chat.id}><ConversationRow chat={chat} coworkerId={id} prefix={prefix} /></li>)}
+          </ul>
+        ) : (
+          <PanelMessage>{payload.result_count === 0 && !location.search.includes("q=") ? t("activity.no_side_chats") : t("conversations.no_matches")}</PanelMessage>
+        )}
+        {cursor ? (
+          <button className="rounded border border-border px-3 py-2 text-sm disabled:opacity-60" disabled={loadMore.isPending} onClick={() => loadMore.mutate()}>
+            {loadMore.isPending ? t("conversations.loading_more") : t("activity.load_more")}
+          </button>
+        ) : null}
+        {loadMore.isError ? <PanelMessage>{t("conversations.error")}</PanelMessage> : null}
+      </div>
+    </section>
+  )
+}
+
+function legacyConversationPayload(chats: CoworkerDetail["chats"]): Awaited<ReturnType<typeof fetchCoworkerConversationIndex>> {
+  const row = (chat: CoworkerDetail["chats"][number]): CoworkerConversation => ({
+    id: chat.id, title: chat.title, path: chat.path, main: chat.role === "main", preview: null,
+    last_activity_at: "", created_at: "", archived: false,
+    unread: false, active_work: false, title_match: false, match_count: 0, match: null
+  })
+  return {
+    main_chat: chats.find((chat) => chat.role === "main") ? row(chats.find((chat) => chat.role === "main")!) : null,
+    side_chats: chats.filter((chat) => chat.role === "side").map(row), result_count: chats.filter((chat) => chat.role === "side").length,
+    next_cursor: null, filter: { and: [] }, filter_schema: [], sort: "last_activity"
+  }
+}
+
+function ConversationRow({ chat, coworkerId, prefix }: { chat: CoworkerConversation; coworkerId: string; prefix: string }) {
+  const { t } = useT("coworkers")
+  const queryClient = useQueryClient()
+  const action = useMutation({
+    mutationFn: async (kind: "rename" | "archive" | "delete") => {
+      if (kind === "rename") {
+        const title = window.prompt(t("conversations.rename_prompt"), chat.title)?.trim()
+        if (title) await renameCoworkerConversation(chat.id, title)
+      } else if (kind === "archive") {
+        await archiveCoworkerConversation(chat.id, chat.archived)
+      } else if (window.confirm(t("conversations.delete_confirm", { title: chat.title }))) {
+        await deleteCoworkerConversation(chat.id)
+      }
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["coworkers", coworkerId, "conversation-index"] })
+  })
+  return (
+    <article className={`flex min-w-0 items-start gap-3 p-4 ${chat.main ? "rounded border border-brand/30 bg-brand/5" : ""}`}>
+      <Link className="min-w-0 flex-1" to={withRoutePrefix(chat.path, prefix)}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-brand">{chat.main ? t("detail.main_chat") : chat.title_match ? <mark>{chat.title}</mark> : chat.title}</span>
+          {chat.unread ? <span className="rounded-full bg-brand px-2 py-0.5 text-xs text-white">{t("conversations.unread")}</span> : null}
+          {chat.active_work ? <span className="rounded-full bg-warning-subtle px-2 py-0.5 text-xs">{t("conversations.active_work")}</span> : null}
+          {chat.archived ? <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs">{t("conversations.archived")}</span> : null}
+          {chat.match_count > 0 ? <span className="text-xs text-text-secondary">{t("conversations.matches", { count: chat.match_count })}</span> : null}
+        </div>
+        {chat.match ? <p className="mt-1 line-clamp-2 text-sm text-text-secondary" dangerouslySetInnerHTML={{ __html: safeMatchSnippet(chat.match.snippet) }} /> :
+          chat.preview ? <p className="mt-1 line-clamp-2 text-sm text-text-secondary">{chat.preview}</p> : null}
+        {chat.last_activity_at ? <RelativeTimestamp value={chat.last_activity_at} /> : null}
+      </Link>
+      {!chat.main ? (
+        <details className="relative shrink-0">
+          <summary aria-label={t("conversations.actions", { title: chat.title })} className="cursor-pointer list-none rounded px-2 py-1 text-text-secondary">•••</summary>
+          <div className="absolute right-0 z-10 mt-1 min-w-32 rounded border border-border bg-surface p-1 shadow-lg">
+            <button className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted" disabled={action.isPending} onClick={() => action.mutate("rename")}>{t("conversations.rename")}</button>
+            <button className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted" disabled={action.isPending} onClick={() => action.mutate("archive")}>{t(chat.archived ? "conversations.restore" : "conversations.archive")}</button>
+            <button className="block w-full rounded px-3 py-2 text-left text-sm text-danger-text hover:bg-surface-muted" disabled={action.isPending} onClick={() => action.mutate("delete")}>{t("conversations.delete")}</button>
+          </div>
+        </details>
+      ) : null}
+    </article>
+  )
+}
+
+function safeMatchSnippet(html: string) {
+  const template = document.createElement("template")
+  template.innerHTML = html
+  const output = document.createElement("span")
+  const clean = (node: Node, parent: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) return parent.appendChild(document.createTextNode(node.textContent || ""))
+    if (node instanceof HTMLElement && node.tagName.toLowerCase() === "mark") {
+      const mark = document.createElement("mark")
+      node.childNodes.forEach((child) => clean(child, mark))
+      return parent.appendChild(mark)
+    }
+    node.childNodes.forEach((child) => clean(child, parent))
+  }
+  template.content.childNodes.forEach((child) => clean(child, output))
+  return output.innerHTML
 }
 
 function CoworkerApprovals({ id }: { id: string }) {

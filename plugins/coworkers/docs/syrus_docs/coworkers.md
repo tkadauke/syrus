@@ -186,6 +186,16 @@ handles, model preferences, workspace remotes, appearance, explicit capability
 grants, and main or side chat links. Existing chats remain Syrus chats unless a
 coworker chat link explicitly assigns them to a coworker.
 
+The Chat tab keeps the main chat pinned above a paginated side-chat index. Its
+shared FilterBar searches titles and indexed message contents and filters by
+active or archived state, unread state, active work, creation date, and last
+activity. The URL preserves filters and sorting. Results include bounded
+message previews or highlighted search excerpts, match counts, activity and
+unread indicators, and standard rename, archive or restore, and delete actions.
+Hidden mention working sessions are excluded. New side chats receive a normal
+generated title after their first substantive message, while explicit renames
+remain authoritative.
+
 Coworker creation validates and tests the GitHub remote before creating any
 records. It registers a previously unknown remote with polling and PR
 automations disabled, then seeds an isolated `coworkers/<handle>` home branch.

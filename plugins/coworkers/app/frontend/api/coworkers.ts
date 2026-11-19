@@ -59,6 +59,30 @@ export type CoworkerDetail = CoworkerSummary & {
     delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
   }
 }
+export type CoworkerConversation = {
+  id: number
+  title: string
+  path: string
+  main: boolean
+  preview: string | null
+  last_activity_at: string
+  created_at: string
+  archived: boolean
+  unread: boolean
+  active_work: boolean
+  title_match: boolean
+  match_count: number
+  match: { message_id: number; snippet: string } | null
+}
+export type CoworkerConversationIndex = {
+  main_chat: CoworkerConversation | null
+  side_chats: CoworkerConversation[]
+  result_count: number
+  next_cursor: string | null
+  filter: Record<string, unknown>
+  filter_schema: import("@app/components/FilterBar").FilterSchemaField[]
+  sort: "last_activity" | "title" | "created_at"
+}
 export type UnsavedWorkspace = {
   branch: string
   path: string
@@ -190,6 +214,12 @@ export function fetchCoworker(id: string) {
 export function fetchCoworkerTab(id: string, tab: "profile" | "chats" | "capabilities" | "schedules") {
   return getJson<Partial<CoworkerDetail>>(`/api/v1/app/coworkers/${id}/${tab}`)
 }
+export function fetchCoworkerConversationIndex(id: string, search = "") {
+  return getJson<CoworkerConversationIndex>(`/api/v1/app/coworkers/${id}/conversation_index${search}`)
+}
+export const renameCoworkerConversation = (chatId: number, title: string) => patchJson(`/api/v1/app/chats/${chatId}/rename`, { name: title })
+export const archiveCoworkerConversation = (chatId: number, archived: boolean) => patchJson(`/api/v1/app/chats/${chatId}/${archived ? "unhide" : "hide"}`)
+export const deleteCoworkerConversation = (chatId: number) => deleteJson(`/api/v1/app/chats/${chatId}`)
 export function fetchCoworkerMemory(id: string, search: string) {
   return getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
 }
