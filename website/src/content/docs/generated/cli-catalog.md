@@ -61,6 +61,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus local` | Connect this machine to a Syrus Local Mode chat session | `--chat`, `--debug`, `--dir`, `--profile`, `--token` | no |
 | `syrus login` | Log in to a Syrus instance | `--debug`, `--profile`, `--token`, `--url` | no |
 | `syrus plugin` | Develop and inspect Syrus plugins | `--debug`, `--profile` | no |
+| `syrus plugin dev [DIR]` | Run a throwaway Syrus that reloads a plugin as you edit | `--debug`, `--keep-data`, `--profile`, `--syrus-version` | no |
 | `syrus plugin new NAME` | Create a tested external plugin project | `--cli`, `--debug`, `--frontend`, `--model`, `--path`, `--profile`, `--syrus-version` | no |
 | `syrus plugin test [DIR]` | Validate and test a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
 | `syrus plugin validate [DIR]` | Validate a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
