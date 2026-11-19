@@ -16,8 +16,8 @@ class Coworkers::ConversationIndex
   end
 
   def call
-    main_link = coworker.coworker_chats.includes(chat_session: :chat_participants).find(&:main?)
-    relation, search_rows = filtered_relation
+    main_link = coworker.coworker_chats.where(role: "main").includes(chat_session: :chat_participants).first
+    relation, search_rows, title_match_ids = filtered_relation
     total = relation.count
     records = page(relation).includes(:chat_participants).to_a
     messages = last_messages(records)
@@ -25,9 +25,10 @@ class Coworkers::ConversationIndex
       .distinct.pluck(:chat_session_id).to_set
 
     {
-      main_chat: main_link && summary(main_link.chat_session, main: true),
+      main_chat: main_link && summary(main_link.chat_session, main: true, title_match_ids: title_match_ids),
       side_chats: records.map do |chat|
-        summary(chat, message: messages[chat.id], search_rows: search_rows[chat.id], active_work: chat.turn_in_flight? || pending_ids.include?(chat.id))
+        summary(chat, message: messages[chat.id], search_rows: search_rows[chat.id], title_match_ids: title_match_ids,
+          active_work: chat.turn_in_flight? || pending_ids.include?(chat.id))
       end,
       result_count: total,
       next_cursor: records.length == PAGE_SIZE ? encode_cursor(records.last) : nil,
@@ -49,6 +50,7 @@ class Coworkers::ConversationIndex
   def filtered_relation
     relation = base_relation
     rows_by_chat = {}
+    title_match_ids = Set.new
     chips.each do |chip|
       field = chip.fetch("field")
       value = chip["value"]
@@ -60,7 +62,7 @@ class Coworkers::ConversationIndex
           snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: SNIPPET_TOKENS)
         rows_by_chat = rows.group_by { |row| row.fetch(:chat_session_id).to_i }
         title_ids = relation.where("LOWER(chat_sessions.title) LIKE ?", "%#{ApplicationRecord.sanitize_sql_like(query.downcase)}%").pluck(:id)
-        @title_match_ids = title_ids.to_set
+        title_match_ids = title_ids.to_set
         relation = relation.where(id: rows_by_chat.keys | title_ids)
       when "status"
         participant_scope = ChatParticipant.where(user_id: user.id)
@@ -77,7 +79,7 @@ class Coworkers::ConversationIndex
         relation = relation.where("chat_sessions.turn_in_flight = ? OR chat_sessions.id IN (?)", true, pending)
       end
     end
-    [ relation.distinct, rows_by_chat ]
+    [ relation.distinct, rows_by_chat, title_match_ids ]
   end
 
   def chips
@@ -115,7 +117,7 @@ class Coworkers::ConversationIndex
   end
 
   def descending_page(relation, column, value, id)
-    relation.where("#{column} < ? OR (#{column} = ? AND chat_sessions.id < ?)", Time.zone.parse(value), Time.zone.parse(value), id)
+    relation.where("#{column} < ? OR (#{column} = ? AND chat_sessions.id < ?)", value, value, id)
   end
 
   def activity_sql = "COALESCE(chat_sessions.last_message_at, chat_sessions.created_at)"
@@ -126,9 +128,15 @@ class Coworkers::ConversationIndex
   end
 
   def decode_cursor
-    value, id = JSON.parse(Base64.urlsafe_decode64(cursor.to_s))
-    raise InvalidCursor unless id.to_i.positive?
-    [ value, id.to_i ]
+    decoded = JSON.parse(Base64.urlsafe_decode64(cursor.to_s))
+    raise InvalidCursor, "invalid conversation cursor" unless decoded.is_a?(Array) && decoded.length == 2
+
+    value, raw_id = decoded
+    id = Integer(raw_id, exception: false)
+    raise InvalidCursor, "invalid conversation cursor" unless value.is_a?(String) && id&.positive?
+
+    value = Time.zone.iso8601(value) unless sort == "title"
+    [ value, id ]
   rescue ArgumentError, JSON::ParserError, TypeError
     raise InvalidCursor, "invalid conversation cursor"
   end
@@ -140,7 +148,7 @@ class Coworkers::ConversationIndex
     ChatMessage.where(id: latest_ids).index_by(&:chat_session_id)
   end
 
-  def summary(chat, main: false, message: nil, search_rows: nil, active_work: false)
+  def summary(chat, main: false, message: nil, search_rows: nil, title_match_ids: Set.new, active_work: false)
     participant = chat.chat_participants.find { |entry| entry.user_id == user.id }
     first_match = search_rows&.first
     {
@@ -148,8 +156,8 @@ class Coworkers::ConversationIndex
       main: main, preview: message&.preview_text&.truncate(240), last_activity_at: (chat.last_message_at || chat.created_at).iso8601,
       created_at: chat.created_at.iso8601, archived: participant&.hidden_at.present?,
       unread: chat.last_message_at.present? && (participant&.last_read_at.blank? || chat.last_message_at > participant.last_read_at),
-      active_work: active_work, title_match: @title_match_ids&.include?(chat.id) || false,
-      match_count: search_rows&.length.to_i + (@title_match_ids&.include?(chat.id) ? 1 : 0),
+      active_work: active_work, title_match: title_match_ids.include?(chat.id),
+      match_count: search_rows&.length.to_i + (title_match_ids.include?(chat.id) ? 1 : 0),
       match: first_match && { message_id: first_match.fetch(:chat_message_id).to_i, snippet: first_match.fetch(:snippet) }
     }
   end

@@ -88,6 +88,14 @@ RSpec.describe Coworkers::ConversationIndex do
     expect(titled.fetch(:side_chats).pluck(:title)).to eq(%w[Alpha Bravo])
   end
 
+  it "rejects a cursor whose value is invalid for the selected sort" do
+    cursor = Base64.urlsafe_encode64(JSON.generate([ "not-a-date", 42 ]), padding: false)
+
+    expect {
+      described_class.new(coworker: coworker, user: owner, cursor: cursor).call
+    }.to raise_error(described_class::InvalidCursor, "invalid conversation cursor")
+  end
+
   it "loads previews and indicators without per-chat queries" do
     5.times do |index|
       chat = linked_chat("Chat #{index}", role: "side", last_message_at: index.minutes.ago)
