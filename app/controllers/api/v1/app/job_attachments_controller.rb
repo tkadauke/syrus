@@ -42,7 +42,7 @@ module Api
           else
             render_error(
               "validation_failed",
-              errors.presence&.to_sentence || "Choose a file or enter a Google Doc URL.",
+              errors.presence&.to_sentence || "Choose a file.",
               status: :unprocessable_content
             )
           end
@@ -82,27 +82,11 @@ module Api
             end
           end
 
-          if google_doc_url.present?
-            attachment = job.job_attachments.build(
-              attachment_type: "google_doc_link",
-              google_doc_url: google_doc_url
-            )
-            if attachment.save
-              created << attachment
-            else
-              errors.concat(attachment.errors.full_messages)
-            end
-          end
-
           [ created, errors ]
         end
 
         def uploaded_files
           Array(params.dig(:job_attachment, :files)).compact_blank
-        end
-
-        def google_doc_url
-          params.dig(:job_attachment, :google_doc_url).to_s.strip
         end
 
         def attachment_create_message(created, errors)
@@ -141,7 +125,6 @@ module Api
             filename: attachment.filename,
             content_type: attachment.content_type,
             byte_size: attachment.byte_size,
-            google_doc_url: attachment.google_doc_url,
             uploaded_file: attachment.uploaded_file?,
             file_path: attachment.file.attached? ? app_file_path(job, attachment) : nil,
             content_path: attachment.file.attached? ? app_content_path(job, attachment) : nil,

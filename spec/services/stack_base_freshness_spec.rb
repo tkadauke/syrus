@@ -2,7 +2,9 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe StackBaseFreshness, :ci_only do
-  let(:git) { GitRunner.new }
+  # ProcessRunner's test environment may not include the active Ruby's bin dir,
+  # while the repository's real merge driver intentionally uses env ruby.
+  let(:git) { GitRunner.new(env: { "PATH" => "#{RbConfig::CONFIG.fetch('bindir')}:#{ENV.fetch('PATH')}" }) }
   let(:tmp) { Pathname.new(Dir.mktmpdir("stack-base-freshness")) }
   let(:remote) { tmp.join("remote.git") }
   let(:parent_clone) { tmp.join("parent") }
@@ -39,6 +41,14 @@ RSpec.describe StackBaseFreshness, :ci_only do
     sh(tmp, "clone", "-q", remote.to_s, parent_clone.to_s)
     sh(parent_clone, "checkout", "-q", "-b", "main")
     commit(parent_clone, "base.txt")
+    FileUtils.mkdir_p(parent_clone.join("bin"))
+    FileUtils.mkdir_p(parent_clone.join("db"))
+    FileUtils.cp(Rails.root.join("bin/merge-ruby-schema"), parent_clone.join("bin/merge-ruby-schema"))
+    FileUtils.chmod(0o755, parent_clone.join("bin/merge-ruby-schema"))
+    File.write(parent_clone.join(".gitattributes"), "db/schema.rb merge=ruby_schema\n")
+    File.write(parent_clone.join("db/schema.rb"), schema(version: "2026_01_01_000001"))
+    sh(parent_clone, "add", ".gitattributes", "bin/merge-ruby-schema", "db/schema.rb")
+    sh(parent_clone, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-m", "add schema driver")
     sh(parent_clone, "push", "-q", "origin", "main")
     sh(parent_clone, "checkout", "-q", "-b", "parent")
     commit(parent_clone, "parent.txt")
@@ -65,6 +75,20 @@ RSpec.describe StackBaseFreshness, :ci_only do
   end
 
   def child_files = sh(child, "ls-tree", "-r", "--name-only", "HEAD").split("\n")
+
+  def schema(version:, body: "create_table \"widgets\", force: :cascade do |t|\n  t.string \"name\"\nend")
+    <<~RUBY
+      ActiveRecord::Schema[8.1].define(version: #{version}) do
+        #{body}
+      end
+    RUBY
+  end
+
+  def replace_schema(dir, version:, body: nil, message:)
+    File.write(dir.join("db/schema.rb"), schema(version: version, **({ body: body }.compact)))
+    sh(dir, "add", "db/schema.rb")
+    sh(dir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-m", message)
+  end
 
   it "passes through untouched when the parent did not move" do
     head = sh(child, "rev-parse", "HEAD")
@@ -143,6 +167,40 @@ RSpec.describe StackBaseFreshness, :ci_only do
     expect { barrier.ensure_fresh! }.to raise_error(described_class::RebaseConflict)
     expect(child.join(".git/rebase-merge")).not_to exist
     expect(child.join(".git/rebase-apply")).not_to exist
+  end
+
+  it "registers the repository schema driver so version-only migration updates rebase cleanly" do
+    replace_schema(child, version: "2026_01_02_000001", message: "child migration")
+    sh(parent_clone, "checkout", "-q", "parent")
+    replace_schema(parent_clone, version: "2026_01_03_000001", message: "parent migration")
+    sh(parent_clone, "push", "-q", "--force", "origin", "HEAD:refs/heads/#{parent_ref}")
+    live = fetch_live.call
+
+    # Prove the fixture really conflicts when the local driver is absent.
+    expect { sh(child, "rebase", "--onto", live, @prepared) }.to raise_error(GitRunner::GitError)
+    sh(child, "rebase", "--abort")
+
+    result = barrier.ensure_fresh!
+
+    expect(result.status).to eq(:rebased)
+    expect(child.join("db/schema.rb").read).to include("2026_01_03_000001")
+    expect(sh(child, "config", "--get", "merge.ruby_schema.driver")).to include("bin/merge-ruby-schema")
+  end
+
+  it "reports a real schema body conflict and the registered driver evidence" do
+    replace_schema(child, version: "2026_01_02_000001", body: "create_table \"widgets\" do |t|\n  t.string \"child_name\"\nend", message: "child schema edit")
+    sh(parent_clone, "checkout", "-q", "parent")
+    replace_schema(parent_clone, version: "2026_01_03_000001", body: "create_table \"widgets\" do |t|\n  t.string \"parent_name\"\nend", message: "parent schema edit")
+    sh(parent_clone, "push", "-q", "--force", "origin", "HEAD:refs/heads/#{parent_ref}")
+
+    expect { barrier.ensure_fresh! }.to raise_error(described_class::RebaseConflict) { |error|
+      expect(error.evidence["conflicted_files"]).to include(
+        "path" => "db/schema.rb",
+        "merge_driver" => "ruby_schema",
+        "merge_driver_registered" => true
+      )
+      expect(error.message).to include("rebasing completed work")
+    }
   end
 
   it "fails when post-rebase validation fails" do

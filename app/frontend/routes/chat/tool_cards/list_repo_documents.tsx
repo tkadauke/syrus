@@ -46,12 +46,13 @@ export const examples: ToolCardExample[] = [
       },
       {
         id: 13,
-        kind: "google_doc",
+        kind: "file",
         title: "Launch Notes",
-        status: "pending",
+        status: "attached",
         repository_id: 8,
         repository: "acme/very-long-repository-name",
-        url: "https://docs.google.com/document/d/a-very-long-document-identifier/edit"
+        content_type: "application/pdf",
+        size_bytes: 8192
       }
     ]
   },

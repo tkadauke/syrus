@@ -125,6 +125,31 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.retryable).to eq(true)
   end
 
+  it "preserves transient Git transport classification through an immutable checkout wrapper" do
+    run.update!(state: "failed")
+    diagnostic(
+      "WorkflowSourceSnapshots::InfrastructureStateError",
+      "immutable source checkout missing ref refs/syrus/source-snapshots/runs/123: " \
+      "fatal: Failed to connect to github.com port 443: Could not connect to server"
+    )
+
+    expect(classification).to have_attributes(
+      classification: "git_transport_transient",
+      retryable: true
+    )
+  end
+
+  it "does not treat a wrapped missing immutable snapshot ref as transient transport" do
+    run.update!(state: "failed")
+    diagnostic(
+      "WorkflowSourceSnapshots::InfrastructureStateError",
+      "immutable source checkout missing ref refs/syrus/source-snapshots/runs/123: " \
+      "fatal: couldn't find remote ref refs/syrus/source-snapshots/runs/123"
+    )
+
+    expect(classification.classification).to eq("source_snapshot_metadata_invalid")
+  end
+
   it "classifies an exhausted deleted base ref fallback as non-retryable" do
     run.update!(state: "failed")
     diagnostic(

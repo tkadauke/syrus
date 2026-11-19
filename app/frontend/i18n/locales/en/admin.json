@@ -347,6 +347,10 @@
     "hide_details": "Hide",
     "stack": "Stack",
     "component_stack": "Component stack",
+    "component_stack_unavailable_reason": "Component stack status",
+    "error_cause": "Error cause",
+    "last_interaction": "Last interaction",
+    "resource_timings": "Nearby script and style resources",
     "recent_api_requests": "Recent API requests",
     "recent_errors": "Recent JS errors",
     "environment": "Environment"

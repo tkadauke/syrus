@@ -5,6 +5,8 @@ require "rbconfig"
 require "securerandom"
 
 class ImmutableSourceCheckout
+  include WorkspaceGitTransportPreference
+
   # Relative to WorkflowWorkspace.scratch_path_for, which is beside the
   # workflow workspace rather than inside it -- see the note there for what
   # putting this scratch under the workspace cost.
@@ -138,9 +140,23 @@ class ImmutableSourceCheckout
 
   def fetch_snapshot!(snapshot)
     log("[immutable_source_checkout] fetching #{snapshot.source_ref} for snapshot ##{snapshot.id}")
-    authenticated_git("git_immutable_source_fetch") do |url|
-      @git.run("fetch", "--no-tags", url, source_refspec(snapshot), chdir: path.to_s, env: @env)
+    log("[immutable_source_checkout] trying preferred workspace Git transport for #{snapshot.source_ref}")
+    fetch_via_transport!(
+      repository: @repository,
+      user: @job.user,
+      refspec: source_refspec(snapshot),
+      chdir: path.to_s,
+      verify_sha: snapshot.source_sha,
+      env: @env,
+      fetch_args: [ "--no-tags" ]
+    ) do
+      log("[immutable_source_checkout] preferred transport unavailable or stale; falling back to authenticated hosting fetch for #{snapshot.source_ref}")
+      authenticated_git("git_immutable_source_fetch") do |url|
+        @git.run("fetch", "--no-tags", url, source_refspec(snapshot), chdir: path.to_s, env: @env)
+      end
     end
+    raise GitRunner::GitError.new([ "fetch", snapshot.source_ref ], 128, "fetched ref does not contain expected snapshot SHA #{snapshot.source_sha}") unless git_object_present?(snapshot.source_sha)
+
     record_origin_head!(snapshot)
     log("[immutable_source_checkout] fetched #{snapshot.source_ref} for snapshot ##{snapshot.id}")
   rescue GitRunner::GitError => e
@@ -190,9 +206,10 @@ class ImmutableSourceCheckout
   end
 
   def ensure_base_ref!
-    return if git_ref_exists?(base_ref)
-
     remote, branch = remote_tracking_ref_parts(base_ref)
+    repository = remote_repository(remote)
+    return if git_ref_exists?(base_ref) && !WorkspaceGitTransports.for(repository, user: @job.user)
+
     log("[immutable_source_checkout] fetching base ref #{base_ref}")
     ensure_remote!(remote)
     begin
@@ -250,14 +267,54 @@ class ImmutableSourceCheckout
   end
 
   def fetch_remote_branch!(remote, branch, destination_ref:)
-    authenticated_git_for(remote_repository(remote), "git_immutable_source_base_fetch") do |url|
-      @git.run(
-        "fetch", "--no-tags", url,
-        "+refs/heads/#{branch}:#{destination_ref}",
-        chdir: path.to_s,
-        env: @env
-      )
+    repository = remote_repository(remote)
+    refspec = "+refs/heads/#{branch}:#{destination_ref}"
+    expected_sha = expected_base_sha(remote, branch)
+    unless expected_sha && WorkspaceGitTransports.for(repository, user: @job.user)
+      return authenticated_base_fetch!(repository, refspec)
     end
+
+    log("[immutable_source_checkout] trying preferred workspace Git transport for #{remote}/#{branch}")
+    fetch_via_transport!(
+      repository: repository,
+      user: @job.user,
+      refspec: refspec,
+      chdir: path.to_s,
+      verify: -> { git_ref_sha(destination_ref) == expected_sha },
+      env: @env,
+      fetch_args: [ "--no-tags" ]
+    ) do
+      log("[immutable_source_checkout] preferred transport unavailable or stale; falling back to authenticated hosting fetch for #{remote}/#{branch}")
+      authenticated_base_fetch!(repository, refspec)
+    end
+  end
+
+  def expected_base_sha(remote, branch)
+    snapshot = source_snapshot
+    return snapshot.source_sha if remote == "origin" && snapshot.source_ref == "refs/heads/#{branch}"
+    return unless branch == @job.effective_base_branch
+
+    @workflow.artifact(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY).presence ||
+      @job.mergeability_base_sha.presence
+  end
+
+  def authenticated_base_fetch!(repository, refspec)
+    authenticated_git_for(repository, "git_immutable_source_base_fetch") do |url|
+      @git.run("fetch", "--no-tags", url, refspec, chdir: path.to_s, env: @env)
+    end
+  end
+
+  def git_ref_sha(ref)
+    @git.run("rev-parse", "--verify", ref, chdir: path.to_s).strip
+  rescue GitRunner::GitError
+    nil
+  end
+
+  def git_object_present?(revision)
+    @git.run("cat-file", "-e", "#{revision}^{commit}", chdir: path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
   end
 
   def parent_landed_sha_for(repository)

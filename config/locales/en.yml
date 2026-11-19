@@ -157,8 +157,6 @@ en:
       file_too_large: "must be %{size} MB or smaller"
       unsupported_file_type: "must be a supported text, PDF, Office, or image file"
       must_be_blank_for_file: "must be blank for file documents"
-      invalid_google_doc_url: "must be a docs.google.com HTTPS URL"
-      cannot_attach_to_google_doc: "can't be attached to a Google Doc link"
       content_cache_too_large: "must be %{size} KB or smaller"
       too_many_job_attachments: "Jobs can have at most %{count} attachments"
       already_recorded: "has already been recorded for this source and anchor"
@@ -700,7 +698,7 @@ en:
       documents:
         added: "Document added."
         partially_added: "Some documents could not be added: %{errors}"
-        choose_source: "Choose a file or enter a Google Doc URL."
+        choose_source: "Choose a file."
         removed: "Document removed."
       labels:
         github_token: "GitHub token"

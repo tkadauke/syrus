@@ -44,9 +44,9 @@ RSpec.describe "App API job child access", type: :request do
     end
 
     expect_statuses(owner: :ok, writer: :ok, reader: :forbidden, stranger: :not_found) do
+      upload = Rack::Test::UploadedFile.new(StringIO.new("context"), "text/plain", original_filename: "context.txt")
       post "/api/v1/app/jobs/#{job.id}/attachments",
-           params: { job_attachment: { google_doc_url: "https://docs.google.com/document/d/context/edit" } },
-           as: :json
+           params: { job_attachment: { files: [ upload ] } }
     end
   end
 

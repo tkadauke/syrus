@@ -66,7 +66,6 @@ export type CreateDirectJobInput = {
   priority: string
   createMore: boolean
   files: File[]
-  googleDocUrl: string
 }
 
 export type DirectJobCreatedPayload = {
@@ -109,7 +108,5 @@ export function createDirectJob(values: CreateDirectJobInput) {
   values.files.forEach((file) => {
     formData.append("job_attachment[files][]", file)
   })
-  formData.append("job_attachment[google_doc_url]", values.googleDocUrl)
-
   return postForm<DirectJobCreatedPayload>("/api/v1/app/jobs", formData)
 }

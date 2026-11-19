@@ -101,6 +101,10 @@ class RunFailureClassifier
       result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
     when source_snapshot_base_ref_unavailable?
       result("source_snapshot_base_ref_unavailable", 1.0, false, "The recorded source snapshot base ref was deleted and neither its parent merge commit nor the default branch resolves.")
+    # ImmutableSourceCheckout wraps GitRunner::GitError so transport evidence
+    # must win before the generic source-snapshot infrastructure category.
+    when git_transport_transient?
+      result("git_transport_transient", 0.90, true, "The Git remote was temporarily unreachable or interrupted; retry the operation through the bounded workflow retry path.")
     when source_snapshot_metadata_invalid?
       result("source_snapshot_metadata_invalid", 0.95, true, "Workflow source snapshot setup failed; transient transport failures may succeed on retry.")
     when storage_unavailable?
@@ -152,8 +156,6 @@ class RunFailureClassifier
       result("merge_train_rebuild_required", 0.90, false, "The merge-train integration branch must be rebuilt before this workflow can continue.")
     when empty_commit?
       result("empty_commit", 0.85, false, "A git commit or amend was rejected because it would be empty (not a corrupt workspace).")
-    when git_transport_transient?
-      result("git_transport_transient", 0.90, true, "The Git remote was temporarily unreachable or interrupted; retry the operation through the bounded workflow retry path.")
     when git_state_corrupt?
       result("git_state_corrupt", 0.85, false, "The workspace git state was corrupt or unsafe.")
     when max_turns?
@@ -512,7 +514,7 @@ class RunFailureClassifier
   # class alone. Explicitly exclude permanent remote and semantic failures so
   # coincidental transport wording cannot spend the bounded retry budget.
   def git_transport_transient?
-    return false unless diagnostic&.error_class.to_s.match?(/GitRunner::GitError/)
+    return false unless diagnostic&.error_class.to_s.match?(/GitRunner::GitError|WorkflowSourceSnapshots::InfrastructureStateError/)
     return false if text_match?(/authentication failed|could not read username|permission denied|access denied|repository not found|not found|couldn't find remote ref|remote ref does not exist|invalid refspec|non-fast-forward|fetch first|stale info|merge conflict|unmerged files|not a git repository|bad revision|unrelated histories/i)
 
     text_match?(

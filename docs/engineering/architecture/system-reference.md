@@ -154,8 +154,8 @@ state.
 
 Jobs also own optional operator metadata around the execution thread:
 `job_tags`, `job_pins`, `documents` / `job_attachments`, and
-`notifications`. Attachments are `Document` rows, so uploaded files,
-Google Doc links, and issue/comment image captures all flow through the
+`notifications`. Attachments are `Document` rows, so uploaded files and
+issue/comment image captures all flow through the
 same prompt-context path. Jobs also have optional `chat_proposals`
 source links for work created from chat. `App::JobSourceChat` uses the
 direct Job proposal when present, or falls back to the Epic proposal for

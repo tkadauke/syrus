@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_155251) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_164147) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -410,7 +410,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_155251) do
     t.json "metadata", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "error_cause", null: false
+    t.json "last_interaction", null: false
+    t.json "resource_timings", null: false
+    t.string "component_stack_unavailable_reason"
+    t.string "correlation_id"
+    t.integer "occurrence_count", default: 1, null: false
+    t.integer "burst_duration_ms", default: 0, null: false
+    t.datetime "last_occurred_at", null: false
+    t.boolean "recoverable", default: false, null: false
     t.index ["app_revision", "occurred_at"], name: "index_browser_error_events_on_revision_time"
+    t.index ["correlation_id"], name: "index_browser_error_events_on_correlation_id"
     t.index ["fingerprint", "occurred_at"], name: "index_browser_error_events_on_fingerprint_time"
     t.index ["occurred_at", "id"], name: "index_browser_error_events_on_occurred_id"
     t.index ["path", "occurred_at"], name: "index_browser_error_events_on_path_time"
@@ -1551,11 +1561,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_155251) do
     t.string "attachable_type", null: false
     t.bigint "byte_size"
     t.text "content_cache", limit: 65536
-    t.datetime "content_cached_at"
     t.string "content_type"
     t.datetime "created_at", null: false
     t.string "filename"
-    t.string "google_doc_url"
     t.string "kind", default: "file", null: false
     t.string "source_url"
     t.string "title", null: false

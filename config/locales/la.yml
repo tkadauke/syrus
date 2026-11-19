@@ -127,8 +127,6 @@ la:
       file_too_large: "non maius quam %{size} MB esse debet"
       unsupported_file_type: "fasciculus textus, PDF, Office, vel imaginis sustentatus esse debet"
       must_be_blank_for_file: "documentis fasciculi vacuum esse debet"
-      invalid_google_doc_url: "URL HTTPS ex docs.google.com esse debet"
-      cannot_attach_to_google_doc: "nexui Google Doc adiungi non potest"
       content_cache_too_large: "non maius quam %{size} KB esse debet"
       too_many_job_attachments: "Jobs non plus quam %{count} adiuncta habere possunt"
       already_recorded: "huic fonti et ancorae iam relatum est"
@@ -640,7 +638,7 @@ la:
       documents:
         added: "Documentum additum est."
         partially_added: "Quaedam documenta addi non potuerunt: %{errors}"
-        choose_source: "Fasciculum elige aut URL Google Doc inscribe."
+        choose_source: "Fasciculum elige."
         removed: "Documentum remotum est."
       labels:
         github_token: "signum GitHub"

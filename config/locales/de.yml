@@ -127,8 +127,6 @@ de:
       file_too_large: "darf höchstens %{size} MB groß sein"
       unsupported_file_type: "muss eine unterstützte Text-, PDF-, Office- oder Bilddatei sein"
       must_be_blank_for_file: "muss bei Dateidokumenten leer sein"
-      invalid_google_doc_url: "muss eine HTTPS-URL von docs.google.com sein"
-      cannot_attach_to_google_doc: "kann nicht an einen Google-Doc-Link angehängt werden"
       content_cache_too_large: "darf höchstens %{size} KB groß sein"
       too_many_job_attachments: "Jobs dürfen höchstens %{count} Anhänge haben"
       already_recorded: "wurde für diese Quelle und Verankerung bereits erfasst"
@@ -640,7 +638,7 @@ de:
       documents:
         added: "Dokument hinzugefügt."
         partially_added: "Einige Dokumente konnten nicht hinzugefügt werden: %{errors}"
-        choose_source: "Wähle eine Datei oder gib eine Google-Doc-URL ein."
+        choose_source: "Wähle eine Datei."
         removed: "Dokument entfernt."
       labels:
         github_token: "GitHub-Token"

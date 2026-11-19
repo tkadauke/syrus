@@ -36,7 +36,6 @@ function attachment(overrides: Partial<JobAttachment> = {}): JobAttachment {
     filename: "notes.md",
     content_type: "text/markdown",
     byte_size: 42,
-    google_doc_url: null,
     uploaded_file: true,
     file_path: "/api/v1/app/jobs/7/attachments/1/file",
     content_path: "/api/v1/app/jobs/7/attachments/1/content",
@@ -114,24 +113,6 @@ describe("AttachmentCard", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Source" }))
 
     expect(await screen.findByTestId("source-preview-code")).toHaveTextContent("# Notes")
-  })
-
-  it("falls back to a plain download link for Google Doc attachments (no content to preview)", () => {
-    renderCard(
-      attachment({
-        kind: "google_doc",
-        attachment_type: "google_doc_link",
-        filename: null,
-        content_type: null,
-        google_doc_url: "https://docs.google.com/document/d/abc/edit",
-        uploaded_file: false,
-        file_path: null,
-        content_path: null
-      })
-    )
-
-    expect(screen.queryByRole("button")).not.toBeInTheDocument()
-    expect(fetchJobAttachmentContent).not.toHaveBeenCalled()
   })
 })
 

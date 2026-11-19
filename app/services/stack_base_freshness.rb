@@ -127,12 +127,14 @@ class StackBaseFreshness
   # superseded parent history are not carried over. Without a usable prepared
   # SHA, falls back to a plain rebase onto the live head.
   def rebase_onto!(live, prepared, history)
+    drivers = GitMergeDrivers.register!(git: @git, path: @path)
     if prepared.present? && commit_available?(prepared) && descends_from?(prepared)
       @git.run("rebase", "--onto", live, prepared, chdir: @path)
     else
       @git.run("rebase", live, chdir: @path)
     end
   rescue GitRunner::GitError => e
+    conflicts = conflicted_files(drivers)
     begin
       @git.run("rebase", "--abort", chdir: @path)
     rescue GitRunner::GitError
@@ -140,8 +142,21 @@ class StackBaseFreshness
     end
     raise RebaseConflict.new(
       "rebasing completed work onto #{@parent_ref} (#{short(live)}) failed: #{e.message}",
-      evidence: evidence(prepared, live, history)
+      evidence: evidence(prepared, live, history).merge("conflicted_files" => conflicts)
     )
+  end
+
+  def conflicted_files(drivers)
+    @git.run("diff", "--name-only", "--diff-filter=U", chdir: @path).lines.filter_map do |line|
+      file = line.strip
+      next if file.blank?
+
+      attribute = @git.run("check-attr", "merge", "--", file, chdir: @path).split(":", 3).last.to_s.strip
+      name = attribute unless attribute.in?([ "", "unspecified", "unset", "set" ])
+      { "path" => file, "merge_driver" => name, "merge_driver_registered" => name.present? && drivers.registered?(name) }
+    end
+  rescue GitRunner::GitError
+    []
   end
 
   def validate!(live, prepared, history)

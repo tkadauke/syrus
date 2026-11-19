@@ -14,8 +14,8 @@ module DirectJobs
   # (Api::V1::App::DirectJobsController#create_direct_job), which supports
   # an explicit always-present title, an owner-selectable needs_triage gate
   # via Job.initial_state_for_creator, epic/owner assignment, and multiple
-  # attachment kinds (uploaded files + Google Doc links) that this narrower
-  # "quick create" helper doesn't need to model.
+  # attachment options that this narrower "quick create" helper doesn't need
+  # to model.
   class Creator
     Result = Struct.new(:job, :error, keyword_init: true) do
       def success?

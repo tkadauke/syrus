@@ -168,6 +168,7 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
       "profile_location" => "Arlington",
       "profile_company" => "Navy",
       "profile_website" => "https://example.com/grace",
+      "is_current_user" => false,
       "profile_path" => "/profiles/#{teammate.id}"
     )
     expect(profile["repositories"]).to include(include("slug" => "navy/cobol", "path" => "/repositories/#{repo.id}"))
@@ -293,7 +294,10 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     get "/api/v1/app/profiles/#{user.id}"
 
     expect(response).to have_http_status(:ok)
-    recent_job = parse_body.dig("profile", "jobs").sole
+    profile = parse_body.fetch("profile")
+    expect(profile.fetch("is_current_user")).to be(true)
+    expect(profile.keys).not_to include("email_address", "github_token", "api_token")
+    recent_job = profile.fetch("jobs").sole
     expect(recent_job).to include(
       "title" => "Own the work",
       "repository" => hash_including("slug" => "solo/repo")

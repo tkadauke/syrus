@@ -37,7 +37,6 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "profile.epics" => "approved domain noun",
       "profile.jobs" => "approved domain noun",
       "design_system.semantic.badge" => "release-stage label",
-      "personal_documents.col_content_cache_state" => "established technical term",
       "target_graph.workflow" => "approved domain noun with placeholder",
       "repositories.col_repository" => "approved domain noun",
       "repository.agent_prefix" => "approved domain noun",
@@ -127,7 +126,6 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "themes.token_label" => "placeholder-only value",
       "themes.token_groups.status" => "valid Latin noun",
       "design_system.semantic.badge" => "release-stage label",
-      "personal_documents.col_content_cache_state" => "established technical term",
       "repository.pr_number" => "abbreviation with placeholder",
       "repository.health_ci" => "abbreviation",
       "repository.health_col_ci" => "abbreviation",
@@ -249,7 +247,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
         jobs.start_discussion_chat_prompt_label jobs.retry_provider_label jobs.tab_review
         jobs.artifact_image_alt jobs.artifact_provenance_viewport jobs.detail_provider jobs.detail_branch
         jobs.approval_status jobs.workflow_divergence_branch jobs.grader_status_label jobs.run_diff
-        jobs.prepare_failure_status_label jobs.source_diff jobs.review_version_label jobs.attachment_google_doc
+        jobs.prepare_failure_status_label jobs.source_diff jobs.review_version_label
         jobs.coverage_project_col_status jobs.transcript_kind_system jobs.skill_job_section_pick
         jobs.delivery.status_label
       ],
@@ -257,7 +255,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
         jobs.navigation_jump_option jobs.conversation_iteration jobs.classification_duration
         jobs.artifact_erd_primary_key jobs.pr_checks_head_sha jobs.prepare_failure_soft_syrus_yml
         jobs.prepare_failure_soft_prepare jobs.review_version_prefix jobs.review_version_separator
-        jobs.attachment_google_doc_placeholder jobs.pr_syrus
+        jobs.pr_syrus
       ],
       "shared German word" => %w[jobs.readiness_optional]
     },
@@ -275,7 +273,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
         jobs.navigation_jump_option jobs.classification_duration jobs.artifact_erd_primary_key
         jobs.artifact_provenance_viewport jobs.prepare_failure_soft_syrus_yml
         jobs.prepare_failure_soft_prepare jobs.review_version_prefix jobs.review_version_separator
-        jobs.attachment_google_doc_placeholder jobs.pr_syrus
+        jobs.pr_syrus
       ]
     }
   }.freeze

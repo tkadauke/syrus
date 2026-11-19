@@ -63,6 +63,7 @@ module Steps
       raise StepFailed, "speculative_merge_train: member #{member.slug} has no branch" if branch.blank?
 
       fetch_branch!(branch)
+      GitMergeDrivers.register!(git: @git, path: @chdir)
       temp = "__syrus_speculative_mt_member_#{member.id}"
       @git.run("checkout", "-B", temp, "FETCH_HEAD", chdir: @chdir)
       @git.run("rebase", @integration, chdir: @chdir)

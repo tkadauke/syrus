@@ -1075,6 +1075,7 @@ class ChatWorkspace
       # The WIP commit's parent is the branch tip we just cloned, so applying it
       # is a clean patch. `-n` leaves it staged; `reset` unstages so it reads as
       # ordinary uncommitted work (new files become untracked again).
+      GitMergeDrivers.register!(git: @git, path: path)
       @git.run("cherry-pick", "-n", wip_tag, chdir: path.to_s, env: @env)
       @git.run("reset", chdir: path.to_s, env: @env)
       # `cherry-pick -n` leaves CHERRY_PICK_HEAD set; clear the sequencer state
@@ -1200,6 +1201,7 @@ class ChatWorkspace
       return GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY) if ahead.positive?
     end
 
+    GitMergeDrivers.register!(git: @git, path: path)
     @git.run("merge", "--ff-only", "origin/#{branch}", chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
   end
