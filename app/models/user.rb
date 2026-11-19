@@ -606,12 +606,12 @@ class User < ApplicationRecord
     [ provider_availability_pause_threshold_for(provider) * 2, provider_availability_pause_threshold_for(provider) + 10 ].max.clamp(0, 100)
   end
 
-  def provider_availability_override_for(provider)
-    provider_availability_overrides.to_h[provider.to_s]
+  def provider_availability_override_for(provider, provider_account: nil)
+    provider_availability_overrides.to_h[provider_availability_override_key(provider, provider_account)]
   end
 
-  def provider_availability_overridden?(provider, evidence_observed_at: nil)
-    override = provider_availability_override_for(provider)
+  def provider_availability_overridden?(provider, provider_account: nil, evidence_observed_at: nil)
+    override = provider_availability_override_for(provider, provider_account: provider_account)
     return false unless override.is_a?(Hash)
 
     override_at = parse_provider_availability_time(override["overridden_at"])
@@ -620,28 +620,41 @@ class User < ApplicationRecord
     override_at.present? && override_at >= evidence_observed_at
   end
 
-  def override_provider_availability!(provider, by_user: self)
+  def override_provider_availability!(provider, provider_account: nil, by_user: self)
     provider = provider.to_s
     update!(
       provider_availability_overrides: provider_availability_overrides.to_h.merge(
-        provider => {
+        provider_availability_override_key(provider, provider_account) => {
           "overridden_at" => Time.current.iso8601,
           "overridden_by_user_id" => by_user&.id
         }.compact
       )
     )
-    App::ProviderAvailability.broadcast_changed(user: self, provider: provider)
+    broadcast_provider_availability_change(provider, provider_account)
   end
 
-  def clear_provider_availability_override!(provider)
+  def clear_provider_availability_override!(provider, provider_account: nil)
     provider = provider.to_s
     overrides = provider_availability_overrides.to_h
-    return false unless overrides.key?(provider)
+    key = provider_availability_override_key(provider, provider_account)
+    return false unless overrides.key?(key)
 
-    overrides.delete(provider)
+    overrides.delete(key)
     update!(provider_availability_overrides: overrides.presence)
-    App::ProviderAvailability.broadcast_changed(user: self, provider: provider)
+    broadcast_provider_availability_change(provider, provider_account)
     true
+  end
+
+  def provider_availability_override_key(provider, provider_account)
+    return provider.to_s if provider_account.nil? || provider_account.default?
+
+    "#{provider}:#{provider_account.public_id}"
+  end
+
+  def broadcast_provider_availability_change(provider, provider_account)
+    options = { user: self, provider: provider }
+    options[:provider_account] = provider_account if provider_account
+    App::ProviderAvailability.broadcast_changed(**options)
   end
 
   def update_dashboard_columns!(subject:, columns:)

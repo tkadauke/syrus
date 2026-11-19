@@ -23,6 +23,38 @@ RSpec.describe ProviderAvailabilityWakeup do
     }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
   end
 
+  it "wakes only workflows pinned to the recovered provider account" do
+    user.update!(codex_auth_mode: "api_key", codex_api_key: "default-key")
+    first = user.default_provider_account("codex")
+    second = ProviderAccount.create!(
+      user: user,
+      provider_key: "codex",
+      authentication_kind: "api_key",
+      credential_payload: { "codex_auth_mode" => "api_key", "codex_api_key" => "second-key" },
+      position: 1
+    )
+    build_blocked = lambda do |account, issue_number|
+      job = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: issue_number,
+        state: "queued",
+        agent_provider: "codex"
+      )
+      WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex").tap do |workflow|
+        workflow.update!(provider_account: account)
+        workflow.work_unit.block!(reason: WorkUnits::Gates::ProviderAvailability::REASON)
+      end
+    end
+    first_workflow = build_blocked.call(first, 71)
+    second_workflow = build_blocked.call(second, 72)
+
+    described_class.call(provider: "codex", user: user, provider_account: second)
+
+    expect(WorkflowPhaseAdmissionJob).not_to have_been_enqueued.with(first_workflow.id)
+    expect(WorkflowPhaseAdmissionJob).to have_been_enqueued.with(second_workflow.id)
+  end
+
   it "ignores replay workflows recorded only in legacy artifacts" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", agent_provider: "codex")
     workflow = Workflow.create!(

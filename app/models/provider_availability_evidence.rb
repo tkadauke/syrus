@@ -63,7 +63,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       details: sanitized_details(details)
     )
     clear_codex_usage_cache_after_success!(user, evidence) if provider_account.nil? || provider_account.default?
-    clear_override_if_codex_recovered!(user, details)
+    clear_override_if_codex_recovered!(user, details, provider_account: provider_account)
     App::ProviderAvailability.clear_cache!(user: user, provider: "codex")
     evidence
   end
@@ -92,7 +92,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
         snapshot: snapshot
       )
     )
-    clear_override_if_codex_recovered!(user, snapshot)
+    clear_override_if_codex_recovered!(user, snapshot, provider_account: provider_account)
     evidence
   end
 
@@ -398,12 +398,12 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     )
   end
 
-  def self.clear_override_if_codex_recovered!(user, payload)
+  def self.clear_override_if_codex_recovered!(user, payload, provider_account: nil)
     payload = payload.to_h
     remaining = payload["remaining_percent"] || payload[:remaining_percent]
     return unless user.provider_availability_recovered?("codex", remaining_percent: remaining)
-    return unless user.clear_provider_availability_override!("codex")
+    return unless user.clear_provider_availability_override!("codex", provider_account: provider_account)
 
-    ProviderAvailabilityWakeup.call(provider: "codex", user: user)
+    ProviderAvailabilityWakeup.call(provider: "codex", user: user, provider_account: provider_account)
   end
 end

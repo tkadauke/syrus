@@ -210,7 +210,11 @@ class ProviderAvailabilityPause
   end
 
   def overridden?(availability)
-    user.provider_availability_overridden?(provider, evidence_observed_at: evidence_observed_at(availability))
+    user.provider_availability_overridden?(
+      provider,
+      provider_account: selected_provider_account,
+      evidence_observed_at: evidence_observed_at(availability)
+    )
   end
 
   def evidence_observed_at(availability)

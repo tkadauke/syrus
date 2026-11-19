@@ -53,10 +53,11 @@ RSpec.describe ChatProviders::Codex do
         ]
       )
       codex_auth = instance_double(CodexAuth, prepare!: CodexAuth::Result.new(api_key: "sk-fake"), persist_updated_auth_json: nil)
+      provider_account = user.default_provider_account("codex")
       allow(CodexAuth).to receive(:new)
-        .with(user: user, codex_home: ChatWorkspace.agent_home_for(chat, "codex"))
+        .with(user: user, provider_account: provider_account, codex_home: ChatWorkspace.agent_home_for(chat, "codex"))
         .and_return(codex_auth)
-      allow(CodexAuth).to receive(:with_refresh_lock).with(user: user).and_yield
+      allow(CodexAuth).to receive(:with_refresh_lock).with(user: user, provider_account: provider_account).and_yield
       allow(CodexUsageProbe).to receive(:refresh_for)
       mcp_config = Tempfile.new([ "syrus-chat-mcp", ".json" ])
       mcp_config.write({
