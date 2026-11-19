@@ -556,6 +556,7 @@ RSpec.describe "Syrus grader configuration" do
       if go_dir
         expect(go_tests).not_to be_nil
         expect(go_tests.command).to include("cd plugins/#{project.id}/#{go_dir} && ")
+        expect(go_tests.command).to include("go test ./...")
         expect(go_tests.command).to end_with("go test ./...'")
         expect(go_tests.source_scope).to include(
           "plugins/#{project.id}/#{go_dir}/**/*.go",
