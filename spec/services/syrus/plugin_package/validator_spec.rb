@@ -3,7 +3,7 @@ require "rubygems/package"
 require "zlib"
 
 RSpec.describe Syrus::PluginPackage::Validator do
-  def archive(entries, manifest: nil)
+  def archive(entries, manifest: nil, checksums: nil)
     plugin_files = entries.transform_values { |value| value.fetch(:data) }
     manifest ||= {
       "format_version" => 1, "name" => "weather", "version" => "1.2.3", "requires_syrus" => ">= 1.0",
@@ -12,7 +12,7 @@ RSpec.describe Syrus::PluginPackage::Validator do
       "files" => plugin_files.map { |path, data| { "path" => path, "sha256" => Digest::SHA256.hexdigest(data) } }.sort_by { |item| item["path"] }
     }
     package = { "package.json" => JSON.pretty_generate(manifest) + "\n", **plugin_files }
-    package["CHECKSUMS.sha256"] = package.sort.map { |path, data| "#{Digest::SHA256.hexdigest(data)}  #{path}\n" }.join
+    package["CHECKSUMS.sha256"] = checksums || package.sort.map { |path, data| "#{Digest::SHA256.hexdigest(data)}  #{path}\n" }.join
     io = StringIO.new
     Zlib::GzipWriter.wrap(io) do |gzip|
       Gem::Package::TarWriter.new(gzip) do |tar|
@@ -43,6 +43,21 @@ RSpec.describe Syrus::PluginPackage::Validator do
     files.find { |item| item["path"].end_with?("weather.rb") }["sha256"] = "0" * 64
     manifest = { "format_version" => 1, "name" => "weather", "version" => "1.2.3", "requires_syrus" => ">= 1.0", "files" => files }
     expect(described_class.new(archive(entries, manifest:)).call.errors.join).to include("manifest file list does not match")
+  end
+
+  it "rejects a checksum file that does not match the package contents" do
+    checksums = "#{"0" * 64}  plugin/lib/weather.rb\n"
+
+    expect(described_class.new(archive(entries, checksums:)).call.errors.join).to include("checksum file does not match")
+  end
+
+  it "rejects an unsupported package format version" do
+    manifest = {
+      "format_version" => 2, "name" => "weather", "version" => "1.2.3", "requires_syrus" => ">= 1.0",
+      "files" => entries.map { |path, item| { "path" => path, "sha256" => Digest::SHA256.hexdigest(item[:data]) } }
+    }
+
+    expect(described_class.new(archive(entries, manifest:)).call.errors).to include("unsupported package format version")
   end
 
   it "rejects traversal paths" do
@@ -82,5 +97,11 @@ RSpec.describe Syrus::PluginPackage::Validator do
   it "rejects non-public host APIs" do
     bad = entries.merge("plugin/lib/bad.rb" => { data: "Job.find(1)\n" })
     expect(described_class.new(archive(bad)).call.errors.join).to include("non-public Syrus API")
+  end
+
+  it "accepts plugin constants whose names start with core constant names" do
+    prefixed = entries.merge("plugin/lib/runner.rb" => { data: "module Weather; class Runner; end; end\n" })
+
+    expect(described_class.new(archive(prefixed)).call).to be_valid
   end
 end
