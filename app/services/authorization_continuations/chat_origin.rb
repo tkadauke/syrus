@@ -13,7 +13,8 @@ module AuthorizationContinuations
           "internal_prompt" => Prompts::AuthorizationContinuation.new(payload).to_s,
           "requested_by" => "authorization",
           "source" => "authorization_continuation",
-          "authorization_continuation" => true
+          "authorization_continuation" => true,
+          "turn_message_id" => payload.dig("checkpoint", "message_id")
         }
       )
     end

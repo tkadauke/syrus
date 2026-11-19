@@ -4,9 +4,10 @@ RSpec.describe ChatDanglingToolCallCloser do
   it "closes a dangling tool call after the latest user message" do
     user = Factories.user
     chat = ChatSession.create!(user: user)
-    chat.messages.create!(role: "user", content: { "text" => "Look around" })
+    turn_message = chat.messages.create!(role: "user", content: { "text" => "Look around" })
     chat.messages.create!(
       role: "tool_use",
+      turn_message_id: turn_message.id,
       tool_name: "syrus-chat-sidecar.admin_overview",
       tool_use_id: "item_1",
       content: {
@@ -23,6 +24,7 @@ RSpec.describe ChatDanglingToolCallCloser do
 
     result = chat.messages.find_by!(role: "tool_result", tool_use_id: "item_1")
     expect(result.tool_name).to eq("syrus-chat-sidecar.admin_overview")
+    expect(result.turn_message_id).to eq(turn_message.id)
     expect(result.content).to include(
       "type" => "tool_result",
       "tool_use_id" => "item_1",
