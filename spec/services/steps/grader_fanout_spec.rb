@@ -275,6 +275,34 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY).map { |e| e["name"] }).to contain_exactly("unit", "e2e")
   end
 
+  # A suite too slow or too red to gate a landing on (e2e here) opts out of
+  # landing parity: landing does not run it, and the gate names it as a
+  # post-merge delta rather than blocking on a missing landing result.
+  it "leaves a grader that opted out of landing parity to main grading" do
+    write_config(<<~YAML)
+      grade:
+        - name: unit
+          run: bin/rspec
+          phases: [landing, ci]
+        - name: e2e
+          run: bin/e2e
+          phases: [ci]
+          metadata:
+            landing_parity: false
+    YAML
+    workflow.update!(trigger_kind: "auto_merge")
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    expect(workflow.reload.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY).map { |e| e["name"] }).to contain_exactly("unit")
+    ci_set = workflow.artifact(LandingValidationManifest::CI_TARGET_SET_ARTIFACT_KEY)
+    expect(ci_set["targets"]).to include(include("name" => "e2e", "affected" => true, "required" => false))
+    manifest = { "targets" => [ { "name" => "unit", "target_label" => "//:grade/unit", "outcome" => GraderOutcome::PASSED } ], "ci_phase_target_set" => ci_set }
+    expect(LandingValidationManifest.send(:ci_phase_blockers, manifest)).to be_empty
+    expect(LandingValidationManifest.ci_delta(manifest).map { |d| d["name"] }).to eq([ "e2e" ])
+  end
+
   it "does not record a CI-phase target set for non-landing workflows" do
     write_config(<<~YAML)
       grade:

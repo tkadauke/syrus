@@ -705,6 +705,13 @@ grade:
       landing attempt pays for a browser run. Revisit `landing` only once the
       flake rate is known -- a flaky grader there fails real landings.
 
+      `landing_parity: false` keeps it that way. Main-grading parity adds every
+      required CI-phase grader to landing, which put this suite back on every
+      merge train's critical path: red or timed out on every run, its result
+      ignored as inherited, yet each train waited 17-25 minutes for it (a red
+      run reruns the whole suite at the base). Landing names it as a
+      post-merge delta; main grading still runs it.
+
       Failures that reproduce on the base revision are inherited rather than
       charged to a ci_failure repair. The full suite reruns on the base because
       Playwright's custom grader does not emit structured test identities.
@@ -714,6 +721,8 @@ grade:
       quietly grade each other's checkouts. See bin/test-e2e.
     run: E2E_ISOLATE=1 bin/test-e2e
     phases: [ci]
+    metadata:
+      landing_parity: false
     failures: allow_inherited
     base_retry:
       strategy: full_command

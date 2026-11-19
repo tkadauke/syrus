@@ -334,6 +334,11 @@ variant already contains a landing grader -- the `-ci` variant of an `rspec`,
 the landing variant is dropped rather than run a second time, unless it is the
 only one producing coverage.
 
+A required CI-phase grader that is too slow or too unreliable to gate a landing
+on can opt out with `metadata: { landing_parity: false }`. Landing then does not
+run it and does not block on it; the gate lists it in `post_merge_delta`, and
+main grading, CI repair and main-branch repair still run it.
+
 The gate result is stored in the `landing_parity_gate` artifact, including
 the `post_merge_delta`: CI-phase targets that main will run but landing did
 not validate. Immutable prepare-layer reuse and target-graph caching are
