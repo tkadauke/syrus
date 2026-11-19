@@ -5,8 +5,8 @@
 # identity indexing was the one path that did, synchronously, from
 # TestInsights::Ingester inside a grader step on the `runs` queue -- so on a split
 # deployment it either wrote to the wrong node's database or failed and got
-# swallowed as an enrichment warning. Routing it through the plugin queue puts
-# it on the home worker that owns the file.
+# swallowed as an enrichment warning. Routing it through the plugin queue keeps
+# it off compute workers, which do not consume plugin queues.
 class IndexTestIdentitiesJob < PluginJob
   plugin :test_insights
 
