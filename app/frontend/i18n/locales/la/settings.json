@@ -2036,5 +2036,22 @@
     "edit_rule": "In editore regulae emendare",
     "tool_preview": "Hoc creabit",
     "tool_preview_unavailable": "Praevisio legibilis huic vocationi non adest."
+  },
+  "mcp_bridge": {
+    "heading": "Pons MCP",
+    "description": "Sine clientem MCP externum, ut Claude Code, instrumenta colloquii Syrus tua vocare. Omnis vocatio per regulas permissionum tuarum transit, et quidquid decisionem eget ut charta in colloquio pontis tesserae apparet.",
+    "new_token": "Tessera nova — nunc exscribe, semel tantum ostenditur",
+    "register_hint": "Eam in Claude Code inscribe:",
+    "name_label": "Nomen tesserae",
+    "name_placeholder": "e.g. computatrum portabile",
+    "issue": "Tesseram crea",
+    "issue_error": "Tessera creari non potuit.",
+    "revoke": "Revoca",
+    "revoke_error": "Tessera revocari non potuit.",
+    "revoke_confirm": "Tesseram pontis MCP \"{{name}}\" revocare? Clientes qui ea utuntur statim desinunt.",
+    "load_error": "Tesserae pontis MCP onerari non potuerunt.",
+    "last_used": "ultimo usa {{time}}",
+    "never_used": "numquam usa",
+    "none": "Nullae tesserae pontis MCP."
   }
 }

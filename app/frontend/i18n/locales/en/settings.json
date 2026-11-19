@@ -2036,5 +2036,22 @@
     "edit_rule": "Edit in rule editor",
     "tool_preview": "What this will create",
     "tool_preview_unavailable": "A readable preview is not available for this call."
+  },
+  "mcp_bridge": {
+    "heading": "MCP bridge",
+    "description": "Let an external MCP client, such as Claude Code, call your Syrus chat tools. Every call goes through your permission rules, and anything that needs a decision appears as a card in the token's bridge chat.",
+    "new_token": "New token — copy it now, it is shown only once",
+    "register_hint": "Register it with Claude Code:",
+    "name_label": "Token name",
+    "name_placeholder": "e.g. laptop",
+    "issue": "Create token",
+    "issue_error": "Unable to create the token.",
+    "revoke": "Revoke",
+    "revoke_error": "Unable to revoke the token.",
+    "revoke_confirm": "Revoke the MCP bridge token \"{{name}}\"? Clients using it stop working immediately.",
+    "load_error": "Unable to load MCP bridge tokens.",
+    "last_used": "last used {{time}}",
+    "never_used": "never used",
+    "none": "No MCP bridge tokens."
   }
 }

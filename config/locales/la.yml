@@ -1024,3 +1024,7 @@ la:
       syrus_communication_spawn_chats: "Nova colloquia incipere"
       syrus_documents_create: "Documentum repositorii creare"
       syrus_documents_delete: "Documentum repositorii delere"
+  mcp_bridge:
+    chat_title: "Pons MCP: %{name}"
+    unauthorized: "Tessera pontis MCP valida requiritur."
+    name_required: "Da tesserae nomen."

@@ -1024,3 +1024,7 @@ de:
       syrus_communication_spawn_chats: "Neue Chats starten"
       syrus_documents_create: "Ein Repository-Dokument erstellen"
       syrus_documents_delete: "Ein Repository-Dokument löschen"
+  mcp_bridge:
+    chat_title: "MCP-Brücke: %{name}"
+    unauthorized: "Ein gültiges MCP-Brücken-Token ist erforderlich."
+    name_required: "Gib dem Token einen Namen."

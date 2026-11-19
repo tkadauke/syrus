@@ -1,5 +1,7 @@
 Rails.application.routes.draw do
   mount ActionCable.server => "/cable"
+  # External MCP clients authenticated by an McpBridgeToken.
+  match McpBridge::Endpoint::PATH, to: McpBridge::Endpoint, via: %i[ get post delete ]
 
   get "session/new", to: "spa#show", as: :new_session
   resource :session, only: %i[ create destroy ]
@@ -90,6 +92,7 @@ Rails.application.routes.draw do
           delete :reset
         end
         post "desktop/api_token", to: "desktop_tokens#create"
+        resources :mcp_bridge_tokens, only: %i[ index create destroy ]
         resource :credentials, only: %i[ show update ] do
           get :options
           post :clear_credential
@@ -805,6 +808,6 @@ Rails.application.routes.draw do
   # are excluded so a missing file is a 404 rather than the HTML shell -- or,
   # signed out, a redirect to the login page -- which a browser loading a
   # module reports only as "'text/html' is not a valid JavaScript MIME type".
-  spa_excluded_prefixes = [ "/api", "/rails", "/assets/", "/excalidraw-assets/", "/plugin-icons/", "/favicon.ico" ].freeze
+  spa_excluded_prefixes = [ "/api", "/mcp/", "/rails", "/assets/", "/excalidraw-assets/", "/plugin-icons/", "/favicon.ico" ].freeze
   get "*path", to: "spa#show", constraints: ->(req) { !req.path.start_with?(*spa_excluded_prefixes) }, format: false
 end

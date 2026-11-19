@@ -131,6 +131,31 @@ RSpec.describe PendingActions::ReenqueueWork do
       expect(action.reload.result).to be_a(Run)
     end
 
+    # A Run that failed before starting leaves a reopened first Step with
+    # only that failed Run; starting the Workflow is the repair.
+    it "starts a queued Workflow whose first Step only has a Run that failed before starting" do
+      job = build_job(state: "queued")
+      workflow = build_workflow(job, workflow_state: "queued", unit_state: "queued")
+      failed = build_run(job, workflow, state: "failed")
+      action = pending_action_for(admin, admin_repository, "job_id" => job.id, "workflow_id" => workflow.id)
+
+      expect(action.confirm!(user: admin)).to be true
+
+      started = action.reload.result
+      expect(started).to be_a(Run)
+      expect(workflow.first_step.runs.reload).to contain_exactly(failed, started)
+    end
+
+    it "still refuses a queued Workflow whose first Step is no longer waiting for a Run" do
+      job = build_job(state: "queued")
+      workflow = build_workflow(job, workflow_state: "queued", unit_state: "queued")
+      build_run(job, workflow, state: "failed")
+      workflow.first_step.update_columns(state: "succeeded")
+      action = pending_action_for(admin, admin_repository, "job_id" => job.id, "workflow_id" => workflow.id)
+
+      expect { action.confirm!(user: admin) }.to raise_error(ArgumentError, /already has Runs/)
+    end
+
     it "raises when the Workflow is running but has no queued Run to re-enqueue" do
       job = build_job
       workflow = build_workflow(job, workflow_state: "running", unit_state: "running")

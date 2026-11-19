@@ -2036,5 +2036,22 @@
     "edit_rule": "Im Regel-Editor bearbeiten",
     "tool_preview": "Das wird erstellt",
     "tool_preview_unavailable": "Für diesen Aufruf ist keine lesbare Vorschau verfügbar."
+  },
+  "mcp_bridge": {
+    "heading": "MCP-Brücke",
+    "description": "Erlaube einem externen MCP-Client wie Claude Code, deine Syrus-Chat-Werkzeuge aufzurufen. Jeder Aufruf durchläuft deine Berechtigungsregeln, und alles, was eine Entscheidung braucht, erscheint als Karte im Brücken-Chat des Tokens.",
+    "new_token": "Neues Token – jetzt kopieren, es wird nur einmal angezeigt",
+    "register_hint": "Registriere es in Claude Code:",
+    "name_label": "Token-Name",
+    "name_placeholder": "z. B. Laptop",
+    "issue": "Token erstellen",
+    "issue_error": "Das Token konnte nicht erstellt werden.",
+    "revoke": "Widerrufen",
+    "revoke_error": "Das Token konnte nicht widerrufen werden.",
+    "revoke_confirm": "MCP-Brücken-Token „{{name}}“ widerrufen? Clients, die es nutzen, funktionieren sofort nicht mehr.",
+    "load_error": "MCP-Brücken-Tokens konnten nicht geladen werden.",
+    "last_used": "zuletzt benutzt {{time}}",
+    "never_used": "nie benutzt",
+    "none": "Keine MCP-Brücken-Tokens."
   }
 }

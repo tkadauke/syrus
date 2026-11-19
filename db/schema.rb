@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_164147) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_131053) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2371,6 +2371,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_164147) do
     t.index ["state"], name: "index_maintenance_tasks_on_state"
     t.index ["task_key"], name: "index_maintenance_tasks_on_task_key", unique: true
     t.index ["trigger_kind", "trigger_key"], name: "idx_maintenance_tasks_trigger"
+  end
+
+  create_table "mcp_bridge_tokens", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "chat_session_id"
+    t.string "name", null: false
+    t.string "token_digest", null: false
+    t.string "token_prefix", null: false
+    t.datetime "last_used_at"
+    t.datetime "revoked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id"], name: "index_mcp_bridge_tokens_on_chat_session_id"
+    t.index ["token_digest"], name: "index_mcp_bridge_tokens_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_mcp_bridge_tokens_on_user_id"
   end
 
   create_table "mcp_startup_phase_events", force: :cascade do |t|

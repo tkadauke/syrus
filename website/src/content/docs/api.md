@@ -112,6 +112,25 @@ curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
   "https://syrus.example.com/api/v1/admin/terminal_sessions?state=running"
 ```
 
+## MCP Bridge
+
+`/mcp/bridge` serves Syrus's chat MCP tools over streamable HTTP for an
+external MCP client such as Claude Code. Authenticate with an MCP bridge
+token -- not your API token -- created under **Account settings → MCP
+bridge** or with `POST /api/v1/app/mcp_bridge_tokens` (`name` required; the
+plaintext is returned once). `GET` lists your tokens and
+`DELETE /api/v1/app/mcp_bridge_tokens/:id` revokes one.
+
+```bash
+claude mcp add --transport http syrus https://syrus.example.com/mcp/bridge \
+  --header "Authorization: Bearer $SYRUS_MCP_TOKEN"
+```
+
+The client gets exactly the tools one of your chats would offer, through the
+same permission rules. Each token acts in its own **MCP bridge** chat, where
+its confirmation cards and authorization requests appear for you to decide;
+Syrus's own chat agent never replies in that chat.
+
 ## Attention Report
 
 When the optional Attention Report plugin is enabled, authenticated app clients
