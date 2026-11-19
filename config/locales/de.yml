@@ -1,4 +1,15 @@
 de:
+  models:
+    plugin_installation:
+      errors:
+        plugin_name_mismatch: "muss mit dem Namen der Version übereinstimmen"
+        roles_invalid: "muss eine Liste nicht leerer Namen sein"
+        roles_unsupported: "enthält ungültige Rollen: %{roles}"
+        artifact_required: "muss ein verifiziertes Artefakt haben"
+    plugin_release:
+      errors:
+        bundled_archive_forbidden: "muss für gebündelte Versionen fehlen"
+        artifact_identity_immutable: "Die Artefaktidentität der Plugin-Version ist nach Speicherung oder Auswahl unveränderlich"
   unlanding:
     disabled: "Unlanding ist für diese Instanz nicht aktiviert."
   notifications:

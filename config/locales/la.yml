@@ -1,4 +1,15 @@
 la:
+  models:
+    plugin_installation:
+      errors:
+        plugin_name_mismatch: "cum nomine editionis congruere debet"
+        roles_invalid: "ordo nominum non vacuorum esse debet"
+        roles_unsupported: "munera invalida continet: %{roles}"
+        artifact_required: "artefactum verificatum habere debet"
+    plugin_release:
+      errors:
+        bundled_archive_forbidden: "ab editionibus coniunctis abesse debet"
+        artifact_identity_immutable: "identitas artefacti editionis plugin post conservationem vel selectionem immutabilis est"
   unlanding:
     disabled: "Unlanding in hac instantia non activatum est."
   notifications:

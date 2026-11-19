@@ -94,49 +94,47 @@ function PluginConvergencePanel({ data, loading }: { data?: import("../api/admin
       {loading ? <p className="mt-3 text-sm text-text-secondary">{t("plugins.convergence_loading")}</p> : null}
       {data && data.processes.length === 0 ? <p className="mt-3 text-sm text-text-secondary">{t("plugins.no_processes")}</p> : null}
       {data && data.processes.length > 0 ? (
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase text-text-secondary">
-                <th className="py-2 pr-4">{t("plugins.process")}</th>
-                <th className="py-2 pr-4">{t("plugins.convergence_state")}</th>
-                <th className="py-2 pr-4">{t("plugins.running_revision")}</th>
-                <th className="py-2">{t("plugins.running_plugins")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.processes.map((process) => (
-                <tr
-                  className={process.diverged_too_long ? "border-b border-danger/30 bg-danger/5" : "border-b border-border"}
-                  key={`${process.role}-${process.hostname}`}
-                >
-                  <td className="py-3 pr-4">
-                    <span className="font-medium">{process.role}</span>
-                    <br />
-                    <span className="font-mono text-xs text-text-secondary">{process.hostname}</span>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <span className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">{t(`plugins.convergence_states.${process.state}`)}</span>
-                    {process.diverged_too_long ? <p className="mt-1 text-xs text-danger">{t("plugins.diverged_too_long")}</p> : null}
-                  </td>
-                  <td className="py-3 pr-4 font-mono">{process.running_revision ?? "—"}</td>
-                  <td className="py-3">
-                    <ul className="space-y-1">
-                      {process.plugins.map((plugin) => (
-                        <li key={plugin.name}>
-                          <span className="font-mono">{plugin.name}</span> {plugin.running_version ?? "—"}{" "}
-                          <span className="text-xs text-text-secondary">
-                            ({t(`plugins.process_plugin_states.${plugin.state}`, { defaultValue: plugin.state })})
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable.Root className="text-sm" wrapperClassName="mt-3">
+          <DataTable.Header>
+            <DataTable.Row>
+              <DataTable.HeadCell>{t("plugins.process")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("plugins.convergence_state")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("plugins.running_revision")}</DataTable.HeadCell>
+              <DataTable.HeadCell>{t("plugins.running_plugins")}</DataTable.HeadCell>
+            </DataTable.Row>
+          </DataTable.Header>
+          <DataTable.Body>
+            {data.processes.map((process) => (
+              <DataTable.Row
+                className={process.diverged_too_long ? "border-b border-danger/30 bg-danger/5" : "border-b border-border"}
+                key={`${process.role}-${process.hostname}`}
+              >
+                <DataTable.Cell>
+                  <span className="font-medium">{process.role}</span>
+                  <br />
+                  <span className="font-mono text-xs text-text-secondary">{process.hostname}</span>
+                </DataTable.Cell>
+                <DataTable.Cell>
+                  <span className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">{t(`plugins.convergence_states.${process.state}`)}</span>
+                  {process.diverged_too_long ? <p className="mt-1 text-xs text-danger">{t("plugins.diverged_too_long")}</p> : null}
+                </DataTable.Cell>
+                <DataTable.Cell className="font-mono">{process.running_revision ?? "—"}</DataTable.Cell>
+                <DataTable.Cell>
+                  <ul className="space-y-1">
+                    {process.plugins.map((plugin) => (
+                      <li key={plugin.name}>
+                        <span className="font-mono">{plugin.name}</span> {plugin.running_version ?? "—"}{" "}
+                        <span className="text-xs text-text-secondary">
+                          ({t(`plugins.process_plugin_states.${plugin.state}`, { defaultValue: plugin.state })})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </DataTable.Body>
+        </DataTable.Root>
       ) : null}
     </Surface>
   )

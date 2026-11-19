@@ -28,6 +28,17 @@
 #       enabled: "ON"
 
 en:
+  models:
+    plugin_installation:
+      errors:
+        plugin_name_mismatch: "must match the release name"
+        roles_invalid: "must be an array of non-empty names"
+        roles_unsupported: "contains invalid roles: %{roles}"
+        artifact_required: "must have a verified artifact"
+    plugin_release:
+      errors:
+        bundled_archive_forbidden: "must be absent for bundled releases"
+        artifact_identity_immutable: "plugin release artifact identity is immutable after storage or selection"
   unlanding:
     disabled: "Unlanding is not enabled for this instance."
   notifications:

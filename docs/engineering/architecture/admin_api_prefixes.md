@@ -26,6 +26,11 @@ to drive React UI state belong under `/api/v1/app/admin/*`. If the same
 capability needs both consumers, expose it deliberately on both prefixes and
 keep the payload/auth contract for each consumer explicit.
 
+The plugin quarantine-clear action is app-admin-only because it is the
+restart-oriented recovery control on the Admin Plugins screen. Offline
+recovery remains available through `bin/plugin-recovery` when the UI cannot
+boot.
+
 `POST /api/v1/admin/pending_actions/invoke` is the generic operator
 automation bridge for `PendingActions` operations. The request names an
 `action_key`, a JSON `payload`, and a required `reason`; the API call itself is

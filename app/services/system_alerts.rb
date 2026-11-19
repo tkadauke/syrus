@@ -70,12 +70,15 @@ module SystemAlerts
   private_class_method :plugin_recovery_mode
 
   def self.plugin_fleet_divergence
-    convergence = PluginDesiredState::Convergence.new
+    state = PluginDesiredState.find_by(singleton_key: PluginDesiredState::SINGLETON_KEY)
+    return unless state&.revision&.positive?
+
+    convergence = PluginDesiredState::Convergence.new(state:)
     return unless convergence.prolonged_divergence?
 
     Alert.new(
       id: "plugin_fleet_divergence",
-      dismissal_key: "plugin_fleet_divergence:#{PluginDesiredState.current.revision}",
+      dismissal_key: "plugin_fleet_divergence:#{state.revision}",
       severity: :alarm,
       title: "Plugin fleet has not converged.",
       message: "One or more Syrus processes have run a different plugin set beyond the configured divergence threshold.",

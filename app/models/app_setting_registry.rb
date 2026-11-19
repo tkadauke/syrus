@@ -653,6 +653,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :plugin_manifest_signing_key,
+      type: :string,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "Plugins",
+      operational_meaning: "Encrypted private signing seed for published plugin desired-state manifests.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: true
+    ),
+    Definition.new(
       key: :main_concern_report_threshold,
       type: :integer,
       default: 2,

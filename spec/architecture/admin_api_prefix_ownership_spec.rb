@@ -18,6 +18,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/plugin_convergence api/v1/app/admin/plugin_convergence#show
     POST /api/v1/app/admin/plugins/:name/enable api/v1/app/admin/plugins#enable
     POST /api/v1/app/admin/plugins/:name/disable api/v1/app/admin/plugins#disable
+    POST /api/v1/app/admin/plugins/:name/clear_quarantine api/v1/app/admin/plugins#clear_quarantine
     GET /api/v1/app/admin/plugins/:name/config api/v1/app/admin/plugins#show_config
     PATCH /api/v1/app/admin/plugins/:name/config api/v1/app/admin/plugins#update_config
     GET /api/v1/app/admin/plugins/:name api/v1/app/admin/plugins#show
