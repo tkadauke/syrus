@@ -4976,6 +4976,47 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("resumed #{prepare.slug} with #{prepare.runs.last.slug}")
   end
 
+  it "resumes a grader collector after a semantic failure and a replacement grader success" do
+    workflow.steps.destroy_all
+    fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 0, state: "succeeded")
+    semantic_failure = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 1,
+      state: "failed",
+      details: { "name" => "frontend-lint", "required" => true },
+      depends_on_ids: [ fanout.id ]
+    )
+    replacement_success = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 2,
+      state: "succeeded",
+      details: { "name" => "rspec", "required" => true },
+      depends_on_ids: [ fanout.id ]
+    )
+    collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 3,
+      state: "queued",
+      created_at: 30.minutes.ago,
+      depends_on_ids: [ semantic_failure.id, replacement_success.id ]
+    )
+    fanout.update!(next_step: semantic_failure)
+    semantic_failure.update!(next_step: collect)
+    replacement_success.update!(next_step: collect)
+    workflow.update_columns(state: "running", started_at: 30.minutes.ago)
+    attach_work_unit(workflow, state: "running") unless workflow.work_unit
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :queued_step_without_run)).to be_present
+    expect(plan(result, :resume_queued_step)).to have_attributes(auto_executable: true, target_id: collect.id)
+    expect(collect.reload.runs.count).to eq(1)
+    expect(semantic_failure.reload).to be_failed
+  end
+
   # A resume creates a Run that immediately needs the workspace, so resuming
   # into one this pass just reported missing can only fail. When a power cut
   # took three compute nodes down, this plan fired every ~30 seconds for four

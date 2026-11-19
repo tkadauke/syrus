@@ -1188,6 +1188,15 @@ class StepDispatcher
     step&.succeeded? || step&.skipped?
   end
 
+  def self.deferred_phase_handoff_ready?(step)
+    return false unless step&.queued?
+    return true if completed_predecessor?(step.previous_step)
+    return false unless step.kind.in?(%w[grader_collect preflight_grader_collect])
+    return false if step.depends_on_step_ids.empty?
+
+    step.dependencies_settled?
+  end
+
   def self.retry_until_continuation_after_failed_check?(workflow, step, previous)
     return false unless previous&.failed?
     return false unless previous.next_step_id == step.id
