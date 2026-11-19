@@ -96,6 +96,33 @@ describe("AdminPlugins", () => {
     await i18n.changeLanguage("en")
   })
 
+  it("visually distinguishes verified and unsigned publisher trust", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        recovery: { safe_mode: null, quarantines: {}, locally_clearable: [] },
+        plugins: [
+          {
+            name: "verified-plugin", display_name: "Verified", version: "1.0.0", trust_label: "verified",
+            enabled: true, default_enabled: true, disableable: true, experimental: false,
+            category: null, category_label: null, description: null, icon_url: null,
+            disable_blockers: [], health: { state: "ok", reasons: [] }, quarantine_clearable: false
+          },
+          {
+            name: "local-plugin", display_name: "Local", version: "1.0.0", trust_label: "unsigned_local",
+            enabled: true, default_enabled: true, disableable: true, experimental: false,
+            category: null, category_label: null, description: null, icon_url: null,
+            disable_blockers: [], health: { state: "ok", reasons: [] }, quarantine_clearable: false
+          }
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText("Verified publisher")).toHaveClass("text-emerald-700")
+    expect(screen.getByText("Unsigned local")).toHaveClass("text-gray-600")
+  })
+
   it("shows recovery state and clears one quarantined plugin", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({

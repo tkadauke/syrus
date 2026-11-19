@@ -39,6 +39,8 @@ class PluginDesiredState::Publisher
           version: release.version,
           digest: release.content_digest,
           size: release.size_bytes,
+          trust_label: release.trust_label,
+          publisher_fingerprint: release.publisher_fingerprint,
           roles: installation.roles,
           fleet_quarantined: installation.fleet_quarantined
         }

@@ -42,10 +42,29 @@ RSpec.describe Syrus::PluginPackage::TrustStore do
   end
 
   it "flags a previously installed release when its publisher is later revoked" do
-    expect(store.verify(package: package.path, signature: signature, name: "weather", version: "1.0")).to be_trusted
+    allow(PluginDesiredState::Publisher).to receive(:publish!)
+    release = PluginRelease.create!(name: "weather", version: "1.0", content_digest: Digest::SHA256.file(package.path).hexdigest,
+      source: "bundled", trust_label: "verified", publisher_fingerprint: fingerprint, size_bytes: 0)
+    installation = PluginInstallation.create!(plugin_name: "weather", plugin_release: release)
 
-    refreshed = store(revoked_keys: [ fingerprint ]).verify(package: package.path, signature: signature, name: "weather", version: "1.0")
-    expect(refreshed).to have_attributes(trusted?: false, revoked?: true, reason: "revoked_key")
+    count = store(revoked_keys: [ fingerprint ]).quarantine_revoked_installations!
+
+    expect(count).to eq(1)
+    expect(installation.reload).to be_fleet_quarantined
+    expect(PluginDesiredState::Publisher).to have_received(:publish!).twice
+  end
+
+  it "quarantines an installed release revoked by prefixed digest" do
+    allow(PluginDesiredState::Publisher).to receive(:publish!)
+    digest = Digest::SHA256.file(package.path).hexdigest
+    release = PluginRelease.create!(name: "weather", version: "1.0", content_digest: digest,
+      source: "bundled", trust_label: "verified", publisher_fingerprint: fingerprint, size_bytes: 0)
+    installation = PluginInstallation.create!(plugin_name: "weather", plugin_release: release)
+
+    store(revoked_releases: [ { name: "weather", version: "1.0", digest: "sha256:#{digest}" } ])
+      .quarantine_revoked_installations!
+
+    expect(installation.reload).to be_fleet_quarantined
   end
 
   it "generates a detached signature that verifies" do

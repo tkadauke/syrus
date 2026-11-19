@@ -59,7 +59,16 @@ key off source control and build systems they do not control, and create a
 detached signature with `syrus plugin sign PACKAGE --key KEY`. Registry trust
 stores contain public keys, SHA-256 fingerprints, `official`, `verified`, or
 `community` labels, and revoked keys and releases. `syrus plugin verify` checks
-all of them. Unsigned development installs are labeled `unsigned local`.
+all of them. Key generation prints the public key and fingerprint needed for a
+registry submission. `syrus plugin list --manifest PATH --signature PATH
+--public-key KEY` verifies signed desired state before showing the persisted
+trust label for each desired plugin. Unsigned development installs are labeled
+`unsigned local`.
+
+Refreshing a cached trust store reconciles its revoked publisher keys and
+releases with installed plugin records. A match sets the fleet quarantine in
+signed desired state, so plugin synchronization removes the release from the
+active set and boot safety refuses to load it.
 
 Signing proves that one key signed the exact package bytes, and a trust label
 states how the registry classifies that key. It does not sandbox the plugin,

@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_142023) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_210358) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3137,8 +3137,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_142023) do
     t.bigint "size_bytes", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "publisher_fingerprint"
     t.index ["content_digest"], name: "index_plugin_releases_on_content_digest"
     t.index ["name", "version", "content_digest"], name: "idx_plugin_releases_identity", unique: true
+    t.index ["publisher_fingerprint"], name: "index_plugin_releases_on_publisher_fingerprint"
     t.index ["uploaded_by_id"], name: "index_plugin_releases_on_uploaded_by_id"
   end
 

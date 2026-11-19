@@ -75,6 +75,10 @@ module Syrus
         end
       end
 
+      def remember_boot_attempt(id)
+        @boot_attempt_id = id
+      end
+
       private
 
       def scan_plugin_root(directory)
@@ -82,10 +86,6 @@ module Syrus
       rescue *RESCUED_ERRORS => error
         Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [],
           minimum_syrus_version: nil, content_hash: nil, error: "#{error.class}: #{error.message}")
-      end
-
-      def remember_boot_attempt(id)
-        @boot_attempt_id = id
       end
     end
 

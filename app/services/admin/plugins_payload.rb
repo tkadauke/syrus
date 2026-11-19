@@ -22,6 +22,7 @@ module Admin
         all_manifests = Syrus::PluginRegistry.all_plugins
         manifests = filtered_manifests(all_manifests)
         records = PluginRecord.where(name: manifests.map(&:name)).index_by(&:name)
+        load_installations(manifests)
         # Dependency graph is built from *all* registered manifests, not the
         # filtered set, so a search hit still shows dependents/dependencies
         # that fell outside the query.
@@ -44,6 +45,7 @@ module Admin
         raise ActiveRecord::RecordNotFound, "Couldn't find Plugin #{name.inspect}" unless manifest
 
         records = PluginRecord.where(name: [ manifest.name ]).index_by(&:name)
+        load_installations([ manifest ])
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
 
         {
@@ -115,7 +117,7 @@ module Admin
           display_name: manifest.display_name.presence || metadata[:display_name].presence || manifest.name.to_s.titleize,
           display_name_i18n_key: manifest.display_name_i18n_key,
           version: manifest.version,
-          trust_label: trust_label_for(manifest, metadata),
+          trust_label: trust_label_for(manifest),
           enabled: manifest.enabled?,
           default_enabled: manifest.default_enabled?,
           disableable: manifest.disableable?,
@@ -161,12 +163,24 @@ module Admin
       end
     end
 
-    def trust_label_for(manifest, metadata)
-      declared = metadata[:trust_label].to_s
-      return declared if %w[official verified community unsigned_local].include?(declared)
-
+    def trust_label_for(manifest)
       root = Syrus::PluginRoots.default.resolve(manifest.name)
-      root&.to_s&.start_with?(Rails.root.join("plugins").to_s) ? "official" : "unsigned_local"
+      return "official" if root&.to_s&.start_with?(Rails.root.join("plugins").to_s)
+
+      installation = @installations_by_name[manifest.name]
+      return installation[:trust_label] if installation && installation[:version] == manifest.version.to_s
+
+      "unsigned_local"
+    end
+
+    def load_installations(manifests)
+      @installations_by_name = PluginInstallation.includes(:plugin_release)
+        .where(plugin_name: manifests.map(&:name)).to_h do |installation|
+          [ installation.plugin_name, {
+            trust_label: installation.plugin_release.trust_label,
+            version: installation.plugin_release.version
+          } ]
+        end
     end
 
     def docs_payload(manifest, spec)

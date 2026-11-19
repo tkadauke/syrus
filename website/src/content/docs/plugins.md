@@ -95,8 +95,13 @@ Generate a publisher key with `syrus plugin keygen`, keep the private key local
 and out of source control, then create a detached signature with
 `syrus plugin sign PACKAGE --key KEY`. `syrus plugin verify` checks it against
 a registry trust store and reports `official`, `verified`, or `community`;
+the key generator prints the public key and fingerprint needed for registry
+submission. `syrus plugin list --manifest PATH --signature PATH --public-key
+KEY` verifies signed desired state before showing installed trust labels;
 local unsigned plugins are labeled `unsigned local`. Trust stores can revoke
-publisher keys and individual releases, withdrawing previously granted trust.
+publisher keys and individual releases. A refreshed cache fleet-quarantines
+matching installed releases, withdrawing previously granted trust and removing
+them from the active desired plugin set.
 
 The signature proves which key signed the exact package bytes. The label says
 how the registry classifies that key. Neither is a sandbox or a source-code

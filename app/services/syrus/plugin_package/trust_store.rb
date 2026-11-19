@@ -21,6 +21,10 @@ module Syrus
         new(JSON.parse(File.read(path)))
       end
 
+      def self.refresh(path)
+        load(path).tap(&:quarantine_revoked_installations!)
+      end
+
       def initialize(document)
         @document = document.with_indifferent_access
         raise ArgumentError, "unsupported plugin trust store version" unless @document[:version] == 1
@@ -45,7 +49,8 @@ module Syrus
         digest = Digest::SHA256.file(package).hexdigest
         revoked_release = Array(@document[:revoked_releases]).any? do |release|
           release = release.with_indifferent_access
-          release[:name] == name && release[:version] == version && (!release[:digest] || release[:digest] == digest)
+          release[:name] == name && release[:version] == version &&
+            (!release[:digest] || release[:digest].delete_prefix("sha256:") == digest)
         end
         return result(false, nil, fingerprint, "revoked_release") if revoked_release
 
@@ -67,7 +72,28 @@ module Syrus
         result(false, "unsigned_local", nil, "unsigned_local")
       end
 
+      def quarantine_revoked_installations!
+        installations = PluginInstallation.includes(:plugin_release).select do |installation|
+          revoked_release?(installation.plugin_release)
+        end
+        return 0 if installations.empty?
+
+        PluginInstallation.where(id: installations.map(&:id), fleet_quarantined: false).update_all(
+          fleet_quarantined: true, updated_at: Time.current
+        ).tap { |count| PluginDesiredState::Publisher.publish! if count.positive? }
+      end
+
       private
+
+      def revoked_release?(release)
+        return true if Array(@document[:revoked_keys]).include?(release.publisher_fingerprint)
+
+        Array(@document[:revoked_releases]).any? do |revocation|
+          revocation = revocation.with_indifferent_access
+          revocation[:name] == release.name && revocation[:version] == release.version &&
+            (!revocation[:digest] || revocation[:digest].delete_prefix("sha256:") == release.content_digest)
+        end
+      end
 
       def result(trusted, label, fingerprint, reason)
         Verification.new(trusted:, label:, fingerprint:, reason:)

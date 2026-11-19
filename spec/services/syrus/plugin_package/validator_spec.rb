@@ -60,6 +60,26 @@ RSpec.describe Syrus::PluginPackage::Validator do
     expect(result.errors).to include("package signature is not trusted: revoked_key")
   end
 
+  it "accepts a valid signature from a trusted publisher" do
+    package = Tempfile.new
+    package.binmode
+    package.write(archive(entries).read)
+    package.close
+    key = OpenSSL::PKey.generate_key("ED25519")
+    key_file = Tempfile.new
+    key_file.write(key.private_to_pem)
+    key_file.close
+    signature = StringIO.new(Syrus::PluginPackage::Signer.new(key_file.path).sign(package.path))
+    fingerprint = Syrus::PluginPackage::TrustStore.fingerprint(key)
+    trust_store = Syrus::PluginPackage::TrustStore.new(
+      version: 1,
+      keys: [ { fingerprint:, label: "verified", public_key: Base64.strict_encode64(key.public_to_der) } ],
+      revoked_keys: [], revoked_releases: []
+    )
+
+    expect(described_class.new(package.path, trust_store:, signature:).call).to be_valid
+  end
+
   it "rejects a tampered file" do
     files = entries.map { |path, item| { "path" => path, "sha256" => Digest::SHA256.hexdigest(item[:data]) } }
     files.find { |item| item["path"].end_with?("weather.rb") }["sha256"] = "0" * 64

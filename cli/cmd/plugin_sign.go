@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -48,6 +49,14 @@ type pluginVerification struct {
 	Label       string
 	Fingerprint string
 	Reason      string
+}
+
+type pluginDesiredManifest struct {
+	Plugins []struct {
+		Name       string `json:"name"`
+		Version    string `json:"version"`
+		TrustLabel string `json:"trust_label"`
+	} `json:"plugins"`
 }
 
 func pluginKeyFingerprint(public ed25519.PublicKey) string {
@@ -157,10 +166,57 @@ func newPluginKeygenCommand() *cobra.Command {
 		if err := file.Close(); err != nil {
 			return err
 		}
-		fmt.Fprintf(command.OutOrStdout(), "%s\nKeep this private key local and never commit or upload it.\n", output)
+		public := private.Public().(ed25519.PublicKey)
+		publicDER, err := x509.MarshalPKIXPublicKey(public)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(command.OutOrStdout(), "%s\nFingerprint: %s\nPublic key: %s\nKeep this private key local and never commit or upload it.\n",
+			output, pluginKeyFingerprint(public), base64.StdEncoding.EncodeToString(publicDER))
 		return nil
 	}}
 	command.Flags().StringVarP(&output, "output", "o", "syrus-plugin-publisher.pem", "private key output path")
+	return command
+}
+
+func newPluginListCommand() *cobra.Command {
+	var manifestPath, signaturePath, publicKey string
+	command := &cobra.Command{Use: "list", Short: "List desired plugins and publisher trust", RunE: func(command *cobra.Command, _ []string) error {
+		manifestBody, err := os.ReadFile(manifestPath)
+		if err != nil {
+			return err
+		}
+		signatureBody, err := os.ReadFile(signaturePath)
+		if err != nil {
+			return err
+		}
+		signature, err := base64.StdEncoding.DecodeString(string(bytes.TrimSpace(signatureBody)))
+		if err != nil {
+			return errors.New("desired-state signature is invalid")
+		}
+		public, err := base64.StdEncoding.DecodeString(publicKey)
+		if err != nil || len(public) != ed25519.PublicKeySize || !ed25519.Verify(ed25519.PublicKey(public), manifestBody, signature) {
+			return errors.New("desired-state signature verification failed")
+		}
+		var manifest pluginDesiredManifest
+		if err := json.Unmarshal(manifestBody, &manifest); err != nil {
+			return err
+		}
+		for _, plugin := range manifest.Plugins {
+			label := plugin.TrustLabel
+			if label == "" {
+				label = "unsigned_local"
+			}
+			fmt.Fprintf(command.OutOrStdout(), "%s\t%s\t%s\n", plugin.Name, plugin.Version, label)
+		}
+		return nil
+	}}
+	command.Flags().StringVar(&manifestPath, "manifest", "", "signed desired-state manifest path")
+	command.Flags().StringVar(&signaturePath, "signature", "", "detached desired-state signature path")
+	command.Flags().StringVar(&publicKey, "public-key", "", "base64 desired-state public key")
+	for _, flag := range []string{"manifest", "signature", "public-key"} {
+		_ = command.MarkFlagRequired(flag)
+	}
 	return command
 }
 

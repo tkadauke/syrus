@@ -22,7 +22,7 @@ RSpec.describe PluginDesiredState::Publisher do
   let(:digest) { Digest::SHA256.hexdigest(body) }
   let!(:release) do
     PluginRelease.create!(name: "weather", version: "2.0.0", content_digest: digest,
-      source: "registry", trust_label: "verified", size_bytes: body.bytesize)
+      source: "registry", trust_label: "verified", publisher_fingerprint: "sha256:#{'a' * 64}", size_bytes: body.bytesize)
   end
 
   before do
@@ -39,6 +39,7 @@ RSpec.describe PluginDesiredState::Publisher do
     expect(second.fetch("revision")).to eq(first.fetch("revision") + 1)
     expect(second.fetch("plugins").sole).to include(
       "name" => "weather", "version" => "2.0.0", "digest" => digest, "size" => body.bytesize,
+      "trust_label" => "verified", "publisher_fingerprint" => "sha256:#{'a' * 64}",
       "roles" => %w[web worker], "fleet_quarantined" => true
     )
     expect(service.writes.last(2)).to eq([

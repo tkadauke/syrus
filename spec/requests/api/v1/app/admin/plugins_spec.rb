@@ -144,6 +144,30 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(plugin).not_to include("long_description", "homepage", "author", "source", "frontend", "routes", "extension_points", "config_schema", "config")
   end
 
+  it "does not trust a label declared by plugin registration metadata" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "weather", version: "1.0.0", external: true, trust_label: "verified")
+
+    get "/api/v1/app/admin/plugins"
+
+    expect(parse_body.fetch("plugins").sole.fetch("trust_label")).to eq("unsigned_local")
+  end
+
+  it "shows the trust label persisted with an installed release" do
+    sign_in_as(admin)
+    allow(PluginDesiredState::Publisher).to receive(:publish!)
+    release = PluginRelease.create!(name: "weather", version: "1.0.0", content_digest: "a" * 64,
+      source: "bundled", trust_label: "community", publisher_fingerprint: "sha256:#{'b' * 64}", size_bytes: 0)
+    PluginInstallation.create!(plugin_name: "weather", plugin_release: release)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "weather", version: "1.0.0", external: true)
+
+    get "/api/v1/app/admin/plugins"
+
+    expect(parse_body.fetch("plugins").sole.fetch("trust_label")).to eq("community")
+  end
+
   it "includes icon_url when the manifest sets one" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
