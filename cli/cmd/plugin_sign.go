@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -12,7 +14,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -97,8 +101,49 @@ func mustReadFile(path string, err *error) []byte {
 	return contents
 }
 
-func verifyPluginPackage(packagePath string, envelope pluginSignature, store pluginTrustStore, name, version string) pluginVerification {
+func pluginPackageIdentity(packagePath string) (string, string, error) {
+	file, err := os.Open(packagePath)
+	if err != nil {
+		return "", "", err
+	}
+	defer file.Close()
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return "", "", err
+	}
+	defer gzipReader.Close()
+	reader := tar.NewReader(gzipReader)
+	for {
+		entry, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			return "", "", errors.New("package manifest is missing")
+		}
+		if err != nil {
+			return "", "", err
+		}
+		if entry.Name != "package.json" {
+			continue
+		}
+		if entry.Size > 1<<20 {
+			return "", "", errors.New("package manifest is too large")
+		}
+		var manifest packageManifest
+		if err := json.NewDecoder(io.LimitReader(reader, 1<<20)).Decode(&manifest); err != nil {
+			return "", "", err
+		}
+		if manifest.Name == "" || manifest.Version == "" {
+			return "", "", errors.New("package manifest identity is missing")
+		}
+		return manifest.Name, manifest.Version, nil
+	}
+}
+
+func verifyPluginPackage(packagePath string, envelope pluginSignature, store pluginTrustStore) pluginVerification {
 	result := pluginVerification{Fingerprint: envelope.Fingerprint}
+	if store.Version != 1 {
+		result.Reason = "invalid_trust_store"
+		return result
+	}
 	for _, fingerprint := range store.RevokedKeys {
 		if fingerprint == envelope.Fingerprint {
 			result.Reason = "revoked_key"
@@ -112,8 +157,13 @@ func verifyPluginPackage(packagePath string, envelope pluginSignature, store plu
 	}
 	digest := sha256.Sum256(contents)
 	digestHex := hex.EncodeToString(digest[:])
+	name, version, identityErr := pluginPackageIdentity(packagePath)
+	if identityErr != nil {
+		result.Reason = "invalid_package"
+		return result
+	}
 	for _, release := range store.RevokedReleases {
-		if release.Name == name && release.Version == version && (release.Digest == "" || release.Digest == digestHex) {
+		if release.Name == name && release.Version == version && (release.Digest == "" || strings.TrimPrefix(release.Digest, "sha256:") == digestHex) {
 			result.Reason = "revoked_release"
 			return result
 		}
@@ -244,7 +294,7 @@ func newPluginSignCommand() *cobra.Command {
 }
 
 func newPluginVerifyCommand() *cobra.Command {
-	var signaturePath, trustStorePath, name, version string
+	var signaturePath, trustStorePath string
 	command := &cobra.Command{Use: "verify PACKAGE", Short: "Verify package provenance and revocation", Args: cobra.ExactArgs(1), RunE: func(command *cobra.Command, args []string) error {
 		var envelope pluginSignature
 		var store pluginTrustStore
@@ -254,7 +304,7 @@ func newPluginVerifyCommand() *cobra.Command {
 		if err := readJSONFile(trustStorePath, &store); err != nil {
 			return err
 		}
-		result := verifyPluginPackage(args[0], envelope, store, name, version)
+		result := verifyPluginPackage(args[0], envelope, store)
 		if !result.Trusted {
 			return fmt.Errorf("package is not trusted: %s", result.Reason)
 		}
@@ -263,9 +313,7 @@ func newPluginVerifyCommand() *cobra.Command {
 	}}
 	command.Flags().StringVar(&signaturePath, "signature", "", "detached signature path")
 	command.Flags().StringVar(&trustStorePath, "trust-store", "", "registry trust store path")
-	command.Flags().StringVar(&name, "name", "", "registry plugin name")
-	command.Flags().StringVar(&version, "version", "", "registry plugin version")
-	for _, flag := range []string{"signature", "trust-store", "name", "version"} {
+	for _, flag := range []string{"signature", "trust-store"} {
 		_ = command.MarkFlagRequired(flag)
 	}
 	return command

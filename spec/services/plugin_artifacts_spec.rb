@@ -5,7 +5,15 @@ RSpec.describe PluginArtifacts do
   let(:digest) { Digest::SHA256.hexdigest(body) }
   let(:release) do
     PluginRelease.create!(name: "weather", version: "1.2.3", content_digest: digest,
-      source: "upload", trust_label: "reviewed", size_bytes: body.bytesize)
+      source: "upload", trust_label: "verified", size_bytes: body.bytesize)
+  end
+  let(:valid_result) do
+    instance_double(Syrus::PluginPackage::Validator::Result, valid?: true, errors: [],
+      manifest: { "name" => "weather", "version" => "1.2.3" })
+  end
+
+  before do
+    allow_any_instance_of(Syrus::PluginPackage::Validator).to receive(:call).and_return(valid_result)
   end
 
   it "stores a verified artifact at its content-addressed key" do
@@ -18,6 +26,16 @@ RSpec.describe PluginArtifacts do
   it "rejects bytes that do not match the declared digest" do
     expect { described_class.store!(release, StringIO.new("tampered")) }
       .to raise_error(PluginArtifacts::DigestMismatch, /digest/)
+    expect(release.archive).not_to be_attached
+  end
+
+  it "rejects an artifact that fails bounded package validation" do
+    invalid = instance_double(Syrus::PluginPackage::Validator::Result, valid?: false,
+      errors: [ "package is too large" ], manifest: nil)
+    allow_any_instance_of(Syrus::PluginPackage::Validator).to receive(:call).and_return(invalid)
+
+    expect { described_class.store!(release, StringIO.new(body)) }
+      .to raise_error(PluginArtifacts::DigestMismatch, /package is too large/)
     expect(release.archive).not_to be_attached
   end
 

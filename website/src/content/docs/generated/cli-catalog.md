@@ -69,7 +69,7 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus plugin sign PACKAGE` | Create a detached Ed25519 package signature | `--debug`, `--key`, `--output`, `--profile` | no |
 | `syrus plugin test [DIR]` | Validate and test a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
 | `syrus plugin validate [DIR]` | Validate a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
-| `syrus plugin verify PACKAGE` | Verify package provenance and revocation | `--debug`, `--name`, `--profile`, `--signature`, `--trust-store`, `--version` | no |
+| `syrus plugin verify PACKAGE` | Verify package provenance and revocation | `--debug`, `--profile`, `--signature`, `--trust-store` | no |
 | `syrus repo` | Inspect Syrus repositories | `--debug`, `--profile` | no |
 | `syrus repo list` | List repositories | `--debug`, `--json`, `--profile` | yes |
 | `syrus review` | Review job diffs from scripts | `--debug`, `--profile` | no |

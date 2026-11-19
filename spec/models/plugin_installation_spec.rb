@@ -23,17 +23,17 @@ RSpec.describe PluginInstallation do
     expect(installation.errors[:plugin_name]).to include("must match the release name")
   end
 
-  it "publishes when the selected release metadata changes" do
+  it "does not allow selected release provenance to change" do
     allow(PluginDesiredState::Publisher).to receive(:publish!)
     described_class.create!(plugin_name: "weather", plugin_release: release)
-    expect(PluginDesiredState::Publisher).to receive(:publish!).once
 
-    release.update!(trust_label: "audited")
+    expect(release.update(trust_label: "community")).to be(false)
+    expect(release.errors[:base]).to be_present
   end
 
   it "does not enable an uploaded release before its artifact is verified" do
     uploaded = PluginRelease.create!(name: "uploaded", version: "1.0.0", content_digest: "b" * 64,
-      source: "upload", trust_label: "reviewed", size_bytes: 12)
+      source: "upload", trust_label: "verified", size_bytes: 12)
 
     installation = described_class.new(plugin_name: "uploaded", plugin_release: uploaded)
 

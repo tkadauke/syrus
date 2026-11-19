@@ -1,4 +1,8 @@
 Rails.application.config.after_initialize do
+  unless Rails.env.test?
+    Syrus::PluginPackage::TrustStore.refresh_configured!
+  end
+
   # Core providers use the same extension point plugins use, and are
   # registered before the test boot snapshot is captured below.
   Syrus::PluginRegistry.register(:slug_type, SlugRefs::Types::Job)

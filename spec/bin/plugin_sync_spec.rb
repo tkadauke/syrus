@@ -132,6 +132,27 @@ RSpec.describe "plugin-sync" do
     end
   end
 
+  it "keeps the active set when an artifact expands beyond the package limit" do
+    require "ed25519"
+    Dir.mktmpdir do |directory|
+      storage = File.join(directory, "storage")
+      data = File.join(directory, "data")
+      key = Ed25519::SigningKey.generate
+      good = add_plugin(storage, name: "weather", version: "good")
+      publish(storage, key, revision: 1, plugins: [ good ])
+      expect(run_sync(storage:, data:, verify_key: key.verify_key).last).to be_success
+
+      oversized = archive("lib/weather.rb" => "x" * (51 * 1024 * 1024))
+      bad = add_plugin(storage, name: "weather", version: "oversized", body: oversized)
+      publish(storage, key, revision: 2, plugins: [ bad ])
+      _stdout, stderr, status = run_sync(storage:, data:, verify_key: key.verify_key)
+
+      expect(status).to be_success
+      expect(stderr).to include("artifact file is too large")
+      expect(File.read(active(data, "weather"))).to eq("good")
+    end
+  end
+
   it "keeps fleet quarantine state when a desired artifact fails validation" do
     require "ed25519"
     Dir.mktmpdir do |directory|
@@ -149,6 +170,27 @@ RSpec.describe "plugin-sync" do
 
       expect(JSON.parse(File.read(File.join(data, "plugin-sync/fleet-quarantines.json"))))
         .to eq("weather" => "fleet quarantine in desired plugin state")
+    end
+  end
+
+  it "keeps the active set when an artifact expands beyond the file-count limit" do
+    require "ed25519"
+    Dir.mktmpdir do |directory|
+      storage = File.join(directory, "storage")
+      data = File.join(directory, "data")
+      key = Ed25519::SigningKey.generate
+      good = add_plugin(storage, name: "weather", version: "good")
+      publish(storage, key, revision: 1, plugins: [ good ])
+      expect(run_sync(storage:, data:, verify_key: key.verify_key).last).to be_success
+
+      files = 10_001.times.to_h { |index| [ "lib/file-#{index}.rb", "" ] }
+      oversized = add_plugin(storage, name: "weather", version: "oversized", body: archive(files))
+      publish(storage, key, revision: 2, plugins: [ oversized ])
+
+      _stdout, stderr, status = run_sync(storage:, data:, verify_key: key.verify_key)
+      expect(status).to be_success
+      expect(stderr).to include("artifact contains too many files")
+      expect(File.read(active(data, "weather"))).to eq("good")
     end
   end
 

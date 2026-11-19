@@ -101,7 +101,9 @@ KEY` verifies signed desired state before showing installed trust labels;
 local unsigned plugins are labeled `unsigned local`. Trust stores can revoke
 publisher keys and individual releases. A refreshed cache fleet-quarantines
 matching installed releases, withdrawing previously granted trust and removing
-them from the active desired plugin set.
+them from the active desired plugin set. Self-hosted instances point
+`SYRUS_PLUGIN_TRUST_STORE_PATH` at their locally cached registry trust-store
+JSON; Syrus reconciles the cache at boot.
 
 The signature proves which key signed the exact package bytes. The label says
 how the registry classifies that key. Neither is a sandbox or a source-code

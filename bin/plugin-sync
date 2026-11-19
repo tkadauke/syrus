@@ -9,6 +9,7 @@ require "optparse"
 require "pathname"
 require "rubygems/package"
 require "securerandom"
+require "set"
 require "tmpdir"
 require "zlib"
 
@@ -17,6 +18,9 @@ class PluginSync
   SIGNATURE_KEY = "plugins/desired/manifest.json.sig"
   ARTIFACT_PREFIX = "plugins/artifacts/"
   SAFE_NAME = /\A[a-zA-Z0-9][a-zA-Z0-9_.-]*\z/
+  MAX_FILES = 10_000
+  MAX_FILE_SIZE = 50 * 1024 * 1024
+  MAX_TOTAL_SIZE = 250 * 1024 * 1024
 
   class Error < StandardError; end
 
@@ -148,14 +152,23 @@ class PluginSync
       File.binwrite(archive, artifact)
       io = File.open(archive, "rb")
       reader_io = artifact.start_with?("\x1F\x8B".b) ? Zlib::GzipReader.new(io) : io
+      files = 0
+      total_size = 0
+      paths = Set.new
       Gem::Package::TarReader.new(reader_io) do |tar|
         tar.each do |entry|
           relative = Pathname.new(entry.full_name).cleanpath
           raise Error, "artifact contains an unsafe path" if relative.absolute? || relative.each_filename.include?("..")
+          raise Error, "artifact contains a duplicate path" unless paths.add?(relative.to_s)
           target = destination.join(relative)
           if entry.directory?
             FileUtils.mkdir_p(target)
           elsif entry.file?
+            files += 1
+            total_size += entry.header.size
+            raise Error, "artifact contains too many files" if files > MAX_FILES
+            raise Error, "artifact file is too large" if entry.header.size > MAX_FILE_SIZE
+            raise Error, "artifact expands beyond the size limit" if total_size > MAX_TOTAL_SIZE
             FileUtils.mkdir_p(target.dirname)
             File.binwrite(target, entry.read)
             File.chmod(entry.header.mode & 0o777, target)

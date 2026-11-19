@@ -68,7 +68,9 @@ trust label for each desired plugin. Unsigned development installs are labeled
 Refreshing a cached trust store reconciles its revoked publisher keys and
 releases with installed plugin records. A match sets the fleet quarantine in
 signed desired state, so plugin synchronization removes the release from the
-active set and boot safety refuses to load it.
+active set and boot safety refuses to load it. Set
+`SYRUS_PLUGIN_TRUST_STORE_PATH` to the locally cached registry trust-store JSON;
+Syrus reconciles that cache at boot.
 
 Signing proves that one key signed the exact package bytes, and a trust label
 states how the registry classifies that key. It does not sandbox the plugin,

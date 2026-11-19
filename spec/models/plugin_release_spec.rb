@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe PluginRelease do
   it "accepts the supported release metadata and rejects unknown sources" do
     release = described_class.new(name: "weather", version: "1.2.3", content_digest: "a" * 64,
-      source: "unknown", trust_label: "reviewed", size_bytes: 12)
+      source: "unknown", trust_label: "verified", size_bytes: 12)
 
     expect(release).not_to be_valid
     expect(release.errors[:source]).to be_present
@@ -11,7 +11,7 @@ RSpec.describe PluginRelease do
 
   it "keeps bundled releases artifact-free" do
     release = described_class.create!(name: "weather", version: "1.2.3", content_digest: "a" * 64,
-      source: "bundled", trust_label: "bundled", size_bytes: 0)
+      source: "bundled", trust_label: "official", size_bytes: 0)
 
     expect(release.archive).not_to be_attached
   end
@@ -19,15 +19,17 @@ RSpec.describe PluginRelease do
   it "keeps artifact identity immutable after the archive is verified" do
     body = "plugin archive"
     release = described_class.create!(name: "weather", version: "1.2.3", content_digest: Digest::SHA256.hexdigest(body),
-      source: "upload", trust_label: "reviewed", size_bytes: body.bytesize)
-    PluginArtifacts.store!(release, StringIO.new(body))
+      source: "upload", trust_label: "verified", publisher_fingerprint: "sha256:#{'a' * 64}", size_bytes: body.bytesize)
+    release.archive.attach(io: StringIO.new(body), filename: "weather.tar.gz")
 
     {
       name: "weather-pro",
       version: "2.0.0",
       content_digest: "b" * 64,
       source: "registry",
-      size_bytes: body.bytesize + 1
+      size_bytes: body.bytesize + 1,
+      trust_label: "community",
+      publisher_fingerprint: "sha256:#{'b' * 64}"
     }.each do |attribute, value|
       expect(release.update(attribute => value)).to be(false)
       expect(release.errors[:base]).to include("plugin release artifact identity is immutable after storage or selection")
@@ -37,11 +39,19 @@ RSpec.describe PluginRelease do
 
   it "keeps artifact identity immutable after a release without an archive is selected" do
     release = described_class.create!(name: "weather", version: "1.2.3", content_digest: "a" * 64,
-      source: "bundled", trust_label: "bundled", size_bytes: 0)
+      source: "bundled", trust_label: "official", size_bytes: 0)
     allow(PluginDesiredState::Publisher).to receive(:publish!)
     PluginInstallation.create!(plugin_name: "weather", plugin_release: release)
 
     expect(release.update(version: "2.0.0")).to be(false)
     expect(release.errors[:base]).to include("plugin release artifact identity is immutable after storage or selection")
+  end
+
+  it "accepts only public trust labels" do
+    release = described_class.new(name: "weather", version: "1.2.3", content_digest: "a" * 64,
+      source: "registry", trust_label: "self_declared", size_bytes: 12)
+
+    expect(release).not_to be_valid
+    expect(release.errors[:trust_label]).to be_present
   end
 end

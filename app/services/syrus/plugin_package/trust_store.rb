@@ -25,6 +25,11 @@ module Syrus
         load(path).tap(&:quarantine_revoked_installations!)
       end
 
+      def self.refresh_configured!(env: ENV)
+        path = env["SYRUS_PLUGIN_TRUST_STORE_PATH"].to_s
+        refresh(path) unless path.empty?
+      end
+
       def initialize(document)
         @document = document.with_indifferent_access
         raise ArgumentError, "unsupported plugin trust store version" unless @document[:version] == 1

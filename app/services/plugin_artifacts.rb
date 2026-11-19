@@ -23,6 +23,12 @@ module PluginArtifacts
     end
     raise DigestMismatch, "plugin artifact size does not match the release" unless size == release.size_bytes
 
+    validation = Syrus::PluginPackage::Validator.new(tempfile.path).call
+    raise DigestMismatch, "plugin artifact is invalid: #{validation.errors.join('; ')}" unless validation.valid?
+    unless validation.manifest.values_at("name", "version") == [ release.name, release.version ]
+      raise DigestMismatch, "plugin artifact identity does not match the release"
+    end
+
     tempfile.rewind
     blob = ActiveStorage::Blob.create_and_upload!(
       io: tempfile,

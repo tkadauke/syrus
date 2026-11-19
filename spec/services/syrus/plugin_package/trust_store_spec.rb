@@ -67,6 +67,24 @@ RSpec.describe Syrus::PluginPackage::TrustStore do
     expect(installation.reload).to be_fleet_quarantined
   end
 
+  it "reconciles installed releases from the configured cached trust store" do
+    allow(PluginDesiredState::Publisher).to receive(:publish!)
+    release = PluginRelease.create!(name: "weather", version: "1.0", content_digest: Digest::SHA256.file(package.path).hexdigest,
+      source: "bundled", trust_label: "verified", publisher_fingerprint: fingerprint, size_bytes: 0)
+    installation = PluginInstallation.create!(plugin_name: "weather", plugin_release: release)
+    cache = Tempfile.new
+    cache.write(JSON.generate(
+      version: 1,
+      keys: [ { fingerprint:, label: "verified", public_key: Base64.strict_encode64(key.public_to_der) } ],
+      revoked_keys: [ fingerprint ], revoked_releases: []
+    ))
+    cache.close
+
+    described_class.refresh_configured!(env: { "SYRUS_PLUGIN_TRUST_STORE_PATH" => cache.path })
+
+    expect(installation.reload).to be_fleet_quarantined
+  end
+
   it "generates a detached signature that verifies" do
     key_file = Tempfile.new
     key_file.write(key.private_to_pem)
