@@ -314,6 +314,9 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/new` | `api/v1/app/direct_jobs#new` |
 | core | GET | `/api/v1/app/jobs/new/prompt_templates/:template_id` | `api/v1/app/direct_jobs#prompt_template` |
 | core | GET | `/api/v1/app/maintenance_tasks/sidebar` | `api/v1/app/maintenance_tasks#sidebar` |
+| core | GET | `/api/v1/app/mcp_bridge_tokens` | `api/v1/app/mcp_bridge_tokens#index` |
+| core | POST | `/api/v1/app/mcp_bridge_tokens` | `api/v1/app/mcp_bridge_tokens#create` |
+| core | DELETE | `/api/v1/app/mcp_bridge_tokens/:id` | `api/v1/app/mcp_bridge_tokens#destroy` |
 | core | GET | `/api/v1/app/me` | `api/v1/app/me#show` |
 | core | GET | `/api/v1/app/notification_preferences` | `api/v1/app/notification_preferences#show` |
 | core | PATCH | `/api/v1/app/notification_preferences` | `api/v1/app/notification_preferences#update` |
