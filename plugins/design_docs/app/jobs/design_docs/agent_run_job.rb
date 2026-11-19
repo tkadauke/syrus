@@ -1,9 +1,14 @@
 module DesignDocs
   class AgentRunJob < PluginJob
-    plugin :design_docs, concurrency: 1
+    plugin :design_docs
     DEFAULT_TIMEOUT_SECONDS = 2.minutes.to_i
     DEFAULT_MAX_TURNS = 2
     discard_on ActiveRecord::RecordNotFound
+
+    limits_concurrency to: 1, group: "design_doc_thread_agent", key: ->(run_id) {
+      run = DesignDocs::DesignDocAgentRun.find_by(id: run_id)
+      run ? "design_doc_thread:#{run.design_doc_thread_id}" : "design_doc_agent_run:#{run_id}"
+    }, duration: 15.minutes
 
     class << self
       attr_accessor :agent_runner

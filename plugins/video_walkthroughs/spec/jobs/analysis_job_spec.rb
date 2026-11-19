@@ -63,6 +63,10 @@ RSpec.describe VideoWalkthroughs::AnalysisJob do
 
   include ActiveJob::TestHelper
 
+  it "keeps long-running analysis on the dedicated low-concurrency queue" do
+    expect(described_class.new.queue_name).to eq("videos")
+  end
+
   let(:user) { Factories.user(gemini_api_key: "gk-test") }
   let(:chat) { ChatSession.create!(user: user) }
 

@@ -15,7 +15,7 @@ require "tempfile"
 # best-effort: a transcode failure keeps the original; a frame failure ships
 # the turn text-only.
 #
-# Runs on the plugin's low-concurrency queue:
+# Runs on the dedicated low-concurrency `videos` queue (config/queue.yml):
 # a single analysis can pin a thread for many minutes (500MB streamed upload,
 # ACTIVE polling, long generateContent), which would starve the pollers,
 # reapers, and app-event broadcasts if it shared their lanes.
@@ -25,6 +25,7 @@ require "tempfile"
 # accepts failed rows, and the chat chip spins until a terminal broadcast).
 class VideoWalkthroughs::AnalysisJob < PluginJob
   plugin :video_walkthroughs
+  queue_as :videos
 
   # Test seam, mirroring RunJob.agent_runner: specs swap in a fake client
   # factory instead of stubbing Net::HTTP.
