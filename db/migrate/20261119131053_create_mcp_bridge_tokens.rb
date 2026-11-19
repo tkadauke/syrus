@@ -11,6 +11,6 @@ class CreateMcpBridgeTokens < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :mcp_bridge_tokens, :token_digest, unique: true, if_not_exists: true
+    add_index :mcp_bridge_tokens, :token_digest, unique: true unless index_exists?(:mcp_bridge_tokens, :token_digest)
   end
 end
