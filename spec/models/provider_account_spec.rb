@@ -79,13 +79,23 @@ RSpec.describe ProviderAccount do
     expect(user.provider_accounts.where(provider_key: "claude")).to be_empty
   end
 
+  it "synchronizes configured providers that rely on the interface compatibility kind" do
+    existing_user = user
+    provider = Class.new do
+      include Syrus::Plugin::AgentProvider
 
-  it "uses stable semantic authentication kinds declared by each provider" do
-    user.codex_auth_mode = "chatgpt_login"
+      def self.credential_attributes = []
+      def self.configured_for_user?(_user) = true
+    end
+    allow(User).to receive(:agent_providers).and_return([ "fake" ])
+    allow(AgentProviders).to receive(:for).with("fake").and_return(provider)
 
-    expect(AgentProviders::Claude.authentication_kind_for_user(user)).to eq("oauth_token")
-    expect(AgentProviders::Codex.authentication_kind_for_user(user)).to eq("chatgpt_login")
-    expect(AgentProviders::Agy.authentication_kind_for_user(user)).to eq("api_key")
-    expect(AgentProviders::Muse.authentication_kind_for_user(user)).to eq("api_key")
+    described_class.sync_legacy_defaults_for!(existing_user)
+
+    expect(existing_user.provider_accounts.sole).to have_attributes(
+      provider_key: "fake",
+      authentication_kind: "legacy",
+      credential_payload: {}
+    )
   end
 end

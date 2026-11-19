@@ -25,8 +25,8 @@ RSpec.describe Syrus::Plugin::AgentProvider do
       expect(concrete.credential_attributes).to eq([])
     end
 
-    it "defaults the provider-account authentication kind to nil" do
-      expect(concrete.authentication_kind_for_user(nil)).to be_nil
+    it "provides a valid compatibility kind for provider accounts" do
+      expect(concrete.authentication_kind_for_user(nil)).to eq("legacy")
     end
   end
 

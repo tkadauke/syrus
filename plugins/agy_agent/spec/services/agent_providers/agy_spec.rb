@@ -23,6 +23,10 @@ RSpec.describe AgentProviders::Agy do
       expect(described_class.provider_key).to eq(described_class.provider)
     end
 
+    it "declares the semantic authentication kind for legacy credentials" do
+      expect(described_class.authentication_kind_for_user(nil)).to eq("api_key")
+    end
+
     it "formats MCP tool labels for Antigravity" do
       expect(described_class.mcp_tool_name("submit_summary", server_name: "syrus-mcp-sidecar"))
         .to eq("mcp(syrus-mcp-sidecar/submit_summary)")

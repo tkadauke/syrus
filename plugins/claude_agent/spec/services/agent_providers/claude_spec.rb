@@ -22,6 +22,10 @@ RSpec.describe AgentProviders::Claude do
     it "provider_key matches provider for backward compat" do
       expect(described_class.provider_key).to eq(described_class.provider)
     end
+
+    it "declares the semantic authentication kind for legacy credentials" do
+      expect(described_class.authentication_kind_for_user(nil)).to eq("oauth_token")
+    end
   end
 
   describe ".available_models" do
