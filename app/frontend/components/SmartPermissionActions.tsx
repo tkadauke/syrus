@@ -8,6 +8,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { Input } from "./Input"
 import { Modal } from "./Modal"
 import { hubRuleLink, PermissionRuleEditor } from "./PermissionRuleEditor"
+import { Select } from "./Select"
 
 const BUTTON = "min-w-[7rem] flex-1 rounded-md px-3 py-1.5 text-sm font-semibold disabled:opacity-60 sm:flex-none motion-reduce:transition-none"
 
@@ -270,9 +271,10 @@ export function SmartPermissionActions({
         <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-surface-subtle p-3 text-xs" data-testid="smart-permission-chooser">
           <label className="flex min-w-0 flex-col gap-1" htmlFor={durationSelectId}>
             <span className="font-medium text-text-muted">{t("permission_smart.choose_duration")}</span>
-            <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary"
+            <Select
+              className="px-2 text-sm"
               disabled={busy}
+              fullWidth={false}
               id={durationSelectId}
               onChange={(event) => setChosenDuration(event.target.value as SmartPermissionOption["duration"])}
               value={duration}
@@ -282,13 +284,14 @@ export function SmartPermissionActions({
                   {t(`permission_smart.durations.${value}`)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex min-w-0 flex-col gap-1" htmlFor={breadthSelectId}>
             <span className="font-medium text-text-muted">{t("permission_smart.choose_breadth")}</span>
-            <select
-              className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary"
+            <Select
+              className="px-2 text-sm"
               disabled={busy}
+              fullWidth={false}
               id={breadthSelectId}
               onChange={(event) => setChosenBreadth(event.target.value as SmartPermissionBreadth)}
               value={breadth}
@@ -298,7 +301,7 @@ export function SmartPermissionActions({
                   {t(`permission_smart.breadths.${value}`)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <button
             className={`${BUTTON} border border-brand text-brand`}
