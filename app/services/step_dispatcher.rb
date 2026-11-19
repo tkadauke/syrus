@@ -26,7 +26,7 @@ class StepDispatcher
   def self.start_workflow(workflow, parent_session_id: nil, prompt: nil)
     first = workflow.first_step
     return unless first
-    return if first.runs.any?
+    return unless first.runs.none? || first.awaiting_run?
 
     if provider_routing_held?(workflow)
       Rails.logger.info(
@@ -1140,8 +1140,7 @@ class StepDispatcher
     return if manually_paused?(workflow)
 
     step = step_id ? workflow.steps.find_by(id: step_id) : next_queued_step_without_run(workflow)
-    return unless step&.queued?
-    return if step.runs.any?
+    return unless step&.awaiting_run?
     return if landing_queue_pause_deferred?(step, workflow)
 
     previous = step.previous_step
@@ -1188,7 +1187,7 @@ class StepDispatcher
   end
 
   def self.next_queued_step_without_run(workflow)
-    workflow.steps.order(:position).detect { |candidate| candidate.queued? && candidate.runs.none? }
+    workflow.steps.order(:position).detect(&:awaiting_run?)
   end
 
   def self.fail_from(step)

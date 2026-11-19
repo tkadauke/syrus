@@ -374,6 +374,18 @@ class Step < ApplicationRecord
   end
   private :capture_cancel_cascade_suppression
 
+  # Queued with nothing driving it: no active Run and no scheduled retry of
+  # an earlier one. A Step reopened after an infrastructure failure keeps
+  # its failed Runs as history; they must not read as "a Run already
+  # exists", or every later admission check skips the Step and the
+  # Workflow sits queued forever.
+  def awaiting_run?
+    return false unless queued?
+    return false if runs.active.exists?
+
+    !AutoRetryAttempt.pending.where(run_id: runs.select(:id)).exists?
+  end
+
   # The most recently created Run on this Step — i.e. the latest
   # attempt. Failed retries become previous Runs; the latest Run
   # is what reflects the step's current state.
