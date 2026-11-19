@@ -1,0 +1,167 @@
+require "base64"
+
+class Coworkers::ConversationIndex
+  PAGE_SIZE = 20
+  SNIPPET_TOKENS = 32
+  SORTS = %w[last_activity title created_at].freeze
+
+  class InvalidCursor < StandardError; end
+
+  def initialize(coworker:, user:, filter: nil, sort: nil, cursor: nil)
+    @coworker = coworker
+    @user = user
+    @filter = Filters::QueryParam.decode(filter)
+    @sort = SORTS.include?(sort) ? sort : "last_activity"
+    @cursor = cursor
+  end
+
+  def call
+    main_link = coworker.coworker_chats.includes(chat_session: :chat_participants).find(&:main?)
+    relation, search_rows = filtered_relation
+    total = relation.count
+    records = page(relation).includes(:chat_participants).to_a
+    messages = last_messages(records)
+    pending_ids = ChatPendingAction.where(chat_session_id: records.map(&:id), state: %w[queued pending confirming])
+      .distinct.pluck(:chat_session_id).to_set
+
+    {
+      main_chat: main_link && summary(main_link.chat_session, main: true),
+      side_chats: records.map do |chat|
+        summary(chat, message: messages[chat.id], search_rows: search_rows[chat.id], active_work: chat.turn_in_flight? || pending_ids.include?(chat.id))
+      end,
+      result_count: total,
+      next_cursor: records.length == PAGE_SIZE ? encode_cursor(records.last) : nil,
+      filter: filter || { "and" => [] },
+      filter_schema: filter_schema,
+      sort: sort
+    }
+  end
+
+  private
+
+  attr_reader :coworker, :user, :filter, :sort, :cursor
+
+  def base_relation
+    ids = coworker.coworker_chats.where(role: "side").select(:chat_session_id)
+    ChatSession.where(id: ids, user_id: user.id, deleted_at: nil)
+  end
+
+  def filtered_relation
+    relation = base_relation
+    rows_by_chat = {}
+    chips.each do |chip|
+      field = chip.fetch("field")
+      value = chip["value"]
+      case field
+      when "search"
+        query = value.to_s.strip
+        next if query.blank?
+        rows = ChatMessageSearchIndex.search(query, chat_session_ids: relation.pluck(:id), limit: nil,
+          snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: SNIPPET_TOKENS)
+        rows_by_chat = rows.group_by { |row| row.fetch(:chat_session_id).to_i }
+        title_ids = relation.where("LOWER(chat_sessions.title) LIKE ?", "%#{ApplicationRecord.sanitize_sql_like(query.downcase)}%").pluck(:id)
+        @title_match_ids = title_ids.to_set
+        relation = relation.where(id: rows_by_chat.keys | title_ids)
+      when "status"
+        participant_scope = ChatParticipant.where(user_id: user.id)
+        participant_scope = value == "archived" ? participant_scope.where.not(hidden_at: nil) : participant_scope.where(hidden_at: nil)
+        relation = relation.where(id: participant_scope.select(:chat_session_id))
+      when "unread"
+        relation = relation.joins(:chat_participants)
+          .where(chat_participants: { user_id: user.id })
+          .where("chat_participants.last_read_at IS NULL OR chat_sessions.last_message_at > chat_participants.last_read_at")
+      when "created_at", "last_activity_at"
+        relation = apply_date(relation, field == "created_at" ? "chat_sessions.created_at" : activity_sql, chip)
+      when "active_work"
+        pending = ChatPendingAction.where(state: %w[queued pending confirming]).select(:chat_session_id)
+        relation = relation.where("chat_sessions.turn_in_flight = ? OR chat_sessions.id IN (?)", true, pending)
+      end
+    end
+    [ relation.distinct, rows_by_chat ]
+  end
+
+  def chips
+    return [] unless filter.is_a?(Hash)
+    Array(filter["and"]).select { |node| node.is_a?(Hash) && node["field"].present? }
+  end
+
+  def apply_date(relation, column, chip)
+    value = chip["value"]
+    case chip["op"]
+    when "before" then relation.where("#{column} < ?", Time.zone.parse(value.to_s))
+    when "after" then relation.where("#{column} > ?", Time.zone.parse(value.to_s))
+    when "between"
+      from, to = Array(value)
+      relation.where("#{column} BETWEEN ? AND ?", Time.zone.parse(from.to_s), Time.zone.parse(to.to_s))
+    else relation
+    end
+  rescue ArgumentError
+    relation.none
+  end
+
+  def page(relation)
+    value, id = decode_cursor if cursor.present?
+    case sort
+    when "title"
+      relation = relation.where("LOWER(COALESCE(chat_sessions.title, '')) > ? OR (LOWER(COALESCE(chat_sessions.title, '')) = ? AND chat_sessions.id > ?", value, value, id) if value
+      relation.order(Arel.sql("LOWER(COALESCE(chat_sessions.title, '')) ASC"), id: :asc).limit(PAGE_SIZE)
+    when "created_at"
+      relation = descending_page(relation, "chat_sessions.created_at", value, id) if value
+      relation.order(created_at: :desc, id: :desc).limit(PAGE_SIZE)
+    else
+      relation = descending_page(relation, activity_sql, value, id) if value
+      relation.order(Arel.sql("#{activity_sql} DESC"), id: :desc).limit(PAGE_SIZE)
+    end
+  end
+
+  def descending_page(relation, column, value, id)
+    relation.where("#{column} < ? OR (#{column} = ? AND chat_sessions.id < ?)", Time.zone.parse(value), Time.zone.parse(value), id)
+  end
+
+  def activity_sql = "COALESCE(chat_sessions.last_message_at, chat_sessions.created_at)"
+
+  def encode_cursor(chat)
+    value = sort == "title" ? chat.title.to_s.downcase : (sort == "created_at" ? chat.created_at : (chat.last_message_at || chat.created_at)).iso8601(6)
+    Base64.urlsafe_encode64(JSON.generate([ value, chat.id ]), padding: false)
+  end
+
+  def decode_cursor
+    value, id = JSON.parse(Base64.urlsafe_decode64(cursor.to_s))
+    raise InvalidCursor unless id.to_i.positive?
+    [ value, id.to_i ]
+  rescue ArgumentError, JSON::ParserError, TypeError
+    raise InvalidCursor, "invalid conversation cursor"
+  end
+
+  def last_messages(records)
+    ids = records.map(&:id)
+    return {} if ids.empty?
+    latest_ids = ChatMessage.active.where(chat_session_id: ids).group(:chat_session_id).maximum(:id).values
+    ChatMessage.where(id: latest_ids).index_by(&:chat_session_id)
+  end
+
+  def summary(chat, main: false, message: nil, search_rows: nil, active_work: false)
+    participant = chat.chat_participants.find { |entry| entry.user_id == user.id }
+    first_match = search_rows&.first
+    {
+      id: chat.id, title: chat.title.presence || ChatSession.fallback_title_for(chat.repository), path: "/chats/#{chat.id}",
+      main: main, preview: message&.preview_text&.truncate(240), last_activity_at: (chat.last_message_at || chat.created_at).iso8601,
+      created_at: chat.created_at.iso8601, archived: participant&.hidden_at.present?,
+      unread: chat.last_message_at.present? && (participant&.last_read_at.blank? || chat.last_message_at > participant.last_read_at),
+      active_work: active_work, title_match: @title_match_ids&.include?(chat.id) || false,
+      match_count: search_rows&.length.to_i + (@title_match_ids&.include?(chat.id) ? 1 : 0),
+      match: first_match && { message_id: first_match.fetch(:chat_message_id).to_i, snippet: first_match.fetch(:snippet) }
+    }
+  end
+
+  def filter_schema
+    [
+      { field: "search", label: "Search", bucket: "text", operators: [ "contains" ], values: [], free_text_search: true },
+      { field: "status", label: "Status", bucket: "select", operators: [ "is" ], values: [ { value: "active", label: "Active" }, { value: "archived", label: "Archived" } ] },
+      { field: "unread", label: "Unread only", bucket: "boolean", operators: [ "is_true" ], values: [] },
+      { field: "active_work", label: "Has active work", bucket: "boolean", operators: [ "is_true" ], values: [] },
+      { field: "created_at", label: "Created", bucket: "date", operators: %w[before after between], values: [], date_precision: "date" },
+      { field: "last_activity_at", label: "Last activity", bucket: "date", operators: %w[before after between], values: [], date_precision: "date" }
+    ]
+  end
+end

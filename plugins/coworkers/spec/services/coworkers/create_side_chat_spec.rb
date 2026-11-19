@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Coworkers::CreateSideChat do
-  it "leaves a new side chat untitled so its first message can name it" do
+  it "keeps the coworker fallback title eligible for first-message title generation" do
     owner = Factories.user
     repository = Factories.repository(user: owner)
     coworker = Coworkers::Coworker.create!(
@@ -12,6 +12,9 @@ RSpec.describe Coworkers::CreateSideChat do
 
     expect(chat.title).to be_nil
     expect(chat.coworker_chat).to have_attributes(coworker: coworker, role: "side")
+    expect(chat.title_auto_fallback).to be(true)
+    chat.rename!("Explicit title")
+    expect(chat.reload).to have_attributes(title: "Explicit title", title_auto_fallback: false)
   end
 
   it "rolls back the chat session when its coworker link fails" do

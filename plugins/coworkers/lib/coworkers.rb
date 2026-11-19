@@ -57,6 +57,7 @@ module Coworkers
     route :get, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#show"
     route :get, "/api/v1/app/coworkers/:id/profile", to: "api/v1/app/coworkers#profile"
     route :get, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#chats"
+    route :get, "/api/v1/app/coworkers/:id/conversation_index", to: "api/v1/app/coworkers#conversation_index"
     route :get, "/api/v1/app/coworkers/:id/capabilities", to: "api/v1/app/coworkers#capabilities"
     route :get, "/api/v1/app/coworkers/:id/schedules", to: "api/v1/app/coworkers#schedules"
     route :patch, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#update"

@@ -45,6 +45,15 @@ module Api
           render json: { chats: chats_json(coworker), available_chats: available_chats_json(coworker) }
         end
 
+        def conversation_index
+          coworker = authorized_coworker
+          render json: Coworkers::ConversationIndex.new(
+            coworker: coworker, user: Current.user, filter: params[:q], sort: params[:sort], cursor: params[:cursor]
+          ).call
+        rescue Coworkers::ConversationIndex::InvalidCursor => error
+          render_error("invalid_cursor", error.message, status: :bad_request)
+        end
+
         def capabilities
           coworker = authorized_coworker
           render json: {
