@@ -25,6 +25,14 @@ counts nodes, not pods, so draining old pods do not hold it -- and
 draining one. Old code keeps running against the new schema for as long as a
 drain lasts, which is why two-version compatibility above is not optional.
 
+To prove a cluster drains, enqueue a few `DrainProbeJob`s (each holds a `runs`
+worker thread for the given seconds), deploy, and check that every probe's
+SolidQueue job finished rather than landing in the failed executions:
+
+```bash
+bin/rails runner '3.times { DrainProbeJob.perform_later(900) }'
+```
+
 ## Client behavior during a rollout
 
 The web Deployment runs `replicas=2` with `RollingUpdate(maxSurge=1,
