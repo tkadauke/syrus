@@ -20,7 +20,8 @@ if command == "scan"
   result = Syrus::PluginHostSurface::Scanner.new(ARGV.first).call
   if options[:json]
     puts JSON.pretty_generate(result.to_h.merge(
-      public: result.public.map(&:to_h), legacy: result.legacy.map(&:to_h), unlisted: result.unlisted.map(&:to_h)
+      public: result.public.map(&:to_h), legacy: result.legacy.map(&:to_h), unlisted: result.unlisted.map(&:to_h),
+      dynamic: result.dynamic.map(&:to_h)
     ))
   else
     puts "Minimum Syrus version: #{result.minimum_syrus_version || 'none'}"
