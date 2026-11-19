@@ -1585,6 +1585,7 @@ export type JobSourceDiffPayload = {
   }>
   truncated: boolean
   diff_error: string | null
+  step_diff_fallback?: boolean
   version: DiffReviewVersion | null
   /** @deprecated Accepted by older fixtures/responses; versions are loaded from diff_review_versions. */
   versions?: DiffReviewVersion[]

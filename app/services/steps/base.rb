@@ -891,8 +891,33 @@ module Steps
 
     def persist_diff_review_version!(base_sha:, head_sha:, diff:)
       files = DiffReviewVersions::UnifiedDiffFiles.parse(diff)
+      if files.any?
+        DiffReviewVersions::Creator.call(
+          job: job,
+          workflow: workflow,
+          run: run,
+          base_sha: base_sha,
+          head_sha: head_sha,
+          base_ref: job.mergeability_base_ref.presence || job.target_branch.presence || job.base_default_branch,
+          head_ref: job.branch_name,
+          files: files,
+          trigger_kind: workflow.trigger_kind,
+          label: Workflow::TriggerKind.diff_review_version_label_for(workflow.trigger_kind, job: job),
+          reason: workflow.trigger_kind
+        )
+      end
+
+      persist_all_changes_diff_review_version!(head_sha: head_sha)
+    rescue => e
+      log("[#{step.kind}] could not persist diff review version: #{e.class}: #{e.message}", kind: "system")
+    end
+
+    def persist_all_changes_diff_review_version!(head_sha:)
+      full_diff = diff_against_default
+      files = DiffReviewVersions::UnifiedDiffFiles.parse(full_diff)
       return if files.empty?
 
+      base_sha = GitRunner.new.run("merge-base", default_branch_ref, "HEAD", chdir: workspace.path.to_s).strip
       DiffReviewVersions::Creator.call(
         job: job,
         workflow: workflow,
@@ -903,11 +928,17 @@ module Steps
         head_ref: job.branch_name,
         files: files,
         trigger_kind: workflow.trigger_kind,
-        label: Workflow::TriggerKind.diff_review_version_label_for(workflow.trigger_kind, job: job),
-        reason: workflow.trigger_kind
+        label: "All changes",
+        reason: "source_diff",
+        metadata: { "range_kind" => "all_changes" },
+        source_key: "all_changes"
       )
+    end
+
+    def persist_pushed_all_changes_version!
+      persist_all_changes_diff_review_version!(head_sha: head_sha)
     rescue => e
-      log("[#{step.kind}] could not persist diff review version: #{e.class}: #{e.message}", kind: "system")
+      log("[#{step.kind}] could not persist pushed All changes version: #{e.class}: #{e.message}", kind: "system")
     end
 
     def restore_run_checkpoint_if_needed!(source_run, context:)
