@@ -62,10 +62,10 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Syrus SPA" })).toBeInTheDocument()
     const accountNav = await screen.findByRole("navigation", { name: "Account" })
-    expect(within(accountNav).getByRole("button", { name: "operator@example.com" })).toHaveAttribute("aria-expanded", "false")
+    expect(within(accountNav).getByRole("button", { name: "Operator" })).toHaveAttribute("aria-expanded", "false")
     expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument()
-    fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
+    fireEvent.click(within(accountNav).getByRole("button", { name: "Operator" }))
     expect(within(accountNav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
     expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
     expect(within(accountNav).getByRole("link", { name: "Admin" })).toHaveAttribute("title", "Curia — The Roman Senate house")
