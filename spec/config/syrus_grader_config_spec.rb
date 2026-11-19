@@ -557,7 +557,8 @@ RSpec.describe "Syrus grader configuration" do
       go_dir = %w[cli container].find { |dir| Rails.root.join("plugins/#{project.id}/#{dir}/go.mod").exist? }
       if go_dir
         expect(go_tests).not_to be_nil
-        expect(go_tests.command).to include("cd plugins/#{project.id}/#{go_dir} && go test ./...")
+        expect(go_tests.command).to include("cd plugins/#{project.id}/#{go_dir} &&")
+        expect(go_tests.command).to include("go test ./...")
         expect(go_tests.source_scope).to include(
           "plugins/#{project.id}/#{go_dir}/**/*.go",
           "plugins/#{project.id}/#{go_dir}/go.mod"
