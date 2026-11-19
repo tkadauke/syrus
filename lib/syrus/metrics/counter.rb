@@ -44,6 +44,14 @@ module Syrus
         @mutex.synchronize { @values[key] = total if total.to_f > (@values[key] || 0).to_f }
       end
 
+      # Retires one series when its label identity no longer exists. Samplers
+      # may use this only for a lifecycle boundary (for example a renamed or
+      # archived actor), never to reset a live counter or an interval.
+      def clear(tags: {})
+        key = key_for(tags)
+        @mutex.synchronize { @values.delete(key) }
+      end
+
       private
 
       # Hands the increment to the cluster sink as well. Instrumentation must
