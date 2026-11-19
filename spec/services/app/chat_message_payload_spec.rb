@@ -23,6 +23,20 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:content)).to eq({})
   end
 
+  it "serializes logical-turn and assistant-presentation metadata for reload rendering" do
+    trigger = chat.messages.create!(role: "user", content: { "text" => "Investigate" }, skip_turn_trigger: true)
+    message = chat.messages.create!(
+      role: "assistant",
+      content: [ { "type" => "text", "text" => "Checking." } ],
+      turn_message: trigger,
+      assistant_presentation: "progress"
+    )
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload).to include(turn_message_id: trigger.id, assistant_presentation: "progress")
+  end
+
   it "preserves an explicitly empty attachment array" do
     message = chat.messages.create!(role: "user", sender_user: user, content: { "text" => "Hello", "attachments" => [] }, skip_turn_trigger: true)
 
