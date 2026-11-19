@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "shellwords"
 require "tmpdir"
 require "spec_helper"
 
@@ -117,7 +118,33 @@ RSpec.describe "macOS worker installer" do
         link_offset = stdout.index("ln -s #{install_root}/shared/node/#{release_sha}/node_modules #{node_modules}")
         expect(remove_offset).not_to be_nil
         expect(link_offset).to be > remove_offset
+        expect(stdout).to include("BUNDLE_FROZEN=true bundle install")
+        expect(stdout).to include("mv -h -f #{install_root}/current.next #{install_root}/current")
       end
+    end
+  end
+
+  # Regression: BSD mv follows a destination symlink to a directory, so
+  # `mv -f current.next current` moved the new link inside the previous
+  # release and the host kept running the old code.
+  it "replaces an existing current symlink on activation", if: RUBY_PLATFORM.include?("darwin") do
+    Dir.mktmpdir do |dir|
+      old_release = File.join(dir, "releases", "old")
+      new_release = File.join(dir, "releases", "new")
+      FileUtils.mkdir_p([ old_release, new_release ])
+      current = File.join(dir, "current")
+      File.symlink(old_release, current)
+      activation = File.read(script)[/^run ln -sfn .*current\.next"\nrun mv .*$/]
+      expect(activation).not_to be_nil
+      commands = activation.gsub(/^run /, "")
+        .gsub('"$RELEASE_PATH"', new_release.shellescape)
+        .gsub("$INSTALL_ROOT", dir)
+
+      _stdout, stderr, status = Open3.capture3("bash", "-c", commands)
+
+      expect(status).to be_success, stderr
+      expect(File.readlink(current)).to eq(new_release)
+      expect(File).not_to exist(File.join(old_release, "current.next"))
     end
   end
 end

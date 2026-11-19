@@ -140,12 +140,14 @@ run mkdir -p "$NODE_DEPS_PATH"
 run cp "$RELEASE_PATH/package.json" "$RELEASE_PATH/package-lock.json" "$NODE_DEPS_PATH/"
 run chown -R "$SERVICE_USER:$SERVICE_GROUP" "$NODE_DEPS_PATH"
 if [[ "$DRY_RUN" == "1" ]]; then
-  echo "+ (cd $RELEASE_PATH && bundle install; cd $NODE_DEPS_PATH && npm ci)"
+  echo "+ (cd $RELEASE_PATH && BUNDLE_FROZEN=true bundle install; cd $NODE_DEPS_PATH && npm ci)"
 else
+  # Frozen: a host Bundler newer than the lockfile's BUNDLED WITH otherwise
+  # tries to rewrite Gemfile.lock inside the root-owned release.
   sudo -H -u "$SERVICE_USER" env HOME="$DATA_ROOT" \
     PATH="/opt/homebrew/opt/ruby@3.4/bin:/opt/homebrew/lib/ruby/gems/3.4.0/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/mysql-client/bin:/opt/homebrew/bin:/usr/bin:/bin" \
     BUNDLE_APP_CONFIG="$INSTALL_ROOT/shared/bundle-config" BUNDLE_PATH="$INSTALL_ROOT/shared/bundle" \
-    bash -c 'cd "$1" && bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci' bash "$RELEASE_PATH" "$NODE_DEPS_PATH"
+    bash -c 'cd "$1" && BUNDLE_FROZEN=true bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && cd "$2" && npm ci' bash "$RELEASE_PATH" "$NODE_DEPS_PATH"
 fi
 # A repeated install already has this symlink, while hosts installed by older
 # releases may still have a real in-release node_modules directory. Neither is
@@ -167,8 +169,11 @@ else
 fi
 
 say "Activating release $RELEASE_SHA"
+# BSD mv follows a destination symlink that points at a directory, so a plain
+# `mv -f` would drop current.next inside the previous release and leave
+# `current` untouched. -h replaces the link itself.
 run ln -sfn "$RELEASE_PATH" "$INSTALL_ROOT/current.next"
-run mv -f "$INSTALL_ROOT/current.next" "$INSTALL_ROOT/current"
+run mv -h -f "$INSTALL_ROOT/current.next" "$INSTALL_ROOT/current"
 
 say "Installing the privileged updater outside the worker release tree"
 run install -o root -g wheel -m 755 "$RELEASE_PATH/bin/syrus-macos-updater" "$LIBEXEC_ROOT/syrus-macos-updater"
