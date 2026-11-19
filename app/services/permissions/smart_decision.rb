@@ -50,7 +50,7 @@ module Permissions
       return [] unless supported?
 
       # Every safe combination of how long (once is always on the card) and
-    # how broadly: this resource, the whole tool, or the whole family.
+      # how broadly: this resource, the whole tool, or the whole family.
       breadths.flat_map do |breadth|
         CANDIDATES.reverse.filter_map do |duration|
           preview = eligible[[ duration, breadth ]]
