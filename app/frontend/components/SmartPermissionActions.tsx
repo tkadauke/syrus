@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { ApiError } from "../api/client"
-import type { SmartPermissionOption } from "../api/permissionRequests"
+import type { SmartPermissionBreadth, SmartPermissionOption } from "../api/permissionRequests"
 import { previewRuleDraftFromRequest } from "../api/permissionRuleDrafts"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -15,10 +15,17 @@ const EDITOR_PANEL = "max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[var
 
 export const SMART_CUSTOMIZE_PATH = "/settings/permissions"
 
+const BREADTH_ORDER: SmartPermissionBreadth[] = ["resource", "tool", "family"]
+const DURATION_ORDER: SmartPermissionOption["duration"][] = ["chat_session", "job", "permanent"]
+const optionKey = (option: SmartPermissionOption) => `${option.duration}:${option.breadth ?? "resource"}`
+
 /**
  * The compact decision row shared by chat authorization cards and the approval
- * inbox: Allow once, each descriptor-driven scoped action, and Deny. Choosing
- * a scoped action opens an inline preview with Confirm, Back and Customize.
+ * inbox: Allow once, the adaptive scoped action, "More options" and Deny.
+ * "More options" picks how long (this chat, this job, forever) and how broadly
+ * (this resource, the whole tool, the whole family) from the combinations the
+ * descriptor permits. Choosing one opens an inline preview with Confirm, Back
+ * and Customize.
  */
 export function SmartPermissionActions({
   option,
@@ -54,6 +61,11 @@ export function SmartPermissionActions({
   const [selectedOption, setSelectedOption] = useState<SmartPermissionOption | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [customizing, setCustomizing] = useState(false)
+  const [choosing, setChoosing] = useState(false)
+  const [chosenDuration, setChosenDuration] = useState<SmartPermissionOption["duration"] | null>(null)
+  const [chosenBreadth, setChosenBreadth] = useState<SmartPermissionBreadth | null>(null)
+  const durationSelectId = useId()
+  const breadthSelectId = useId()
   // The prefix an operator is editing, and whatever went wrong re-previewing it.
   const [prefix, setPrefix] = useState<string | null>(null)
   const [prefixError, setPrefixError] = useState<string | null>(null)
@@ -87,8 +99,8 @@ export function SmartPermissionActions({
   const leavePreview = () => {
     setPreviewing(false)
     // Return focus to the control that opened the preview.
-    const duration = selectedOption?.duration
-    requestAnimationFrame(() => duration && adaptiveRefs.current[duration]?.focus())
+    const key = selectedOption ? optionKey(selectedOption) : null
+    requestAnimationFrame(() => key && adaptiveRefs.current[key]?.focus())
   }
   // Confirming an edited prefix writes a different rule than the one previewed,
   // so its digest is fetched for that exact prefix rather than reused. Leaving
@@ -118,8 +130,22 @@ export function SmartPermissionActions({
 
   const failure = error ? (stale ? t("permission_smart.stale") : errorMessage(error, t("permission_smart.error"))) : null
   const availableOptions = options?.length ? options : option ? [option] : []
-  const activeOption = selectedOption || availableOptions[0] || null
-  const label = activeOption ? t(`permission_smart.${activeOption.kind}`) : ""
+  // The adaptive action, taken from the full option list when it is there so
+  // its preview carries the same detail as every other choice.
+  const quickOption = (option && availableOptions.find((candidate) => optionKey(candidate) === optionKey(option))) ?? option ?? availableOptions[0] ?? null
+  const activeOption = selectedOption || quickOption
+  const optionLabel = (candidate: SmartPermissionOption) =>
+    candidate.breadth && candidate.breadth !== quickOption?.breadth
+      ? `${t(`permission_smart.${candidate.kind}`)} · ${t(`permission_smart.breadths.${candidate.breadth}`)}`
+      : t(`permission_smart.${candidate.kind}`)
+  const label = activeOption ? optionLabel(activeOption) : ""
+  const durations = DURATION_ORDER.filter((duration) => availableOptions.some((candidate) => candidate.duration === duration))
+  const duration = chosenDuration && durations.includes(chosenDuration) ? chosenDuration : durations[durations.length - 1]
+  const breadths = BREADTH_ORDER.filter((breadth) =>
+    availableOptions.some((candidate) => candidate.duration === duration && (candidate.breadth ?? "resource") === breadth)
+  )
+  const breadth = chosenBreadth && breadths.includes(chosenBreadth) ? chosenBreadth : breadths[0]
+  const chosen = availableOptions.find((candidate) => candidate.duration === duration && (candidate.breadth ?? "resource") === breadth) ?? null
 
   return (
     <div className="mt-3 space-y-2" data-testid="smart-permission-actions">
@@ -145,6 +171,7 @@ export function SmartPermissionActions({
             <Row label={t("permission_smart.repository")} value={activeOption.context.repository || t("permission_smart.no_repository")} />
             <Row label={t("permission_smart.scope")} value={activeOption.context.resource_scope_label || t("permission_smart.any_scope")} />
             <Row label={t("permission_smart.duration")} value={t(`permission_smart.durations.${activeOption.duration}`)} />
+            {activeOption.breadth ? <Row label={t("permission_smart.breadth")} value={t(`permission_smart.breadths.${activeOption.breadth}`)} /> : null}
           </dl>
           <SummaryList items={activeOption.summary.allows} title={t("permission_smart.allows")} />
           <SummaryList items={activeOption.summary.excludes} title={t("permission_smart.excludes")} />
@@ -206,28 +233,91 @@ export function SmartPermissionActions({
           <button className={`${BUTTON} bg-brand text-on-brand`} disabled={busy} onClick={onAllowOnce} type="button">
             {t("permission_smart.allow_once")}
           </button>
-          {availableOptions.map((candidate) => (
+          {quickOption ? (
             <button
               className={`${BUTTON} border border-brand text-brand`}
               disabled={busy}
-              key={candidate.duration}
+              key={optionKey(quickOption)}
               onClick={() => {
-                setSelectedOption(candidate)
+                setSelectedOption(quickOption)
                 setPreviewing(true)
               }}
               ref={(element) => {
-                adaptiveRefs.current[candidate.duration] = element
+                adaptiveRefs.current[optionKey(quickOption)] = element
               }}
               type="button"
             >
-              {t(`permission_smart.${candidate.kind}`)}
+              {optionLabel(quickOption)}
             </button>
-          ))}
+          ) : null}
+          {availableOptions.length > 1 ? (
+            <button
+              aria-expanded={choosing}
+              className="text-sm font-medium text-brand underline-offset-2 hover:underline"
+              disabled={busy}
+              onClick={() => setChoosing((open) => !open)}
+              type="button"
+            >
+              {t("permission_smart.more_options")}
+            </button>
+          ) : null}
           <button className={`${BUTTON} border border-danger text-danger`} disabled={busy} onClick={onDeny} type="button">
             {t("permission_smart.deny")}
           </button>
         </div>
       )}
+      {choosing && !previewing && availableOptions.length > 1 ? (
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-surface-subtle p-3 text-xs" data-testid="smart-permission-chooser">
+          <label className="flex min-w-0 flex-col gap-1" htmlFor={durationSelectId}>
+            <span className="font-medium text-text-muted">{t("permission_smart.choose_duration")}</span>
+            <select
+              className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary"
+              disabled={busy}
+              id={durationSelectId}
+              onChange={(event) => setChosenDuration(event.target.value as SmartPermissionOption["duration"])}
+              value={duration}
+            >
+              {durations.map((value) => (
+                <option key={value} value={value}>
+                  {t(`permission_smart.durations.${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1" htmlFor={breadthSelectId}>
+            <span className="font-medium text-text-muted">{t("permission_smart.choose_breadth")}</span>
+            <select
+              className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary"
+              disabled={busy}
+              id={breadthSelectId}
+              onChange={(event) => setChosenBreadth(event.target.value as SmartPermissionBreadth)}
+              value={breadth}
+            >
+              {breadths.map((value) => (
+                <option key={value} value={value}>
+                  {t(`permission_smart.breadths.${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className={`${BUTTON} border border-brand text-brand`}
+            disabled={busy || !chosen}
+            onClick={() => {
+              if (!chosen) return
+              setSelectedOption(chosen)
+              setChoosing(false)
+              setPreviewing(true)
+            }}
+            ref={(element) => {
+              if (chosen) adaptiveRefs.current[optionKey(chosen)] = element
+            }}
+            type="button"
+          >
+            {t("permission_smart.review")}
+          </button>
+        </div>
+      ) : null}
       {request ? (
         <Modal className={EDITOR_PANEL} label={t("permission_editor.title")} onClose={() => setCustomizing(false)} open={customizing}>
           <PermissionRuleEditor

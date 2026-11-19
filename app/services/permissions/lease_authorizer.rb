@@ -35,6 +35,10 @@ module Permissions
     end
 
     def call
+      # An essential operation never consults (or consumes) a lease: its
+      # outcome cannot depend on delegated authority.
+      return Result.new(decision: evaluate([]), lease: nil) if @descriptor.essential?
+
       PermissionLease.transaction do
         leases = PermissionLease.for_invocation(owner: @owner, capability: @descriptor.capability,
           operation: classification.operation).lock.to_a
@@ -45,6 +49,8 @@ module Permissions
     end
 
     def explain
+      return Result.new(decision: evaluate([]), lease: nil) if @descriptor.essential?
+
       leases = PermissionLease.for_invocation(owner: @owner, capability: @descriptor.capability,
         operation: classification.operation).to_a
       decision, lease = decision_and_lease(leases)

@@ -12,6 +12,7 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
       maximum_autonomy: :permanent,
       authority_durations: [ :invocation ],
       resource_scope: { type: :none },
+      deniable_reason: :external_ingestion,
       classifier: ->(arguments) { arguments },
       fingerprint_normalizer: ->(arguments) { arguments },
       redactor: ->(arguments) { arguments }
@@ -31,10 +32,32 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     expect { validator.validate! }.to raise_error(described_class::ValidationError, /ExamplePlugin chat tool "read_example" has no explicit capability_descriptor/)
   end
 
-  it "accepts an explicitly ungated executable tool without a descriptor" do
+  # Regression: `ungated` used to be a registry flag no gate shared with the
+  # descriptor, so a tool could bypass one gate and be denied by another.
+  it "rejects an ungated tool whose descriptor is not essential" do
     validator = described_class.new([ registration("harmless_protocol_tool", descriptor: nil, ungated: true) ])
 
-    expect(validator.validate!).to be(true)
+    expect(validator.findings.map(&:code)).to include(:ungated_not_essential)
+  end
+
+  it "accepts an ungated tool whose descriptor is essential" do
+    essential = descriptor(effects: [ :local_read ], deniable_reason: nil, essential: true)
+
+    expect(described_class.new([ registration("harmless_protocol_tool", descriptor: essential, ungated: true) ]).validate!).to be(true)
+  end
+
+  it "rejects an operation that is neither essential, gated by a barrier effect, nor deniable for a reason" do
+    unclassified = descriptor(effects: [ :internal_write ], deniable_reason: nil)
+
+    finding = described_class.new([ registration("write_example", descriptor: unclassified) ]).findings.sole
+    expect(finding.code).to eq(:unclassified_consequence)
+    expect(finding.message).to include("write_example", "no barrier effect")
+  end
+
+  it "accepts an operation whose barrier effect classifies it" do
+    gated = descriptor(effects: [ :internal_write, :communication ], deniable_reason: nil)
+
+    expect(described_class.new([ registration("send_example", descriptor: gated) ]).findings).to be_empty
   end
 
   it "rejects synthesized descriptors" do

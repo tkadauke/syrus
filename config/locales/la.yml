@@ -250,6 +250,9 @@ la:
       errors:
         unknown_rule: "Haec regula permissionis non inventa est."
         operation_required: "Operationem exactam huius regulae elige."
+        essential_operation: "Haec operatio agenti necessaria est: semper permittitur, nec ulla regula id mutare potest."
+        exceeds_breadth_ceiling: "Haec operatio in amplitudine %{breadth} per %{duration} permitti non potest. Regulam ad certam rem restringe aut semel permitte."
+        unknown_breadth: "Elige utrum regula hanc rem, totum instrumentum an totam familiam tegat."
         unknown_capability: "Haec facultas vel operatio in catalogo permissionum non est."
         unknown_policy: "Politica regulae ignota."
         unsupported_duration: "Sessionem colloquii, opus vel perpetuam potestatem elige."

@@ -29,11 +29,11 @@ RSpec.describe Permissions::ChatMutationActions do
     )
   end
 
-  it "preserves the legacy per-invocation authority and default policies" do
+  it "lets every operation be allowed forever and preserves the default policies" do
     entries.each_value do |entry|
       expect(entry.descriptor).to have_attributes(
-        maximum_autonomy: :invocation,
-        authority_durations: %i[invocation]
+        maximum_autonomy: :permanent,
+        authority_durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS
       )
     end
 

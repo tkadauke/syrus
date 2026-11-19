@@ -76,6 +76,9 @@ module Permissions
           defaults: roles.index_with { :ask },
           maximum_autonomy: :chat_session,
           authority_durations: %i[invocation chat_session],
+          # Commands on the operator's own machine keep local mode's own
+          # remembered rules, which last for the chat at most.
+          breadth_ceilings: { family: :chat_session, tool: :chat_session, resource: :chat_session },
           resource_scope: workspace_scope,
           classifier: ->(arguments) { classify(tool, arguments).to_h },
           fingerprint_normalizer: ->(arguments) { normalize_arguments(tool, arguments) },

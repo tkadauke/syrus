@@ -26,8 +26,10 @@ RSpec.describe K8sCluster::PermissionProvider do
     expect(observe).to have_attributes(maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session job permanent])
     # Secret material is the deliberate exception. It reads too, but what it
     # returns is the credential itself, so it stays short-lived.
-    expect(secrets).to have_attributes(maximum_autonomy: :chat_session, authority_durations: %i[invocation chat_session])
-    expect([ workload, node, raw ]).to all(have_attributes(maximum_autonomy: :invocation, authority_durations: [ :invocation ]))
+    # Every operation may be allowed forever; only raw kubectl is held to a
+    # named resource for anything beyond a single call.
+    expect([ secrets, workload, node ]).to all(have_attributes(maximum_autonomy: :permanent))
+    expect(raw.breadth_ceilings).to eq(family: :invocation, tool: :invocation, resource: :permanent)
     expect(described_class.permission_capability_descriptors).to all(satisfy { |descriptor| descriptor.defaults.values.uniq == [ :ask ] })
   end
 

@@ -15,7 +15,9 @@ module SpendingInsights
         definition = {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h
+          input_schema: klass.input_schema_value.to_h,
+          # Reading the user's own spending is research. Essential: evaluated and audited, never deniable.
+          essential: true
         }
         definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
       end

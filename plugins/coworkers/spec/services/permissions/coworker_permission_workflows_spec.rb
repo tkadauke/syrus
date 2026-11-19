@@ -25,6 +25,7 @@ RSpec.describe "coworker permission requests and self-surrender" do
       capability: "files.write@v1", operation: "files.write/save@v1", effects: [ :internal_write ], risk: :medium,
       requestable_roles: [ AgentRole::COWORKER_CHAT ], defaults: { AgentRole::COWORKER_CHAT => :ask },
       maximum_autonomy: :chat_session, authority_durations: %i[invocation chat_session],
+      breadth_ceilings: %i[family tool resource].index_with(:chat_session),
       resource_scope: { type: :none }, classifier: ->(_arguments) { {} },
       fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }
     )

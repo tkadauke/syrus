@@ -15,8 +15,15 @@ module Api
         end
 
         def catalog
+          # Essential operations are always allowed and cannot be the target of a
+          # rule, so they are listed for reference but never offered as
+          # something to allow, ask about or deny.
+          essential, authorable = Permissions::Catalog.descriptors.partition do |descriptor|
+            Permissions::Catalog.essential_everywhere?(descriptor)
+          end
           payload = {
-            inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor) },
+            inherited: authorable.map { |descriptor| serialize_descriptor(descriptor) },
+            essential: essential.map { |descriptor| serialize_essential(descriptor) },
             profiles: Permissions::PermissionProfiles.all.map(&:to_h)
           }
           fresh_when(etag: [ "permission-rules-catalog", payload ], public: false)
@@ -198,10 +205,15 @@ module Api
           descriptor ? scope_label(descriptor, rule.resource_scope) : rule.resource_scope.to_json
         end
 
+        def serialize_essential(descriptor)
+          Permissions::Catalog.as_json(descriptor).slice(:capability, :operation, :effects, :presentation)
+        end
+
         def serialize_descriptor(descriptor)
           Permissions::Catalog.as_json(descriptor).slice(
             :capability, :operation, :effects, :risk, :defaults, :resource_scope,
-            :requestable_roles, :authority_durations, :presets, :presentation
+            :requestable_roles, :authority_durations, :presets, :presentation,
+            :deniable_reason, :breadth_ceilings
           ).merge(
             owner: { kind: "provider", name: descriptor.capability.split(".").first },
             editable: false, explanation: "role_default"

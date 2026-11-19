@@ -133,9 +133,16 @@ RSpec.describe "Unified consequential-effect coverage" do
 
       rule = deny(descriptor)
       denied = explain(descriptor)
-      expect(denied).to be_deny, effect.label
-      # A descriptor that already denies by default has no rule to attribute.
-      expect(denied.decisive_rule&.id).to eq(rule.to_policy_rule.id), effect.label unless baseline.deny?
+      if descriptor.essential?
+        # An essential operation is evaluated, but a deny rule cannot block it:
+        # the rule is reported as overridden instead of decisive.
+        expect(denied).to be_allow, effect.label
+        expect(denied.chain.map { |item| [ item.status, item.detail ] }).to include([ :overridden, :essential_operation ]), effect.label
+      else
+        expect(denied).to be_deny, effect.label
+        # A descriptor that already denies by default has no rule to attribute.
+        expect(denied.decisive_rule&.id).to eq(rule.to_policy_rule.id), effect.label unless baseline.deny?
+      end
 
       management.revoke_rule!(rule.id, actor: user)
       expect(explain(descriptor).policy).to eq(baseline.policy), effect.label

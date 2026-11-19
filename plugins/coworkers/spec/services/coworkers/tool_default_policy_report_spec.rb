@@ -89,7 +89,8 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
       descriptor = entry.descriptor
       expect(entry.approval_effect).to eq(true)
       expect(descriptor.benign_internal).to eq(:draft_proposal)
-      expect(descriptor.maximum_autonomy).to eq(:invocation)
+      # Drafting is essential: never deniable, and the card is the decision.
+      expect(descriptor).to be_essential
     end
     expect(report.rows.map(&:tool)).not_to include("confirm_proposal", "confirm_job_proposal")
   end

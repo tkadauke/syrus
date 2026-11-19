@@ -30,6 +30,12 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(catalog.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
     expect(catalog.fetch("inherited")).to all(include("presentation" => include("capability_name", "operation_name")))
     expect(catalog.fetch("profiles").pluck("key")).to eq(%w[full_access@v1 ask_on_first_use@v1 restricted@v1])
+
+    # Essential operations are listed for reference but never offered as
+    # something to allow, ask about or deny.
+    essential = catalog.fetch("essential").pluck("operation")
+    expect(essential).to include(McpToolRegistry.entries(surface: :chat).find { |entry| entry.tool_name == "rename_chat" }.descriptor.operation)
+    expect(catalog.fetch("inherited").pluck("operation") & essential).to be_empty
   end
 
   it "atomically replaces one chat surface's custom rules with a canonical profile" do
@@ -283,7 +289,8 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     # An auto-allowed default would make an allow rule indistinguishable from the
     # default, so pick a descriptor that does not already allow by default.
     descriptor = Permissions::Catalog.descriptors.find do |candidate|
-      candidate.resource_scope.type == :none && candidate.defaults.values.none?(:allow)
+      candidate.resource_scope.type == :none && candidate.defaults.values.none?(:allow) &&
+        !Permissions::Catalog.essential_for?(candidate.operation, role: AgentRole::CHAT_PLANNER)
     end
     permission_rule(owner: user, descriptor:, policy: "deny")
     permission_rule(owner: user, descriptor:, policy: "allow")

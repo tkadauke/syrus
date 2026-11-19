@@ -41,7 +41,9 @@ module Whiteboard
         definition = {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h
+          input_schema: klass.input_schema_value.to_h,
+          # Drawing on the chat's own canvas is context, not a consequence. Essential: evaluated and audited, never deniable.
+          essential: true
         }
         definition.merge(capability_descriptor: Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition))
       end

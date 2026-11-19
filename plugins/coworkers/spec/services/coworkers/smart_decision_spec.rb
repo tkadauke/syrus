@@ -28,6 +28,8 @@ RSpec.describe Permissions::SmartDecision do
     Permissions::CapabilityDescriptor.new(
       capability: "coworker.message@v1", operation: "coworker.message/message_coworker@v1", effects:, risk:, requestable_roles: [ "chat:coworker" ], defaults: { "chat:coworker" => :ask },
       maximum_autonomy: autonomy, authority_durations: durations,
+      # Authority is capped through breadth ceilings; mirror the requested cap.
+      breadth_ceilings: %i[family tool resource].index_with { autonomy },
       resource_scope: schema,
       classifier: ->(_arguments) { { operation: "coworker.message/message_coworker@v1", confidence: :certain } },
       fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }
@@ -52,6 +54,7 @@ RSpec.describe Permissions::SmartDecision do
   let(:smart) { described_class.new(request: action, item: item, user: owner) }
 
   it "offers no adaptive action for an invocation-only capability" do
+    stub_catalog(durable_descriptor(durations: %i[invocation], autonomy: :invocation))
     expect(smart.option).to be_nil
   end
 

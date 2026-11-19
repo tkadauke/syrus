@@ -13,10 +13,19 @@ module Permissions
           AgentRole::COWORKER_CHAT => ordinary_default,
           AgentRole::COWORKER => ordinary_default
         )
+        # A coworker is a delegated principal whose reach the operator scopes,
+        # so an operation that is essential for the owner's own agents is
+        # deniable on the coworker surface. Core coworker essentials (owner
+        # interaction, conversation context) are classified per surface by
+        # ConsequenceClassification after this projection.
+        reason = descriptor.deniable_reason
+        reason ||= :operator_scoping if descriptor.barrier_effects.empty?
         CapabilityDescriptor.new(**descriptor.to_h.merge(
           presentation: descriptor.presentation,
           requestable_roles: roles,
-          defaults: defaults
+          defaults: defaults,
+          essential: false,
+          deniable_reason: reason
         ))
       end
 
@@ -46,7 +55,8 @@ module Permissions
           capability: definition[:capability],
           mutation: definition.fetch(:mutation, false),
           roles: roles.presence || default_roles,
-          policy: coworker_default_policy(definition[:coworker_default_policy])
+          policy: coworker_default_policy(definition[:coworker_default_policy]),
+          essential: definition[:essential] == true
         )
       end
 
@@ -56,7 +66,7 @@ module Permissions
         descriptor.is_a?(CapabilityDescriptor) ? descriptor : CapabilityDescriptor.new(**descriptor.symbolize_keys)
       end
 
-      def build_legacy(tool_name:, capability:, mutation:, roles:, policy: nil)
+      def build_legacy(tool_name:, capability:, mutation:, roles:, policy: nil, essential: false)
         family = identifier_component(capability.presence || tool_name)
         operation = identifier_component(tool_name)
         policy ||= mutation ? :ask : :allow
@@ -75,6 +85,7 @@ module Permissions
           maximum_autonomy: mutation ? :invocation : :permanent,
           authority_durations: mutation ? [ :invocation ] : CapabilityDescriptor::AUTHORITY_DURATIONS,
           resource_scope: { type: :none },
+          essential: essential,
           classifier: ->(_arguments) { { operation: "#{family}/#{operation}@v1", effects: effects, confidence: :legacy } },
           fingerprint_normalizer: ->(arguments) { deep_normalize(arguments) },
           redactor: ->(arguments) { deep_redact(arguments) }

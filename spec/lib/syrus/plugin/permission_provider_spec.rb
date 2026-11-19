@@ -71,8 +71,9 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
     expect(descriptor.resource_scope).to equal(provider.permission_resource_scopes.fetch(:example_account))
     expect(descriptor.effects).to eq(%i[network_read confidential_read])
     expect(descriptor.requestable_roles).to eq(%w[chat_planner coworker])
-    expect(descriptor.maximum_autonomy).to eq(:job)
-    expect(descriptor.authority_durations).to eq(%i[invocation chat_session job])
+    # A declared duration list no longer caps authority; breadth_ceilings does.
+    expect(descriptor.maximum_autonomy).to eq(:permanent)
+    expect(descriptor.authority_durations).to eq(%i[invocation chat_session job permanent])
     expect(descriptor.classify({})).to include(operation: "example.records/read@v1")
     expect(descriptor.normalize_fingerprint(query: "select 1")).to eq(query: "select 1")
     expect(descriptor.redact(secret: "hidden", query: "select 1")).to eq(query: "select 1")

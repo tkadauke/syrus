@@ -226,12 +226,16 @@ Unified permission policy is enforced for every gated call, including read-only
 core tools and plugin-defined tools. `allow` runs immediately, `ask` creates an
 approval request, and `deny` fails closed. Confirming authorizes the stored tool
 name and fingerprinted arguments exactly once through the owning provider; the
-evaluator is rerun while the invocation is atomically claimed. Tools explicitly
-classified as `ungated` bypass this policy because they stay
-within the coworker's workspace or current chat, expose no additional owner
-data, and incur no external cost. The workspace file tools, read-only memory
-tools, `reply_in_chat_thread`, and the in-turn question/suggestion helpers use
-that classification. `message_coworker` remains gated by `coworker.message`
+evaluator is rerun while the invocation is atomically claimed. Essential
+tools are evaluated and audited but can never be denied, because they stay
+within the coworker's own conversation, expose no additional owner data, and
+incur no external cost: `reply_in_chat_thread`, the in-turn question and
+suggestion helpers, capability discovery, permission requests and surrender,
+and naming, pinning, bookmarking, and goal tools for its own chat. Everything
+else a coworker does, including reads of Jobs, chats, code, and memories,
+stays scoped by its grants and your rules. The workspace file tools are allowed
+by default but stay deniable, because you can protect paths in the coworker
+workspace. `message_coworker` remains gated by `coworker.message`
 and defaults to confirmation.
 
 Tools marked `approval_effect` still evaluate capability policy and fail on an
@@ -275,7 +279,7 @@ uses `reply_in_chat_thread` for follow-ups; it gains no access to unrelated
 chats. Separate positive `max_spawns_per_run` and `max_spawns_per_day`
 constraints default to three and ten.
 
-`reply_in_chat_thread` is an ungated exception to grant approval: it needs no
+`reply_in_chat_thread` is an essential exception to grant approval: it needs no
 per-reply confirmation when the coworker's owner opened
 the bridge thread and both the coworker's chat and an ordinary, non-coworker
 chat belonging to that owner are its members. It can only reply to that

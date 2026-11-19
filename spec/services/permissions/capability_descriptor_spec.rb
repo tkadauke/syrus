@@ -34,8 +34,34 @@ RSpec.describe Permissions::CapabilityDescriptor do
     expect(descriptor.resource_scope.type).to eq(:mysql_database)
     expect(descriptor.resource_scope).to be_a(Permissions::ResourceScopeSchema)
     expect(descriptor.defaults).to eq("chat_planner" => :allow, "coworker" => :ask)
-    expect(descriptor.authority_durations).to eq(%i[invocation chat_session job])
+    # Every ordinary operation may be allowed forever; breadth_ceilings is the
+    # only narrowing, so a declared duration list no longer caps authority.
+    expect(descriptor.authority_durations).to eq(%i[invocation chat_session job permanent])
+    expect(descriptor.breadth_ceilings).to eq(family: :permanent, tool: :permanent, resource: :permanent)
     expect(descriptor.presentation.to_h).to eq(attributes[:presentation])
+  end
+
+  it "derives the autonomy ceiling and offered durations from the broadest breadth ceiling" do
+    descriptor = described_class.new(**attributes,
+      breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent })
+
+    expect(descriptor.maximum_autonomy).to eq(:permanent)
+    expect(descriptor.breadth_permits?(:resource, :permanent)).to be(true)
+    expect(descriptor.breadth_permits?(:tool, :chat_session)).to be(false)
+    expect(descriptor.breadth_permits?(:family, :invocation)).to be(true)
+
+    capped = described_class.new(**attributes, breadth_ceilings: %i[family tool resource].index_with { :chat_session })
+    expect(capped.maximum_autonomy).to eq(:chat_session)
+    expect(capped.authority_durations).to eq(%i[invocation chat_session])
+  end
+
+  it "keeps essential operations free of barrier effects and deniable reasons" do
+    expect(described_class.new(**attributes, effects: %i[local_read internal_write], essential: true)).to be_essential
+    expect { described_class.new(**attributes, effects: %i[internal_write communication], essential: true) }
+      .to raise_error(ArgumentError, /essential operations cannot declare barrier effects: communication/)
+    expect { described_class.new(**attributes, essential: true, deniable_reason: :shared_state) }
+      .to raise_error(ArgumentError, /cannot carry a deniable reason/)
+    expect { described_class.new(**attributes, deniable_reason: :because) }.to raise_error(ArgumentError, /unknown deniable reason/)
   end
 
   it "keeps compatibility descriptors complete when explicit copy is unavailable" do

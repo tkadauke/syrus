@@ -13,7 +13,10 @@ module Permissions
             raise ArgumentError,
               "permission operation #{operation.inspect} for capability #{capability.inspect} has conflicting contracts"
           end
-          registrations.first
+          # Where one surface classifies the operation as essential and another
+          # does not (a coworker sees it under delegation), the deniable variant
+          # is the one rules and previews are about.
+          registrations.min_by { |descriptor| descriptor.essential? ? 1 : 0 }
         end
     end
 
@@ -48,6 +51,33 @@ module Permissions
       raise UnknownCapability, "unknown permission capability or operation" unless matches.one?
 
       matches.first
+    end
+
+    COWORKER_ROLES = [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].freeze
+
+    # Whether +operation+ is an agent essential for agents running as +role+.
+    # Core tools are classified per surface (a coworker is a delegated
+    # principal); a plugin operation's own flag applies to every non-coworker
+    # role, since the coworker projection makes it deniable there.
+    def self.essential_for?(operation, role:)
+      role = role.to_s
+      surface = if COWORKER_ROLES.include?(role) then :coworker
+      elsif role == AgentRole::AGENT_INSIGHT then :agent_insight
+      elsif AgentRole::WORKFLOW_ROLES.include?(role) then :workflow
+      else :chat
+      end
+      core = McpToolRegistry.entries(surface:).select { |entry| entry.descriptor&.operation == operation.to_s }
+      return core.any? { |entry| entry.descriptor.essential? } if core.any?
+      return false if COWORKER_ROLES.include?(role)
+
+      (plugin_tool_descriptors + permission_provider_descriptors).any? do |descriptor|
+        descriptor.operation == operation.to_s && descriptor.essential?
+      end
+    end
+
+    # Essential for every role that could ever hold a rule on it.
+    def self.essential_everywhere?(descriptor)
+      descriptor.requestable_roles.all? { |role| essential_for?(descriptor.operation, role:) }
     end
 
     def self.as_json(descriptor)
