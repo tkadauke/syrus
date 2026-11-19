@@ -227,7 +227,9 @@ module Api
             offset += FTS_BATCH_SIZE
           end
 
-          rows.first(limit)
+          merge_slug_rows(rows, chat_slug_rows(query))
+            .then { |merged_rows| apply_filter_to_rows("chat", merged_rows, :chat_message_id) }
+            .first(limit)
         end
 
         def repository_search_rows(query, limit)
@@ -363,7 +365,7 @@ module Api
         end
 
         def slug_row_id(row)
-          (row[:job_id] || row[:epic_id]).to_i
+          (row[:job_id] || row[:epic_id] || row[:chat_message_id]).to_i
         end
 
         def job_slug_rows(query)
@@ -397,6 +399,27 @@ module Api
               snippet: "<mark>#{ERB::Util.html_escape(epic.slug)}</mark>"
             }
           end
+        end
+
+        def chat_slug_rows(query)
+          match = query.to_s.strip.match(/\ACHAT-(\d+)\z/i)
+          return [] unless match
+
+          message = searchable_chat_messages
+            .where(chat_session_id: match[1].to_i, role: %w[user assistant])
+            .order(created_at: :desc, id: :desc)
+            .first
+          return [] unless message
+
+          [
+            {
+              chat_message_id: message.id,
+              chat_session_id: message.chat_session_id,
+              priority: -1,
+              rank: 0.0,
+              snippet: "<mark>CHAT-#{message.chat_session_id}</mark>"
+            }
+          ]
         end
 
         def result_json(row)

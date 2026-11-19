@@ -18,6 +18,8 @@ index: an accessible repository matches only when the query is its exact full
 slug (for example, `tkadauke/syrus`) or exact repository name (`syrus`),
 case-insensitively.
 Job and Epic results also match their proposer's handle.
+An exact canonical chat slug such as `CHAT-42` finds that chat for its owner or
+an unhidden participant even when the slug does not occur in the transcript.
 
 Filtering is applied after the FTS query and preserves FTS relevance order.
 Combined results expose common filter chips (`repository_id`, `created_at`,
