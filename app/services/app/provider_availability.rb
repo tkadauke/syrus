@@ -30,7 +30,7 @@ module App
       end
     end
 
-    def self.broadcast_changed(user:, provider:, now: Time.current)
+    def self.broadcast_changed(user:, provider:, provider_account: nil, now: Time.current)
       return unless user && provider.present?
 
       clear_cache!(user: user, provider: provider)
@@ -46,19 +46,23 @@ module App
       # SmartRetryEnqueuer, etc.) for up to 30 more seconds regardless of
       # how many further failures land in that window.
       ProviderCircuitBreaker.clear_read_cache!
-      availability = for_user(user, provider, now: now, cached: false)
+      availability = for_user(user, provider, provider_account: provider_account, now: now, cached: false)
+      payload = {
+        provider: provider,
+        provider_account: provider_account&.safe_reference,
+        availability: availability
+      }.compact
       AppEvents.broadcast(
         user: user,
         type: "provider_availability.changed",
         resource: "provider_availability",
         id: provider,
         changed: [ "provider_availability" ],
-        payload: {
-          provider: provider,
-          availability: availability
-        }
+        payload: payload
       )
-      ProviderAvailabilityWakeup.call(provider: provider, user: user)
+      wakeup_options = { provider: provider, user: user }
+      wakeup_options[:provider_account] = provider_account if provider_account
+      ProviderAvailabilityWakeup.call(**wakeup_options)
       availability
     end
 
@@ -156,7 +160,7 @@ module App
         providers = User.agent_providers
         batch = Batch.new(user: user, providers: providers, now: now)
         providers.index_with do |provider|
-          provider_account = user.default_provider_account(provider)
+          provider_account = batch.provider_account_for(provider)
           PerformanceLogging.phase("provider_availability.all_for_user.provider", provider: provider) do
             key = cache_key(user, provider, provider_account: provider_account)
             cache = Current.provider_availability_cache ||= {}
@@ -227,6 +231,14 @@ module App
         @user = user
         @providers = providers.map(&:to_s)
         @now = now
+        @provider_accounts_by_provider = user.enabled_provider_accounts
+          .where(provider_key: @providers)
+          .in_position_order
+          .each_with_object({}) { |account, accounts| accounts[account.provider_key] ||= account }
+      end
+
+      def provider_account_for(provider)
+        provider_accounts_by_provider[provider.to_s]
       end
 
       def evidence_for(provider, provider_account: nil)
@@ -248,7 +260,7 @@ module App
 
       EMPTY = [].freeze
 
-      attr_reader :user, :providers, :now
+      attr_reader :user, :providers, :now, :provider_accounts_by_provider
 
       def evidence_by_provider
         @evidence_by_provider ||= begin
@@ -256,7 +268,7 @@ module App
             .where(user: user, provider: providers)
             .select(
               "provider_availability_evidences.*, " \
-              "ROW_NUMBER() OVER (PARTITION BY provider, status ORDER BY observed_at DESC, id DESC) AS evidence_rank"
+              "ROW_NUMBER() OVER (PARTITION BY provider, account_id, status ORDER BY observed_at DESC, id DESC) AS evidence_rank"
             )
           ProviderAvailabilityEvidence
             .from(ranked, :ranked_evidence)
@@ -282,7 +294,7 @@ module App
             )
             .select(
               "runs.id, " \
-              "ROW_NUMBER() OVER (PARTITION BY runs.agent_provider ORDER BY runs.finished_at DESC, runs.updated_at DESC, runs.id DESC) AS provider_rank"
+              "ROW_NUMBER() OVER (PARTITION BY runs.agent_provider, runs.provider_account_id ORDER BY runs.finished_at DESC, runs.updated_at DESC, runs.id DESC) AS provider_rank"
             )
           # Rank ids only, then load the rows by id and order them in Ruby:
           # sorting whole runs rows drags their agent diffs through MySQL's
@@ -301,7 +313,7 @@ module App
       def terminal_runs_by_provider
         @terminal_runs_by_provider ||= begin
           scopes_by_provider = providers.to_h do |provider|
-            account = user.default_provider_account(provider)
+            account = provider_account_for(provider)
             scope = Run.where(user_id: user.id, agent_provider: provider)
             scope = scope.where(provider_account_id: account.id) if account
             [ provider, scope ]
@@ -806,7 +818,7 @@ module App
       {
         pause_threshold_percent: user.provider_availability_pause_threshold_for(provider),
         pause_enabled: user.provider_availability_pause_enabled?(provider),
-        override_active: user.provider_availability_overridden?(provider, evidence_observed_at: observed_at)
+        override_active: user.provider_availability_overridden?(provider, provider_account: provider_account, evidence_observed_at: observed_at)
       }
     end
 

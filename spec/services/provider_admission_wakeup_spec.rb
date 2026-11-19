@@ -53,6 +53,17 @@ RSpec.describe ProviderAdmissionWakeup do
     )
   end
 
+  def blocked_workflow(user:, repository:, provider_account:)
+    queued_job = Factories.job_record(user: user, repository: repository, agent_provider: "claude", state: "queued")
+    WorkUnits::Launcher.instantiate(kind: "initial", job: queued_job).tap do |queued_workflow|
+      queued_workflow.update!(agent_provider: "claude", provider_account: provider_account)
+      queued_workflow.work_unit.update!(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON
+      )
+    end
+  end
+
   describe ".call" do
     it "cancels future-scheduled auto-retry attempts and requests a reconcile for each affected job" do
       attempt = pending_attempt
@@ -144,6 +155,80 @@ RSpec.describe ProviderAdmissionWakeup do
       expect {
         described_class.call(provider: "claude")
       }.not_to have_enqueued_job(WorkEngine::ReconcileJob)
+    end
+
+    it "wakes only workflows whose user and pinned account circuit is closed" do
+      first_user = Factories.user(claude_oauth_token: "first-token")
+      first_repository = Factories.repository(user: first_user)
+      first_account = first_user.default_provider_account("claude")
+      sibling_account = ProviderAccount.create!(
+        user: first_user,
+        provider_key: "claude",
+        authentication_kind: "claude_oauth_token",
+        credential_payload: { "claude_oauth_token" => "sibling-token" },
+        position: 1
+      )
+      second_user = Factories.user(claude_oauth_token: "second-user-token")
+      second_account = second_user.default_provider_account("claude")
+      blocked = blocked_workflow(user: first_user, repository: first_repository, provider_account: first_account)
+      healthy_sibling = blocked_workflow(user: first_user, repository: first_repository, provider_account: sibling_account)
+      healthy_other_user = blocked_workflow(
+        user: second_user,
+        repository: Factories.repository(user: second_user),
+        provider_account: second_account
+      )
+      allow(ProviderCircuitBreaker).to receive(:call) do |_, user:, provider_account:, **|
+        user == first_user && provider_account == first_account ? open_circuit : closed_circuit
+      end
+
+      result = described_class.call(provider: "claude")
+
+      expect(result.workflow_ids).to contain_exactly(healthy_sibling.id, healthy_other_user.id)
+      expect(blocked.reload.work_unit).to be_blocked
+      expect(healthy_sibling.reload.work_unit).not_to be_blocked
+      expect(healthy_other_user.reload.work_unit).not_to be_blocked
+    end
+
+    it "wakes only auto retries whose pinned account circuit is closed" do
+      user = Factories.user(claude_oauth_token: "first-token")
+      repository = Factories.repository(user: user)
+      first_account = user.default_provider_account("claude")
+      sibling_account = ProviderAccount.create!(
+        user: user,
+        provider_key: "claude",
+        authentication_kind: "claude_oauth_token",
+        credential_payload: { "claude_oauth_token" => "sibling-token" },
+        position: 1
+      )
+      build_attempt = lambda do |account, issue_number|
+        retry_job = Factories.job(repository: repository, issue_number: issue_number, agent_provider: "claude")
+        retry_workflow = retry_job.latest_workflow
+        retry_run = retry_job.initial_run
+        retry_workflow.update_columns(state: "failed", provider_account_id: account.id, finished_at: Time.current)
+        retry_run.update_columns(state: "failed", provider_account_id: account.id, finished_at: Time.current)
+        retry_job.update_columns(state: "failed")
+        AutoRetryAttempt.create!(
+          job: retry_job,
+          workflow: retry_workflow,
+          run: retry_run,
+          agent_provider: "claude",
+          failure_classification: "worker_died",
+          retry_kind: "retry_workflow",
+          attempt_number: 1,
+          scheduled_at: 10.minutes.from_now
+        )
+      end
+      blocked = build_attempt.call(first_account, 81)
+      healthy = build_attempt.call(sibling_account, 82)
+      allow(ProviderCircuitBreaker).to receive(:call) do |_, provider_account:, **|
+        provider_account == first_account ? open_circuit : closed_circuit
+      end
+
+      result = described_class.call(provider: "claude", user: user)
+
+      expect(result.auto_retry_attempt_ids).to eq([ healthy.id ])
+      expect(blocked.reload.skipped_reason).to be_nil
+      expect(healthy.reload.skipped_reason).to eq("provider circuit reopened; reconciler will retry immediately")
     end
 
     it "ignores already-performed or skipped attempts" do
