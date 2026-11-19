@@ -9,6 +9,22 @@ caused production incidents here. The rule, the expand/migrate/contract
 sequence, and how to read a new column defensively are in
 [Rollout Compatibility](../conventions/rollout_compatibility.md).
 
+## Draining in-flight work
+
+A deploy never waits for work to finish, and a restart should lose as little
+of it as possible. Compute workers roll with `maxSurge` and `maxUnavailable: 0`:
+each node starts the new pod next to the old one, the new pod takes all new
+work as soon as it is ready, and the old pod drains. On SIGTERM a SolidQueue
+worker stops claiming jobs and waits `SOLID_QUEUE_SHUTDOWN_TIMEOUT` seconds for
+the ones it holds (SolidQueue's own default is five seconds, which killed every
+running grader on every deploy); the pod's termination grace must exceed it.
+
+The rollout counts as done once the new pods are ready -- a DaemonSet's status
+counts nodes, not pods, so draining old pods do not hold it -- and
+`Verifications` asks the newest ready pod that is not terminating, never a
+draining one. Old code keeps running against the new schema for as long as a
+drain lasts, which is why two-version compatibility above is not optional.
+
 ## Client behavior during a rollout
 
 The web Deployment runs `replicas=2` with `RollingUpdate(maxSurge=1,

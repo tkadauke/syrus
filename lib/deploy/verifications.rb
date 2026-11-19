@@ -69,7 +69,7 @@ module Deploy
 
     def verify_revision!(targets)
       mismatched = targets.select { |target| kubectl.exists?(target) }.filter_map do |target|
-        running = exec_with_retry(target, "printenv", "GIT_SHA").out.strip
+        running = exec_with_retry(live_pod_for(target), "printenv", "GIT_SHA").out.strip
         next if running == sha
 
         reporter.error("#{label}/#{target}: pods running '#{running.empty? ? "<empty>" : running}' but expected #{sha}")
@@ -140,6 +140,27 @@ module Deploy
     end
 
     private
+
+    # `kubectl exec <workload>` lets kubectl choose the pod, and a rollout that
+    # surges new pods while old ones drain in-flight work keeps the old pods
+    # running -- terminating, with the old image -- for as long as that work
+    # takes. Asking one of them would report the previous revision and fail
+    # (and unwind) a deploy that succeeded. Ask the newest ready pod that is
+    # not terminating; without a selector, or with no such pod, fall back to
+    # the workload and let kubectl choose as before.
+    def live_pod_for(target)
+      selector = kubectl.get_json(target)&.dig("spec", "selector", "matchLabels")
+      return target unless selector.is_a?(Hash) && selector.any?
+
+      pods = Array(kubectl.get_json("pods", "-l", selector.map { |key, value| "#{key}=#{value}" }.join(","))&.dig("items"))
+      live = pods.select { |pod| pod.dig("metadata", "deletionTimestamp").nil? && pod_ready?(pod) }
+      newest = live.max_by { |pod| pod.dig("metadata", "creationTimestamp").to_s }
+      newest ? "pod/#{newest.dig("metadata", "name")}" : target
+    end
+
+    def pod_ready?(pod)
+      Array(pod.dig("status", "conditions")).any? { |condition| condition["type"] == "Ready" && condition["status"] == "True" }
+    end
 
     def exec_with_retry(target, *command, attempts: 5)
       result = nil
