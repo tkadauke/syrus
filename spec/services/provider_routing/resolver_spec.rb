@@ -66,6 +66,29 @@ RSpec.describe ProviderRouting::Resolver do
       expect(job.agent_provider).to eq("codex")
       expect(resolve(job)).to eq([ candidate(provider: "codex") ])
     end
+
+    it "repins the account on provider-paused workflows that have not started" do
+      job = Factories.job_record(
+        repository: repository,
+        user: user,
+        job_provider_setting: "claude",
+        agent_provider: "claude",
+        state: "queued"
+      )
+      workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+      workflow.update!(agent_provider: "claude", provider_account: user.default_provider_account("claude"))
+      workflow.work_unit.update!(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON
+      )
+
+      job.switch_job_provider_setting!("codex")
+
+      expect(workflow.reload).to have_attributes(
+        agent_provider: "codex",
+        provider_account: user.default_provider_account("codex")
+      )
+    end
   end
 
   describe "2. repository rule, exact task_key" do
