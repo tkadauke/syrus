@@ -324,6 +324,62 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
         expect(call).to be_exhausted
       end
     end
+
+    it "selects and pins the least-pressured healthy account before the first Run" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1, label: "spare",
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload,
+        weight: 2
+      )
+      busy_job = Factories.job_record(repository: repository, user: user)
+      Workflow.create!(job: busy_job, user: user, trigger_kind: "initial", agent_provider: "claude", provider_account: first, priority: "medium")
+      workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", provider_account: first, priority: "medium")
+      allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "available", usage: { remaining_percent: 50 })
+
+      decision = described_class.call(job: job, task_key: "initial", workflow: workflow)
+
+      expect(decision.provider_account).to eq(second)
+      expect(workflow.reload.provider_account).to eq(second)
+      expect(decision.artifact.fetch("selected_account")).to eq(second.safe_reference.stringify_keys)
+    end
+
+    it "honors an explicit account pin and does not fall back within that provider" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1,
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "claude", "account_id" => second.public_id } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", provider_account: second, now: anything
+      ).and_return(state: "rate_limited")
+
+      decision = call
+
+      expect(decision).to be_exhausted
+      expect(decision.provider_account).to be_nil
+    end
+
+    it "uses fair weighted assignment history when usage is unavailable" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1,
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload,
+        weight: 2
+      )
+      prior_job = Factories.job_record(repository: repository, user: user)
+      Workflow.create!(job: prior_job, user: user, trigger_kind: "initial", agent_provider: "claude", provider_account: first, priority: "medium", state: "succeeded")
+      allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "available")
+
+      expect(call.provider_account).to eq(second)
+    end
   end
 end
 

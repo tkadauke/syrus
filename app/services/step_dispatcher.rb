@@ -662,11 +662,20 @@ class StepDispatcher
           return nil
         end
 
+        run_provider_account = if run_provider_candidate.account_id.present?
+          workflow.user.provider_accounts.find_by(
+            provider_key: run_provider_candidate.provider,
+            public_id: run_provider_candidate.account_id
+          )
+        elsif workflow.agent_provider == run_provider_candidate.provider
+          workflow.provider_account
+        end
+
         step.runs.create!(
           job: workflow.job,
           trigger_kind: workflow.trigger_kind,
           agent_provider: run_provider_candidate.provider,
-          provider_account: (workflow.provider_account if workflow.agent_provider == run_provider_candidate.provider),
+          provider_account: run_provider_account,
           model: run_provider_candidate.model,
           effort_level: run_provider_candidate.effort_level,
           iteration: step.iteration,
@@ -705,15 +714,14 @@ class StepDispatcher
       effort_level: workflow.effort_level
     )
     task_key = workflow.trigger_kind
-    routed_selection = if ProviderRouting::Resolver.rule_configured?(job: workflow.job.reload, task_key: task_key)
-      ProviderRouting::AvailabilitySelector.call(
-        job: workflow.job,
-        task_key: task_key,
-        workflow_trigger_kind: workflow.trigger_kind,
-        original_candidate: current_candidate,
-        released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
-      )
-    end
+    routed_selection = ProviderRouting::AvailabilitySelector.call(
+      job: workflow.job.reload,
+      task_key: task_key,
+      workflow_trigger_kind: workflow.trigger_kind,
+      original_candidate: current_candidate,
+      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids"),
+      workflow: workflow
+    )
     desired_candidate = routed_selection&.candidate ||
       ProviderRouting::AvailabilitySelector.candidate(
         provider: workflow.job.workflow_agent_provider.presence,
@@ -751,7 +759,8 @@ class StepDispatcher
       return ProviderRouting::AvailabilitySelector.candidate(
         provider: step.details["provider"],
         model: step.details["model"],
-        effort_level: step.details["effort_level"], reviewer_target: reviewer_target
+        effort_level: step.details["effort_level"], reviewer_target: reviewer_target,
+        account_id: step.details["account_id"]
       )
     end
     if (panel_execution = step.details.to_h["panel_execution"])
@@ -761,7 +770,8 @@ class StepDispatcher
         reviewer_target = reauthorized_reviewer_target(step, member["reviewer_target"])
         step.update!(details: step.details.to_h.merge("reviewer_target" => reviewer_target).compact)
         return ProviderRouting::AvailabilitySelector.candidate(
-          provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: reviewer_target
+          provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: reviewer_target,
+          account_id: member["account_id"]
         )
       end
 
@@ -787,7 +797,8 @@ class StepDispatcher
       end
 
       return ProviderRouting::AvailabilitySelector.candidate(
-        provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: member["reviewer_target"]
+        provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: member["reviewer_target"],
+        account_id: member["account_id"]
       )
     end
 
@@ -797,7 +808,8 @@ class StepDispatcher
       trigger: provider_invocation_for(step),
       workflow_trigger_kind: workflow.trigger_kind,
       original_candidate: current_candidate,
-      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
+      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids"),
+      workflow: workflow
     )
     if selection.held?
       workflow.update!(

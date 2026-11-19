@@ -337,6 +337,9 @@ class ProviderRoutingRule < ApplicationRecord
     end
 
     errors.add(:candidates, :entry_weight_not_positive, index: index) if candidate.key?("weight") && candidate["weight"].to_f <= 0
+    if candidate["account_id"].present? && !user.provider_accounts.exists?(provider_key: provider, public_id: candidate["account_id"])
+      errors.add(:candidates, :entry_unknown_account, index: index)
+    end
     validate_candidate_model(provider, candidate["model"], index) if candidate["model"].present?
     validate_reviewer_target(candidate["reviewer_target"], index) if candidate["reviewer_target"].present?
   end
