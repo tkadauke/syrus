@@ -3362,5 +3362,9 @@
   "tool_card_repository_list_incomplete_summary": "Incomplete listing · {{count}} paths",
   "tool_card_repository_list_complete_summary": "Complete listing · {{count}} paths",
   "tool_card_repository_list_incomplete": "File listing is incomplete",
-  "tool_card_repository_list_coverage": "Returned {{returned}} of {{candidates}} paths"
+  "tool_card_repository_list_coverage": "Returned {{returned}} of {{candidates}} paths",
+  "tool_card_reset_job": "Reset Job",
+  "tool_card_reset_requested": "Reset requested",
+  "tool_card_replace_job_dependency": "Replace Job Dependency",
+  "tool_card_dependency_replaced": "Dependency replaced"
 }

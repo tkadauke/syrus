@@ -43,6 +43,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
   ].freeze
 
   CHAT_I18N_REVIEWED_FILES = %w[
+    app/frontend/routes/chat/tool_cards/replace_job_dependency.tsx
+    app/frontend/routes/chat/tool_cards/reset_job.tsx
     app/frontend/routes/chat/tool_cards/adopt_current_pr_head.tsx
     app/frontend/routes/chat/tool_cards/classify_pull_request.tsx
     app/frontend/routes/chat/tool_cards/clear_provider_circuit.tsx
