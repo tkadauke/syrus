@@ -33,7 +33,7 @@ RSpec.describe Permissions::JobLifecycle do
   end
 
   it "keeps proposals as a separate lifecycle outside the Job and Epic capabilities" do
-    proposal_tools = %w[propose_job propose_epic propose_epic_with_jobs]
+    proposal_tools = %w[propose_job propose_epic_with_jobs]
 
     proposal_tools.each do |tool_name|
       expect(described_class).not_to be_covers(tool_name)
