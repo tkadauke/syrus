@@ -197,6 +197,15 @@ RSpec.describe "queue partitioning" do
     expect(selector.send(:prefixes)).to eq([ "plugin!_%" ])
   end
 
+  it "keeps default plugin worker threads within the configured database pool budget" do
+    %w[config/queue.yml config/queue.home.yml].each do |config|
+      plugin_worker = load_config(config).fetch("default").fetch("workers")
+        .find { |worker| worker["queues"] == "plugin_*" }
+
+      expect(plugin_worker.fetch("threads")).to eq(6), config
+    end
+  end
+
   # The check above only sees `queue_as` in app/jobs. Framework jobs subclass
   # ActiveJob::Base directly, so they miss ApplicationJob's `queue_as
   # :control_plane` and use framework-owned defaults such as :default or
