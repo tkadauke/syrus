@@ -60,6 +60,28 @@ RSpec.describe ResetJobs::Operation do
     expect(run.artifacts).to include("reset_reason" => "Discard compatibility work")
   end
 
+  it "lists and cancels a shared Workflow owned through non-anchor WorkUnit membership" do
+    epic = Factories.epic(user:, repository:)
+    anchor = Factories.job_with_run(user:, repository:, epic:, state: "running", issue_number: 50,
+      workflow_attrs: { state: "running", trigger_kind: "stack_rebase" },
+      step_attrs: { state: "running" }, run_attrs: { state: "running", trigger_kind: "stack_rebase" })
+    member = Factories.job_record(user:, repository:, epic:, state: "running", issue_number: 51)
+    workflow = anchor.workflows.sole
+    run = anchor.runs.sole
+    unit = attach_work_unit(workflow, state: "running", kind: "stack_rebase", member_jobs: [ anchor, member ])
+
+    expect(workflow.job).to eq(anchor)
+    expect(described_class.destruction_summary(member)[:active_workflows]).to eq([ workflow.id ])
+
+    described_class.new(job: member, user:, reason: "Reset member", pending_action: action).call
+
+    expect(workflow.reload).to be_cancelled
+    expect(unit.reload).to be_cancelled
+    expect(run.reload).to be_cancelled
+    expect(run.artifacts).to include("reset_reason" => "Reset member")
+    expect(member.reload).to be_blocked_by_epic
+  end
+
   it "removes an implemented Job's PR, branch, checkpoints, and workspace while retaining history" do
     job = Factories.job_with_run(user:, repository:, state: "implemented", branch_name: "syrus/old", pr_number: 12)
     workflow = job.workflows.sole
