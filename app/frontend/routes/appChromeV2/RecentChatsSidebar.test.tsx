@@ -136,12 +136,14 @@ describe("RecentChatsSidebar active chat highlighting", () => {
       coworker_id: 7,
       side_chat_action_path: "/api/v1/app/coworkers/7/chats"
     }
-    const fetchSpy = vi.fn(async () => jsonResponse({
-      chats: [
-        { id: 1, role: "main", title: "Maya", path: "/chats/1" },
-        ...Array.from({ length: 11 }, (_, index) => ({ id: index + 2, role: "side", title: `Research ${index + 1}`, path: `/chats/${index + 2}` }))
-      ]
-    }))
+    const fetchSpy = vi.fn(async () =>
+      jsonResponse({
+        chats: [
+          { id: 1, role: "main", title: "Maya", path: "/chats/1" },
+          ...Array.from({ length: 11 }, (_, index) => ({ id: index + 2, role: "side", title: `Research ${index + 1}`, path: `/chats/${index + 2}` }))
+        ]
+      })
+    )
     vi.stubGlobal("fetch", fetchSpy)
     const mainChat = chatNav({ id: 1, title: "Maya", agent_appearance: { ...appearance, coworker_chat_role: "main" } })
     renderSidebar([], { groups: [chatGroup({ chats: [mainChat], has_more: true })] })
@@ -175,12 +177,17 @@ describe("RecentChatsSidebar active chat highlighting", () => {
       side_chat_action_path: "/api/v1/app/coworkers/7/chats"
     }
     const mainChat = chatNav({ id: 1, title: "Maya", agent_appearance: { ...appearance, coworker_chat_role: "main" } })
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
-      chats: [
-        { id: 1, role: "main", title: "Maya", path: "/chats/1" },
-        { id: 2, role: "side", title: null, path: "/chats/2" }
-      ]
-    })))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({
+          chats: [
+            { id: 1, role: "main", title: "Maya", path: "/chats/1" },
+            { id: 2, role: "side", title: null, path: "/chats/2" }
+          ]
+        })
+      )
+    )
     const { queryClient } = renderSidebar([mainChat])
 
     fireEvent.click(screen.getByRole("button", { name: "Expand chats with Maya" }))
@@ -193,10 +200,7 @@ describe("RecentChatsSidebar active chat highlighting", () => {
       agent_appearance: { ...appearance, coworker_chat_role: "side" }
     })
     act(() => {
-      queryClient.setQueryData<ChatsIndexPayload>(
-        ["chats", "recent"],
-        chatsIndexPayload({ groups: [chatGroup({ chats: [mainChat, titledSideChat] })] })
-      )
+      queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({ groups: [chatGroup({ chats: [mainChat, titledSideChat] })] }))
     })
 
     expect(await screen.findByRole("link", { name: "Investigate flaky tests" })).toBeInTheDocument()
