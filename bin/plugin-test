@@ -13,9 +13,13 @@ json_only = ENV["SYRUS_PLUGIN_TEST_JSON"] == "1"
 abort "usage: bin/plugin-test PLUGIN_DIR" unless plugin_path && ARGV.empty?
 plugin_root = Pathname.new(plugin_path).expand_path
 abort "plugin directory does not exist: #{plugin_root}" unless plugin_root.directory?
-abort "SYRUS_PLUGIN_TEST_MODE must be validate or test" unless %w[validate test].include?(mode)
+abort "SYRUS_PLUGIN_TEST_MODE must be validate, test, or build" unless %w[validate test build].include?(mode)
 
 host_root = Pathname.new(__dir__).join("..").expand_path
+
+if mode == "build"
+  exec(host_root.join("bin/build-plugin-frontend").to_s, plugin_root.to_s)
+end
 result = { version: 1, mode:, plugin: plugin_root.basename.to_s, validation: "not_run", tests: "not_run", exit_code: 0 }
 
 Dir.mktmpdir("syrus-plugin-test") do |temporary|
