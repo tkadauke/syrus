@@ -885,7 +885,7 @@ module Ruby
             "ci" => mode == "ci",
             "coverage" => coverage
           }
-        }
+        }.merge(mode == "ci" ? { "supersedes" => full_name } : {})
       )
     end
   end

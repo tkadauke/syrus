@@ -63,7 +63,8 @@ class LandingGraderPlan
       grader.with(metadata: grader.metadata.merge(metadata))
     end
 
-    plan.with(graders: selected + main_grading_parity_graders(phase, selected))
+    parity = main_grading_parity_graders(phase, selected)
+    plan.with(graders: without_superseded(selected, parity) + parity)
   end
 
   def phase
@@ -103,6 +104,28 @@ class LandingGraderPlan
     plan.graders.select { |grader| grader.required && grader.phases.include?(ci_phase) && names.exclude?(grader.name) }.map do |grader|
       grader.with(metadata: grader.metadata.merge("phase" => ci_phase, "configured_phases" => grader.phases, "main_grading_parity" => true))
     end
+  end
+
+  # A grader type whose CI variant is a superset of its full variant (the
+  # same suite plus the CI-only examples) says so with `supersedes`. Running
+  # both proves the same examples twice -- the full RSpec suite alone is most
+  # of an hour of a merge train -- so the superseded one is dropped, unless
+  # it is the only one producing coverage evidence.
+  def without_superseded(selected, parity)
+    superseding = parity.each_with_object({}) do |grader, by_name|
+      name = grader.metadata["supersedes"].to_s
+      by_name[name] = grader if name.present?
+    end
+    return selected if superseding.empty?
+
+    selected.reject do |grader|
+      replacement = superseding[grader.name]
+      replacement && (!coverage?(grader) || coverage?(replacement))
+    end
+  end
+
+  def coverage?(grader)
+    grader.metadata.dig("filter_capabilities", "coverage") == true
   end
 
   attr_reader :plan, :trigger_kind, :iteration, :phase_override, :repository, :job

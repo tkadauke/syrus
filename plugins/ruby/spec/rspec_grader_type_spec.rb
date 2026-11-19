@@ -1007,3 +1007,11 @@ RSpec.describe Ruby::RspecGraderType do
     expect { RubyVM::InstructionSequence.compile(selector_script) }.not_to raise_error
   end
 end
+
+RSpec.describe Ruby::RspecGraderType, "CI variant" do
+  it "declares that its CI variant supersedes the full variant, and nothing else does" do
+    steps = described_class.grade_steps(config: { "type" => "rspec", "name" => "rspec", "phases" => %w[review landing ci] }, default_failures: "strict")
+
+    expect(steps.to_h { |step| [ step.name, step.metadata["supersedes"] ] }).to eq("rspec" => nil, "rspec-focused" => nil, "rspec-ci" => "rspec")
+  end
+end
