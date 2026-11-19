@@ -27,7 +27,7 @@ module Mcp
 
       def plugin_descriptors(chat_session: nil)
         plugin_providers.flat_map do |provider, plugin_state|
-          definitions = definitions_for(provider, chat_session: chat_session)
+          definitions, tiers_by_name = definitions_and_tiers_for(provider, chat_session: chat_session)
           by_name = definitions.index_by { |definition| value(definition, :name).to_s }
           grant_definitions = grants_for(provider)
           grants = grant_definitions.transform_values { |grant| grant.fetch("tools") }
@@ -44,7 +44,7 @@ module Mcp
                 Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).essential?
               Descriptor.new(tool_name: name, capability: capability, ungated: essential,
                 approval_effect: definition.present? && value(definition, :approval_effect) == true,
-                tier: definition ? definition_tier(provider, name, chat_session: chat_session) : :essential,
+                tier: definition ? tiers_by_name.fetch(name, :essential) : :essential,
                 tool: nil, provider: provider,
                 availability_state: definition ? provider_state(provider, plugin_state, chat_session:) : :unavailable,
                 description: definition && value(definition, :description), definition: definition,
@@ -76,7 +76,7 @@ module Mcp
             # An essential plugin operation is essential for coworkers too.
             Descriptor.new(tool_name: name, capability: capability, ungated: descriptor.essential?,
               approval_effect: value(definition, :approval_effect) == true,
-              tier: definition_tier(provider, name, chat_session: chat_session), tool: nil, provider: provider,
+              tier: tiers_by_name.fetch(name, :essential), tool: nil, provider: provider,
               availability_state: provider_state(provider, plugin_state, chat_session:),
               description: value(definition, :description),
               definition: definition.merge(capability_descriptor: descriptor), grant: grant)
@@ -87,7 +87,7 @@ module Mcp
             name = value(definition, :name).to_s
             Descriptor.new(tool_name: name, capability: value(definition, :capability)&.to_s, ungated: true,
               approval_effect: false,
-              tier: definition_tier(provider, name, chat_session: chat_session), tool: nil, provider: provider,
+              tier: tiers_by_name.fetch(name, :essential), tool: nil, provider: provider,
               availability_state: provider_state(provider, plugin_state, chat_session:),
               description: value(definition, :description), definition: definition)
           end
@@ -121,29 +121,28 @@ module Mcp
         :unavailable
       end
 
-      def definitions_for(provider, chat_session: nil)
+      def definitions_and_tiers_for(provider, chat_session: nil)
         parameters = provider.method(:tool_definitions).parameters
         accepts_chat = parameters.any? { |type, name| [ :key, :keyreq ].include?(type) && name == :chat_session }
-        definitions = if !chat_session || !accepts_chat
-          provider.tool_definitions(tier: nil)
+        tiers = %i[essential deferred].to_h do |tier|
+          keywords = { tier: tier }
+          keywords[:chat_session] = chat_session if accepts_chat && chat_session
+          [ tier, Array(provider.tool_definitions(**keywords)) ]
+        end
+        definitions = if chat_session && accepts_chat
+          tiers.values.flatten
         else
-          %i[essential deferred].flat_map { |tier| provider.tool_definitions(tier: tier, chat_session: chat_session) }
+          Array(provider.tool_definitions(tier: nil))
+        end
+        definitions = definitions.select { |definition| Mcp::CoworkerToolExposure.plugin_definition?(definition) }
+        tiers_by_name = tiers.each_with_object({}) do |(tier, tier_definitions), result|
+          tier_definitions.each { |definition| result[value(definition, :name).to_s] ||= tier }
         end
 
-        Array(definitions).select { |definition| Mcp::CoworkerToolExposure.plugin_definition?(definition) }
+        [ definitions, tiers_by_name ]
       rescue StandardError => error
         Rails.logger.warn("[CoworkerToolCatalog] #{provider} definitions unavailable: #{error.class}: #{error.message}")
-        []
-      end
-
-      def definition_tier(provider, name, chat_session: nil)
-        parameters = provider.method(:tool_definitions).parameters
-        accepts_chat = parameters.any? { |type, parameter_name| [ :key, :keyreq ].include?(type) && parameter_name == :chat_session }
-        %i[essential deferred].find do |tier|
-          keywords = { tier: tier }
-          keywords[:chat_session] = chat_session if accepts_chat
-          Array(provider.tool_definitions(**keywords)).any? { |definition| value(definition, :name).to_s == name }
-        end || :essential
+        [ [], {} ]
       end
 
       def grants_for(provider)

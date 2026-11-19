@@ -36,6 +36,30 @@ RSpec.describe Mcp::CoworkerToolCatalog do
     )
   end
 
+  it "loads each provider tier once instead of rediscovering tiers for every tool" do
+    allow(provider).to receive(:coworker_grants).and_return([])
+    allow(provider).to receive(:tool_definitions) do |tier:|
+      case tier
+      when :essential
+        [ { name: "read_example", coworker_safe: true, capability: "example.records" } ]
+      when :deferred
+        [ { name: "archive_example", coworker_safe: true, capability: "example.records" } ]
+      else
+        [
+          { name: "read_example", coworker_safe: true, capability: "example.records" },
+          { name: "archive_example", coworker_safe: true, capability: "example.records" }
+        ]
+      end
+    end
+
+    descriptors = described_class.all.select { |candidate| candidate.provider == provider }
+
+    expect(descriptors.map { |descriptor| [ descriptor.tool_name, descriptor.tier ] }).to contain_exactly(
+      [ "read_example", :essential ], [ "archive_example", :deferred ]
+    )
+    expect(provider).to have_received(:tool_definitions).exactly(3).times
+  end
+
   it "still resolves explicitly ungated plugin tools" do
     allow(provider).to receive(:coworker_grants).and_return([])
     allow(provider).to receive(:tool_definitions).and_return(
