@@ -21,6 +21,16 @@ RSpec.describe Coworkers::UnsavedWorkspace do
     expect(Coworkers::WorkspaceSaveRetryJob).not_to have_received(:set)
     expect(chat.messages.last.content.fetch("text")).to include("needs your attention")
   end
+  it "counts each workspace push failure by handle and bounded failure kind" do
+    counter = instance_double(Syrus::Metrics::Counter, increment: nil)
+    allow(Syrus::Metrics.registry).to receive(:declared?).with(:syrus_coworkers_workspace_push_failures_total).and_return(true)
+    allow(Syrus::Metrics).to receive(:counter).and_call_original
+    allow(Syrus::Metrics).to receive(:counter).with(:syrus_coworkers_workspace_push_failures_total).and_return(counter)
+
+    attempt { raise GitRunner::GitError.new([ "push" ], 1, "Authentication failed") }
+
+    expect(counter).to have_received(:increment).with(tags: { coworker: "maya-unsaved", kind: "permanent" }).once
+  end
   it "preserves state on conflict" do
     link.update!(unsaved_workspace_branch: "coworkers/chat/1-2", unsaved_workspace_operation: "chat_branch")
     expect(attempt { :conflict }).to eq(:conflict)
