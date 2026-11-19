@@ -488,7 +488,10 @@ pinned first as the built-in engineer; custom coworkers show their configured
 color and avatar. The creation form collects the workspace remote, appearance,
 model, grants, and optional About text. Uploaded avatars are size-limited and
 resized before Active Storage saves them. Coworker chats are grouped separately
-in the chat sidebar, and assistant messages use the coworker's avatar and color.
+in the chat sidebar. Each coworker's main chat acts as a collapsed folder for
+its side chats; expanding it shows the configured number of chats at first,
+with controls to show more or fewer. Assistant messages use the coworker's
+avatar and color.
 Coworker chats carry a named badge in global search, chat search, and the
 agent-facing chat search tool. The shared chat filter offers each of the
 current user's coworkers plus Syrus, where Syrus means a chat without a

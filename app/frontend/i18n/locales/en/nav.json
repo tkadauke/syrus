@@ -333,6 +333,8 @@
   "new_coworker_side_chat": "New side chat with {{name}}",
   "expand_coworker_chats": "Expand chats with {{name}}",
   "collapse_coworker_chats": "Collapse chats with {{name}}",
+  "show_more_coworker_chats": "Show more chats with {{name}}",
+  "show_less_coworker_chats": "Show fewer chats with {{name}}",
   "recent_chats_options": {
     "all": "All",
     "status_label": "Status",
