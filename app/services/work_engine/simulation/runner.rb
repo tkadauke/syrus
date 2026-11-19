@@ -768,9 +768,11 @@ module WorkEngine
 
       def record_simulated_provider_usage!(provider, status:)
         user = simulation_user
+        provider_account = user.default_provider_account(provider)
         ProviderAvailabilityEvidence.create!(
           user: user,
           provider: provider.to_s,
+          account_id: provider_account&.public_id,
           status: status,
           source: "simulation",
           observed_at: Time.current
