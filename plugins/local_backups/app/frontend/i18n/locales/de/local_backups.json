@@ -1,0 +1,21 @@
+{
+  "nav_local_backups": "Lokale Backups",
+  "page_title": "Lokale Backups — Administration",
+  "aria_main": "Inventar lokaler Backups",
+  "heading": "Lokale Backups",
+  "description": "Schreibgeschütztes Inventar versiegelter Wiederherstellungspakete im lokalen Speicher.",
+  "loading": "Lokale Backups werden geladen...",
+  "load_error": "Lokale Backups konnten nicht geladen werden.",
+  "not_configured": "SYRUS_BACKUP_ROOT ist nicht konfiguriert.",
+  "storage": "Speicherwurzel",
+  "available": "{{size}} verfügbar",
+  "invalid": "{{count}} versiegelte Artefakte konnten nicht sicher gelesen werden.",
+  "inventory": "Backup-Inventar",
+  "empty": "Keine versiegelten Backup-Manifeste gefunden.",
+  "created": "Abgeschlossen",
+  "source": "Syrus-Version",
+  "database": "Datenbank",
+  "blobs": "Blobs",
+  "size": "Gespeicherte Größe",
+  "validation": "Validierung"
+}
