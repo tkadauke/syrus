@@ -115,6 +115,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     get "/api/v1/app/credentials/documents"
 
     expect(response).to have_http_status(:ok)
+    document.reload
     expect(parse_body.dig("documents", 0)).to include(
       "id" => document.id,
       "filename" => "user-notes.txt",
