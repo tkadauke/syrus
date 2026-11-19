@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "API: local backup inventory", type: :request do
-  let(:admin) { Factories.user }
+  let(:admin) { Factories.user(admin: true) }
 
   before do
     PluginRecord.find_by!(name: "local_backups").update!(enabled: true)
