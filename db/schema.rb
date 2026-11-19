@@ -9,7 +9,7 @@
 # migrations use external dependencies or application code.
 #
 # It's strongly recommended that you check this file into your version control system.
-#
+
 # Syrus uses this dump for SQLite development and test databases. Production
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
@@ -3756,6 +3756,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_224806) do
     t.bigint "entity_revision", default: 0, null: false
     t.datetime "coworker_wake_enqueued_at"
     t.integer "provider_account_id"
+    t.json "artifacts"
     t.index ["agent_provider", "cost_usd"], name: "idx_runs_spending_provider_cost"
     t.index ["agent_provider", "created_at", "cost_usd"], name: "idx_runs_spending_provider_window"
     t.index ["agent_provider", "state", "finished_at"], name: "idx_runs_provider_state_finished"

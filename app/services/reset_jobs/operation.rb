@@ -38,10 +38,12 @@ module ResetJobs
     attr_reader :job, :user, :reason, :pending_action
 
     def cancel_and_supersede!
+      active_units = WorkUnits::Ownership.active_units_for_job(job)
       job.spawned_processes.running.find_each { |process| process.request_kill!(user:) }
       job.active_runtime_workflows.each do |workflow|
         WorkUnits::WorkflowCancellation.cancel!(workflow, reason: "operator_job_reset", artifacts: reset_artifacts)
       end
+      active_units.each { |unit| unit.preempt!(reason: "operator_job_reset") }
       job.workflows.find_each { |workflow| workflow.update!(artifacts: workflow.artifacts.to_h.merge(reset_artifacts)) }
       job.runs.find_each { |run| run.update!(artifacts: run.artifacts.to_h.merge(reset_artifacts)) }
     end
