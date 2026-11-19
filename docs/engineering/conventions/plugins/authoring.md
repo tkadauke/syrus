@@ -1072,8 +1072,9 @@ sharing or destroying it is gated. Split a family whose operations differ
 gated). Core tools are classified in `Permissions::ConsequenceClassification`;
 plugins classify their own operations in `register_capability` (or with
 `essential: true` on a legacy tool definition), so core never names a plugin
-tool. On the coworker surface plugin essentials become deniable
-(`operator_scoping`): a coworker is a delegated principal.
+tool. Coworkers have their own rules but the same essentials as chat: a chat
+essential stays essential on the coworker surface, and only tools that exist
+on one surface alone carry surface-specific classifications.
 
 Every operation that asks can be allowed forever. To keep a broad grant from
 being offered, narrow `breadth_ceilings:` instead of capping durations, for

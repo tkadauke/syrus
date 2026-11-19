@@ -95,7 +95,11 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
       .select { |descriptor| names.include?(descriptor.tool_name) }
 
     expect(descriptors.map(&:tool_name).uniq).to contain_exactly(*names)
-    expect(descriptors).to all(have_attributes(tier: :deferred, ungated: false, availability_state: :available))
+    expect(descriptors).to all(have_attributes(tier: :deferred, availability_state: :available))
+    # Coworkers share the chat essentials: reading insights is never gated,
+    # triaging them still is.
+    ungated = descriptors.select(&:ungated).map(&:tool_name).uniq
+    expect(ungated).to contain_exactly("list_insights", "read_insight")
   end
 
   it "keeps coworker reads scoped to attached repositories without leaking inaccessible insights" do

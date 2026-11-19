@@ -21,9 +21,8 @@ can change the outcome. Every operation has exactly one consequence class:
   or material operational control.
 - **Deniable.** No barrier effect, but an operator may legitimately scope it,
   for a stated reason: reads that may contain secrets or another user's data,
-  instance-wide diagnostics, Job and Epic definition changes, shared documents,
-  and anything a coworker (a delegated agent) does outside its own
-  conversation.
+  instance-wide diagnostics, Job and Epic definition changes, and shared
+  documents.
 
 Two rules decide the class:
 
@@ -35,8 +34,10 @@ Two rules decide the class:
   that data (publishing a memory, messaging another chat) or destroying it
   (deleting a memory) is a barrier and stays gated.
 
-A coworker's own conversation and its questions to you are essential; what a
-coworker may read beyond that stays scoped by its grants.
+Coworkers have their own permission rules, separate from chat and from each
+other, but the same essentials as chat. A coworker still sees only the
+repositories its grants select; that scoping is enforced by the tools
+themselves, not by asking.
 
 The permission editor and the Permissions Hub never offer a rule for an
 essential operation. A rule written before an operation became essential

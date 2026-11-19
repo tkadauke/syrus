@@ -63,13 +63,15 @@ module Permissions
         start_preview stop_preview run_target_prepare
       ]).uniq.freeze,
       agent_insight: %w[read_live_state read_run_worker_health].freeze,
-      # A coworker is a delegated principal: its conversation and owner
-      # interaction are essential, but what it may see stays grant-scoped.
-      coworker: (CONTEXT + %w[
-        discover_coworker_capabilities request_permission surrender_permission_lease
-        request_permission_revocation withdraw_pending_action cancel_wakeup submit_artifact
-        list_pending_actions list_proposals search_syrus_docs propose_job propose_epic_with_jobs
-      ]).uniq.freeze
+      # A coworker has its own rules, separate from chat and from other
+      # coworkers, but the same essentials: every chat essential it is offered
+      # is essential for it too (see .essential?). These are the coworker-only
+      # tools; repository reads stay limited to the repositories its grant
+      # selects, which the tools themselves enforce.
+      coworker: %w[
+        discover_coworker_capabilities surrender_permission_lease request_permission_revocation
+        list_repository_files read_repository_file search_repository_code
+      ].freeze
     }.freeze
 
     # Core operations with no barrier effect that are nevertheless deniable.
@@ -95,7 +97,6 @@ module Permissions
         read_performance_log_events
       ],
       operator_scoping: %w[
-        list_repository_files read_repository_file search_repository_code
         runtime_acquire_control runtime_release_control runtime_input runtime_snapshot runtime_capture_artifact
       ]
     }.transform_values(&:freeze).freeze
@@ -104,7 +105,11 @@ module Permissions
 
     class << self
       def essential?(tool_name, surface:)
-        ESSENTIAL.fetch(surface.to_sym, []).include?(tool_name.to_s)
+        surface = surface.to_sym
+        return true if ESSENTIAL.fetch(surface, []).include?(tool_name.to_s)
+
+        # Coworkers share the chat essentials.
+        surface == :coworker && ESSENTIAL.fetch(:chat).include?(tool_name.to_s)
       end
 
       def deniable_reason(tool_name, surface:)
@@ -114,14 +119,12 @@ module Permissions
       # Stamps the classification onto a core registry descriptor. The table
       # is authoritative for core tools: whatever a family default declared,
       # an essential tool becomes essential on this surface and nothing else
-      # does. A coworker tool with no barrier effect is deniable because the
-      # operator scopes what a delegated principal may do.
+      # does.
       def apply(descriptor, tool_name:, surface:)
         return descriptor unless descriptor
 
         essential = essential?(tool_name, surface:)
         reason = essential ? nil : deniable_reason(tool_name, surface:)
-        reason ||= :operator_scoping if !essential && surface.to_sym == :coworker && descriptor.barrier_effects.empty?
         reason = nil if !essential && descriptor.barrier_effects.any? && !DENIABLE_BY_TOOL.key?(tool_name.to_s)
         return descriptor if descriptor.essential? == essential && descriptor.deniable_reason == reason
 

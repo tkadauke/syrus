@@ -13,19 +13,12 @@ module Permissions
           AgentRole::COWORKER_CHAT => ordinary_default,
           AgentRole::COWORKER => ordinary_default
         )
-        # A coworker is a delegated principal whose reach the operator scopes,
-        # so an operation that is essential for the owner's own agents is
-        # deniable on the coworker surface. Core coworker essentials (owner
-        # interaction, conversation context) are classified per surface by
-        # ConsequenceClassification after this projection.
-        reason = descriptor.deniable_reason
-        reason ||= :operator_scoping if descriptor.barrier_effects.empty?
+        # A coworker has its own rules but the same essentials, so the
+        # projection keeps the descriptor's consequence classification.
         CapabilityDescriptor.new(**descriptor.to_h.merge(
           presentation: descriptor.presentation,
           requestable_roles: roles,
-          defaults: defaults,
-          essential: false,
-          deniable_reason: reason
+          defaults: defaults
         ))
       end
 

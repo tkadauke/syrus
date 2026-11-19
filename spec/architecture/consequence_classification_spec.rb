@@ -92,10 +92,15 @@ RSpec.describe "consequence classification of every MCP tool" do
       end
     end
 
-    it "scopes coworker research reads while keeping coworker conversation essential" do
-      expect(registered("list_jobs", surface: :coworker).sole.descriptor).not_to be_essential
-      expect(registered("rename_chat", surface: :coworker).sole.descriptor).to be_essential
-      expect(registered("ask_user_question", surface: :coworker).sole.descriptor).to be_essential
+    it "gives coworkers the same essentials as chats" do
+      chat_essentials = registrations.select { |entry| entry.surface == :chat && entry.descriptor&.essential? }.map(&:tool_name)
+      coworker = registrations.select { |entry| entry.surface == :coworker }
+
+      coworker.select { |entry| chat_essentials.include?(entry.tool_name) }.each do |entry|
+        expect(entry.descriptor).to be_essential, entry.tool_name
+      end
+      expect(registered("list_jobs", surface: :coworker).sole.descriptor).to be_essential
+      expect(registered("read_repository_file", surface: :coworker).sole.descriptor).to be_essential
     end
   end
 

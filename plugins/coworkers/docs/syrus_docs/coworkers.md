@@ -226,16 +226,15 @@ Unified permission policy is enforced for every gated call, including read-only
 core tools and plugin-defined tools. `allow` runs immediately, `ask` creates an
 approval request, and `deny` fails closed. Confirming authorizes the stored tool
 name and fingerprinted arguments exactly once through the owning provider; the
-evaluator is rerun while the invocation is atomically claimed. Essential
-tools are evaluated and audited but can never be denied, because they stay
-within the coworker's own conversation, expose no additional owner data, and
-incur no external cost: `reply_in_chat_thread`, the in-turn question and
-suggestion helpers, capability discovery, permission requests and surrender,
-and naming, pinning, bookmarking, and goal tools for its own chat. Everything
-else a coworker does, including reads of Jobs, chats, code, and memories,
-stays scoped by its grants and your rules. The workspace file tools are allowed
-by default but stay deniable, because you can protect paths in the coworker
-workspace. `message_coworker` remains gated by `coworker.message`
+evaluator is rerun while the invocation is atomically claimed. A coworker's
+rules are its own, separate from chat and from other coworkers, but its
+essentials are the same as a chat's: reading Jobs, Epics, docs and the
+repositories its grants select, writing private memories, drafting proposals,
+asking you questions, and managing its own chat are evaluated and audited but
+can never be denied. Coworker-only essentials are `reply_in_chat_thread`,
+capability discovery, and permission requests and surrender. The workspace
+file tools are allowed by default but stay deniable, because you can protect
+paths in the coworker workspace. `message_coworker` remains gated by `coworker.message`
 and defaults to confirmation.
 
 Tools marked `approval_effect` still evaluate capability policy and fail on an

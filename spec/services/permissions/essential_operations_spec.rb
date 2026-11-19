@@ -147,11 +147,18 @@ RSpec.describe "essential operations" do
         .with(hash_including(decision: having_attributes(policy: :allow)))
     end
 
-    it "classifies conversation context as essential but keeps research reads grant-scoped" do
-      expect(coworker_entry("ask_user_question").descriptor).to be_essential
-      expect(coworker_entry("rename_chat").descriptor).to be_essential
-      expect(coworker_entry("list_jobs").descriptor).not_to be_essential
-      expect(coworker_entry("list_jobs").descriptor.deniable_reason).to eq(:operator_scoping)
+    # Coworkers have their own rules, separate from chat and from each
+    # other, but the same essentials.
+    it "shares the chat essentials, including research reads and plugin essentials" do
+      %w[ask_user_question rename_chat list_jobs search_jobs read_job propose_job].each do |name|
+        expect(coworker_entry(name).descriptor).to be_essential, name
+        expect(coworker_entry(name).ungated).to be(true), name
+      end
+      expect(coworker_entry("read_chat_messages").descriptor).not_to be_essential
+
+      coworker_memory = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(memory_descriptor("write_memory"))
+      expect(coworker_memory).to be_essential
+      expect(Permissions::CapabilityDescriptorAdapter.for_coworker_parity(memory_descriptor("delete_memory"))).not_to be_essential
     end
   end
 
@@ -236,11 +243,12 @@ RSpec.describe "essential operations" do
       expect(draft.preview.errors.pluck(:code)).to include("essential_operation")
     end
 
-    it "still lets an operator scope the same operation for a coworker" do
+    it "treats an essential the same for chats and coworkers" do
       descriptor = chat_entry("list_jobs").descriptor
 
       expect(Permissions::Catalog.essential_for?(descriptor.operation, role: AgentRole::CHAT_PLANNER)).to be(true)
-      expect(Permissions::Catalog.essential_for?(descriptor.operation, role: AgentRole::COWORKER_CHAT)).to be(false)
+      expect(Permissions::Catalog.essential_for?(descriptor.operation, role: AgentRole::COWORKER_CHAT)).to be(true)
+      expect(Permissions::Catalog.essential_for?(memory_descriptor("write_memory").operation, role: AgentRole::COWORKER_CHAT)).to be(true)
     end
   end
 end

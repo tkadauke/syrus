@@ -210,33 +210,33 @@ surface (see [Permission authority](permission_authority.md)):
 | `write_file` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | gated (operator_host_access) |
 | `add_epic_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
 | `add_job_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
-| `add_job_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | deniable (operator scoping) |
+| `add_job_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | essential |
 | `archive_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
 | `assign_job_to_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
 | `cancel_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | essential |
 | `check_job_mergeability` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
-| `classify_pull_request` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | deniable (operator scoping) |
+| `classify_pull_request` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
 | `create_repo_document` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.documents` | - | deniable (shared state) |
-| `create_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | deniable (operator scoping) |
+| `create_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | essential |
 | `delegate_issue` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.github_issues` | - | gated (credential_use, external_write, operational) |
 | `delete_repo_document` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.documents` | - | gated (destructive) |
 | `discover_coworker_capabilities` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
 | `dispatch_ref_movement_action` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.delivery` | - | gated (operational, external_write) |
-| `explain_provider_routing` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | deniable (operator scoping) |
-| `explain_stuck_job` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | deniable (operator scoping) |
+| `explain_provider_routing` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `explain_stuck_job` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
 | `ingest_pull_request` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | deniable (external ingestion) |
-| `list_artifacts` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | deniable (operator scoping) |
-| `list_chat_media` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.attachments` | - | deniable (operator scoping) |
-| `list_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | deniable (operator scoping) |
-| `list_delivery_tracks` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | deniable (operator scoping) |
-| `list_job_workflows` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | deniable (operator scoping) |
-| `list_open_issues` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | deniable (operator scoping) |
-| `list_open_prs` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | deniable (operator scoping) |
-| `list_ref_movement_actions` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | deniable (operator scoping) |
-| `list_repo_documents` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | deniable (operator scoping) |
-| `list_repositories` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | deniable (operator scoping) |
-| `list_tags` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | deniable (operator scoping) |
-| `list_wakeups` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_reads` | - | deniable (operator scoping) |
+| `list_artifacts` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | essential |
+| `list_chat_media` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.attachments` | - | essential |
+| `list_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | essential |
+| `list_delivery_tracks` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `list_job_workflows` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | essential |
+| `list_open_issues` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | essential |
+| `list_open_prs` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.ingestion` | - | essential |
+| `list_ref_movement_actions` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `list_repo_documents` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | essential |
+| `list_repositories` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `list_tags` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `list_wakeups` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_reads` | - | essential |
 | `move_epic_to_backlog` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
 | `mutate_provider_routing_rules` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.provider_routing` | - | gated (operational) |
 | `override_job_planned_execution` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
@@ -244,26 +244,26 @@ surface (see [Permission authority](permission_authority.md)):
 | `poll_job_feedback` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
 | `read_artifact` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.attachments` | - | deniable (confidential cross boundary) |
 | `read_chat_messages` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | deniable (confidential cross boundary) |
-| `read_provider_routing_rules` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | deniable (operator scoping) |
-| `read_ref_movement_status` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | deniable (operator scoping) |
-| `read_repo_document` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | deniable (operator scoping) |
+| `read_provider_routing_rules` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
+| `read_ref_movement_status` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
+| `read_repo_document` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | essential |
 | `read_run_transcript` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.confidential_reads` | - | deniable (confidential cross boundary) |
-| `read_workflow` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | deniable (operator scoping) |
+| `read_workflow` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.workflow_reads` | - | essential |
 | `rebase_job` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
 | `remove_epic_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.epics` | - | deniable (material control) |
 | `remove_job_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
 | `remove_job_from_epic` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
-| `remove_job_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | deniable (operator scoping) |
+| `remove_job_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | essential |
 | `remove_pinned_context` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_context` | - | essential |
 | `reopen_job` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
 | `request_permission` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
 | `request_permission_revocation` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
-| `resolve_delivery_policy` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | deniable (operator scoping) |
+| `resolve_delivery_policy` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
 | `resume_landing_queue` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.landing_queue` | - | gated (operational) |
 | `run_visual_diff` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.visual_review` | - | gated (operational) |
 | `run_visual_review` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.visual_review` | - | gated (operational) |
 | `schedule_wakeup` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.schedules` | - | gated (persistent_autonomy) |
-| `search_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | deniable (operator scoping) |
+| `search_chats` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `chats.read_shared` | - | essential |
 | `search_syrus_docs` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.document_reads` | - | essential |
 | `select_job_delivery_track` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.delivery` | - | deniable (material control) |
 | `send_chat_message` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.communication` | - | gated (communication) |
@@ -280,43 +280,43 @@ surface (see [Permission authority](permission_authority.md)):
 | `admin_read_operational_logs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `approve_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
 | `ask_user_question` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
-| `attach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (operator scoping) |
+| `attach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `base_refresh_retry_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
 | `cancel_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational, destructive) |
 | `close_job_successfully` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
 | `delete_proposal` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - | gated (destructive) |
-| `detach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (operator scoping) |
+| `detach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `diagnose_run_queue` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (confidential cross boundary) |
-| `list_epics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | deniable (operator scoping) |
-| `list_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | deniable (operator scoping) |
+| `list_epics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | essential |
+| `list_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | essential |
 | `list_pending_actions` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_reads` | - | essential |
 | `list_proposals` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_reads` | - | essential |
-| `list_repository_files` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (operator scoping) |
+| `list_repository_files` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `mark_goal_blocked` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_goals` | - | essential |
 | `mark_goal_completed` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_goals` | - | essential |
 | `pin_chat` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chats` | - | essential |
-| `propose_epic` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - | deniable (operator scoping) |
+| `propose_epic` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - | essential |
 | `propose_epic_with_jobs` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - | essential |
 | `propose_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - | essential |
 | `read_admission_diagnostics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `read_backend_exception_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `read_browser_error_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
-| `read_epic` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | deniable (operator scoping) |
-| `read_job` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | deniable (operator scoping) |
+| `read_epic` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.epic_reads` | - | essential |
+| `read_job` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | essential |
 | `read_metrics_diagnostics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `read_performance_log_events` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
-| `read_pr` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (operator scoping) |
-| `read_repository_file` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (operator scoping) |
+| `read_pr` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
+| `read_repository_file` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `read_worker_health` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `read_worker_occupancy` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `read_workflow_timeline` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `read_workflow_waterfall` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `rename_chat` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chats` | - | essential |
-| `repo_info` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | deniable (operator scoping) |
+| `repo_info` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.repository_reads` | - | essential |
 | `retry_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
-| `search_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | deniable (operator scoping) |
-| `search_repository_code` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (operator scoping) |
+| `search_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - | essential |
+| `search_repository_code` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `set_bookmark` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_context` | - | essential |
 | `set_job_priority` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
 | `submit_chat_feedback` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |

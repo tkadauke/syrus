@@ -56,9 +56,8 @@ module Permissions
     COWORKER_ROLES = [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].freeze
 
     # Whether +operation+ is an agent essential for agents running as +role+.
-    # Core tools are classified per surface (a coworker is a delegated
-    # principal); a plugin operation's own flag applies to every non-coworker
-    # role, since the coworker projection makes it deniable there.
+    # Core tools are classified per surface; a plugin operation's own flag
+    # applies to every role.
     def self.essential_for?(operation, role:)
       role = role.to_s
       surface = if COWORKER_ROLES.include?(role) then :coworker
@@ -67,8 +66,10 @@ module Permissions
       else :chat
       end
       core = McpToolRegistry.entries(surface:).select { |entry| entry.descriptor&.operation == operation.to_s }
+      # Coworkers share the chat essentials even where their entry carries its
+      # own operation identifier.
+      core = McpToolRegistry.entries(surface: :chat).select { |entry| entry.descriptor&.operation == operation.to_s } if core.empty? && surface == :coworker
       return core.any? { |entry| entry.descriptor.essential? } if core.any?
-      return false if COWORKER_ROLES.include?(role)
 
       (plugin_tool_descriptors + permission_provider_descriptors).any? do |descriptor|
         descriptor.operation == operation.to_s && descriptor.essential?
