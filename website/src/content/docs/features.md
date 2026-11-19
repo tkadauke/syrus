@@ -1340,9 +1340,8 @@ user's healthy enabled account pool. Syrus weighs remaining capacity, active
 Workflow assignments, and account weights, then pins the selected account for
 the Workflow before its first Run. Unavailable accounts are skipped before
 cross-provider fallback, while resumable work stays on its original account.
-Rules can
-be enabled inline, duplicated, edited, deleted, and reordered without disabled
-rules losing their ordered position. The rules editor's Test button runs the
+Routing rules can be enabled inline, duplicated, edited, deleted, and reordered
+without disabled rules losing their ordered position. The rules editor's Test button runs the
 rule set against any Job you can see for a chosen step or chat role and shows
 which rule wins and why each other rule was skipped. Disabled rules remain visible but muted,
 are skipped during evaluation, and the first enabled matching rule wins. A rule
