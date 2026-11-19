@@ -141,8 +141,12 @@ describe("ScheduledTasksIndex", () => {
 
     const cadence = await screen.findByText("Every Monday at 9:00 AM Europe/Berlin")
     const scheduleCell = cadence.closest("td") as HTMLElement
+    expect(scheduleCell).toHaveClass("w-96", "min-w-96")
+    expect(cadence).toHaveClass("whitespace-nowrap")
     expect(scheduleCell).toHaveTextContent("Next run: in 2 hours")
-    expect(within(scheduleCell).getByText("in 2 hours")).toHaveAttribute("title", expect.stringMatching(/Jan 15, 2030.*7:00 AM EST/))
+    const relativeTimestamp = within(scheduleCell).getByText("in 2 hours")
+    expect(relativeTimestamp.parentElement).toHaveClass("whitespace-nowrap")
+    expect(relativeTimestamp).toHaveAttribute("title", expect.stringMatching(/Jan 15, 2030.*7:00 AM EST/))
   })
 
   it("shows an intentional fallback without changing cadence sorting", async () => {
@@ -157,7 +161,9 @@ describe("ScheduledTasksIndex", () => {
     })
 
     const activePanel = (await screen.findByText("Active")).closest("section") as HTMLElement
-    expect(within(activePanel).getAllByText("No upcoming run")).toHaveLength(2)
+    const fallbacks = within(activePanel).getAllByText("No upcoming run")
+    expect(fallbacks).toHaveLength(2)
+    expect(fallbacks[0]).toHaveClass("whitespace-nowrap")
 
     fireEvent.click(within(activePanel).getByRole("button", { name: "Schedule" }))
     await waitFor(() => {
