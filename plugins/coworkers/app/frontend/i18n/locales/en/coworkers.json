@@ -263,8 +263,8 @@
     "active_work": "Active work",
     "archived": "Archived",
     "matches_one": "{{count}} match",
-    "matches_other": "{{count}} matches"
-    ,"actions": "Actions for {{title}}",
+    "matches_other": "{{count}} matches",
+    "actions": "Actions for {{title}}",
     "rename": "Rename",
     "rename_prompt": "Rename chat",
     "archive": "Archive",

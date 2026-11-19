@@ -274,8 +274,8 @@
     "active_work": "Aktive Arbeit",
     "archived": "Archiviert",
     "matches_one": "{{count}} Treffer",
-    "matches_other": "{{count}} Treffer"
-    ,"actions": "Aktionen für {{title}}",
+    "matches_other": "{{count}} Treffer",
+    "actions": "Aktionen für {{title}}",
     "rename": "Umbenennen",
     "rename_prompt": "Chat umbenennen",
     "archive": "Archivieren",

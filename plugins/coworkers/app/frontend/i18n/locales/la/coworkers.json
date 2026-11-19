@@ -269,8 +269,8 @@
     "active_work": "Opus activum",
     "archived": "Archivatum",
     "matches_one": "{{count}} congruentia",
-    "matches_other": "{{count}} congruentiae"
-    ,"actions": "Actiones pro {{title}}",
+    "matches_other": "{{count}} congruentiae",
+    "actions": "Actiones pro {{title}}",
     "rename": "Renomina",
     "rename_prompt": "Colloquium renomina",
     "archive": "In archivum mitte",

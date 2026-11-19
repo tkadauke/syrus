@@ -613,7 +613,7 @@ function CoworkerConversationIndex({
             {sideChats.map((chat) => <li key={chat.id}><ConversationRow chat={chat} coworkerId={id} prefix={prefix} /></li>)}
           </ul>
         ) : (
-          <PanelMessage>{payload.result_count === 0 && !location.search.includes("q=") ? t("activity.no_side_chats") : t("conversations.no_matches")}</PanelMessage>
+          <PanelMessage>{payload.result_count === 0 && !hasConversationFilters(payload.filter) ? t("activity.no_side_chats") : t("conversations.no_matches")}</PanelMessage>
         )}
         {cursor ? (
           <button className="rounded border border-border px-3 py-2 text-sm disabled:opacity-60" disabled={loadMore.isPending} onClick={() => loadMore.mutate()}>
@@ -639,6 +639,10 @@ function legacyConversationPayload(chats: CoworkerDetail["chats"]): Awaited<Retu
   }
 }
 
+function hasConversationFilters(filter: Record<string, unknown>) {
+  return Array.isArray(filter.and) && filter.and.length > 0
+}
+
 function ConversationRow({ chat, coworkerId, prefix }: { chat: CoworkerConversation; coworkerId: string; prefix: string }) {
   const { t } = useT("coworkers")
   const queryClient = useQueryClient()
@@ -655,9 +659,10 @@ function ConversationRow({ chat, coworkerId, prefix }: { chat: CoworkerConversat
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["coworkers", coworkerId, "conversation-index"] })
   })
+  const destination = `${withRoutePrefix(chat.path, prefix)}${chat.match ? `#message-${chat.match.message_id}` : ""}`
   return (
     <article className={`flex min-w-0 items-start gap-3 p-4 ${chat.main ? "rounded border border-brand/30 bg-brand/5" : ""}`}>
-      <Link className="min-w-0 flex-1" to={withRoutePrefix(chat.path, prefix)}>
+      <Link className="min-w-0 flex-1" to={destination}>
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-brand">{chat.main ? t("detail.main_chat") : chat.title_match ? <mark>{chat.title}</mark> : chat.title}</span>
           {chat.unread ? <span className="rounded-full bg-brand px-2 py-0.5 text-xs text-white">{t("conversations.unread")}</span> : null}

@@ -509,6 +509,27 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.dig("error", "code")).to eq("invalid_cursor")
   end
 
+  it "returns bad request for a conversation cursor with an invalid timestamp" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-conversation-cursor", workspace_repo: "https://github.com/acme/workspace.git")
+    cursor = Base64.urlsafe_encode64(JSON.generate([ "not-a-date", 42 ]), padding: false)
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/conversation_index", params: { cursor: cursor }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig("error", "code")).to eq("invalid_cursor")
+  end
+
+  it "does not expose another owner's conversation index" do
+    other = Factories.user(email_address: "other-conversation-owner@example.com")
+    coworker = Coworkers::Coworker.create!(owner_user: other, name: "Private", handle: "private-conversation-index", workspace_repo: "https://github.com/acme/private.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/conversation_index"
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "moves a newly rostered coworker into the addressable autocomplete scope" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-roster", workspace_repo: "https://github.com/acme/workspace.git")
     chat = ChatSession.create!(user: owner, title: "Plans")

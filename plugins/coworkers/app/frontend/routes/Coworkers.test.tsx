@@ -421,7 +421,7 @@ it("renders the pinned conversation index and keeps sorting in the URL", async (
   vi.stubGlobal("fetch", fetchSpy)
   renderRoute("/coworkers/7?tab=chat")
 
-  expect(await screen.findByRole("link", { name: /Release research/ })).toHaveAttribute("href", "/chats/44")
+  expect(await screen.findByRole("link", { name: /Release research/ })).toHaveAttribute("href", "/chats/44#message-91")
   expect(screen.getByText("Unread")).toBeInTheDocument()
   expect(screen.getByText("Active work")).toBeInTheDocument()
   expect(screen.getByText("2 matches")).toBeInTheDocument()
