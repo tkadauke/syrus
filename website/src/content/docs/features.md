@@ -955,7 +955,10 @@ New tasks can be created from a repository's Schedules tab, or from the
 top-level Schedules page's "New scheduled task" button. The top-level entry
 point isn't scoped to a repository, so it asks the operator to pick one
 first; after that, the rest of the form is identical to the repository-scoped
-flow.
+flow. On the top-level Schedules page, each task's schedule shows its cadence
+in the task's stored time zone and the next run as a relative time. Hover over
+the relative time to see the absolute date and time in your configured time
+zone. Paused, fired, and otherwise unscheduled tasks show **No upcoming run**.
 
 ## Chats
 
