@@ -20,7 +20,9 @@ module Permissions
       "propose_epic" => operation("proposals", "propose_epic"),
       "propose_job" => operation("proposals", "propose_job"),
       "propose_epic_with_jobs" => operation("proposals", "propose_epic_with_jobs"),
-      "delete_proposal" => operation("proposals", "delete", DESTRUCTIVE, :high),
+      # Withdrawing the agent's own undecided draft is the inverse of drafting
+      # it: essential, not destructive (the proposal is only marked withdrawn).
+      "delete_proposal" => operation("proposals", "delete", INTERNAL, :low),
       "withdraw_pending_action" => operation("pending_actions", "withdraw", INTERNAL, :low, :allow),
       "set_bookmark" => operation("chat_context", "set_bookmark", INTERNAL, :low, :allow),
       "override_job_planned_execution" => operation("jobs", "override_planned_execution", WORK_CONTROL),

@@ -11,7 +11,9 @@ can change the outcome. Every operation has exactly one consequence class:
   consequence barrier: reading its own Jobs, Epics, docs, and repositories,
   asking you a question, naming or pinning its chat, managing its goals,
   writing a private memory, submitting its summary, test plan, report, or
-  review, drafting a Job proposal, previewing its own work. **No permission
+  review, drafting a Job proposal, previewing its own work, and withdrawing
+  anything it put forward that you have not decided yet (a proposal, a pending
+  card, a permission request, a scheduled wakeup). **No permission
   rule, preset, lease, generic fallback, or confirmation request can block an
   essential operation.** It is still evaluated and audited, and any rule that
   would have applied is reported as overridden.

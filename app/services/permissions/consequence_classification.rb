@@ -24,9 +24,11 @@ module Permissions
       rename_chat pin_chat unpin_chat set_bookmark update_pinned_context remove_pinned_context
     ].freeze
 
-    # Withdrawing the agent's own request or narrowing its own authority.
+    # Withdrawing anything the agent itself put forward (a request, a card, a
+    # wakeup, an undecided proposal) or narrowing its own authority.
     AUTHORITY_REDUCTION = %w[
       request_permission withdraw_pending_action cancel_authorization_request revoke_permission_lease cancel_wakeup
+      delete_proposal
     ].freeze
 
     RESEARCH = %w[

@@ -100,6 +100,37 @@ RSpec.describe Mcp::Tools::DeleteProposalTool, :full_chat_access do
     )
   end
 
+  # Withdrawing what the agent itself put forward is the inverse of drafting
+  # it, so it is essential: no rule or confirmation can block it.
+  it "is an essential operation for chats and coworkers" do
+    %i[chat coworker].each do |surface|
+      entry = McpToolRegistry.entries(surface:).find { |candidate| candidate.tool_name == "delete_proposal" }
+      expect(entry.descriptor).to be_essential, surface.to_s
+      expect(entry.ungated).to be(true), surface.to_s
+    end
+  end
+
+  it "refuses to withdraw a proposal the operator already decided" do
+    confirmed = ChatProposal.create!(chat_session: chat_session, slug: "done", title: "Done", body: "Done.", state: "confirmed")
+
+    response = call_tool("done")
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("already confirmed")
+    expect(confirmed.reload).to be_confirmed
+  end
+
+  it "leaves decided dependents alone when withdrawing an undecided proposal" do
+    root = ChatProposal.create!(chat_session: chat_session, slug: "root", title: "Root", body: "Root.")
+    decided = ChatProposal.create!(chat_session: chat_session, slug: "decided", title: "Decided", body: "Decided.", state: "confirmed")
+    ChatProposalDependency.create!(proposal: decided, depends_on: root)
+
+    call_tool("root")
+
+    expect(root.reload).to be_withdrawn
+    expect(decided.reload).to be_confirmed
+  end
+
   it "returns a tool error for an unknown slug" do
     response = call_tool("missing")
 

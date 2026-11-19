@@ -132,7 +132,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `close_job_successfully` | chat | essential | write | no | - | - | - | - | deniable (material control) |
 | `complete_implement_step` | chat | essential | write | no | `chat:coding`, `chat:local` | - | - | - | gated (operational) |
 | `create_coding_job` | chat | essential | write | no | `chat:local` | - | - | `local_mode` | deniable (material control) |
-| `delete_proposal` | chat | essential | write | no | - | - | - | - | gated (destructive) |
+| `delete_proposal` | chat | essential | write | no | - | - | - | - | essential |
 | `detach_repository` | chat | essential | write | no | - | - | - | - | essential |
 | `diagnose_run_queue` | chat | essential | read | yes | - | - | - | - | deniable (instance wide observability) |
 | `emergency_land` | chat | essential | write | no | `chat:coding` | - | - | `emergency_land` | gated (operational, external_write, destructive, irreversible) |
@@ -284,7 +284,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `base_refresh_retry_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
 | `cancel_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational, destructive) |
 | `close_job_successfully` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
-| `delete_proposal` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - | gated (destructive) |
+| `delete_proposal` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - | essential |
 | `detach_repository` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | essential |
 | `diagnose_run_queue` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - | deniable (instance wide observability) |
 | `get_job_diff` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - | deniable (confidential cross boundary) |
