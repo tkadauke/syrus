@@ -212,6 +212,14 @@ RSpec.describe SmartRetryEnqueuer do
     )
     circuit_job, = failed_job(provider: "codex")
     stub_provider_circuits(open_provider: "codex")
+    expect(ProviderCircuitBreaker).to receive(:call)
+      .with(
+        "codex",
+        include_logs: false,
+        user: user,
+        provider_account: circuit_job.latest_workflow.provider_account
+      )
+      .and_return(provider_decision(provider: "codex", open: true))
 
     result = described_class.call_many(jobs: [ active_job, circuit_job ], automatic: true)
 

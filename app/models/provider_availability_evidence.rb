@@ -42,12 +42,13 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   scope :unrepaired_for_circuit, -> { where(repair_status: nil) }
   scope :for_scope, ->(user:, provider:, account_id: nil, model: nil) {
     scope = where(user: user, provider: provider.to_s)
-    scope = account_id.present? ? scope.where(account_id: [ account_id.to_s, nil ]) : scope
+    scope = scope.where(account_id: account_id.to_s) if account_id.present?
     scope.where(model: matching_models_for(model))
   }
 
-  def self.record_codex_success!(user:, source:, model: nil, run: nil, chat_session: nil, chat_message: nil, observed_at: Time.current, details: {})
-    account_id = CodexAccountScope.for_user(user)
+  def self.record_codex_success!(user:, source:, provider_account: nil, model: nil, run: nil, chat_session: nil, chat_message: nil, observed_at: Time.current, details: {})
+    provider_account ||= run&.provider_account || chat_session&.provider_session_metadata&.provider_account || user.default_provider_account("codex")
+    account_id = provider_account&.public_id || CodexAccountScope.for_user(user)
     evidence = create!(
       user: user,
       run: run,
@@ -61,8 +62,8 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       observed_at: observed_at,
       details: sanitized_details(details)
     )
-    clear_codex_usage_cache_after_success!(user, evidence)
-    clear_override_if_codex_recovered!(user, details)
+    clear_codex_usage_cache_after_success!(user, evidence) if provider_account.nil? || provider_account.default?
+    clear_override_if_codex_recovered!(user, details, provider_account: provider_account)
     App::ProviderAvailability.clear_cache!(user: user, provider: "codex")
     evidence
   end
@@ -74,8 +75,9 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     nil
   end
 
-  def self.record_codex_probe!(user:, status:, snapshot:, message:, http_status: nil, observed_at: Time.current)
-    account_id = CodexAccountScope.for_user(user)
+  def self.record_codex_probe!(user:, status:, snapshot:, message:, provider_account: nil, http_status: nil, observed_at: Time.current)
+    provider_account ||= user.default_provider_account("codex")
+    account_id = provider_account&.public_id || CodexAccountScope.for_user(user)
     evidence = create!(
       user: user,
       provider: "codex",
@@ -90,7 +92,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
         snapshot: snapshot
       )
     )
-    clear_override_if_codex_recovered!(user, snapshot)
+    clear_override_if_codex_recovered!(user, snapshot, provider_account: provider_account)
     evidence
   end
 
@@ -98,12 +100,14 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   # this model's STATUSES vocabulary (available/warning/exhausted/
   # probe_inconclusive/auth_error/unsupported/probe_unavailable), so no
   # evidence_status_for_probe translation is needed. There is no Claude
-  # equivalent of CodexAccountScope, so account_id stays nil.
-  def self.record_claude_probe!(user:, status:, snapshot:, message:, http_status: nil, observed_at: Time.current)
+  # equivalent of CodexAccountScope, so the migrated default provider account
+  # supplies the stable scope for callers that do not pass one explicitly.
+  def self.record_claude_probe!(user:, status:, snapshot:, message:, provider_account: nil, http_status: nil, observed_at: Time.current)
+    provider_account ||= user.default_provider_account("claude")
     create!(
       user: user,
       provider: "claude",
-      account_id: nil,
+      account_id: provider_account&.public_id,
       model: nil,
       status: status,
       source: "usage_probe",
@@ -186,7 +190,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       user: run.user,
       run: run,
       provider: provider,
-      account_id: provider == "codex" ? CodexAccountScope.for_user(run.user) : nil,
+      account_id: invocation_account_id(run),
       model: nil,
       status: "auth_error",
       source: "#{provider}_invocation_auth_error",
@@ -215,7 +219,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       user: run.user,
       run: run,
       provider: provider,
-      account_id: provider == "codex" ? CodexAccountScope.for_user(run.user) : nil,
+      account_id: invocation_account_id(run),
       model: model.presence || ProviderModelUnsupported.extract_model(message),
       status: "model_unsupported",
       source: "#{provider}_invocation_model_unsupported",
@@ -237,7 +241,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   end
 
   def self.invocation_account_id(run)
-    run.agent_provider.to_s == "codex" ? CodexAccountScope.for_user(run.user) : nil
+    run.provider_account&.public_id || (run.agent_provider.to_s == "codex" ? CodexAccountScope.for_user(run.user) : nil)
   end
 
   def self.latest_for_scope(user:, provider:, account_id: nil, model: nil)
@@ -349,7 +353,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
 
   def self.matching_positive_scope(user:, provider:, account_id: nil, model: nil, any_model: false)
     scope = where(user: user, provider: provider.to_s).positive
-    scope = account_id.present? ? scope.where(account_id: [ account_id.to_s, nil ]) : scope
+    scope = scope.where(account_id: account_id.to_s) if account_id.present?
     return scope if any_model
 
     normalized_model = model.to_s.strip.presence
@@ -394,12 +398,12 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     )
   end
 
-  def self.clear_override_if_codex_recovered!(user, payload)
+  def self.clear_override_if_codex_recovered!(user, payload, provider_account: nil)
     payload = payload.to_h
     remaining = payload["remaining_percent"] || payload[:remaining_percent]
     return unless user.provider_availability_recovered?("codex", remaining_percent: remaining)
-    return unless user.clear_provider_availability_override!("codex")
+    return unless user.clear_provider_availability_override!("codex", provider_account: provider_account)
 
-    ProviderAvailabilityWakeup.call(provider: "codex", user: user)
+    ProviderAvailabilityWakeup.call(provider: "codex", user: user, provider_account: provider_account)
   end
 end

@@ -1725,7 +1725,12 @@ RSpec.describe PollPullRequestJob, :ci_only do
         signature: "provider transient"
       )
       allow(ProviderCircuitBreaker).to receive(:call)
-        .with(job.workflow_agent_provider, include_logs: false)
+        .with(
+          job.workflow_agent_provider,
+          include_logs: false,
+          user: job.user,
+          provider_account: job.latest_workflow.provider_account
+        )
         .and_return(decision)
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "failure",

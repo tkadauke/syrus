@@ -77,4 +77,46 @@ RSpec.describe ProviderAccount do
 
     expect(user.provider_accounts.where(provider_key: "claude")).to be_empty
   end
+
+  it "pins workflow, run, and captured session provenance to one account" do
+    user.update!(claude_oauth_token: "legacy-token")
+    account = user.default_provider_account("claude")
+    job = Factories.job(repository: Factories.repository(user: user), agent_provider: "claude")
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+
+    session = run.create_provider_session!(provider: "claude", session_id: "sticky-session")
+
+    expect(workflow.provider_account).to eq(account)
+    expect(run.provider_account).to eq(account)
+    expect(session.provider_account).to eq(account)
+    expect(account.safe_reference).to include(id: account.public_id)
+    expect(account.safe_reference.to_json).not_to include("legacy-token")
+  end
+
+  it "keeps legacy-only provider plugins compatible with the migrated default account" do
+    legacy_provider = Class.new(AgentProviders::Base) do
+      def self.configured_for_user?(user) = user.claude_oauth_token.present?
+    end
+    user.update!(claude_oauth_token: "legacy-token")
+
+    expect(legacy_provider.configured_for_account?(user.default_provider_account("claude"), user: user)).to be(true)
+    expect(legacy_provider.configured_for_account?(create_account(position: 1), user: user)).to be(false)
+  end
+
+
+  it "rejects a resumable session pinned to another user's provider account" do
+    user.update!(claude_oauth_token: "owner-token")
+    other_user = Factories.user(claude_oauth_token: "other-token")
+    run = Factories.job(repository: Factories.repository(user: user), agent_provider: "claude").initial_run
+
+    session = run.build_provider_session(
+      provider: "claude",
+      provider_account: other_user.default_provider_account("claude"),
+      session_id: "wrong-owner"
+    )
+
+    expect(session).not_to be_valid
+    expect(session.errors[:provider_account]).to include("must belong to the resumable user and match the session provider")
+  end
 end

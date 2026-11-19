@@ -465,7 +465,12 @@ RSpec.describe RetryWorkflowEnqueuer do
       signature: "timeout"
     )
     allow(ProviderCircuitBreaker).to receive(:call)
-      .with(job.workflow_agent_provider, include_logs: false)
+      .with(
+        job.workflow_agent_provider,
+        include_logs: false,
+        user: job.user,
+        provider_account: job.latest_workflow.provider_account
+      )
       .and_return(decision)
 
     expect {
@@ -488,7 +493,12 @@ RSpec.describe RetryWorkflowEnqueuer do
       signature: "timeout"
     )
     allow(ProviderCircuitBreaker).to receive(:call)
-      .with(job.workflow_agent_provider, include_logs: false)
+      .with(
+        job.workflow_agent_provider,
+        include_logs: false,
+        user: job.user,
+        provider_account: job.latest_workflow.provider_account
+      )
       .and_return(decision)
     allow(ProviderCircuitBreaker).to receive(:call)
       .with(anything, include_logs: false, now: anything)

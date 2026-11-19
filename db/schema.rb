@@ -14,7 +14,8 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_185410) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_192638) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3340,7 +3341,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_185410) do
     t.datetime "updated_at", null: false
     t.json "normalized_messages"
     t.boolean "transcript_pruned", default: false, null: false
+    t.integer "provider_account_id"
     t.index ["created_at"], name: "index_provider_sessions_on_created_at"
+    t.index ["provider_account_id"], name: "index_provider_sessions_on_provider_account_id"
     t.index ["resumable_type", "resumable_id"], name: "index_provider_sessions_on_resumable", unique: true
     t.index ["resumable_type", "updated_at", "resumable_id"], name: "index_provider_sessions_on_resumable_type_updated_at"
     t.index ["run_id"], name: "index_provider_sessions_on_run_id", unique: true
@@ -3749,6 +3752,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_185410) do
     t.string "effort_level"
     t.bigint "entity_revision", default: 0, null: false
     t.datetime "coworker_wake_enqueued_at"
+    t.integer "provider_account_id"
     t.index ["agent_provider", "cost_usd"], name: "idx_runs_spending_provider_cost"
     t.index ["agent_provider", "created_at", "cost_usd"], name: "idx_runs_spending_provider_window"
     t.index ["agent_provider", "state", "finished_at"], name: "idx_runs_provider_state_finished"
@@ -3764,6 +3768,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_185410) do
     t.index ["job_id", "state"], name: "index_runs_on_job_id_and_state"
     t.index ["job_id"], name: "index_runs_on_job_id"
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
+    t.index ["provider_account_id"], name: "index_runs_on_provider_account_id"
     t.index ["started_at", "id"], name: "idx_runs_started_latest"
     t.index ["state", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_provider_failed_recent"
     t.index ["state", "finished_at", "step_id"], name: "idx_runs_throughput_state_finished"
@@ -4874,6 +4879,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_185410) do
     t.string "workspace_lifecycle_state"
     t.string "last_workspace_hostname"
     t.string "last_workspace_storage_key"
+    t.integer "provider_account_id"
     t.index ["cleaned_up_at"], name: "index_workflows_on_cleaned_up_at"
     t.index ["job_id", "created_at"], name: "index_workflows_on_job_id_and_created_at"
     t.index ["job_id", "finished_at", "id"], name: "idx_workflows_job_finished_latest"
@@ -4882,6 +4888,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_185410) do
     t.index ["job_id", "trigger_kind", "created_at", "id"], name: "idx_workflows_job_trigger_created_id"
     t.index ["job_id"], name: "index_workflows_on_job_id"
     t.index ["last_workspace_storage_key"], name: "index_workflows_on_last_workspace_storage_key"
+    t.index ["provider_account_id"], name: "index_workflows_on_provider_account_id"
     t.index ["state", "created_at", "id"], name: "idx_workflows_state_created_at"
     t.index ["state", "finished_at", "job_id"], name: "idx_workflows_state_finished_job"
     t.index ["state", "started_at", "id"], name: "idx_workflows_state_started_at"

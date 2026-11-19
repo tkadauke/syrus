@@ -15,26 +15,35 @@ class CodexUsageProbe
   end
 
   class << self
-    def refresh_for(user:, force: false)
-      new(user: user).refresh(force: force)
+    def refresh_for(user:, provider_account: nil, force: false)
+      new(user: user, provider_account: provider_account).refresh(force: force)
     end
 
-    def stale?(user, now: Time.current)
-      return true if user.codex_usage_observed_at.blank?
+    def stale?(user, provider_account: nil, now: Time.current)
+      evidence = latest_probe_evidence(user, provider_account: provider_account)
+      observed_at = evidence&.observed_at || (user.codex_usage_observed_at if provider_account.nil? || provider_account.default?)
+      return true if observed_at.blank?
 
-      user.codex_usage_observed_at < 10.minutes.ago
+      observed_at < now - 10.minutes
+    end
+
+    def latest_probe_evidence(user, provider_account: nil)
+      scope = ProviderAvailabilityEvidence.where(user: user, provider: "codex", source: "usage_probe")
+      scope = scope.where(account_id: provider_account.public_id) if provider_account
+      scope.recent.first
     end
   end
 
-  def initialize(user:, http: Net::HTTP, usage_url: ENV.fetch("CODEX_USAGE_URL", CHATGPT_USAGE_URL))
+  def initialize(user:, provider_account: nil, http: Net::HTTP, usage_url: ENV.fetch("CODEX_USAGE_URL", CHATGPT_USAGE_URL))
     @user = user
+    @provider_account = provider_account
     @http = http
     @usage_url = usage_url
   end
 
   def refresh(force: false)
-    return stored_result if !force && !self.class.stale?(@user)
-    return persist(status: "unsupported", snapshot: {}, message: "Codex usage probing requires ChatGPT auth.json mode.") unless @user.codex_auth_mode == "chatgpt_login"
+    return stored_result if !force && !self.class.stale?(@user, provider_account: @provider_account)
+    return persist(status: "unsupported", snapshot: {}, message: "Codex usage probing requires ChatGPT auth.json mode.") unless credential(:codex_auth_mode) == "chatgpt_login"
 
     auth = parse_auth_json
     token = auth.dig("tokens", "access_token").presence
@@ -56,15 +65,16 @@ class CodexUsageProbe
   private
 
   def stored_result
+    evidence = self.class.latest_probe_evidence(@user, provider_account: @provider_account)
     Result.new(
-      status: @user.codex_usage_status,
-      snapshot: @user.codex_usage_snapshot || {},
+      status: evidence&.status || @user.codex_usage_status,
+      snapshot: evidence&.details&.dig("snapshot") || @user.codex_usage_snapshot || {},
       message: nil
     )
   end
 
   def parse_auth_json
-    JSON.parse(@user.codex_auth_json.to_s)
+    JSON.parse(credential(:codex_auth_json).to_s)
   rescue JSON::ParserError => e
     raise CodexAuth::Error, "Codex auth.json is not valid JSON: #{e.message}"
   end
@@ -189,13 +199,16 @@ class CodexUsageProbe
 
   def persist(status:, snapshot:, message:)
     observed_at = Time.current
-    @user.update!(
-      codex_usage_status: status,
-      codex_usage_observed_at: observed_at,
-      codex_usage_snapshot: snapshot
-    )
+    if @provider_account.nil? || @provider_account.default?
+      @user.update!(
+        codex_usage_status: status,
+        codex_usage_observed_at: observed_at,
+        codex_usage_snapshot: snapshot
+      )
+    end
     ProviderAvailabilityEvidence.record_codex_probe!(
       user: @user,
+      provider_account: @provider_account,
       status: status,
       snapshot: snapshot,
       message: message,
@@ -204,6 +217,10 @@ class CodexUsageProbe
     )
     App::ProviderAvailability.clear_cache!(user: @user, provider: "codex")
     Result.new(status: status, snapshot: snapshot, message: message)
+  end
+
+  def credential(name)
+    @provider_account ? @provider_account.credential(name) : @user.public_send(name)
   end
 
   def account_id_from(auth)

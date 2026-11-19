@@ -13,6 +13,8 @@ module AgentProviders
       user.muse_api_key.present?
     end
 
+    def self.configured_for_account?(account, user:) = account.credential(:muse_api_key).present?
+
     def self.mcp_tool_name(tool_name, server_name:)
       normalized_server = server_name.to_s.gsub(/[^A-Za-z0-9_]/, "_")
       "mcp__#{normalized_server}__#{tool_name}"
@@ -75,7 +77,7 @@ module AgentProviders
       MuseInvocation.new(
         workspace_path,
         prompt: prompt,
-        api_key: job.user.reload.muse_api_key,
+        api_key: credential(:muse_api_key, user: job.user.reload),
         log_sink: log_sink,
         runner: RunJob.agent_runner,
         timeout: timeout,

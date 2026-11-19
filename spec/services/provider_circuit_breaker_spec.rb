@@ -7,7 +7,7 @@ RSpec.describe ProviderCircuitBreaker do
     "failed to refresh available models: stream disconnected before completion: failed to decode models response: unknown variant `max`, expected none/minimal/low/medium/high/xhigh"
   end
 
-  def failed_agent_run(provider: "codex", job: nil, outcome: "provider_transient", message: "upstream 503 overloaded", model: nil)
+  def failed_agent_run(provider: "codex", job: nil, outcome: "provider_transient", message: "upstream 503 overloaded", model: nil, provider_account: nil)
     job ||= Factories.job(repository: Factories.repository(user: user))
     run = Run.create!(
       job: job,
@@ -15,6 +15,7 @@ RSpec.describe ProviderCircuitBreaker do
       trigger_kind: "initial",
       state: "failed",
       agent_provider: provider,
+      provider_account: provider_account,
       agent_outcome: outcome,
       model: model || ("gpt-5.5" if message.to_s.include?("gpt-5.5")),
       finished_at: now - 1.minute
@@ -65,6 +66,55 @@ RSpec.describe ProviderCircuitBreaker do
     expect(decision).not_to be_open
     expect(decision.failure_count).to eq(5)
     expect(decision.job_count).to eq(1)
+  end
+
+  it "isolates failures between two accounts for the same provider" do
+    user.update!(codex_api_key: "default-key", codex_auth_mode: "api_key")
+    first = user.default_provider_account("codex")
+    second = ProviderAccount.create!(
+      user: user, provider_key: "codex", authentication_kind: "api_key",
+      credential_payload: { "codex_auth_mode" => "api_key", "codex_api_key" => "sibling-key" }, position: 1
+    )
+    5.times do |index|
+      failed_agent_run(
+        job: Factories.job(repository: Factories.repository(user: user), issue_number: index + 100),
+        provider_account: first
+      )
+    end
+
+    expect(described_class.call("codex", now: now, user: user, provider_account: first)).to be_open
+    expect(described_class.call("codex", now: now, user: user, provider_account: second)).not_to be_open
+  end
+
+  it "closes an account-scoped Codex exhaustion circuit after success on the same account" do
+    user.update!(codex_api_key: "default-key", codex_auth_mode: "api_key")
+    account = user.default_provider_account("codex")
+    run = failed_agent_run(
+      provider_account: account,
+      outcome: "provider_usage_limit",
+      model: "gpt-5.5",
+      message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
+    )
+    replace_failure_classification!(
+      run,
+      classification: "provider_usage_limit",
+      confidence: 0.95,
+      retryable: false,
+      reason: "usage exhausted",
+      classified_at: now - 1.minute
+    )
+
+    expect(described_class.call("codex", now: now, user: user, provider_account: account)).to be_open
+
+    ProviderAvailabilityEvidence.record_codex_success!(
+      user: user,
+      provider_account: account,
+      source: "run_success",
+      model: "gpt-5.5",
+      observed_at: now
+    )
+
+    expect(described_class.call("codex", now: now, user: user, provider_account: account)).not_to be_open
   end
 
   it "counts repeated rate-limit job logs as retryable provider signals" do
