@@ -210,7 +210,9 @@ module Steps
             {
               "name" => grader.name,
               "target_label" => target_label_for(grader),
-              "required" => grader.required,
+              # A grader that opted out of landing parity is main grading's to
+              # run: name it as a post-merge delta, never block landing on it.
+              "required" => grader.required && LandingGraderPlan.landing_parity?(grader),
               "affected" => selection.affected,
               "reason" => selection.reason,
               "target_fingerprints" => target_fingerprints_for(grader).to_h
