@@ -422,7 +422,6 @@ RSpec.describe McpToolPolicy do
 
       expect(tools).to include(
         Mcp::Tools::AttachRepositoryTool,
-        Mcp::Tools::ProposeEpicTool,
         Mcp::Tools::ProposeJobTool,
         Mcp::Tools::ProposeEpicWithJobsTool,
         Mcp::Tools::SubmitChatFeedbackTool
