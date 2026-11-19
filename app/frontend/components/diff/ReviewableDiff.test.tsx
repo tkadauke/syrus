@@ -1975,6 +1975,16 @@ describe("ReviewableDiff", () => {
     expect(onLoadFileDiff).toHaveBeenCalledWith(expect.objectContaining({ path: "large.txt" }))
   })
 
+  it("explains why an oversized generated diff was omitted", () => {
+    const file = { ...generatedPackageLockFile(), patch: null, patch_status: "oversized" as const }
+
+    render(<ReviewableDiff files={[file]} mode="single-file" onLoadFileDiff={vi.fn()} selectedPath={file.path} showFileHeaders />)
+    fireEvent.click(screen.getByRole("button", { name: "Show diff for this file" }))
+
+    expect(screen.getByText("This generated file's diff was omitted because its unusually long lines are expensive to load and render.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Load full diff" })).toBeInTheDocument()
+  })
+
   it("automatically loads an omitted ordinary text patch", async () => {
     const onLoadFileDiff = vi.fn().mockResolvedValue({ patch: "@@ -1 +1 @@\n-old\n+new" })
 
