@@ -151,8 +151,12 @@ module ProviderRouting
           next
         end
 
-        refresh_stale_usage(candidate.provider)
-        candidate_availability = App::ProviderAvailability.for_user(user, candidate.provider, now: now)
+        if candidate == original_candidate && availability
+          candidate_availability = availability
+        else
+          refresh_stale_usage(candidate.provider)
+          candidate_availability = App::ProviderAvailability.for_user(user, candidate.provider, now: now)
+        end
         unless available_enough?(candidate.provider, candidate_availability)
           first_unavailable_candidate ||= candidate
           first_unavailable_availability ||= candidate_availability

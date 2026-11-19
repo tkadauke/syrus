@@ -137,7 +137,19 @@ class RetryWorkflowEnqueuer
   end
 
   def provider_circuit
-    @provider_circuit ||= ProviderCircuitBreaker.call(effective_agent_provider, include_logs: false)
+    @provider_circuit ||= ProviderCircuitBreaker.call(
+      effective_agent_provider,
+      include_logs: false,
+      user: job.user,
+      provider_account: retry_provider_account
+    )
+  end
+
+  def retry_provider_account
+    workflow = job.latest_workflow
+    return workflow.provider_account if workflow&.agent_provider == effective_agent_provider
+
+    job.user.default_provider_account(effective_agent_provider)
   end
 
   def provider_failover_candidate?
