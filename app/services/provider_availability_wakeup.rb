@@ -1,11 +1,12 @@
 class ProviderAvailabilityWakeup
-  def self.call(provider:, user:, force: false)
-    new(provider: provider, user: user, force: force).call
+  def self.call(provider:, user:, provider_account: nil, force: false)
+    new(provider: provider, user: user, provider_account: provider_account, force: force).call
   end
 
-  def initialize(provider:, user:, force: false)
+  def initialize(provider:, user:, provider_account: nil, force: false)
     @provider = provider.to_s
     @user = user
+    @provider_account = provider_account
     @force = force
   end
 
@@ -18,10 +19,10 @@ class ProviderAvailabilityWakeup
 
   private
 
-  attr_reader :provider, :user, :force
+  attr_reader :provider, :user, :provider_account, :force
 
   def work_unit_workflows
-    WorkUnit
+    scope = WorkUnit
       .joins(:workflow)
       .where(
         state: "blocked",
@@ -35,6 +36,7 @@ class ProviderAvailabilityWakeup
       .includes(:workflow)
       .order(:id)
       .map(&:workflow)
+    provider_account ? scope.select { |workflow| workflow.provider_account_id == provider_account.id } : scope
   end
 
   def workflows
@@ -56,6 +58,8 @@ class ProviderAvailabilityWakeup
   end
 
   def hold_uses_provider?(hold)
+    return false if provider_account && hold.workflow.provider_account_id != provider_account.id
+
     configured_provider = hold.condition_evidence.to_h.dig("conditions", "usage", "actual", "provider")
     configured_provider.blank? || configured_provider == provider
   end

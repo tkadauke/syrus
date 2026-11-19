@@ -27,10 +27,6 @@ class ProviderAdmissionWakeup
   end
 
   def call
-    if ProviderCircuitBreaker.call(provider, include_logs: false).open?
-      return Result.new(provider: provider, workflow_ids: [], auto_retry_attempt_ids: [])
-    end
-
     workflow_ids = wake_workflows
     auto_retry_attempt_ids = wake_auto_retries
     Result.new(provider: provider, workflow_ids: workflow_ids, auto_retry_attempt_ids: auto_retry_attempt_ids)
@@ -57,7 +53,7 @@ class ProviderAdmissionWakeup
   end
 
   def workflows
-    work_unit_workflows.uniq(&:id)
+    work_unit_workflows.uniq(&:id).reject { |workflow| circuit_open_for?(workflow.user, workflow.provider_account) }
   end
 
   def work_unit_workflows
@@ -66,7 +62,7 @@ class ProviderAdmissionWakeup
       .where(state: "blocked", blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON)
       .where(workflows: { agent_provider: provider, state: "queued" })
       .where.not(workflows: { id: Workflow.joins(steps: :runs).select("workflows.id") })
-      .includes(:workflow)
+      .includes(workflow: [ :user, :provider_account ])
       .order(:id)
     scope = scope.joins(:work_intent).where(work_intents: { actor_id: user.id }) if user
     scope.map(&:workflow)
@@ -82,14 +78,27 @@ class ProviderAdmissionWakeup
 
   def attempts
     scope = AutoRetryAttempt
-      .includes(:job)
+      .includes(workflow: :provider_account, job: { user: :provider_accounts })
       .joins(:job)
       .where(agent_provider: provider, performed_at: nil, skipped_reason: nil)
       .where.not(jobs: { state: Job::TERMINAL_STATES })
       .where("scheduled_at > ?", Time.current)
       .order(:scheduled_at, :id)
     scope = scope.where(jobs: { user_id: user.id }) if user
-    scope.to_a
+    scope.to_a.reject do |attempt|
+      account = attempt.workflow.provider_account if attempt.workflow.agent_provider == attempt.agent_provider
+      account ||= attempt.job.user.default_provider_account(attempt.agent_provider)
+      circuit_open_for?(attempt.job.user, account)
+    end
+  end
+
+  def circuit_open_for?(owner, provider_account)
+    ProviderCircuitBreaker.call(
+      provider,
+      include_logs: false,
+      user: owner,
+      provider_account: provider_account
+    ).open?
   end
 
   def clear_provider_start_block!(workflow)
