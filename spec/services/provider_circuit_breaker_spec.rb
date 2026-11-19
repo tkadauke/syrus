@@ -86,6 +86,37 @@ RSpec.describe ProviderCircuitBreaker do
     expect(described_class.call("codex", now: now, user: user, provider_account: second)).not_to be_open
   end
 
+  it "closes an account-scoped Codex exhaustion circuit after success on the same account" do
+    user.update!(codex_api_key: "default-key", codex_auth_mode: "api_key")
+    account = user.default_provider_account("codex")
+    run = failed_agent_run(
+      provider_account: account,
+      outcome: "provider_usage_limit",
+      model: "gpt-5.5",
+      message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
+    )
+    replace_failure_classification!(
+      run,
+      classification: "provider_usage_limit",
+      confidence: 0.95,
+      retryable: false,
+      reason: "usage exhausted",
+      classified_at: now - 1.minute
+    )
+
+    expect(described_class.call("codex", now: now, user: user, provider_account: account)).to be_open
+
+    ProviderAvailabilityEvidence.record_codex_success!(
+      user: user,
+      provider_account: account,
+      source: "run_success",
+      model: "gpt-5.5",
+      observed_at: now
+    )
+
+    expect(described_class.call("codex", now: now, user: user, provider_account: account)).not_to be_open
+  end
+
   it "counts repeated rate-limit job logs as retryable provider signals" do
     5.times do |index|
       run = failed_agent_run(

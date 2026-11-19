@@ -296,6 +296,7 @@ class ChatTurnJob < ApplicationJob
 
     ProviderAvailabilityEvidence.record_codex_success!(
       user: @chat.user,
+      provider_account: provider.send(:provider_account),
       source: "chat_turn_success",
       model: active_chat.chat_model.presence || ProviderAvailabilityEvidence.codex_configured_model,
       chat_session: @chat,

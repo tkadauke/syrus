@@ -8,16 +8,17 @@ RSpec.describe ProviderAvailabilityPause do
   describe "#call for the claude provider" do
     it "refreshes a stale Claude usage probe before computing availability" do
       workflow # force Job/Workflow creation (which itself opportunistically probes) before stubbing
-      allow(ClaudeUsageProbe).to receive(:stale?).with(user, now: anything).and_return(true)
-      allow(ClaudeUsageProbe).to receive(:refresh_for).with(user: user)
+      account = workflow.provider_account
+      allow(ClaudeUsageProbe).to receive(:stale?).with(user, provider_account: account, now: anything).and_return(true)
+      allow(ClaudeUsageProbe).to receive(:refresh_for).with(user: user, provider_account: account)
 
       described_class.call(workflow: workflow)
 
-      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user).once
+      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user, provider_account: account).once
     end
 
     it "does not refresh when the last Claude probe evidence is still fresh" do
-      allow(ClaudeUsageProbe).to receive(:stale?).with(user, now: anything).and_return(false)
+      allow(ClaudeUsageProbe).to receive(:stale?).with(user, provider_account: kind_of(ProviderAccount), now: anything).and_return(false)
       allow(ClaudeUsageProbe).to receive(:refresh_for)
 
       described_class.call(workflow: workflow)
