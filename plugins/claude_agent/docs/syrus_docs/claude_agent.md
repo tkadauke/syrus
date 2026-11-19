@@ -166,7 +166,10 @@ the same headers `claude` itself observes on every inference call).
 Classification: `exhausted` at ≥100% utilization on either window, `warning`
 at ≥85%, else `available`. Results are cached via `ProviderAvailabilityEvidence`
 and considered stale after 10 minutes (`STALE_AFTER`); `refresh_stale_usage!`
-only probes when actually stale, `refresh_usage!(force: true)` bypasses that.
+only probes when the selected provider account's evidence is stale,
+`refresh_usage!(force: true)` bypasses that. The selected account supplies the
+OAuth token, and evidence carries its opaque public id so exhaustion or
+recovery on one Claude account does not affect a sibling account.
 
 ## Secret handling
 

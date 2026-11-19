@@ -114,6 +114,34 @@ RSpec.describe ClaudeUsageProbe do
     expect(stub).to have_been_requested.times(2)
   end
 
+  it "uses and scopes evidence to the selected Claude account" do
+    user = Factories.user(claude_oauth_token: "first-token")
+    second = ProviderAccount.create!(
+      user: user,
+      provider_key: "claude",
+      authentication_kind: "claude_oauth_token",
+      credential_payload: { "claude_oauth_token" => "second-token" },
+      position: 1
+    )
+    stub = stub_request(:post, messages_url)
+      .with(headers: { "Authorization" => "Bearer second-token" })
+      .to_return(
+        status: 200,
+        body: { id: "msg_2" }.to_json,
+        headers: { "anthropic-ratelimit-unified-5h-utilization" => "0.25" }
+      )
+
+    described_class.refresh_for(user: user, provider_account: second, force: true)
+
+    expect(stub).to have_been_requested
+    expect(ProviderAvailabilityEvidence.last).to have_attributes(
+      user: user,
+      provider: "claude",
+      account_id: second.public_id,
+      status: "available"
+    )
+  end
+
   def stub_headers(utilization_5h:, utilization_7d: "0.0")
     stub_request(:post, messages_url).to_return(
       status: 200,

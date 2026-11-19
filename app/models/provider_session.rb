@@ -17,7 +17,7 @@ class ProviderSession < ApplicationRecord
 
   before_validation :default_resumable_from_run
   before_validation :default_provider_account
-  validate :provider_account_matches_provider
+  validate :provider_account_matches_resumable
 
   scope :metadata_only, -> {
     select(:id, :provider, :provider_account_id, :session_id, :resumable_type, :resumable_id, :run_id, :created_at, :updated_at)
@@ -92,11 +92,13 @@ class ProviderSession < ApplicationRecord
     self.provider_account ||= resumable.provider_account if resumable.respond_to?(:provider_account)
   end
 
-  def provider_account_matches_provider
+  def provider_account_matches_resumable
     return unless provider_account
-    return if provider_account.provider_key == provider
+    account_matches_provider = provider_account.provider_key == provider
+    account_matches_user = !resumable.respond_to?(:user_id) || provider_account.user_id == resumable.user_id
+    return if account_matches_provider && account_matches_user
 
-    errors.add(:provider_account, "must match the session provider")
+    errors.add(:provider_account, "must belong to the resumable user and match the session provider")
   end
 
   def sync_transcript_pruned

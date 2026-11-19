@@ -44,12 +44,13 @@ RSpec.describe AgentProviders::Claude do
   describe ".refresh_stale_usage!" do
     it "refreshes when the user has a Claude token and the probe is stale" do
       user = Factories.user(claude_oauth_token: "oat-test")
-      allow(ClaudeUsageProbe).to receive(:stale?).with(user, now: anything).and_return(true)
+      account = user.default_provider_account("claude")
+      allow(ClaudeUsageProbe).to receive(:stale?).with(user, provider_account: account, now: anything).and_return(true)
       allow(ClaudeUsageProbe).to receive(:refresh_for)
 
       described_class.refresh_stale_usage!(user: user)
 
-      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user)
+      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user, provider_account: account)
     end
 
     it "does not refresh when the probe is not stale" do
