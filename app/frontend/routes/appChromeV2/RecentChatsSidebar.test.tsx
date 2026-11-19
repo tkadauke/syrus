@@ -153,9 +153,15 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     expect(screen.queryByText("Research 11")).not.toBeInTheDocument()
 
     expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Show more chats with Maya" }))
+    const showMoreSideChats = screen.getByRole("button", { name: "Show more chats with Maya" })
+    expect(showMoreSideChats).toHaveTextContent("More chats")
+    expect(showMoreSideChats).toHaveClass("whitespace-nowrap")
+    fireEvent.click(showMoreSideChats)
     expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(11)
-    fireEvent.click(screen.getByRole("button", { name: "Show fewer chats with Maya" }))
+    const showFewerSideChats = screen.getByRole("button", { name: "Show fewer chats with Maya" })
+    expect(showFewerSideChats).toHaveTextContent("Fewer chats")
+    expect(showFewerSideChats).toHaveClass("whitespace-nowrap")
+    fireEvent.click(showFewerSideChats)
     expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(10)
   })
 
