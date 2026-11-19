@@ -6,17 +6,21 @@ module WorkUnits
 
     def self.call(workflow) = new(workflow).call
     def self.for_job(job)
-      return unless job
+      return false unless job
+
+      changed = false
 
       job.workflows.terminal.includes(:work_unit).find_each do |workflow|
-        call(workflow)
+        changed = call(workflow) || changed
       end
 
-      return if job.closed?
+      return changed if job.closed?
 
       terminal_work_unit_owned_active_workflows_for_job(job).each do |ownership|
-        call(ownership.workflow)
+        changed = call(ownership.workflow) || changed
       end
+
+      changed
     end
 
     def self.terminal_work_unit_owned_active_workflows_for_job(job)
@@ -60,12 +64,14 @@ module WorkUnits
     # Workflow with an active WorkUnit existed. Three of them wedged
     # production for well over an hour.
     def call
-      return unless workflow
+      return false unless workflow
 
       if workflow.terminal?
         sync_work_unit_from_terminal_workflow
       elsif ACTIVE_WORKFLOW_STATES.include?(workflow.state)
         sync_workflow_from_terminal_work_unit
+      else
+        false
       end
     end
 
@@ -74,24 +80,28 @@ module WorkUnits
     attr_reader :workflow
 
     def sync_work_unit_from_terminal_workflow
-      return unless workflow.work_unit&.active?
+      return false unless workflow.work_unit&.active?
 
       if WorkUnit::TERMINAL_STATES.include?(workflow.state)
         workflow.work_unit.mark_terminal!(workflow.state)
+        true
       elsif workflow.blocked? && Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
         # Repairs a blocked auxiliary Workflow whose WorkUnit stayed active.
         workflow.work_unit.mark_terminal!("failed")
+        true
+      else
+        false
       end
     end
 
     def sync_workflow_from_terminal_work_unit
       unit = terminal_work_unit
-      return unless unit
+      return false unless unit
 
       workflow.with_lock do
         workflow.reload
-        return unless ACTIVE_WORKFLOW_STATES.include?(workflow.state)
-        return if self.class.active_replacement_owns?(workflow, stale_unit: unit)
+        return false unless ACTIVE_WORKFLOW_STATES.include?(workflow.state)
+        return false if self.class.active_replacement_owns?(workflow, stale_unit: unit)
 
         case unit.state
         when "cancelled"
@@ -112,6 +122,8 @@ module WorkUnits
           workflow.finished_at = Time.current
           workflow.succeed! if workflow.may_succeed?
         end
+
+        true
       ensure
         workflow.syncing_from_terminal_work_unit = false
       end

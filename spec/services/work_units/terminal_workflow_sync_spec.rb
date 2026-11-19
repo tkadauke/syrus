@@ -10,8 +10,9 @@ RSpec.describe WorkUnits::TerminalWorkflowSync do
     workflow.update_columns(state: "cancelled", finished_at: 1.minute.ago)
     workflow.work_unit.work_unit_locks.create!(lock_key: "spec:terminal-sync:#{workflow.id}")
 
-    described_class.call(workflow)
+    changed = described_class.call(workflow)
 
+    expect(changed).to be(true)
     expect(workflow.work_unit.reload).to have_attributes(state: "cancelled")
     expect(workflow.work_unit.work_unit_locks.active).to be_empty
   end
@@ -108,9 +109,8 @@ RSpec.describe WorkUnits::TerminalWorkflowSync do
   it "does not change non-terminal workflow ownership" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
 
-    expect {
-      described_class.call(workflow)
-    }.not_to change { workflow.work_unit.reload.state }
+    expect(described_class.for_job(job)).to be(false)
+    expect(workflow.work_unit.reload).to be_active
   end
 
   it "normalizes all terminal workflows for a job" do

@@ -171,6 +171,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(offenders).to be_empty
   end
 
+  it "does not reload every Job while checking active runtime work" do
+    scoped_jobs = [ job, Factories.job(issue_number: 103), Factories.job(issue_number: 104) ]
+    scoped_jobs.each do |owning_job|
+      owning_job.latest_workflow.update!(state: "failed", finished_at: 2.minutes.ago)
+    end
+
+    statements = []
+    subscriber = lambda do |*, payload|
+      statements << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+    end
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { reconcile }
+
+    individual_job_loads = statements.grep(
+      /SELECT [`"]jobs[`"]\.\* FROM [`"]jobs[`"] WHERE [`"]jobs[`"]\.[`"]id[`"] =/i
+    )
+    expect(individual_job_loads.size).to be <= scoped_jobs.size
+  end
+
   # Regression: finding a queued Step's latest retry_until barrier selected the
   # loop's whole steps rows ordered by position. With loop_id in the WHERE no
   # index serves that order, grader output in `details` filled the sort
