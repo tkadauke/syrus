@@ -4,6 +4,7 @@ import { Button, Input, Notice, Page, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 
 type Config = Record<string, string | string[] | boolean>
+type ErrorPayload = { error?: { message?: string } }
 
 export default function ConnectedAccountsAdmin() {
   const { t } = useT("connected_accounts")
@@ -20,7 +21,10 @@ export default function ConnectedAccountsAdmin() {
       read_only_scopes: (draft.read_only_scopes || String(current.read_only_scopes || "")).split(",").map(v => v.trim()).filter(Boolean),
       api_origins: (draft.api_origins || String(current.api_origins || "")).split(",").map(v => v.trim()).filter(Boolean) } }
     const response = await fetch("/api/v1/app/admin/connected_accounts/provider_config", { method: "PUT", headers: { "Content-Type": "application/json", "X-CSRF-Token": document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || "" }, body: JSON.stringify(body) })
-    if (!response.ok) throw new Error((await response.json()).message || "Unable to save provider configuration")
+    if (!response.ok) {
+      const payload = await response.json() as ErrorPayload
+      throw new Error(payload.error?.message || t("settings.save_failed"))
+    }
   } })
   function submit(event: FormEvent) { event.preventDefault(); save.mutate() }
   const fields = ["authorize_url", "token_url", "revoke_url", "identity_url", "validate_url", "client_id", "client_secret", "scope_catalog", "read_only_scopes", "api_origins"]
