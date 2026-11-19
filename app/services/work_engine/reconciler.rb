@@ -1053,8 +1053,10 @@ module WorkEngine
           )
         end
 
+        next unless StepDispatcher.deferred_phase_handoff_ready?(step)
+
         previous = step.previous_step
-        next unless previous&.succeeded?
+        dependencies = step.depends_on_steps
 
         issue(
           kind: :queued_step_without_run,
@@ -1066,12 +1068,14 @@ module WorkEngine
             step_id: step.id,
             step_kind: step.kind,
             step_position: step.position,
-            previous_step_id: previous.id,
-            previous_step_kind: previous.kind,
-            previous_step_state: previous.state,
+            previous_step_id: previous&.id,
+            previous_step_kind: previous&.kind,
+            previous_step_state: previous&.state,
+            dependency_step_ids: dependencies.map(&:id),
+            dependency_step_states: dependencies.index_by { |dependency| dependency.id.to_s }.transform_values(&:state),
             age_seconds: seconds_since(step.created_at)
           ),
-          explanation: "Step ##{step.id} is queued behind succeeded Step ##{previous.id}, but no Run was created for it."
+          explanation: "Step ##{step.id} is ready after its upstream handoff settled, but no Run was created for it."
         )
       end
     end
