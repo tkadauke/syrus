@@ -1287,6 +1287,7 @@ export type JobDetailPayload = {
   attachments_count?: number
   pr_links: JobPrLink[]
   typed_artifacts: TypedArtifact[]
+  review_artifacts?: string[]
   review_contributions?: import("../pluginReviewContributions").ReviewContribution[]
   visual_evidence?: JobVisualEvidenceGallery
   coverage: { workflow_id: number; coverage: CoverageArtifact } | null
