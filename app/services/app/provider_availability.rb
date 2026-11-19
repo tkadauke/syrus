@@ -138,7 +138,7 @@ module App
       return rate_limited_status(latest_signal) if latest_signal
 
       circuit = PerformanceLogging.phase("provider_availability.circuit_breaker", provider: provider) do
-        ProviderCircuitBreaker.call(provider, now: now, include_logs: false)
+        ProviderCircuitBreaker.call(provider, now: now, include_logs: false, user: user, provider_account: user.default_provider_account(provider))
       end
       return open_status(circuit) if circuit.open? && !circuit.usage_limit?
 

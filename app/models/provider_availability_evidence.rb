@@ -42,7 +42,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   scope :unrepaired_for_circuit, -> { where(repair_status: nil) }
   scope :for_scope, ->(user:, provider:, account_id: nil, model: nil) {
     scope = where(user: user, provider: provider.to_s)
-    scope = account_id.present? ? scope.where(account_id: [ account_id.to_s, nil ]) : scope
+    scope = scope.where(account_id: account_id.to_s) if account_id.present?
     scope.where(model: matching_models_for(model))
   }
 
@@ -186,7 +186,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       user: run.user,
       run: run,
       provider: provider,
-      account_id: provider == "codex" ? CodexAccountScope.for_user(run.user) : nil,
+      account_id: invocation_account_id(run),
       model: nil,
       status: "auth_error",
       source: "#{provider}_invocation_auth_error",
@@ -215,7 +215,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       user: run.user,
       run: run,
       provider: provider,
-      account_id: provider == "codex" ? CodexAccountScope.for_user(run.user) : nil,
+      account_id: invocation_account_id(run),
       model: model.presence || ProviderModelUnsupported.extract_model(message),
       status: "model_unsupported",
       source: "#{provider}_invocation_model_unsupported",
@@ -237,7 +237,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   end
 
   def self.invocation_account_id(run)
-    run.agent_provider.to_s == "codex" ? CodexAccountScope.for_user(run.user) : nil
+    run.provider_account&.public_id || (run.agent_provider.to_s == "codex" ? CodexAccountScope.for_user(run.user) : nil)
   end
 
   def self.latest_for_scope(user:, provider:, account_id: nil, model: nil)
@@ -349,7 +349,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
 
   def self.matching_positive_scope(user:, provider:, account_id: nil, model: nil, any_model: false)
     scope = where(user: user, provider: provider.to_s).positive
-    scope = account_id.present? ? scope.where(account_id: [ account_id.to_s, nil ]) : scope
+    scope = scope.where(account_id: account_id.to_s) if account_id.present?
     return scope if any_model
 
     normalized_model = model.to_s.strip.presence

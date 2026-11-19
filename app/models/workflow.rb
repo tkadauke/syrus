@@ -31,6 +31,7 @@ class Workflow < ApplicationRecord
 
   belongs_to :job
   belongs_to :user
+  belongs_to :provider_account, optional: true
   has_many :workflow_warnings, dependent: :destroy
   has_many :workflow_artifact_values, dependent: :destroy, inverse_of: :workflow
   has_many :provider_routing_holds, dependent: :destroy
@@ -59,6 +60,8 @@ class Workflow < ApplicationRecord
   validate :user_matches_job
   validate :job_must_be_open_on_create, on: :create
   before_validation :default_user_from_job, on: :create
+  before_validation :default_provider_account, on: :create
+  validate :provider_account_matches_execution
   before_save :sync_workflow_admission_override_metadata
 
   # Free-form bag of artifacts produced during this workflow. The
@@ -1061,6 +1064,17 @@ class Workflow < ApplicationRecord
 
   def default_user_from_job
     self.user ||= job&.user
+  end
+
+  def default_provider_account
+    self.provider_account ||= user&.default_provider_account(agent_provider)
+  end
+
+  def provider_account_matches_execution
+    return unless provider_account
+    return if provider_account.user_id == user_id && provider_account.provider_key == agent_provider
+
+    errors.add(:provider_account, "must belong to the Workflow user and provider")
   end
 
   def user_matches_job

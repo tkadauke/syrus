@@ -56,11 +56,12 @@ class ProviderCircuitBreaker
   FailureSignal = Data.define(:run, :signature, :retryable)
   UsageLimitSignal = Data.define(:run, :signature, :model, :evidence)
 
-  def self.call(provider, now: Time.current, include_logs: true)
-    return new(provider, now: now, include_logs: include_logs).call if include_logs
+  def self.call(provider, now: Time.current, include_logs: true, user: nil, provider_account: nil)
+    return new(provider, now: now, include_logs: include_logs, user: user, provider_account: provider_account).call if include_logs
 
-    fetch_read_cache(provider.to_s, now: now) do
-      new(provider, now: now, include_logs: include_logs).call
+    cache_key = [ provider.to_s, user&.id, provider_account&.id ]
+    fetch_read_cache(cache_key, now: now) do
+      new(provider, now: now, include_logs: include_logs, user: user, provider_account: provider_account).call
     end
   end
 
@@ -91,10 +92,12 @@ class ProviderCircuitBreaker
     value
   end
 
-  def initialize(provider, now: Time.current, include_logs: true)
+  def initialize(provider, now: Time.current, include_logs: true, user: nil, provider_account: nil)
     @provider = provider.to_s
     @now = now
     @include_logs = include_logs
+    @user = user
+    @provider_account = provider_account
   end
 
   def call
@@ -119,7 +122,7 @@ class ProviderCircuitBreaker
 
   private
 
-  attr_reader :provider, :now
+  attr_reader :provider, :now, :user, :provider_account
 
   def closed(signals, job_count: nil)
     Decision.new(
@@ -181,11 +184,14 @@ class ProviderCircuitBreaker
   end
 
   def recent_failed_runs
-    Run
+    scope = Run
        .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :state, :finished_at, :updated_at, :model)
        .includes(:run_diagnostic, :run_failure_classification)
        .where(state: "failed", agent_provider: provider)
        .where("runs.finished_at >= ?", now - WINDOW)
+    scope = scope.where(user_id: user.id) if user
+    scope = scope.where(provider_account_id: provider_account.id) if provider_account
+    scope
   end
 
   def usage_limit_signals
@@ -220,13 +226,15 @@ class ProviderCircuitBreaker
   end
 
   def current_usage_limit_evidence
-    ProviderAvailabilityEvidence
+    scope = ProviderAvailabilityEvidence
       .where(provider: provider, status: "exhausted")
       .unrepaired_for_circuit
       .where("observed_at >= ?", now - USAGE_LIMIT_WINDOW)
       .recent
       .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
-      .detect do |evidence|
+    scope = scope.where(user_id: user.id) if user
+    scope = scope.where(account_id: provider_account.public_id) if provider_account
+    scope.detect do |evidence|
         next false if false_positive_evidence?(evidence)
 
         !ProviderAvailabilityEvidence.suppressed_by_positive_after?(
@@ -248,6 +256,8 @@ class ProviderCircuitBreaker
       .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :state, :finished_at, :updated_at, :model)
       .where(state: "failed", agent_provider: provider)
       .where("runs.finished_at >= ?", now - USAGE_LIMIT_WINDOW)
+    relation = relation.where(user_id: user.id) if user
+    relation = relation.where(provider_account_id: provider_account.id) if provider_account
 
     relation
       .includes(:run_diagnostic, :run_failure_classification, :step)
