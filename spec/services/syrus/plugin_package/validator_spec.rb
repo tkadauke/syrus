@@ -55,7 +55,8 @@ RSpec.describe Syrus::PluginPackage::Validator do
       revoked_keys: [ fingerprint ], revoked_releases: []
     )
 
-    result = described_class.new(package.path, trust_store:, signature:).call
+    result = described_class.new(package.path, trust_store:, signature:,
+      release_name: "weather", release_version: "1.2.3").call
 
     expect(result.errors).to include("package signature is not trusted: revoked_key")
   end
@@ -77,7 +78,33 @@ RSpec.describe Syrus::PluginPackage::Validator do
       revoked_keys: [], revoked_releases: []
     )
 
-    expect(described_class.new(package.path, trust_store:, signature:).call).to be_valid
+    expect(described_class.new(package.path, trust_store:, signature:,
+      release_name: "weather", release_version: "1.2.3").call).to be_valid
+  end
+
+  it "requires an out-of-band identity and rejects a package that does not match it" do
+    package = Tempfile.new
+    package.binmode
+    package.write(archive(entries).read)
+    package.close
+    key = OpenSSL::PKey.generate_key("ED25519")
+    key_file = Tempfile.new
+    key_file.write(key.private_to_pem)
+    key_file.close
+    signature = StringIO.new(Syrus::PluginPackage::Signer.new(key_file.path).sign(package.path))
+    fingerprint = Syrus::PluginPackage::TrustStore.fingerprint(key)
+    trust_store = Syrus::PluginPackage::TrustStore.new(
+      version: 1,
+      keys: [ { fingerprint:, label: "verified", public_key: Base64.strict_encode64(key.public_to_der) } ],
+      revoked_keys: [], revoked_releases: []
+    )
+
+    missing = described_class.new(package.path, trust_store:, signature:).call
+    mismatched = described_class.new(package.path, trust_store:, signature:,
+      release_name: "different", release_version: "1.2.3").call
+
+    expect(missing.errors).to include("release name and version are required for signature verification")
+    expect(mismatched.errors).to include("package identity does not match release")
   end
 
   it "rejects a tampered file" do

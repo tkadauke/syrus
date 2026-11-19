@@ -55,10 +55,12 @@ module Syrus
         return [] unless @trust_store
         return [ "package signature is required" ] unless @signature
         return [ "package signature verification requires an archive path" ] if @archive.respond_to?(:read)
+        return [ "release name and version are required for signature verification" ] if @release_name.blank? || @release_version.blank?
+        return [ "package identity does not match release" ] unless manifest.values_at("name", "version") == [ @release_name, @release_version ]
 
         verification = @trust_store.verify(
           package: @archive, signature: @signature,
-          name: @release_name || manifest["name"], version: @release_version || manifest["version"]
+          name: @release_name, version: @release_version
         )
         verification.trusted? ? [] : [ "package signature is not trusted: #{verification.reason}" ]
       end

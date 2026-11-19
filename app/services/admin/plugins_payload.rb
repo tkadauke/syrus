@@ -164,8 +164,9 @@ module Admin
     end
 
     def trust_label_for(manifest)
-      root = Syrus::PluginRoots.default.resolve(manifest.name)
-      return "official" if root&.to_s&.start_with?(Rails.root.join("plugins").to_s)
+      roots = Syrus::PluginRoots.default
+      root = roots.resolve(manifest.name)
+      return "official" if root && roots.built_in?(root)
 
       installation = @installations_by_name[manifest.name]
       return installation[:trust_label] if installation && installation[:version] == manifest.version.to_s

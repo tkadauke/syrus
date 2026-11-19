@@ -154,6 +154,24 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").sole.fetch("trust_label")).to eq("unsigned_local")
   end
 
+  it "does not classify an external sibling-prefix directory as official" do
+    sign_in_as(admin)
+    Dir.mktmpdir do |directory|
+      application_root = Pathname.new(directory).join("app")
+      external_root = application_root.join("plugins-extra")
+      FileUtils.mkdir_p(application_root.join("plugins"))
+      FileUtils.mkdir_p(external_root.join("weather"))
+      roots = Syrus::PluginRoots.new(application_root:, external_path: external_root)
+      allow(Syrus::PluginRoots).to receive(:default).and_return(roots)
+      Syrus::PluginRegistry.reset!
+      Syrus::PluginRegistry.register(name: "weather", version: "1.0.0", external: true)
+
+      get "/api/v1/app/admin/plugins"
+
+      expect(parse_body.fetch("plugins").sole.fetch("trust_label")).to eq("unsigned_local")
+    end
+  end
+
   it "shows the trust label persisted with an installed release" do
     sign_in_as(admin)
     allow(PluginDesiredState::Publisher).to receive(:publish!)
