@@ -141,9 +141,10 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
         "repository_path" => repository_path(repository)
       )
     )
+    expect(body.dig("active_tasks", 0, "next_fire_at")).to eq(active.reload.next_fire_at.utc.iso8601)
     expect(body.fetch("active_tasks").first.keys).to contain_exactly(
       "id", "name", "state", "repository_id", "repository_slug", "repository_path",
-      "schedule_label", "last_fired_at", "system_key", "scheduled_task_path"
+      "schedule_label", "next_fire_at", "last_fired_at", "system_key", "scheduled_task_path"
     )
     expect(body["fired_one_shots"]).to contain_exactly(include("id" => fired.id, "name" => "One shot"))
     expect(body["archived_tasks"]).to contain_exactly(include("id" => archived.id, "name" => "Archived"))

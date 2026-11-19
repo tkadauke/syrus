@@ -255,6 +255,7 @@ module Api
             repository_slug: task.repository.slug,
             repository_path: repository_path(task.repository),
             schedule_label: schedule_label(task),
+            next_fire_at: task.next_fire_at&.utc&.iso8601,
             last_fired_at: task.last_fired_at&.utc&.iso8601,
             system_key: task.system_key,
             scheduled_task_path: "/scheduled_tasks/#{task.id}"

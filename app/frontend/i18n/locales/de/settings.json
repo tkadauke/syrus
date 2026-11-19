@@ -370,6 +370,8 @@
     "no_tasks": "Keine geplanten Aufgaben für dieses Repository.",
     "name": "Name",
     "schedule": "Zeitplan",
+    "next_run": "Nächste Ausführung",
+    "no_upcoming_run": "Keine bevorstehende Ausführung",
     "next_window": "Nächstes Fenster",
     "state": "Status",
     "actions": "Aktionen",
