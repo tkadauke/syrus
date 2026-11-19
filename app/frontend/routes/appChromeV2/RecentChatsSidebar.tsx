@@ -731,12 +731,12 @@ export function RecentChatsSidebar({
                     {expanded && sideChats.length > sidebarSettings.per_group ? (
                       <div className="ml-8 flex gap-1">
                         {!showAllSideChats ? (
-                          <button className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => new Set(current).add(coworkerId))} type="button">
-                            {t("nav:show_more_coworker_chats", { name: chat.agent_appearance?.name })}
+                          <button aria-label={t("nav:show_more_coworker_chats", { name: chat.agent_appearance?.name })} className="whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => new Set(current).add(coworkerId))} type="button">
+                            {t("nav:more_coworker_chats")}
                           </button>
                         ) : (
-                          <button className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => { const next = new Set(current); next.delete(coworkerId); return next })} type="button">
-                            {t("nav:show_less_coworker_chats", { name: chat.agent_appearance?.name })}
+                          <button aria-label={t("nav:show_less_coworker_chats", { name: chat.agent_appearance?.name })} className="whitespace-nowrap rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800" onClick={() => setExpandedCoworkerChatIds((current) => { const next = new Set(current); next.delete(coworkerId); return next })} type="button">
+                            {t("nav:fewer_coworker_chats")}
                           </button>
                         )}
                       </div>
