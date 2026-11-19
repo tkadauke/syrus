@@ -32,7 +32,7 @@ RSpec.describe Steps::Format do
   end
 
   before do
-    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "main")
     allow(handler).to receive(:workspace).and_return(fake_ws)
     allow(handler).to receive(:commit_agent_changes)
     allow(handler).to receive(:changed_files).and_return(%w[app/models/thing.rb])
@@ -81,6 +81,7 @@ RSpec.describe Steps::Format do
     end
     git("-C", @ws_path.to_s, "add", ".")
     git("-C", @ws_path.to_s, "commit", "-q", "-m", "initial")
+    git("-C", @ws_path.to_s, "switch", "-q", "-c", "work")
     allow(handler).to receive(:revert_out_of_scope_changes).and_call_original
   end
 
@@ -272,7 +273,11 @@ RSpec.describe Steps::Format do
       git("-C", @ws_path.to_s, "commit", "-q", "-m", "rename and delete")
       write_syrus_yml(<<~YAML)
         formatters:
-          - command: printf 'formatted\\n' > app/models/new_name.rb
+          - command: >-
+              printf 'formatted\\n' > app/models/new_name.rb;
+              printf 'resurrected\\n' > app/models/old_name.rb;
+              printf 'resurrected\\n' > app/models/deleted.rb;
+              printf 'created\\n' > app/models/formatter_output.rb
             files: "**/*.rb"
       YAML
       allow(handler).to receive(:changed_files).and_return(
@@ -282,7 +287,13 @@ RSpec.describe Steps::Format do
       handler.call
 
       expect(@ws_path.join("app/models/new_name.rb").read).to eq("formatted\n")
+      expect(@ws_path.join("app/models/old_name.rb")).not_to exist
       expect(@ws_path.join("app/models/deleted.rb")).not_to exist
+      expect(@ws_path.join("app/models/formatter_output.rb").read).to eq("created\n")
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+        "[format] reverted 2 formatter change(s) outside this Job's diff: " \
+          "app/models/deleted.rb, app/models/old_name.rb"
+      )
     end
 
     it "soft-fails when restoring out-of-scope changes fails" do
