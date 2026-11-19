@@ -1,8 +1,8 @@
 # Recomputes derived runtime statistics outside the grader's landing slot.
 # TestRun, TestCase, and TestIdentity rows are already durable before this is
 # enqueued, so this work does not depend on the ephemeral grader workspace.
-class RefreshTestRuntimeSummariesJob < ApplicationJob
-  queue_as :low_priority_maintenance
+class RefreshTestRuntimeSummariesJob < PluginJob
+  plugin :test_insights
 
   def perform(test_identity_ids, grader_name)
     ids = Array(test_identity_ids).compact.uniq

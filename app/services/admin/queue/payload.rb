@@ -68,6 +68,7 @@ module Admin
           }
 
           smart_folder_payload(:active, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queue_counts,
             jobs: PerformanceLogging.phase("admin_queue.active.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, claimed_at: job.claimed_execution&.created_at) } },
             total: total,
             pagination: pagination_payload(total),
@@ -87,6 +88,7 @@ module Admin
           jobs = PerformanceLogging.phase("admin_queue.pending.query") { apply_sql_sort(filtered, :pending).offset(offset).limit(@per_page).to_a }
 
           smart_folder_payload(:pending, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queue_counts,
             jobs: PerformanceLogging.phase("admin_queue.pending.serialize", count: jobs.size) { jobs.map { |job| serialize_job(job, ready_at: job.ready_execution&.created_at) } },
             total: total,
             pagination: pagination_payload(total),
@@ -113,6 +115,7 @@ module Admin
           }
 
           smart_folder_payload(:failed, base, active_folder, filter: filter).merge(
+            plugin_queues: plugin_queue_counts,
             since: since.iso8601,
             failures: PerformanceLogging.phase("admin_queue.failed.serialize", count: failures.size) { failures.map { |failure| serialize_failure(failure) } },
             total: total,
@@ -176,6 +179,18 @@ module Admin
       end
 
       private
+
+      def plugin_queue_counts
+        pending_scope = SolidQueue::Job.where(finished_at: nil).where("queue_name LIKE ?", "plugin_%")
+        failed_scope = SolidQueue::FailedExecution.joins(:job).where("solid_queue_jobs.queue_name LIKE ?", "plugin_%")
+        return [] unless pending_scope.exists? || failed_scope.exists?
+
+        pending = pending_scope.group(:queue_name).count
+        failed = failed_scope.group("solid_queue_jobs.queue_name").count
+        (pending.keys | failed.keys).sort.map do |queue|
+          { plugin: queue.delete_prefix("plugin_"), queue: queue, depth: pending[queue].to_i, failed_count: failed[queue].to_i }
+        end
+      end
 
       attr_reader :params, :user
 

@@ -433,7 +433,7 @@ RSpec.describe TestInsights::TestCase do
       expect {
         tests = TestInsights::TestCase.top_flaky_tests(repository: repo, lookback: "20", limit: "3")
         expect(tests).to eq([])
-      }.to have_enqueued_job(BackfillTestIdentitiesJob).with(repo.id).on_queue("indexing")
+      }.to have_enqueued_job(BackfillTestIdentitiesJob).with(repo.id).on_queue("plugin_test_insights")
 
       expect(TestInsights::TestIdentity.find_by(repository: repo, name: "flaky")).to be_nil
     end

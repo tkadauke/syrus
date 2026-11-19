@@ -1,7 +1,9 @@
 module Coworkers
-  class JournalingCatchUpJob < ApplicationJob
-    queue_as :control_plane
-    retry_on WorkUnits::Launcher::LockConflict, wait: 30.seconds, attempts: 10
+  class JournalingCatchUpJob < PluginJob
+    plugin :coworkers
+    retry_on WorkUnits::Launcher::LockConflict, wait: 30.seconds, attempts: 10 do |job, error|
+      job.record_discarded_failure(error)
+    end
 
     def perform(task_id, after_date, remaining)
       task = ScheduledTasks::Task.alive.find_by(id: task_id, system_key: Coworkers::SystemSchedules::JOURNALING)

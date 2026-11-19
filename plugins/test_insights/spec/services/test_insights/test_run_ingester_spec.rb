@@ -102,7 +102,7 @@ RSpec.describe TestInsights::Ingester do
   end
 
   it "enqueues search indexing onto the indexing queue rather than writing inline" do
-    expect { ingester.ingest! }.to have_enqueued_job(IndexTestIdentitiesJob).on_queue("indexing")
+    expect { ingester.ingest! }.to have_enqueued_job(IndexTestIdentitiesJob).on_queue("plugin_test_insights")
   end
 
   it "refreshes bounded runtime summaries for each identity and grader" do
@@ -133,7 +133,7 @@ RSpec.describe TestInsights::Ingester do
   it "enqueues runtime summary refreshes without holding the grader slot" do
     expect { ingester.ingest! }
       .to have_enqueued_job(RefreshTestRuntimeSummariesJob)
-      .on_queue("low_priority_maintenance")
+      .on_queue("plugin_test_insights")
   end
 
   it "links test cases to the repository" do

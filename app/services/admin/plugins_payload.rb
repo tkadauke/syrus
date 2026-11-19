@@ -247,9 +247,27 @@ module Admin
         request_count: record&.request_count.to_i,
         last_error_at: record&.last_error_at&.iso8601
       }
+      payload[:jobs] = plugin_job_health(manifest, record)
       payload[:failures] = failures if failures.any?
       payload[:circuits] = circuits if circuits.any?
       payload
+    end
+
+    def plugin_job_health(manifest, record)
+      queue_name = "plugin_#{manifest.name}"
+      depth = SolidQueue::Job.where(queue_name:, finished_at: nil).count
+      failures = SolidQueue::FailedExecution.joins(:job).where(solid_queue_jobs: { queue_name: }).count
+      recorded = record&.config&.dig("job_health") || {}
+      {
+        queue: queue_name,
+        depth: depth,
+        failed_count: failures,
+        discarded_count: recorded["discarded_count"].to_i,
+        last_error: recorded["last_error"],
+        last_discarded_at: recorded["last_discarded_at"]
+      }
+    rescue ActiveRecord::StatementInvalid
+      { queue: queue_name, depth: 0, failed_count: 0, discarded_count: record&.config&.dig("job_health", "discarded_count").to_i }
     end
 
     def plugin_health

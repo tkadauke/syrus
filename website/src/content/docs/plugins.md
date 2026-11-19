@@ -505,3 +505,16 @@ the real backend and reports a normalized observation of its transport. This
 lets the same assertions cover local processes, containers, and private
 execution systems without exposing backend internals. The operator guide
 contains the adapter API and invocation example.
+
+## Background jobs
+
+Subclass `PluginJob` and declare `plugin :your_plugin` for plugin-owned
+background work. Jobs use `plugin_your_plugin` by default, including jobs from
+external plugins, and share a default concurrency cap of two. Pass
+`concurrency: 5` to raise that cap, or use `queue_as` when a job genuinely
+requires a specialized worker queue.
+
+Ordinary failures retry five times with polynomial backoff. After the final
+attempt, Syrus discards the job and records the error in plugin health. Queue
+depth, failed executions, and discarded-job counts are visible on the admin
+Queue and Plugins pages.
