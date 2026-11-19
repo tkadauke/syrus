@@ -47,7 +47,6 @@ module Deploy
       backup = MysqlBackup.new(context)
       backup.suspend!
 
-      MiseCache.new(context).apply!
       @prepull.warm!
       Migrations.new(context).run!
 

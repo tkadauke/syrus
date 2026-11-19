@@ -195,7 +195,6 @@ module Deploy
 
     # --- other cluster-side controls ------------------------------------
 
-    def mise_cache_host_path = fetch("MISE_CACHE_HOST_PATH", "/data/syrus-mise-cache")
     def mysql_backup_cronjob = fetch("MYSQL_BACKUP_CRONJOB", "syrus-mysql-backup")
     def mysql_backup_drain_timeout = duration("MYSQL_BACKUP_DRAIN_SECONDS", "30s")
 
