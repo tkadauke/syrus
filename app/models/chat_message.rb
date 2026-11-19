@@ -3,6 +3,7 @@ class ChatMessage < ApplicationRecord
   include EnqueuesSearchIndex
 
   ROLES = %w[ user assistant tool_use tool_result system ].freeze
+  ASSISTANT_PRESENTATIONS = %w[ progress final ].freeze
   SPA_EVENT_TAIL_SIZE = 24
   SPA_EVENT_MAX_INLINE_BYTES = 128.kilobytes
   PREVIEW_TEXT_MAX_BYTES = 500
@@ -16,6 +17,7 @@ class ChatMessage < ApplicationRecord
   belongs_to :pending_action, class_name: "ChatPendingAction", optional: true
   belongs_to :sender_user, class_name: "User", optional: true
   belongs_to :deleted_by_user, class_name: "User", optional: true
+  belongs_to :turn_message, class_name: "ChatMessage", optional: true
 
   has_many :bookmarks, class_name: "ChatBookmark", dependent: :destroy, inverse_of: :chat_message
   has_many :pins, class_name: "ChatMessagePin", dependent: :destroy, inverse_of: :chat_message
@@ -48,6 +50,8 @@ class ChatMessage < ApplicationRecord
   after_update :invalidate_context_checkpoints, if: :newly_soft_deleted?
 
   validates :role, presence: true, inclusion: { in: ROLES }
+  validates :assistant_presentation, inclusion: { in: ASSISTANT_PRESENTATIONS }, allow_nil: true
+  validates :assistant_presentation, absence: true, unless: -> { role == "assistant" }
   validate :mentions_are_structured
   validate :content_is_present
   validate :attachments_are_storage_references

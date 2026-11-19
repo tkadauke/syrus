@@ -230,6 +230,8 @@ module App
         pinnable: message.pinnable?,
         created_at: message.created_at.iso8601
       }
+      payload[:turn_message_id] = message.turn_message_id if message.turn_message_id.present?
+      payload[:assistant_presentation] = message.assistant_presentation if message.assistant_presentation.present?
       payload[:client_idempotency_key] = message.client_idempotency_key if message.client_idempotency_key.present?
 
       if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
