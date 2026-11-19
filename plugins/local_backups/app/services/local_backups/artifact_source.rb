@@ -16,10 +16,8 @@ module LocalBackups
       }
     end
 
-    def self.open(backup_id, context:, &block)
-      backup = Backup.find_by!(uuid: backup_id)
-      manifest = StorageRoot.new.contained(backup.artifact_relative_path).join(Manifest::FILE_NAME)
-      File.open(manifest, "rb", &block)
+    def self.open(*)
+      raise UnsupportedOperation, "artifact streaming is not available until sealed archives are created"
     end
 
     def self.checksum(backup_id, context:)
