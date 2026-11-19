@@ -28,7 +28,8 @@ afterEach(() => vi.restoreAllMocks())
 
 describe("ConnectedAccountsAdmin", () => {
   it("shows the API error when provider configuration cannot be saved", async () => {
-    const config = { authorize_url: "https://oauth.example/authorize", scope_catalog: [ "read" ], api_origins: [ "https://api.example/" ] }
+    const config = { authorize_url: "https://oauth.example/authorize", scope_catalog: [ "profile", "write" ],
+      read_only_scopes: [ "profile" ], api_origins: [ "https://api.example/" ] }
     vi.spyOn(window, "fetch")
       .mockResolvedValueOnce(jsonResponse({ provider_config: config }))
       .mockResolvedValueOnce(jsonResponse({ message: "Provider URLs must use HTTPS" }, 422))

@@ -12,3 +12,4 @@ la:
       failed: "Praebitor rationem coniungere non potuit."
     settings:
       saved: "Configuratio praebitoris servata est."
+      read_only_scopes_not_in_catalog: "etiam in catalogo ambituum contineri debent"

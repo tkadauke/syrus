@@ -58,6 +58,13 @@ module ConnectedAccounts
       scopes.pluck("key")
     end
 
+    def read_only_scope_keys
+      klass = provider.constantize
+      return klass.read_only_scope_keys if klass.respond_to?(:read_only_scope_keys)
+
+      scopes.filter_map { |scope| scope["key"] if scope["read_only"] }
+    end
+
     private
 
     def accepts_context?(klass, capability)
@@ -78,6 +85,7 @@ module ConnectedAccounts
         errors << "scope #{key.inspect} requires a label" if scope["label"].blank?
         errors << "scope #{key.inspect} has invalid risk" unless RISK_LEVELS.include?(scope["risk"].to_s)
         errors << "scope #{key.inspect} requires Syrus capabilities" if Array(scope["syrus_capabilities"]).empty?
+        errors << "scope #{key.inspect} must declare read_only" if supports_read_only && ![ true, false ].include?(scope["read_only"])
       end
       errors
     end

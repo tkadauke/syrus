@@ -10,10 +10,20 @@ class CreateConnectedAccountsOAuthInfrastructure < ActiveRecord::Migration[8.1]
       t.string :client_id, null: false
       t.text :client_secret, null: false
       t.json :scope_catalog, null: false
+      t.json :read_only_scopes, null: false
       t.json :api_origins, null: false
       t.timestamps
     end
-    add_index :connected_accounts_provider_configs, :provider_key, unique: true, name: "idx_connected_accounts_provider_key", if_not_exists: true
+    unless column_exists?(:connected_accounts_provider_configs, :read_only_scopes)
+      add_column :connected_accounts_provider_configs, :read_only_scopes, :json
+      reversible do |direction|
+        direction.up { execute "UPDATE connected_accounts_provider_configs SET read_only_scopes = '[]' WHERE read_only_scopes IS NULL" }
+      end
+      change_column_null :connected_accounts_provider_configs, :read_only_scopes, false
+    end
+    unless index_exists?(:connected_accounts_provider_configs, :provider_key, name: "idx_connected_accounts_provider_key")
+      add_index :connected_accounts_provider_configs, :provider_key, unique: true, name: "idx_connected_accounts_provider_key"
+    end
 
     create_table :connected_accounts_oauth_states, if_not_exists: true do |t|
       t.string :digest, null: false
@@ -27,6 +37,8 @@ class CreateConnectedAccountsOAuthInfrastructure < ActiveRecord::Migration[8.1]
       t.datetime :used_at
       t.timestamps
     end
-    add_index :connected_accounts_oauth_states, :digest, unique: true, name: "idx_connected_accounts_oauth_state_digest", if_not_exists: true
+    unless index_exists?(:connected_accounts_oauth_states, :digest, name: "idx_connected_accounts_oauth_state_digest")
+      add_index :connected_accounts_oauth_states, :digest, unique: true, name: "idx_connected_accounts_oauth_state_digest"
+    end
   end
 end

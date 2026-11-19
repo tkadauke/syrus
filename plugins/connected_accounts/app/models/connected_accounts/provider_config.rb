@@ -3,11 +3,13 @@ module ConnectedAccounts
     self.table_name = "connected_accounts_provider_configs"
     encrypts :client_secret
     attribute :scope_catalog, :json, default: -> { [] }
+    attribute :read_only_scopes, :json, default: -> { [] }
     attribute :api_origins, :json, default: -> { [] }
 
     validates :provider_key, :authorize_url, :token_url, :identity_url, :client_id, :client_secret, presence: true
     validates :provider_key, uniqueness: true, format: { with: /\A[a-z][a-z0-9_]*\z/ }
     validate :https_urls
+    validate :read_only_scopes_are_configured
 
     private
 
@@ -16,6 +18,11 @@ module ConnectedAccounts
       errors.add(:base, "provider URLs must use HTTPS") unless values.all? { |value| URI.parse(value).is_a?(URI::HTTPS) }
     rescue URI::InvalidURIError
       errors.add(:base, "provider URL is invalid")
+    end
+
+    def read_only_scopes_are_configured
+      unknown = Array(read_only_scopes).map(&:to_s) - Array(scope_catalog).map(&:to_s)
+      errors.add(:read_only_scopes, I18n.t("connected_accounts.settings.read_only_scopes_not_in_catalog")) if unknown.any?
     end
   end
 end
