@@ -45,6 +45,13 @@ newer, but must not be older than that derived floor.
 
 ## Validate and test a plugin
 
+Plugin Ruby may use only public `Syrus::Host::*` APIs, the plugin DSL and
+documented interface modules, its own code, Rails, and the Ruby standard
+library. Every other Syrus core constant is internal and may change without
+notice. Validation rejects unsupported direct references and reports legacy
+and literal string references; if the host surface lacks a capability, request
+a public facade instead of reaching around it.
+
 Create a project with `syrus plugin new NAME`. The command writes `./NAME` by
 default; use `--path DIR` to choose another empty directory. The generated
 project includes a gemspec and manifest, a callback-provider example, English,

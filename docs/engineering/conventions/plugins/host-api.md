@@ -63,6 +63,18 @@ Supported members:
 - `params`
 - `render`
 
+### `Syrus::Host::ApplicationRecord`
+
+Since: `0.1.16`
+
+Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.
+
+Supported members:
+
+- `abstract_class`
+- `table_name`
+- `table_name=`
+
 ### `Syrus::Host::BackgroundJob`
 
 Since: `0.1.16`
@@ -89,18 +101,6 @@ Supported members:
 - `on_metrics_scrape`
 - `on_shutdown`
 - `on_tick`
-
-### `Syrus::Host::ApplicationRecord`
-
-Since: `0.1.16`
-
-Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.
-
-Supported members:
-
-- `abstract_class`
-- `table_name`
-- `table_name=`
 
 ### `Syrus::Host::ChatSession`
 

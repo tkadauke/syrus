@@ -17,6 +17,7 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
     output, status = Open3.capture2e(binary.to_s, "plugin", "new", "sample_plugin", "--path", directory.to_s,
       "--syrus-version", version, *flags)
     raise output unless status.success?
+    output
   end
 
   def files(root)
@@ -28,8 +29,9 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
     Dir.mktmpdir("plugin-scaffold-acceptance") do |temporary|
       binary = build_cli(temporary)
       [ [], [ "--frontend" ], [ "--model" ], [ "--cli" ], [ "--frontend", "--model", "--cli" ] ].each_with_index do |flags, index|
-        plugin = Pathname.new(temporary).join("variant-#{index}")
-        generate(binary, plugin, *flags)
+        plugin = Pathname.new(temporary).join("variant-#{index}/sample_plugin")
+        generation_output = generate(binary, plugin, *flags)
+        expect(generation_output).to eq("Created #{plugin}\nRun: cd #{plugin} && syrus plugin test .\n")
         output, status = Open3.capture2e(
           { "SYRUS_PLUGIN_TEST_MODE" => "test", "SYRUS_PLUGIN_TEST_JSON" => "1", "SYRUS_VERSION" => "0.1.0" },
           Rails.root.join("bin/plugin-test").to_s, plugin.to_s, chdir: Rails.root.to_s
