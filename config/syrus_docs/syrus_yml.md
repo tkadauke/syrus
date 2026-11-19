@@ -608,6 +608,23 @@ configured and the CI mode is parallelized, Syrus runs the normal fast pass in
 parallel and then runs the configured CI-tag pass serially before merging the
 JUnit shards.
 
+Set `parallel_rspec.serial_paths` to parallelize the CI-tag examples too. The
+CI grader then runs every example -- CI-tag ones included -- in the parallel
+pass, where each worker has its own database, except files under the listed
+paths, which run afterwards in one serial pass. List only what genuinely
+cannot share a run: specs that change the schema in-process, specs that commit
+outside a transaction, or specs that drive shared external processes. A large
+serial CI-tag pass is often the longest part of the CI grader, so this can
+shorten it considerably.
+
+```yaml
+    parallel_rspec:
+      rspec_modes: [full, focused, ci]
+      serial_paths:
+        - spec/migrations/
+        - spec/models/concurrency_spec.rb
+```
+
 ```yaml
 grade:
   - type: rspec

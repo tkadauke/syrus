@@ -49,6 +49,54 @@ RSpec.describe Ruby::RspecGraderType do
     end
   end
 
+  # The serial CI-tag pass ran a quarter of the suite on one core and was the
+  # longest part of the CI grader. With serial_paths, CI-only examples join
+  # the parallel pass and only the listed paths stay serial.
+  describe "CI grader with parallel_rspec.serial_paths" do
+    def ci_step(serial_paths: [ "spec/migrations/", "spec/bin/check_spec.rb" ], tags: { "ci" => { "include" => [ "ci_only" ] } })
+      described_class.grade_steps(
+        config: {
+          "tags" => tags,
+          "parallel_rspec" => {
+            "enabled" => true, "rspec_modes" => [ "ci" ], "exec_args" => "bin/rspec-worker", "serial_paths" => serial_paths
+          }
+        },
+        default_failures: "strict"
+      ).third
+    end
+
+    it "runs CI-only examples in the parallel pass and keeps only the serial paths serial" do
+      _stdout, _stderr, status, parallel_args = run_generated_rspec_command(ci_step.run, parallel_status: 0)
+
+      expect(status).to be_success
+      expect(parallel_args).to include("--exclude-pattern", "spec/migrations/|spec/bin/check_spec\\.rb")
+      expect(ci_step.run).to include("RSPEC_TAG_ARGS=--tag\\ \\~syrus_no_such_tag RUN_CI_ONLY_SPECS=true")
+      expect(ci_step.run).to match(%r{RUN_CI_ONLY_SPECS=true bundle exec rspec .*--tag \\~syrus_no_such_tag spec/migrations/ spec/bin/check_spec\.rb})
+      expect(ci_step.run).not_to include("--tag ci_only")
+    end
+
+    it "excludes exactly the serial paths from parallel file discovery" do
+      pattern = Regexp.new(Shellwords.split(ci_step.run[/--exclude-pattern \S+/]).last)
+
+      expect(pattern).to match("spec/migrations/add_thing_spec.rb")
+      expect(pattern).to match("./spec/bin/check_spec.rb")
+      expect(pattern).not_to match("spec/models/migration_spec.rb")
+      expect(pattern).not_to match("spec/bin/check_spec_rb")
+    end
+
+    it "fails when either pass fails" do
+      expect(run_generated_rspec_command(ci_step.run, parallel_status: 1)[2]).not_to be_success
+      expect(run_generated_rspec_command(ci_step.run, parallel_status: 0, serial_status: 1)[2]).not_to be_success
+    end
+
+    it "keeps the separate serial CI-tag pass without serial_paths" do
+      run = ci_step(serial_paths: []).run
+
+      expect(run).not_to include("--exclude-pattern")
+      expect(run).to include("--tag ci_only")
+    end
+  end
+
   it "registers the rspec type name" do
     expect(described_class.type_name).to eq("rspec")
   end
