@@ -153,12 +153,20 @@ function MetricsSummaryTable({ summary }: { summary: NonNullable<import("../api/
       <h2 className="border-b border-border px-4 py-3 text-sm font-semibold text-text-primary">{summary.title}</h2>
       <DataTable.Root density="compact" wrapperClassName="rounded-none border-0">
         <DataTable.Header>
-          <DataTable.Row>{summary.columns.map((column) => <DataTable.HeadCell key={column.key}>{column.label}</DataTable.HeadCell>)}</DataTable.Row>
+          <DataTable.Row>
+            {summary.columns.map((column) => (
+              <DataTable.HeadCell key={column.key}>{column.label}</DataTable.HeadCell>
+            ))}
+          </DataTable.Row>
         </DataTable.Header>
         <DataTable.Body>
           {summary.rows.map((row) => (
             <DataTable.Row className={row.stale ? "bg-warning-surface text-warning-text" : ""} data-stale={row.stale} key={row.key}>
-              {summary.columns.map((column) => <DataTable.Cell className="whitespace-nowrap" key={column.key}>{row.values[column.key]}</DataTable.Cell>)}
+              {summary.columns.map((column) => (
+                <DataTable.Cell className="whitespace-nowrap" key={column.key}>
+                  {row.values[column.key]}
+                </DataTable.Cell>
+              ))}
             </DataTable.Row>
           ))}
         </DataTable.Body>

@@ -190,14 +190,26 @@ describe("MetricsDashboardRoute plugin tabs", () => {
   })
 
   it("renders a contributed summary table and highlights stale rows", async () => {
-    renderRoute(payload({
-      plugin_tabs: [{ id: "coworkers", label: "Coworkers", summary: {
-        title: "Coworker health",
-        columns: [{ key: "coworker", label: "Coworker" }, { key: "state", label: "State" }],
-        rows: [{ key: "adrian", stale: true, values: { coworker: "adrian", state: "Auto-paused" } }]
-      }}],
-      panels: []
-    }), "/app-shell/metrics_dashboard?tab=coworkers")
+    renderRoute(
+      payload({
+        plugin_tabs: [
+          {
+            id: "coworkers",
+            label: "Coworkers",
+            summary: {
+              title: "Coworker health",
+              columns: [
+                { key: "coworker", label: "Coworker" },
+                { key: "state", label: "State" }
+              ],
+              rows: [{ key: "adrian", stale: true, values: { coworker: "adrian", state: "Auto-paused" } }]
+            }
+          }
+        ],
+        panels: []
+      }),
+      "/app-shell/metrics_dashboard?tab=coworkers"
+    )
 
     expect(await screen.findByText("Coworker health")).toBeInTheDocument()
     expect(screen.getByText("Auto-paused").closest("tr")).toHaveAttribute("data-stale", "true")
