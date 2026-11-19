@@ -650,3 +650,21 @@ history is returned in pages of at most 50 runs and 50 side chats; **Load
 more** follows opaque cursors. Memory and workspace browsers return at most
 1,000 files, identify partial results, and cap individual file reads at 256
 KiB.
+
+## Health and spend metrics
+
+When the Coworkers plugin is enabled, `/metrics` publishes handle-scoped
+Prometheus series for journaling state, last-result age and failures; unsaved
+workspace age and retry attempts; workspace push failures; and cumulative chat
+and background-run spend. These series never contain chat, message, Job,
+Workflow, or Run identifiers or content. Sampling runs on the shared metrics
+tick and scrapes only render its cached snapshot.
+
+The Metrics Dashboard includes a **Coworkers** tab grouping journaling age and
+state, unsaved-workspace age, and spend rates by coworker handle. The shipped
+Prometheus rules warn after 36 hours without a journaling result (excluding an
+owner-paused schedule), page after 72 hours or three repeated failures, warn
+after one hour of unsaved workspace state, and page after six hours. They also
+detect sustained push failures and daily spend above the rule file's anomaly
+multiple or absolute cap. Operators can tune these literal thresholds in
+`config/prometheus/syrus-alert-rules.yml`.

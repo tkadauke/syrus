@@ -58,6 +58,9 @@ module Syrus
         resource
         retention_key
         visibility_state
+        coworker
+        result
+        source
       ].freeze
 
       # Named explicitly so the error message can say *why*, rather than just
