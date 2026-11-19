@@ -36,6 +36,7 @@ module Steps
       end
 
       run_commands(commands)
+      revert_out_of_scope_changes(files)
       commit_agent_changes("Format: apply deterministic formatting")
     end
 
@@ -84,6 +85,24 @@ module Steps
         end
         Syrus::PluginInvocation.value(result)
       end
+    end
+
+    # Explicit formatter commands may operate on the whole repository even
+    # though their configuration is gated by this Job's diff. Keep formatter
+    # edits to tracked files within that diff; untracked files are deliberately
+    # left alone because they may be legitimate formatter output.
+    def revert_out_of_scope_changes(files)
+      git = GitRunner.new
+      modified_files = git.run(
+        "diff", "--name-only", "--diff-filter=MD", "HEAD", chdir: workspace.path.to_s
+      ).split("\n").map(&:strip).reject(&:empty?)
+      reverted_files = modified_files - files
+      return if reverted_files.empty?
+
+      git.run("restore", "--source=HEAD", "--staged", "--worktree", "--", *reverted_files, chdir: workspace.path.to_s)
+      log("[format] reverted #{reverted_files.size} formatter change(s) outside this Job's diff: #{reverted_files.join(', ')}")
+    rescue GitRunner::GitError => e
+      log("[format] WARNING (non-fatal): could not revert formatter changes outside this Job's diff: #{e.message}")
     end
   end
 end
