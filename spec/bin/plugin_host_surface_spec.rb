@@ -21,4 +21,23 @@ RSpec.describe "bin/plugin-host-surface" do
       )
     end
   end
+
+  it "serializes dynamic host references in JSON" do
+    Dir.mktmpdir do |directory|
+      plugin = Pathname.new(directory)
+      plugin.join("lib").mkpath
+      plugin.join("lib/external.rb").write("\"Workflow\".safe_constantize\n")
+
+      stdout, stderr, status = Open3.capture3(
+        Rails.root.join("bin/plugin-host-surface").to_s, "scan", plugin.to_s, "--json",
+        chdir: Rails.root.to_s
+      )
+
+      expect(stderr).to be_empty
+      expect(status.exitstatus).to eq(0)
+      expect(JSON.parse(stdout).fetch("dynamic").first).to include(
+        "constant" => "Workflow", "path" => "lib/external.rb", "line" => 1, "method" => "safe_constantize"
+      )
+    end
+  end
 end
