@@ -48,8 +48,6 @@ module Syrus
 
         next unless circuit
 
-        next unless circuit
-
         key = circuit_key(plugin, extension_point)
         circuit = (@circuits[key] ||= { state: :closed, failures: [] })
         circuit[:failures] = circuit[:failures].select { |failed_at| failed_at >= timestamp - window }

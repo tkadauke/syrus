@@ -19,6 +19,13 @@ RSpec.describe Coworkers::MentionDeliveryJob do
 
   after { scope.dispose }
 
+  it "keeps mention delivery on the chat queue within the coworkers concurrency boundary" do
+    expect(described_class).to be < PluginJob
+    expect(described_class.plugin_slug).to eq("coworkers")
+    expect(described_class.new.queue_name).to eq("chat")
+    expect(described_class.concurrency_group.call).to eq("plugin_coworkers")
+  end
+
   it "queues only the first rostered mention and starts its hidden session turn" do
     first = coworker("Maya", "maya-delivery")
     second = coworker("Rin", "rin-delivery")
