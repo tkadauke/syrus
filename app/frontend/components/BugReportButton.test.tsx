@@ -1,5 +1,5 @@
 import { createRef } from "react"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { BugReportButton, type BugReportButtonHandle } from "./BugReportButton"
@@ -77,6 +77,7 @@ function reportOptions(messages: ChatMessageItem[]) {
 async function openDialog(ref: ReturnType<typeof renderButton>) {
   ref.current?.open()
   await screen.findByRole("dialog")
+  await waitFor(() => expect(screen.queryByText("Capturing...")).not.toBeInTheDocument())
 }
 
 describe("BugReportButton", () => {
@@ -87,6 +88,7 @@ describe("BugReportButton", () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
   })
 
@@ -775,6 +777,67 @@ describe("BugReportButton", () => {
   })
 
   describe("screenshot capture", () => {
+    it("opens the dialog and keeps the form usable before viewport capture resolves", async () => {
+      let resolveCapture: (canvas: HTMLCanvasElement) => void = () => {}
+      mockHtml2canvas.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveCapture = resolve
+        })
+      )
+      const ref = renderButton()
+
+      act(() => ref.current?.open())
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+      expect(screen.getByRole("status")).toHaveTextContent("Capturing...")
+      fireEvent.change(screen.getByLabelText("Description"), { target: { value: "The mobile form is immediately usable." } })
+      expect(screen.getByLabelText("Description")).toHaveValue("The mobile form is immediately usable.")
+
+      resolveCapture(captureCanvas())
+      await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument())
+      expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument()
+    })
+
+    it("falls back to a usable form when viewport capture never resolves", async () => {
+      vi.useFakeTimers()
+      mockHtml2canvas.mockReturnValueOnce(new Promise(() => {}))
+      const ref = renderButton()
+
+      act(() => ref.current?.open())
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+
+      await act(async () => vi.advanceTimersByTimeAsync(5_000))
+
+      expect(screen.getByText("Screenshot capture failed. You can still create the bug report without one.")).toBeInTheDocument()
+      expect(screen.getByRole("radio", { name: "No screenshot" })).toBeChecked()
+      fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Capture timed out." } })
+      expect(screen.getByLabelText("Description")).toHaveValue("Capture timed out.")
+      expect(screen.getByRole("button", { name: "Create Job" })).not.toBeDisabled()
+    })
+
+    it("ignores and revokes a late viewport capture from a closed dialog generation", async () => {
+      let resolveObsoleteCapture: (canvas: HTMLCanvasElement) => void = () => {}
+      mockHtml2canvas
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveObsoleteCapture = resolve
+          })
+        )
+        .mockResolvedValueOnce(captureCanvas("current"))
+      const ref = renderButton()
+
+      act(() => ref.current?.open())
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+      act(() => ref.current?.open())
+      await waitFor(() => expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument())
+
+      resolveObsoleteCapture(captureCanvas("obsolete"))
+
+      await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url"))
+      expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument()
+      expect(screen.queryByText("Screenshot capture failed. You can still create the bug report without one.")).not.toBeInTheDocument()
+    })
+
     it("passes an onclone callback to the viewport capture", async () => {
       const ref = renderButton()
       await openDialog(ref)
