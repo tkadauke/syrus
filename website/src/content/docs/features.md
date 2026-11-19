@@ -870,6 +870,12 @@ Scheduled tasks attach a recurring or one-shot prompt to a repository.
 Creating or changing one requires write access to that repository. Syrus also
 re-checks the task owner's write access before every fire and auto-pauses the
 task if that access has been removed.
+
+The top-level Scheduled Tasks index shows each task's cadence in the task's
+stored time zone and its next run as a relative time. Hover over the relative
+time to see the exact date and time in your configured viewer time zone. Tasks
+without another scheduled occurrence show "No upcoming run" instead.
+
 When a task fires, Syrus creates a normal `cron` Job and runs the standard
 issue-to-PR pipeline on a scheduled branch.
 

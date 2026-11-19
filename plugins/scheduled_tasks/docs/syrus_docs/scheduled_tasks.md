@@ -18,6 +18,12 @@ presentation. Disabling Calendar does not change scheduling or task firing.
 `ScheduledTasks::Task` lets operators attach recurring or one-shot agent prompts
 to a repository. The agent runs on schedule without requiring a GitHub issue.
 
+The top-level Scheduled Tasks index keeps each cadence in the task's stored
+time zone and shows the next run beneath it as a relative time. Hover over the
+relative time to see the exact date and time in the viewer's configured time
+zone. Paused, auto-paused, fired, and otherwise unscheduled tasks show "No
+upcoming run" instead.
+
 A fired Job records where it came from through the generic `jobs.origin` /
 `jobs.origin_id` columns (`origin: "scheduled_tasks"`) rather than a
 `scheduled_task_id` foreign key, so core can render and link the origin without
