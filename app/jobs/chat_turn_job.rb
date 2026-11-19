@@ -1219,6 +1219,7 @@ class ChatTurnJob < ApplicationJob
 
     attrs = {
       provider: capture.provider,
+      provider_account_id: provider.send(:provider_account)&.id,
       session_id: capture.session_id,
       transcript_jsonl: capture.transcript_jsonl
     }

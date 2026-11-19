@@ -27,6 +27,7 @@ module AgentProviders
 
       ProviderSession.create!(
         resumable: @run,
+        provider_account: @run.provider_account,
         provider: capture.provider,
         session_id: capture.session_id,
         transcript_jsonl: utf8(capture.transcript_jsonl)

@@ -286,6 +286,7 @@ class RetryFailedStepEnqueuer
       job: workflow.job,
       trigger_kind: workflow.trigger_kind,
       agent_provider: selected_provider,
+      provider_account: (workflow.provider_account if same_provider),
       model: (workflow.model if same_provider),
       effort_level: (workflow.effort_level if same_provider),
       iteration: step.iteration,

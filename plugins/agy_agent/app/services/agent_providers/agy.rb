@@ -14,6 +14,8 @@ module AgentProviders
       user.gemini_api_key.present?
     end
 
+    def self.configured_for_account?(account, user:) = account.credential(:gemini_api_key).present?
+
     def self.refresh_usage!(user:, force: false)
       AgyCredentialProbe.refresh_for(user: user, force: force)
     end
@@ -95,7 +97,7 @@ module AgentProviders
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:, required_mcp_tools: nil,
               model: nil, effort_level: nil, workload_policy: nil, **_ignored)
       log_mcp_transport_decision!(effective_stdio_mcp_transport_decision) if mcp
-      api_key = job.user.reload.gemini_api_key.presence
+      api_key = credential(:gemini_api_key, user: job.user.reload).presence
       raise ConfigurationError, "Gemini API key is required for Antigravity" if api_key.blank?
 
       on_session_id = ->(sid) { @run.update_columns(live_session_id: sid) rescue nil }

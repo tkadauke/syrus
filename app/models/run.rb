@@ -14,6 +14,7 @@ class Run < ApplicationRecord
 
   belongs_to :job
   belongs_to :user
+  belongs_to :provider_account, optional: true
   # Step is optional during the migration window: existing Runs
   # (and the existing direct-create paths in Job#after_create_commit
   # and the polling jobs) still link to Job. Once those code paths
@@ -84,6 +85,8 @@ class Run < ApplicationRecord
   validates_agent_provider
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create
+  before_validation :default_provider_account, on: :create
+  validate :provider_account_matches_execution
   before_validation :set_effective_at
   after_create :ensure_agent_record!
 
@@ -365,6 +368,17 @@ class Run < ApplicationRecord
 
   def default_user_from_job
     self.user ||= job&.user
+  end
+
+  def default_provider_account
+    self.provider_account ||= workflow&.provider_account || user&.default_provider_account(agent_provider)
+  end
+
+  def provider_account_matches_execution
+    return unless provider_account
+    return if provider_account.user_id == user_id && provider_account.provider_key == agent_provider
+
+    errors.add(:provider_account, "must belong to the Run user and provider")
   end
 
   def user_matches_execution_graph

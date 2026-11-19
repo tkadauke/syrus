@@ -19,6 +19,8 @@ module AgentProviders
       user.claude_oauth_token.present?
     end
 
+    def self.configured_for_account?(account, user:) = account.credential(:claude_oauth_token).present?
+
     def self.mcp_tool_name(tool_name, server_name:)
       "mcp__#{server_name}__#{tool_name}"
     end
@@ -199,7 +201,7 @@ module AgentProviders
       ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
-        oauth_token: invocation_user.claude_oauth_token,
+        oauth_token: credential(:claude_oauth_token, user: invocation_user),
         log_sink: log_sink,
         runner: RunJob.agent_runner,
         timeout: timeout,
