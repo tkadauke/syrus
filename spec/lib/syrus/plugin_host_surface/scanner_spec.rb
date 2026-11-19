@@ -46,6 +46,14 @@ RSpec.describe Syrus::PluginHostSurface::Scanner do
     expect(result.public.map(&:constant)).to eq([ "Syrus::PluginApi" ])
   end
 
+  it "allows documented plugin interface modules" do
+    result = scan("class Pages; include Syrus::Plugin::AdminPage; end\n")
+
+    expect(result.public.map(&:constant)).to eq([ "Syrus::Plugin::AdminPage" ])
+    expect(result.legacy).to be_empty
+    expect(result.unlisted).to be_empty
+  end
+
   it "derives the newest since version across public APIs" do
     apis = { "Syrus::Host::Job" => "0.1.16", "Syrus::Host::Workflow" => "0.4.2",
              "Syrus::Host::Record" => "0.3.0" }
