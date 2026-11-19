@@ -148,6 +148,38 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     expect(decisions.map(&:active_runs)).to contain_exactly(0, 1)
   end
 
+  it "materializes admitted Runs while holding the shared admission lock" do
+    workflow.update_columns(state: "running")
+    fanout = workflow.steps.create!(kind: "grader_fanout", position: 90, state: "succeeded", finished_at: Time.current)
+    steps = grader_steps(2)
+    fanout.update!(next_step: steps.first)
+    steps.each { |grader| grader.update!(depends_on_ids: [ fanout.id ]) }
+    allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(1)
+
+    lock_held = false
+    settings = instance_double(AppSetting)
+    allow(settings).to receive(:with_lock) do |&block|
+      expect(lock_held).to be(false)
+      lock_held = true
+      begin
+        block.call
+      ensure
+        lock_held = false
+      end
+    end
+    allow(AppSetting).to receive(:current).and_return(settings)
+    allow(StepDispatcher).to receive(:create_run_and_enqueue).and_wrap_original do |original, *args, **kwargs|
+      expect(lock_held).to be(true)
+      original.call(*args, **kwargs)
+    end
+
+    StepDispatcher.advance_from(fanout, check_phase_admission: false)
+
+    expect(steps.sum { |grader| grader.reload.runs.active.count }).to eq(1)
+    expect(StepDispatcher).to have_received(:create_run_and_enqueue).once
+    expect(lock_held).to be(false)
+  end
+
   it "gives an older deferred workflow the next available turn" do
     older_job = Factories.job
     older_workflow = older_job.workflows.last
