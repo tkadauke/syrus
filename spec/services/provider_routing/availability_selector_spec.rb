@@ -380,6 +380,75 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
 
       expect(call.provider_account).to eq(second)
     end
+
+    it "falls back across providers when every account in the preferred pool is unavailable" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1,
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", provider_account: first, now: anything
+      ).and_return(state: "rate_limited")
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", provider_account: second, now: anything
+      ).and_return(state: "exhausted")
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "codex", now: anything
+      ).and_return(state: "available")
+
+      decision = described_class.call(
+        job: job,
+        task_key: "initial",
+        original_candidate: described_class.candidate(provider: "claude")
+      )
+
+      expect(decision.candidate.provider).to eq("codex")
+      expect(decision.provider_account).to eq(user.default_provider_account("codex"))
+      expect(decision).to be_failover
+    end
+
+    it "recovers an explicitly pinned account after it is re-enabled" do
+      first = user.default_provider_account("claude")
+      pinned = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1, enabled: false,
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "claude", "account_id" => pinned.public_id } ]
+      )
+
+      expect(call).to be_exhausted
+
+      pinned.update!(enabled: true)
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", provider_account: pinned, now: anything
+      ).and_return(state: "available")
+
+      expect(call.provider_account).to eq(pinned)
+    end
+
+    it "preserves the single default-account compatibility path" do
+      account = user.default_provider_account("claude")
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", now: anything
+      ).and_return(state: "available")
+
+      decision = call
+
+      expect(decision.provider_account).to eq(account)
+      expect(decision.candidate.account_id).to eq(account.public_id)
+      expect(App::ProviderAvailability).not_to have_received(:for_user).with(
+        user, "claude", provider_account: account, now: anything
+      )
+    end
   end
 end
 
