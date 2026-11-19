@@ -1284,12 +1284,15 @@ class StepDispatcher
       return if runnable_steps.any? { |step| manually_paused_before_next_step?(step) }
       return if runnable_steps.any? { |step| landing_queue_paused_before_next_step?(step) }
 
-      runnable_steps = admit_parallel_graders(runnable_steps)
-      return if runnable_steps.empty?
-
-      created_runs = runnable_steps.filter_map do |step|
-        create_run_or_defer_on_lock_conflict(step)
+      created_runs = if runnable_steps.all? { |step| parallel_grader_step?(step) }
+        create_admitted_parallel_grader_runs(runnable_steps)
+      else
+        runnable_steps.filter_map do |step|
+          create_run_or_defer_on_lock_conflict(step)
+        end
       end
+      return if created_runs.empty?
+
       dispatch_parallel_inline_runs!(created_runs)
       created_runs.first
     elsif downstream_work_pending?
@@ -2245,19 +2248,20 @@ class StepDispatcher
     created_runs.drop(1).reject(&:distributed_parallel_run?).each(&:reenqueue!)
   end
 
-  def admit_parallel_graders(runnable_steps)
-    return runnable_steps unless runnable_steps.all? { |step| parallel_grader_step?(step) }
-
-    decision = GraderFanoutAdmission.call(workflow: @workflow, steps: runnable_steps)
-    record_grader_fanout_admission!(decision, runnable_steps.size)
-    if decision.steps.size < runnable_steps.size
-      WorkflowPhaseAdmissionJob.enqueue_once(
-        @workflow.id,
-        wait: GraderFanoutAdmission::RECHECK_DELAY,
-        priority: @workflow.solid_queue_priority
-      )
+  def create_admitted_parallel_grader_runs(runnable_steps)
+    GraderFanoutAdmission.synchronize(workflow: @workflow, steps: runnable_steps) do |decision|
+      record_grader_fanout_admission!(decision, runnable_steps.size)
+      if decision.steps.size < runnable_steps.size
+        WorkflowPhaseAdmissionJob.enqueue_once(
+          @workflow.id,
+          wait: GraderFanoutAdmission::RECHECK_DELAY,
+          priority: @workflow.solid_queue_priority
+        )
+      end
+      decision.steps.filter_map do |step|
+        create_run_or_defer_on_lock_conflict(step)
+      end
     end
-    decision.steps
   end
 
   def parallel_grader_step?(step)
@@ -2265,6 +2269,13 @@ class StepDispatcher
   end
 
   def record_grader_fanout_admission!(decision, ready_count)
+    previous = @workflow.artifact("grader_fanout_admission").to_h
+    deferred = decision.steps.size < ready_count
+    deferred_at = if deferred && decision.steps.any?
+      Time.current.iso8601
+    elsif deferred
+      previous["deferred_at"] || Time.current.iso8601
+    end
     entry = {
       "reason" => decision.reason,
       "ready_count" => ready_count,
@@ -2272,8 +2283,9 @@ class StepDispatcher
       "available_slots" => decision.available_slots,
       "capacity" => decision.capacity,
       "active_runs" => decision.active_runs,
-      "decided_at" => Time.current.iso8601
-    }
+      "decided_at" => Time.current.iso8601,
+      "deferred_at" => deferred_at
+    }.compact
     current = @workflow.artifacts.to_h
     @workflow.update!(artifacts: current.merge(
       "grader_fanout_admission" => entry,
