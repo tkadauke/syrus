@@ -79,6 +79,15 @@ and mounts only the plugin directory; no instance credentials enter the
 container. Syrus contributors can use `--checkout PATH` to execute the same
 runner from a local Syrus checkout without Docker.
 
+Run `syrus plugin pack [DIR]` to produce a distributable package after the same
+validation. The `.syrus-plugin.tar.gz` archive uses sorted tar entries, fixed
+timestamps, normalized permissions, and deterministic gzip metadata, so
+packing unchanged input twice produces the same digest. Its root contains a
+generated `package.json` capability manifest and `CHECKSUMS.sha256`; the source
+tree and prebuilt frontend assets live under `plugin/`. Syrus rejects packages
+with changed or undeclared files, unsafe paths or links, excessive file sizes
+or counts, third-party Ruby gems, or non-public host API use.
+
 ## Develop with live reload
 
 Run `syrus plugin dev [DIR]` for a fast editing loop against a real,

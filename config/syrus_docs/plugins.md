@@ -34,6 +34,23 @@ the stable final summary, and `--checkout PATH` runs the identical entrypoint
 from a contributor checkout. The test container never receives instance
 credentials.
 
+`syrus plugin pack [DIR]` validates the plugin and writes a deterministic
+`.syrus-plugin.tar.gz` package. When a frontend source exists but its bundle is
+missing, `--checkout PATH` uses that checkout's standard frontend builder.
+Packages contain `package.json`, `CHECKSUMS.sha256`, and the complete plugin
+tree under `plugin/`. The manifest records format version 1, plugin identity
+and compatibility, declared capabilities and assets, public host APIs, and a
+SHA-256 digest for every plugin file. Entries are sorted, timestamps are fixed,
+and permissions are normalized, so identical inputs produce identical bytes.
+Tar with gzip is used because it is streamable and supported by standard Unix,
+Ruby, and Go tooling.
+
+Packages may contain only regular files and directories. Absolute paths,
+traversal components, links, duplicate entries, unlisted files, digest changes,
+non-public host APIs, and third-party Ruby gem dependencies are rejected. The
+validator also applies bounded file-count, individual-file, and total-size
+limits before installation or registry acceptance.
+
 `syrus plugin new NAME` creates a complete external plugin project in `./NAME`
 or the empty directory selected by `--path`. It rejects invalid Ruby namespace
 names and names that collide with installed or CLI-bundled plugins. The
