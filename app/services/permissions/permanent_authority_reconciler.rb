@@ -52,6 +52,7 @@ module Permissions
 
         if candidate.action == PermissionRequest::ACTION
           candidate.update!(state: "confirmed", confirmed_at: Time.current)
+          items.each { |item| audit_permission_grant(candidate, item) }
           false
         else
           candidate.reload.ready_for_authorized_invocation?
@@ -90,6 +91,15 @@ module Permissions
           permission_rule_id: rule.id
         }
       )
+    end
+
+    def audit_permission_grant(candidate, item)
+      return unless candidate.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) && candidate.subject
+
+      CoworkerAudit.record!(:coworker_permission_granted,
+        owner: source_request.user, coworker: candidate.subject, authorization_request_id: candidate.id,
+        capability: item.capability, operation: item.operation,
+        authority: SmartDecision.authority_reference(item), duration: "permanent")
     end
 
     def evaluation_context(candidate)
