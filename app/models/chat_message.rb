@@ -38,6 +38,7 @@ class ChatMessage < ApplicationRecord
   before_validation :resolve_mentions_once, on: :create
   before_validation :bound_tool_result_content, if: -> { role == "tool_result" }
   after_create :record_chat_turn_state
+  after_create :anchor_pending_action_from_tool_result, if: -> { role == "tool_result" }
   after_create_commit :broadcast_app_event
   after_create_commit :enqueue_search_index
   after_create_commit -> { ChatFileAttachment.claim_for(self) }
@@ -167,6 +168,15 @@ class ChatMessage < ApplicationRecord
   end
 
   private
+
+  def anchor_pending_action_from_tool_result
+    result = content.is_a?(Hash) ? (content["content"] || content["result"]) : content
+    ChatPendingAction.anchor_to_tool_call!(
+      chat_session: chat_session,
+      pending_action_id: ChatPendingAction.pending_action_id_from_tool_result(result),
+      tool_use_id: tool_use_id
+    )
+  end
 
   def bound_tool_result_content
     return unless content.is_a?(Hash) && content.key?("content")

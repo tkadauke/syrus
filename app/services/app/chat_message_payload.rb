@@ -245,7 +245,10 @@ module App
       payload[:proposal] = proposal_json(message.proposal, chat_session: message.chat_session) if message.proposal_id.present?
       if message.pending_action_id.present?
         payload[:pending_action] = pending_action_json(message.pending_action, chat_session: message.chat_session)
-        payload[:pending_action_retired] = true if payload[:pending_action].nil?
+        if payload[:pending_action].nil?
+          payload[:pending_action_retired] = true
+          payload[:pending_action_retirement_hides_message] = message.role.in?(%w[tool_use tool_result])
+        end
       end
       bridge = cross_chat_bridge_json(message)
       payload[:cross_chat_bridge] = bridge if bridge

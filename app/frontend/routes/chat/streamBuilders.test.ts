@@ -38,7 +38,14 @@ function group(item: ChatRenderItem | undefined): ChatToolGroupItem {
 describe("renderChatMessages tool grouping", () => {
   it("removes a retired pending action's anchored tool call and paired result", () => {
     const messages = [
-      toolUse(1, { toolUseId: "tu_reopen", toolName: "reopen_job", input: { job_id: 262 }, pending_action: null, pending_action_retired: true }),
+      toolUse(1, {
+        toolUseId: "tu_reopen",
+        toolName: "reopen_job",
+        input: { job_id: 262 },
+        pending_action: null,
+        pending_action_retired: true,
+        pending_action_retirement_hides_message: true
+      }),
       toolResult(2, { toolUseId: "tu_reopen", content: { pending_action_id: 501, state: "pending" } }),
       toolUse(3, { toolUseId: "tu_read", toolName: "read_file", input: { path: "README.md" } }),
       toolResult(4, { toolUseId: "tu_read", content: "contents" })
@@ -54,9 +61,65 @@ describe("renderChatMessages tool grouping", () => {
   it("removes a retired pending action's unpaired tool-use row", () => {
     expect(
       renderChatMessages([
-        toolUse(1, { toolUseId: "tu_reopen", toolName: "reopen_job", input: { job_id: 262 }, pending_action: null, pending_action_retired: true })
+        toolUse(1, {
+          toolUseId: "tu_reopen",
+          toolName: "reopen_job",
+          input: { job_id: 262 },
+          pending_action: null,
+          pending_action_retired: true,
+          pending_action_retirement_hides_message: true
+        })
       ])
     ).toEqual([])
+  })
+
+  it.each(["user", "assistant", "system"] as const)("preserves meaningful %s text when an attached action retires", (role) => {
+    const message = {
+      type: "message",
+      id: 1,
+      role,
+      content: { text: "Creating an account fixed it." },
+      text: "Creating an account fixed it.",
+      bookmarkable: role !== "system",
+      pending_action: null,
+      pending_action_retired: true,
+      pending_action_retirement_hides_message: false
+    } satisfies ChatMessageItem
+
+    expect(renderChatMessages([message])).toMatchObject([{ id: 1, role, text: "Creating an account fixed it." }])
+  })
+
+  it("keeps cached and full renders aligned when an action retires from a human message", () => {
+    const cache = createChatRenderCache()
+    const active = {
+      type: "message",
+      id: 1,
+      entity_revision: 1,
+      role: "user",
+      content: { text: "Creating an account fixed it." },
+      text: "Creating an account fixed it.",
+      bookmarkable: true,
+      pending_action: {
+        id: 501,
+        action: "write_memory",
+        state: "pending",
+        label: "Remember",
+        detail: null,
+        app_confirm_path: "/api/v1/app/chats/1/pending_actions/501/confirm",
+        app_reject_path: "/api/v1/app/chats/1/pending_actions/501/reject"
+      },
+      pending_action_retired: false
+    } satisfies ChatMessageItem
+    renderChatMessages([active], cache)
+    const retired = {
+      ...active,
+      entity_revision: 2,
+      pending_action: null,
+      pending_action_retired: true,
+      pending_action_retirement_hides_message: false
+    }
+
+    expect(renderChatMessages([retired], cache)).toEqual(renderChatMessages([retired]))
   })
 
   it("reuses an unchanged multi-megabyte result and its render row across tail updates", () => {

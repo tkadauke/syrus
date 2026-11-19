@@ -92,6 +92,30 @@ RSpec.describe ChatMessage do
     expect(pinnable_roles).to eq(%w[user assistant])
   end
 
+  it "re-anchors a pending action when its tool result is recorded after the action" do
+    action = session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+    original = session.messages.create!(
+      role: "user", sender_user: repo.user, content: { "text" => "Creating an account fixed it." },
+      pending_action: action, skip_turn_trigger: true
+    )
+    tool_use = session.messages.create!(
+      role: "tool_use", tool_name: "write_memory", tool_use_id: "toolu_late",
+      content: { "type" => "tool_use", "id" => "toolu_late", "name" => "write_memory", "input" => {} }
+    )
+
+    session.messages.create!(
+      role: "tool_result", tool_name: "write_memory", tool_use_id: "toolu_late",
+      content: {
+        "type" => "tool_result", "tool_use_id" => "toolu_late",
+        "content" => JSON.generate(pending_action_id: action.id, state: "pending")
+      }
+    )
+
+    expect(action.reload).to have_attributes(chat_message_id: tool_use.id, tool_use_id: "toolu_late")
+    expect(tool_use.reload.pending_action_id).to eq(action.id)
+    expect(original.reload.pending_action_id).to be_nil
+  end
+
   describe "tool result size cap" do
     def tool_result(payload)
       session.messages.create!(role: "tool_result", tool_name: "t", tool_use_id: "u1",
