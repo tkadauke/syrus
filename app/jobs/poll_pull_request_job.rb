@@ -679,7 +679,11 @@ class PollPullRequestJob < ApplicationJob
   def provider_circuit_open?(trigger_kind)
     return false if @manual
 
-    circuit = ProviderCircuitBreaker.call(@agent_provider.presence || @job.workflow_agent_provider, include_logs: false)
+    provider = @agent_provider.presence || @job.workflow_agent_provider
+    workflow = @job.latest_workflow
+    account = workflow.provider_account if workflow&.agent_provider == provider
+    account ||= @job.user.default_provider_account(provider)
+    circuit = ProviderCircuitBreaker.call(provider, include_logs: false, user: @job.user, provider_account: account)
     return false unless circuit.open?
 
     Rails.logger.info(

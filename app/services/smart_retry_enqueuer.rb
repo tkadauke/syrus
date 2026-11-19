@@ -111,7 +111,19 @@ class SmartRetryEnqueuer
   end
 
   def provider_circuit
-    @provider_circuit ||= ProviderCircuitBreaker.call(effective_agent_provider, include_logs: false)
+    @provider_circuit ||= ProviderCircuitBreaker.call(
+      effective_agent_provider,
+      include_logs: false,
+      user: job.user,
+      provider_account: retry_provider_account
+    )
+  end
+
+  def retry_provider_account
+    return session.provider_account if session&.provider == effective_agent_provider
+    return latest_workflow.provider_account if latest_workflow&.agent_provider == effective_agent_provider
+
+    job.user.default_provider_account(effective_agent_provider)
   end
 
   def provider_circuit_skip

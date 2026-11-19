@@ -338,7 +338,15 @@ module WorkEngine
           retry_blocker = auto_retry_blocker_for(workflow, retry_kind, source_run)
           return skipped(retry_blocker) if retry_blocker
 
-          circuit = ProviderCircuitBreaker.call(agent_provider, now: now, include_logs: false)
+          account = workflow.provider_account if workflow.agent_provider == agent_provider
+          account ||= workflow.user.default_provider_account(agent_provider)
+          circuit = ProviderCircuitBreaker.call(
+            agent_provider,
+            now: now,
+            include_logs: false,
+            user: workflow.user,
+            provider_account: account
+          )
           if respect_provider_circuit && circuit.open?
             retry_at = circuit.retry_after ? " until #{circuit.retry_after.iso8601}" : ""
             return skipped("provider circuit is open for #{agent_provider}#{retry_at}: #{circuit.reason}")
