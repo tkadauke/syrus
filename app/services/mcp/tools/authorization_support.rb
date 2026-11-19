@@ -98,6 +98,10 @@ module Mcp::Tools
         descriptor = entry&.descriptor || declared_capability_descriptor(tool)
         return unless descriptor
         return if entry&.ungated
+        # Proposal tools produce the operator confirmation boundary rather than
+        # performing the proposed work. Never put a generic authorization card
+        # in front of that purpose-built decision.
+        return if entry&.respond_to?(:approval_effect) && entry.approval_effect
         # Local command/file effects have their own canonical evaluator and
         # resumable local_tool_call boundary inside the tool. Do not create a
         # second generic request in front of that same decision.

@@ -1226,6 +1226,9 @@ Clearing a non-empty canvas automatically saves the previous scene first.
 Chats do not silently materialize work just because the assistant suggested
 it. Proposal tools create cards; confirmation creates the real Job, Epic,
 GitHub issue, or scheduled task.
+Drafting a Job or Epic proposal never asks for permission: the draft card does
+not create executable work. Confirming that card is the required operator
+decision that creates the real Job or Epic.
 Before confirmation, operators can edit a proposal card's title, body, and
 dependencies directly. Epic bundle cards let operators edit the top-level
 Epic proposal, and each proposed child Job in the bundle has its own editor.

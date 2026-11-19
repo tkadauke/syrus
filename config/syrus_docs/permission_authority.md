@@ -126,8 +126,14 @@ and checkpoints the exact arguments. Approval can cover only that invocation,
 the current chat, or a durable scoped rule when the descriptor and higher
 ceilings permit it; the waiting invocation still resumes once through its
 fingerprinted token. A `deny` decision returns the evaluator explanation and
-creates no request. Tools that already create a separately confirmed proposal
-or transaction keep that existing confirmation as their sole approval boundary.
+creates no request. Drafting a Job or Epic proposal is always permission-free,
+even though it stores a draft proposal record: generic actor authorization must
+never wrap `propose_job` or `propose_epic_with_jobs`. Confirming the resulting
+proposal card is the mandatory operator decision that creates the real Job,
+Epic, or workflow, and remains the proposal lifecycle's sole authorization
+boundary. Changing this invariant requires the repository owner's explicit
+written approval. Other tools that create separately confirmed transactions
+keep their existing confirmation as their sole approval boundary.
 
 Coworker authorization cards (in chat and in the inbox) default to three
 decisions: Allow once, an adaptive action, and Deny. The adaptive action is
@@ -319,7 +325,7 @@ Core Job and Epic lifecycle tools use stable, explicit capabilities instead of c
 - `syrus.epics@v1`: `start`, `move_to_backlog`, `archive`, `unland`.
 - `syrus.landing_queue@v1`: `pause`, `resume`, `wake`, `force_recheck`, `override_blocker_once`.
 
-A single-Job call and a bulk call (`job_id` versus `job_ids`) share one operation and are classified and fingerprinted identically, so approving one Job or many evaluates the same way. Proposals (`propose_job`, `propose_epic`, `propose_epic_with_jobs`) remain a separate lifecycle and are not part of these capabilities. All of these default to `ask`.
+A single-Job call and a bulk call (`job_id` versus `job_ids`) share one operation and are classified and fingerprinted identically, so approving one Job or many evaluates the same way. Proposals (`propose_job` and `propose_epic_with_jobs`) remain a separate, permission-free draft lifecycle and are not part of these capabilities. Job and Epic lifecycle operations listed above default to `ask`; proposal drafting does not.
 
 ## Admin repair, operations, and delivery capabilities
 

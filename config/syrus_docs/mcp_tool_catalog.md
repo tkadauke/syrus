@@ -146,7 +146,6 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `open_in_local_mode` | chat | essential | write | no | `chat:local` | - | - | `local_mode` |
 | `override_landing_blocker_once` | chat | essential | write | yes | - | - | - | - |
 | `pin_chat` | chat | essential | write | no | - | - | - | - |
-| `propose_epic` | chat | essential | write | no | - | - | - | - |
 | `propose_epic_with_jobs` | chat | essential | write | no | - | - | - | - |
 | `propose_job` | chat | essential | write | no | - | - | - | - |
 | `read_admission_diagnostics` | chat | essential | read | yes | - | - | - | - |
@@ -286,7 +285,6 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `mark_goal_blocked` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_goals` | - |
 | `mark_goal_completed` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_goals` | - |
 | `pin_chat` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chats` | - |
-| `propose_epic` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.proposals` | - |
 | `propose_epic_with_jobs` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - |
 | `propose_job` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.propose_job` | - |
 | `read_admission_diagnostics` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |

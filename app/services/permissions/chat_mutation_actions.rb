@@ -17,9 +17,8 @@ module Permissions
     private_class_method :operation
 
     OPERATIONS = {
-      "propose_epic" => operation("proposals", "propose_epic"),
-      "propose_job" => operation("proposals", "propose_job"),
-      "propose_epic_with_jobs" => operation("proposals", "propose_epic_with_jobs"),
+      "propose_job" => operation("proposals", "propose_job", INTERNAL, :medium, :allow),
+      "propose_epic_with_jobs" => operation("proposals", "propose_epic_with_jobs", INTERNAL, :medium, :allow),
       "delete_proposal" => operation("proposals", "delete", DESTRUCTIVE, :high),
       "withdraw_pending_action" => operation("pending_actions", "withdraw", INTERNAL, :low, :allow),
       "set_bookmark" => operation("chat_context", "set_bookmark", INTERNAL, :low, :allow),

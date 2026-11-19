@@ -17,6 +17,10 @@ module Mcp::Tools
       Create a Job proposal card. If epic_id is provided, confirming the
       card creates the Job under that Epic. Without epic_id, confirming
       creates an epicless direct Job.
+      Drafting this proposal never requires actor permission. The proposal
+      card's mandatory operator confirmation is the authorization boundary
+      that creates the real Job. Never wrap proposal creation in generic
+      actor authorization.
       Syrus Epics execute as one stacked branch, not parallel branches, so a
       Job proposed into an Epic that already has Jobs is REQUIRED to set
       depends_on_job_ids to that Epic's current tail Job (read the Epic's
