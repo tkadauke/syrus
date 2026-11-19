@@ -3370,6 +3370,65 @@ describe("JobDetailRoute", () => {
     expect(fetchSpy.mock.calls.some(([input]) => requestUrl(input) === "/api/v1/app/jobs/1/tabs/review")).toBe(true)
   })
 
+  it("preserves Review empty states after merging an empty lazy payload", async () => {
+    const header = jobPayload({
+      summary: null,
+      test_plan: null,
+      typed_artifacts: [],
+      workflows: []
+    })
+    const reviewPayload = {
+      summary: null,
+      test_plan: null,
+      review_artifacts: [],
+      typed_artifacts: [],
+      review_contributions: [],
+      visual_evidence: { captured_count: 0, submitted_count: 0, screenshots: [] },
+      coverage: null
+    }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = requestUrl(input)
+      if (url === "/api/v1/app/jobs/1") return Promise.resolve(jsonResponse(header))
+      if (url === "/api/v1/app/jobs/1/tabs/review") return Promise.resolve(jsonResponse(reviewPayload))
+      if (url.includes("/diff_review_comments")) {
+        return Promise.resolve(jsonResponse({ job_id: 1, diff_review_version_id: 100, latest_version_id: 100, comments: [] }))
+      }
+      return Promise.resolve(
+        jsonResponse({
+          job_id: 1,
+          base_ref: "base-sha",
+          head_ref: "head-sha",
+          merge_base_sha: "base-sha",
+          default_ref: "main",
+          branch_commits: [],
+          truncated: false,
+          diff_error: null,
+          version: { id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial" },
+          versions: [{ id: 100, version_index: 1, base_sha: "base-sha", head_sha: "head-sha", label: "Version 1", reason: "initial", created_at: null }],
+          files: []
+        })
+      )
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ShortcutsProvider>
+          <MemoryRouter initialEntries={["/jobs/1?tab=review"]}>
+            <Routes>
+              <Route element={<JobDetailRoute />} path="/jobs/:id" />
+            </Routes>
+          </MemoryRouter>
+        </ShortcutsProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("No summary yet.")).toBeInTheDocument()
+    expect(screen.getByText("No artifacts.")).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([input]) => requestUrl(input) === "/api/v1/app/jobs/1/tabs/review")).toBe(true)
+  })
+
   it("canonicalizes slug routes onto the numeric live-update cache key", async () => {
     const payload = jobPayload({ job: { ...baseJob(), id: 5 } })
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
