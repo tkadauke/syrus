@@ -92,6 +92,27 @@ describe("SmartPermissionActions", () => {
     expect(handlers.onConfirm).toHaveBeenCalledWith(option)
   })
 
+  it("renders the human labels supplied for an unscoped coworker permission", () => {
+    setup({
+      option: {
+        ...option,
+        context: { ...option.context, operation: "Read Syrus logs", resource_scope_label: "All resources" },
+        summary: {
+          ...option.summary,
+          allows: ["Allows Willy to run Read Syrus logs on All resources until revoked."]
+        }
+      }
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Always allow similar" }))
+
+    const preview = screen.getByRole("group", { name: "Always allow similar" })
+    expect(preview).toHaveTextContent("Read Syrus logs")
+    expect(preview).toHaveTextContent("All resources")
+    expect(preview).toHaveTextContent("Allows Willy")
+    expect(preview).not.toHaveTextContent("{}")
+    expect(preview).not.toHaveTextContent("coworker 11")
+  })
+
   it("moves focus into the preview and returns it on Back and Escape", async () => {
     setup()
     fireEvent.click(screen.getByRole("button", { name: "Always allow similar" }))

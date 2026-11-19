@@ -185,7 +185,7 @@ module Permissions
         prefix: prefix_payload(duration, breadth),
         context: {
           coworker: RequestPresenter.reference(request.subject)&.fetch(:label),
-          operation: item.operation,
+          operation: item_descriptor.presentation.operation_name,
           repository: RequestPresenter.reference(request.repository)&.fetch(:label),
           resource_scope_label: preview.draft[:resource_scope_label],
           duration:

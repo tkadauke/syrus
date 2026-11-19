@@ -36,6 +36,8 @@ RSpec.describe Permissions::RuleDraft, "with exact coworker subjects" do
 
     expect(preview).to be_valid
     expect(preview.draft[:subject]).to include(type: "agent", id: coworker.id.to_s, subject_type: "Coworkers::Coworker")
+    expect(preview.draft[:resource_scope_label]).to eq("All resources")
+    expect(preview.summary[:allows].first).to eq("Allows Maya to run Run on All resources for this chat session.")
     lease = draft.apply!(digest: preview.digest, actor: user)
     expect(lease).to have_attributes(subject_selector_type: "agent", subject_selector_id: coworker.id.to_s, chat_session:)
   end

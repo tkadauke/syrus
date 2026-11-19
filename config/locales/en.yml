@@ -280,6 +280,7 @@ en:
     permission_rules:
       stale_preview: "Preview these permission changes again before confirming."
     permission_rule_drafts:
+      all_resources: "All resources"
       stale_preview: "Preview this permission rule again before applying it."
       errors:
         unknown_rule: "That permission rule could not be found."

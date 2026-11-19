@@ -246,6 +246,7 @@ la:
     permission_rules:
       stale_preview: "Has mutationes permissionum ante confirmationem iterum considera."
     permission_rule_drafts:
+      all_resources: "Omnes res"
       stale_preview: "Hanc regulam permissionis ante applicationem iterum considera."
       errors:
         unknown_rule: "Haec regula permissionis non inventa est."

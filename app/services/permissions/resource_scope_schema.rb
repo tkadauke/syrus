@@ -123,7 +123,11 @@ module Permissions
 
     def identity(scope, context:) = scope
     def valid(scope, context:) = []
-    def default_label(scope, context:) = scope.to_json
+    def default_label(scope, context:)
+      return I18n.t("api.permission_rule_drafts.all_resources") if scope.blank?
+
+      scope.to_json
+    end
     def default_compare(left, right, context:) = left == right ? :equal : :disjoint
     def success(value = nil) = Result.new(status: :ok, value: value)
     def failure(status, errors = []) = Result.new(status: status, errors: errors)

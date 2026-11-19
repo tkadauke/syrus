@@ -246,6 +246,7 @@ de:
     permission_rules:
       stale_preview: "Prüfe diese Berechtigungsänderungen vor dem Bestätigen erneut."
     permission_rule_drafts:
+      all_resources: "Alle Ressourcen"
       stale_preview: "Prüfe diese Berechtigungsregel vor dem Anwenden erneut."
       errors:
         unknown_rule: "Diese Berechtigungsregel wurde nicht gefunden."

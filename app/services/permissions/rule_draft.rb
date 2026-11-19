@@ -452,7 +452,7 @@ module Permissions
       scope = scope_label(resolved)
       constraints = attrs["constraints"].map { |key, value| "#{key} = #{ToolPayloadRedactor.redact(value)}" }
       allows = [ I18n.t("api.permission_rule_drafts.summary.allows.#{attrs['policy']}", subject:,
-        operation: descriptor.operation, resource: scope, duration: duration_label(resolved)) ]
+        operation: descriptor.presentation.operation_name, resource: scope, duration: duration_label(resolved)) ]
       allows << I18n.t("api.permission_rule_drafts.summary.only_when", constraints: constraints.join(", ")) if constraints.any?
       excludes = [ I18n.t("api.permission_rule_drafts.summary.excludes.other_operations") ]
       excludes << I18n.t("api.permission_rule_drafts.summary.excludes.other_scopes", resource: scope) if resolved.scope.present?
@@ -470,6 +470,11 @@ module Permissions
       attrs = resolved.attributes
       id = attrs["subject_selector_id"]
       key = attrs["subject_selector_type"]
+      if key == "agent"
+        subject = self.class.agent_subject_class(attrs["subject_type"])&.find_by(id:)
+        return Permissions::RequestPresenter.reference(subject)&.fetch(:label) if subject
+      end
+
       I18n.t("api.permission_rule_drafts.summary.subjects.#{key}", id: id, default: key)
     end
 

@@ -68,7 +68,7 @@ RSpec.describe Permissions::SmartDecision do
     option = smart.option
     expect(option).to be_present
     expect(option).to include(kind: "always_allow_similar", duration: "permanent")
-    expect(option[:context]).to include(coworker: "Maya", operation: item.operation)
+    expect(option[:context]).to include(coworker: "Maya", operation: "Message Coworker")
     expect(option[:summary]).to include(:allows, :excludes)
     expect(option[:draft][:subject]).to include(type: "agent", id: coworker.id.to_s)
   end
@@ -125,7 +125,8 @@ RSpec.describe Permissions::SmartDecision do
 
   it "offers a permanent rule for a safe read" do
     stub_catalog(durable_descriptor(effects: %i[local_read], risk: :low))
-    expect(smart.option).to include(kind: "always_allow_similar", duration: "permanent")
+    expect(smart.option).to include(kind: "always_allow_similar", duration: "permanent",
+      context: include(coworker: coworker.name, operation: "Message Coworker", resource_scope_label: "All resources"))
   end
 
   it "keeps a scoped mutation to its exact normalized resource scope" do
