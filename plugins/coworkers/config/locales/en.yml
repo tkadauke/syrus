@@ -44,3 +44,8 @@ en:
         never: "Never"
         none: "None"
         age_hours: "%{count} h"
+        currency:
+          unit: "$"
+          format: "%u%n"
+          separator: "."
+          delimiter: ","
