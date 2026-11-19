@@ -54,7 +54,7 @@ module ChatProviders
     end
 
     def credentials_missing?
-      chat.user.claude_oauth_token.blank?
+      credential(:claude_oauth_token).blank?
     end
 
     def credentials_missing_message
@@ -162,7 +162,7 @@ module ChatProviders
       ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
-        oauth_token: chat.user.claude_oauth_token,
+        oauth_token: credential(:claude_oauth_token),
         log_sink: log_sink,
         runner: runner,
         max_turns: nil,

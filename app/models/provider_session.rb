@@ -3,6 +3,7 @@ class ProviderSession < ApplicationRecord
   include ValidatesAgentProvider
 
   belongs_to :resumable, polymorphic: true
+  belongs_to :provider_account, optional: true
 
   before_validation :mirror_run_id_for_run_resumables
   before_save :sync_transcript_pruned
@@ -15,9 +16,11 @@ class ProviderSession < ApplicationRecord
   validates :resumable, presence: true
 
   before_validation :default_resumable_from_run
+  before_validation :default_provider_account
+  validate :provider_account_matches_provider
 
   scope :metadata_only, -> {
-    select(:id, :provider, :session_id, :resumable_type, :resumable_id, :run_id, :created_at, :updated_at)
+    select(:id, :provider, :provider_account_id, :session_id, :resumable_type, :resumable_id, :run_id, :created_at, :updated_at)
   }
 
   # Keep captured agent sessions for diagnostics and provider resume
@@ -83,6 +86,17 @@ class ProviderSession < ApplicationRecord
 
   def default_resumable_from_run
     self.resumable ||= run if run
+  end
+
+  def default_provider_account
+    self.provider_account ||= resumable.provider_account if resumable.respond_to?(:provider_account)
+  end
+
+  def provider_account_matches_provider
+    return unless provider_account
+    return if provider_account.provider_key == provider
+
+    errors.add(:provider_account, "must match the session provider")
   end
 
   def sync_transcript_pruned

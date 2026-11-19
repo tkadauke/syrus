@@ -77,9 +77,11 @@ module ChatProviders
     def invoke_with_auth(workspace_path:, prompt:, log_sink:, mcp_config:,
                          resume_session_id:, stop_requested:, process_started:, startup_timing:, workload_policy:)
       codex_home = ChatWorkspace.agent_home_for(chat, provider)
-      codex_auth = CodexAuth.new(user: chat.user, codex_home: codex_home)
+      codex_auth = CodexAuth.new(user: chat.user, provider_account: provider_account, codex_home: codex_home)
       lock_started_at = startup_timing.now
-      auth = CodexAuth.with_refresh_lock(user: chat.user) do
+      lock_options = { user: chat.user }
+      lock_options[:provider_account] = provider_account if provider_account
+      auth = CodexAuth.with_refresh_lock(**lock_options) do
         startup_timing.record("auth_refresh_lock", started_at: lock_started_at, mode: chat.user.codex_auth_mode)
         startup_timing.measure("auth_prepare", mode: chat.user.codex_auth_mode) { codex_auth.prepare! }
       end

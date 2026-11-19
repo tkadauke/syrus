@@ -892,7 +892,11 @@ class User < ApplicationRecord
   end
 
   def provider_configured?(provider)
-    AgentProviders.for(provider).configured_for_user?(self)
+    provider_class = AgentProviders.for(provider)
+    accounts = enabled_provider_accounts(provider)
+    return provider_class.configured_for_user?(self) if accounts.empty?
+
+    accounts.any? { |account| provider_class.configured_for_account?(account, user: self) }
   rescue AgentProviders::ConfigurationError
     false
   end

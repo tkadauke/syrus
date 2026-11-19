@@ -49,6 +49,12 @@ class ProviderAccount < ApplicationRecord
 
   def default? = position.zero?
 
+  def credential(name) = credential_payload.to_h[name.to_s]
+
+  def safe_reference
+    { id: public_id, label: label.presence || "Account #{position + 1}" }
+  end
+
   private
 
   def assign_public_id
