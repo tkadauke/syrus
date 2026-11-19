@@ -11,7 +11,7 @@ RSpec.describe "CI workflow" do
     steps = workflow.dig("jobs", "rspec", "steps")
     run_steps = steps.filter_map { |step| step["run"] }
 
-    expect(run_steps.index("npm ci")).to be < run_steps.index("bin/rspec-ci")
+    expect(run_steps.index("npm ci")).to be < run_steps.index { |command| command.match?(/\Abin\/rspec-ci(?:\s|\z)/) }
     expect(steps).to include(
       a_hash_including(
         "uses" => "actions/setup-node@v7",
