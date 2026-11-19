@@ -59,7 +59,11 @@ func (dockerPluginRunner) Run(ctx context.Context, request pluginRunRequest, std
 	if request.JSON {
 		args = append(args, "-e", "SYRUS_PLUGIN_TEST_JSON=1")
 	}
-	args = append(args, "-v", request.Directory+":/plugins/plugin:ro", request.Image, "/plugins/plugin")
+	mountMode := "ro"
+	if request.Mode == "build" {
+		mountMode = "rw"
+	}
+	args = append(args, "-v", request.Directory+":/plugins/plugin:"+mountMode, request.Image, "/plugins/plugin")
 	command := exec.CommandContext(ctx, "docker", args...)
 	command.Stdin, command.Stdout, command.Stderr = stdin, stdout, stderr
 	return exitStatus(command.Run())
@@ -90,7 +94,7 @@ func exitStatus(err error) error {
 
 func NewPluginCommand() *cobra.Command {
 	command := &cobra.Command{Use: "plugin", Short: "Develop and inspect Syrus plugins"}
-	command.AddCommand(newPluginNewCommand(), newPluginCapabilitiesCommand(), newLocalPluginCommand("validate"), newLocalPluginCommand("test"), newPluginDevCommand())
+	command.AddCommand(newPluginNewCommand(), newPluginCapabilitiesCommand(), newLocalPluginCommand("validate"), newLocalPluginCommand("test"), newPluginPackCommand(), newPluginDevCommand())
 	return command
 }
 
