@@ -89,8 +89,18 @@ func exitStatus(err error) error {
 
 func NewPluginCommand() *cobra.Command {
 	command := &cobra.Command{Use: "plugin", Short: "Develop and inspect Syrus plugins"}
-	command.AddCommand(newPluginNewCommand(), newLocalPluginCommand("validate"), newLocalPluginCommand("test"))
+	command.AddCommand(newPluginNewCommand(), newLocalPluginCommand("validate"), newLocalPluginCommand("test"), newPluginDevCommand())
 	return command
+}
+
+func selectedPluginVersion(ctx context.Context, requested string) string {
+	if requested != "" {
+		return strings.TrimPrefix(requested, "v")
+	}
+	if connected := resolveConnectedInstanceVersion(ctx); connected != "" {
+		return strings.TrimPrefix(connected, "v")
+	}
+	return strings.TrimPrefix(cliReleaseVersion, "v")
 }
 
 func newLocalPluginCommand(mode string) *cobra.Command {
@@ -121,14 +131,7 @@ func newLocalPluginCommand(mode string) *cobra.Command {
 				if err := runner.Available(); err != nil {
 					return err
 				}
-				selected := version
-				if selected == "" {
-					selected = resolveConnectedInstanceVersion(command.Context())
-				}
-				if selected == "" {
-					selected = cliReleaseVersion
-				}
-				request.Image = pluginTestImage + ":" + strings.TrimPrefix(selected, "v")
+				request.Image = pluginTestImage + ":" + selectedPluginVersion(command.Context(), version)
 				pullOut, pullErr := command.OutOrStdout(), command.ErrOrStderr()
 				if jsonOutput {
 					pullOut, pullErr = io.Discard, io.Discard
