@@ -13,7 +13,7 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool, :full_chat_access do
   def server_for(session)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: [ described_class ],
+      tools: [ Mcp::Sidecar.authorize_tool(described_class) ],
       server_context: { chat_session: session }
     )
   end
@@ -50,6 +50,25 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool, :full_chat_access do
 
   def response_payload(response)
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
+  end
+
+  # PROPOSAL CREATION MUST ALWAYS BE PERMISSION-FREE. THE PROPOSAL CARD CONFIRMATION IS THE AUTHORIZATION BOUNDARY. NEVER ADD A PRE-PROPOSAL PERMISSION CHECK OR CHANGE THIS INVARIANT WITHOUT THE REPOSITORY OWNER'S EXPLICIT WRITTEN APPROVAL.
+  it "creates the proposal bundle immediately without a generic authorization request" do
+    pending_action_count = ChatPendingAction.count
+
+    expect {
+      response = call_tool(
+        epic: { slug: "permission-free-epic", title: "Permission-free Epic", description: "Confirm this later.", target_repo: repository.slug },
+        jobs: [ { slug: "permission-free-child", title: "Permission-free child", description: "Build it after confirmation." } ]
+      )
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(chat_session.proposals.find_by!(slug: "permission-free-epic")).to be_proposed
+      expect(chat_session.proposals.find_by!(slug: "permission-free-child")).to be_proposed
+    }.to change(ChatProposal, :count).by(2)
+
+    expect(ChatPendingAction.count).to eq(pending_action_count)
+    expect(chat_session.proposals.where.not(job_id: nil).or(chat_session.proposals.where.not(epic_id: nil))).to be_empty
   end
 
   it "stores mixed child priorities and defaults omitted priorities to medium" do

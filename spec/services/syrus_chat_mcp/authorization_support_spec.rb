@@ -302,6 +302,21 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
   end
 
   describe ".pending_actor_approval" do
+    # PROPOSAL CREATION MUST ALWAYS BE PERMISSION-FREE. THE PROPOSAL CARD CONFIRMATION IS THE AUTHORIZATION BOUNDARY. NEVER ADD A PRE-PROPOSAL PERMISSION CHECK OR CHANGE THIS INVARIANT WITHOUT THE REPOSITORY OWNER'S EXPLICIT WRITTEN APPROVAL.
+    it "bypasses generic authorization for proposal cards in every chat role" do
+      proposal_tools = [ Mcp::Tools::ProposeJobTool, Mcp::Tools::ProposeEpicWithJobsTool ]
+
+      AgentRole::CHAT_ROLES.product(proposal_tools).each do |role, proposal_tool|
+        context = McpToolContext.new(surface: :chat, role:, user:, chat_session:)
+        allow(McpToolContext).to receive(:from_server_context).and_return(context)
+        expect(Permissions::AuthorizationRequest).not_to receive(:new)
+
+        expect(described_class.pending_actor_approval(proposal_tool, { chat_session: }, {})).to be_nil
+      end
+
+      expect(ChatPendingAction.where(action: "authorized_tool_call")).to be_empty
+    end
+
     it "creates a redacted resumable request for an ordinary chat actor" do
       actor_tool = Class.new(MCP::Tool) do
         tool_name "send_external_message"

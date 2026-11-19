@@ -227,9 +227,8 @@ class McpToolRegistry
       [
         ingestion_chat(Mcp::Tools::AttachRepositoryTool, mutation: true),
         ingestion_chat(Mcp::Tools::DetachRepositoryTool, mutation: true),
-        mutation_chat(Mcp::Tools::ProposeEpicTool, mutation: true),
-        mutation_chat(Mcp::Tools::ProposeJobTool, mutation: true),
-        mutation_chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true),
+        mutation_chat(Mcp::Tools::ProposeJobTool, mutation: true, approval_effect: true),
+        mutation_chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true, approval_effect: true),
         read_chat(Mcp::Tools::ListProposalsTool),
         mutation_chat(Mcp::Tools::DeleteProposalTool, mutation: true),
         read_chat(Mcp::Tools::ListPendingActionsTool),

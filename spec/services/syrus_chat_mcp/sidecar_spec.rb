@@ -113,7 +113,6 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).to eq(%w[
         attach_repository
         detach_repository
-        propose_epic
         propose_job
         propose_epic_with_jobs
         list_proposals
@@ -142,7 +141,7 @@ RSpec.describe Mcp::Sidecar do
         mark_goal_completed
         mark_goal_blocked
       ])
-      expect(tool_names.size).to eq(30)
+      expect(tool_names.size).to eq(29)
       expect(tool_names).not_to include("complete_implement_step")
     end
 

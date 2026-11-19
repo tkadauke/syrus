@@ -29,6 +29,13 @@ RSpec.describe Permissions::ChatMutationActions do
     )
   end
 
+  it "marks every supported proposal entry point as its own approval effect" do
+    expect(entries.values_at("propose_job", "propose_epic_with_jobs")).to all(
+      have_attributes(approval_effect: true)
+    )
+    expect(McpToolRegistry.entries(surface: :chat).map(&:tool_name)).not_to include("propose_epic")
+  end
+
   it "preserves the legacy per-invocation authority and default policies" do
     entries.each_value do |entry|
       expect(entry.descriptor).to have_attributes(
@@ -38,6 +45,7 @@ RSpec.describe Permissions::ChatMutationActions do
     end
 
     allowed = %w[
+      propose_job propose_epic_with_jobs
       withdraw_pending_action set_bookmark rename_chat pin_chat unpin_chat
       suggest_next_step ask_user_question mark_goal_completed mark_goal_blocked
       update_pinned_context remove_pinned_context

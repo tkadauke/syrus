@@ -566,6 +566,14 @@ they are not the compatibility contract. HTML and SVG remain source text in the
 transcript and are offered only as downloads, never rendered in the application
 origin.
 
+Drafting a Job with `propose_job` or an Epic bundle with
+`propose_epic_with_jobs` never requires permission. These calls only store a
+draft proposal and render its card; they do not create a Job, Epic, workflow,
+branch, commit, or pull request. Generic actor authorization must not wrap
+proposal creation even though a draft record is stored. Confirming the card is
+the mandatory operator decision that creates the real work. Changing this
+invariant requires the repository owner's explicit written approval.
+
 `propose_job`, `propose_epic_with_jobs`, and `submit_chat_feedback` all accept
 an optional `media` array of refs in the form `snapshot:ID` (a whiteboard
 snapshot saved via `save_canvas`), `chat_image:ID` (a pasted/attached chat

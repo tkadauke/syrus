@@ -13,6 +13,10 @@ module Mcp::Tools
 
     description <<~DESC
       Propose one Epic and its child Syrus Jobs as a single confirmation card.
+      Drafting this proposal never requires actor permission. The proposal
+      card's mandatory operator confirmation is the authorization boundary
+      that creates the real Epic and Jobs. Never wrap proposal creation in
+      generic actor authorization.
       If epic.epic_id is provided, the card proposes child Jobs under that
       existing Epic instead of creating a new Epic.
       Job depends_on entries reference sibling job slugs in the same call or
