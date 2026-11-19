@@ -108,7 +108,8 @@ RSpec.describe ProviderAvailabilityEvidence do
   describe ".record_claude_probe!" do
     let(:user) { Factories.user(claude_oauth_token: "sk-ant-oat01-abc") }
 
-    it "records claude usage-probe evidence with no account scoping" do
+    it "records Claude usage-probe evidence against the stable default account" do
+      account = user.default_provider_account("claude")
       evidence = described_class.record_claude_probe!(
         user: user,
         status: "warning",
@@ -121,7 +122,7 @@ RSpec.describe ProviderAvailabilityEvidence do
       expect(evidence).to have_attributes(
         user: user,
         provider: "claude",
-        account_id: nil,
+        account_id: account.public_id,
         model: nil,
         status: "warning",
         source: "usage_probe",

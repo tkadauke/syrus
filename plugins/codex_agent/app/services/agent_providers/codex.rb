@@ -79,7 +79,7 @@ module AgentProviders
       ProviderAvailabilityEvidence.suppressed_by_positive_after?(
         user: run.user,
         provider: provider_key,
-        account_id: CodexAccountScope.for_user(run.user),
+        account_id: run.provider_account&.public_id || CodexAccountScope.for_user(run.user),
         model: model,
         observed_at: observed_at
       )
@@ -90,7 +90,7 @@ module AgentProviders
     end
 
     def self.usage_signal_account_id(user)
-      CodexAccountScope.for_user(user)
+      user.default_provider_account(provider_key)&.public_id || CodexAccountScope.for_user(user)
     end
 
     def self.usage_snapshot(user:, evidence:)
@@ -109,15 +109,22 @@ module AgentProviders
       latest_evidence&.observed_at || user.codex_usage_observed_at
     end
 
-    def self.refresh_stale_usage!(user:, now: Time.current)
-      return unless user.codex_auth_mode == "chatgpt_login"
-      return unless CodexUsageProbe.stale?(user, now: now)
+    def self.refresh_stale_usage!(user:, provider_account: nil, now: Time.current)
+      provider_account ||= user.default_provider_account(provider_key)
+      mode = provider_account&.credential(:codex_auth_mode) || user.codex_auth_mode
+      return unless mode == "chatgpt_login"
+      probe_options = { now: now }
+      probe_options[:provider_account] = provider_account if provider_account
+      return unless CodexUsageProbe.stale?(user, **probe_options)
 
-      CodexUsageProbe.refresh_for(user: user)
+      refresh_options = { user: user }
+      refresh_options[:provider_account] = provider_account if provider_account
+      CodexUsageProbe.refresh_for(**refresh_options)
     end
 
-    def self.refresh_usage!(user:, force: false)
-      CodexUsageProbe.refresh_for(user: user, force: force)
+    def self.refresh_usage!(user:, provider_account: nil, force: false)
+      provider_account ||= user.default_provider_account(provider_key)
+      CodexUsageProbe.refresh_for(user: user, provider_account: provider_account, force: force)
     end
 
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)

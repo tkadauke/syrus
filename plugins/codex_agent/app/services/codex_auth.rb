@@ -52,6 +52,7 @@ class CodexAuth
     def with_local_refresh_lock(user, provider_account)
       local_refresh_mutex_for([ user.id, provider_account&.public_id ]).synchronize do
         user.reload
+        provider_account&.reload
         yield
       end
     end

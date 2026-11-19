@@ -185,7 +185,7 @@ class ProviderCircuitBreaker
 
   def recent_failed_runs
     scope = Run
-       .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :state, :finished_at, :updated_at, :model)
+       .select(:id, :job_id, :user_id, :provider_account_id, :step_id, :agent_provider, :agent_outcome, :state, :finished_at, :updated_at, :model)
        .includes(:run_diagnostic, :run_failure_classification)
        .where(state: "failed", agent_provider: provider)
        .where("runs.finished_at >= ?", now - WINDOW)
@@ -253,7 +253,7 @@ class ProviderCircuitBreaker
 
   def usage_limit_failed_runs
     relation = Run
-      .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :state, :finished_at, :updated_at, :model)
+      .select(:id, :job_id, :user_id, :provider_account_id, :step_id, :agent_provider, :agent_outcome, :state, :finished_at, :updated_at, :model)
       .where(state: "failed", agent_provider: provider)
       .where("runs.finished_at >= ?", now - USAGE_LIMIT_WINDOW)
     relation = relation.where(user_id: user.id) if user
