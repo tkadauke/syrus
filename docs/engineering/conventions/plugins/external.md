@@ -1,187 +1,246 @@
-# Authoring an external plugin
+# Build, test, and install an external plugin
 
-An external plugin is a trusted Rails Engine gem stored outside the Syrus
-repository. Syrus discovers it from `SYRUS_PLUGIN_PATH`, loads it in the Rails
-process, and serves its prebuilt browser assets. External plugins are not a
-sandbox: install only code you trust with the same data and credentials as the
-Syrus process.
+This guide starts with an empty directory and ends with a plugin that can be
+installed by hand. External plugins are trusted Rails Engine gems: they run in
+the Syrus process with its database, filesystem, network, and credentials.
+Review a plugin before installing it.
 
-For every extension-point interface and lifecycle hook, see the full
-[plugin-authoring reference](authoring.md). The generated
-[host API reference](host-api.md) lists the supported core surface, while the
-[single-file plugin specification](plugin-spec.md) is the compact, complete
-contract intended for an LLM context. The tested
-[`relocatable_plugin`](../../../../spec/fixtures/relocatable_plugin/)
-fixture is the smallest end-to-end example. `bin/test-plugin-relocation`
-copies it outside the checkout and proves its provider, route, migration,
-frontend bundle, and CLI command still work there.
+## The one rule about core
 
-## Directory layout
+Plugin Ruby may reference only:
 
-Each immediate child of the external root is one plugin. A useful minimum is:
+- public `Syrus::Host::*` APIs;
+- `Syrus::PluginApi`, the plugin DSL, and documented plugin interface modules;
+- the plugin's own code; and
+- Rails, the Ruby standard library, and the plugin's permitted gems (currently
+  only Rails for a dropped-in external plugin).
+
+Every other Syrus core constant is internal and may change without notice. Do
+not copy a bundled plugin's internal reference into an external plugin.
+
+`syrus plugin validate` scans Ruby without executing it. A direct reference to
+an unsupported core constant is an error. A legacy, non-public constant is a
+warning from the scanner but fails the external-plugin host contract; replace
+it rather than shipping it. Literal core names passed to `class_name`,
+`constantize`, `safe_constantize`, or `const_get` produce warnings because
+static analysis cannot prove what they resolve to. Computed strings cannot be
+detected.
+
+The validator also reports the minimum Syrus version implied by the newest
+`since` declaration among the `Syrus::Host` APIs the plugin uses. Set
+`requires_syrus` to the oldest release actually tested, but never below that
+derived floor. If a capability is missing from `Syrus::Host`, ask Syrus to add
+a small public facade. Do not reach around the public surface.
+
+The generated [host API reference](host-api.md) is the supported core catalog.
+The generated [single-file plugin specification](plugin-spec.md) is the compact
+complete contract, suitable for giving to an LLM. The longer
+[plugin-authoring reference](authoring.md) documents every extension point and
+lifecycle hook.
+
+## 1. Generate a plugin
+
+Install a current `syrus` CLI and Docker, then run:
+
+```console
+$ syrus plugin new weather_tools --syrus-version 1.2.3
+Created weather_tools
+Run: cd weather_tools && syrus plugin test .
+$ cd weather_tools
+```
+
+Normally omit `--syrus-version`: the generator uses the connected instance's
+release, then the CLI release as a fallback. The explicit version makes this
+example reproducible. The name must be lower-case snake case. The destination
+must be absent or empty; use `--path DIR` to put it elsewhere.
+
+The baseline scaffold contains a callback provider, matching English, German,
+and Latin locales, a prebuilt empty frontend bundle, an RSpec host-contract
+spec, and CI that runs `syrus plugin test .`. Add examples only when useful:
+
+```console
+$ syrus plugin new weather_tools --frontend --model --cli
+```
+
+`--frontend` adds an admin-page component and its source, `--model` adds a
+namespaced record and migration, and `--cli` adds a server-backed command.
+
+## 2. Develop against a real host
+
+From the generated directory, start the disposable development host:
+
+```console
+$ syrus plugin dev .
+Plugin development instance: http://127.0.0.1:<port>
+Sign in with demo@syrus.local / password
+```
+
+Open the printed URL. Ruby, manifest, and locale edits restart the host;
+frontend edits rebuild the bundle. The loop prints plugin health after each
+reload. Press Ctrl-C to stop it. Its SQLite data is discarded unless you pass
+`--keep-data`. This host has no production data or agent credentials.
+
+## 3. Validate, then run the tests
+
+Validation boots the plugin against a release-matched Syrus test host and
+checks discovery, the manifest, compatibility, public-host usage, frontend
+hashes, and locale parity:
+
+```console
+$ syrus plugin validate . --syrus-version 1.2.3 --json
+{"version":1,"mode":"validate","plugin":"weather_tools","validation":"passed","tests":"not_run","exit_code":0}
+```
+
+Then run the same validation followed by the plugin's RSpec suite:
+
+```console
+$ syrus plugin test . --syrus-version 1.2.3 --json
+{"version":1,"mode":"test","plugin":"weather_tools","validation":"passed","tests":"passed","exit_code":0}
+```
+
+Without `--json`, RSpec output is printed before the same summary. Both
+commands default to the current directory and choose the connected instance's
+release, or the CLI release when disconnected. They pull the matching
+`ghcr.io/tkadauke/syrus-plugin-test` image and mount only the plugin directory;
+credentials are not passed into the container. Syrus contributors may use
+`--checkout /path/to/syrus` to run the identical test entrypoint locally.
+
+Commit the generated `dist/frontend` files. A plugin is not ready to distribute
+until `syrus plugin test` succeeds from the packaged directory.
+
+## 4. Install it by hand
+
+Follow [External plugin operations](../../operations/external-plugins.md). In
+short: stage the complete directory, stop every Rails process, atomically move
+the directory under the shared `SYRUS_PLUGIN_PATH`, run normal deployment
+migrations, and restart every Rails process. Inspect **Admin → Plugins** before
+enabling it. Installation and rollback are boot-time operator procedures; do
+not copy files into a live plugin directory one at a time.
+
+## Write a plugin with an LLM
+
+Give the model one contract file: [the single-file plugin
+specification](plugin-spec.md). Add existing plugin files only when asking it
+to modify them. A useful prompt is:
+
+```text
+Goal: <the user-visible capability>
+
+Constraints:
+- Follow the attached Syrus external-plugin specification.
+- Reference only Syrus::Host APIs, the plugin DSL and documented interface
+  modules, this plugin's code, Rails, and the Ruby standard library.
+- Keep every file inside the plugin and add no runtime gem except Rails.
+
+Implement the plugin behavior and its RSpec coverage. The finished package
+must pass: syrus plugin test .
+```
+
+Run `syrus plugin test .` after each small change. Give the model the complete
+failing matcher or scanner output, ask it to fix that failure without relaxing
+the spec, and rerun. The final JSON summary must report both validation and
+tests as `passed`.
+
+## Package reference
+
+Each immediate child of `SYRUS_PLUGIN_PATH` is one plugin and contains exactly
+one gemspec. The gem name determines `lib/<gem-name>.rb`; that entry file
+declares exactly one `syrus_plugin` definition. A generated baseline looks like:
 
 ```text
 weather_tools/
 ├── weather_tools.gemspec
 ├── lib/weather_tools.rb
-├── app/
-│   ├── controllers/...
-│   ├── models/...
-│   └── services/...
-├── db/migrate/20261117000000_create_weather_tools_reports.rb
-├── frontend/
-│   ├── entry.tsx
-│   └── style.css
-└── dist/frontend/                 # generated; ship this directory
-    ├── plugin.js
-    ├── plugin.css
-    └── manifest.json
+├── app/services/weather_tools/callbacks.rb
+├── app/frontend/i18n/locales/{en,de,la}/weather_tools.json
+├── dist/frontend/{plugin.js,manifest.json}
+├── spec/weather_tools_spec.rb
+└── .github/workflows/test.yml
 ```
 
-The directory must contain exactly one gemspec. Its gem name determines the
-entry filename at `lib/<gem-name>.rb`; that file must declare exactly one
-`syrus_plugin` definition. Plugin table names must use the plugin namespace.
-Locale files, when present, use
-`app/frontend/i18n/locales/<language>/<namespace>.json`; English is required,
-and user-visible bundled UI must supply matching German and Latin translations.
+Plugin tables and Ruby constants must use the plugin namespace. `db/migrate`
+is added to normal deployment migrations whether the plugin is enabled or
+disabled. External gemspecs may depend only on Rails; bundle browser
+dependencies into the frontend output.
 
-External gemspecs may depend only on `rails`. Syrus does not install arbitrary
-third-party gems for a dropped-in plugin. Bundle any browser dependencies into
-the frontend output, and implement Ruby integrations using Rails, Ruby's
-standard library, and Syrus's public plugin contracts.
-
-```ruby
-Gem::Specification.new do |spec|
-  spec.name = "weather_tools"
-  spec.version = "1.0.0"
-  spec.summary = "Weather tools for Syrus"
-  spec.authors = [ "Example author" ]
-  spec.files = []
-  spec.add_dependency "rails", ">= 8.1"
-  spec.metadata["requires_syrus"] = ">= 0.1.16"
-end
-```
-
-`requires_syrus` is a Ruby `Gem::Requirement`. Set it to the oldest Syrus
-release the plugin is tested against. An unsatisfied requirement prevents the
-plugin code from running and reports it as incompatible; an invalid requirement
-reports a load failure.
-
-## Manifest
-
-The entry file extends `Syrus::PluginApi`. This example shows the relocation-
-relevant declarations; omit surfaces the plugin does not provide.
+The scaffold's manifest uses only valid DSL keys:
 
 ```ruby
 module WeatherTools
   extend Syrus::PluginApi
 
   syrus_plugin "weather_tools" do
-    version "1.0.0"
-    depends_on "repository_content"
-    optionally_depends_on "metrics"
-
-    provides repository_content_provider: "WeatherTools::ContentProvider"
-
-    route :get, "/api/v1/app/weather_tools/forecast",
-          to: "api/v1/app/weather_tools/forecasts#show"
-
-    frontend(
-      bundle: "dist/frontend/plugin.js",
-      css: "dist/frontend/plugin.css",
-      i18n: [ "app/frontend/i18n/locales/*/weather_tools.json" ]
-    )
-
-    cli_commands [
-      {
-        path: %w[weather forecast],
-        summary: "Show the current forecast",
-        handler: "WeatherTools::Cli::Forecast",
-        arguments: [ { name: "place", type: :string, required: true } ],
-        flags: [ { name: "days", type: :integer, default: 1 } ]
-      }
-    ]
+    version "0.1.0"
+    display_name "Weather Tools"
+    category "tooling"
+    author "Your name"
+    description "Weather Tools plugin for Syrus."
+    provides callbacks: "WeatherTools::Callbacks"
+    frontend bundle: "dist/frontend/plugin.js",
+             i18n: [ "app/frontend/i18n/locales/*/weather_tools.json" ]
   end
 end
 ```
 
-- `depends_on`, `optionally_depends_on`, and `conflicts_with` take manifest
-  names, not gem names. Hard dependencies must be installed and healthy before
-  the plugin contributes runtime behavior.
-- `provides` maps extension-point names to class-name strings. Classes are
-  resolved after plugin autoload paths exist; consult the authoring reference
-  for the interface of each extension point.
-- `route` declarations are mounted by the plugin engine. Controllers live
-  under the plugin's `app/controllers` tree and normal authentication and
-  authorization rules still apply.
-- `db/migrate` is automatically added to the primary migration paths. Migrations
-  run during the normal deployment migration phase, whether the plugin is
-  enabled or disabled; enabling a plugin never runs migrations.
-- `frontend` paths are relative to the plugin root. `bundle` is required for a
-  browser contribution; `css` and `i18n` are optional. English locale JSON is
-  the runtime fallback when another declared language is missing or fails.
-- `cli_commands` declares non-interactive server-backed commands. Each command
-  has a word-array `path`, one-line `summary`, handler class, and optional typed
-  `arguments` and `flags`. Handlers subclass
-  `Syrus::Plugin::CliCommandHandler`, authorize the authenticated user, and
-  return a table, text, or JSON result. Use a separately distributed
-  `syrus-<name>` executable for commands that need local files, prompts,
-  streaming, or child processes.
+`depends_on`, `optionally_depends_on`, and `conflicts_with` name plugin
+manifests. `provides` maps a registered extension point to a class-name string,
+resolved after autoload paths exist. `route` mounts a plugin controller.
+`frontend` paths are relative to the plugin root. `cli_commands` declares
+non-interactive server-backed commands whose handlers subclass
+`Syrus::Plugin::CliCommandHandler`. Consult the generated plugin specification
+for the complete key list and extension-point contracts.
 
-## Build the frontend
+For a real browser contribution, create `frontend/entry.tsx`, register it with
+`registerPluginContribution` from `@syrus/plugin-sdk`, and run:
 
-Create `frontend/entry.tsx`, import the plugin's own stylesheet, and register
-components through `@syrus/plugin-sdk`:
-
-```tsx
-import React from "react"
-import { registerPluginContribution } from "@syrus/plugin-sdk"
-import "./style.css"
-
-const Forecast = () => <section className="weather-tools">Forecast</section>
-
-registerPluginContribution(
-  "workspace_tab",
-  "weather_tools",
-  "Forecast",
-  { default: Forecast },
-)
+```console
+$ bin/build-plugin-frontend /path/to/weather_tools
 ```
 
-From a Syrus checkout with its JavaScript dependencies installed, run:
+The build writes `dist/frontend/plugin.js`, optional `plugin.css`, and
+`manifest.json`. It shares the host's React, React DOM, TanStack Query, i18next,
+react-i18next, and `@syrus/plugin-sdk`; all other JavaScript dependencies are
+bundled. Ship complete CSS because Syrus does not compile an external plugin's
+Tailwind source.
 
-```bash
-bin/build-plugin-frontend /path/to/weather_tools
-```
+## Troubleshooting actual validation failures
 
-The build writes `dist/frontend/plugin.js`, optional `plugin.css`, and the
-frontend manifest. A bundle may import only these host-shared modules:
+### Incompatible Syrus version
 
-- `react` and its subpaths, including `react/jsx-runtime`
-- `react-dom` and its subpaths, including `react-dom/client`
-- `@tanstack/react-query`
-- `i18next`
-- `react-i18next`
-- `@syrus/plugin-sdk`
+`expected weather_tools requires_syrus >= 1.2.3 to accept running Syrus 1.1.0`
+means the selected host is older than the gemspec requirement. Test against a
+newer host, or support and test the older release before lowering the
+requirement. Never lower it beneath the scanner's `Minimum Syrus version`.
 
-The builder externalizes those modules so the plugin and host share one
-runtime. All other JavaScript dependencies are bundled into `plugin.js`.
-Plugins ship complete CSS; Syrus does not scan external source for Tailwind
-classes or compile plugin styles.
+### Non-public or unsupported host API
 
-## Validate the package
+`expected weather_tools host-surface scan to be clean; ... legacy=[...]` means
+the plugin uses a known legacy constant; `unsupported=[...]` means it uses an
+internal constant. Scanner lines label these `NON-PUBLIC` and `UNLISTED`.
+Replace the reference with a host facade. `DYNAMIC` identifies a literal string
+reference that requires manual review. Ask for a facade when no public API can
+express the capability.
 
-Run the plugin's own tests, then exercise the host boundary. The repository's
-fixture demonstrates the expected packaging and assertions:
+### Missing locale key
 
-```bash
-bin/build-plugin-frontend /path/to/weather_tools
-bin/test-plugin-relocation
-```
+`expected weather_tools locale files in en, de, and la with matching keys;
+mismatched keys for weather_tools: ...` means the locale JSON key sets differ.
+Add the same key to all three files. A diagnostic such as `de/weather_tools`
+instead means that language file is absent or did not match `frontend.i18n`.
 
-The second command validates Syrus's maintained example rather than an
-arbitrary path. Plugin projects should mirror that acceptance coverage for
-their own manifest and surfaces before distributing the directory.
+### Frontend bundle hash mismatch
 
-Installation and rollback are operator procedures; see
-[External plugin operations](../../operations/external-plugins.md).
+`expected weather_tools to have a frontend bundle whose hash matches
+bootstrap; entry=..., computed_hash=...` means `plugin.js` or `plugin.css`
+changed without a matching generated manifest, or the manifest points at the
+wrong file. Re-run the frontend builder and commit the complete
+`dist/frontend` output.
+
+### Load failure
+
+`expected weather_tools to be loaded from ... but manifest was nil` means
+discovery or entry-file evaluation failed. Check that there is exactly one
+gemspec, its name maps to `lib/weather_tools.rb`, the entry declares one
+matching `syrus_plugin`, and Ruby syntax is valid. The non-JSON runner output
+and **Admin → Plugins** retain the underlying exception and backtrace; repair
+that first rather than masking the load check.
