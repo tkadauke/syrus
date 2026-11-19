@@ -6,6 +6,10 @@ module ConnectedAccounts
       attr_writer :http
 
       def connect_scope_keys = Array(config!.scope_catalog).map(&:to_s)
+      def read_only_scope_keys
+        config = config!
+        Array(config.read_only_scopes).map(&:to_s) & Array(config.scope_catalog).map(&:to_s)
+      end
 
       def authorization(context)
         config = config!

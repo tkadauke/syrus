@@ -5,7 +5,8 @@ RSpec.describe ConnectedAccounts::GenericOauth2Provider do
   let!(:config) do
     ConnectedAccounts::ProviderConfig.create!(provider_key: "generic_oauth2", authorize_url: "https://oauth.example/authorize",
       token_url: "https://oauth.example/token", revoke_url: "https://oauth.example/revoke", identity_url: "https://api.example/me",
-      validate_url: "https://api.example/health", client_id: "client", client_secret: "secret", scope_catalog: %w[read write], api_origins: [ "https://api.example/" ])
+      validate_url: "https://api.example/health", client_id: "client", client_secret: "secret", scope_catalog: %w[read write],
+      read_only_scopes: [ "read" ], api_origins: [ "https://api.example/" ])
   end
   let(:provider_declaration) do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "connected_accounts" }
@@ -25,9 +26,10 @@ RSpec.describe ConnectedAccounts::GenericOauth2Provider do
   end
 
   it "exposes the instance-configured scopes to the connect flow" do
-    config.update!(scope_catalog: %w[profile calendar.read])
+    config.update!(scope_catalog: %w[profile email calendar.write], read_only_scopes: %w[profile email])
 
-    expect(provider_declaration.connect_scope_keys).to eq(%w[profile calendar.read])
+    expect(provider_declaration.connect_scope_keys).to eq(%w[profile email calendar.write])
+    expect(provider_declaration.read_only_scope_keys).to eq(%w[profile email])
   end
 
   it "classifies invalid grants as permanent without including response bodies" do

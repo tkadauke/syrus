@@ -823,7 +823,8 @@ The experimental Connected Accounts plugin can connect a user-owned hosted
 account through an OAuth 2 authorization-code flow with PKCE. Administrators
 configure the generic provider's HTTPS authorization, token, identity,
 validation, and revocation endpoints, client credentials, offered scopes, and
-allowed API origins under **Admin > Connected accounts**. Syrus refreshes
+the explicit subset allowed for read-only connections, and allowed API origins
+under **Admin > Connected accounts**. Syrus refreshes
 expiring access tokens and probes account health in the background. Disconnect
 attempts provider revocation and always revokes the local stored credential;
 token material is kept out of logs, audit metadata, and agent transcripts.

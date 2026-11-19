@@ -1127,6 +1127,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_145220) do
     t.string "client_id", null: false
     t.text "client_secret", null: false
     t.json "scope_catalog", null: false
+    t.json "read_only_scopes", null: false
     t.json "api_origins", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

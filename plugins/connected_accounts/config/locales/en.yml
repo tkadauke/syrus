@@ -12,3 +12,4 @@ en:
       failed: "The provider could not connect the account."
     settings:
       saved: "Provider configuration saved."
+      read_only_scopes_not_in_catalog: "must also be present in the scope catalog"

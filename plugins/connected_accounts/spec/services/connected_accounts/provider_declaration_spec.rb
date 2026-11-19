@@ -11,7 +11,7 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
       callback_route: "/connected_accounts/callback/example",
       supports_read_only: true,
       scopes: [
-        { key: "records.read", label: "Read records", risk: "low", syrus_capabilities: [ "records.read@v1" ] }
+        { key: "records.read", label: "Read records", risk: "low", read_only: true, syrus_capabilities: [ "records.read@v1" ] }
       ]
     }
   end
@@ -24,6 +24,7 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
       callback_route: "/connected_accounts/callback/example", supports_read_only: true
     )
     expect(declaration.scopes.first).to include("label" => "Read records", "risk" => "low")
+    expect(declaration.read_only_scope_keys).to eq([ "records.read" ])
   end
 
   it "rejects missing capabilities and malformed manifest fields" do
@@ -41,6 +42,14 @@ RSpec.describe ConnectedAccounts::ProviderDeclaration do
           "requires Syrus capabilities"
         )
       }
+  end
+
+  it "requires explicit read-only membership when the provider supports read-only connections" do
+    attributes = valid_attributes.deep_dup
+    attributes[:scopes].first.delete(:read_only)
+
+    expect { described_class.build(plugin_name: "broken", attributes: attributes) }
+      .to raise_error(ArgumentError, /must declare read_only/)
   end
 
   it "rejects a provider method that does not accept exactly one context" do

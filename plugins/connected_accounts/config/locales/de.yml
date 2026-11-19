@@ -12,3 +12,4 @@ de:
       failed: "Der Anbieter konnte das Konto nicht verbinden."
     settings:
       saved: "Anbieterkonfiguration gespeichert."
+      read_only_scopes_not_in_catalog: "müssen auch im Berechtigungskatalog enthalten sein"

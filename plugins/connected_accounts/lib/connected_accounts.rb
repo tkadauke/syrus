@@ -28,12 +28,14 @@ module ConnectedAccounts
             key: "fake.read",
             label: "Read fake records",
             risk: "low",
+            read_only: true,
             syrus_capabilities: [ "records.read@v1" ]
           },
           {
             key: "fake.write",
             label: "Change fake records",
             risk: "high",
+            read_only: false,
             syrus_capabilities: [ "records.write@v1" ]
           }
         ]
@@ -43,8 +45,8 @@ module ConnectedAccounts
         capabilities: %w[authorization exchange_code refresh revoke identity validate],
         callback_route: "/api/v1/app/connected_accounts/callback/generic_oauth2", supports_read_only: true,
         scopes: [
-          { key: "read", label: "Read account data", risk: "low", syrus_capabilities: [ "account.read@v1" ] },
-          { key: "write", label: "Change account data", risk: "high", syrus_capabilities: [ "account.write@v1" ] }
+          { key: "read", label: "Read account data", risk: "low", read_only: true, syrus_capabilities: [ "account.read@v1" ] },
+          { key: "write", label: "Change account data", risk: "high", read_only: false, syrus_capabilities: [ "account.write@v1" ] }
         ]
       }
     ]
