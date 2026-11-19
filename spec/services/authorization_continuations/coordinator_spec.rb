@@ -24,7 +24,8 @@ RSpec.describe AuthorizationContinuations::Coordinator, :ci_only do
 
   it "starts one fresh chat continuation containing the exact result and prior checkpoint" do
     chat = ChatSession.create!(user:, repository:)
-    request = request_for(chat)
+    original_message = chat.messages.create!(role: "user", content: { "text" => "Run it" }, skip_turn_trigger: true)
+    request = request_for(chat, checkpoint: { provider: "codex", cursor: "checkpoint-1", message_id: original_message.id })
     clear_enqueued_jobs
     exact_result = { "content" => [ { "type" => "text", "text" => "rows: 2" } ], "is_error" => false }
 
@@ -40,6 +41,7 @@ RSpec.describe AuthorizationContinuations::Coordinator, :ci_only do
       "authorization_continuation" => true,
       "source" => "authorization_continuation"
     )
+    expect(messages.first.turn_message_id).to eq(original_message.id)
     prompt = messages.first.content.fetch("internal_prompt")
     continuation = JSON.parse(prompt[prompt.index("{")..])
     expect(continuation).to include(

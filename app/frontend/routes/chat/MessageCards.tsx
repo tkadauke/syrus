@@ -161,6 +161,18 @@ export const ChatMessage = memo(function ChatMessage({
 
   if (item.role === "assistant") {
     if (!item.text) return null
+    if (item.assistant_presentation === "progress") {
+      return (
+        <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly} targetProps={messageMenu.targetProps}>
+          <span className="absolute -top-4" id={`message-${item.id}`} />
+          <div className="border-l-2 border-border-subtle pl-3 text-sm text-text-secondary" data-testid="assistant-progress">
+            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-text-tertiary">{t("assistant_progress")}</div>
+            <ChatAssistantMarkdownSurface highlightTerms={searchHighlight ? [searchHighlight] : undefined} text={item.text} onLinkClick={handleMarkdownLink} />
+          </div>
+          {sourcePreview ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
+        </SharedMessageRenderer>
+      )
+    }
     const appearance = payload.agent_appearance
     const appearanceColor = appearance ? accentRamp(appearance.accent_hex) : null
     return (

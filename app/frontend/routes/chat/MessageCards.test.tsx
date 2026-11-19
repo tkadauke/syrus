@@ -282,6 +282,17 @@ it("renders a background run result above its metadata", () => {
   expect(card).toHaveTextContent("Workspace merged")
 })
 
+it("renders interim assistant commentary as progress instead of an ordinary reply", () => {
+  const item = assistantMessage("Checking the next source.")
+  item.turn_message_id = 41
+  item.assistant_presentation = "progress"
+
+  renderChatMessageItem(item)
+
+  expect(screen.getByTestId("assistant-progress")).toHaveTextContent("Progress")
+  expect(screen.getByText("Checking the next source.")).toBeInTheDocument()
+})
+
 it("collapses a long background run result", () => {
   const longSummary = `## Verdict\n\n${"Detailed finding. ".repeat(50)}`
   const item = assistantMessage(longSummary)

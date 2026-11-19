@@ -1,4 +1,5 @@
 {
+  "assistant_progress": "Progress",
   "background_run_completed": "Background run completed",
   "background_run_failed": "Background run failed",
   "background_run_show_result": "Show full result",
