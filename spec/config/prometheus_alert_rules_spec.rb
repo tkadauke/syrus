@@ -6,10 +6,18 @@ RSpec.describe "Prometheus alert rules" do
       .fetch("groups")
       .flat_map { |group| group.fetch("rules") }
 
-    expect(rules.map { |rule| rule.fetch("alert") }).to contain_exactly(
+    expect(rules.map { |rule| rule.fetch("alert") }).to include(
       "SyrusQueueOldestAgeHigh",
       "SyrusProviderCircuitOpen",
-      "SyrusRecurringJobStale"
+      "SyrusRecurringJobStale",
+      "SyrusCoworkerJournalingStale",
+      "SyrusCoworkerJournalingStaleCritical",
+      "SyrusCoworkerJournalingFailed",
+      "SyrusCoworkerUnsavedWorkspace",
+      "SyrusCoworkerUnsavedWorkspaceCritical",
+      "SyrusCoworkerWorkspacePushFailures",
+      "SyrusCoworkerSpendAnomaly",
+      "SyrusCoworkerDailySpendCap"
     )
 
     expressions = rules.map { |rule| rule.fetch("expr") }.join("\n")
@@ -18,6 +26,17 @@ RSpec.describe "Prometheus alert rules" do
       "syrus_provider_circuit_state",
       "syrus_recurring_job_last_success_seconds"
     )
+  end
+
+  it "keeps coworker alerts handle-scoped and excludes owner-paused journaling" do
+    rules = YAML.load_file(Rails.root.join("config/prometheus/syrus-alert-rules.yml"))
+      .fetch("groups").flat_map { |group| group.fetch("rules") }
+      .select { |rule| rule.fetch("alert").start_with?("SyrusCoworker") }
+    expressions = rules.pluck("expr").join("\n")
+
+    expect(expressions).to include('unless on (coworker) (syrus_coworkers_journaling_state{state="paused"} == 1)')
+    expect(expressions).to include("rate(syrus_coworkers_workspace_push_failures_total[15m])")
+    expect(expressions).not_to match(/(?:chat|run|job|workflow)_id/)
   end
 
   it "keeps recurring job staleness matchers aligned with config/recurring.yml" do

@@ -72,7 +72,12 @@ Docker Compose web service use `/readyz` for their health check.
 `/metrics` exposes aggregate Prometheus metrics. Syrus ships canonical
 Prometheus alert rules in `config/prometheus/syrus-alert-rules.yml` for queue
 age, open provider circuits, stale recurring jobs, and a growing attention
-backlog.
+backlog. When the Coworkers plugin is enabled, the endpoint and Metrics
+Dashboard also expose handle-scoped journaling freshness, unsaved-workspace,
+workspace-push-failure, and cumulative spend metrics. The shipped rules alert
+on stale or repeatedly failing journals, aging unsaved workspaces, sustained
+push failures, and anomalous or capped daily spend; their thresholds are
+tunable in the rules file.
 
 Alarm-severity `SystemAlerts` can also leave the browser through
 `SYRUS_ALERT_WEBHOOK_URL` and/or `SYRUS_ALERT_EMAIL_TO`. A recurring background
