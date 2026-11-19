@@ -43,6 +43,23 @@ RSpec.describe ResetJobs::Operation do
     expect(job.workflows.where(trigger_kind: "initial").count).to eq(2)
   end
 
+  it "lists and cancels active compatibility Workflows and Runs without WorkUnit ownership" do
+    job = Factories.job_with_run(user:, repository:, state: "running",
+      workflow_attrs: { state: "running" }, step_attrs: { state: "running" }, run_attrs: { state: "running" })
+    workflow = job.workflows.sole
+    run = job.runs.sole
+
+    expect(WorkUnits::Ownership.active_units_for_job(job)).to be_empty
+    expect(described_class.destruction_summary(job)[:active_workflows]).to eq([ workflow.id ])
+
+    described_class.new(job:, user:, reason: "Discard compatibility work", pending_action: action).call
+
+    expect(workflow.reload).to be_cancelled
+    expect(run.reload).to be_cancelled
+    expect(workflow.artifacts).to include("reset_reason" => "Discard compatibility work")
+    expect(run.artifacts).to include("reset_reason" => "Discard compatibility work")
+  end
+
   it "removes an implemented Job's PR, branch, checkpoints, and workspace while retaining history" do
     job = Factories.job_with_run(user:, repository:, state: "implemented", branch_name: "syrus/old", pr_number: 12)
     workflow = job.workflows.sole

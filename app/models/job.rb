@@ -730,9 +730,13 @@ class Job < ApplicationRecord
     end
 
     event :reset_from_scratch do
-      transitions from: %i[running failed implemented approved no_change_needed], to: :blocked_by_epic,
+      # Cancellation may move the Job to queued before the reset's destructive
+      # cleanup finishes. Preflight still rejects an operator request that
+      # starts in queued; this source only lets an already-admitted reset
+      # complete atomically after cancelling compatibility runtime records.
+      transitions from: %i[queued running failed implemented approved no_change_needed], to: :blocked_by_epic,
                   guard: :reset_requires_dependency_block?
-      transitions from: %i[running failed implemented approved no_change_needed], to: :queued,
+      transitions from: %i[queued running failed implemented approved no_change_needed], to: :queued,
                   after: :create_initial_run_if_needed
     end
 

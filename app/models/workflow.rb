@@ -24,6 +24,7 @@ class Workflow < ApplicationRecord
   SUPERSEDED_BY_REBASE_REASON = "superseded_by_rebase"
   SUPERSEDED_BY_NEWER_WORKFLOW_REASON = "superseded_by_newer_workflow"
   SUPERSEDED_BY_STATE_REPAIR_REASON = "superseded_by_state_repair"
+  SUPERSEDED_BY_RESET_REASON = "operator_job_reset"
   # Written when an operator dismisses a blocked/stuck auxiliary workflow from
   # the Job page. Treated like a superseded cancellation so the Job's own state
   # is left alone: the auxiliary workflow was never what drove it.
@@ -411,6 +412,7 @@ class Workflow < ApplicationRecord
       SUPERSEDED_BY_REBASE_REASON,
       SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
       SUPERSEDED_BY_STATE_REPAIR_REASON,
+      SUPERSEDED_BY_RESET_REASON,
       DISMISSED_BY_OPERATOR_REASON
     ])
   end
