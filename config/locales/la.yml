@@ -303,6 +303,7 @@ la:
           permanent: "donec revocetur"
         subjects:
           agent: "%{id}"
+          agent_unnamed: "collega %{id}"
           interactive_chat: "colloquia interactiva"
           coding_chat: "colloquia codicis"
           local_chat: "colloquia localia"

@@ -303,6 +303,7 @@ de:
           permanent: "bis zum Widerruf"
         subjects:
           agent: "%{id}"
+          agent_unnamed: "Coworker %{id}"
           interactive_chat: "interaktive Chats"
           coding_chat: "Coding-Chats"
           local_chat: "lokale Chats"

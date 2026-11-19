@@ -478,7 +478,10 @@ module Permissions
       attrs = resolved.attributes
       id = attrs["subject_selector_id"]
       key = attrs["subject_selector_type"]
-      id = agent_display_name(attrs["subject_type"], id) || id if key == "agent"
+      if key == "agent"
+        name = agent_display_name(attrs["subject_type"], id)
+        return name || I18n.t("api.permission_rule_drafts.summary.subjects.agent_unnamed", id:)
+      end
       I18n.t("api.permission_rule_drafts.summary.subjects.#{key}", id: id, default: key)
     end
 

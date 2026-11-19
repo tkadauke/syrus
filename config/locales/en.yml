@@ -337,6 +337,7 @@ en:
           permanent: "until revoked"
         subjects:
           agent: "%{id}"
+          agent_unnamed: "coworker %{id}"
           interactive_chat: "interactive chats"
           coding_chat: "coding chats"
           local_chat: "local chats"
