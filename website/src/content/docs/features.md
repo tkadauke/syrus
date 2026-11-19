@@ -1004,6 +1004,16 @@ at once. Activity initially shows the 50 newest runs and side chats and offers
 **Load more** for older entries. Memory and workspace file listings are capped
 at 1,000 entries and clearly identify partial results.
 
+The coworker Chat tab pins the main chat above a paginated side-chat index.
+The index uses the shared FilterBar to search titles and message contents and
+to filter by active or archived state, unread state, active work, creation
+date, and last activity. Filters and sorting remain in the URL. Search results
+show bounded highlighted excerpts and match counts, while each side chat offers
+rename, archive or restore, and delete actions. A new side chat initially uses
+the coworker's name for orientation, then adopts the normal generated chat
+title after its first substantive message; an explicit rename is never
+overwritten.
+
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
 in an ordinary chat when one is available; dedicated coworker main and side

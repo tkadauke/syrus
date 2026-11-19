@@ -392,7 +392,45 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   fireEvent.click(screen.getByRole("button", { name: "New side chat" }))
   expect(await screen.findByText("Chat destination")).toBeInTheDocument()
   expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["coworkers", "7", "chats"] })
+  expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["coworkers", "7", "conversation-index"] })
   expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chats"] })
+})
+
+it("renders the pinned conversation index and keeps sorting in the URL", async () => {
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path.includes("conversation_index")) {
+      return jsonResponse({
+        main_chat: {
+          id: 12, title: "Maya", path: "/chats/12", main: true, preview: "Main thread", last_activity_at: "2026-11-18T10:00:00Z",
+          created_at: "2026-11-01T10:00:00Z", archived: false, unread: false, active_work: false, title_match: false, match_count: 0, match: null
+        },
+        side_chats: [{
+          id: 44, title: "Release research", path: "/chats/44", main: false, preview: "Compare the release notes", last_activity_at: "2026-11-18T11:00:00Z",
+          created_at: "2026-11-17T10:00:00Z", archived: false, unread: true, active_work: true, title_match: false, match_count: 2,
+          match: { message_id: 91, snippet: "Compare the <mark>release</mark> notes" }
+        }],
+        result_count: 1, next_cursor: null, filter: { and: [] },
+        filter_schema: [{ field: "search", label: "Search", bucket: "text", operators: ["contains"], values: [], free_text_search: true }],
+        sort: path.includes("sort=title") ? "title" : "last_activity"
+      })
+    }
+    if (path.endsWith("/chats")) return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7?tab=chat")
+
+  expect(await screen.findByRole("link", { name: /Release research/ })).toHaveAttribute("href", "/chats/44")
+  expect(screen.getByText("Unread")).toBeInTheDocument()
+  expect(screen.getByText("Active work")).toBeInTheDocument()
+  expect(screen.getByText("2 matches")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: /Add filter/ })).toBeInTheDocument()
+  expect(screen.getByText("release", { selector: "mark" })).toBeInTheDocument()
+  expect(screen.getByLabelText("Actions for Release research")).toBeInTheDocument()
+
+  fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), { target: { value: "title" } })
+  await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("conversation_index?sort=title"))).toBe(true))
 })
 
 it("prevents duplicate side-chat submissions and shows API failures", async () => {
