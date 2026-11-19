@@ -368,7 +368,10 @@ func waitPluginDevReady(ctx context.Context, container string, timeout time.Dura
 }
 
 func (dockerPluginDevRuntime) BuildFrontend(ctx context.Context, instance pluginDevInstance, stdout, stderr io.Writer) error {
-	return runDockerCommand(ctx, stdout, stderr, "exec", "--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), instance.Container, "bin/build-plugin-frontend", "/plugins/"+instance.DirectoryName)
+	args := []string{"exec"}
+	args = append(args, pluginDevDockerUserArgs()...)
+	args = append(args, instance.Container, "bin/build-plugin-frontend", "/plugins/"+instance.DirectoryName)
+	return runDockerCommand(ctx, stdout, stderr, args...)
 }
 
 func (dockerPluginDevRuntime) Restart(ctx context.Context, instance pluginDevInstance, stdout, stderr io.Writer) error {
