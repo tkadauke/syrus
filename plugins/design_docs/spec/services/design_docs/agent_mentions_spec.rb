@@ -91,6 +91,27 @@ RSpec.describe "Design Docs @syrus agent mentions" do
     expect(run.context_snapshot.dig("thread", "comments").map { |comment| comment.fetch("body") }).to include("Needs evidence", "@syrus suggest clearer wording")
   end
 
+  it "serializes agent runs per thread without blocking other threads" do
+    doc = create_design_doc
+    first_thread = create_thread(doc)
+    second_thread = create_thread(doc, user: owner)
+    first_thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus review the first thread")
+    first_run = DesignDocs::DesignDocAgentRun.last
+    first_run.update!(status: "succeeded", finished_at: Time.current)
+    first_thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus review the first thread again")
+    same_thread_run = DesignDocs::DesignDocAgentRun.last
+    second_thread.comments.create!(author_kind: "user", author_user: collaborator, body: "@syrus review the second thread")
+    second_thread_run = DesignDocs::DesignDocAgentRun.last
+
+    expect(DesignDocs::AgentRunJob.concurrency_key.call(first_run.id)).to eq("design_doc_thread:#{first_thread.id}")
+    expect(DesignDocs::AgentRunJob.concurrency_key.call(same_thread_run.id)).to eq("design_doc_thread:#{first_thread.id}")
+    expect(DesignDocs::AgentRunJob.concurrency_key.call(second_thread_run.id)).to eq("design_doc_thread:#{second_thread.id}")
+    expect(DesignDocs::AgentRunJob.concurrency_key.call(-1)).to eq("design_doc_agent_run:-1")
+    expect(DesignDocs::AgentRunJob.concurrency_group).to eq("design_doc_thread_agent")
+    expect(DesignDocs::AgentRunJob.concurrency_limit).to eq(1)
+    expect(DesignDocs::AgentRunJob.concurrency_duration).to eq(15.minutes)
+  end
+
   it "enqueues for a reply mention and includes existing pending suggestions on the thread" do
     doc = create_design_doc
     thread = create_thread(doc)
