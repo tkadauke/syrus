@@ -44,3 +44,8 @@ de:
         never: "Nie"
         none: "Keine"
         age_hours: "%{count} Std."
+        currency:
+          unit: "$"
+          format: "%n %u"
+          separator: ","
+          delimiter: "."

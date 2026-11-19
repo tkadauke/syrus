@@ -64,7 +64,7 @@ RSpec.describe Coworkers::MetricsSampler do
     expect(fresh_task).to be_present
   end
 
-  it "removes obsolete gauge and reconciled-counter series after a handle changes" do
+  it "removes obsolete gauge and counter series after a handle changes or is archived" do
     now = Time.zone.parse("2026-11-19 12:00:00 UTC")
     owner = Factories.user
     repository = Factories.repository(user: owner)
@@ -87,6 +87,15 @@ RSpec.describe Coworkers::MetricsSampler do
     rendered = Syrus::Metrics.render
     expect(rendered).not_to include('coworker="before"')
     expect(rendered).to include('coworker="after"')
+
+    Syrus::Metrics.counter(:syrus_coworkers_workspace_push_failures_total).increment(tags: { coworker: "after", kind: "permanent" })
+    coworker.update!(state: "archived")
+    travel_to(now) do
+      expect(described_class.sample!).to be(true)
+      expect(described_class.refresh_gauges!).to be(true)
+    end
+
+    expect(Syrus::Metrics.render).not_to match(/coworker="(?:before|after)"/)
   end
 
   def create_coworker(owner:, repository:, handle:)

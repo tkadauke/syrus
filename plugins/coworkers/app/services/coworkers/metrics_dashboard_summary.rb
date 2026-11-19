@@ -27,7 +27,13 @@ module Coworkers
           journaling_state: state ? t("states.#{state}") : t("no_schedule"),
           journaling_age: age(journaling_age, empty: "never"),
           unsaved_age: age(unsaved_age, empty: "none"),
-          spend: ActionController::Base.helpers.number_to_currency(values["weekly_spend"].to_f, locale: I18n.locale, unit: "$")
+          spend: ActionController::Base.helpers.number_to_currency(
+            values["weekly_spend"].to_f,
+            unit: t("currency.unit"),
+            format: t("currency.format"),
+            separator: t("currency.separator"),
+            delimiter: t("currency.delimiter")
+          )
         }
       }
     end
