@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_224806) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3247,6 +3247,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.decimal "weight", precision: 8, scale: 3
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "proactive_pause_threshold", precision: 5, scale: 2
     t.index ["public_id"], name: "index_provider_accounts_on_public_id", unique: true
     t.index ["user_id", "provider_key", "enabled", "position"], name: "idx_provider_accounts_enabled_order"
     t.index ["user_id", "provider_key", "label"], name: "idx_provider_accounts_user_provider_label", unique: true
