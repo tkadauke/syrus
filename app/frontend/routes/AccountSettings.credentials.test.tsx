@@ -21,6 +21,7 @@ function makePayload(
     codex_auth_mode?: string
     provider_routing_rules?: CredentialsPayload["provider_routing_rules"]
     provider_routing_options?: CredentialsPayload["options"]["provider_routing_options"]
+    provider_accounts?: CredentialsPayload["provider_accounts"]
   } = {}
 ): CredentialsPayload {
   return {
@@ -63,11 +64,17 @@ function makePayload(
     },
     github_rate_limit: null,
     provider_availability: {},
+    provider_accounts: overrides.provider_accounts ?? [],
     provider_routing_rules: overrides.provider_routing_rules ?? [],
     options: {
       locales: ["en", "de", "la"],
       agent_providers: overrides.agent_providers ?? ["agy", "claude", "codex"],
       agent_provider_labels: overrides.agent_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
+      provider_account_credential_attributes: {
+        claude: ["claude_oauth_token"],
+        codex: ["codex_api_key", "codex_auth_json", "codex_auth_mode"],
+        agy: ["gemini_api_key"]
+      },
       chat_providers: overrides.chat_providers ?? [],
       chat_provider_labels: overrides.chat_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
       roles: overrides.roles ?? ["developer", "product_owner"],
@@ -193,6 +200,42 @@ describe("CredentialsRoute (provider cards)", () => {
     client.setQueryData(["credentials"], refetched)
 
     await waitFor(() => expect(screen.getByLabelText("Max turns")).toHaveValue(321))
+  })
+
+  it("shows four independently controlled Claude subscriptions in Agent Settings", async () => {
+    const accounts = Array.from({ length: 4 }, (_, index) => ({
+      id: `account-${index + 1}`,
+      provider_key: "claude",
+      label: index === 1 ? "Work" : null,
+      display_label: index === 1 ? "Work" : `Claude Code ${index + 1}`,
+      authentication_kind: "claude_oauth_token",
+      enabled: index !== 2,
+      position: index,
+      weight: 1,
+      proactive_pause_threshold: null,
+      effective_proactive_pause_threshold: 10,
+      removable: index !== 0,
+      availability: {
+        provider: "claude",
+        label: "Claude",
+        model: null,
+        state: "available",
+        open: false,
+        usage_exhausted: false,
+        retry_after: null,
+        reason: null,
+        message: "Available",
+        usage: { remaining_percent: 75 }
+      }
+    }))
+    mockRoutes(makePayload({ provider_accounts: accounts }))
+    renderAgentSettings()
+
+    expect(await screen.findByText("Claude Code 1")).toBeInTheDocument()
+    expect(screen.getByText("Work")).toBeInTheDocument()
+    expect(screen.getByText("Claude Code 4")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Advanced" })).toHaveLength(4)
+    expect(screen.getAllByRole("button", { name: "Remove" })[0]).toBeDisabled()
   })
 
   it("renders one card per provider from the payload, without a global Save", async () => {
