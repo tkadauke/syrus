@@ -1259,7 +1259,7 @@ function CoworkerActivity({ id }: { id: string }) {
                       {job.attempts.map((attempt) => <li className="text-sm" key={attempt.id}>
                         <Link className="text-brand" to={withRoutePrefix(attempt.path, prefix)}>{attempt.slug}</Link> · {attempt.state} · {formatDuration(attempt.duration_seconds)} · {t("activity.tool_calls", { count: attempt.tool_calls_count })} · ${attempt.cost_usd.toFixed(2)}
                         {attempt.failure_reason ? <p className="text-danger">{attempt.failure_reason}</p> : null}
-                        {attempt.runs.length ? <ul className="ml-4 mt-1 list-disc">{attempt.runs.map((run) => <li key={run.id}><Link className="text-brand" to={withRoutePrefix(run.path, prefix)}>{run.slug}</Link> · {run.state} · {formatDuration(run.duration_seconds)} · ${run.cost_usd.toFixed(2)}</li>)}</ul> : null}
+                        {attempt.runs.length ? <ul className="ml-4 mt-1 list-disc">{attempt.runs.map((run) => <li key={run.id}><Link className="text-brand" to={withRoutePrefix(run.path, prefix)}>{run.slug}</Link> · {run.state} · {formatDuration(run.duration_seconds)} · {t("activity.tool_calls", { count: run.tool_calls_count })} · ${run.cost_usd.toFixed(2)}</li>)}</ul> : null}
                       </li>)}
                     </ul>
                   </details>
