@@ -10,6 +10,7 @@ import {
   fetchAdminPlugin,
   fetchAdminPlugins,
   type AdminPlugin,
+  type AdminPluginCapability,
   type AdminPluginDisableConfirmation,
   type AdminPluginExtensionPoint,
   type AdminPluginExperimentalBlock,
@@ -613,6 +614,14 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
             )}
           </DetailSection>
 
+          <DetailSection title={t("plugins.capabilities_heading")}>
+            {(plugin.capabilities || []).length > 0 ? (
+              <CapabilitiesTable capabilities={plugin.capabilities || []} />
+            ) : (
+              <EmptyText>{t("plugins.no_capabilities")}</EmptyText>
+            )}
+          </DetailSection>
+
           <DetailSection title={t("plugins.routes_heading")}>
             {(plugin.routes || []).length > 0 ? (
               <div className="space-y-2">
@@ -729,6 +738,36 @@ function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtension
       <DataTable.Body>
         {extensions.map((extension) => (
           <ExtensionPointRow extension={extension} key={`${extension.extension_point}-${extension.class_name}`} />
+        ))}
+      </DataTable.Body>
+    </DataTable.Root>
+  )
+}
+
+function CapabilitiesTable({ capabilities }: { capabilities: AdminPluginCapability[] }) {
+  const { t } = useT("admin")
+  return (
+    <DataTable.Root>
+      <DataTable.Header>
+        <DataTable.Row>
+          <DataTable.HeadCell>{t("plugins.col_family")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("plugins.col_capability")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("plugins.col_provider")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("plugins.col_key")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("plugins.col_tier")}</DataTable.HeadCell>
+          <DataTable.HeadCell>{t("plugins.col_priority")}</DataTable.HeadCell>
+        </DataTable.Row>
+      </DataTable.Header>
+      <DataTable.Body>
+        {capabilities.map((capability) => (
+          <DataTable.Row key={`${capability.family}-${capability.capability}-${capability.provider}`}>
+            <DataTable.Cell className="font-mono text-xs">{capability.family}</DataTable.Cell>
+            <DataTable.Cell className="font-mono text-xs">{capability.capability}</DataTable.Cell>
+            <DataTable.Cell className="font-mono text-xs">{capability.provider}</DataTable.Cell>
+            <DataTable.Cell className="font-mono text-xs">{capability.key || "-"}</DataTable.Cell>
+            <DataTable.Cell><StatusBadge status={capability.tier === "provisional" ? "experimental" : "registered"} label={capability.tier} /></DataTable.Cell>
+            <DataTable.Cell className="font-mono text-xs">{capability.priority}</DataTable.Cell>
+          </DataTable.Row>
         ))}
       </DataTable.Body>
     </DataTable.Root>

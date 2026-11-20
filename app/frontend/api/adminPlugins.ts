@@ -12,6 +12,15 @@ export type AdminPluginExtensionPoint = {
   }
 }
 
+export type AdminPluginCapability = {
+  family: string
+  capability: string
+  provider: string
+  key: string | null
+  tier: "stable" | "provisional"
+  priority: number
+}
+
 export type AdminPlugin = {
   disable_blockers: Array<{ kind: string; label: string; count: number }>
   recommendation?: { reason: string; evidence: string } | null
@@ -55,6 +64,7 @@ export type AdminPlugin = {
   frontend?: Record<string, unknown>
   routes?: Array<Record<string, unknown>>
   extension_points: AdminPluginExtensionPoint[]
+  capabilities?: AdminPluginCapability[]
   depends_on?: string[]
   optionally_depends_on?: string[]
   conflicts_with?: string[]
