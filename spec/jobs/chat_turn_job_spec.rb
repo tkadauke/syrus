@@ -533,13 +533,18 @@ RSpec.describe ChatTurnJob, :ci_only do
   end
 
   it "runs a first turn with the chat system prompt, MCP config, no max-turns, and captures output" do
+    # A real, writable data root: the turn creates directories under it before
+    # the agent starts. A fixed production path (/home/rails/.syrus) only
+    # existed in the worker image, so the example failed on every other host
+    # -- GitHub's runners included -- before the agent was ever invoked.
+    data_root = Dir.mktmpdir("syrus-chat-turn-data-root")
     host_env = {
       "SYRUS_APP_HOST" => "syrus.example.test",
       "SYRUS_ALLOWED_HOSTS" => "syrus.example.test,syrus.internal.test",
       "SYRUS_ASSUME_SSL" => "true",
       "SYRUS_FORCE_SSL" => "true",
       "SYRUS_SQLITE" => "1",
-      "SYRUS_DATA_ROOT" => "/home/rails/.syrus",
+      "SYRUS_DATA_ROOT" => data_root,
       "BUNDLE_PATH" => "/usr/local/bundle",
       "PATH" => "/opt/ruby/bin:/usr/local/bin:/usr/bin:/bin"
     }
@@ -636,6 +641,7 @@ RSpec.describe ChatTurnJob, :ci_only do
   ensure
     env_values&.keys&.each { |key| ENV.delete(key) }
     saved&.each { |key, value| ENV[key] = value }
+    FileUtils.rm_rf(data_root) if data_root
   end
 
   it "reports a chat_startup.mcp_config_write phase when performance logging is enabled" do
