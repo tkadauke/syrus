@@ -1312,6 +1312,7 @@ module WorkEngine
       work_units.select(&:active?).filter_map do |unit|
         workflow = unit.workflow
         next unless workflow&.terminal?
+        next if blocked_workflow_holds_its_job?(workflow)
         next if workflow.runs.active.exists?
         active_locks = unit.work_unit_locks.select(&:active?)
         next if active_locks.empty?
@@ -2067,6 +2068,9 @@ module WorkEngine
         next if active_runtime_workflows.any?
         next if job.landing? && active_landing_work_for_job?(job)
         latest = latest_workflow_for_job(job)
+        # Held on an agent-blocked workflow: stale_agent_blocked_workflow
+        # already asks the operator, and the Job is waiting on purpose.
+        next if latest && blocked_workflow_holds_its_job?(latest) && latest.work_unit&.active?
 
         if job.landing?
           next unless landing_slot_orphaned?(job)
@@ -3652,6 +3656,16 @@ module WorkEngine
     # the line -- is neither a dependency problem nor a main-health one, and
     # reporting it as "main health blocked" sends an operator after a red
     # main that does not exist.
+    # A Workflow blocked on an agent's cannot-proceed report keeps its
+    # WorkUnit -- and with it the Job lock -- on purpose, so nothing else
+    # starts on that Job until an operator retries or dismisses it
+    # (WorkUnits::TerminalWorkflowSync only retires units of blocked
+    # auxiliary kinds). That lock is the hold, not a leak; the
+    # stale_agent_blocked_workflow issue is what asks for the operator.
+    def blocked_workflow_holds_its_job?(workflow)
+      workflow.blocked? && !Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+    end
+
     def serialization_block_reason?(reason)
       [
         StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
