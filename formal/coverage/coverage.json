@@ -452,7 +452,7 @@
       ],
       "status": "open",
       "done_by": null,
-      "notes": "External fault; model as a worker-death event removing a queue's consumer and prove recovery re-enqueues off the dead queue."
+      "notes": "Production (60 applied re-enqueues, read-only): all in four windows on 2026-11-19 evening (22/5/15/18 per hour), i.e. worker pods being replaced. Runs pinned to a replaced pod's storage-specific resume queue are re-routed by the reconciler after clearing affinity -- the intended recovery. Handing them off when a pod drains (instead of waiting for the reconciler) belongs with the graceful-deploy work, not this pass. No correctness bug."
     },
     {
       "id": "queued-run-failed-execution",
@@ -473,7 +473,7 @@
       "simulator": [],
       "status": "open",
       "done_by": null,
-      "notes": "Invariant: a raise from RunJob for run r leaves r failed or a fresh claim exists. No fixture covers it."
+      "notes": "Production (61 executions, all applied re-enqueues, read-only). The SolidQueue failed-execution table since 2026-11-19 shows RunJob failures from ActiveRecord::LockWaitTimeout (10) and SolidQueue ProcessPrunedError (8+) -- infrastructure, before the Run starts -- plus StepFailed subclasses (e.g. Steps::PrOpen::AwaitingStableBase) that RunJob re-raises after handling the Step failure, which are finished Runs, not pre-start crashes. The reconciler's re-enqueue is the intended recovery here; no producer bug found. A lock-timeout retry inside RunJob's pre-start path would remove the 2-minute delay, but is an infrastructure-resilience choice, not a correctness fix."
     },
     {
       "id": "queued-grader-collect-cached-failure",
@@ -572,7 +572,7 @@
       ],
       "status": "open",
       "done_by": null,
-      "notes": "Not preventable; prove recovery leaves the Run terminal and the Step reopened or failed within the retry budget."
+      "notes": "Production (77 executions, 6 days, read-only): 56 'skipped: worker_died failure already created active replacement work'. Not a classifier/executor disagreement: the repair did mark the Run worker_died, and that failure's own propagation queued the replacement, so the repair rightly declined to add a second retry. The audit labels the step 'skipped' on purpose (reconciler_spec asserts the warn-severity skip), which hides that a repair was applied; reading skip counts for this kind needs that caveat. No code change."
     },
     {
       "id": "runs-paused",
