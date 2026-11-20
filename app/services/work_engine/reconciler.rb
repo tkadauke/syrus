@@ -962,6 +962,10 @@ module WorkEngine
         workflow = step.workflow
         next unless workflow&.running?
         next unless step.loop_id.present?
+        # The panel's collect Step decides the loop, exactly as the dispatcher
+        # treats it; a fanout read the previous iteration's verdict while its
+        # members were still reviewing.
+        next if step.review_panel_participant?
         next unless older_than?(step.finished_at || step.updated_at, ORPHAN_RUN_GRACE_PERIOD)
 
         gate = review_gate_for_step(step)

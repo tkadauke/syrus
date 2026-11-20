@@ -250,6 +250,14 @@ class Step < ApplicationRecord
     details.to_h[RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY] == true
   end
 
+  # A review-panel fanout or member. The panel's review_panel_collect Step owns
+  # the loop decision for the panel, so neither the dispatcher nor the
+  # reconciler continues a review loop from one of these.
+  def review_panel_participant?
+    details = self.details.to_h
+    details["panel_fanout"].present? || details["panel_member"].present?
+  end
+
   # A later iteration of the same loop exists, so this Step's outcome no longer
   # decides anything: the loop already acted on it and moved on. Retrying it
   # re-runs a stale iteration -- in production that revived a Workflow whose

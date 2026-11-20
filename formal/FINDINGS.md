@@ -631,6 +631,32 @@ cancelling it. Those two intents contradict each other, which is NY4.
 
 ---
 
+## F23. The reconciler continued review loops from review-panel fanouts — fixed
+
+**Property.** The reconciler continues a review loop only from the Step the
+dispatcher would continue it from (`Agreement.review_after_actionable`).
+
+**Evidence (production, read-only).** 334 `succeeded_review_loop_needs_work_without_repair`
+executions, all skipped. One Workflow logged seven in a row (01:20–01:27
+Eastern on 2026-11-20). The target was the iteration-2 `adversarial_review`
+*fanout*: it succeeded at 01:17:42, while its two panel members reviewed until
+01:27 and the panel's collect decided at 01:27:42. During that time the
+Workflow's latest verdict was still iteration 1's "needs_work".
+
+**Counterexample.** `review_before_not_actionable`:
+`StepDispatcher#handle_successful_review_loop_iteration` returns early for
+`panel_fanout` and `panel_member` Steps, leaving the decision to
+`review_panel_collect`. `classify_succeeded_review_steps_without_required_repair`
+had no such exclusion, and its repair can only call the dispatcher.
+
+**Fix.** `Step#review_panel_participant?` is a single predicate, used by both the
+dispatcher and the classifier.
+
+**Spec.** `reconciler_spec.rb` "leaves a review-panel fanout to its collect
+Step". It goes red with the guard disabled.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

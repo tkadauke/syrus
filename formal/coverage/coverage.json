@@ -707,9 +707,9 @@
       "simulator": [
         "review_loop_repair_step_without_run"
       ],
-      "status": "open",
-      "done_by": "F4",
-      "notes": "All 14 production firings were skipped ('review loop repair remained deferred'): the classifier cannot tell an intended deferral from a lost one, the same agreement shape as F4."
+      "status": "partial",
+      "done_by": "F23",
+      "notes": "Production: 334 executions, all skipped. The sampled ones targeted review-panel fanout Steps: a fanout succeeds once it has spawned its members, while the latest verdict is still the previous iteration's needs_work; the dispatcher leaves the decision to review_panel_collect, the classifier did not. Fixed F23: Step#review_panel_participant? shared by both (Agreement.review_after_actionable). Still to check after deploy: whether any skips remain on non-panel review Steps (a genuinely deferred repair)."
     },
     {
       "id": "queued-step-without-run",
@@ -874,9 +874,9 @@
       "simulator": [
         "manual_grade_loop_restart_ignores_superseded_failures"
       ],
-      "status": "open",
-      "done_by": "F4",
-      "notes": "8 skipped vs 1 applied: the reconciler's projected 'active' and the dispatcher's persisted 'active' disagree, so the repair is refused every pass. Looks like an outright agreement bug."
+      "status": "partial",
+      "done_by": "F4, F19",
+      "notes": "Production (93 executions): 44 skipped 'Workflow is succeeded, not running'. Sampling 12: 9 executed 0.3–5.7 s *before* the last Step's recorded finish — the classifier saw the Run committed succeeded while its Step was still running (no active Run, Step projected terminal), i.e. the window F19 closed by committing Run and Step success together; expect these to vanish after deploy. 3 executed 20–250 s after the Workflow finished: the classifier acted on a stale snapshot — unexplained, recheck after deploy. 15 skips were MySQL lock-wait timeouts (infrastructure)."
     },
     {
       "id": "two-definitions-of-active-step",

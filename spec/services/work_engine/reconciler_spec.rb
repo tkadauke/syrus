@@ -5292,6 +5292,43 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(prepare.reload.runs).to be_empty
   end
 
+  # Regression: a review panel's fanout Step succeeds as soon as it has spawned
+  # its members; the Workflow's latest verdict is still the previous
+  # iteration's "needs_work". The dispatcher leaves the loop decision to the
+  # panel's collect Step, but the reconciler flagged the fanout every minute
+  # while the members were still reviewing, and every repair was skipped.
+  it "leaves a review-panel fanout to its collect Step" do
+    panel_job = Factories.job_record(user: job.user, repository: job.repository, state: "running", started_at: 30.minutes.ago)
+    panel_workflow = Workflow.create!(
+      job: panel_job, trigger_kind: "initial", state: "running", started_at: 30.minutes.ago,
+      chain_template: [
+        { "type" => "step", "kind" => "implement" },
+        { "type" => "loop", "max_iterations" => 2, "steps" => %w[ implement adversarial_review ] }
+      ],
+      artifacts: {
+        "adversarial_review_iterations" => [
+          { "iteration" => 1, "critique" => "Missing edge-case coverage.", "verdict" => "needs_work" }
+        ]
+      }
+    )
+    implement = Step.create!(workflow: panel_workflow, kind: "implement", position: 0, iteration: 2,
+                             loop_id: "review-loop", state: "succeeded", finished_at: 20.minutes.ago)
+    fanout = Step.create!(workflow: panel_workflow, kind: "adversarial_review", position: 1, iteration: 2,
+                          loop_id: "review-loop", state: "succeeded", finished_at: 19.minutes.ago,
+                          details: { "panel_fanout" => true })
+    member = Step.create!(workflow: panel_workflow, kind: "adversarial_review", position: 2, iteration: 2,
+                          loop_id: "review-loop", state: "running", started_at: 19.minutes.ago,
+                          details: { "panel_member" => true })
+    implement.update!(next_step: fanout)
+    fanout.update!(next_step: member)
+    member.runs.create!(job: panel_job, trigger_kind: "initial", agent_provider: panel_workflow.agent_provider,
+                        state: "running", started_at: 19.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+
+    result = reconcile(workflow_id: panel_workflow.id)
+
+    expect(kind(result, :succeeded_review_loop_needs_work_without_repair)).to be_nil
+  end
+
   it "materializes a mandatory adversarial review repair when success propagation was interrupted" do
     review_job = Factories.job_record(
       user: job.user,

@@ -1587,7 +1587,7 @@ class StepDispatcher
     loop_node = loop_node_for(@from_step)
     return false unless loop_node&.fetch("type") == "loop"
     return false unless loop_step_kinds(loop_node).last == effective_review_kind
-    return false if @from_step.details.to_h["panel_fanout"] || @from_step.details.to_h["panel_member"]
+    return false if @from_step.review_panel_participant?
 
     if review_loop_exit?(gate.fetch(:artifact_key), gate.fetch(:exit_verdicts))
       exit_review_loop!(loop_node, cancellation_reason: gate.fetch(:cancellation_reason))

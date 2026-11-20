@@ -347,5 +347,34 @@ theorem iter_after_actionable : Actionable detectIterAfter iterGuard := by
   unfold detectIterAfter at h
   omega
 
+/-! ## Instance: review panels decide at their collect Step
+
+`StepDispatcher#handle_successful_review_loop_iteration` returns early for a
+review-panel fanout or member: the panel's `review_panel_collect` decides the
+loop. `classify_succeeded_review_steps_without_required_repair` had no such
+exclusion, so a just-succeeded fanout -- reading the previous iteration's
+"needs_work" verdict -- was flagged every minute while its members reviewed,
+and the repair (which can only call the dispatcher) was skipped every time. -/
+
+structure ReviewStep where
+  needsWork : Bool
+  panelParticipant : Bool
+  successorMissing : Bool
+  deriving DecidableEq, Repr
+
+/-- The dispatcher continues a review loop only from a non-panel Step. -/
+def dispatcherRepairs (s : ReviewStep) : Prop := s.panelParticipant = false
+
+def detectReviewBefore (s : ReviewStep) : Prop := s.needsWork = true ∧ s.successorMissing = true
+def detectReviewAfter (s : ReviewStep) : Prop :=
+  s.needsWork = true ∧ s.successorMissing = true ∧ s.panelParticipant = false
+
+theorem review_before_not_actionable : ¬ Actionable detectReviewBefore dispatcherRepairs := by
+  intro h
+  have := h ⟨true, true, true⟩ ⟨rfl, rfl⟩
+  exact Bool.noConfusion this
+
+theorem review_after_actionable : Actionable detectReviewAfter dispatcherRepairs := fun _ h => h.2.2
+
 end Agreement
 end SyrusModel
