@@ -48,5 +48,6 @@ describe("AdminLocalBackups", () => {
     expect(screen.getByRole("button", { name: "Create backup" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Validate" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Pin" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/admin/local_backups/backup-1/download")
   })
 })
