@@ -254,6 +254,7 @@
     "error": "Conversations are unavailable.",
     "result_count_one": "{{count}} side chat",
     "result_count_other": "{{count}} side chats",
+    "result_count_limited": "First {{count}} matching side chats",
     "sort": "Sort",
     "sort_last_activity": "Recent activity",
     "sort_title": "Title",

@@ -53,6 +53,27 @@ RSpec.describe Coworkers::ConversationIndex do
     expect(payload.fetch(:side_chats).pluck(:id)).not_to include(other_chat.id, foreign.id)
   end
 
+  it "bounds the side chats and snippets materialized for full-text search" do
+    stub_const("Coworkers::ConversationIndex::SEARCH_SCAN_LIMIT", 2)
+    chats = 3.times.map do |index|
+      linked_chat("Research #{index}", role: "side", last_message_at: index.hours.ago).tap do |chat|
+        3.times do |message_index|
+          message = chat.messages.create!(role: "user", content: { "text" => "needle #{index}-#{message_index}" })
+          ChatMessageSearchIndex.insert(message)
+        end
+        chat.update_columns(last_message_at: (index + 1).hours.ago)
+      end
+    end
+
+    payload = described_class.new(
+      coworker: coworker, user: owner, filter: encoded_filter("search", "contains", "needle")
+    ).call
+
+    expect(payload).to include(result_count: 2, result_count_exact: false)
+    expect(payload.fetch(:side_chats).pluck(:id)).to contain_exactly(chats[0].id, chats[1].id)
+    expect(payload.fetch(:side_chats)).to all(include(match_count: 3))
+  end
+
   it "combines archived, unread, created, and active-work predicates" do
     travel_to Time.zone.parse("2026-11-18 12:00:00 UTC") do
       matching = linked_chat("Matching", role: "side", created_at: 2.days.ago, last_message_at: 1.hour.ago, turn_in_flight: true)
