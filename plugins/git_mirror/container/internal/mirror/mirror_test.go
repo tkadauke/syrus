@@ -182,7 +182,7 @@ func TestRefsAndRevisionRelation(t *testing.T) {
 func TestWorkspaceFilesBatchesContentAndHistory(t *testing.T) {
 	u := newUpstream(t)
 	u.commit(map[string]string{"root.md": "root"}, "root")
-	head := u.commit(map[string]string{"root.md": "root", "nested/recent.md": "recent"}, "recent")
+	head := u.commit(map[string]string{"root.md": "root", "nested/recent.md": strings.Repeat("x", 1<<20)}, "recent")
 	s := newStore(t, nil)
 	register(t, s, "42", u)
 	logPath := filepath.Join(t.TempDir(), "git-calls")
@@ -197,14 +197,17 @@ func TestWorkspaceFilesBatchesContentAndHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(result.Blobs["nested/recent.md"].Bytes) != "rece" || !result.Blobs["nested/recent.md"].Truncated {
+	if len(result.Blobs["nested/recent.md"].Bytes) != 0 || result.Blobs["nested/recent.md"].Size != 1<<20 || !result.Blobs["nested/recent.md"].Truncated {
 		t.Fatalf("unexpected recent blob: %+v", result.Blobs["nested/recent.md"])
+	}
+	if string(result.Blobs["root.md"].Bytes) != "root" || result.Blobs["root.md"].Truncated {
+		t.Fatalf("unexpected root blob: %+v", result.Blobs["root.md"])
 	}
 	if result.HistoryIncomplete || result.LastModified["root.md"].IsZero() || result.LastModified["nested/recent.md"].IsZero() {
 		t.Fatalf("unexpected history: %+v", result)
 	}
-	if calls, err := os.ReadFile(logPath); err != nil || strings.Count(string(calls), "call") != 3 {
-		t.Fatalf("workspace files ran %d git subprocesses, want one revision check plus two bounded batch calls: %v", strings.Count(string(calls), "call"), err)
+	if calls, err := os.ReadFile(logPath); err != nil || strings.Count(string(calls), "call") != 4 {
+		t.Fatalf("workspace files ran %d git subprocesses, want one revision check plus three bounded batch calls: %v", strings.Count(string(calls), "call"), err)
 	}
 }
 

@@ -799,7 +799,7 @@ RSpec.describe "API: coworkers", type: :request do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "workspace-search", workspace_repo: repository.remote_url)
     stub_repository_content(repository, ref: "coworkers/workspace-search", files: {
-      "memory/daily/notes.md" => "😀 needle in memory",
+      "memory/daily/notes.md" => "😀İx needle in memory",
       "memory/daily/other.txt" => "needle in another format",
       "projects/notes.md" => "needle outside memory",
       "assets/photo.png" => "\0binary"
@@ -813,7 +813,7 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.fetch("results")).to contain_exactly(
       include("path" => "memory/daily/notes.md", "snippet" => include("needle"), "binary" => false,
-        "highlights" => [ { "start" => 3, "length" => 6 } ])
+        "highlights" => [ { "start" => 5, "length" => 6 } ])
     )
     expect(response.parsed_body).to include("total" => 1, "next_cursor" => nil)
 
@@ -870,6 +870,39 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { search: "needle" }
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.fetch("results").size).to eq(2)
+  end
+
+  it "marks searches incomplete when truncated content can hide matches" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "truncated-search", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/truncated-search", files: {
+      "large.md" => (("x" * Coworkers::WorkspaceBrowser::MAX_FILE_BYTES) + "needle")
+    })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { search: "needle" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include("results" => [], "partial" => true)
+    expect(response.parsed_body.fetch("incomplete_reasons")).to include("content_limit")
+  end
+
+  it "reports the candidate cap before date filtering removes unexamined files" do
+    stub_const("Coworkers::WorkspaceBrowser::MAX_SEARCH_FILES", 1)
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "limited-history", workspace_repo: repository.remote_url)
+    head = stub_repository_content(repository, ref: "head-revision", files: { "one.md" => "one", "two.md" => "two" })
+    stub_repository_content(repository, ref: "coworkers/limited-history", files: { "one.md" => "one", "two.md" => "two" })
+    stub_repository_commits(repository, ref: "coworkers/limited-history", commits: [
+      { sha: head.id, message: "head", date: Time.zone.parse("2026-02-01T12:00:00Z") }
+    ])
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { modified_after: "2026-01-01", sort: "modified" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include("partial" => true)
+    expect(response.parsed_body.fetch("incomplete_reasons")).to include("search_limit")
   end
 
   it "rejects invalid workspace cursors" do
