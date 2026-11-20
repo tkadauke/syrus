@@ -948,6 +948,42 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload).to have_attributes(pr_checks_sha: sha, pr_checks_state: "failing")
     end
 
+    it "schedules a catch-up when check-cache retries are exhausted" do
+      repository.update!(ci_repair_enabled: true)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure", html_url: "u", output: { summary: "fail" } }
+      ])
+      attempts = 0
+      allow(PollingPersistenceRetry).to receive(:sleep)
+      messages = []
+      allow(Rails.logger).to receive(:warn) { |message| messages << message }
+      allow_any_instance_of(Job).to receive(:update_columns).and_wrap_original do |original, *args|
+        next original.call(*args) unless original.receiver.id == job.id && args.first.key?(:pr_checks_sha)
+
+        attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "lock wait timed out"
+      end
+
+      workflow_count = job.workflows.where(trigger_kind: "ci_failure").count
+      expect {
+        described_class.perform_now(job.id)
+      }.to have_enqueued_job(described_class).with(job.id)
+
+      expect(attempts).to eq(3)
+      expect(job.workflows.where(trigger_kind: "ci_failure").count).to eq(workflow_count)
+      expect(a_request(:get, %r{/commits/#{sha}/check-runs})).to have_been_made.once
+      expect(job.reload.pr_checks_checked_at).to be_nil
+      expect(messages.map { |message| JSON.parse(message) }).to include(
+        include(
+          "event" => "github_polling_persistence_catch_up_scheduled",
+          "boundary" => "pr_checks",
+          "job_id" => job.id,
+          "repository_id" => repository.id,
+          "pr_number" => 7
+        )
+      )
+    end
+
     it "lets a manual poll dispatch repair when repository CI repair is disabled" do
       repository.update!(ci_repair_enabled: false)
       stub_check_runs(sha, [
