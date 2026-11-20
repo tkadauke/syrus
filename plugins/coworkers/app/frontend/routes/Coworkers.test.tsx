@@ -383,13 +383,39 @@ it("renders Job-centered activity with linked attempts and a bounded failure rea
   job.outcome_reason = "The source service was unavailable"
   job.tool_calls_count = 3
   job.cost_usd = 1.5
-  job.attempts = [{
-    id: 9, slug: "WF-9", path: "/jobs/42?tab=workflows#workflow-9", state: "failed",
-    started_at: "2026-10-29T10:00:00Z", finished_at: "2026-10-29T10:01:00Z", duration_seconds: 60,
-    failure_reason: "The source service was unavailable", tool_calls_count: 3, cost_usd: 1.5,
-    runs: [{ id: 11, slug: "RUN-11", path: "/jobs/42?tab=workflows#workflow-9", state: "failed", started_at: null, finished_at: null, duration_seconds: 60, tool_calls_count: 3, cost_usd: 1.5 }]
-  }]
-  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/activity") ? jsonResponse({ ...activityPayload, jobs: [job] }) : jsonResponse(detailPayload)))
+  job.attempts = [
+    {
+      id: 9,
+      slug: "WF-9",
+      path: "/jobs/42?tab=workflows#workflow-9",
+      state: "failed",
+      started_at: "2026-10-29T10:00:00Z",
+      finished_at: "2026-10-29T10:01:00Z",
+      duration_seconds: 60,
+      failure_reason: "The source service was unavailable",
+      tool_calls_count: 3,
+      cost_usd: 1.5,
+      runs: [
+        {
+          id: 11,
+          slug: "RUN-11",
+          path: "/jobs/42?tab=workflows#workflow-9",
+          state: "failed",
+          started_at: null,
+          finished_at: null,
+          duration_seconds: 60,
+          tool_calls_count: 3,
+          cost_usd: 1.5
+        }
+      ]
+    }
+  ]
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/activity") ? jsonResponse({ ...activityPayload, jobs: [job] }) : jsonResponse(detailPayload)
+    )
+  )
   renderRoute("/coworkers/7")
 
   fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
@@ -408,10 +434,22 @@ it("renders Job-centered activity with linked attempts and a bounded failure rea
 
 function activityJob(id: number): CoworkerActivityPayload["jobs"][number] {
   return {
-    id, slug: `JOB-${id}`, title: "Prepare the report", goal_summary: "Prepare the report.", path: `/jobs/${id}`,
-    state: "succeeded", source: "coworker_run", schedule_name: null, created_at: "2026-10-29T10:00:00Z",
-    started_at: "2026-10-29T10:00:00Z", finished_at: "2026-10-29T10:01:00Z", duration_seconds: 60,
-    tool_calls_count: 0, cost_usd: 0, outcome_reason: null, attempts: []
+    id,
+    slug: `JOB-${id}`,
+    title: "Prepare the report",
+    goal_summary: "Prepare the report.",
+    path: `/jobs/${id}`,
+    state: "succeeded",
+    source: "coworker_run",
+    schedule_name: null,
+    created_at: "2026-10-29T10:00:00Z",
+    started_at: "2026-10-29T10:00:00Z",
+    finished_at: "2026-10-29T10:01:00Z",
+    duration_seconds: 60,
+    tool_calls_count: 0,
+    cost_usd: 0,
+    outcome_reason: null,
+    attempts: []
   }
 }
 
