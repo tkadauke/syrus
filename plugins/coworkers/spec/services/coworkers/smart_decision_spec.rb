@@ -87,7 +87,7 @@ RSpec.describe Permissions::SmartDecision do
 
     expect(item.reload).to have_attributes(state: "approved", selected_duration: option[:duration])
     expect(item.resulting_authority).to be_a(PermissionRule)
-    expect(item.authorized_invocation.authority).not_to eq(item.resulting_authority)
+    expect(item.authorized_invocation.authority).to eq(item.resulting_authority)
     expect(item.authorized_invocation).to be_present
   end
 
