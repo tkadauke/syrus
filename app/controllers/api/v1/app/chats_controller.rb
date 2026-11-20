@@ -1307,10 +1307,6 @@ module Api
           )
         end
 
-        def media_thumbnail_content_types
-          Document::ACCEPTED_IMAGE_CONTENT_TYPES & ActiveStorage.variable_content_types
-        end
-
         def media_chat_image
           document = find_chat_media_image
 
