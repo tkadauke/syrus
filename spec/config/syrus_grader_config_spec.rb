@@ -105,13 +105,11 @@ RSpec.describe "Syrus grader configuration" do
     )
   end
 
-  it "gives the CI-mode RSpec suite enough time to finish its serial examples" do
-    grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "rspec-ci" }
+  it "gives every CI-mode RSpec shard enough time to finish its serial examples" do
+    shards = RepoGradePlan.for(Rails.root).graders.select { |entry| entry.name.start_with?("rspec-ci-") }
 
-    expect(grader).to have_attributes(
-      phases: [ "ci" ],
-      timeout_minutes: 150
-    )
+    expect(shards.map(&:name)).to eq(%w[rspec-ci-1-of-4 rspec-ci-2-of-4 rspec-ci-3-of-4 rspec-ci-4-of-4])
+    shards.each { |grader| expect(grader).to have_attributes(phases: [ "ci" ], timeout_minutes: 150) }
   end
 
   it "gives coverage-enabled CI React tests enough time to finish" do

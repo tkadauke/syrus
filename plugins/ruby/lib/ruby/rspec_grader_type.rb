@@ -40,13 +40,56 @@ module Ruby
       [
         grade_step(name: full_name, run: full_command(coverage: landing_coverage), phases: landing_phases, mode: "full", junit_output: junit_output(full_name), when_files_changed: configured_scope, coverage: landing_coverage),
         grade_step(name: focused_name, run: focused_command(coverage: review_coverage), phases: review_phases, mode: "focused", junit_output: junit_output(focused_name), when_files_changed: focused_scope, coverage: review_coverage),
-        grade_step(name: ci_name, run: ci_command(coverage: ci_coverage), phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope, coverage: ci_coverage)
+        *ci_grade_steps(ci_coverage)
       ]
     end
 
     private
 
     attr_reader :config, :default_failures
+
+    # `parallel_rspec.shards: N` splits the CI grader into N graders that each
+    # run a disjoint slice of the spec files. Every shard is its own
+    # distributed grader Step, so they land on different workers and run at
+    # the same time; the CI suite was the critical path of nearly every
+    # grading pass, running for an hour on one worker while the others idled.
+    def ci_grade_steps(coverage)
+      count = ci_shard_count
+      return [ grade_step(name: ci_name, run: ci_command(coverage: coverage), phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope, coverage: coverage) ] if count <= 1
+
+      (1..count).map do |index|
+        grade_step(
+          name: ci_shard_name(index, count),
+          run: ci_command(coverage: false, shard: [ index, count ]),
+          phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name),
+          when_files_changed: configured_scope, coverage: false,
+          shard: { "index" => index, "count" => count }
+        )
+      end
+    end
+
+    def ci_shard_name(index, count)
+      "#{ci_name}-#{index}-of-#{count}"
+    end
+
+    # Sharding rides on the combined CI pass (CI-tag examples in the parallel
+    # pass, serial_paths afterwards), the only CI shape whose file set can be
+    # split without changing which examples run.
+    def ci_shard_count
+      raw = parallel_config["shards"]
+      return 1 if raw.blank?
+
+      count = Integer(raw.to_s, 10)
+      raise ArgumentError, "parallel_rspec.shards must be a positive integer" unless count.positive?
+      return 1 if count == 1
+      unless parallel_rspec_enabled_for?("ci") && tag_args_for("ci").any? && parallel_serial_paths.any? && tags_for("full", "include").empty? && parallel_exec_args.present?
+        raise ArgumentError, "parallel_rspec.shards needs parallel CI mode with CI tags, serial_paths and exec_args"
+      end
+
+      count
+    rescue TypeError
+      raise ArgumentError, "parallel_rspec.shards must be a positive integer"
+    end
 
     def fixed_full_path_grade_steps
       unless explicit_rspec_paths?
@@ -249,7 +292,9 @@ module Ruby
       )
     end
 
-    def ci_command(coverage:)
+    def ci_command(coverage:, shard: nil)
+      return combined_ci_command(coverage, shard: shard) if shard
+
       if parallel_rspec_enabled_for?("ci") && tag_args_for("ci").any? && (combined = combined_ci_command(coverage))
         return combined
       end
@@ -288,13 +333,19 @@ module Ruby
     # specs, subprocess-heavy scripts, non-transactional specs) stay serial.
     # The serial CI pass otherwise ran a quarter of the suite on one core and
     # was the longest part of the CI grader.
-    def combined_ci_command(coverage)
+    def combined_ci_command(coverage, shard: nil)
       serial_paths = parallel_serial_paths
       return nil if serial_paths.empty?
       return nil if tags_for("full", "include").any?
 
       combined_tags = combined_ci_tag_args
-      parallel_rspec_command(
+      serial = {
+        env: { "RUN_CI_ONLY_SPECS" => "true" },
+        args: [ *combined_tags, *serial_paths ],
+        json_output: extra_json_output(ci_name, "serial"),
+        junit_output: extra_junit_output(ci_name, "serial")
+      }
+      return parallel_rspec_command(
         mode: "ci",
         junit_output: junit_output(ci_name),
         json_output: json_output(ci_name),
@@ -302,13 +353,61 @@ module Ruby
         env: { "RUN_CI_ONLY_SPECS" => "true" },
         args: [ *combined_tags, *rspec_paths ],
         exclude_paths: serial_paths,
-        extra_serial: {
-          env: { "RUN_CI_ONLY_SPECS" => "true" },
-          args: [ *combined_tags, *serial_paths ],
-          json_output: extra_json_output(ci_name, "serial"),
-          junit_output: extra_junit_output(ci_name, "serial")
-        }
+        extra_serial: serial
+      ) unless shard
+
+      index, count = shard
+      parallel_rspec_command(
+        mode: "ci",
+        junit_output: junit_output(ci_name),
+        json_output: json_output(ci_name),
+        coverage: false,
+        env: { "RUN_CI_ONLY_SPECS" => "true" },
+        args: [ *combined_tags, SHARD_FILES_EXPANSION ],
+        shell_expand_args: true,
+        exclude_paths: serial_paths,
+        pre_command: shard_files_command(index, count, serial_paths),
+        guard_empty_shard: true,
+        # The serial paths run once, in the last shard.
+        extra_serial: index == count ? serial : nil
       )
+    end
+
+    SHARD_FILES_VARIABLE = "SYRUS_RSPEC_SHARD_FILES".freeze
+    SHARD_FILES_EXPANSION = "$#{SHARD_FILES_VARIABLE}".freeze
+
+    # Every shard computes the same partition from the checkout alone: spec
+    # files under the RSpec paths (minus the serial paths), balanced by file
+    # size with a deterministic longest-first assignment. A recorded runtime
+    # profile would balance better, but profiles are kept per grader name, so
+    # shards would see different ones and could drop or double-run files.
+    def shard_files_command(index, count, excluded)
+      script = Base64.strict_encode64(<<~'RUBY')
+        index, count = Integer(ARGV.shift), Integer(ARGV.shift)
+        paths, excluded = ARGV.join("\0").split("\0--\0", 2).map { |part| part.to_s.split("\0") }
+        excluded = Array(excluded).map { |path| path.delete_prefix("./") }
+        files = Array(paths).flat_map do |path|
+          clean = path.delete_prefix("./")
+          if File.directory?(clean) then Dir.glob(File.join(clean, "**", "*_spec.rb"))
+          elsif clean.end_with?("_spec.rb") && File.file?(clean) then [ clean ]
+          else []
+          end
+        end.uniq.reject { |file| excluded.any? { |prefix| file.start_with?(prefix) } }
+        loads = Array.new(count, 0)
+        buckets = Array.new(count) { [] }
+        files.sort_by { |file| [ -File.size(file), file ] }.each do |file|
+          target = loads.each_with_index.min_by { |load, position| [ load, position ] }.last
+          buckets[target] << file
+          loads[target] += File.size(file)
+        end
+        puts buckets.fetch(index - 1).sort.join(" ")
+      RUBY
+      args = Shellwords.join([ index.to_s, count.to_s, *rspec_paths, "--", *excluded ])
+      <<~BASH.squish
+        #{SHARD_FILES_VARIABLE}="$(ruby -rbase64 -e 'eval(Base64.strict_decode64(ARGV.shift))' #{script} #{args})" ||
+        { echo "[rspec] could not compute shard #{index}/#{count}'s spec files"; exit 1; };
+        echo "[rspec] shard #{index}/#{count}: $(echo $#{SHARD_FILES_VARIABLE} | wc -w | tr -d ' ') spec file(s)";
+      BASH
     end
 
     # Everything the full pass runs plus the CI-tag examples: the full mode's
@@ -418,7 +517,7 @@ module Ruby
       skip_setup ? command : "#{setup_prefix} && #{command}"
     end
 
-    def parallel_rspec_command(mode:, junit_output:, json_output:, coverage:, env: {}, args: [], shell_expand_args: false, skip_setup: false, extra_serial: nil, exclude_paths: [])
+    def parallel_rspec_command(mode:, junit_output:, json_output:, coverage:, env: {}, args: [], shell_expand_args: false, skip_setup: false, extra_serial: nil, exclude_paths: [], pre_command: nil, guard_empty_shard: false)
       raise ArgumentError, "parallel_rspec cannot use shell-expanded args without exec_args" if shell_expand_args && parallel_exec_args.blank?
 
       env = {
@@ -466,15 +565,23 @@ module Ruby
         #{database_prepare_command}
         #{parallel_prepare_command}
         #{runtime_grouping_setup}
+        #{pre_command}
         set +e;
-        #{env_prefix} #{parallel_command};
-        parallel_status="$?";
+        #{guarded_parallel_command("#{env_prefix} #{parallel_command}", guard_empty_shard)}
         #{extra_serial_command}
         set -e;
         #{merge_junit_command(shard_junit_dir, junit)} || true;
         #{status_checks}
       BASH
       skip_setup ? command : "#{setup_prefix} && #{command}"
+    end
+
+    # An empty shard must not hand parallel_rspec an empty file list: with no
+    # paths it falls back to the whole default spec directory.
+    def guarded_parallel_command(command, guard_empty_shard)
+      return %(#{command}; parallel_status="$?";) unless guard_empty_shard
+
+      %(if [ -n "$#{SHARD_FILES_VARIABLE}" ]; then #{command}; parallel_status="$?"; else echo "[rspec] shard has no spec files"; parallel_status=0; fi;)
     end
 
     def parallel_execution_args(mode, args, json_output:, junit_output:, shell_expand_args:)
@@ -912,10 +1019,10 @@ module Ruby
       RUBY
     end
 
-    def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil)
+    def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil, shard: nil)
       SyrusYml::GradeStep.new(
         name: name,
-        display_name: display_name_for(mode),
+        display_name: shard ? "#{display_name_for(mode)} #{shard['index']}/#{shard['count']}" : display_name_for(mode),
         run: run,
         ci: nil,
         phases: phases,
@@ -945,6 +1052,7 @@ module Ruby
             "coverage" => coverage
           }
         }.merge(mode == "ci" ? { "supersedes" => full_name } : {})
+         .merge(shard ? { "shard" => shard } : {})
       )
     end
   end
