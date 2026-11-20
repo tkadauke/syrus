@@ -7,10 +7,11 @@ require "open3"
 require "pathname"
 require "tmpdir"
 
-plugin_root = Pathname.new(ARGV.shift || ENV.fetch("SYRUS_PLUGIN_PATH", "/plugins/plugin")).expand_path
+plugin_path = ARGV.shift
 mode = ENV.fetch("SYRUS_PLUGIN_TEST_MODE", "test")
 json_only = ENV["SYRUS_PLUGIN_TEST_JSON"] == "1"
-abort "usage: bin/plugin-test [PLUGIN_DIR]" unless ARGV.empty?
+abort "usage: bin/plugin-test PLUGIN_DIR" unless plugin_path && ARGV.empty?
+plugin_root = Pathname.new(plugin_path).expand_path
 abort "plugin directory does not exist: #{plugin_root}" unless plugin_root.directory?
 abort "SYRUS_PLUGIN_TEST_MODE must be validate or test" unless %w[validate test].include?(mode)
 
@@ -18,7 +19,7 @@ host_root = Pathname.new(__dir__).join("..").expand_path
 result = { version: 1, mode:, plugin: plugin_root.basename.to_s, validation: "not_run", tests: "not_run", exit_code: 0 }
 
 Dir.mktmpdir("syrus-plugin-test") do |temporary|
-  external_root = Pathname.new(temporary).join("plugins")
+  external_root = Pathname.new(temporary).join("external_plugins")
   FileUtils.mkdir_p(external_root)
   FileUtils.ln_s(plugin_root, external_root.join(plugin_root.basename))
   database = Pathname.new(temporary).join("plugin-test.sqlite3")
