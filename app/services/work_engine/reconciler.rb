@@ -3729,7 +3729,19 @@ module WorkEngine
         "stack_dependencies_not_ready"
       ]) &&
         !start_blocked_check_due?(workflow) &&
-        workflow.job.dependencies_satisfied_for_execution?
+        stack_ready_for_start?(workflow)
+    end
+
+    # The dispatcher sets stack blocks from JobStackResolver, which can still
+    # say "not ready" after dependencies are satisfied for execution (a
+    # same-Epic parent approved without a branch to stack on). Judging the block
+    # from dependencies alone made the reconciler start a Workflow the
+    # dispatcher kept refusing. Resolved without a Workflow, so a fan-in stack
+    # never builds a prepared base here; it reads as not ready yet.
+    def stack_ready_for_start?(workflow)
+      return false unless workflow.job.dependencies_satisfied_for_execution?
+
+      JobStackResolver.new(workflow.job).resolve!(apply: false).ready?
     end
 
     # Work that is deliberately waiting its turn behind other work -- an Epic
@@ -3772,7 +3784,7 @@ module WorkEngine
       when StepDispatcher::STACK_BLOCK_REASON,
         StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON,
         "stack_dependencies_not_ready"
-        !workflow.job.dependencies_satisfied_for_execution?
+        !stack_ready_for_start?(workflow)
       when StepDispatcher::DEPENDENCY_FAILED_BLOCK_REASON, "dependency_failed"
         workflow.job.dependencies_failed_for_execution?
       when StepDispatcher::JOB_BLOCK_REASON, "job_not_ready_for_execution"

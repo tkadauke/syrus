@@ -1897,9 +1897,9 @@
         "queued_workflow_without_first_run",
         "superseded_ci_repair_base_resolves"
       ],
-      "status": "open",
-      "done_by": "F4",
-      "notes": "204 skipped, 0 applied in ~9h: the classifier fires on legitimately blocked workflows and the executor declines ('workflow start remained blocked'); the three recheck-less holds rely on the reconciler alone."
+      "status": "partial",
+      "done_by": "F17",
+      "notes": "The 204 refused start_workflow repairs in the production sample were Workflows legitimately start-blocked: three on stack_dependencies_not_ready, two on the Epic turn. For the stack case the reconciler judged the block stale from dependencies_satisfied_for_execution? while the dispatcher decides from JobStackResolver, which can still be not ready (a same-Epic parent approved without a branch to stack on) — so the reconciler kept planning a start the dispatcher refused. Fixed: the reconciler asks the same resolver (dry run, no Workflow, so fan-in never builds). Agreement.lean: stack_before_not_actionable / stack_after_actionable. The Epic-turn cases are consistent with the two-query race fixed in F8; recheck after deploy."
     },
     {
       "id": "deferral-schedules-recheck",

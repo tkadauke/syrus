@@ -181,5 +181,31 @@ theorem resume_before_not_actionable : ¬ Actionable detectResumeBefore resumeGu
 
 theorem resume_after_actionable : Actionable detectResumeAfter resumeGuard := fun _ h => h.2
 
+/-! ## Instance: stack start blocks
+
+The dispatcher sets `stack_dependencies_not_ready` from `JobStackResolver`; the
+reconciler judged the block stale from `dependencies_satisfied_for_execution?`
+alone. Stack readiness implies dependency satisfaction but not conversely, so
+with dependencies satisfied and the stack not ready the reconciler planned
+`start_workflow` and the dispatcher refused it (~200 times in 9 hours). -/
+
+structure StackState where
+  depsSatisfied : Bool
+  stackReady : Bool
+  deriving DecidableEq, Repr
+
+/-- Readiness as the dispatcher decides it. -/
+def dispatcherStarts (s : StackState) : Prop := s.depsSatisfied = true ∧ s.stackReady = true
+
+def staleBefore (s : StackState) : Prop := s.depsSatisfied = true
+def staleAfter (s : StackState) : Prop := s.depsSatisfied = true ∧ s.stackReady = true
+
+theorem stack_before_not_actionable : ¬ Actionable staleBefore dispatcherStarts := by
+  intro h
+  have := (h ⟨true, false⟩ rfl).2
+  exact Bool.noConfusion this
+
+theorem stack_after_actionable : Actionable staleAfter dispatcherStarts := fun _ h => h
+
 end Agreement
 end SyrusModel

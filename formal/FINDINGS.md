@@ -457,6 +457,32 @@ it needs an operator decision (resume or cancel), not a code change.
 
 ---
 
+## F17. The reconciler kept starting stack-blocked Workflows the dispatcher refused — fixed
+
+**Property.** The reconciler's "stale start block" uses the dispatcher's own
+readiness rule (`Agreement.stack_after_actionable`).
+
+**Evidence.** The 204 refused `start_workflow` repairs in the production sample
+were legitimately blocked Workflows: three on `stack_dependencies_not_ready`,
+two on the Epic turn.
+
+**Counterexample.** `stack_before_not_actionable`: the dispatcher sets the stack
+block from `JobStackResolver`; the reconciler (`current_start_block_active?`,
+`stale_dependency_start_block?`) judged it from
+`dependencies_satisfied_for_execution?`. A same-Epic parent that is approved but
+has no branch to stack on satisfies the second and not the first.
+
+**Fix.** The reconciler asks `JobStackResolver` (dry run without a Workflow, so a
+fan-in stack never builds a prepared base during reconciliation).
+
+**Spec.** `reconciler_spec.rb` "keeps a stack start block while the stack
+resolver still says not ready" (red before).
+
+**Review note.** The two Epic-turn cases match the two-query race fixed in F8;
+check the rate after deploy.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

@@ -2225,6 +2225,30 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil, wait_details: {})
   end
 
+  # The dispatcher sets the stack block from JobStackResolver, which can still
+  # say "not ready" after the Job's dependencies are satisfied for execution
+  # (a same-Epic parent approved but without a branch to stack on). The
+  # reconciler judged the block stale from dependencies alone and kept starting
+  # a Workflow the dispatcher kept refusing (~200 refusals in 9 hours).
+  it "keeps a stack start block while the stack resolver still says not ready" do
+    stacked_job = Factories.job_record(state: "queued")
+    stacked = WorkUnits::Launcher.instantiate(kind: "initial", job: stacked_job)
+    stacked.update_columns(created_at: 2.hours.ago, updated_at: 2.hours.ago)
+    StepDispatcher.record_start_blocked!(stacked, StepDispatcher::STACK_BLOCK_REASON, backoff: StepDispatcher::START_BLOCKED_BACKOFF)
+    stacked.update!(artifacts: stacked.artifacts.except("start_blocked_next_check_at"))
+    allow_any_instance_of(Job).to receive(:dependencies_satisfied_for_execution?).and_return(true)
+    allow_any_instance_of(JobStackResolver).to receive(:resolve!).and_return(
+      JobStackResolver::Result.new(ready: false, reason: JobStackResolver::STACK_BLOCK_REASON, parent: nil, blocker: {}, artifacts: {})
+    )
+
+    result = reconcile(job_id: stacked_job.id)
+
+    kinds = result.issues.map(&:kind)
+    expect(kinds).not_to include("stale_dependency_start_block")
+    first_run = result.issues.find { |issue| issue.kind == "queued_workflow_without_first_run" }
+    expect(first_run&.recommended_repair_action).not_to eq("start_workflow")
+  end
+
   # An operator pause holds the next phase on purpose. Flagging the held Step
   # as "queued without a Run" produced a resume the executor refused on every
   # reconcile pass (production: one paused rebase, ~500 refusals in 9 hours).
