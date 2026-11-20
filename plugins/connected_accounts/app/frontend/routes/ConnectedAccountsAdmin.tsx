@@ -2,17 +2,17 @@ import { useState, type FormEvent } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { Button, Input, Notice, Page, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
+import { getJson, patchJson } from "@app/api/client"
 
 type Config = Record<string, string | string[] | boolean>
-type ErrorPayload = { error?: { message?: string } }
+type ConfigPayload = { provider_config: Config }
 
 export default function ConnectedAccountsAdmin() {
   const { t } = useT("connected_accounts")
   const [draft, setDraft] = useState<Record<string, string>>({})
   const query = useQuery({ queryKey: ["connected_accounts", "provider_config"], queryFn: async () => {
-    const response = await fetch("/api/v1/app/admin/connected_accounts/provider_config")
-    if (!response.ok) throw new Error("Unable to load provider configuration")
-    return (await response.json()).provider_config as Config
+    const payload = await getJson<ConfigPayload>("/api/v1/app/admin/connected_accounts/provider_config")
+    return payload.provider_config
   } })
   const save = useMutation({ mutationFn: async () => {
     const current = query.data || {}
@@ -20,11 +20,7 @@ export default function ConnectedAccountsAdmin() {
       scope_catalog: (draft.scope_catalog || String(current.scope_catalog || "")).split(",").map(v => v.trim()).filter(Boolean),
       read_only_scopes: (draft.read_only_scopes || String(current.read_only_scopes || "")).split(",").map(v => v.trim()).filter(Boolean),
       api_origins: (draft.api_origins || String(current.api_origins || "")).split(",").map(v => v.trim()).filter(Boolean) } }
-    const response = await fetch("/api/v1/app/admin/connected_accounts/provider_config", { method: "PUT", headers: { "Content-Type": "application/json", "X-CSRF-Token": document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content || "" }, body: JSON.stringify(body) })
-    if (!response.ok) {
-      const payload = await response.json() as ErrorPayload
-      throw new Error(payload.error?.message || t("settings.save_failed"))
-    }
+    await patchJson<ConfigPayload>("/api/v1/app/admin/connected_accounts/provider_config", body)
   } })
   function submit(event: FormEvent) { event.preventDefault(); save.mutate() }
   const fields = ["authorize_url", "token_url", "revoke_url", "identity_url", "validate_url", "client_id", "client_secret", "scope_catalog", "read_only_scopes", "api_origins"]
