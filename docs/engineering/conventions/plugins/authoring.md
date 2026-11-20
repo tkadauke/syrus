@@ -4331,3 +4331,40 @@ plugin-owned review invocation while preserving the already-recorded repair.
 2. Register it from the plugin gem's engine initializer: `Syrus::PluginRegistry.register(name: "discord", version: "1.0.0", provides: { platform_delivery: Discord::PlatformAdapter })`.
 3. `PlatformDelivery::Registry.for`, `PlatformIdentity.available_platforms`, and boot-time connector start all pick it up automatically, respecting the plugin's `PluginRecord` enable/disable state. No core code change needed.
 4. If the platform needs custom linking instructions (bot handle, DM command, etc.), also implement `.platform_config_class` on the adapter, returning a `PlatformIdentity::PlatformConfig::Base` subclass defined in the plugin gem (e.g. `Discord::PlatformConfig`, implementing `#configured?` and `#instructions(token)`). `PlatformIdentity::PlatformConfig::Base.for` consults this hook for plugin platforms; leaving it unset (or omitting the method) falls back to `PlatformIdentity::PlatformConfig::Unconfigured` (shows up in Settings, not connectable).
+
+## Defining and implementing capability families
+
+Core defines a family and its complete capability contracts without referring
+to provider constants:
+
+```ruby
+Syrus::Plugin::Family.define(:ecosystem) do
+  shape :facet
+  capability :detect_prepare,
+    composition: :collect,
+    absent: [],
+    tier: :stable,
+    context: "Ecosystem::PrepareContext"
+end
+```
+
+Each capability must document its composition, absent result, stability tier,
+and context. Facets require provider `key` and `display_name` methods; service
+families additionally require `available_for?` because the host selects among
+implementations.
+
+Plugin manifests name classes as strings so inspection does not autoload them:
+
+```ruby
+provides ecosystem: "Kotlin::Ecosystem",
+  implements: %i[detect_prepare],
+  provisional: %i[prompt_context]
+```
+
+Several classes may be declared for the same family. Put stable capabilities
+in `implements` and provisional ones in `provisional`; unknown, duplicate, or
+tier-mismatched names fail manifest parsing. Registry callers use
+`capability_providers(family, capability)` for ordered lazy references and
+invoke a reference only at the call boundary. Inventory surfaces use
+`capability_catalog`, which contains only manifest data and does not resolve
+provider constants.
