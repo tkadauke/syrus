@@ -1,6 +1,7 @@
 en:
   api:
     coworkers:
+      no_goal_summary: "No goal summary available"
       approval_inactive: "This approval is no longer pending."
       memory_unavailable: "The coworker's memory cannot be reached right now."
       review_memory_persistence_failed: "Coworker memory persistence failed."

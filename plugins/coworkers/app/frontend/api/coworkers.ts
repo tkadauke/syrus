@@ -121,17 +121,49 @@ export type CoworkerSchedule = {
 }
 export type CoworkerActivityPayload = {
   spend: { week_usd: number; total_usd: number }
-  runs: {
+  jobs: {
     id: number
-    job_id: number
+    slug: string
+    title: string
+    goal_summary: string
+    path: string
     state: string
+    source: string | null
+    schedule_name: string | null
+    created_at: string
     started_at: string | null
     finished_at: string | null
+    duration_seconds: number | null
     tool_calls_count: number
     cost_usd: number
+    outcome_reason: string | null
+    attempts: {
+      id: number
+      slug: string
+      path: string
+      state: string
+      started_at: string | null
+      finished_at: string | null
+      duration_seconds: number | null
+      failure_reason: string | null
+      tool_calls_count: number
+      cost_usd: number
+      runs: {
+        id: number
+        slug: string
+        path: string
+        state: string
+        started_at: string | null
+        finished_at: string | null
+        duration_seconds: number | null
+        tool_calls_count: number
+        cost_usd: number
+      }[]
+    }[]
   }[]
   side_chats: { id: number; title: string | null; path: string; cost_usd: number }[]
-  next_cursors: { runs: string | null; side_chats: string | null }
+  next_cursors: { jobs: string | null; side_chats: string | null }
+  filtered: boolean
   message_traffic: CoworkerDetail["message_traffic"]
 }
 export type CoworkerApproval = {
@@ -225,10 +257,11 @@ export function fetchCoworkerWorkspace(id: string, search: string) {
   return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${search}`)
 }
 export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
-export function fetchCoworkerActivity(id: string, cursors?: { runs?: string | null; sideChats?: string | null }) {
-  const query = new URLSearchParams()
+export function fetchCoworkerActivity(id: string, search = "", cursors?: { jobs?: string | null; sideChats?: string | null }) {
+  const query = new URLSearchParams(search)
+  query.delete("tab")
   if (cursors) {
-    query.set("runs_cursor", cursors.runs || "")
+    query.set("jobs_cursor", cursors.jobs || "")
     query.set("side_chats_cursor", cursors.sideChats || "")
   }
   return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity${query.size ? `?${query}` : ""}`)

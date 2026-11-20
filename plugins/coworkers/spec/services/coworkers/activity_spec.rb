@@ -32,8 +32,9 @@ RSpec.describe Coworkers::Activity do
       payload = described_class.new(coworker: coworker, user: owner).call
 
       expect(payload.fetch(:spend)).to eq(week_usd: 2.5, total_usd: 6.5)
-      expect(payload.fetch(:runs).find { |run| run[:id] == recent.id }).to include(
-        state: "succeeded", tool_calls_count: 2, cost_usd: 2.0
+      expect(payload.fetch(:jobs).find { |job| job[:id] == recent.job_id }).to include(
+        slug: recent.job.slug, path: "/jobs/#{recent.job_id}", goal_summary: "Background task",
+        tool_calls_count: 2, cost_usd: 2.0
       )
       expect(payload.fetch(:side_chats)).to contain_exactly(include(id: side.id, cost_usd: 0.25))
     end
@@ -42,7 +43,7 @@ RSpec.describe Coworkers::Activity do
   it "returns zero spend and an empty run list for a coworker with no activity" do
     expect(described_class.new(coworker: coworker, user: owner).call).to include(
       spend: { week_usd: 0.0, total_usd: 0.0 },
-      runs: [],
+      jobs: [],
       side_chats: []
     )
   end
@@ -55,6 +56,16 @@ RSpec.describe Coworkers::Activity do
     tool_call_queries = queries.grep(/FROM ["`]job_logs["`].*kind.*GROUP BY/i)
 
     expect(tool_call_queries.size).to eq(1)
+  end
+
+  it "keeps the query count bounded across Jobs, Workflows, Runs, and JobLogs" do
+    coworker_run(cost: 0.25, finished_at: 1.day.ago)
+    one_job_queries = sql_queries { described_class.new(coworker: coworker, user: owner).call }.size
+    2.times { coworker_run(cost: 0.25, finished_at: 1.day.ago) }
+
+    three_job_queries = sql_queries { described_class.new(coworker: coworker, user: owner).call }.size
+
+    expect(three_job_queries).to be <= one_job_queries + 1
   end
 
   it "loads weekly spend for a coworker collection with two aggregate queries" do
@@ -73,7 +84,7 @@ RSpec.describe Coworkers::Activity do
     expect(queries.grep(/FROM ["`]runs["`]/i).size).to eq(1)
   end
 
-  it "paginates runs and side chats with bounded opaque cursors" do
+  it "paginates jobs and side chats with bounded opaque cursors" do
     runs = 51.times.map { coworker_run(cost: 0.01, finished_at: 1.day.ago) }
     chats = 51.times.map do |index|
       ChatSession.create!(user: owner, title: "Side #{index}").tap do |chat|
@@ -84,21 +95,57 @@ RSpec.describe Coworkers::Activity do
     first = described_class.new(coworker: coworker, user: owner).call
     second = described_class.new(
       coworker: coworker, user: owner,
-      runs_cursor: first.dig(:next_cursors, :runs),
+      jobs_cursor: first.dig(:next_cursors, :jobs),
       side_chats_cursor: first.dig(:next_cursors, :side_chats)
     ).call
 
-    expect(first.fetch(:runs).size).to eq(50)
+    expect(first.fetch(:jobs).size).to eq(50)
     expect(first.fetch(:side_chats).size).to eq(50)
-    expect(second.fetch(:runs).pluck(:id)).to eq([ runs.first.id ])
+    expect(second.fetch(:jobs).pluck(:id)).to eq([ runs.first.job_id ])
     expect(second.fetch(:side_chats).pluck(:id)).to eq([ chats.first.id ])
-    expect(second.fetch(:next_cursors)).to eq(runs: nil, side_chats: nil)
+    expect(second.fetch(:next_cursors)).to eq(jobs: nil, side_chats: nil)
   end
 
   it "rejects malformed cursors" do
     expect {
-      described_class.new(coworker: coworker, user: owner, runs_cursor: "not-a-cursor").call
+      described_class.new(coworker: coworker, user: owner, jobs_cursor: "not-a-cursor").call
     }.to raise_error(Coworkers::Activity::InvalidCursor)
+  end
+
+  it "summarizes generic scheduled and Markdown-heavy goals without exposing markup" do
+    run = coworker_run(cost: 0, finished_at: 1.day.ago)
+    run.job.update_columns(issue_title: "Scheduled coworker task: Daily brief", issue_body: "# Metadata\n\nRepository: private\n\n- Brief the team on open risks. More detail follows.")
+
+    job = described_class.new(coworker: coworker, user: owner).call.fetch(:jobs).sole
+
+    expect(job[:goal_summary]).to eq("Brief the team on open risks.")
+  end
+
+  it "renders a job once with aggregate usage and separate workflow attempts" do
+    run = coworker_run(cost: 1.25, finished_at: 1.day.ago)
+    first = Workflow.create!(job: run.job, user: owner, trigger_kind: "coworker_run", state: "failed", failure_reason: "Network failed")
+    second = Workflow.create!(job: run.job, user: owner, trigger_kind: "coworker_run", state: "succeeded")
+    first_step = Step.create!(workflow: first, kind: "coworker_run", position: 0, state: "failed")
+    second_step = Step.create!(workflow: second, kind: "coworker_run", position: 0, state: "succeeded")
+    run.update!(step: first_step)
+    another = Run.create!(job: run.job, step: second_step, user: owner, trigger_kind: "coworker_run", agent_provider: "codex", state: "succeeded", cost_usd: 0.75, finished_at: 1.hour.ago)
+    JobLog.append!(run: another, chunk: "tool", kind: "tool_call")
+
+    jobs = described_class.new(coworker: coworker, user: owner).call.fetch(:jobs)
+
+    expect(jobs.size).to eq(1)
+    expect(jobs.sole).to include(cost_usd: 2.0, tool_calls_count: 1)
+    expect(jobs.sole.fetch(:attempts).pluck(:slug)).to eq([ first.slug, second.slug ])
+  end
+
+  it "combines state and title filters within the authorized coworker scope" do
+    matching = coworker_run(cost: 0, finished_at: 1.day.ago).job
+    matching.update_columns(issue_title: "Prepare launch report", state: "running")
+    coworker_run(cost: 0, finished_at: 1.day.ago).job.update_columns(issue_title: "Prepare launch report", state: "closed")
+
+    jobs = described_class.new(coworker: coworker, user: owner, filters: { state: "running", query: "launch" }).call.fetch(:jobs)
+
+    expect(jobs.pluck(:id)).to eq([ matching.id ])
   end
 
   private
