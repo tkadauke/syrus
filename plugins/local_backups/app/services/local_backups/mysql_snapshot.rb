@@ -17,7 +17,7 @@ module LocalBackups
 
     def create(destination)
       reject_unsupported_engines!
-      destination = Pathname.new(destination).sub_ext(".sql.gz")
+      destination = Pathname.new(destination)
       raw = destination.sub_ext("")
       client_version = capture_client_version(destination.dirname)
       result = run_dump(raw)
@@ -33,7 +33,7 @@ module LocalBackups
     end
 
     def adapter = "mysql2"
-    def destination_filename = "primary.sql"
+    def destination_filename = "primary.sql.gz"
 
     def estimate_bytes
       @connection.select_value("SELECT COALESCE(SUM(data_length + index_length), 0) FROM information_schema.TABLES WHERE table_schema = DATABASE()").to_i

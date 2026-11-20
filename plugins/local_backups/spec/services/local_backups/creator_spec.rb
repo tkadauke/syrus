@@ -95,6 +95,41 @@ RSpec.describe LocalBackups::Creator do
     expect(ActiveStorage::Blob).to exist(blob.id)
   end
 
+  it "blocks a concurrent purge while a MySQL snapshot is being captured" do
+    ActiveStorage::Blob.prepend(LocalBackups::PurgeGuard) unless ActiveStorage::Blob < LocalBackups::PurgeGuard
+    blob = create_blob("captured by mysql")
+    purge_result = Queue.new
+    snapshotter = instance_double(
+      LocalBackups::MysqlSnapshot, adapter: "mysql2", destination_filename: "primary.sql.gz", estimate_bytes: 1
+    )
+    allow(snapshotter).to receive(:create) do |destination|
+      purge = Thread.new do
+        blob.purge
+        purge_result << :purged
+      rescue StandardError => error
+        purge_result << error
+      end
+      purge.join
+      destination.binwrite("compressed logical dump")
+      LocalBackups::MysqlSnapshot::Result.new(
+        path: destination, client_version: "8.4.1", server_version: "8.4.1",
+        schema_version: 1, bytes: destination.size, integrity: "transactionally consistent logical dump"
+      )
+    end
+    allow(snapshotter).to receive(:select_blobs).and_return([{ "id" => blob.id, "key" => blob.key,
+      "byte_size" => blob.byte_size, "content_type" => blob.content_type, "checksum" => blob.checksum }])
+    allow(snapshotter).to receive(:manifest) do |snapshot|
+      { adapter: "mysql2", path: "database/#{snapshot.path.basename}", bytes: snapshot.bytes,
+        integrity: snapshot.integrity }
+    end
+
+    backup = described_class.new(root: @root, capacity:, snapshotter:).call
+
+    expect(purge_result.pop).to be_a(LocalBackups::PurgeGuard::ObjectHeld)
+    expect(ActiveStorage::Blob).to exist(blob.id)
+    expect(backup).to have_attributes(state: "completed", database_adapter: "mysql2")
+  end
+
   it "does not write a partial artifact when capacity admission fails" do
     denied = instance_double(LocalBackups::CapacityAdmission)
     allow(denied).to receive(:admit!).and_raise(
