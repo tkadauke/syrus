@@ -1210,13 +1210,18 @@ class StepDispatcher
     step&.succeeded? || step&.skipped?
   end
 
+  # Explicit dependency edges are authoritative when a Step has them: a
+  # collector's next_step predecessor is only the last grader in the chain,
+  # and treating its completion as readiness reported the collector as a
+  # stranded handoff every minute while sibling graders were still running.
   def self.deferred_phase_handoff_ready?(step)
     return false unless step&.queued?
-    return true if completed_predecessor?(step.previous_step)
-    return false unless step.kind.in?(%w[grader_collect preflight_grader_collect])
-    return false if step.depends_on_step_ids.empty?
 
-    step.dependencies_settled?
+    dependencies = step.depends_on_steps
+    return completed_predecessor?(step.previous_step) if dependencies.empty?
+    return step.dependencies_settled? if step.kind.in?(%w[grader_collect preflight_grader_collect])
+
+    dependencies.all? { |dependency| completed_predecessor?(dependency) }
   end
 
   def self.retry_until_continuation_after_failed_check?(workflow, step, previous)

@@ -1647,6 +1647,36 @@ RSpec.describe StepDispatcher, :ci_only do
       }.to change { collect.runs.count }.by(1)
     end
 
+    # Regression: the reconciler reported a collector as a stranded handoff
+    # every minute because its next_step predecessor (the first grader) had
+    # succeeded while a sibling grader it depends on was still running.
+    it "does not report a collector ready while a grader it depends on is running" do
+      s1.update!(kind: "grader")
+      s2.update!(kind: "grader")
+      s3.update!(kind: "grader_collect", depends_on_ids: [ s1.id, s2.id ])
+      s1.update!(next_step_id: s3.id)
+      s2.update!(next_step_id: nil)
+      s1.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+      s2.update_columns(state: "running", started_at: 2.minutes.ago)
+
+      expect(described_class.deferred_phase_handoff_ready?(s3.reload)).to be(false)
+
+      s2.update_columns(state: "failed", finished_at: Time.current)
+      expect(described_class.deferred_phase_handoff_ready?(s3.reload)).to be(true)
+    end
+
+    it "requires every explicit dependency of a non-collector step to have completed" do
+      s3.update!(depends_on_ids: [ s1.id, s2.id ])
+      s2.update!(next_step_id: s3.id)
+      s1.update_columns(state: "running", started_at: 2.minutes.ago)
+      s2.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+
+      expect(described_class.deferred_phase_handoff_ready?(s3.reload)).to be(false)
+
+      s1.update_columns(state: "succeeded", finished_at: Time.current)
+      expect(described_class.deferred_phase_handoff_ready?(s3.reload)).to be(true)
+    end
+
     # Regression: a review panel's fanout finished in a second, a later review
     # loop's template edge still pointed at that fanout, and the ready set
     # skipped the panel's not-yet-ready collect to start the later loop while
