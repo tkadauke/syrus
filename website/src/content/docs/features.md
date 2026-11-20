@@ -2285,13 +2285,12 @@ nothing needs clarification. The identity files and first conversation include
 the coworker's configured name and its owner's display name. The Capabilities
 tab shows current effective permission rules, scopes, approval policies, and
 actionable availability errors.
-The Memory tab is a read-only, searchable browser for the daily, people, repository,
-and bank Markdown files on its home branch. It shows recent daily files first, links to
-the owner's existing Syrus memories, and reports empty and unreachable remotes
-separately. Large or provider-truncated trees remain browseable with an explicit
-partial-results warning, including when a content search cannot be complete.
-The Workspace tab similarly browses the home branch without edit controls. It
-shows the remote and branch, file previews (including rendered Markdown),
+Workspace is the unified read-only browser for identity files, memory, and all
+other files on the coworker's home branch. It provides a collapsible folder
+tree, breadcrumbs, `SOUL.md` and Memory shortcuts, and server-side filename and
+content filtering with explicit bounded-result notices. Old Profile and Memory
+links open their corresponding Workspace scope. It shows the remote and branch,
+file previews (including rendered Markdown),
 available commit attribution, and unmerged chat branches holding conflicts.
 Incomplete trees and capped files are labeled. **Test push access** verifies
 credentials with a randomized throwaway `coworkers/` ref that is deleted
