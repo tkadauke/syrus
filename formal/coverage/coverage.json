@@ -732,9 +732,9 @@
         "review_loop_repair_step_without_run",
         "failed_unit_running_workflow_queued_tail"
       ],
-      "status": "open",
-      "done_by": "F4",
-      "notes": "534 skipped vs 4 applied in ~9h (522 on one Workflow): the classifier fires on legitimately deferred phases and DeferredPhaseResume declines, a classifier/executor disagreement loop."
+      "status": "partial",
+      "done_by": "F16",
+      "notes": "The 534 skipped resume_queued_step repairs in the production sample were one rebase Workflow whose WorkUnit an operator paused (manual_pause) right before force_push, three weeks earlier: the classifier flagged the deliberately held Step on every pass and the resume refused every time. Fixed: Steps held by a pause (manual_pause, provider_availability) are not flagged; the executor's skip message now names the resume's actual status and reason. Agreement.lean: resume_before_not_actionable / resume_after_actionable. Remaining: other deferral reasons (phase admission, gates) can still produce refused resumes; the 'no recheck scheduled' branches belong to deferral-schedules-recheck."
     },
     {
       "id": "cancelled-barrier-blocks-tail",

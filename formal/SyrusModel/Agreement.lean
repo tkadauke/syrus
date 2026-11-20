@@ -158,5 +158,28 @@ theorem retry_after_complete_on_finished (r : FailedRun)
   · intro h; exact ⟨h, hf⟩
   · intro h; exact h.1
 
+/-! ## Instance: queued Step held by a pause
+
+`classify_queued_steps_without_runs` flagged a ready queued Step with no Run;
+its repair (`resume_queued_step` → `DeferredPhaseResume`) refuses while the
+WorkUnit is blocked on a pause (`manual_pause`, `provider_availability`).
+Production: one operator-paused rebase, ~500 refused resumes in 9 hours. -/
+
+structure HeldStep where
+  ready : Bool
+  paused : Bool
+  deriving DecidableEq, Repr
+
+def detectResumeBefore (s : HeldStep) : Prop := s.ready = true
+def detectResumeAfter (s : HeldStep) : Prop := s.ready = true ∧ s.paused = false
+def resumeGuard (s : HeldStep) : Prop := s.paused = false
+
+theorem resume_before_not_actionable : ¬ Actionable detectResumeBefore resumeGuard := by
+  intro h
+  have := h ⟨true, true⟩ rfl
+  exact Bool.noConfusion this
+
+theorem resume_after_actionable : Actionable detectResumeAfter resumeGuard := fun _ h => h.2
+
 end Agreement
 end SyrusModel

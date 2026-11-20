@@ -433,6 +433,30 @@ to a failed Step whose Run is still live" (red before).
 
 ---
 
+## F16. A paused phase was "repaired" on every reconcile pass — fixed
+
+**Property.** Classifier ⇒ executable repair (`Agreement.Actionable`;
+`resume_before_not_actionable`, `resume_after_actionable`).
+
+**Evidence.** The 534 skipped `resume_queued_step` repairs in the production
+sample were a single rebase Workflow whose WorkUnit an operator had paused
+(`manual_pause`) right before `force_push`, three weeks earlier.
+`classify_queued_steps_without_runs` flagged the held Step every pass; the
+resume refused every time with the uninformative "queued Step remained
+deferred".
+
+**Fix.** Steps whose WorkUnit is blocked on a pause reason (`manual_pause`,
+`provider_availability`) are not flagged. The executor's skip message now names
+the resume's status and reason.
+
+**Spec.** `reconciler_spec.rb` "does not flag a queued Step held by a manual
+pause" (red before).
+
+**Review note.** That Workflow is still paused in production on a failed Job;
+it needs an operator decision (resume or cancel), not a code change.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

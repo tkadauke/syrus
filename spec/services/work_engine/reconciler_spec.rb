@@ -2225,6 +2225,23 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil, wait_details: {})
   end
 
+  # An operator pause holds the next phase on purpose. Flagging the held Step
+  # as "queued without a Run" produced a resume the executor refused on every
+  # reconcile pass (production: one paused rebase, ~500 refusals in 9 hours).
+  it "does not flag a queued Step held by a manual pause" do
+    paused_job = Factories.job_record(state: "running")
+    paused = WorkUnits::Launcher.instantiate(kind: "initial", job: paused_job)
+    paused.update_columns(state: "running", started_at: 2.hours.ago)
+    first, second = paused.steps.order(:position).first(2)
+    first.update_columns(state: "succeeded", started_at: 2.hours.ago, finished_at: 1.hour.ago)
+    second.update_columns(state: "queued", created_at: 2.hours.ago, updated_at: 2.hours.ago)
+    paused.work_unit.block!(reason: "manual_pause", details: { "phase_step_id" => second.id })
+
+    result = reconcile(job_id: paused_job.id)
+
+    expect(result.issues.map(&:kind)).not_to include("queued_step_without_run")
+  end
+
   # ChatFeedback, Rebase and StackRebase deliberately materialize behind the
   # Job lock (materialize_behind_active_lock?) and wait their turn. That is two
   # active Workflows by design; the newer one is waiting, not superseding.
