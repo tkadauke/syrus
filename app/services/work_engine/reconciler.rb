@@ -266,6 +266,7 @@ module WorkEngine
       issues.concat(classify_unsafe_review_barrier_runs)
       issues.concat(classify_succeeded_review_steps_without_required_repair)
       issues.concat(classify_queued_steps_without_runs)
+      issues.concat(classify_reopened_workflows_stranded_by_cleanup)
       issues.concat(classify_workflows)
       issues.concat(classify_waiting_work_intents_with_active_units)
       issues.concat(classify_waiting_work_intents_ready_for_recheck)
@@ -1098,6 +1099,50 @@ module WorkEngine
       Workflows::StepPreloader
         .sorted(step.workflow.steps.where(loop_id: loop_id).where("position < ?", step.position), descending: true)
         .detect { |candidate| retry_until_barrier_step_for_reconciliation?(candidate) && !candidate.retry_until_barrier_superseded? }
+    end
+
+    # When a workflow fails, cleanup cancels its unfinished Steps. Retrying the
+    # failed Step reopens the workflow, but a cleanup-cancelled Step that had
+    # already started a Run stays cancelled -- and once the retried branch
+    # finishes, nothing is left running and nothing dispatches past it. A Job
+    # sat "running" that way with its visual-review repair cancelled and every
+    # later Step queued. Revive the earliest such Step once the workflow is
+    # idle.
+    def classify_reopened_workflows_stranded_by_cleanup
+      steps.select(&:cancelled?).group_by(&:workflow).filter_map do |workflow, cancelled|
+        next unless workflow&.running?
+
+        stranded = cancelled.select { |step| cleanup_cancelled_and_interrupted?(step, workflow) }
+        next if stranded.empty?
+        next if workflow.runs.active.exists?
+
+        last_finished = workflow.runs.maximum(:finished_at)
+        next unless last_finished.nil? || older_than?(last_finished, ORPHAN_RUN_GRACE_PERIOD)
+
+        step = stranded.min_by { |candidate| [ candidate.position, candidate.id ] }
+        issue(
+          kind: :reopened_workflow_stranded_by_cleanup,
+          severity: :error,
+          affected_ids: ids_for(step),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "revive_cleanup_cancelled_step",
+          evidence: workflow_evidence(workflow).merge(
+            step_id: step.id,
+            step_kind: step.kind,
+            step_position: step.position,
+            stranded_step_ids: stranded.map(&:id)
+          ),
+          explanation: "Workflow ##{workflow.id} is running with nothing in flight, but Step ##{step.id} (#{step.kind}) " \
+                       "is still cancelled from the cleanup of its earlier failure."
+        )
+      end
+    end
+
+    def cleanup_cancelled_and_interrupted?(step, workflow)
+      details = step.details.to_h
+      details["cancelled_by"] == "terminal_workflow_cleanup" &&
+        details["cancelled_workflow_id"] == workflow.id &&
+        step.runs.none? { |run| run.queued? || run.running? || run.succeeded? }
     end
 
     def classify_terminal_workflows_with_active_descendants

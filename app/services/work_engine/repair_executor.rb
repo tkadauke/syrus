@@ -855,6 +855,34 @@ module WorkEngine
         end
       end
 
+      class ReviveCleanupCancelledStep < Base
+        def perform
+          step = target_step
+          return skipped("Step no longer exists") unless step
+          return skipped("Step is #{step.state}, not cancelled") unless step.cancelled?
+
+          workflow = step.workflow
+          return skipped("Workflow is #{workflow&.state}, not running") unless workflow&.running?
+          return skipped("Workflow has an active Run") if workflow.runs.active.exists?
+          unless step.details.to_h["cancelled_by"] == "terminal_workflow_cleanup" && step.runs.none? { |run| run.queued? || run.running? || run.succeeded? }
+            return skipped("Step was not interrupted by failure cleanup")
+          end
+
+          step.update_columns(
+            state: "queued",
+            started_at: nil,
+            finished_at: nil,
+            cancellation_reason: nil,
+            details: step.details.to_h.except(*Step::CANCELLATION_DETAIL_KEYS),
+            updated_at: Time.current
+          )
+          resume = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id)
+          return success("revived #{step_label(step)} and resumed it with #{run_label(resume.run)}") if resume.run
+
+          skipped(["revived #{step_label(step)}; its resume stayed deferred", resume.status, resume.reason].compact_blank.join(": "))
+        end
+      end
+
       class ResumeQueuedStep < Base
         def perform
           step = target_step

@@ -5051,6 +5051,53 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(waiting.reload.runs.last).to be_present
   end
 
+  # Regression: a failed workflow's cleanup cancelled a review loop's repair
+  # mid-run; retrying the failed reviewer reopened the workflow but left that
+  # repair cancelled, and once the retried branch finished nothing ran again.
+  it "revives a step its failure cleanup cancelled once the reopened workflow goes idle" do
+    workflow.update_columns(state: "running", started_at: 3.hours.ago)
+    workflow.steps.destroy_all
+    create = lambda do |kind, position, state, details = {}|
+      workflow.steps.create!(kind: kind, position: position, state: state, details: details, created_at: 3.hours.ago)
+    end
+    review = create.call("visual_review", 0, "succeeded")
+    review.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded",
+      started_at: 2.hours.ago, finished_at: 2.hours.ago)
+    repair = create.call("implement", 1, "cancelled", {
+      "cancelled_by" => "terminal_workflow_cleanup", "cancelled_workflow_id" => workflow.id,
+      "cancelled_reason" => "cancel_terminal_workflow_active_descendants"
+    })
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "cancelled",
+      started_at: 2.hours.ago, finished_at: 2.hours.ago)
+    next_review = create.call("visual_review", 2, "queued")
+    [ review, repair, next_review ].each_cons(2) { |left, right| left.update!(next_step_id: right.id) }
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :reopened_workflow_stranded_by_cleanup)).to be_present
+    expect(plan(result, :revive_cleanup_cancelled_step)).to have_attributes(auto_executable: true, target_id: repair.id)
+    expect(repair.reload).to be_queued
+    expect(repair.details).not_to include("cancelled_by")
+    expect(repair.runs.where(state: "queued")).to exist
+    expect(next_review.reload.runs).to be_empty
+  end
+
+  it "leaves a cleanup-cancelled step alone while the workflow still has work in flight" do
+    workflow.update_columns(state: "running", started_at: 3.hours.ago)
+    workflow.steps.destroy_all
+    repair = workflow.steps.create!(kind: "implement", position: 1, state: "cancelled", created_at: 3.hours.ago, details: {
+      "cancelled_by" => "terminal_workflow_cleanup", "cancelled_workflow_id" => workflow.id
+    })
+    active = workflow.steps.create!(kind: "adversarial_review", position: 0, state: "running", created_at: 3.hours.ago)
+    active.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", started_at: 1.minute.ago,
+      last_heartbeat_at: Time.current)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :reopened_workflow_stranded_by_cleanup)).to be_nil
+    expect(repair.reload).to be_cancelled
+  end
+
   it "names the gate when a queued step without a run stays deferred" do
     prepare = workflow.steps.order(:position).second
     step.update!(next_step: prepare)
