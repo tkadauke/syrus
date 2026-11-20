@@ -252,6 +252,7 @@ module Admin
             family: declaration.family.to_s,
             capability: capability.to_s,
             provider: declaration.provider,
+            key: declaration.key&.to_s,
             tier: declaration.provisional.include?(capability) ? "provisional" : "stable",
             priority: manifest.prepare_priority
           }

@@ -417,3 +417,5 @@ disabled plugin contributes no capability providers.
 Providers are ordered by the plugin's `prepare_priority`. Each capability
 documents its context, stability tier, absent behavior, and one composition
 mode: `collect`, `broadcast`, `first_claim`, or `keyed`.
+Providers implementing a `keyed` capability declare the selector with `key:`
+in the manifest, allowing selection without loading candidate classes.
