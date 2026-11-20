@@ -213,6 +213,32 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     expect(lock_held).to be(false)
   end
 
+  # The landing slot is single per repository, so every approved Job waits on
+  # a merge train's graders; review and validation graders used to share the
+  # queue with them on equal terms.
+  it "gives a landing workflow the turn ahead of an earlier-deferred review workflow" do
+    review_job = Factories.job
+    review_workflow = review_job.workflows.last
+    review_job.repository.update!(distributed_workflow_dag_enabled: true)
+    review_workflow.update!(
+      state: "running",
+      artifacts: { "grader_fanout_admission" => { "deferred_at" => 10.minutes.ago.iso8601 } }
+    )
+    review_step = review_workflow.steps.create!(
+      kind: "grader", position: 200, placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT
+    )
+    workflow.update!(state: "running", trigger_kind: "merge_train",
+      artifacts: { "grader_fanout_admission" => { "deferred_at" => 1.minute.ago.iso8601 } })
+    landing_graders = grader_steps(1)
+    allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(1)
+
+    landing = described_class.call(workflow: workflow, steps: landing_graders)
+    review = described_class.call(workflow: review_workflow, steps: [ review_step ])
+
+    expect(landing.steps).to eq(landing_graders)
+    expect(review).to have_attributes(steps: [], reason: "waiting_for_fair_turn")
+  end
+
   it "gives an older deferred workflow the next available turn" do
     older_job = Factories.job
     older_workflow = older_job.workflows.last

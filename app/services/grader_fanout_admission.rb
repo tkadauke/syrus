@@ -134,11 +134,20 @@ class GraderFanoutAdmission
   # Only workflows that still have an unmaterialized queued grader participate,
   # so a stale artifact cannot hold the turn after its fanout has completed.
   def fair_turn?
-    own_deferred_at = deferred_at_for(workflow) || now
-    oldest = deferred_workflows.min_by do |candidate|
-      [ deferred_at_for(candidate), candidate.id ]
-    end
-    oldest.nil? || ([ own_deferred_at, workflow.id ] <=> [ deferred_at_for(oldest), oldest.id ]) <= 0
+    oldest = deferred_workflows.min_by { |candidate| turn_key(candidate) }
+    oldest.nil? || (own_turn_key <=> turn_key(oldest)) <= 0
+  end
+
+  # A landing workflow holds the repository's single landing slot, so every
+  # approved Job waits on its graders; it goes ahead of review and validation
+  # graders that were deferred earlier. Within each group the turn is still
+  # first-deferred, first-served.
+  def turn_key(candidate, deferred_at = deferred_at_for(candidate))
+    [ candidate.landing_workflow? ? 0 : 1, deferred_at, candidate.id ]
+  end
+
+  def own_turn_key
+    turn_key(workflow, deferred_at_for(workflow) || now)
   end
 
   # Fairness orders contended capacity; it must not idle spare capacity. Older
@@ -149,9 +158,8 @@ class GraderFanoutAdmission
   # behind it -- a landing train sat behind a main-branch grader with the
   # whole fleet idle.
   def spare_slots_beyond_older_demand(available_slots)
-    own_deferred_at = deferred_at_for(workflow) || now
     older_ids = deferred_workflows.select do |candidate|
-      ([ deferred_at_for(candidate), candidate.id ] <=> [ own_deferred_at, workflow.id ]).negative?
+      (turn_key(candidate) <=> own_turn_key).negative?
     end.map(&:id)
     older_demand = unmaterialized_graders.where(workflow_id: older_ids).count
     [ available_slots - older_demand, 0 ].max
