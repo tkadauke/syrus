@@ -78,6 +78,7 @@ export type CoworkerConversationIndex = {
   main_chat: CoworkerConversation | null
   side_chats: CoworkerConversation[]
   result_count: number
+  result_count_exact: boolean
   next_cursor: string | null
   filter: Record<string, unknown>
   filter_schema: import("@app/components/FilterBar").FilterSchemaField[]

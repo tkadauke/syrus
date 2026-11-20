@@ -2,6 +2,7 @@ require "base64"
 
 class Coworkers::ConversationIndex
   PAGE_SIZE = 20
+  SEARCH_SCAN_LIMIT = 1_000
   SNIPPET_TOKENS = 32
   SORTS = %w[last_activity title created_at].freeze
 
@@ -17,9 +18,10 @@ class Coworkers::ConversationIndex
 
   def call
     main_link = coworker.coworker_chats.where(role: "main").includes(chat_session: :chat_participants).first
-    relation, search_rows, title_match_ids = filtered_relation
+    relation, search_query, title_match_ids, result_count_exact = filtered_relation
     total = relation.count
     records = page(relation).includes(:chat_participants).to_a
+    search_rows = search_rows_for(search_query, records)
     messages = last_messages(records)
     pending_ids = ChatPendingAction.where(chat_session_id: records.map(&:id), state: %w[queued pending confirming])
       .distinct.pluck(:chat_session_id).to_set
@@ -31,6 +33,7 @@ class Coworkers::ConversationIndex
           active_work: chat.turn_in_flight? || pending_ids.include?(chat.id))
       end,
       result_count: total,
+      result_count_exact: result_count_exact,
       next_cursor: records.length == PAGE_SIZE ? encode_cursor(records.last) : nil,
       filter: filter || { "and" => [] },
       filter_schema: filter_schema,
@@ -49,8 +52,9 @@ class Coworkers::ConversationIndex
 
   def filtered_relation
     relation = base_relation
-    rows_by_chat = {}
+    search_query = nil
     title_match_ids = Set.new
+    result_count_exact = true
     chips.each do |chip|
       field = chip.fetch("field")
       value = chip["value"]
@@ -58,12 +62,18 @@ class Coworkers::ConversationIndex
       when "search"
         query = value.to_s.strip
         next if query.blank?
-        rows = ChatMessageSearchIndex.search(query, chat_session_ids: relation.pluck(:id), limit: nil,
-          snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: SNIPPET_TOKENS)
-        rows_by_chat = rows.group_by { |row| row.fetch(:chat_session_id).to_i }
-        title_ids = relation.where("LOWER(chat_sessions.title) LIKE ?", "%#{ApplicationRecord.sanitize_sql_like(query.downcase)}%").pluck(:id)
+        candidate_ids = ordered(relation).limit(SEARCH_SCAN_LIMIT + 1).pluck(:id)
+        result_count_exact &&= candidate_ids.length <= SEARCH_SCAN_LIMIT
+        candidate_ids = candidate_ids.first(SEARCH_SCAN_LIMIT)
+        message_ids = ChatMessageSearchIndex.matching_chat_session_page(
+          query, chat_session_ids: candidate_ids, limit: SEARCH_SCAN_LIMIT, offset: 0
+        ).fetch(:chat_session_ids)
+        title_ids = relation.where(id: candidate_ids)
+          .where("LOWER(chat_sessions.title) LIKE ?", "%#{ApplicationRecord.sanitize_sql_like(query.downcase)}%")
+          .limit(SEARCH_SCAN_LIMIT).pluck(:id)
         title_match_ids = title_ids.to_set
-        relation = relation.where(id: rows_by_chat.keys | title_ids)
+        relation = relation.where(id: message_ids | title_ids)
+        search_query = query
       when "status"
         participant_scope = ChatParticipant.where(user_id: user.id)
         participant_scope = value == "archived" ? participant_scope.where.not(hidden_at: nil) : participant_scope.where(hidden_at: nil)
@@ -79,7 +89,7 @@ class Coworkers::ConversationIndex
         relation = relation.where("chat_sessions.turn_in_flight = ? OR chat_sessions.id IN (?)", true, pending)
       end
     end
-    [ relation.distinct, rows_by_chat, title_match_ids ]
+    [ relation.distinct, search_query, title_match_ids, result_count_exact ]
   end
 
   def chips
@@ -106,13 +116,21 @@ class Coworkers::ConversationIndex
     case sort
     when "title"
       relation = relation.where("LOWER(COALESCE(chat_sessions.title, '')) > ? OR (LOWER(COALESCE(chat_sessions.title, '')) = ? AND chat_sessions.id > ?", value, value, id) if value
-      relation.order(Arel.sql("LOWER(COALESCE(chat_sessions.title, '')) ASC"), id: :asc).limit(PAGE_SIZE)
+      ordered(relation).limit(PAGE_SIZE)
     when "created_at"
       relation = descending_page(relation, "chat_sessions.created_at", value, id) if value
-      relation.order(created_at: :desc, id: :desc).limit(PAGE_SIZE)
+      ordered(relation).limit(PAGE_SIZE)
     else
       relation = descending_page(relation, activity_sql, value, id) if value
-      relation.order(Arel.sql("#{activity_sql} DESC"), id: :desc).limit(PAGE_SIZE)
+      ordered(relation).limit(PAGE_SIZE)
+    end
+  end
+
+  def ordered(relation)
+    case sort
+    when "title" then relation.order(Arel.sql("LOWER(COALESCE(chat_sessions.title, '')) ASC"), id: :asc)
+    when "created_at" then relation.order(created_at: :desc, id: :desc)
+    else relation.order(Arel.sql("#{activity_sql} DESC"), id: :desc)
     end
   end
 
@@ -148,6 +166,15 @@ class Coworkers::ConversationIndex
     ChatMessage.where(id: latest_ids).index_by(&:chat_session_id)
   end
 
+  def search_rows_for(query, records)
+    return {} if query.blank? || records.empty?
+
+    ChatMessageSearchIndex.top_matches_by_chat_session(
+      query, chat_session_ids: records.map(&:id), matches_per_session: 1,
+      snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: SNIPPET_TOKENS
+    ).group_by { |row| row.fetch(:chat_session_id).to_i }
+  end
+
   def summary(chat, main: false, message: nil, search_rows: nil, title_match_ids: Set.new, active_work: false)
     participant = chat.chat_participants.find { |entry| entry.user_id == user.id }
     first_match = search_rows&.first
@@ -157,7 +184,7 @@ class Coworkers::ConversationIndex
       created_at: chat.created_at.iso8601, archived: participant&.hidden_at.present?,
       unread: chat.last_message_at.present? && (participant&.last_read_at.blank? || chat.last_message_at > participant.last_read_at),
       active_work: active_work, title_match: title_match_ids.include?(chat.id),
-      match_count: search_rows&.length.to_i + (title_match_ids.include?(chat.id) ? 1 : 0),
+      match_count: search_rows&.first&.fetch(:match_count, 0).to_i + (title_match_ids.include?(chat.id) ? 1 : 0),
       match: first_match && { message_id: first_match.fetch(:chat_message_id).to_i, snippet: first_match.fetch(:snippet) }
     }
   end

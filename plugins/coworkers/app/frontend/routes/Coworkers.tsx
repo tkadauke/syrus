@@ -594,7 +594,9 @@ function CoworkerConversationIndex({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h3 className="font-semibold">{t("activity.side_chats")}</h3>
-            <p className="text-sm text-text-secondary">{t("conversations.result_count", { count: payload.result_count })}</p>
+            <p className="text-sm text-text-secondary">
+              {t(payload.result_count_exact ? "conversations.result_count" : "conversations.result_count_limited", { count: payload.result_count })}
+            </p>
           </div>
           <label className="text-sm font-medium">
             {t("conversations.sort")}
@@ -635,6 +637,7 @@ function legacyConversationPayload(chats: CoworkerDetail["chats"]): Awaited<Retu
   return {
     main_chat: chats.find((chat) => chat.role === "main") ? row(chats.find((chat) => chat.role === "main")!) : null,
     side_chats: chats.filter((chat) => chat.role === "side").map(row), result_count: chats.filter((chat) => chat.role === "side").length,
+    result_count_exact: true,
     next_cursor: null, filter: { and: [] }, filter_schema: [], sort: "last_activity"
   }
 }
