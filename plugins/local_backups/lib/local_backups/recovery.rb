@@ -232,7 +232,10 @@ module LocalBackups
 
       def plugins_check
         required = Array(@bundle.manifest["plugins"]).reject { |plugin| plugin["required"] == false }
-        available = Array(@current[:plugins]).to_h { |plugin| plugin.to_s.split("=", 2) }
+        available = Array(@current[:plugins]).to_h do |plugin|
+          name, version = plugin.to_s.split("=", 2)
+          [name, version]
+        end
         missing = required.filter_map { |plugin| plugin["name"] unless available.key?(plugin["name"]) }
         incompatible = required.filter_map do |plugin|
           next unless plugin["version"] && available[plugin["name"]] && available[plugin["name"]] != plugin["version"].to_s
@@ -290,7 +293,11 @@ module LocalBackups
 
       def import(bundle)
         bundle.validate!
-        destination = @root.join("syrus-backup-import-#{bundle.manifest.fetch('backup_id')}")
+        backup_id = bundle.manifest.fetch("backup_id").to_s
+        unless backup_id.match?(/\A[[:alnum:]][[:alnum:]_.-]*\z/)
+          raise Error, "backup_id is not a safe filename"
+        end
+        destination = @root.join("syrus-backup-import-#{backup_id}")
         raise Error, "bundle is already imported" if destination.exist?
         staging = @root.join(".import-#{SecureRandom.uuid}.partial")
         FileUtils.copy_entry(bundle.path, staging, false, false, true)
