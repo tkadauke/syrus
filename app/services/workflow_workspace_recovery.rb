@@ -59,10 +59,11 @@ class WorkflowWorkspaceRecovery
         return machine.retry_required("active #{unsafe_run.step.kind} Run may mutate state and cannot be replayed safely")
       end
 
-      grader_runs = machine.active_runs.select { |run| run.step.kind == "grader" }
+      replayable = machine.active_runs.reject { |run| machine.live_execution?(run) }
+      grader_runs = replayable.select { |run| run.step.kind == "grader" }
       grader_runs.each { |run| machine.requeue!(run) }
 
-      control_run = machine.active_runs.reject { |run| run.step.kind == "grader" }.last
+      control_run = replayable.reject { |run| run.step.kind == "grader" }.last
       machine.requeue!(control_run) if control_run
 
       resumed = grader_runs + Array(control_run)
@@ -125,6 +126,19 @@ class WorkflowWorkspaceRecovery
 
   def active_runs
     @active_runs ||= workflow.runs.active.includes(:step).order(:created_at, :id).to_a
+  end
+
+  # A missing workspace on the inspected worker says nothing about a Run
+  # executing elsewhere: distributed graders run in their own immutable
+  # checkout on whichever worker claimed them. A Run whose heartbeat is still
+  # advancing has a live process, so replaying it starts a second execution
+  # in the same step directory -- which rebuilt a grader's checkout under its
+  # running test suite during a rolling deploy.
+  LIVE_EXECUTION_HEARTBEAT_WINDOW = 5.minutes
+
+  def live_execution?(run)
+    run.running? && run.last_heartbeat_at.present? &&
+      run.last_heartbeat_at > LIVE_EXECUTION_HEARTBEAT_WINDOW.ago
   end
 
   def requeue!(run)

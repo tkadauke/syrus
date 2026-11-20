@@ -84,6 +84,35 @@ RSpec.describe WorkflowWorkspaceRecovery do
     )
   end
 
+  # Regression: during a rolling deploy the reaper on another worker found
+  # this workflow's workspace missing and replayed a grader that was still
+  # running, so a second execution rebuilt its checkout under the live suite.
+  it "does not replay a grader whose heartbeat shows it is still executing" do
+    live_step = workflow.steps.create!(kind: "grader", position: 97, state: "running", started_at: 10.minutes.ago)
+    live = live_step.runs.create!(
+      job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+      state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 30.seconds.ago
+    )
+    stranded_step = workflow.steps.create!(kind: "grader", position: 98, state: "running", started_at: 40.minutes.ago)
+    stranded = stranded_step.runs.create!(
+      job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+      state: "running", started_at: 40.minutes.ago, last_heartbeat_at: 20.minutes.ago
+    )
+    recovery = described_class.new(workflow: workflow, workspace: workspace, git: git)
+    allow(recovery).to receive(:durable_candidates).and_return([ candidate ])
+
+    before_count = ActiveJob::Base.queue_adapter.enqueued_jobs.size
+    expect(recovery.call).to have_attributes(status: "recovered")
+
+    replayed = ActiveJob::Base.queue_adapter.enqueued_jobs.drop(before_count)
+      .select { |entry| entry[:job] == RunJob }.map { |entry| entry.fetch(:args).first }
+    expect(replayed).to include(stranded.id)
+    expect(replayed).not_to include(live.id)
+    expect(live.reload).to be_running
+    expect(live_step.reload).to be_running
+    expect(stranded.reload).to be_queued
+  end
+
   it "refuses to replay an already-running mutable step" do
     step = workflow.steps.create!(kind: "implement", position: 99, state: "running", started_at: 2.minutes.ago)
     run = step.runs.create!(
