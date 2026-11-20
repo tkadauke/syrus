@@ -134,6 +134,37 @@ RSpec.describe ProviderAvailabilityPause do
       )
     end
 
+    it "selects a healthy sibling account before falling back to another provider" do
+      workflow.runs.delete_all
+      original_account = workflow.provider_account
+      sibling = ProviderAccount.create!(
+        user: user,
+        provider_key: "claude",
+        authentication_kind: "claude_oauth_token",
+        credential_payload: { "claude_oauth_token" => "second-token" },
+        position: 1
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: workflow.trigger_kind,
+        candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: original_account, now: anything).and_return(
+        { state: "open", open: true }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: sibling, now: anything).and_return(
+        { state: "available" }
+      )
+
+      decision = described_class.call(workflow: workflow)
+
+      expect(decision).not_to be_pause
+      expect(decision.failover.provider_account).to eq(sibling)
+      expect(decision.failover.selected_provider).to eq("claude")
+      expect(workflow.reload.provider_account).to eq(sibling)
+    end
+
     it "uses structured step triggers when selecting failover" do
       workflow.runs.delete_all
       user.update!(
