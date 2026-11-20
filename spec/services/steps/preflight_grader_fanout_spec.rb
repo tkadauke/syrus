@@ -215,7 +215,7 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(workflow.source_snapshots).to be_empty
   end
 
-  it "records immutable placement and descriptive DAG metadata when distributed workflows are enabled" do
+  it "keeps repair preflight graders in the mutable checkout when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
     write_grade_config(<<~YAML)
@@ -229,7 +229,7 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     grader_step = workflow.steps.find_by!(kind: "preflight_grader")
     snapshot = workflow.source_snapshots.sole
-    expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT)
+    expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
     expect(grader_step.details).to include(
       "projected_target_label" => "//:grade/tests",
       "barrier_labels" => [ "preflight_grader_collect" ],

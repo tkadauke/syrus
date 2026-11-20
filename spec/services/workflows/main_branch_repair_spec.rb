@@ -211,6 +211,18 @@ RSpec.describe Workflows::MainBranchRepair do
 
         described_class.after_success(workflow)
       end
+
+      it "does not emit a false recovery for formatter-produced source changes" do
+        workflow.set_artifact!("preflight_source_changes", [ "app/models/example.rb" ])
+        repository.update!(ci_health: "broken", grader_health: "broken", landing_paused: true)
+
+        expect(MainHealthChangedService).not_to receive(:on_health_change!)
+
+        described_class.after_success(workflow)
+
+        expect(repository.reload.main_health).to eq("broken")
+        expect(job.reload).not_to be_closed
+      end
     end
   end
 
@@ -241,6 +253,7 @@ RSpec.describe Workflows::MainBranchRepair do
         state: "running",
         iteration: collect_step.iteration
       )
+      allow_any_instance_of(Steps::PreflightGraderCollect).to receive(:tracked_workspace_changes).and_return([])
       Steps::PreflightGraderCollect.new(run).call
 
       run.update_columns(state: "succeeded", finished_at: Time.current)

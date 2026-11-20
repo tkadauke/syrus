@@ -58,6 +58,13 @@ module Steps
       end
 
       if nonpassing_required.empty?
+        if (changed_files = tracked_workspace_changes).any?
+          workflow.set_artifact!("preflight_source_changes", changed_files)
+          log("[preflight_grader_collect] required graders passed but changed tracked source files " \
+              "(#{changed_files.join(', ')}) — proceeding to implement")
+          return
+        end
+
         log("[preflight_grader_collect] all required graders passed (#{preflight_steps.size} grader step(s)) — skipping implement")
         workflow.set_artifact!("preflight_passed", true)
         cancel_downstream!(
@@ -90,6 +97,21 @@ module Steps
     end
 
     private
+
+    # Ignore untracked/generated output and Syrus bookkeeping. Git's status
+    # filtering also honors the repository's ignore rules, while still
+    # detecting staged or unstaged edits to tracked source files.
+    def tracked_workspace_changes
+      output = GitRunner.new(workflow: workflow).run(
+        "status", "--porcelain", "--untracked-files=no", chdir: workspace.path.to_s
+      )
+
+      output.each_line.filter_map do |line|
+        path = line[3..].to_s.strip
+        path = path.split(" -> ").last.to_s.strip if path.include?(" -> ")
+        path unless path.blank? || path.start_with?(".syrus/")
+      end.uniq
+    end
 
     def preflight_grader_steps
       workflow.steps.where(kind: "preflight_grader").order(:position, :id).to_a
