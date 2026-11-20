@@ -259,25 +259,9 @@ during fanout), which is a larger change. Worth an explicit follow-up.
 
 ## Open questions for review
 
-- **Q1. A landing parked mid-run gives up the landing slot.** `block!` with
-  `no_capable_worker` releases `landing:*` even while the Workflow is running
-  (only the urgent variant checks "before first run"). Another landing may then
-  start and overlap. Resume waits correctly behind `ActiveWorkLock`, and the
-  merge call is fenced by `expected_sha`, so this is wasted work rather than
-  corruption — but it is a deliberate trade of strict mutual exclusion for
-  freedom from starvation (`15bcc37187`). Lean can state both; you have to pick.
-- **Q2. Closing a Job leaves its Workflows running.** External close paths
-  (`PullRequestMergeCloser`, `PollPullRequestJob#close_with`, …) cancel only
-  active Runs; queued/between-steps Workflows survive until
-  `closed_job_active_runtime_work` cancels them (production: a running rebase
-  with a queued `force_push` on a Job closed as `pr_merged`). Not fixed: some
-  Jobs close while a Workflow is still finishing (deploy anchor; possibly merge
-  train members closed by the merge poller while the train lands the rest), so a
-  central "close cancels all" hook could cancel a train mid-landing — and the
-  reconciler's critical auto-repair may already have that race. Also: the
-  closers hold the Job lock, cancelling inside it would invert Workflow→Job lock
-  order (production logged a deadlock on this repair). Needs your call on which
-  Workflows a close should end.
+- **Q1 — resolved as F7** (fail and hold instead of parking).
+- **Q2 — resolved as F5 + F6** (no rebase for children landed with their
+  parent; deferred closure, no step starts for a closed Job).
 - **Q3. Admin WorkUnits list 500s past page 29** (`Mysql2: Out of sort memory`)
   — found while paging it read-only for O1; not engine-related.
 
