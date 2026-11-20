@@ -312,7 +312,11 @@ export function PendingActionCarousel({
         </div>
       </div>
       {collapsed ? null : (
-        <div key={selectedItem.key} className="motion-safe:animate-chat-message-in">
+        <div
+          key={selectedItem.key}
+          className="motion-safe:animate-chat-message-in max-md:max-h-[min(50dvh,calc(var(--chat-visual-viewport-height,100dvh)-12rem))] max-md:overflow-y-auto max-md:overscroll-contain"
+          data-testid="pending-action-carousel-body"
+        >
           {selectedItem.type === "action" ? (
             <PendingActionCard pendingAction={selectedItem.action} queryKey={queryKey} onNotice={onNotice} />
           ) : (
