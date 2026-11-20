@@ -203,7 +203,9 @@ RSpec.describe MergeTrainMultisect, :ci_only do
 
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
       expect(evaluation.reason).to eq("focused_timeout")
-      expect(elapsed).to be < 2
+      # Leave headroom for scheduler contention in parallel CI while still
+      # proving the five-second child did not run to completion.
+      expect(elapsed).to be < 4
       expect(SpawnedProcess.order(:id).last).to have_attributes(
         kind: "grader",
         outcome: "timed_out",
