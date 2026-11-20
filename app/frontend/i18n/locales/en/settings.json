@@ -1857,7 +1857,7 @@
     "replace": "Reconnect / replace",
     "authorize": "Authorize with {{provider}}",
     "oauth_code": "Authorization code",
-    "manual_alternative": "Or paste a setup token",
+    "manual_alternative": "Or enter credentials manually",
     "auth_method": "Authentication method",
     "api_key": "API key",
     "chatgpt_login": "ChatGPT login",

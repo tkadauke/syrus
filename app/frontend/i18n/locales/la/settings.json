@@ -1857,7 +1857,7 @@
     "replace": "Reconnecte / substitue",
     "authorize": "Auctoriza per {{provider}}",
     "oauth_code": "Codex auctoritatis",
-    "manual_alternative": "Aut insere indicium institutionis",
+    "manual_alternative": "Aut credentialia manu insere",
     "auth_method": "Modus authenticationis",
     "api_key": "Clavis API",
     "chatgpt_login": "Ingressus ChatGPT",

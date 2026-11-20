@@ -1857,7 +1857,7 @@
     "replace": "Neu verbinden / ersetzen",
     "authorize": "Mit {{provider}} autorisieren",
     "oauth_code": "Autorisierungscode",
-    "manual_alternative": "Oder ein Setup-Token einfügen",
+    "manual_alternative": "Oder Zugangsdaten manuell eingeben",
     "auth_method": "Authentifizierungsmethode",
     "api_key": "API-Schlüssel",
     "chatgpt_login": "ChatGPT-Anmeldung",
