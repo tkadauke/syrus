@@ -350,7 +350,7 @@ module Api
           {
             user: user_json(user),
             credential_status: credential_status_json(user),
-            provider_accounts: user.provider_accounts.in_position_order.map { |account| provider_account_json(account) }
+            provider_accounts: provider_accounts_json(user.provider_accounts.in_position_order)
           }
         end
 
