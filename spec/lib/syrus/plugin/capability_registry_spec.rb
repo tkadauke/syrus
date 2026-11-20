@@ -78,7 +78,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     expect(described_class).to have_received(:records_for).once
   end
 
-  it "selects keyed providers from manifest data without loading provider classes" do
+  it "selects keyed providers from conforming manifest declarations" do
     namespace = Object.const_set(:LazyFamilySpec, Module.new)
     namespace.const_set(:Resolver, Class.new do
       def self.key = :ruby
@@ -159,7 +159,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       family_provides: [ declaration("ConformanceVariantsSpec::MissingCore") ])
     described_class.register(name: "unknown", version: "1", family_provides: [ unknown ])
 
-    expect(described_class.health.status("wrong-signature").reasons.join).to include("one required context argument and no keywords")
+    expect(described_class.health.status("wrong-signature").reasons.join)
+      .to include("1 required context argument(s), required keywords [], and optional keywords []")
     expect(described_class.health.status("missing-core").reasons).to include(
       "ConformanceVariantsSpec::MissingCore does not define required method key",
       "ConformanceVariantsSpec::MissingCore does not define required method display_name"
@@ -193,5 +194,16 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     expect { described_class.health }.not_to change { Object.const_defined?(:DisabledConformanceSpec) }
     expect(described_class.health.status("disabled")).to be_ok
+  end
+
+  it "reports provider load errors without crashing health resolution" do
+    described_class.register(name: "load-error", version: "1",
+      family_provides: [ declaration("MissingConformanceSpec::Provider") ])
+
+    expect { described_class.health }.not_to raise_error
+    expect(described_class.health.status("load-error")).to have_attributes(
+      state: :non_conforming,
+      reasons: include(match(/could not load MissingConformanceSpec::Provider: NameError/))
+    )
   end
 end

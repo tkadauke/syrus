@@ -3,8 +3,6 @@
 module Syrus
   module Plugin
     class Conformance
-      Finding = Data.define(:plugin, :family, :provider, :code, :message)
-
       def initialize(manifests) = @manifests = manifests
 
       def findings
@@ -30,14 +28,14 @@ module Syrus
         definition = Family.fetch(declaration.family)
         provider = Object.const_get(declaration.provider)
         errors = definition.required_core.filter_map do |method_name|
-          check_method(plugin, declaration, provider, method_name, expected_arguments(method_name))
+          check_method(plugin, declaration, provider, method_name, definition.core_method_contract(method_name))
         end
         errors.concat(Array(declaration.capabilities).filter_map do |capability|
           unless definition.capabilities.key?(capability)
             next finding(plugin, declaration, :unknown_capability,
               "#{declaration.provider} claims unknown #{declaration.family} capability #{capability}")
           end
-          check_method(plugin, declaration, provider, capability, expected_arguments(capability))
+          check_method(plugin, declaration, provider, capability, definition.method_contract(capability))
         end)
         errors
       rescue ArgumentError => error
@@ -55,20 +53,25 @@ module Syrus
         finding(plugin, declaration, code, "#{declaration.provider} does not define required method #{method_name}")
       end
 
-      def expected_arguments(method_name) = %i[key display_name].include?(method_name) ? 0 : 1
-
-      def acceptable_signature?(parameters, expected)
+      def acceptable_signature?(parameters, contract)
         positional = parameters.count { |kind, _| %i[req opt].include?(kind) }
         required = parameters.count { |kind, _| kind == :req }
-        keywords = parameters.any? { |kind, _| %i[keyreq key keyrest].include?(kind) }
-        rest = parameters.any? { |kind, _| kind == :rest }
-        !keywords && !rest && positional == expected && required == expected
+        required_keywords = parameters.filter_map { |kind, name| name if kind == :keyreq }
+        optional_keywords = parameters.filter_map { |kind, name| name if kind == :key }
+        variadic = parameters.any? { |kind, _| %i[rest keyrest block].include?(kind) }
+        !variadic && positional == contract.required_positionals && required == contract.required_positionals &&
+          required_keywords == contract.required_keywords && optional_keywords == contract.optional_keywords
       end
 
-      def signature_label(expected) = expected.zero? ? "no arguments" : "one required context argument and no keywords"
+      def signature_label(contract)
+        return "no arguments" if contract.required_positionals.zero? && contract.required_keywords.empty? && contract.optional_keywords.empty?
+
+        "#{contract.required_positionals} required context argument(s), required keywords #{contract.required_keywords.inspect}, " \
+          "and optional keywords #{contract.optional_keywords.inspect}"
+      end
 
       def finding(plugin, declaration, code, message)
-        Finding.new(plugin: plugin.to_s, family: declaration.family.to_sym,
+        PluginHealth::Finding.conformance(plugin: plugin.to_s, family: declaration.family.to_sym,
           provider: declaration.provider.to_s, code:, message:)
       end
     end

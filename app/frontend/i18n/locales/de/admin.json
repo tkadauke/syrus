@@ -506,6 +506,7 @@
       "skipped_dependency": "Übersprungen — Abhängigkeit fehlgeschlagen",
       "degraded": "Beeinträchtigt",
       "cycle": "Abhängigkeitszyklus",
+      "non_conforming": "Nicht konform",
       "warning": "Warnung"
     },
     "host_surface_details": "Host-API-Befunde",

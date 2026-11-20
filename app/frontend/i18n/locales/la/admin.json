@@ -506,6 +506,7 @@
       "skipped_dependency": "Praetermissum — dependentia defecit",
       "degraded": "Debilitatum",
       "cycle": "Circuitus dependentiarum",
+      "non_conforming": "Non conforme",
       "warning": "Monitum"
     },
     "host_surface_details": "Inventiones API hospitis",

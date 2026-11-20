@@ -5,7 +5,20 @@ module Syrus
     class Family
       COMPOSITIONS = %i[collect broadcast first_claim keyed].freeze
       TIERS = %i[stable provisional].freeze
-      Capability = Data.define(:name, :composition, :absent, :tier, :context)
+      MethodContract = Data.define(:required_positionals, :required_keywords, :optional_keywords) do
+        def self.no_arguments = new(required_positionals: 0, required_keywords: [], optional_keywords: [])
+        def self.context(context)
+          raise ArgumentError, "Capability context contract is required" if context.nil?
+
+          new(required_positionals: 1, required_keywords: [], optional_keywords: [])
+        end
+      end
+      Capability = Data.define(:name, :composition, :absent, :tier, :context, :method_contract)
+      CORE_METHOD_CONTRACTS = {
+        key: MethodContract.no_arguments,
+        display_name: MethodContract.no_arguments,
+        available_for?: MethodContract.context(Object)
+      }.freeze
       class Definition
         attr_reader :name, :capabilities
         def initialize(name) = (@name, @capabilities = name.to_sym, {})
@@ -15,9 +28,14 @@ module Syrus
           raise ArgumentError, "Duplicate capability #{name.inspect} in family #{@name.inspect}" if capabilities.key?(name)
           raise ArgumentError, "Unknown composition #{composition.inspect}" unless COMPOSITIONS.include?(composition.to_sym)
           raise ArgumentError, "Unknown capability tier #{tier.inspect}" unless TIERS.include?(tier.to_sym)
-          capabilities[name] = Capability.new(name:, composition: composition.to_sym, absent:, tier: tier.to_sym, context:)
+          capabilities[name] = Capability.new(
+            name:, composition: composition.to_sym, absent:, tier: tier.to_sym, context:,
+            method_contract: MethodContract.context(context)
+          )
         end
         def required_core = shape == :service ? %i[key display_name available_for?] : %i[key display_name]
+        def method_contract(method_name) = capabilities.fetch(method_name).method_contract
+        def core_method_contract(method_name) = CORE_METHOD_CONTRACTS.fetch(method_name)
       end
       @definitions = {}
       class << self
