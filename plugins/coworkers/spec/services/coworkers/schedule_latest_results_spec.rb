@@ -44,6 +44,18 @@ RSpec.describe Coworkers::ScheduleLatestResults do
     expect(result).to include(target_date: "2026-11-03", outcome: "skipped", reason: "dormant", job: nil, job_needed: false)
   end
 
+  it "links the exact Journaling Job when a newer Job belongs to another target" do
+    schedule = task(name: "Journaling", system_key: Coworkers::SystemSchedules::JOURNALING)
+    matching = scheduled_job(schedule, target_date: "2026-11-03")
+    newer = scheduled_job(schedule, target_date: "2026-11-04")
+    schedule.record_system_result!(date: Date.new(2026, 11, 3), result: "journaled")
+
+    result = described_class.new(tasks: [ schedule ], user: owner).call.fetch(schedule)
+
+    expect(result).to include(target_date: "2026-11-03", outcome: "journaled", job_needed: true, job: include(id: matching.id))
+    expect(result.dig(:job, :id)).not_to eq(newer.id)
+  end
+
   it "distinguishes a never-run schedule from a no-Job system occurrence" do
     schedule = task(name: "Unused")
     expect(described_class.new(tasks: [ schedule ], user: owner).call.fetch(schedule)).to include(outcome: "never_run", job_needed: nil)
