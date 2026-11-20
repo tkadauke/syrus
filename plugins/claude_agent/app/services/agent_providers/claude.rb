@@ -83,6 +83,7 @@ module AgentProviders
     end
 
     def self.refresh_stale_usage!(user:, provider_account: nil, now: Time.current)
+      provider_account ||= user.default_provider_account(provider_key)
       token = provider_account&.credential(:claude_oauth_token) || user.claude_oauth_token
       return unless token.present?
       return unless ClaudeUsageProbe.stale?(user, provider_account: provider_account, now: now)

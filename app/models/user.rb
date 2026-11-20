@@ -759,6 +759,12 @@ class User < ApplicationRecord
   end
 
   def default_provider_account(provider = agent_provider)
+    if provider_accounts.loaded?
+      return provider_accounts.target
+        .select { |account| account.enabled? && account.provider_key == provider }
+        .min_by { |account| [ account.position, account.id ] }
+    end
+
     provider_accounts.enabled.where(provider_key: provider).in_position_order.first
   end
 

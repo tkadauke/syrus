@@ -55,7 +55,7 @@ class ProviderAvailabilityPause
 
     refresh_stale_usage
     account = selected_provider_account
-    availability = if account && !account.default?
+    availability = if account
       App::ProviderAvailability.for_user(user, provider, provider_account: account, now: now)
     else
       App::ProviderAvailability.for_user(user, provider, now: now)
