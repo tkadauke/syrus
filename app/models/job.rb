@@ -1973,7 +1973,10 @@ class Job < ApplicationRecord
     workflow = WorkUnits::Launcher.instantiate(
       kind: initial_work_kind,
       job: self,
-      artifacts: skill_launch? ? skill_workflow_artifacts : nil
+      artifacts: skill_launch? ? skill_workflow_artifacts : nil,
+      agent_provider: job_provider_setting_default? ? nil : workflow_agent_provider,
+      model: model,
+      effort_level: effort_level
     )
     prompt = if direct? && !skill_launch? && !investigation_launch?
       Prompts::DirectJob.new(
