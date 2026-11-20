@@ -2262,12 +2262,9 @@ About text already written to its identity files, it greets the owner in its
 own voice, summarizes its understanding of the role, and asks a few concrete
 questions about anything unclear or missing—or asks what to work on first when
 nothing needs clarification. The identity files and first conversation include
-the coworker's configured name and its owner's display name. Each coworker's
-Capabilities tab also shows a read-only unified-permission cutover report. It
-compares legacy grants with recommended defaults, calls out removed authority
-and requestable replacements, and blocks migration when capability descriptors
-or registry validation are incomplete. Viewing the report never converts a
-legacy grant into active authority.
+the coworker's configured name and its owner's display name. The Capabilities
+tab shows current effective permission rules, scopes, approval policies, and
+actionable availability errors.
 The Memory tab is a read-only, searchable browser for the daily, people, repository,
 and bank Markdown files on its home branch. It shows recent daily files first, links to
 the owner's existing Syrus memories, and reports empty and unreachable remotes
@@ -2321,6 +2318,10 @@ merge and conflict reporting as chat turns; failed runs also count toward
 schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
+Each schedule card shows only its latest result, including a failure or skip
+reason when useful. A linked Job opens directly, while **View all runs** opens
+the Jobs dashboard with an exact schedule filter. Journaling occurrences that
+needed no Job are distinct from schedules that have never run.
 Coworkers have no product-code access by default. An owner can grant
 `code.read` for selected accessible repositories or all repositories they can
 read. The grant unlocks read-only checkout attachment in chats, capped and

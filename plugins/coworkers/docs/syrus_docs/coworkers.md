@@ -161,9 +161,15 @@ seven-day catch-up bound. Older dates are recorded as
 is retried at most once per hour and stops after three attempts until the next
 daily window. System schedules stay scheduled rather than being auto-paused. Fire errors
 are retained with their exception reason, and journaling is called out as
-overdue only when it is more than one day behind. The periodically sampled
+overdue only when it is more than one day behind.
 
-`syrus_coworkers_journaling_unhealthy_total` metric counts active coworkers
+The Schedule tab presents one latest-result summary per schedule rather than
+inline result history. It links the exact scheduled Job when one exists and
+offers **View all runs**, which opens the Jobs dashboard filtered by the
+schedule's `scheduled_task_id`. A skipped Journaling occurrence explicitly
+states that no Job was needed; a schedule with no result is shown as never run.
+
+The periodically sampled `syrus_coworkers_journaling_unhealthy_total` metric counts active coworkers
 older than 25 hours without a fire or recorded dormant skip inside that window.
 Successful journaling is also completely
 silent: the only output is the persisted workspace update and

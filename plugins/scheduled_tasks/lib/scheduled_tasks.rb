@@ -1,4 +1,5 @@
 require "scheduled_tasks/data_cleanup"
+require "scheduled_tasks/filter_extension"
 
 module ScheduledTasks
   extend Syrus::PluginApi
@@ -94,5 +95,6 @@ module ScheduledTasks
     always do |scope|
       ScheduledTasks::DataCleanup.install_into(scope)
     end
+    while_enabled { |scope| ScheduledTasks::FilterExtension.install_into(scope) }
   end
 end

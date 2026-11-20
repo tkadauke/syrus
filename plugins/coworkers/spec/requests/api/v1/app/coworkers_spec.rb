@@ -54,7 +54,7 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.fetch("active_repositories").pluck("id")).to include(repository.id)
   end
 
-  it "includes the permission cutover report in coworker details" do
+  it "keeps the completed permission cutover report out of coworker capabilities" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-report", workspace_repo: "https://github.com/acme/workspace.git")
     coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
     # Core coworker tools now carry explicit descriptors; a grant with no registered tools is still a gap.
@@ -64,13 +64,7 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/coworkers/#{coworker.id}/capabilities"
 
     expect(response).to have_http_status(:ok)
-    report = response.parsed_body.fetch("permission_cutover_report")
-    expect(report).to include("ready" => false)
-    expect(report.fetch("legacy_grants")).to contain_exactly(
-      include("capability" => "syrus.read_jobs", "approval_policy" => "auto"),
-      include("capability" => "workspace.shell", "approval_policy" => "auto")
-    )
-    expect(report.fetch("descriptor_gaps")).to contain_exactly(include("legacy_capability" => "workspace.shell"))
+    expect(response.parsed_body).not_to have_key("permission_cutover_report")
   end
 
   it "does not expose credentials from journaling failure details" do
@@ -90,7 +84,7 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:ok)
     schedule = response.parsed_body.fetch("schedules").find { |item| item.fetch("id") == task.id }
     expect(schedule.fetch("last_system_result_reason")).to eq("RuntimeError: push rejected for token=[REDACTED]")
-    expect(schedule.fetch("system_result_history").to_json).not_to include(secret)
+    expect(schedule.fetch("latest_result").to_json).not_to include(secret)
   end
 
   it "shows a threshold-level journaling failure before it becomes overdue" do
@@ -496,7 +490,8 @@ RSpec.describe "API: coworkers", type: :request do
     )
 
     get "/api/v1/app/coworkers/#{coworker.id}/capabilities"
-    expect(response.parsed_body).to include("grants", "grant_catalog", "permission_cutover_report")
+    expect(response.parsed_body).to include("grants", "grant_catalog")
+    expect(response.parsed_body).not_to have_key("permission_cutover_report")
   end
 
   it "returns bad request for a malformed activity cursor" do
