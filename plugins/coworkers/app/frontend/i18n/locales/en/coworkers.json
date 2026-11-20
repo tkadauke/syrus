@@ -16,6 +16,7 @@
     "search": "Search files and contents",
     "extension": "Extension",
     "folder": "Folder or path prefix",
+    "exact_folder": "Exact folder",
     "filename": "Filename",
     "filename_exact": "Exact filename",
     "area": "Top-level area",

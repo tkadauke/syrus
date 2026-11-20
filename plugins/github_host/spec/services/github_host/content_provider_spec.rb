@@ -141,6 +141,19 @@ RSpec.describe GithubHost::ContentProvider do
     end
   end
 
+  it "reads workspace blobs and modification dates in one client operation" do
+    expect(client).to receive(:workspace_files).once.with("acme/widgets", sha, %w[notes.md image.png], include_last_modified: true).and_return(
+      "notes.md" => { blob: { text: "hello", byteSize: 5, isBinary: false, isTruncated: false, oid: "b1" }, authored_at: "2026-01-02T03:04:05Z" },
+      "image.png" => { blob: { text: nil, byteSize: 12, isBinary: true, isTruncated: false, oid: "b2" }, authored_at: nil }
+    )
+
+    result = provider.workspace_files(sha, paths: %w[notes.md image.png], max_bytes: 10, last_modified: true, history_limit: 25)
+
+    expect(result[:blobs]["notes.md"]).to have_attributes(text: "hello", size: 5)
+    expect(result[:blobs]["image.png"].bytes).to include("\0")
+    expect(result[:last_modified]["notes.md"]).to eq(Time.zone.parse("2026-01-02T03:04:05Z"))
+  end
+
   describe "#changes" do
     it "maps GitHub statuses onto the contract's" do
       allow(client).to receive(:compare_file_changes).with("acme/widgets", "base", "head").and_return(

@@ -235,7 +235,7 @@ module Api
           authorize coworker, :show?, policy_class: CoworkerPolicy
           payload = Coworkers::WorkspaceBrowser.new(
             coworker: coworker, repository: workspace_repository(coworker), user: Current.user
-          ).call(path: params[:path], filters: params.permit(:search, :extension, :path_prefix, :filename,
+          ).call(path: params[:path], filters: params.permit(:search, :extension, :folder, :path_prefix, :filename,
             :filename_exact, :area, :content_kind, :min_size, :max_size, :modified_after, :modified_before, :sort, :cursor).to_h.symbolize_keys)
           render json: payload
         rescue Coworkers::WorkspaceBrowser::InvalidCursor => error

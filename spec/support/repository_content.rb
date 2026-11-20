@@ -143,6 +143,24 @@ class FakeRepositoryContentProvider
     RepositoryContent::Blob.new(path: path, bytes: bytes, content_id: Digest::SHA1.hexdigest(bytes))
   end
 
+  def workspace_files(revision_id, paths:, max_bytes:, last_modified:, history_limit:)
+    revision = revision_for(revision_id)
+    blobs = paths.to_h do |path|
+      bytes = revision[:files][path]
+      [ path, bytes && RepositoryContent::Blob.new(path: path, bytes: bytes.byteslice(0, max_bytes), size: bytes.bytesize, truncated: bytes.bytesize > max_bytes) ]
+    end.compact
+    commits = last_modified ? Array(self.class.commits[revision_id]) : []
+    dates = {}
+    commits.first(history_limit).each_cons(2) do |head, base|
+      Array(self.class.diffs.dig([ base.sha, head.sha ], :changes)).each { |change| dates[change.path] ||= head.authored_at }
+    end
+    incomplete = commits.size > history_limit
+    if last_modified && !incomplete && (root = commits.first(history_limit).last)
+      paths.each { |path| dates[path] ||= root.authored_at }
+    end
+    { blobs: blobs, last_modified: dates, history_incomplete: incomplete }
+  end
+
   # Paths registered with stub_repository_changes for the head revision, or
   # else a plain comparison of the two revisions' files.
   def changes(base_id, head_id, patch: false)
