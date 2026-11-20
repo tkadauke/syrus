@@ -265,6 +265,7 @@
     "error": "Konversationen sind nicht verfügbar.",
     "result_count_one": "{{count}} Nebenchat",
     "result_count_other": "{{count}} Nebenchats",
+    "result_count_limited": "Erste {{count}} passende Nebenchats",
     "sort": "Sortieren",
     "sort_last_activity": "Letzte Aktivität",
     "sort_title": "Titel",

@@ -410,7 +410,7 @@ it("renders the pinned conversation index and keeps sorting in the URL", async (
           created_at: "2026-11-17T10:00:00Z", archived: false, unread: true, active_work: true, title_match: false, match_count: 2,
           match: { message_id: 91, snippet: "Compare the <mark>release</mark> notes" }
         }],
-        result_count: 1, next_cursor: null, filter: { and: [] },
+        result_count: 1, result_count_exact: false, next_cursor: null, filter: { and: [] },
         filter_schema: [{ field: "search", label: "Search", bucket: "text", operators: ["contains"], values: [], free_text_search: true }],
         sort: path.includes("sort=title") ? "title" : "last_activity"
       })
@@ -425,6 +425,7 @@ it("renders the pinned conversation index and keeps sorting in the URL", async (
   expect(screen.getByText("Unread")).toBeInTheDocument()
   expect(screen.getByText("Active work")).toBeInTheDocument()
   expect(screen.getByText("2 matches")).toBeInTheDocument()
+  expect(screen.getByText("First 1 matching side chats")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: /Add filter/ })).toBeInTheDocument()
   expect(screen.getByText("release", { selector: "mark" })).toBeInTheDocument()
   expect(screen.getByLabelText("Actions for Release research")).toBeInTheDocument()

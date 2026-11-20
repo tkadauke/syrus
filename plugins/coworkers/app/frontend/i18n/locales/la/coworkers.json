@@ -260,6 +260,7 @@
     "error": "Colloquia praesto non sunt.",
     "result_count_one": "{{count}} colloquium secundarium",
     "result_count_other": "{{count}} colloquia secundaria",
+    "result_count_limited": "Prima {{count}} colloquia secundaria congruentia",
     "sort": "Ordina",
     "sort_last_activity": "Actio recens",
     "sort_title": "Titulus",
