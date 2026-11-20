@@ -636,6 +636,8 @@ code, never invokes an undeclared capability, and excludes disabled plugins.
 
 Every capability specifies its stability tier, input context, absent behavior,
 and composition rule (`collect`, `broadcast`, `first_claim`, or `keyed`).
+Providers implementing a keyed capability also declare their selector with
+`key:`, keeping provider selection manifest-only and lazy.
 
 ## Execution Backend Contract
 

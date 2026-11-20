@@ -4368,3 +4368,10 @@ tier-mismatched names fail manifest parsing. Registry callers use
 invoke a reference only at the call boundary. Inventory surfaces use
 `capability_catalog`, which contains only manifest data and does not resolve
 provider constants.
+
+Providers implementing a `keyed` capability must also put their selector in
+the manifest with `key:`, so selection does not load candidate classes:
+
+```ruby
+provides ecosystem: "Kotlin::Resolver", key: :kotlin, implements: %i[resolve]
+```
