@@ -591,16 +591,16 @@ function CoworkerConversationIndex({
         </div>
       ) : null}
       <div className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h3 className="font-semibold">{t("activity.side_chats")}</h3>
             <p className="text-sm text-text-secondary">
               {t(payload.result_count_exact ? "conversations.result_count" : "conversations.result_count_limited", { count: payload.result_count })}
             </p>
           </div>
-          <label className="text-sm font-medium">
+          <label className="w-full text-sm font-medium sm:w-auto">
             {t("conversations.sort")}
-            <Select className="ml-2" onChange={setSort} value={payload.sort}>
+            <Select className="mt-1 max-w-full sm:ml-2 sm:mt-0" onChange={setSort} value={payload.sort}>
               <option value="last_activity">{t("conversations.sort_last_activity")}</option>
               <option value="title">{t("conversations.sort_title")}</option>
               <option value="created_at">{t("conversations.sort_created")}</option>
