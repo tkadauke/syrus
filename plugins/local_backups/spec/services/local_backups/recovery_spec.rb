@@ -67,6 +67,20 @@ RSpec.describe LocalBackups::Recovery do
     end
   end
 
+  it "counts implicit parent directories against the archive entry limit" do
+    Dir.mktmpdir do |directory|
+      archive = Pathname.new(directory).join("deep-entry.tar")
+      File.open(archive, "wb") do |io|
+        Gem::Package::TarWriter.new(io) do |tar|
+          tar.add_file_simple("one/two/three/empty", 0o600, 0) {}
+        end
+      end
+
+      expect { described_class::Artifact.new(archive, max_entries: 3).validate }
+        .to raise_error(described_class::LimitExceeded, /materialize more than 3 filesystem entries/)
+    end
+  end
+
   it "applies entry-count limits to directory artifacts" do
     Dir.mktmpdir do |directory|
       artifact = build_artifact(directory)

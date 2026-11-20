@@ -86,6 +86,7 @@ module LocalBackups
         io = archive_io
         count = 0
         entries = 0
+        materialized = {}
         Gem::Package::TarReader.new(io) do |tar|
           tar.each do |entry|
             entries += 1
@@ -93,10 +94,12 @@ module LocalBackups
             relative = safe_relative(entry.full_name)
             target = destination.join(relative)
             if entry.directory?
+              reserve_materialized_nodes!(destination, relative, materialized)
               target.mkpath
             elsif entry.file?
               count += entry.header.size
               raise LimitExceeded, "expanded archive exceeds #{max_bytes} bytes" if count > max_bytes
+              reserve_materialized_nodes!(destination, relative, materialized)
               target.dirname.mkpath
               File.open(target, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |output|
                 while (chunk = entry.read(COPY_CHUNK)) && !chunk.empty?
@@ -112,6 +115,20 @@ module LocalBackups
         raise InvalidArtifact, "invalid archive: #{e.message}"
       ensure
         io&.close
+      end
+
+      def reserve_materialized_nodes!(destination, relative, materialized)
+        current = destination
+        missing = relative.each_filename.filter_map do |component|
+          next if component == "."
+
+          current = current.join(component)
+          current.to_s unless current.exist? || materialized.key?(current.to_s)
+        end
+        if materialized.length + missing.length > max_entries
+          raise LimitExceeded, "archive would materialize more than #{max_entries} filesystem entries"
+        end
+        missing.each { |path| materialized[path] = true }
       end
 
       def archive_io
