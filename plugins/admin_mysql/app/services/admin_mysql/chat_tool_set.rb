@@ -8,7 +8,7 @@ module AdminMysql
     ].freeze
 
     def self.available_for?(chat_session, tier:)
-      chat_session.user.admin? && AdminMysql.mysql? && %i[ essential deferred ].include?(tier.to_sym)
+      chat_session.present? && chat_session.user.admin? && AdminMysql.mysql? && %i[ essential deferred ].include?(tier.to_sym)
     end
 
     def self.coworker_excluded? = true

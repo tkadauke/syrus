@@ -206,6 +206,11 @@ RSpec.configure do |config|
 
   config.around do |example|
     snapshot = Syrus::PluginRegistry.boot_snapshot
+    # Plugin circuit breakers live in process memory. An example that makes a
+    # plugin raise enough times opens its circuit for the cooldown, and every
+    # later example in the process then silently loses that plugin's
+    # providers -- order-dependent failures far from the cause.
+    Syrus::PluginInvocation.runtime_health.reset! if defined?(Syrus::PluginInvocation)
     Syrus::SpecSupport::BundledPlugins.with_default_beta_mode(example) do
       unless example.metadata[:reset_plugin_registry]
         restore_test_provider_records.call
