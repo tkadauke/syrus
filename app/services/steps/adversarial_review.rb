@@ -349,6 +349,9 @@ module Steps
         chain = [ step, *member_steps, collect ]
         chain.each_cons(2) { |left, right| left.update!(next_step_id: right.id) }
         collect.update!(next_step_id: continuation&.id)
+        StepDispatcher.wire_inserted_step_dependencies!(
+          previous: step, new_steps: [ *member_steps, collect ], continuation: continuation
+        )
         step.update!(details: step.details.to_h.merge("panel_fanout" => true, "panel_id" => panel_id))
       end
       true

@@ -173,6 +173,9 @@ module Workflows
               }
             )
             repair_step.update!(next_step: step)
+            StepDispatcher.wire_inserted_step_dependencies!(
+              previous: repair_step, new_steps: [ step ], continuation: continuation
+            )
             continuation = step
             created << step
           end

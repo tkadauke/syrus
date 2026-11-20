@@ -188,6 +188,22 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
     expect(created.first.next_step).to eq(waiting_gate)
   end
 
+  it "moves the continuation's dependency edge onto a rematerialized review" do
+    adversarial = collect(kind: "adversarial_review", position: 1, sha: "head-a")
+    adversarial.update!(loop_id: "adversarial-loop")
+    repair = Step.create!(workflow: workflow, kind: "implement", position: 2, state: "succeeded",
+      loop_id: "adversarial-loop")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-c")
+    tail = Step.create!(workflow: workflow, kind: "format", position: 3, depends_on_ids: [ repair.id ])
+    repair.update!(next_step: tail)
+
+    created = described_class.refresh_required_reviews!(workflow, repair)
+
+    expect(created.map(&:kind)).to eq([ "adversarial_review" ])
+    expect(created.first.depends_on_step_ids).to eq([ repair.id ])
+    expect(tail.reload.depends_on_step_ids).to eq([ created.first.id ])
+  end
+
   it "idempotently rematerializes every missing required review for a repaired HEAD" do
     adversarial = collect(kind: "adversarial_review", position: 1, sha: "head-a")
     security = collect(kind: "security_review", position: 2, sha: "head-a", state: "running")

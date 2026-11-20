@@ -2064,6 +2064,15 @@ class StepDispatcher
   end
 
   def wire_inserted_step_dependencies!(previous:, new_steps:, continuation:)
+    self.class.wire_inserted_step_dependencies!(previous: previous, new_steps: new_steps, continuation: continuation)
+  end
+
+  # Template steps carry an explicit depends_on edge to their template
+  # predecessor, and the distributed ready set trusts that edge. Every runtime
+  # insertion between a step and its continuation must therefore move the
+  # continuation's edge onto the last inserted step; re-pointing next_step
+  # alone left the continuation "ready" while the inserted work still ran.
+  def self.wire_inserted_step_dependencies!(previous:, new_steps:, continuation:)
     return if new_steps.empty?
 
     ([ previous ] + new_steps).each_cons(2) do |dependency, dependent|
@@ -2201,13 +2210,27 @@ class StepDispatcher
     first_serial_step = nil
     parallel_steps = []
 
-    each_downstream_queued_step do |step|
+    each_downstream_active_step do |step|
+      # Serial steps share the mutable workspace and run in chain order. The
+      # first active serial step is a barrier whether or not it is ready:
+      # skipping past it once started a later review loop -- and then its
+      # repair -- while an earlier loop was still reviewing and repairing.
+      if step.running?
+        next if parallel_runnable_step?(step)
+
+        break
+      end
+
       if skippable_queued_step?(step)
         skip_queued_step!(step)
         next
       end
 
-      next unless ready?(step)
+      unless ready?(step)
+        next if parallel_runnable_step?(step)
+
+        break
+      end
 
       if parallel_runnable_step?(step)
         parallel_steps << step
@@ -2220,10 +2243,10 @@ class StepDispatcher
     parallel_steps.presence || Array(first_serial_step)
   end
 
-  def each_downstream_queued_step
+  def each_downstream_active_step
     scope = @workflow.steps.order(:position, :id)
     scope = scope.where("position > ?", @from_step.position) if @from_step
-    scope.each { |step| yield step if step.queued? }
+    scope.each { |step| yield step if step.queued? || step.running? }
   end
 
   def distributed_ready_set_enabled?

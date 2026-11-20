@@ -16,6 +16,13 @@ module StepDispatcherSpecAttachWorkUnit
     repository.update!(distributed_workflow_dag_enabled: true)
   end
 
+  # Grader fan-out admission falls back to this host's CPU-derived capacity
+  # when no worker heartbeat is live. Pin it so sibling-parallelism examples
+  # do not depend on how many cores the machine running the suite has.
+  def stub_grader_fanout_capacity!(host_capacity = 8)
+    allow(RunHostAdmissionCapacity).to receive(:host_compute_capacity).and_return(host_capacity)
+  end
+
   def attach_work_unit(workflow, state: "queued", **options)
     WorkUnit
       .joins(:work_unit_members)
@@ -1322,6 +1329,7 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "queues every ready immutable-source sibling under the distributed execution gates" do
+      stub_grader_fanout_capacity!
       enable_distributed_workflow_dag!(job.repository)
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
@@ -1370,6 +1378,7 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "queues mixed-capability immutable grader siblings independently and keeps collect blocked until both finish" do
+      stub_grader_fanout_capacity!
       clear_live_worker_queues!
       enable_distributed_workflow_dag!(job.repository)
       workflow.update!(
@@ -1460,6 +1469,7 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "does not let per-step admission deferral block another ready immutable sibling" do
+      stub_grader_fanout_capacity!
       enable_distributed_workflow_dag!(job.repository)
       AppSetting.current.update!(
         workflow_admission_policy: "phase_aware"
@@ -1536,6 +1546,7 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "dispatches parallel immutable siblings that cannot be consumed by the inline RunJob driver" do
+      stub_grader_fanout_capacity!
       enable_distributed_workflow_dag!(job.repository)
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
@@ -1634,6 +1645,37 @@ RSpec.describe StepDispatcher, :ci_only do
       expect {
         described_class.advance_from(s2)
       }.to change { collect.runs.count }.by(1)
+    end
+
+    # Regression: a review panel's fanout finished in a second, a later review
+    # loop's template edge still pointed at that fanout, and the ready set
+    # skipped the panel's not-yet-ready collect to start the later loop while
+    # the first panel was still reviewing.
+    it "never starts a later serial step past an earlier serial step that is not ready" do
+      enable_distributed_workflow_dag!(job.repository)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "adversarial_review", details: { "panel_fanout" => true })
+      s2.update!(kind: "review_panel_collect", position: 2, details: { "panel_review_kind" => "adversarial_review" })
+      s3.update!(kind: "security_review", position: 3, depends_on_ids: [ s1.id ])
+      member = Step.create!(workflow: workflow, kind: "adversarial_review", position: 1,
+        details: { "panel_member" => true }, next_step_id: s2.id)
+      s1.update!(next_step_id: member.id)
+      s2.update!(depends_on_ids: [ member.id ])
+      s1.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      member.update_columns(state: "running", started_at: 1.minute.ago)
+
+      expect { described_class.advance_from(s1) }.not_to change { Run.count }
+      expect(s3.reload.runs).to be_empty
+    end
+
+    it "never starts a later serial step while an earlier serial step is running" do
+      enable_distributed_workflow_dag!(job.repository)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s3.update!(depends_on_ids: [ s1.id ])
+      s1.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      s2.update_columns(state: "running", started_at: 1.minute.ago)
+
+      expect { described_class.advance_from(s1) }.not_to change { s3.runs.count }
     end
 
     it "skips redundant nodes while finding the distributed ready set" do
