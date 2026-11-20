@@ -401,7 +401,9 @@ it("renders Job-centered activity with linked attempts and a bounded failure rea
   expect(screen.getAllByText(/The source service was unavailable/).length).toBeGreaterThan(0)
   fireEvent.click(screen.getByText("1 attempt"))
   expect(screen.getByRole("link", { name: "WF-9" })).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "RUN-11" })).toBeInTheDocument()
+  const runLink = screen.getByRole("link", { name: "RUN-11" })
+  expect(runLink).toBeInTheDocument()
+  expect(runLink.closest("li")).toHaveTextContent("RUN-11 · failed · 1m 0s · 3 tool calls · $1.50")
 })
 
 function activityJob(id: number): CoworkerActivityPayload["jobs"][number] {
