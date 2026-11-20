@@ -83,6 +83,9 @@ module LocalBackups
       database_bytes = connection.select_value("PRAGMA page_count").to_i * connection.select_value("PRAGMA page_size").to_i
       blob_bytes = ActiveStorage::Blob.sum(:byte_size)
       @capacity.admit!(database_bytes:, blob_bytes:)
+    rescue CapacityAdmission::InsufficientSpace => error
+      Retention.new(root: @root).reclaim!(bytes: error.required_bytes - error.available_bytes)
+      @capacity.admit!(database_bytes:, blob_bytes:)
     end
 
     def select_blobs(snapshot_path)

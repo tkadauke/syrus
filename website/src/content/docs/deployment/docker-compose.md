@@ -403,8 +403,8 @@ Portable recovery bundles created by the Local Backups plugin live separately
 at `SYRUS_BACKUP_HOST_PATH` (default `./local-backups` beside the Compose
 file). Set this to an absolute host path before production use. The worker has
 write access; the web container receives the same directory read-only. The
-plugin can create, validate, pin, and retain bundles from **Admin → Local
-Backups**. These recovery bundles are separate from the installer's temporary
+plugin can create, validate, pin, download, and retain bundles from **Admin → Local
+Backups**. Downloads are audited and support resumable HTTP byte ranges. These recovery bundles are separate from the installer's temporary
 pre-upgrade safety archives under `backups/`.
 
 Fresh installs bound the prepared-workspace cache and retained Coding Mode

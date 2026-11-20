@@ -45,4 +45,48 @@ RSpec.describe "API: local backup inventory", type: :request do
     expect { post "/api/v1/app/admin/local_backups" }.to have_enqueued_job(LocalBackups::CreateJob).with(reason: "manual")
     expect(response).to have_http_status(:accepted)
   end
+
+  it "validates, pins, unpins, and queues eligible deletion" do
+    sign_in_as(admin)
+    backup = create_backup
+    allow_any_instance_of(LocalBackups::Validator).to receive(:call) { |_, record| record.update!(verification_state: "valid") }
+    post "/api/v1/app/admin/local_backups/#{backup.uuid}/validate"
+    expect(response).to have_http_status(:ok)
+    post "/api/v1/app/admin/local_backups/#{backup.uuid}/pin"
+    expect(backup.reload).to be_pinned
+    delete "/api/v1/app/admin/local_backups/#{backup.uuid}/pin"
+    expect(backup.reload).not_to be_pinned
+    create_backup(completed_at: 1.minute.from_now)
+    expect { delete "/api/v1/app/admin/local_backups/#{backup.uuid}" }.to have_enqueued_job(LocalBackups::DeleteJob).with(backup.id)
+    expect(response).to have_http_status(:accepted)
+  end
+
+  it "streams full and ranged tar downloads and audits each request" do
+    sign_in_as(admin)
+    backup = create_backup
+    Pathname.new(ENV.fetch("SYRUS_BACKUP_ROOT")).join(backup.artifact_relative_path, "payload.txt").write("recovery payload")
+    get "/api/v1/app/admin/local_backups/#{backup.uuid}/download"
+    full = response.body
+    expect(response).to have_http_status(:ok)
+    expect(AdminAction.where(action: "local_backup_downloaded").count).to eq(1)
+    expect(full).to include("payload.txt", "recovery payload")
+    get "/api/v1/app/admin/local_backups/#{backup.uuid}/download", headers: { "Range" => "bytes=0-31" }
+    expect(response).to have_http_status(:partial_content)
+    expect(response.headers.fetch("Content-Range")).to match(/\Abytes 0-31\/\d+\z/)
+    expect(response.body).to eq(full.byteslice(0, 32))
+  end
+
+  it "rejects an unsatisfiable download range" do
+    sign_in_as(admin)
+    backup = create_backup
+    get "/api/v1/app/admin/local_backups/#{backup.uuid}/download", headers: { "Range" => "bytes=999999-" }
+    expect(response).to have_http_status(:range_not_satisfiable)
+  end
+
+  def create_backup(completed_at: Time.current)
+    uuid = SecureRandom.uuid
+    Pathname.new(ENV.fetch("SYRUS_BACKUP_ROOT")).join(uuid).mkdir
+    LocalBackups::Backup.create!(uuid:, state: "completed", reason: "manual", artifact_relative_path: uuid,
+      manifest_version: "1", completed_at:, validated_at: completed_at, verification_state: "valid", stored_bytes: 10)
+  end
 end

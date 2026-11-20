@@ -11,8 +11,8 @@ module LocalBackups
     end
 
     def call
-      completed = Backup.where(state: "completed").order(completed_at: :desc).to_a
-      protected = completed.first
+      completed = Backup.where(state: "completed").includes(:replications).order(completed_at: :desc).to_a
+      protected = protected_backup(completed)
       total = completed.sum(&:stored_bytes)
       deleted = []
       blocked = []
@@ -24,24 +24,52 @@ module LocalBackups
         end
 
         bytes = backup.stored_bytes
-        delete!(backup)
+        delete!(backup, protected:)
         total -= bytes
         deleted << backup.uuid
       end
+      OperationalEvents.emit("retention", deleted_count: deleted.length, blocked_count: blocked.length)
       Result.new(deleted:, blocked:)
     end
 
     def eligible?(backup)
-      newest = Backup.where(state: "completed", verification_state: "valid").order(completed_at: :desc).first
-      !ineligible?(backup, protected: newest)
+      completed = Backup.where(state: "completed").includes(:replications).order(completed_at: :desc).to_a
+      candidate = completed.find { |record| record.id == backup.id }
+      candidate.present? && !ineligible?(candidate, protected: protected_backup(completed))
     end
 
-    def delete!(backup)
-      raise ArgumentError, "backup is protected from deletion" unless eligible?(backup)
+    def reclaim!(bytes:)
+      remaining = bytes
+      completed = Backup.where(state: "completed").includes(:replications).order(completed_at: :desc).to_a
+      protected = protected_backup(completed)
+      deleted = []
+      completed.reverse_each do |backup|
+        next if ineligible?(backup, protected:)
 
-      backup.update!(state: "deleting")
-      FileUtils.remove_entry_secure(@root.contained(backup.artifact_relative_path))
-      backup.update!(state: "deleted")
+        delete!(backup, protected:)
+        deleted << backup.uuid
+        remaining -= backup.stored_bytes
+        break unless remaining.positive?
+      end
+      OperationalEvents.emit("reclamation_blocked", required_bytes: remaining) if remaining.positive?
+      Result.new(deleted:, blocked: remaining.positive? ? completed.filter_map { |backup| backup.uuid if ineligible?(backup, protected:) } : [])
+    end
+
+    def delete!(backup, protected: nil)
+      claim_deletion!(backup, protected:)
+
+      begin
+        FileUtils.remove_entry_secure(@root.contained(backup.artifact_relative_path))
+      rescue Errno::ENOENT
+        nil
+      rescue StorageRoot::Invalid => e
+        raise unless e.message == "artifact path does not exist"
+      rescue StandardError
+        Backup.where(id: backup.id, state: "deleting").update_all(state: "completed", updated_at: @clock.call)
+        raise
+      end
+      Backup.where(id: backup.id, state: "deleting").update_all(state: "deleted", updated_at: @clock.call)
+      OperationalEvents.emit("deleted", backup_uuid: backup.uuid, stored_bytes: backup.stored_bytes)
     end
 
     private
@@ -51,8 +79,33 @@ module LocalBackups
     end
 
     def ineligible?(backup, protected:)
-      backup != Backup.find_by(id: backup.id) || backup.state != "completed" || backup.pinned? || backup == protected ||
-        (@require_replication && !backup.replications.where(state: "verified").exists?)
+      backup.state != "completed" || backup.pinned? || backup == protected ||
+        (@require_replication && backup.replications.none? { |replication| replication.state == "verified" })
+    end
+
+    def protected_backup(completed)
+      completed.find { |backup| backup.verification_state == "valid" } || completed.first
+    end
+
+    # The lock makes the protection decision and tombstone transition one
+    # operation. Pin/unpin uses the same row lock, so a successful pin can
+    # never be overtaken by an already-approved deletion.
+    def claim_deletion!(backup, protected:)
+      if protected
+        raise ArgumentError, "backup is protected from deletion" if ineligible?(backup, protected:)
+        claimed = Backup.where(id: backup.id, state: "completed", pinned: false)
+          .update_all(state: "deleting", updated_at: @clock.call)
+        raise ArgumentError, "backup is no longer eligible for deletion" unless claimed == 1
+        return
+      end
+
+      Backup.transaction do
+        completed = Backup.lock.where(state: "completed").includes(:replications).order(completed_at: :desc).to_a
+        candidate = completed.find { |record| record.id == backup.id }
+        raise ArgumentError, "backup is protected from deletion" unless candidate && !ineligible?(candidate, protected: protected_backup(completed))
+
+        candidate.update!(state: "deleting")
+      end
     end
   end
 end
