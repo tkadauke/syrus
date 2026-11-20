@@ -391,7 +391,8 @@ If a successful grader formats tracked source files, Syrus preserves that diff
 and continues through implementation and pull-request creation instead of
 reporting a false recovery. Ignored and untracked grader output is not treated
 as a source repair, and a conclusive no-change result is deduplicated for the
-same main commit while a new commit remains eligible for repair.
+same main commit and failure evidence. New failure evidence on that commit, or
+a new commit, remains eligible for repair.
 
 If a main-branch grader check cannot reach its required graders — for example,
 because repository setup fails — Syrus records that commit as `inconclusive`
