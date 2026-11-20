@@ -122,7 +122,8 @@ class ProviderAvailabilityPause
       original_candidate: current_candidate,
       reason: reason,
       availability: availability,
-      now: now
+      now: now,
+      workflow: workflow
     )
     return Decision.new(
       pause: false,

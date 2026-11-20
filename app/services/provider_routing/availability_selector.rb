@@ -252,7 +252,9 @@ module ProviderRouting
           next [ account.id, { provider: candidate.provider, state: "auth_error", reason: "provider_credentials_missing" } ]
         end
         refresh_stale_usage(candidate.provider, account)
-        payload = if accounts.one? && account.default? && candidate.account_id.blank?
+        payload = if current_workflow_account?(candidate, account) && availability
+          availability
+        elsif accounts.one? && account.default? && candidate.account_id.blank?
           App::ProviderAvailability.for_user(user, candidate.provider, now: now)
         else
           App::ProviderAvailability.for_user(user, candidate.provider, provider_account: account, now: now)
@@ -265,6 +267,11 @@ module ProviderRouting
       [ reserve_least_pressured_account(eligible, payloads), nil ]
     rescue AgentProviders::ConfigurationError
       [ nil, credential_unavailability(candidate.provider) ]
+    end
+
+    def current_workflow_account?(candidate, account)
+      workflow&.provider_account_id == account.id &&
+        original_candidate&.provider == candidate.provider
     end
 
     def reserve_least_pressured_account(accounts, payloads)
