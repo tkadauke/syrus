@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { type ReactNode, useState } from "react"
 import { useT } from "../hooks/useT"
 import { Markdown } from "../lib/Markdown"
 import { buttonClasses } from "./Button"
@@ -14,6 +14,7 @@ import { Modal } from "./Modal"
 
 const MARKDOWN_CONTENT_TYPES = ["text/markdown", "text/x-markdown"]
 const TEXT_CONTENT_TYPES = ["text/plain", ...MARKDOWN_CONTENT_TYPES]
+const FOOTER_CLASSES = "flex shrink-0 items-center justify-center gap-2 border-t border-border bg-surface px-4 py-3"
 
 export function isImageContentType(contentType: string | null | undefined): boolean {
   return !!contentType && contentType.startsWith("image/")
@@ -33,7 +34,7 @@ export type PreviewableFile = {
   contentType: string | null
 }
 
-export function DocumentPreviewModal({ file, onClose }: { file: PreviewableFile; onClose: () => void }) {
+export function DocumentPreviewModal({ file, footerActions, onClose }: { file: PreviewableFile; footerActions?: ReactNode; onClose: () => void }) {
   const { t } = useT("settings")
   const image = isImageContentType(file.contentType)
   const markdown = MARKDOWN_CONTENT_TYPES.includes(file.contentType || "")
@@ -89,10 +90,15 @@ export function DocumentPreviewModal({ file, onClose }: { file: PreviewableFile;
           <pre className="whitespace-pre-wrap break-words bg-white px-5 py-4 font-mono text-xs text-gray-900 dark:bg-gray-950 dark:text-gray-100" data-testid="file-preview-source">{content.data ?? ""}</pre>
         )}
       </div>
+      {footerActions ? (
+        <footer className={FOOTER_CLASSES}>
+          {footerActions}
+        </footer>
+      ) : null}
     </Modal>
   )
 }
 
 function FilePreviewState({ message, tone = "neutral" }: { message: string; tone?: "neutral" | "error" }) {
-  return <div className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>{message}</div>
+  return <div className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-danger-text" : "text-text-secondary"}`}>{message}</div>
 }

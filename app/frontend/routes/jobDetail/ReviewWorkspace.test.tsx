@@ -1392,10 +1392,10 @@ describe("ReviewWorkspace", () => {
       { visualEvidenceNavigation: { direction: 1, sequence: 1 } }
     )
 
-    expect(await screen.findByRole("dialog", { name: "Preview of First capture" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Next evidence" }))
-    expect(await screen.findByRole("dialog", { name: "Preview of Second capture" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Previous evidence" }))
+    let dialog = await screen.findByRole("dialog", { name: "Preview of First capture" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next evidence" }))
+    dialog = await screen.findByRole("dialog", { name: "Preview of Second capture" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Previous evidence" }))
     expect(await screen.findByRole("dialog", { name: "Preview of First capture" })).toBeInTheDocument()
   })
 
