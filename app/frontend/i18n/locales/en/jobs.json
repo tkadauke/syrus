@@ -1090,12 +1090,12 @@
   "visual_evidence_metadata": "#{{sequence}} · {{viewport}} · {{timestamp}}",
   "visual_evidence_submission_failed": "Submission failed; capture retained",
   "reset_job": "Reset Job",
-  "confirm_reset_job": "Reset this Job and restart it from scratch on the current base? This closes the open PR, deletes the branch and checkpoints, and cancels active workflows. The Job id, Epic membership, dependencies and history are kept.",
-  "reset_job_discards": "Discards:",
-  "reset_job_pr": "PR #{{number}}",
-  "reset_job_branch": "branch {{branch}}",
-  "reset_job_checkpoints_one": "{{count}} checkpoint",
-  "reset_job_checkpoints_other": "{{count}} checkpoints",
-  "reset_job_workflows_one": "{{count}} active workflow",
-  "reset_job_workflows_other": "{{count}} active workflows"
+  "confirm_reset_job": "Resetting this Job will:",
+  "confirm_reset_job_kept": "The Job will restart from scratch on the current base. Its id, Epic membership, dependencies and history will be kept.",
+  "reset_job_pr": "Close PR #{{number}}",
+  "reset_job_branch": "Delete branch {{branch}}",
+  "reset_job_checkpoints_one": "Delete {{count}} checkpoint",
+  "reset_job_checkpoints_other": "Delete {{count}} checkpoints",
+  "reset_job_workflows_one": "Cancel {{count}} active workflow",
+  "reset_job_workflows_other": "Cancel {{count}} active workflows"
 }

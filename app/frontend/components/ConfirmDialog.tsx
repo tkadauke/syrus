@@ -20,7 +20,7 @@ export function ConfirmDialog({ open, message, content, confirmLabel, cancelLabe
 
   return (
     <Modal initialFocusRef={confirmRef} label={message} onClose={onCancel} open={open}>
-      {content ?? <p className="text-sm text-gray-700 dark:text-gray-300">{message}</p>}
+      {content ?? <p className="whitespace-pre-line text-sm text-gray-700 dark:text-gray-300">{message}</p>}
       <div className="mt-4 flex justify-end gap-2">
         <Button onClick={onCancel} variant="secondary">
           {cancelLabel ?? t("cancel")}
