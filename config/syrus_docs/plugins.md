@@ -9,6 +9,8 @@ features.
 
 The complete installed inventory is available under **Admin → Plugins**. Plugin
 authors should use the engineering plugin-authoring reference (`docs/engineering/conventions/plugins/authoring.md` in the Syrus repository); this page describes behavior that operators and agents need when using plugins.
+Each plugin detail page shows its manifest-declared capability families. The
+same manifest-only inventory is available from `syrus plugin capabilities`.
 
 Enabled, healthy plugins may also declare server-backed CLI commands. The CLI
 catalog exposes nested command paths, summaries, positional arguments, and
