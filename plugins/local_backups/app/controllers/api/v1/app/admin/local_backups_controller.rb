@@ -102,7 +102,7 @@ module Api
           end
 
           def root_payload(root)
-            usage = DataRootDiskUsage.read(root.path)
+            usage = Syrus::Host::DiskUsage.read(root.path)
             { configured: true, path: root.path.to_s, available_bytes: usage&.available_bytes }
           end
 
