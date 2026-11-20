@@ -814,7 +814,7 @@ function ExtensionPointRow({ extension }: { extension: AdminPluginExtensionPoint
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge label={extension.availability.label} status={extension.availability.status} />
           {typeof count === "number" ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("plugins.configured_repos", { count })}</span> : null}
-          {extension.availability.detail ? <span className="text-xs text-red-700 dark:text-red-300">{extension.availability.detail}</span> : null}
+          {extension.availability.detail ? <span className="text-xs text-danger">{extension.availability.detail}</span> : null}
         </div>
       </DataTable.Cell>
     </DataTable.Row>
@@ -831,7 +831,7 @@ function statusTone(status: string) {
   if (status === "required") return "bg-info/10 text-info"
   if (status === "experimental") return "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
   if (["disabled", "not_configured"].includes(status)) return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-  if (status === "error") return "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+  if (status === "error") return "bg-danger/10 text-danger"
   return "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
 }
 
