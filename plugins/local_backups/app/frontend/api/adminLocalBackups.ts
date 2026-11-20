@@ -1,4 +1,4 @@
-import { getJson } from "@app/api/client"
+import { deleteJson, getJson, postJson } from "@app/api/client"
 
 export type LocalBackup = {
   uuid: string
@@ -14,6 +14,8 @@ export type LocalBackup = {
   artifact_checksum: string
   checksum_algorithm: string
   encryption_key_fingerprint: string | null
+  pinned: boolean
+  state: string
 }
 
 export type LocalBackupsPayload = {
@@ -25,3 +27,9 @@ export type LocalBackupsPayload = {
 export function fetchAdminLocalBackups() {
   return getJson<LocalBackupsPayload>("/api/v1/app/admin/local_backups")
 }
+
+export const createLocalBackup = () => postJson<{ queued: boolean }>("/api/v1/app/admin/local_backups")
+export const validateLocalBackup = (id: string) => postJson(`/api/v1/app/admin/local_backups/${id}/validate`)
+export const pinLocalBackup = (id: string) => postJson(`/api/v1/app/admin/local_backups/${id}/pin`)
+export const unpinLocalBackup = (id: string) => deleteJson(`/api/v1/app/admin/local_backups/${id}/pin`)
+export const deleteLocalBackup = (id: string) => deleteJson(`/api/v1/app/admin/local_backups/${id}`)

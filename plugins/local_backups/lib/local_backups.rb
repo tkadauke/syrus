@@ -10,8 +10,9 @@ module LocalBackups
     category "tooling"
     default_enabled false
     disableable true
-    provides admin_page: "LocalBackups::AdminPages",
+    provides admin_page: "LocalBackups::AdminPages", callbacks: "LocalBackups::Callbacks",
              backup_artifact_source: "LocalBackups::ArtifactSource"
+    tick_interval 1.day
     events "local_backups.backup.completed" => :async,
            "local_backups.backup.failed" => :async,
            "local_backups.backup.validated" => :async,
@@ -22,6 +23,11 @@ module LocalBackups
       nil
     end
     route :get, "/api/v1/app/admin/local_backups", to: "api/v1/app/admin/local_backups#index"
+    route :post, "/api/v1/app/admin/local_backups", to: "api/v1/app/admin/local_backups#create"
+    route :post, "/api/v1/app/admin/local_backups/:id/validate", to: "api/v1/app/admin/local_backups#validate"
+    route :post, "/api/v1/app/admin/local_backups/:id/pin", to: "api/v1/app/admin/local_backups#pin"
+    route :delete, "/api/v1/app/admin/local_backups/:id/pin", to: "api/v1/app/admin/local_backups#unpin"
+    route :delete, "/api/v1/app/admin/local_backups/:id", to: "api/v1/app/admin/local_backups#destroy"
     route :get, "/admin/local_backups", to: "spa#show"
     frontend routes: { "local_backups/AdminLocalBackups" => "app/frontend/routes/AdminLocalBackups.tsx" },
       i18n: [ "app/frontend/i18n/locales/*/local_backups.json" ]

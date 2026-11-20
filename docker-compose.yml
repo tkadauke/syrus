@@ -16,6 +16,7 @@ x-app: &app
     - syrus-data:/home/rails/.syrus
   environment:
     SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
+    SYRUS_BACKUP_ROOT: /home/rails/.syrus-backups
     SYRUS_PLUGIN_PATH: /home/rails/.syrus-plugins
   restart: unless-stopped
 
@@ -34,13 +35,15 @@ services:
       - -euc
       - |
         mkdir -p "$$SYRUS_DATA_ROOT/db"
+        mkdir -p "$$SYRUS_BACKUP_ROOT"
         mkdir -p "$$(dirname "$$SEARCH_DATABASE_PATH")"
         bin/rails db:prepare
-        chown -R 1000:1000 "$$SYRUS_DATA_ROOT" "$$(dirname "$$SEARCH_DATABASE_PATH")"
+        chown -R 1000:1000 "$$SYRUS_DATA_ROOT" "$$SYRUS_BACKUP_ROOT" "$$(dirname "$$SEARCH_DATABASE_PATH")"
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
       - syrus-plugins:/home/rails/.syrus-plugins:ro
+      - ${SYRUS_BACKUP_HOST_PATH:-./local-backups}:/home/rails/.syrus-backups
     restart: "no"
     environment:
       SEARCH_DATABASE_PATH: /home/rails/.syrus-search/search.sqlite3
@@ -58,6 +61,7 @@ services:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
       - syrus-plugins:/home/rails/.syrus-plugins:ro
+      - ${SYRUS_BACKUP_HOST_PATH:-./local-backups}:/home/rails/.syrus-backups:ro
     ports:
       - "${SYRUS_BIND:-127.0.0.1}:${SYRUS_PORT:-3000}:80"
     healthcheck:
@@ -88,6 +92,7 @@ services:
       - syrus-search:/home/rails/.syrus-search
       - syrus-mise-cache:/opt/mise
       - syrus-plugins:/home/rails/.syrus-plugins:ro
+      - ${SYRUS_BACKUP_HOST_PATH:-./local-backups}:/home/rails/.syrus-backups
     command: ["./bin/jobs"]
 
   preview:
