@@ -4,7 +4,7 @@ module LocalBackups
   syrus_plugin "local_backups" do
     display_name "Local Backups"
     description "Creates and inventories sealed, portable recovery bundles on installation-local storage."
-    long_description "Local Backups creates consistent SQLite and Disk Active Storage recovery bundles, provides scheduled retention and validation, and offers audited downloads from an inventory reconstructed from sealed artifacts. Restore is delivered separately."
+    long_description "Local Backups creates consistent SQLite or MySQL recovery bundles with streamed Active Storage objects, provides scheduled retention and validation, and offers audited downloads from an inventory reconstructed from sealed artifacts. Restore is delivered separately."
     homepage "https://github.com/tkadauke/syrus"
     author "Thomas Kadauke"
     category "tooling"
