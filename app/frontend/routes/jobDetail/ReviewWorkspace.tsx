@@ -109,7 +109,19 @@ export async function fetchProfiledSourceDiff(jobId: string, search = "") {
   }
 }
 
-export function ReviewWorkspace({ diffLineMetricProviders, payload, visualEvidenceNavigation }: { diffLineMetricProviders?: DiffLineMetricProvider[]; payload: JobDetailPayload; visualEvidenceNavigation?: { direction: -1 | 1; sequence: number } }) {
+export function ReviewWorkspace({
+  diffLineMetricProviders,
+  payload,
+  showConversation = true,
+  showEmptyVisualEvidence = false,
+  visualEvidenceNavigation
+}: {
+  diffLineMetricProviders?: DiffLineMetricProvider[]
+  payload: JobDetailPayload
+  showConversation?: boolean
+  showEmptyVisualEvidence?: boolean
+  visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
+}) {
   const { t } = useT("jobs")
   const { t: commonT } = useT("common")
   const jobId = payload.job.id
@@ -454,6 +466,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload, visualEviden
             gallery={payload.visual_evidence}
             selectedRange={selectedRange}
             selectedVersion={selectedVersion}
+            showEmptyState={showEmptyVisualEvidence}
             versions={versions}
             navigation={visualEvidenceNavigation}
           />
@@ -548,7 +561,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload, visualEviden
             />
           </Section.Root>
         </div>
-        {isDesktopSplit ? (
+        {showConversation && isDesktopSplit ? (
           <ReviewCommentsSplitterHandle
             collapsed={commentsSplitter.collapsed}
             label={t("review_comments_splitter_label")}
@@ -565,14 +578,16 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload, visualEviden
             valueNow={commentsSplitter.collapsed ? 0 : commentsSplitter.width}
           />
         ) : null}
-        <div
-          className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
-          data-testid="review-comments-panel"
-          style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
-        >
-          {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
-        </div>
-        {isDesktopSplit && commentsSplitter.collapsed ? (
+        {showConversation ? (
+          <div
+            className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
+            data-testid="review-comments-panel"
+            style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
+          >
+            {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
+          </div>
+        ) : null}
+        {showConversation && isDesktopSplit && commentsSplitter.collapsed ? (
           <ReviewCommentsCollapsedRail
             label={t("review_comments_collapsed_aria")}
             onMouseEnter={openCommentsPeek}
@@ -580,7 +595,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload, visualEviden
             summaries={feedback.versionSummaries}
           />
         ) : null}
-        {isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
+        {showConversation && isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
           <div
             className="absolute top-0 z-30 h-screen min-w-0 overflow-y-auto shadow-2xl"
             data-testid="review-comments-peek"
@@ -609,6 +624,7 @@ export function VisualEvidenceGallery({
   gallery,
   selectedRange = null,
   selectedVersion = null,
+  showEmptyState = false,
   versions = [],
   navigation
 }: {
@@ -617,6 +633,7 @@ export function VisualEvidenceGallery({
   gallery: JobDetailPayload["visual_evidence"]
   selectedRange?: { baseSha: string; headSha: string } | null
   selectedVersion?: DiffReviewVersion | null
+  showEmptyState?: boolean
   versions?: DiffReviewVersion[]
   navigation?: { direction: -1 | 1; sequence: number }
 }) {
@@ -637,7 +654,15 @@ export function VisualEvidenceGallery({
 
   const typedArtifacts = artifacts.filter((artifact) => !isRepresentedByGalleryEvidence(artifact, submitted))
 
-  if (evidence.captured_count === 0 && typedArtifacts.length === 0) return null
+  if (evidence.captured_count === 0 && typedArtifacts.length === 0) {
+    if (!showEmptyState) return null
+    return (
+      <Section.Root>
+        <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
+        <p className="mt-3 text-sm text-text-muted">{t("visual_evidence_none")}</p>
+      </Section.Root>
+    )
+  }
 
   return (
     <Section.Root>

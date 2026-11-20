@@ -70,7 +70,7 @@ export default function ReviewWorkspaceRoute() {
           <CloseIcon className="h-5 w-5" />
         </button>
       </header>
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)_20rem]">
+      <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[17rem_minmax(0,1fr)_20rem] lg:overflow-hidden">
         <JobRail active={active} jobs={jobs} prefix={prefix} />
         <JobReview job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
         <DecisionPanel
@@ -140,14 +140,19 @@ function JobReview({ job, onDetail, visualEvidenceNavigation }: { job: ReviewWor
       </section>
     )
   return (
-    <section aria-label={t("evidence")} className="min-w-0 overflow-y-auto bg-page p-4 sm:p-6">
+    <section aria-label={t("evidence")} className="min-w-0 bg-page p-4 sm:p-6 lg:overflow-y-auto">
       <div className="mb-5">
         <p className="text-xs text-text-secondary">
           {job.slug} · {job.repository.slug}
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{job.title}</h1>
       </div>
-      <CanonicalReviewWorkspace payload={detail.data} visualEvidenceNavigation={visualEvidenceNavigation} />
+      <CanonicalReviewWorkspace
+        payload={detail.data}
+        showConversation={false}
+        showEmptyVisualEvidence
+        visualEvidenceNavigation={visualEvidenceNavigation}
+      />
     </section>
   )
 }
@@ -198,10 +203,31 @@ function DecisionPanel({
     return () => window.removeEventListener("keydown", shortcut)
   }, [canApprove, onEvidenceMove, onExit, onMove])
   const mutationError = approve.error ?? submitFeedback.error
+  const findings = (detail?.typed_artifacts ?? []).filter((artifact) => artifact.renderer_type !== "image_diff")
   return (
-    <aside aria-label={t("decision_context")} className="overflow-y-auto border-l border-border bg-surface p-5 max-lg:border-t">
+    <aside aria-label={t("decision_context")} className="border-l border-border bg-surface p-5 max-lg:border-t lg:overflow-y-auto">
       <h2 className="font-semibold">{t("decision_context")}</h2>
       <p className="mt-2 text-sm text-text-secondary">{t("decision_hint")}</p>
+      <section className="mt-5 border-t border-border pt-4" aria-label={t("checks")}>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("checks")}</h3>
+        <p className={`mt-2 text-sm ${canApprove ? "text-success-text" : "text-text-secondary"}`}>
+          {canApprove ? t("checks_ready") : t("checks_blocked")}
+        </p>
+      </section>
+      <section className="mt-4 border-t border-border pt-4" aria-label={t("findings")}>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("findings")}</h3>
+        {findings.length > 0 ? (
+          <ul className="mt-2 space-y-2 text-sm">
+            {findings.map((artifact, index) => (
+              <li className="rounded border border-border bg-page px-3 py-2" key={`${artifact.type}-${index}`}>
+                {artifact.title}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-text-secondary">{t("no_findings")}</p>
+        )}
+      </section>
       <div className="mt-5 space-y-2">
         {confirming ? (
           <div className="rounded border border-brand/30 bg-brand-subtle p-3">
