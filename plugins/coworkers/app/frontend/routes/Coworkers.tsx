@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { FormEvent, useEffect, useMemo, useState } from "react"
+import { FormEvent, type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Avatar } from "@app/components/Avatar"
 import { AvatarPicker } from "@app/components/AvatarPicker"
@@ -1297,6 +1297,7 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
   const workspaceSearch = useMemo(() => {
     const query = new URLSearchParams(location.search)
     query.delete("tab")
+    query.delete("expanded")
     return query.size ? `?${query}` : ""
   }, [location.search])
   const selectPath = (path: string) => {
@@ -1304,6 +1305,16 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
     query.set("tab", "workspace")
     query.set("path", path)
     navigate({ search: `?${query}` })
+  }
+  const setCursor = (cursor: string | null) => {
+    const query = new URLSearchParams(location.search)
+    cursor ? query.set("cursor", cursor) : query.delete("cursor")
+    navigate({ search: `?${query}` })
+  }
+  const setExpandedPaths = (paths: Set<string>) => {
+    const query = new URLSearchParams(location.search)
+    paths.size ? query.set("expanded", [...paths].sort().join(",")) : query.delete("expanded")
+    navigate({ search: `?${query}` }, { replace: true })
   }
   const query = useQuery({
     queryKey: ["coworkers", id, "workspace", workspaceSearch],
@@ -1383,7 +1394,14 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
             <button className="rounded-full border border-border px-3 py-1 text-xs" onClick={() => selectPath("SOUL.md")} type="button">SOUL.md</button>
           </div>
           <FilterBar buildLink={workspaceFilterLink} filter={workspaceFilterTree(location.search)} filterSchema={workspaceFilterSchema(t)} legacyFilterKeys={["search", "extension", "path_prefix", "filename", "area"]} pathname={location.pathname} search={location.search} />
-          <WorkspaceTree files={workspace.files} selectedPath={selectedPath} onSelect={selectPath} label={t("workspace.files")} />
+          <WorkspaceTree
+            expandedPaths={new Set(params.get("expanded")?.split(",").filter(Boolean) || ["memory"])}
+            files={workspace.files}
+            label={t("workspace.files")}
+            onExpandedChange={setExpandedPaths}
+            onSelect={selectPath}
+            selectedPath={selectedPath}
+          />
         </div>
         <article className="min-w-0 p-5">
           {workspace.selected_file ? (
@@ -1407,9 +1425,18 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
               {results.map((result) => (
                 <button className="mt-2 block w-full rounded border border-border p-3 text-left text-sm" key={result.path} onClick={() => selectPath(result.path)} type="button">
                   <span className="font-medium">{result.path}</span>
-                  {result.snippet ? <span className="mt-1 block text-text-muted">{result.snippet}</span> : null}
+                  {result.snippet ? <HighlightedSnippet highlights={result.highlights} snippet={result.snippet} /> : null}
                 </button>
               ))}
+              {workspace.total > 0 ? (
+                <div className="mt-4 flex items-center justify-between text-sm text-text-muted">
+                  <span>{t("workspace.showing", { first: workspace.page_start, last: workspace.page_end, total: workspace.total })}</span>
+                  <div className="flex gap-2">
+                    <button className="rounded border border-border px-3 py-1 disabled:opacity-40" disabled={!workspace.previous_cursor} onClick={() => setCursor(workspace.previous_cursor)} type="button">{t("workspace.previous")}</button>
+                    <button className="rounded border border-border px-3 py-1 disabled:opacity-40" disabled={!workspace.next_cursor} onClick={() => setCursor(workspace.next_cursor)} type="button">{t("workspace.next")}</button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </article>
@@ -1431,17 +1458,78 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
 }
 
 function WorkspaceScope({ label, prefix, location, navigate }: { label: string; prefix?: string; location: ReturnType<typeof useLocation>; navigate: ReturnType<typeof useNavigate> }) {
-  return <button className="rounded-full border border-border px-3 py-1 text-xs" onClick={() => { const query = new URLSearchParams(location.search); prefix ? query.set("path_prefix", prefix) : query.delete("path_prefix"); query.delete("path"); navigate({ search: `?${query}` }) }} type="button">{label}</button>
+  return <button className="rounded-full border border-border px-3 py-1 text-xs" onClick={() => { const query = new URLSearchParams(location.search); prefix ? query.set("path_prefix", prefix) : query.delete("path_prefix"); query.delete("path"); query.delete("cursor"); navigate({ search: `?${query}` }) }} type="button">{label}</button>
 }
 
-function WorkspaceTree({ files, selectedPath, onSelect, label }: { files: CoworkerWorkspacePayload["files"]; selectedPath?: string; onSelect: (path: string) => void; label: string }) {
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(["memory"]))
-  const paths = files.filter((file) => file.type === "file")
-  const folders = [...new Set(paths.flatMap((file) => file.path.split("/").slice(0, -1).map((_, index, parts) => parts.slice(0, index + 1).join("/"))))].sort()
-  return <nav aria-label={label} className="mt-3 max-h-96 overflow-auto" role="tree">
-    {folders.map((folder) => <button aria-expanded={expanded.has(folder)} className="block w-full rounded px-2 py-1 text-left text-sm font-medium" key={folder} onClick={() => setExpanded((current) => { const next = new Set(current); next.has(folder) ? next.delete(folder) : next.add(folder); return next })} role="treeitem" style={{ paddingLeft: `${folder.split("/").length * 0.75}rem` }} type="button">{expanded.has(folder) ? "▾" : "▸"} {folder.split("/").at(-1)}</button>)}
-    {paths.filter((file) => file.path.split("/").slice(0, -1).every((_, index, parts) => expanded.has(parts.slice(0, index + 1).join("/")))).map((file) => <button aria-current={selectedPath === file.path ? "page" : undefined} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-surface-subtle" key={file.path} onClick={() => onSelect(file.path)} role="treeitem" style={{ paddingLeft: `${file.path.split("/").length * 0.75}rem` }} type="button">{file.path.split("/").at(-1)}</button>)}
-  </nav>
+type WorkspaceTreeNode = { name: string; path: string; file: boolean; children: WorkspaceTreeNode[] }
+
+function workspaceTreeNodes(files: CoworkerWorkspacePayload["files"]): WorkspaceTreeNode[] {
+  const root: WorkspaceTreeNode = { name: "", path: "", file: false, children: [] }
+  files.filter((file) => file.type === "file").forEach((file) => {
+    let parent = root
+    file.path.split("/").forEach((name, index, parts) => {
+      const path = parts.slice(0, index + 1).join("/")
+      let node = parent.children.find((child) => child.name === name)
+      if (!node) {
+        node = { name, path, file: index === parts.length - 1, children: [] }
+        parent.children.push(node)
+      }
+      parent = node
+    })
+  })
+  const sort = (nodes: WorkspaceTreeNode[]) => nodes.sort((a, b) => Number(a.file) - Number(b.file) || a.name.localeCompare(b.name)).forEach((node) => sort(node.children))
+  sort(root.children)
+  return root.children
+}
+
+function WorkspaceTree({ files, selectedPath, onSelect, label, expandedPaths, onExpandedChange }: { files: CoworkerWorkspacePayload["files"]; selectedPath?: string; onSelect: (path: string) => void; label: string; expandedPaths: Set<string>; onExpandedChange: (paths: Set<string>) => void }) {
+  const treeRef = useRef<HTMLElement>(null)
+  const nodes = workspaceTreeNodes(files)
+  const [activePath, setActivePath] = useState(selectedPath)
+  const visiblePaths = (treeNodes: WorkspaceTreeNode[]): string[] => treeNodes.flatMap((node) => [node.path, ...(!node.file && expandedPaths.has(node.path) ? visiblePaths(node.children) : [])])
+  const tabStopPath = activePath && visiblePaths(nodes).includes(activePath) ? activePath : visiblePaths(nodes)[0]
+  const toggle = (path: string, expand?: boolean) => {
+    const next = new Set(expandedPaths)
+    const shouldExpand = expand ?? !next.has(path)
+    shouldExpand ? next.add(path) : next.delete(path)
+    onExpandedChange(next)
+  }
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, node: WorkspaceTreeNode) => {
+    const items = [...(treeRef.current?.querySelectorAll<HTMLButtonElement>("[role=treeitem]") || [])]
+    const index = items.indexOf(event.currentTarget)
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") items[index + (event.key === "ArrowDown" ? 1 : -1)]?.focus()
+    else if (event.key === "Home") items[0]?.focus()
+    else if (event.key === "End") items.at(-1)?.focus()
+    else if (event.key === "ArrowRight" && !node.file) expandedPaths.has(node.path) ? items[index + 1]?.focus() : toggle(node.path, true)
+    else if (event.key === "ArrowLeft") {
+      if (!node.file && expandedPaths.has(node.path)) toggle(node.path, false)
+      else event.currentTarget.closest("[role=group]")?.parentElement?.querySelector<HTMLButtonElement>(":scope > [role=treeitem]")?.focus()
+    } else return
+    event.preventDefault()
+  }
+  const renderNodes = (nodes: WorkspaceTreeNode[]): ReactNode => nodes.map((node) => (
+    <li key={node.path} role="none">
+      <button
+        aria-current={node.file && selectedPath === node.path ? "page" : undefined}
+        aria-expanded={node.file ? undefined : expandedPaths.has(node.path)}
+        className={`block w-full rounded px-2 py-1 text-left text-sm ${node.file ? "hover:bg-surface-subtle" : "font-medium"}`}
+        onClick={() => node.file ? onSelect(node.path) : toggle(node.path)}
+        onFocus={() => setActivePath(node.path)}
+        onKeyDown={(event) => onKeyDown(event, node)}
+        role="treeitem"
+        tabIndex={node.path === tabStopPath ? 0 : -1}
+        type="button"
+      >{node.file ? null : expandedPaths.has(node.path) ? "▾ " : "▸ "}{node.name}</button>
+      {!node.file && expandedPaths.has(node.path) ? <ul className="pl-3" role="group">{renderNodes(node.children)}</ul> : null}
+    </li>
+  ))
+  return <nav aria-label={label} className="mt-3 max-h-96 overflow-auto" ref={treeRef} role="tree"><ul role="none">{renderNodes(nodes)}</ul></nav>
+}
+
+function HighlightedSnippet({ snippet, highlights }: { snippet: string; highlights: { start: number; length: number }[] }) {
+  const highlight = highlights[0]
+  if (!highlight) return <span className="mt-1 block text-text-muted">{snippet}</span>
+  return <span className="mt-1 block text-text-muted">{snippet.slice(0, highlight.start)}<mark>{snippet.slice(highlight.start, highlight.start + highlight.length)}</mark>{snippet.slice(highlight.start + highlight.length)}</span>
 }
 
 const workspaceFilterSchema = (t: (key: string) => string) => [
@@ -1464,12 +1552,23 @@ const workspaceFilterSchema = (t: (key: string) => string) => [
       { value: "text", label: t("workspace.text") },
       { value: "binary", label: t("workspace.binary_kind") }
     ]
+  },
+  {
+    field: "sort",
+    label: t("workspace.sort"),
+    bucket: "select",
+    operators: ["is"],
+    values: [
+      { value: "path", label: t("workspace.sort_path") },
+      { value: "size", label: t("workspace.sort_size") },
+      { value: "modified", label: t("workspace.sort_modified") }
+    ]
   }
 ]
 
 function workspaceFilterTree(search: string): FilterTree {
   const params = new URLSearchParams(search)
-  return { and: ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before"].flatMap((field) => {
+  return { and: ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"].flatMap((field) => {
     const value = params.get(field)?.trim()
     const op = field === "search" || field === "filename" ? "contains" : field === "modified_after" ? "after" : field === "modified_before" ? "before" : "is"
     return value ? [{ field, op, value }] : []
@@ -1482,7 +1581,7 @@ const workspaceFilterLink: FilterLinkBuilder = (path, search, updates) => {
     try {
       const encoded = updates.q.replace(/-/g, "+").replace(/_/g, "/")
       const tree = JSON.parse(atob(encoded)) as { and?: Array<{ field?: string; value?: unknown }> }
-      const fields = ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before"]
+      const fields = ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"]
       fields.forEach((field) => {
         const value = tree.and?.find((chip) => chip.field === field)?.value
         if (typeof value === "string" && value.trim()) params.set(field, value.trim())
@@ -1491,8 +1590,9 @@ const workspaceFilterLink: FilterLinkBuilder = (path, search, updates) => {
     } catch {
       params.delete("search")
     }
-  } else if (updates.q == null) ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before"].forEach((field) => params.delete(field))
+  } else if (updates.q == null) ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"].forEach((field) => params.delete(field))
   params.delete("path")
+  params.delete("cursor")
   const query = params.toString()
   return query ? `${path}?${query}` : path
 }

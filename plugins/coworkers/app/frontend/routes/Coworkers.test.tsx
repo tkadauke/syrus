@@ -74,7 +74,6 @@ const detailPayload = {
     chat_model: "gpt-6.1-sol",
     effective_model: "gpt-6.1-sol",
     workspace_repo: "https://github.com/acme/workspace.git",
-    soul: "role: Researcher\n\nCurious and concise.",
     spend_usd: 1.25,
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
@@ -790,6 +789,77 @@ it("redirects old profile and memory links into scoped Workspace views", async (
   expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument()
 })
 
+it("navigates the accessible workspace tree, scopes paths, and renders breadcrumbs", async () => {
+  const requests: string[] = []
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    requests.push(path)
+    if (path.includes("/workspace")) {
+      const selected = new URL(path, "http://example.test").searchParams.get("path")
+      return jsonResponse({
+        remote: "https://github.com/acme/workspace.git",
+        branch: "coworkers/maya",
+        files: [
+          { path: "memory/today.md", type: "file", size: 5, extension: "md", area: "memory" },
+          { path: "projects/deep/note.md", type: "file", size: 6, extension: "md", area: "projects" }
+        ],
+        results: [], total: 0, page_start: 0, page_end: 0, previous_cursor: null, next_cursor: null,
+        incomplete_reasons: [], partial: false,
+        selected_file: selected ? { path: selected, content: "# Nested", truncated: false, binary: false } : null,
+        commits: [], conflicts: [], branch_counts: { home: 1, chat: 0, run: 0 }
+      })
+    }
+    return jsonResponse(detailPayload)
+  }))
+  renderRoute("/coworkers/7?tab=workspace")
+
+  const projects = await screen.findByRole("treeitem", { name: "▸ projects" })
+  expect(screen.getAllByRole("treeitem").filter((item) => item.tabIndex === 0)).toHaveLength(1)
+  expect(projects).toHaveAttribute("aria-expanded", "false")
+  fireEvent.keyDown(projects, { key: "ArrowRight" })
+  expect(projects).toHaveAttribute("aria-expanded", "true")
+  expect(projects.closest("li")?.querySelector("[role=group]")).toContainElement(screen.getByRole("treeitem", { name: "▸ deep" }))
+  const deep = screen.getByRole("treeitem", { name: "▸ deep" })
+  fireEvent.click(deep)
+  const note = screen.getByRole("treeitem", { name: "note.md" })
+  fireEvent.keyDown(deep, { key: "ArrowRight" })
+  expect(note).toHaveFocus()
+  fireEvent.click(note)
+  expect(await screen.findByRole("navigation", { name: "Selected file path" })).toHaveTextContent("projects / deep / note.md")
+  expect(requests.some((request) => request.includes("path=projects%2Fdeep%2Fnote.md"))).toBe(true)
+
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+  await waitFor(() => expect(requests.some((request) => request.includes("path_prefix=memory"))).toBe(true))
+  fireEvent.click(await screen.findByRole("button", { name: "All files" }))
+  await waitFor(() => expect(requests.at(-1)).not.toContain("path_prefix=memory"))
+})
+
+it("highlights workspace matches, paginates, and warns about bounded results", async () => {
+  const requests: string[] = []
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    requests.push(path)
+    if (path.includes("/workspace")) return jsonResponse({
+      remote: "remote", branch: "coworkers/maya", files: [],
+      results: [{ path: "notes.md", type: "file", size: 20, extension: "md", area: "notes.md", binary: false, truncated: false, snippet: "before needle after", highlights: [{ start: 7, length: 6 }], last_modified_at: null }],
+      total: 101, page_start: path.includes("cursor=") ? 101 : 1, page_end: path.includes("cursor=") ? 101 : 100,
+      previous_cursor: path.includes("cursor=") ? "MA" : null, next_cursor: path.includes("cursor=") ? null : "MTAw",
+      incomplete_reasons: ["search_limit"], partial: true, selected_file: null,
+      commits: [], conflicts: [], branch_counts: { home: 1, chat: 0, run: 0 }
+    })
+    return jsonResponse(detailPayload)
+  }))
+  const view = renderRoute("/coworkers/7?tab=workspace&search=needle")
+
+  expect(await screen.findByText("Some results may be missing because repository content or history exceeded a safe search bound.")).toBeInTheDocument()
+  expect(view.container.querySelector("mark")).toHaveTextContent("needle")
+  expect(screen.getByText("Showing 1–100 of 101")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Next" }))
+  await waitFor(() => expect(requests.some((request) => request.includes("cursor=MTAw"))).toBe(true))
+  expect(await screen.findByText("Showing 101–101 of 101")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled()
+})
+
 it("warns when the workspace tree and selected file are truncated", async () => {
   vi.stubGlobal(
     "fetch",
@@ -799,7 +869,8 @@ it("warns when the workspace tree and selected file are truncated", async () => 
         return jsonResponse({
           remote: "https://github.com/acme/workspace.git",
           branch: "coworkers/maya",
-          files: [{ path: "README.md", type: "file" }],
+          files: [{ path: "README.md", type: "file", size: 10, extension: "md", area: "README.md" }],
+          results: [], total: 0, page_start: 0, page_end: 0, previous_cursor: null, next_cursor: null, incomplete_reasons: [],
           partial: true,
           selected_file: path.includes("path=") ? { path: "README.md", content: "# Partial", truncated: true, binary: false } : null,
           commits: [],

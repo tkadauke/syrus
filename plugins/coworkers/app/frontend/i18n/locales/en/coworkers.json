@@ -12,19 +12,6 @@
     "acknowledge": "Acknowledge",
     "states": { "provisioning": "Provisioning", "cleanup_pending": "Cleanup pending", "cleaned": "Cleaned", "manual_attention": "Manual attention required" }
   },
-  "memory": {
-    "search": "Search memory files",
-    "files": "Memory files",
-    "loading": "Loading memory…",
-    "unavailable": "This coworker's memory cannot be reached right now.",
-    "empty": "This coworker has no memory yet.",
-    "no_results": "No memory files match this search.",
-    "search_incomplete": "Some memory content could not be searched. These results may be incomplete.",
-    "partial": "This memory tree is large or incomplete. Only the available files are shown.",
-    "owner_memories": "Open your Syrus memories",
-    "truncated": "This large file is shown in part.",
-    "categories": { "daily": "Daily", "people": "People", "repos": "Repositories", "banks": "Banks" }
-  },
   "workspace": {
     "search": "Search files and contents",
     "extension": "Extension",
@@ -39,6 +26,13 @@
     "content_kind": "Content kind",
     "text": "Text",
     "binary_kind": "Binary",
+    "sort": "Sort",
+    "sort_path": "Path",
+    "sort_size": "Size",
+    "sort_modified": "Last modified",
+    "showing": "Showing {{first}}–{{last}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next",
     "all": "All files",
     "memory": "Memory",
     "breadcrumbs": "Selected file path",
@@ -293,7 +287,6 @@
     "delete_confirm": "Delete {{title}}?"
   },
   "detail": {
-    "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",
     "creating_side_chat": "Creating side chat…",
     "edit": "Edit",
@@ -303,7 +296,6 @@
     "on_roster": "added",
     "main_chat": "Main chat",
     "account_default": "Account default",
-    "soul_unavailable": "SOUL.md is unavailable.",
     "engineer_capabilities": "Fixed engineer capabilities",
     "existing_link": "Open this feature from its existing Syrus page."
   },
