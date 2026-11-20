@@ -1589,6 +1589,7 @@
     "passkeys_remove_error": "Clavis transitus removeri non potuit."
   },
   "provider_routing": {
+    "advanced": "Provectum",
     "account": "Ratio subscriptionis",
     "automatic_account": "Electio rationis automatica",
     "title": "Regulae itineris praebitorum",

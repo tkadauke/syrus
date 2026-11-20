@@ -153,6 +153,8 @@ describe("ProviderRoutingRulesEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit CI fast path" }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    expect(within(dialog).queryByLabelText("Subscription account")).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Advanced" })[0])
     const accountSelect = within(dialog).getByLabelText("Subscription account")
     fireEvent.change(accountSelect, { target: { value: "codex-account-1" } })
     await waitFor(() => expect(accountSelect).toHaveValue("codex-account-1"))
