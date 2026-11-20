@@ -14,6 +14,8 @@ module LocalBackups
     DEFAULT_MAX_ENTRIES = 100_000
     MAX_PATH_BYTES = 4_096
     MAX_PATH_DEPTH = 64
+    MAX_MANIFEST_BYTES = 16 * 1024 * 1024
+    MAX_CHECKSUM_LINE_BYTES = 64 + 2 + MAX_PATH_BYTES + 1
     COPY_CHUNK = 1024 * 1024
 
     class Error < StandardError; end
@@ -49,7 +51,9 @@ module LocalBackups
 
       def validate
         with_directory do |root|
-          manifest = read_json(root.join("manifest.json"))
+          manifest_path = root.join("manifest.json")
+          manifest_bytes = read_bounded(manifest_path, MAX_MANIFEST_BYTES, "manifest")
+          manifest = JSON.parse(manifest_bytes)
           version = manifest.fetch("manifest_version", "")
           raise InvalidArtifact, "unsupported manifest version #{version.inspect}" unless version.match?(/\A1(?:\.\d+)?\z/)
 
@@ -58,28 +62,41 @@ module LocalBackups
           total = 0
           seen = {}
           expected_files = { "manifest.json" => true, "checksums.sha256" => true }
-          checksum_path.each_line.with_index(1) do |line, number|
-            expected, relative = line.strip.split(/\s+/, 2)
-            unless expected&.match?(/\A[0-9a-f]{64}\z/) && relative && !relative.empty?
-              raise InvalidArtifact, "malformed checksum inventory at line #{number}"
+          observations = { "manifest.json" => observe_bytes(manifest_bytes) }
+          inventory_digest = Digest::SHA256.new
+          inventory_bytes = 0
+          checksum_path.open("rb") do |inventory|
+            number = 0
+            while (line = inventory.gets(MAX_CHECKSUM_LINE_BYTES + 1))
+              number += 1
+              raise LimitExceeded, "checksum inventory line exceeds #{MAX_CHECKSUM_LINE_BYTES} bytes" if line.bytesize > MAX_CHECKSUM_LINE_BYTES
+              inventory_digest.update(line)
+              inventory_bytes += line.bytesize
+              expected, relative = line.strip.split(/\s+/, 2)
+              unless expected&.match?(/\A[0-9a-f]{64}\z/) && relative && !relative.empty?
+                raise InvalidArtifact, "malformed checksum inventory at line #{number}"
+              end
+              normalized = safe_relative(relative).to_s
+              raise InvalidArtifact, "checksum inventory includes reserved path #{relative}" if expected_files[normalized]
+              raise InvalidArtifact, "duplicate checksum path #{relative}" if seen[normalized]
+              seen[normalized] = true
+              expected_files[normalized] = true
+              path = contained(root, normalized)
+              raise InvalidArtifact, "checksum target is not a regular file: #{relative}" unless path.file?
+              observation = observe_file(path)
+              total += observation.first
+              raise LimitExceeded, "extracted contents exceed #{max_bytes} bytes" if total > max_bytes
+              raise InvalidArtifact, "checksum mismatch for #{relative}" unless observation.last.unpack1("H*") == expected
+              observations[normalized] = observation
             end
-            normalized = safe_relative(relative).to_s
-            raise InvalidArtifact, "checksum inventory includes reserved path #{relative}" if expected_files[normalized]
-            raise InvalidArtifact, "duplicate checksum path #{relative}" if seen[normalized]
-            seen[normalized] = true
-            expected_files[normalized] = true
-            path = contained(root, normalized)
-            raise InvalidArtifact, "checksum target is not a regular file: #{relative}" unless path.file?
-            total += path.size
-            raise LimitExceeded, "extracted contents exceed #{max_bytes} bytes" if total > max_bytes
-            raise InvalidArtifact, "checksum mismatch for #{relative}" unless Digest::SHA256.file(path).hexdigest == expected
           end
+          observations["checksums.sha256"] = [inventory_bytes, inventory_digest.digest]
           declared = manifest["checksum"]
           declared = declared["value"] if declared.is_a?(Hash)
-          inventory_checksum = Digest::SHA256.file(checksum_path).hexdigest
+          inventory_checksum = observations.fetch("checksums.sha256").last.unpack1("H*")
           raise InvalidArtifact, "artifact checksum does not match manifest" if declared && declared != inventory_checksum
           validate_exact_tree!(root, expected_files)
-          artifact_checksum = exact_tree_checksum(root, expected_files)
+          artifact_checksum = exact_tree_checksum(observations)
           Result.new(artifact: source.to_s, manifest:, artifact_checksum:, logical_bytes: total)
         end
       rescue JSON::ParserError, KeyError => e
@@ -172,13 +189,27 @@ module LocalBackups
         end
       end
 
-      def exact_tree_checksum(root, expected_files)
-        expected_files.keys.sort.each_with_object(Digest::SHA256.new) do |relative, digest|
-          path = root.join(relative)
+      def exact_tree_checksum(observations)
+        observations.keys.sort.each_with_object(Digest::SHA256.new) do |relative, digest|
+          size, content_digest = observations.fetch(relative)
           digest << [relative.bytesize].pack("Q>") << relative
-          digest << [path.size].pack("Q>") << Digest::SHA256.file(path).digest
+          digest << [size].pack("Q>") << content_digest
         end.hexdigest
       end
+
+      def observe_file(path)
+        digest = Digest::SHA256.new
+        bytes = 0
+        path.open("rb") do |file|
+          while (chunk = file.read(COPY_CHUNK)) && !chunk.empty?
+            bytes += chunk.bytesize
+            digest.update(chunk)
+          end
+        end
+        [bytes, digest.digest]
+      end
+
+      def observe_bytes(content) = [content.bytesize, Digest::SHA256.digest(content)]
 
       def safe_relative(value)
         raise LimitExceeded, "artifact path exceeds #{MAX_PATH_BYTES} bytes" if value.bytesize > MAX_PATH_BYTES
@@ -205,9 +236,11 @@ module LocalBackups
         end
       end
 
-      def read_json(path)
-        raise InvalidArtifact, "manifest is missing" unless path.file?
-        JSON.parse(path.binread)
+      def read_bounded(path, limit, label)
+        raise InvalidArtifact, "#{label} is missing" unless path.file?
+        content = path.open("rb") { |file| file.read(limit + 1) }
+        raise LimitExceeded, "#{label} exceeds #{limit} bytes" if content.bytesize > limit
+        content
       end
     end
 

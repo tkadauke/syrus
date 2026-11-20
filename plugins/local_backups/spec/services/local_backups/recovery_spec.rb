@@ -54,6 +54,26 @@ RSpec.describe LocalBackups::Recovery do
     end
   end
 
+  it "bounds manifest memory before parsing" do
+    stub_const("LocalBackups::Recovery::MAX_MANIFEST_BYTES", 10)
+    Dir.mktmpdir do |directory|
+      artifact = build_artifact(directory)
+
+      expect { described_class::Artifact.new(artifact).validate }
+        .to raise_error(described_class::LimitExceeded, /manifest exceeds 10 bytes/)
+    end
+  end
+
+  it "bounds checksum inventory line memory" do
+    stub_const("LocalBackups::Recovery::MAX_CHECKSUM_LINE_BYTES", 10)
+    Dir.mktmpdir do |directory|
+      artifact = build_artifact(directory)
+
+      expect { described_class::Artifact.new(artifact).validate }
+        .to raise_error(described_class::LimitExceeded, /checksum inventory line exceeds 10 bytes/)
+    end
+  end
+
   it "rejects archive traversal and decompression beyond the limit" do
     Dir.mktmpdir do |directory|
       archive = Pathname.new(directory).join("attack.tar")
@@ -173,6 +193,32 @@ RSpec.describe LocalBackups::Recovery do
       expect {
         described_class::Preflight.verify_token!(
           provided: original[:preflight_token], checksum: changed.artifact_checksum, identity: "a"
+        )
+      }.to raise_error(described_class::Error, /stale/)
+    end
+  end
+
+  it "binds validation to the manifest bytes used for compatibility checks" do
+    artifact_class = Class.new(described_class::Artifact) do
+      def exact_tree_checksum(observations)
+        manifest_path = source.join("manifest.json")
+        replacement = JSON.parse(manifest_path.read).merge("source_application_version" => "changed")
+        manifest_path.write(JSON.generate(replacement))
+        super
+      end
+    end
+
+    Dir.mktmpdir do |directory|
+      path = build_artifact(directory)
+      observed = artifact_class.new(path).validate
+      current = described_class::Artifact.new(path).validate
+      old_token = described_class::Preflight.token_for(observed.artifact_checksum, "a")
+
+      expect(observed.manifest).not_to have_key("source_application_version")
+      expect(current.artifact_checksum).not_to eq(observed.artifact_checksum)
+      expect {
+        described_class::Preflight.verify_token!(
+          provided: old_token, checksum: current.artifact_checksum, identity: "a"
         )
       }.to raise_error(described_class::Error, /stale/)
     end
