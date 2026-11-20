@@ -5021,6 +5021,36 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("resumed #{prepare.slug} with #{prepare.runs.last.slug}")
   end
 
+  # Regression: a repair moved HEAD while an optional review panel was
+  # mid-review; the barrier cancelled the in-flight member as superseded
+  # without cascading, and the next member waited behind it forever. Three
+  # Jobs sat "running" for a day with nothing running and nothing reported.
+  it "resumes the panel member queued behind a review the barrier superseded" do
+    workflow.update_columns(state: "running", started_at: 2.hours.ago)
+    workflow.steps.destroy_all
+    create = lambda do |kind, position, state, details = {}|
+      workflow.steps.create!(kind: kind, position: position, state: state, details: details, created_at: 2.hours.ago)
+    end
+    repair = create.call("implement", 0, "succeeded")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "b" * 40, finished_at: 1.hour.ago)
+    fanout = create.call("security_review", 1, "succeeded",
+      { "panel_fanout" => true, "panel_id" => "panel", "review_evidence_superseded" => true })
+    superseded = create.call("security_review", 2, "cancelled",
+      { "panel_member" => true, "panel_id" => "panel", "provider" => "claude", "review_evidence_superseded" => true })
+    superseded.update_columns(cancellation_reason: "implementation_head_changed")
+    waiting = create.call("security_review", 3, "queued",
+      { "panel_member" => true, "panel_id" => "panel", "provider" => "claude" })
+    collect = create.call("review_panel_collect", 4, "queued",
+      { "panel_review_kind" => "security_review", "panel_id" => "panel", "reviewed_head_sha" => "b" * 40 })
+    [ repair, fanout, superseded, waiting, collect ].each_cons(2) { |left, right| left.update!(next_step_id: right.id) }
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :queued_step_without_run)).to be_present
+    expect(plan(result, :resume_queued_step)).to have_attributes(auto_executable: true, target_id: waiting.id)
+    expect(waiting.reload.runs.last).to be_present
+  end
+
   it "names the gate when a queued step without a run stays deferred" do
     prepare = workflow.steps.order(:position).second
     step.update!(next_step: prepare)

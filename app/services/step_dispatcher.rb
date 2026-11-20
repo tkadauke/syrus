@@ -1218,10 +1218,23 @@ class StepDispatcher
     return false unless step&.queued?
 
     dependencies = step.depends_on_steps
-    return completed_predecessor?(step.previous_step) if dependencies.empty?
+    return handed_off_predecessor?(step.previous_step) if dependencies.empty?
     return step.dependencies_settled? if step.kind.in?(%w[grader_collect preflight_grader_collect])
 
-    dependencies.all? { |dependency| completed_predecessor?(dependency) }
+    dependencies.all? { |dependency| handed_off_predecessor?(dependency) }
+  end
+
+  # The immutable-HEAD barrier cancels an in-flight review it superseded
+  # without cascading, precisely so the chain behind it continues. Treat that
+  # cancellation as a handoff: otherwise the next panel member waited forever
+  # behind it, invisible to the reconciler, while every later Step stayed
+  # queued -- several Jobs sat "running" for a day with nothing running.
+  def self.handed_off_predecessor?(step)
+    completed_predecessor?(step) || superseded_review_cancellation?(step)
+  end
+
+  def self.superseded_review_cancellation?(step)
+    step&.cancelled? && step.details.to_h["review_evidence_superseded"] == true
   end
 
   def self.retry_until_continuation_after_failed_check?(workflow, step, previous)
