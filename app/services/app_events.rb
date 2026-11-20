@@ -26,7 +26,23 @@ class AppEvents
   # resource), lets the frontend's normalized entity store ignore a
   # duplicate or out-of-order event outright instead of merely detecting
   # a gap. See app/frontend/lib/appEvents.ts and entityStore.ts.
+  #
+  # The sequence is a counter on the user's row, and every broadcast for that
+  # user increments it. Called inside a caller's transaction, that increment
+  # joined it and held the user's row lock until the whole outer transaction
+  # committed -- on an instance where one user owns nearly all the work, that
+  # row is effectively a global lock, and a single slow transaction made every
+  # other broadcast time out after 50 seconds, failing Runs (one an already
+  # approved review) on unrelated workflows. Broadcast after the outermost
+  # transaction commits instead: immediately when none is open, and never for
+  # a change that rolls back.
   def self.broadcast(user:, type:, resource:, id: nil, changed: [], payload: nil, revision: nil, occurred_at: Time.current)
+    ActiveRecord.after_all_transactions_commit do
+      deliver_broadcast(user:, type:, resource:, id:, changed:, payload:, revision:, occurred_at:)
+    end
+  end
+
+  def self.deliver_broadcast(user:, type:, resource:, id:, changed:, payload:, revision:, occurred_at:)
     event = {
       v: ApiVersion::CURRENT,
       type: type.to_s,
@@ -42,6 +58,7 @@ class AppEvents
     AppUserChannel.broadcast_to(user, event.as_json)
     record_delivery(resource)
   end
+  private_class_method :deliver_broadcast
 
   # Detailed per-resource broadcasts, delivered only to JobChannel/ChatChannel
   # subscribers actively observing that one Job or Chat (see
