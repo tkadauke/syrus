@@ -39,6 +39,23 @@ RSpec.describe LocalBackups::Retention do
     expect(result.blocked).to eq([unreplicated.uuid])
   end
 
+  it "rechecks replication under lock after the sweep selected its candidate" do
+    backup(at: 1.hour.ago)
+    candidate = backup(at: 2.hours.ago, replicated: true)
+    retention = described_class.new(root: @root, keep_count: 1, keep_days: 30, require_replication: true)
+    allow(retention).to receive(:claim_deletions!).and_wrap_original do |original, candidate_ids|
+      candidate.replications.update_all(state: "failed")
+      original.call(candidate_ids)
+    end
+
+    result = retention.call
+
+    expect(result.deleted).to be_empty
+    expect(result.blocked).to include(candidate.uuid)
+    expect(candidate.reload.state).to eq("completed")
+    expect(@root.path.join(candidate.artifact_relative_path)).to exist
+  end
+
   it "protects the newest valid backup rather than a newer invalid backup" do
     backup(at: 1.hour.ago).update!(verification_state: "invalid")
     only_valid = backup(at: 2.hours.ago)
@@ -92,6 +109,18 @@ RSpec.describe LocalBackups::Retention do
 
     expect { described_class.new(root: @root).delete!(candidate) }.to raise_error(Errno::EACCES)
     expect(candidate.reload.state).to eq("completed")
+  end
+
+  it "restores unprocessed batch claims when filesystem deletion fails" do
+    backup(at: 1.hour.ago)
+    first = backup(at: 2.hours.ago)
+    second = backup(at: 3.hours.ago)
+    allow(FileUtils).to receive(:remove_entry_secure).and_raise(Errno::EACCES)
+
+    expect { described_class.new(root: @root, keep_count: 1).call }.to raise_error(Errno::EACCES)
+
+    expect(first.reload.state).to eq("completed")
+    expect(second.reload.state).to eq("completed")
   end
 
   it "rechecks pin protection while holding the deletion lock" do
