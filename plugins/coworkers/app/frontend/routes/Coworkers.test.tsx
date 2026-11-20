@@ -79,15 +79,6 @@ const detailPayload = {
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
-    permission_cutover_report: {
-      ready: false,
-      legacy_grants: [{ capability: "workspace.files", approval_policy: "auto", effective_policy: "allow", scope: null, constraints: {} }],
-      recommended_defaults: [],
-      lost_authority: [],
-      requestable_replacements: [],
-      descriptor_gaps: [{ legacy_capability: "workspace.files", tools: [], reasons: ["missing explicit descriptors"] }],
-      migration_errors: []
-    },
     grant_catalog: grantCatalog,
     schedules: [
       {
@@ -101,7 +92,8 @@ const detailPayload = {
         fire_at: null,
         next_fire_at: "2026-10-30T09:00:00Z",
         last_fired_at: null,
-        after_run: "wake"
+        after_run: "wake",
+        latest_result: { occurred_at: null, target_date: null, outcome: "never_run", reason: null, job: null, job_needed: null }
       },
       {
         id: 32,
@@ -114,7 +106,8 @@ const detailPayload = {
         fire_at: "2026-10-29T09:00:00Z",
         next_fire_at: null,
         last_fired_at: "2026-10-29T09:00:00Z",
-        after_run: "quiet"
+        after_run: "quiet",
+        latest_result: { occurred_at: "2026-10-29T09:00:00Z", target_date: null, outcome: "succeeded", reason: null, job: { id: 42, slug: "JOB-42", path: "/jobs/42" }, job_needed: true }
       }
     ],
     message_traffic: {
@@ -194,7 +187,7 @@ it("shows overdue journaling with the durable failure reason", async () => {
     last_system_result: "failed",
     last_system_result_reason: "RuntimeError: workspace locked",
     journaling_overdue: true,
-    system_result_history: []
+    latest_result: { occurred_at: "2026-11-06T00:30:00Z", target_date: "2026-11-05", outcome: "failed", reason: "RuntimeError: workspace locked", job: { id: 43, slug: "JOB-43", path: "/jobs/43" }, job_needed: true }
   } as never)
   vi.stubGlobal(
     "fetch",
@@ -205,6 +198,9 @@ it("shows overdue journaling with the durable failure reason", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: "Schedule" }))
   expect(await screen.findByRole("status")).toHaveTextContent("Journaling overdue / failed: RuntimeError: workspace locked")
+  expect(screen.getByRole("alert")).toHaveTextContent("Latest result: Failed")
+  expect(screen.getByRole("alert")).toHaveTextContent("RuntimeError: workspace locked")
+  expect(screen.getByRole("link", { name: "JOB-43" })).toHaveAttribute("href", "/jobs/43")
 })
 
 it("tests the remote and submits appearance, upload, grants, and About", async () => {
@@ -382,10 +378,8 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   expect(await screen.findByText("gpt-6.1-sol")).toBeInTheDocument()
   expect(screen.getByText(/Curious and concise/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(await screen.findByRole("heading", { name: "Permission cutover report" })).toBeInTheDocument()
-  expect(screen.getByText("Blocked")).toBeInTheDocument()
-  expect(screen.getByText(/workspace.files: missing explicit descriptors/)).toBeInTheDocument()
-  expect(screen.getByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
+  expect(await screen.findByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
+  expect(screen.queryByRole("heading", { name: "Permission cutover report" })).not.toBeInTheDocument()
   expect(screen.getByText("Gmail")).toBeInTheDocument()
   expect(screen.getAllByText("Coming later")).toHaveLength(2)
   fireEvent.click(screen.getByRole("button", { name: "Chat" }))
@@ -983,6 +977,12 @@ it("lists and manages schedules on the coworker page", async () => {
   expect(await screen.findByText("Morning briefing")).toBeInTheDocument()
   expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "After each run" })).toHaveValue("wake")
+  expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+  const historyLink = screen.getAllByRole("link", { name: "View all runs" })[0]
+  const encoded = new URL(historyLink.getAttribute("href")!, "https://example.test").searchParams.get("q")!
+  const standard = encoded.replace(/-/g, "+").replace(/_/g, "/")
+  const decoded = JSON.parse(decodeURIComponent(escape(atob(standard.padEnd(Math.ceil(standard.length / 4) * 4, "=")))))
+  expect(decoded).toEqual({ and: [{ field: "scheduled_task_id", op: "is", value: "31" }] })
   const firedRow = screen.getByText("Completed one-shot").closest("li")
   expect(firedRow).not.toBeNull()
   expect(within(firedRow!).queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()
