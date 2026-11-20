@@ -919,6 +919,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(health).to include("state" => "non_conforming")
       expect(health.fetch("reasons")).to include("HealthPayloadSpec::Provider does not define required method detect")
       expect(health.fetch("failures").sole).to include(
+        "source" => "runtime", "code" => "runtime_failure",
         "extension_point" => "ci_log_parser", "operation" => "call", "message" => "runtime failure"
       )
     ensure

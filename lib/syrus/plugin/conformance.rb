@@ -3,7 +3,7 @@
 module Syrus
   module Plugin
     class Conformance
-      Finding = Data.define(:plugin, :family, :provider, :code, :message)
+      Finding = PluginHealth::Finding
 
       def initialize(manifests) = @manifests = manifests
 
@@ -77,8 +77,9 @@ module Syrus
       end
 
       def finding(plugin, declaration, code, message)
-        Finding.new(plugin: plugin.to_s, family: declaration.family.to_sym,
-          provider: declaration.provider.to_s, code:, message:)
+        Finding.conformance(
+          plugin:, family: declaration.family, provider: declaration.provider, code:, message:
+        )
       end
     end
   end
