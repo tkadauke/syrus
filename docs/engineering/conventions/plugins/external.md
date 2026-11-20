@@ -18,10 +18,12 @@ Plugin Ruby may reference only:
 Every other Syrus core constant is internal and may change without notice. Do
 not copy a bundled plugin's internal reference into an external plugin.
 
-`syrus plugin validate` scans Ruby without executing it. A direct reference to
-an unsupported core constant is an error. A legacy, non-public constant is a
-warning from the scanner but fails the external-plugin host contract; replace
-it rather than shipping it. Literal core names passed to `class_name`,
+As part of `syrus plugin validate`, the host-surface scanner inspects Ruby
+without executing it; the validation command later boots the plugin to check
+its runtime contracts. A direct reference to an unsupported core constant is
+an error. A legacy, non-public constant is a warning from the scanner but fails
+the external-plugin host contract; replace it rather than shipping it. Literal
+core names passed to `class_name`,
 `constantize`, `safe_constantize`, or `const_get` produce warnings because
 static analysis cannot prove what they resolve to. Computed strings cannot be
 detected.
