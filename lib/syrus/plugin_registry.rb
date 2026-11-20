@@ -251,6 +251,7 @@ module Syrus
     @generation       = 0
     @plugins          = []
     @direct_providers = Hash.new { |h, k| h[k] = [] }
+    @conformance_cache = {}
     @plugin_record_cache_mutex = Mutex.new
 
     class << self
@@ -499,7 +500,7 @@ module Syrus
               health = health_for(plugins, enabled_names: enabled.map(&:name))
 
               enabled
-                .select { |m| health.healthy?(m.name) }
+                .select { |m| health.registrations_healthy?(m.name) }
                 .then { |ms| sort_by_prepare_priority(ms) }
                 .flat_map { |m| Array(m.provides[ep]) }
             end
@@ -531,7 +532,10 @@ module Syrus
       end
 
       def capability_providers_from(plugins, definition, capability)
+        conformance = conformance_for(plugins)
         plugins.flat_map do |manifest|
+          next [] unless conformance.conforming?(plugin: manifest.name, family: definition.name)
+
           manifest.family_provides.filter_map do |declaration|
             next unless declaration.family == definition.name && declaration.capabilities.include?(capability)
             Syrus::Plugin::CapabilityProvider.new(plugin_name: manifest.name, family: definition.name,
@@ -547,7 +551,7 @@ module Syrus
           records = records_for(plugins)
           enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
           health = health_for(plugins, enabled_names: enabled.map(&:name))
-          plugins = enabled.select { |manifest| health.healthy?(manifest.name) }
+          plugins = enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
         rescue ActiveRecord::ActiveRecordError
           # Registration remains usable before the plugin_records table exists.
         end
@@ -581,7 +585,7 @@ module Syrus
           records = records_for(plugins)
           enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
           health = health_for(plugins, enabled_names: enabled.map(&:name))
-          enabled.select { |manifest| health.healthy?(manifest.name) }
+          enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
         rescue ActiveRecord::ActiveRecordError
           plugins
         end.flat_map do |manifest|
@@ -671,8 +675,22 @@ module Syrus
       end
 
       def health_for(plugins, enabled_names:)
-        Syrus::PluginHealth.new(plugins, enabled_names: enabled_names)
+        enabled = plugins.select { |manifest| enabled_names.include?(manifest.name) }
+        Syrus::PluginHealth.new(plugins, enabled_names: enabled_names, conformance: conformance_for(enabled))
       end
+
+      def conformance_for(manifests)
+        key = [ generation, manifests.map(&:name).sort ]
+        @mutex.synchronize { @conformance_cache[key] } || PerformanceLogging.phase("plugin_registry.capability_conformance", plugin_count: manifests.size) do
+          conformance = Syrus::Plugin::Conformance.new(manifests)
+          conformance.findings
+          @mutex.synchronize do
+            @conformance_cache = { key => conformance }
+          end
+          conformance
+        end
+      end
+      private :conformance_for
 
       def record_load_failure(name:, state:, message:, backtrace: [], version: "unknown", external: true, requires_syrus: nil, dependencies: [])
         details = { load_state: state.to_s, load_message: message.to_s, load_backtrace: Array(backtrace).first(12) }

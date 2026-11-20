@@ -589,6 +589,7 @@
     "configured_repos": "{{count}} repositoria",
     "no_extension_points": "Nulla puncta extensionis relata.",
     "no_capabilities": "Nullae familiae facultatum declaratae sunt.",
+    "implements_summary": "{{provider}} familiam {{family}} implet: {{capabilities}}",
     "aria_plugins": "Plugin administratoris",
     "list_aria": "Plugin relata",
     "no_results_heading": "Nulla plugin quaesito conveniunt",

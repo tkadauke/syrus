@@ -1079,6 +1079,7 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("Terminal::SidebarPages")).toBeInTheDocument()
     expect(screen.getByText("detect_prepare")).toBeInTheDocument()
     expect(screen.getByText("Terminal::Ecosystem")).toBeInTheDocument()
+    expect(screen.getByText("Terminal::Ecosystem implements ecosystem: detect_prepare")).toBeInTheDocument()
     expect(screen.getAllByText("terminal").length).toBeGreaterThan(1)
     expect(screen.getByText("/app/plugins/terminal")).toBeInTheDocument()
 

@@ -746,8 +746,23 @@ function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtension
 
 function CapabilitiesTable({ capabilities }: { capabilities: AdminPluginCapability[] }) {
   const { t } = useT("admin")
+  const declarations = Array.from(capabilities.reduce((groups, capability) => {
+    const key = `${capability.family}\0${capability.provider}`
+    groups.set(key, [...(groups.get(key) || []), capability])
+    return groups
+  }, new Map<string, AdminPluginCapability[]>()).values())
   return (
-    <DataTable.Root>
+    <div className="space-y-3">
+      {declarations.map((group) => (
+        <p className="text-sm text-gray-700 dark:text-gray-200" key={`${group[0].family}-${group[0].provider}`}>
+          {t("plugins.implements_summary", {
+            provider: group[0].provider,
+            family: group[0].family,
+            capabilities: group.map((capability) => capability.capability).join(", ")
+          })}
+        </p>
+      ))}
+      <DataTable.Root>
       <DataTable.Header>
         <DataTable.Row>
           <DataTable.HeadCell>{t("plugins.col_family")}</DataTable.HeadCell>
@@ -772,7 +787,8 @@ function CapabilitiesTable({ capabilities }: { capabilities: AdminPluginCapabili
           </DataTable.Row>
         ))}
       </DataTable.Body>
-    </DataTable.Root>
+      </DataTable.Root>
+    </div>
   )
 }
 
