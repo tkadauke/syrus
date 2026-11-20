@@ -69,6 +69,7 @@ export type CredentialsOptions = {
   locales: string[]
   agent_providers: string[]
   agent_provider_labels?: Record<string, string>
+  provider_account_credential_attributes?: Record<string, string[]>
   chat_providers: string[]
   chat_provider_labels?: Record<string, string>
   roles: string[]
@@ -98,10 +99,26 @@ export type CredentialsPayload = {
   credential_status: CredentialStatus
   github_rate_limit: GithubRateLimit | null
   provider_availability: Record<string, ProviderAvailability>
+  provider_accounts?: ProviderAccount[]
   options: CredentialsOptions
   provider_routing_rules: ProviderRoutingRule[]
   message?: string
   new_api_token?: string
+}
+
+export type ProviderAccount = {
+  id: string
+  provider_key: string
+  label: string | null
+  display_label: string
+  authentication_kind: string
+  enabled: boolean
+  position: number
+  weight: number | null
+  proactive_pause_threshold: number | null
+  effective_proactive_pause_threshold: number
+  removable: boolean
+  availability: ProviderAvailability
 }
 
 export type CredentialsCorePayload = Omit<CredentialsPayload, "options" | "provider_routing_rules">
@@ -185,6 +202,22 @@ export type CredentialsInput = {
 
 export function fetchCredentials() {
   return getJson<CredentialsCorePayload>("/api/v1/app/credentials")
+}
+
+export function createProviderAccount(input: { provider_key: string; label?: string; authentication_kind?: string; credentials: Record<string, string> }) {
+  return postJson<{ provider_account: ProviderAccount; message: string }>("/api/v1/app/provider_accounts", input)
+}
+
+export function updateProviderAccount(id: string, input: Partial<Pick<ProviderAccount, "label" | "enabled" | "weight" | "proactive_pause_threshold">>) {
+  return patchJson<{ provider_account: ProviderAccount; message: string }>(`/api/v1/app/provider_accounts/${id}`, input)
+}
+
+export function removeProviderAccount(id: string) {
+  return deleteJson<{ id: string; message: string }>(`/api/v1/app/provider_accounts/${id}`)
+}
+
+export function testProviderAccount(id: string) {
+  return postJson<{ provider_account: ProviderAccount; message?: string }>(`/api/v1/app/provider_accounts/${id}/test`, {})
 }
 
 export function fetchCredentialOptions() {

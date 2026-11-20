@@ -737,6 +737,11 @@ en:
       availability_rechecked: "%{provider} availability rechecked."
       availability_override_enabled: "%{provider} provider availability override enabled."
       unknown_provider: "Unknown agent provider."
+    provider_accounts:
+      created: "Provider account connected."
+      updated: "Provider account updated."
+      removed: "Provider account removed."
+      in_use: "This account is referenced by an active Workflow or resumable session and cannot be removed. Disable it to stop new assignments."
 
     filters:
       unsupported_operator: "%{field} operator is not supported."
