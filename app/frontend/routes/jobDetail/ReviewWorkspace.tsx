@@ -692,16 +692,6 @@ export function VisualEvidenceGallery({
           </Button>
         ) : null}
       </div>
-      {screenshots.length > 0 ? (
-        <div aria-label={t("visual_evidence_navigation")} className="mt-3 flex gap-2">
-          <Button onClick={() => movePreview(-1)} size="sm" variant="secondary">
-            {t("visual_evidence_previous")}
-          </Button>
-          <Button onClick={() => movePreview(1)} size="sm" variant="secondary">
-            {t("visual_evidence_next")}
-          </Button>
-        </div>
-      ) : null}
       {submitted.length === 0 && !showAll ? (
         evidence.captured_count > 0 ? (
           <p className="mt-3 text-sm text-text-muted">
@@ -754,6 +744,16 @@ export function VisualEvidenceGallery({
       {preview ? (
         <DocumentPreviewModal
           file={{ contentType: "image/png", rawUrl: preview.image_url, title: preview.page?.title || preview.page?.path || t("visual_evidence_unknown_page") }}
+          footerActions={
+            <div aria-label={t("visual_evidence_navigation")} className="flex gap-2">
+              <Button onClick={() => movePreview(-1)} size="sm" variant="secondary">
+                {t("visual_evidence_previous")}
+              </Button>
+              <Button onClick={() => movePreview(1)} size="sm" variant="secondary">
+                {t("visual_evidence_next")}
+              </Button>
+            </div>
+          }
           onClose={() => setPreviewIndex(null)}
         />
       ) : null}
