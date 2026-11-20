@@ -81,6 +81,21 @@ RSpec.describe LocalBackups::Recovery do
     end
   end
 
+  it "blocks a versioned plugin requirement when the destination version is unknown" do
+    Dir.mktmpdir do |directory|
+      path = create_bundle(directory, manifest: { plugins: [{ name: "durable_plugin", version: "2.0", required: true }] })
+      report = described_class::Preflight.new(
+        bundle: described_class::Bundle.new(path), destination: directory, installation_id: "install-a", token_secret: "secret",
+        current: { database_adapter: "sqlite3", plugins: ["durable_plugin"] }
+      ).call
+
+      expect(report).to include(status: "blocked", token: nil)
+      expect(report[:checks]).to include(include(
+        name: "plugins", status: "fail", detail: /durable_plugin \(bundle 2.0, destination unknown\)/
+      ))
+    end
+  end
+
   it "issues stable tokens bound to the artifact and installation and explains unknown live work" do
     Dir.mktmpdir do |directory|
       bundle = described_class::Bundle.new(create_bundle(directory))
