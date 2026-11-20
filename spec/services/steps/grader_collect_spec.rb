@@ -232,6 +232,24 @@ RSpec.describe Steps::GraderCollect do
   # wait while dispatching after it, say -- carries only the run-level
   # "timeout" classification. Reading it as a test failure sent a merge train
   # into a landing-fix cycle with nothing to fix.
+  # A worker losing its connection to GitHub while fetching the source
+  # snapshot fails every grader that fetched in that window, before any test
+  # ran. Read as test failures, they sent a merge train into a landing-fix
+  # cycle with nothing to fix.
+  it "treats a grader whose source fetch hit a transient transport failure as an infrastructure failure" do
+    grader = workflow.steps.find_by!(kind: "grader")
+    grader.update!(state: "failed", details: { "name" => "plugins-ios-rspec-ci", "required" => true })
+    grader_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_run.create_run_failure_classification!(
+      classification: "git_transport_transient", confidence: 0.9, retryable: true,
+      reason: "The Git remote was temporarily unreachable.", classified_at: Time.current
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed due to infrastructure: plugins-ios-rspec-ci") { |error|
+      expect(error.problem&.code).to eq("git_transport_transient")
+    }
+  end
+
   it "treats a grader whose run only timed out, with no test result, as an infrastructure failure" do
     grader = workflow.steps.find_by!(kind: "grader")
     grader.update!(state: "failed", details: { "name" => "plugins-alerts-rspec-ci", "required" => true })
