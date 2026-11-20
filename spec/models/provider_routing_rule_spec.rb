@@ -17,6 +17,16 @@ RSpec.describe ProviderRoutingRule do
     }.merge(attrs))
   end
 
+  def provider_account(provider_key: "claude", position: 0)
+    ProviderAccount.create!(
+      user: user,
+      provider_key: provider_key,
+      position: position,
+      authentication_kind: "oauth",
+      credential_payload: { "token" => "test" }
+    )
+  end
+
   it "is valid with a well-formed repository-scoped rule" do
     expect(rule).to be_valid
   end
@@ -104,6 +114,23 @@ RSpec.describe ProviderRoutingRule do
 
     expect(record).not_to be_valid
     expect(record.errors[:candidates]).to be_present
+  end
+
+  it "accepts a candidate pinned to one of the user's accounts for that provider" do
+    account = provider_account
+
+    expect(rule(candidates: [ { "provider" => "claude", "account_id" => account.public_id } ])).to be_valid
+  end
+
+  it "rejects a candidate pinned to an unknown or cross-provider account" do
+    claude_account = provider_account
+    unknown = rule(candidates: [ { "provider" => "claude", "account_id" => SecureRandom.uuid } ])
+    cross_provider = rule(candidates: [ { "provider" => "codex", "account_id" => claude_account.public_id } ])
+
+    expect(unknown).not_to be_valid
+    expect(unknown.errors.where(:candidates, :entry_unknown_account)).to be_present
+    expect(cross_provider).not_to be_valid
+    expect(cross_provider.errors.where(:candidates, :entry_unknown_account)).to be_present
   end
 
   it "accepts actual invocation triggers for agentic step kinds and chat roles" do

@@ -44,6 +44,9 @@ class ProviderAccount < ApplicationRecord
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :position, uniqueness: { scope: %i[user_id provider_key] }
   validates :weight, numericality: { greater_than: 0 }, allow_nil: true
+  validates :proactive_pause_threshold,
+    numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 },
+    allow_nil: true
   validate :provider_is_registered
   validate :credential_payload_is_an_object
 
@@ -53,6 +56,12 @@ class ProviderAccount < ApplicationRecord
 
   def safe_reference
     { id: public_id, label: label.presence || "Account #{position + 1}" }
+  end
+
+  def effective_proactive_pause_threshold
+    return proactive_pause_threshold.to_f if proactive_pause_threshold.present?
+
+    user.provider_availability_pause_threshold_for(provider_key)
   end
 
   private

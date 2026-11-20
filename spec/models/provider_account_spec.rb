@@ -1,6 +1,16 @@
 require "rails_helper"
 
 RSpec.describe ProviderAccount do
+  it "inherits the provider threshold and permits a zero per-account override" do
+    user = Factories.user(claude_oauth_token: "token", provider_availability_pause_thresholds: { "claude" => 20 })
+    account = user.default_provider_account("claude")
+
+    expect(account.effective_proactive_pause_threshold).to eq(20)
+
+    account.update!(proactive_pause_threshold: 0)
+    expect(account.effective_proactive_pause_threshold).to eq(0)
+  end
+
   let(:user) { Factories.user }
 
   def create_account(**attributes)

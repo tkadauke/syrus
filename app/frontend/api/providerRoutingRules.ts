@@ -25,6 +25,7 @@ export type ProviderRoutingCandidate = {
   effort_level?: string | null
   reviewer_target?: ProviderRoutingReviewerTarget | null
   weight?: number | null
+  account_id?: string | null
 }
 
 export type ProviderRoutingReviewerTarget = {

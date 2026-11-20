@@ -324,6 +324,131 @@ RSpec.describe ProviderRouting::AvailabilitySelector do
         expect(call).to be_exhausted
       end
     end
+
+    it "selects and pins the least-pressured healthy account before the first Run" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1, label: "spare",
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload,
+        weight: 2
+      )
+      busy_job = Factories.job_record(repository: repository, user: user)
+      Workflow.create!(job: busy_job, user: user, trigger_kind: "initial", agent_provider: "claude", provider_account: first, priority: "medium")
+      workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", provider_account: first, priority: "medium")
+      allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "available", usage: { remaining_percent: 50 })
+
+      decision = described_class.call(job: job, task_key: "initial", workflow: workflow)
+
+      expect(decision.provider_account).to eq(second)
+      expect(workflow.reload.provider_account).to eq(second)
+      expect(decision.artifact.fetch("selected_account")).to eq(second.safe_reference.stringify_keys)
+    end
+
+    it "honors an explicit account pin and does not fall back within that provider" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1,
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "claude", "account_id" => second.public_id } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", provider_account: second, now: anything
+      ).and_return(state: "rate_limited")
+
+      decision = call
+
+      expect(decision).to be_exhausted
+      expect(decision.provider_account).to be_nil
+    end
+
+    it "uses fair weighted assignment history when usage is unavailable" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1,
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload,
+        weight: 2
+      )
+      prior_job = Factories.job_record(repository: repository, user: user)
+      Workflow.create!(job: prior_job, user: user, trigger_kind: "initial", agent_provider: "claude", provider_account: first, priority: "medium", state: "succeeded")
+      allow(App::ProviderAvailability).to receive(:for_user).and_return(state: "available")
+
+      expect(call.provider_account).to eq(second)
+    end
+
+    it "falls back across providers when every account in the preferred pool is unavailable" do
+      first = user.default_provider_account("claude")
+      second = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1,
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", provider_account: first, now: anything
+      ).and_return(state: "rate_limited")
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", provider_account: second, now: anything
+      ).and_return(state: "exhausted")
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "codex", now: anything
+      ).and_return(state: "available")
+
+      decision = described_class.call(
+        job: job,
+        task_key: "initial",
+        original_candidate: described_class.candidate(provider: "claude")
+      )
+
+      expect(decision.candidate.provider).to eq("codex")
+      expect(decision.provider_account).to eq(user.default_provider_account("codex"))
+      expect(decision).to be_failover
+    end
+
+    it "recovers an explicitly pinned account after it is re-enabled" do
+      first = user.default_provider_account("claude")
+      pinned = ProviderAccount.create!(
+        user: user, provider_key: "claude", position: 1, enabled: false,
+        authentication_kind: first.authentication_kind,
+        credential_payload: first.credential_payload
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id, task_key: "initial",
+        candidates: [ { "provider" => "claude", "account_id" => pinned.public_id } ]
+      )
+
+      expect(call).to be_exhausted
+
+      pinned.update!(enabled: true)
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", provider_account: pinned, now: anything
+      ).and_return(state: "available")
+
+      expect(call.provider_account).to eq(pinned)
+    end
+
+    it "preserves the single default-account compatibility path" do
+      account = user.default_provider_account("claude")
+      allow(App::ProviderAvailability).to receive(:for_user).with(
+        user, "claude", now: anything
+      ).and_return(state: "available")
+
+      decision = call
+
+      expect(decision.provider_account).to eq(account)
+      expect(decision.candidate.account_id).to eq(account.public_id)
+      expect(App::ProviderAvailability).not_to have_received(:for_user).with(
+        user, "claude", provider_account: account, now: anything
+      )
+    end
   end
 end
 
