@@ -58,14 +58,13 @@ module Api
           coworker = authorized_coworker
           render json: {
             grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
-            permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
             grant_catalog: grant_catalog_json
           }
         end
 
         def schedules
           coworker = authorized_coworker
-          render json: { schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) } }
+          render json: { schedules: schedules_json(coworker) }
         end
 
         def review_context
@@ -493,9 +492,8 @@ module Api
           base_detail_json(coworker).merge(profile_payload(coworker), chats: chats_json(coworker),
             available_chats: available_chats_json(coworker),
             grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
-            permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
             grant_catalog: grant_catalog_json,
-            schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
+            schedules: schedules_json(coworker),
             message_traffic: message_traffic_json(coworker))
         end
 
@@ -510,7 +508,14 @@ module Api
           end
         end
 
-        def schedule_json(task)
+        def schedules_json(coworker)
+          tasks = coworker.schedules.alive.order(:created_at).to_a
+          results = Coworkers::ScheduleLatestResults.new(tasks:, user: Current.user).call
+          tasks.map { |task| schedule_json(task, latest_result: results.fetch(task)) }
+        end
+
+        def schedule_json(task, latest_result: nil)
+          latest_result ||= Coworkers::ScheduleLatestResults.new(tasks: [ task ], user: Current.user).call.fetch(task)
           journaling_overdue = task.system_key == Coworkers::SystemSchedules::JOURNALING &&
             Coworkers::Prompts::Journaling.new.attention_required?(task:, now: Time.current)
           {
@@ -518,7 +523,7 @@ module Api
             system_key: task.system_key, last_journaled_on: task.last_journaled_on&.iso8601,
             last_system_result: task.last_system_result, last_system_result_reason: task.last_system_result_reason,
             journaling_overdue: journaling_overdue,
-            system_result_history: Array(task.system_result_history),
+            latest_result: latest_result,
             after_run: task.after_run,
             schedule_input: task.schedule_input, schedule_explanation: task.schedule_explanation,
             fire_at: task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601,

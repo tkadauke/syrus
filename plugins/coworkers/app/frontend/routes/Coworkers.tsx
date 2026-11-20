@@ -13,6 +13,7 @@ import { PanelMessage } from "@app/components/PanelMessage"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { ToolApprovalDetails } from "@app/components/ToolApprovalDetails"
 import { FilterBar, type FilterLinkBuilder, type FilterTree } from "@app/components/FilterBar"
+import { encodeFilterTree } from "@app/components/filterBar/helpers"
 import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { Markdown } from "@app/lib/Markdown"
@@ -884,7 +885,6 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
 
   return (
     <section className="space-y-5">
-      <PermissionCutoverReport report={coworker.permission_cutover_report} />
       <div className="divide-y divide-border rounded border border-border bg-surface">
         {coworker.grant_catalog.map((descriptor) => {
           const capability = descriptor.name
@@ -1004,76 +1004,6 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
   )
 }
 
-function PermissionCutoverReport({ report }: { report: CoworkerDetail["permission_cutover_report"] }) {
-  const { t } = useT("coworkers")
-  return (
-    <section className="rounded border border-border bg-surface p-4" aria-labelledby="permission-cutover-heading">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold" id="permission-cutover-heading">
-          {t("cutover.title")}
-        </h2>
-        <span
-          className={`rounded px-2 py-1 text-xs font-medium ${report.ready ? "bg-success-surface text-success-text" : "bg-danger-surface text-danger-text"}`}
-        >
-          {t(report.ready ? "cutover.ready" : "cutover.blocked")}
-        </span>
-      </div>
-      <p className="mt-1 text-sm text-text-secondary">{t("cutover.description")}</p>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <CutoverList
-          title={t("cutover.legacy_grants")}
-          empty={t("cutover.none")}
-          items={report.legacy_grants.map((grant) => `${grant.capability}: ${grant.approval_policy}`)}
-        />
-        <CutoverList
-          title={t("cutover.recommended_defaults")}
-          empty={t("cutover.none")}
-          items={report.recommended_defaults.map(
-            (item) =>
-              `${item.operation}: ${Object.entries(item.roles)
-                .map(([role, policy]) => `${role}=${policy}`)
-                .join(", ")}`
-          )}
-        />
-        <CutoverList
-          title={t("cutover.lost_authority")}
-          empty={t("cutover.none")}
-          items={report.lost_authority.map((item) => `${item.operation} (${item.role}): ${item.before} → ${item.after}`)}
-        />
-        <CutoverList
-          title={t("cutover.requestable_replacements")}
-          empty={t("cutover.none")}
-          items={report.requestable_replacements.map((item) => `${item.operation}: ${item.roles.join(", ")}`)}
-        />
-        <CutoverList
-          title={t("cutover.descriptor_gaps")}
-          empty={t("cutover.none")}
-          items={report.descriptor_gaps.map((gap) => `${gap.legacy_capability}: ${gap.reasons.join(", ")}`)}
-          danger
-        />
-        <CutoverList title={t("cutover.migration_errors")} empty={t("cutover.none")} items={report.migration_errors.map((error) => error.message)} danger />
-      </div>
-    </section>
-  )
-}
-
-function CutoverList({ title, items, empty, danger = false }: { title: string; items: string[]; empty: string; danger?: boolean }) {
-  return (
-    <div>
-      <h3 className="text-sm font-medium">{title}</h3>
-      {items.length ? (
-        <ul className={`mt-1 list-disc space-y-1 pl-5 text-sm ${danger ? "text-danger-text" : "text-text-secondary"}`}>
-          {items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-1 text-sm text-text-secondary">{empty}</p>
-      )}
-    </div>
-  )
-}
-
 function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
   const { t } = useT("coworkers")
   const [kind, setKind] = useState("cron")
@@ -1156,26 +1086,13 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
                         })}
                       </div>
                     ) : null}
-                    <div className="text-sm text-text-secondary">
-                      {schedule.state === "paused"
-                        ? t("schedule.journaling_paused")
-                        : t("schedule.last_result", {
-                            result: schedule.last_system_result || t("schedule.never_run"),
-                            date: schedule.last_journaled_on || "—"
-                          })}
-                    </div>
-                    {schedule.system_result_history
-                      .slice(-7)
-                      .reverse()
-                      .map((entry) => (
-                        <div className="text-xs text-text-secondary" key={entry.date}>
-                          {entry.date}: {entry.result}
-                          {entry.reason ? ` (${entry.reason})` : ""}
-                        </div>
-                      ))}
                     <SystemScheduleTime coworkerId={String(coworker.id)} onChanged={onChanged} schedule={schedule} />
                   </>
                 ) : null}
+                <LatestScheduleResult result={schedule.latest_result} />
+                <Link className="text-sm text-brand hover:underline" to={`/dashboard/jobs?q=${scheduleFilter(schedule.id)}`}>
+                  {t("schedule.view_all_runs")}
+                </Link>
               </div>
               <div className="flex gap-2">
                 {schedule.state === "scheduled" ? (
@@ -1211,6 +1128,31 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
         </ul>
       )}
     </section>
+  )
+}
+
+function scheduleFilter(id: number) {
+  return encodeFilterTree({ and: [{ field: "scheduled_task_id", op: "is", value: String(id) }] })
+}
+
+function LatestScheduleResult({ result }: { result: CoworkerSchedule["latest_result"] }) {
+  const { t } = useT("coworkers")
+  const failure = ["failed", "blocked", "cancelled"].includes(result.outcome)
+  return (
+    <div className={`mt-2 text-sm ${failure ? "font-medium text-danger-text" : "text-text-secondary"}`} role={failure ? "alert" : undefined}>
+      <span>
+        {t("schedule.latest_result")}: {t(`schedule.outcomes.${result.outcome}`, { defaultValue: result.outcome })}
+      </span>
+      {result.target_date || result.occurred_at ? <span> · {result.target_date || new Date(result.occurred_at!).toLocaleString()}</span> : null}
+      {result.job ? (
+        <>
+          {" · "}
+          <Link className="underline" to={result.job.path}>{result.job.slug}</Link>
+        </>
+      ) : null}
+      {result.job_needed === false ? <span> · {t("schedule.no_job_needed")}</span> : null}
+      {result.reason ? <div>{result.reason}</div> : null}
+    </div>
   )
 }
 
