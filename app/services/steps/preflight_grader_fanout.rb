@@ -298,9 +298,11 @@ module Steps
     end
 
     def grader_placement_policy
-      return Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE unless distributed_grader_projection_enabled?
-
-      Step::Kind.fetch("preflight_grader").placement_policy_for(repository)
+      # Main-repair preflight is allowed to run formatter-like graders. Their
+      # tracked edits are a repair result, not disposable validation output,
+      # so keep them in the mutable workflow checkout for the collector and
+      # implementing agent to inspect.
+      Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
     end
 
     def current_head_sha
