@@ -1139,6 +1139,22 @@ RSpec.describe StepDispatcher, :ci_only do
   end
 
   describe ".advance_from" do
+    # Graders of one fan-out finishing together queue on the workflow row to
+    # dispatch the next step; the slowest waited past the lock timeout and
+    # the error replaced the grader's real outcome.
+    it "defers the next step through phase admission when its dispatch hits a lock conflict" do
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      allow(described_class).to receive(:create_run_and_enqueue).and_raise(ActiveRecord::LockWaitTimeout, "Lock wait timeout exceeded")
+      allow(WorkflowPhaseAdmissionJob).to receive(:enqueue_once)
+
+      expect { described_class.advance_from(s1) }.not_to raise_error
+
+      expect(WorkflowPhaseAdmissionJob).to have_received(:enqueue_once).with(workflow.id, s2.id, wait: StepDispatcher::DISPATCH_LOCK_RETRY_DELAY, force: true)
+      expect(s2.reload).to be_queued
+      expect(workflow.reload).to be_running
+    end
+
     it "finishes the current step and then stops before the next step while manually paused" do
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
