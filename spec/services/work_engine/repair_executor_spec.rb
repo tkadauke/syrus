@@ -107,6 +107,23 @@ RSpec.describe WorkEngine::RepairExecutor do
       )
     end
 
+    it "skips recovery when the owning remote worker has heartbeated since the plan was made" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: "mac-worker", worker_storage_key: "storage-mac")
+      InstanceVersion.create!(hostname: "mac-worker", role: "worker", version: "x",
+                              started_at: 1.hour.ago, last_heartbeat_at: 1.minute.ago)
+      allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-linux")
+      allow(File).to receive(:directory?).and_call_original
+      allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+      expect(WorkflowWorkspaceRecovery).not_to receive(:call)
+
+      execution = described_class.call(
+        result: RepairResult.new([ repair_plan(action: "recover_missing_workspace", target: workflow) ])
+      ).sole
+
+      expect(execution).to have_attributes(status: "skipped", message: "workspace is held by another worker")
+      expect(workflow.reload).to have_attributes(state: "running", worker_storage_key: "storage-mac")
+    end
+
     it "fails an unsafe reconstruction with a typed retryable infrastructure outcome" do
       workflow.update_columns(state: "running", started_at: 5.minutes.ago)
       work_unit = workflow.work_unit

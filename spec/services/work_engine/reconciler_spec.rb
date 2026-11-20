@@ -6675,11 +6675,13 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "recovers a missing workspace after its recorded storage owner disappears" do
     workflow.update_columns(
-      state: "running", started_at: 5.minutes.ago,
+      state: "running", started_at: 2.hours.ago,
       worker_hostname: "retired-worker", worker_storage_key: "retired-storage"
     )
-    step.update_columns(state: "running", started_at: 5.minutes.ago)
-    run.update_columns(state: "running", started_at: 5.minutes.ago, last_heartbeat_at: 5.minutes.ago)
+    step.update_columns(state: "running", started_at: 2.hours.ago)
+    # Silent past the gone-after window: a recent heartbeat would mean the
+    # owner was alive moments ago, which is no evidence the workspace is gone.
+    run.update_columns(state: "running", started_at: 2.hours.ago, last_heartbeat_at: 45.minutes.ago)
     allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-retired-storage").and_return(false)
     allow(File).to receive(:directory?).and_call_original
     allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
@@ -6691,6 +6693,29 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       recommended_repair_action: "recover_missing_workspace"
     )
     expect(plan(result, :recover_missing_workspace)).to have_attributes(auto_executable: true)
+  end
+
+  # A remote worker (the native macOS worker, for one) can miss the
+  # two-minute queue-liveness window while busy. The workspace is on its disk,
+  # not this one, so a gap must read as "check later": recovering it failed a
+  # Run the owner was still preparing, and the owner then launched its agent
+  # against an invocation that had already ended.
+  it "does not report a remote owner's workspace missing during a heartbeat gap" do
+    InstanceVersion.create!(hostname: "mac-worker", role: "worker", version: "x",
+                            started_at: 1.hour.ago, last_heartbeat_at: 4.minutes.ago)
+    allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-linux")
+    allow(InstanceVersion).to receive(:worker_queue_live?).and_call_original
+    allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-mac").and_return(false)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago, worker_hostname: "mac-worker", worker_storage_key: "storage-mac")
+    step.update_columns(state: "running", started_at: 10.minutes.ago)
+    run.update_columns(state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 4.minutes.ago)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :workspace_missing)).to be_nil
+    expect(plan(result, :recover_missing_workspace)).to be_nil
   end
 
   it "classifies resumable agent sessions present and missing" do

@@ -523,6 +523,9 @@ module WorkEngine
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is no longer active") unless workflow.running? || workflow.queued?
           return skipped("workspace is already present") if File.directory?(WorkflowWorkspace.path_for(workflow))
+          # The plan may predate a heartbeat from the owning worker; re-check
+          # before failing a Run that worker may still be executing.
+          return skipped("workspace is held by another worker") if WorkflowWorkspace.remote_owner_may_hold_workspace?(workflow)
 
           record_storage_loss!(workflow)
           result = WorkflowWorkspaceRecovery.call(workflow: workflow)

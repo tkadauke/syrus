@@ -2925,7 +2925,7 @@ module WorkEngine
     def classify_workspace_availability
       workflows.select { |workflow| workflow.running? || workflow.retry_available? }.filter_map do |workflow|
         next if workflow.job&.closed?
-        next if WorkflowWorkspace.remote_live_worker_workspace?(workflow)
+        next if WorkflowWorkspace.remote_owner_may_hold_workspace?(workflow)
 
         path = WorkflowWorkspace.path_for(workflow)
         next if File.directory?(path)
@@ -3503,7 +3503,7 @@ module WorkEngine
 
     def workspace_snapshot_for(workflow)
       path = WorkflowWorkspace.path_for(workflow)
-      if WorkflowWorkspace.remote_live_worker_workspace?(workflow)
+      if WorkflowWorkspace.remote_owner_may_hold_workspace?(workflow)
         return {
           path: path.to_s,
           exists: true,

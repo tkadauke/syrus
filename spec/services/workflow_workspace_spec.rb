@@ -1827,6 +1827,24 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(described_class.cleanable_here?(workflow)).to be(false)
     end
 
+    it "is NOT cleanable while a remote owner is only briefly past the liveness window" do
+      allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-me")
+      workflow.update_columns(worker_hostname: "worker-other", worker_storage_key: "storage-other")
+      InstanceVersion.create!(hostname: "worker-other", role: "worker", version: "x",
+                              started_at: 1.hour.ago, last_heartbeat_at: 4.minutes.ago)
+
+      expect(described_class.cleanable_here?(workflow)).to be(false)
+    end
+
+    it "is cleanable once the remote owner has been silent past the gone-after window" do
+      allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-me")
+      workflow.update_columns(worker_hostname: "worker-other", worker_storage_key: "storage-other")
+      InstanceVersion.create!(hostname: "worker-other", role: "worker", version: "x",
+                              started_at: 2.hours.ago, last_heartbeat_at: 45.minutes.ago)
+
+      expect(described_class.cleanable_here?(workflow)).to be(true)
+    end
+
     it "is cleanable when this storage root owns it even if the pod hostname changed" do
       allow(SyrusVersion).to receive(:hostname).and_return("worker-new")
       allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-shared")
