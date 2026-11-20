@@ -131,6 +131,52 @@ RSpec.describe RunHostAdmission do
     expect(decision.details.fetch("sample_health")).to include("level" => "warning")
   end
 
+  describe "whole-host graders" do
+    after { described_class.reset_whole_host_admissions! }
+
+    def grader_run(position, resources: { "cpu" => "all", "cpu_min" => 2 })
+      details = { "name" => "rspec-ci-#{position}" }
+      details["resources"] = resources if resources
+      grader_step = Step.create!(workflow: workflow, kind: "grader", position: position, details: details)
+      grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+    end
+
+    # A suite split into shards gains nothing if the shards share one host:
+    # each asks for every core and they just split it. They used to pile onto
+    # whichever worker claimed first, three of four on one host.
+    it "defers a second whole-host grader the same worker claims before the first one spawns" do
+      first = grader_run(60)
+      expect(described_class.call(run: first)).to be_admit
+
+      decision = described_class.call(run: grader_run(61))
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+    end
+
+    it "defers a whole-host grader while another one is running on this host" do
+      busy = grader_run(62)
+      busy.update!(state: "running", started_at: 1.minute.ago, last_heartbeat_at: Time.current)
+      busy.spawned_processes.create!(workflow: workflow, kind: "grader", command: "bin/rspec", hostname: "worker-a", started_at: 1.minute.ago)
+
+      expect(described_class.call(run: grader_run(63))).to be_defer
+    end
+
+    it "still packs ordinary graders next to a whole-host one" do
+      expect(described_class.call(run: grader_run(64))).to be_admit
+
+      expect(described_class.call(run: grader_run(65, resources: nil))).to be_admit
+    end
+
+    it "admits a whole-host grader again once the earlier one has finished" do
+      first = grader_run(66)
+      described_class.call(run: first)
+      first.update!(state: "succeeded", finished_at: Time.current)
+
+      expect(described_class.call(run: grader_run(67))).to be_admit
+    end
+  end
+
   it "defers sticky resume work on a pressured host" do
     worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0)
 

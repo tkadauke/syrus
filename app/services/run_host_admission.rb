@@ -73,9 +73,39 @@ class RunHostAdmission
     # far a burst can overshoot a stale sample.
     return admit("resource_guard_not_needed") unless resource_guarded?(run)
     return defer("host_resource_semaphore_busy") if resource_guard_full?
+    return defer("host_resource_semaphore_busy") if whole_host_grader_conflict?
     return defer("host_admission_staggering") if admitted_within_stagger_window?
 
+    record_whole_host_admission!
     admit("host_capacity_available")
+  end
+
+  # Process-local record of whole-host graders admitted on this host but not
+  # yet visible as SpawnedProcess rows. One worker claims several ready Runs
+  # within seconds, before any of them spawns, so the database alone shows
+  # each of them an empty host.
+  @whole_host_admissions = {}
+  @whole_host_mutex = Mutex.new
+
+  class << self
+    def record_whole_host_admission!(run_id)
+      @whole_host_mutex.synchronize { @whole_host_admissions[run_id] = true }
+    end
+
+    def admitted_whole_host_run_ids(excluding:)
+      ids = @whole_host_mutex.synchronize { @whole_host_admissions.keys } - [ excluding ]
+      return [] if ids.empty?
+
+      live = Run.where(id: ids).where.not(state: Run::TERMINAL_STATES).pluck(:id)
+      @whole_host_mutex.synchronize { (ids - live).each { |id| @whole_host_admissions.delete(id) } }
+      live
+    rescue StandardError
+      []
+    end
+
+    def reset_whole_host_admissions!
+      @whole_host_mutex.synchronize { @whole_host_admissions.clear }
+    end
   end
 
   private
@@ -310,6 +340,31 @@ class RunHostAdmission
 
   def compute_capacity_full?
     active_compute_units + candidate_compute_units > capacity_available_to_candidate
+  end
+
+  # A grader that asks for every core (`resources: cpu: all`) scales with
+  # whatever it is granted; two of them on one host just split it. Each such
+  # grader counted as one small unit, so the shards of one suite piled onto
+  # the first worker that claimed them -- three of four on one host -- and
+  # ran no faster than the unsharded suite. Defer a second whole-host grader
+  # so the reroute hands it to another worker; small graders still pack in.
+  def whole_host_grader_conflict?
+    return false unless whole_host_grader?(step)
+
+    self.class.admitted_whole_host_run_ids(excluding: run.id).any? ||
+      active_run_scope.includes(:step).any? { |active_run| whole_host_grader?(active_run.step) }
+  end
+
+  def record_whole_host_admission!
+    self.class.record_whole_host_admission!(run.id) if whole_host_grader?(step)
+  end
+
+  def whole_host_grader?(candidate_step)
+    return false unless candidate_step&.kind == "grader"
+
+    GraderResourceRequest.from_details(candidate_step.details.to_h["resources"])&.unbounded_cpu? || false
+  rescue ArgumentError
+    false
   end
 
   def resource_guard_binding_terms(reason)
