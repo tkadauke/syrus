@@ -430,7 +430,12 @@ it("renders the pinned conversation index and keeps sorting in the URL", async (
   expect(screen.getByText("release", { selector: "mark" })).toBeInTheDocument()
   expect(screen.getByLabelText("Actions for Release research")).toBeInTheDocument()
 
-  fireEvent.change(screen.getByRole("combobox", { name: "Sort" }), { target: { value: "title" } })
+  const sort = screen.getByRole("combobox", { name: "Sort" })
+  expect(sort).toHaveClass("mt-1", "max-w-full", "sm:ml-2", "sm:mt-0")
+  expect(sort.parentElement).toHaveClass("w-full", "sm:w-auto")
+  expect(sort.parentElement?.parentElement).toHaveClass("flex-col", "items-stretch", "sm:flex-row", "sm:items-end")
+
+  fireEvent.change(sort, { target: { value: "title" } })
   await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("conversation_index?sort=title"))).toBe(true))
 })
 
