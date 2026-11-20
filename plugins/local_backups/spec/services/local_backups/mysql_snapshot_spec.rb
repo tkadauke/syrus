@@ -1,10 +1,6 @@
 require "rails_helper"
 
 RSpec.describe LocalBackups::MysqlSnapshot do
-  FakeResult = Data.define(:exit_status) do
-    def success? = exit_status.zero?
-  end
-
   class RecordingRunner
     Result = Data.define(:exit_status) do
       def success? = exit_status.zero?
@@ -41,10 +37,12 @@ RSpec.describe LocalBackups::MysqlSnapshot do
   it "creates a compressed consistent dump with version metadata and sanitized arguments" do
     Dir.mktmpdir do |directory|
       raw_path = Pathname.new(directory).join("primary.sql")
+      destination = Pathname.new(directory).join("primary.sql.gz")
       RecordingRunner.dump_path = raw_path
-      snapshot = described_class.new(connection:, config:, runner: RecordingRunner).create(raw_path)
+      snapshot = described_class.new(connection:, config:, runner: RecordingRunner).create(destination)
 
       expect(Zlib::GzipReader.open(snapshot.path, &:read)).to eq("consistent sql")
+      expect(snapshot.path).to eq(destination)
       dump = RecordingRunner.invocations.find { |call| call[:command].include?("--single-transaction") }
       expect(dump[:command]).not_to include("secret")
       expect(dump[:env]).to eq("MYSQL_PWD" => "secret")
@@ -59,5 +57,26 @@ RSpec.describe LocalBackups::MysqlSnapshot do
     expect { described_class.new(connection:, config:, runner: RecordingRunner).create(Pathname.new("unused.sql")) }
       .to raise_error(described_class::UnsupportedEngine, /legacy=MyISAM/)
     expect(RecordingRunner.invocations).to be_empty
+  end
+
+  it "selects live blobs in id order with the object export attributes" do
+    earlier = ActiveStorage::Blob.create!(
+      key: "earlier-key", filename: "earlier.txt", byte_size: 7,
+      content_type: "text/plain", checksum: "earlier-checksum"
+    )
+    later = ActiveStorage::Blob.create!(
+      key: "later-key", filename: "later.txt", byte_size: 12,
+      content_type: "text/plain", checksum: "later-checksum"
+    )
+
+    selection = described_class.new(connection:, config:, runner: RecordingRunner).select_blobs(nil)
+
+    expect(selection).to include(
+      { "id" => earlier.id, "key" => "earlier-key", "byte_size" => 7,
+        "content_type" => "text/plain", "checksum" => "earlier-checksum" },
+      { "id" => later.id, "key" => "later-key", "byte_size" => 12,
+        "content_type" => "text/plain", "checksum" => "later-checksum" }
+    )
+    expect(selection.map { |blob| blob.fetch("id") }).to eq(selection.pluck("id").sort)
   end
 end
