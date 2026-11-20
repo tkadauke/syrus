@@ -26,6 +26,7 @@ export default function ReviewWorkspaceRoute() {
   const [deferred, setDeferred] = useState<Set<number>>(() => new Set())
   const [loadedDetail, setLoadedDetail] = useState<{ jobId: number; payload: JobDetailPayload } | null>(null)
   const [evidenceNavigation, setEvidenceNavigation] = useState<{ direction: -1 | 1; sequence: number }>()
+  const [conversationTarget, setConversationTarget] = useState<HTMLDivElement | null>(null)
   const exitRef = useRef<HTMLButtonElement>(null)
   const handleDetail = useCallback((jobId: number, payload: JobDetailPayload) => setLoadedDetail({ jobId, payload }), [])
   usePageTitle(t("title"))
@@ -78,7 +79,7 @@ export default function ReviewWorkspaceRoute() {
         data-testid="review-workspace-scroll-container"
       >
         <JobRail active={active} jobs={jobs} prefix={prefix} />
-        <JobReview job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
+        <JobReview conversationTarget={conversationTarget} job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
         <DecisionPanel
           detail={loadedDetail?.jobId === active.id ? loadedDetail.payload : undefined}
           job={active}
@@ -90,6 +91,7 @@ export default function ReviewWorkspaceRoute() {
           onEvidenceMove={(direction) => setEvidenceNavigation((current) => ({ direction, sequence: (current?.sequence ?? 0) + 1 }))}
           onExit={exitWorkspace}
           onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
+          setConversationTarget={setConversationTarget}
         />
       </div>
     </main>
@@ -121,7 +123,17 @@ function JobRail({ active, jobs, prefix }: { active: ReviewWorkspaceJob; jobs: R
   )
 }
 
-function JobReview({ job, onDetail, visualEvidenceNavigation }: { job: ReviewWorkspaceJob; onDetail: (jobId: number, payload: JobDetailPayload) => void; visualEvidenceNavigation?: { direction: -1 | 1; sequence: number } }) {
+function JobReview({
+  conversationTarget,
+  job,
+  onDetail,
+  visualEvidenceNavigation
+}: {
+  conversationTarget: HTMLDivElement | null
+  job: ReviewWorkspaceJob
+  onDetail: (jobId: number, payload: JobDetailPayload) => void
+  visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
+}) {
   const { t } = useT("review_workspace")
   const detail = useQuery({
     queryKey: ["review_workspace", "job", job.id],
@@ -154,6 +166,7 @@ function JobReview({ job, onDetail, visualEvidenceNavigation }: { job: ReviewWor
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{job.title}</h1>
       </div>
       <CanonicalReviewWorkspace
+        conversationPortalTarget={conversationTarget}
         payload={detail.data}
         showConversation={false}
         showEmptyVisualEvidence
@@ -170,7 +183,8 @@ function DecisionPanel({
   onDefer,
   onEvidenceMove,
   onExit,
-  onMove
+  onMove,
+  setConversationTarget
 }: {
   detail?: JobDetailPayload
   job: ReviewWorkspaceJob
@@ -179,6 +193,7 @@ function DecisionPanel({
   onEvidenceMove: (direction: -1 | 1) => void
   onExit: () => void
   onMove: (offset: number) => void
+  setConversationTarget: (target: HTMLDivElement | null) => void
 }) {
   const { t } = useT("review_workspace")
   const queryClient = useQueryClient()
@@ -209,7 +224,6 @@ function DecisionPanel({
     return () => window.removeEventListener("keydown", shortcut)
   }, [canApprove, onEvidenceMove, onExit, onMove])
   const mutationError = approve.error ?? submitFeedback.error
-  const findings = (detail?.typed_artifacts ?? []).filter((artifact) => artifact.renderer_type !== "image_diff")
   return (
     <aside aria-label={t("decision_context")} className="border-l border-border bg-surface p-5 max-lg:border-t lg:overflow-y-auto">
       <h2 className="font-semibold">{t("decision_context")}</h2>
@@ -222,17 +236,7 @@ function DecisionPanel({
       </section>
       <section className="mt-4 border-t border-border pt-4" aria-label={t("findings")}>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("findings")}</h3>
-        {findings.length > 0 ? (
-          <ul className="mt-2 space-y-2 text-sm">
-            {findings.map((artifact, index) => (
-              <li className="rounded border border-border bg-page px-3 py-2" key={`${artifact.type}-${index}`}>
-                {artifact.title}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm text-text-secondary">{t("no_findings")}</p>
-        )}
+        <div className="mt-2" ref={setConversationTarget} />
       </section>
       <div className="mt-5 space-y-2">
         {confirming ? (
