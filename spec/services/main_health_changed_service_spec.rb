@@ -828,6 +828,46 @@ RSpec.describe MainHealthChangedService, :ci_only do
         }.not_to change { repository.jobs.where(kind: "direct").count }
       end
 
+      it "does not immediately replace a conclusive no-change repair for the same SHA under strict policy" do
+        repository.update!(risk_profile: "production")
+        repair = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          issue_body: "Main branch repair\nCommit: abc123def456",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "closed",
+          closure_reason: "preflight_passed"
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository)
+        }.not_to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }
+
+        expect(repair.reload).to be_closed
+      end
+
+      it "allows a new repair after a conclusive no-change result when main advances" do
+        repository.update!(risk_profile: "production")
+        repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          issue_body: "Main branch repair\nCommit: old123",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "closed",
+          closure_reason: "preflight_passed"
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository)
+        }.to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }.by(1)
+      end
+
       it "marks main healthy instead of spawning a replacement when a repair Job lands" do
         repair = repository.jobs.create!(
           user: user,

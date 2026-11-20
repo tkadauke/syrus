@@ -115,6 +115,13 @@ class MainHealthChangedService
       )
       return
     end
+    if !force && (job = conclusive_no_change_fix_job_for_current_sha)
+      Rails.logger.warn(
+        "[MainHealthChangedService] #{@repository.slug} not spawning main repair job; " \
+        "conclusive no-change repair #{job.slug} already covers #{checked_sha}"
+      )
+      return
+    end
     return if !force && suppressed_by_recent_closed_repair?
 
     # The stale-SHA guard keeps AUTOMATIC repairs from firing on a health signal
@@ -511,6 +518,17 @@ class MainHealthChangedService
 
     repair_jobs
       .where(needs_attention_reason: GraderLoopProgress::NO_PROGRESS_REASON)
+      .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
+      .order(updated_at: :desc, id: :desc)
+      .first
+  end
+
+  def conclusive_no_change_fix_job_for_current_sha
+    sha = checked_sha
+    return if sha == "unknown"
+
+    repair_jobs
+      .where(state: "closed", closure_reason: "preflight_passed")
       .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
       .order(updated_at: :desc, id: :desc)
       .first
