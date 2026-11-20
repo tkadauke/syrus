@@ -404,3 +404,16 @@ instance. The standard distribution includes:
   `draw_image`, `move_element`, `delete_element`, `update_scene`, `save_canvas`,
   `clear_canvas`, and `load_canvas`.
 - `worker_timeline` — default-disabled worker and workflow timeline views.
+
+## Capability families
+
+Capability families group related, optional plugin contributions under one
+contract. A plugin declares a provider class name plus the stable capabilities
+it `implements`; provisional capabilities require a separate, explicit
+`provisional` opt-in. Undeclared capabilities are never invoked. The manifest
+and capability catalog remain readable while plugin code is unloaded, and a
+disabled plugin contributes no capability providers.
+
+Providers are ordered by the plugin's `prepare_priority`. Each capability
+documents its context, stability tier, absent behavior, and one composition
+mode: `collect`, `broadcast`, `first_claim`, or `keyed`.
