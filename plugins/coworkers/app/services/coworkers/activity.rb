@@ -24,7 +24,7 @@ class Coworkers::Activity
   def call
     job_page = page(filtered_jobs, @jobs_cursor)
     chat_page = page(side_chats, @side_chats_cursor)
-    runs = Run.where(job_id: job_page.map(&:id)).order(:created_at, :id).to_a
+    runs = Run.where(job_id: job_page.map(&:id)).includes(:step).order(:created_at, :id).to_a
     counts = JobLog.where(run_id: runs.map(&:id), kind: "tool_call").group(:run_id).count
     workflows = Workflow.where(job_id: job_page.map(&:id)).order(:created_at, :id).to_a.group_by(&:job_id)
     names = schedule_names(job_page)
