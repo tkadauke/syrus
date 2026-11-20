@@ -27,6 +27,10 @@ module Mcp
 
       def plugin_descriptors(chat_session: nil)
         plugin_providers.flat_map do |provider, plugin_state|
+          # Discovery is provider-scoped, not tool-scoped. Connection-backed
+          # providers may query their models here; resolve that state once for
+          # the coherent catalog build and apply it to every advertised tool.
+          availability_state = provider_state(provider, plugin_state, chat_session:)
           definitions, tiers_by_name = definitions_and_tiers_for(provider, chat_session: chat_session)
           by_name = definitions.index_by { |definition| value(definition, :name).to_s }
           grant_definitions = grants_for(provider)
@@ -46,7 +50,7 @@ module Mcp
                 approval_effect: definition.present? && value(definition, :approval_effect) == true,
                 tier: definition ? tiers_by_name.fetch(name, :essential) : :essential,
                 tool: nil, provider: provider,
-                availability_state: definition ? provider_state(provider, plugin_state, chat_session:) : :unavailable,
+                availability_state: definition ? availability_state : :unavailable,
                 description: definition && value(definition, :description), definition: definition,
                 grant: grant_definitions.fetch(capability))
             end
@@ -77,7 +81,7 @@ module Mcp
             Descriptor.new(tool_name: name, capability: capability, ungated: descriptor.essential?,
               approval_effect: value(definition, :approval_effect) == true,
               tier: tiers_by_name.fetch(name, :essential), tool: nil, provider: provider,
-              availability_state: provider_state(provider, plugin_state, chat_session:),
+              availability_state: availability_state,
               description: value(definition, :description),
               definition: definition.merge(capability_descriptor: descriptor), grant: grant)
           end
@@ -88,7 +92,7 @@ module Mcp
             Descriptor.new(tool_name: name, capability: value(definition, :capability)&.to_s, ungated: true,
               approval_effect: false,
               tier: tiers_by_name.fetch(name, :essential), tool: nil, provider: provider,
-              availability_state: provider_state(provider, plugin_state, chat_session:),
+              availability_state: availability_state,
               description: value(definition, :description), definition: definition)
           end
           granted + shared + ungated

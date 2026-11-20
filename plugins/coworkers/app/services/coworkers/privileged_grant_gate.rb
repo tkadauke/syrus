@@ -28,7 +28,11 @@ module Coworkers
       end
 
       def allowed_capabilities(coworker)
-        coworker.permission_rules.entries.filter_map do |entry|
+        allowed_capabilities_from_entries(coworker.permission_rules.entries)
+      end
+
+      def allowed_capabilities_from_entries(entries)
+        entries.filter_map do |entry|
           next if entry[:approval_policy] == "off"
           descriptor = Coworkers::GrantCatalog.fetch(entry[:capability])
           entry[:capability] if availability(descriptor).available?
