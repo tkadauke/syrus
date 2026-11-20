@@ -20,7 +20,6 @@ export type CoworkerDetail = CoworkerSummary & {
   effective_model: string | null
   workspace_repo: string
   about: string | null
-  soul: string | null
   chats: { id: number; link_id: number; role: "main" | "side"; title: string; path: string; unsaved_workspace: UnsavedWorkspace | null }[]
   grants: {
     capability: string
@@ -171,6 +170,9 @@ export type CoworkerWorkspacePayload = {
   files: { path: string; type: string; size: number | null; extension: string; area: string }[]
   results: { path: string; type: string; size: number | null; extension: string; area: string; binary?: boolean; truncated?: boolean; snippet: string | null; highlights: { start: number; length: number }[]; last_modified_at: string | null }[]
   total: number
+  page_start: number
+  page_end: number
+  previous_cursor: string | null
   next_cursor: string | null
   incomplete_reasons: string[]
   partial: boolean
@@ -199,7 +201,7 @@ export function fetchCoworker(id: string) {
     `/api/v1/app/coworkers/${id}`
   )
 }
-export function fetchCoworkerTab(id: string, tab: "profile" | "chats" | "capabilities" | "schedules") {
+export function fetchCoworkerTab(id: string, tab: "chats" | "capabilities" | "schedules") {
   return getJson<Partial<CoworkerDetail>>(`/api/v1/app/coworkers/${id}/${tab}`)
 }
 export function fetchCoworkerConversationIndex(id: string, search = "") {

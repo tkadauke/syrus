@@ -4,7 +4,7 @@ class Coworkers::WorkspaceBrowser
   MAX_SEARCH_FILES = 250
   MAX_HISTORY_COMMITS = 25
   MAX_FILE_BYTES = 256.kilobytes
-  SNIPPET_BYTES = 240
+  SNIPPET_CHARACTERS = 240
 
   class InvalidCursor < StandardError; end
 
@@ -24,6 +24,9 @@ class Coworkers::WorkspaceBrowser
       branch: home_branch,
       files: entries.map { |entry| entry_json(entry) },
       results: result[:results],
+      page_start: result[:page_start],
+      page_end: result[:page_end],
+      previous_cursor: result[:previous_cursor],
       next_cursor: result[:next_cursor],
       total: result[:total],
       incomplete_reasons: result[:incomplete_reasons] + (partial ? [ "tree_limit" ] : []),
@@ -62,21 +65,25 @@ class Coworkers::WorkspaceBrowser
   def search(revision, entries, filters)
     query = filters[:search].to_s.strip.downcase
     filtered = entries.select { |entry| metadata_match?(entry, filters) }
-    modified, history_incomplete = last_modified(revision, filters)
+    modified, history_incomplete = last_modified(revision, filtered, filters)
     filtered.select! { |entry| modified_match?(modified[entry.path], filters) }
     incomplete = history_incomplete ? [ "history_limit" ] : []
     if query.present? || filters[:content_kind].present?
       searchable = filtered.first(MAX_SEARCH_FILES)
       incomplete << "search_limit" if filtered.size > searchable.size
-      filtered = searchable.filter_map { |entry| search_result(revision, entry, query, modified[entry.path], filters[:content_kind]) }
+      blobs = @reader.files(revision, glob: searchable.map(&:path), max_files: MAX_SEARCH_FILES, max_bytes: MAX_FILE_BYTES)
+      filtered = searchable.filter_map { |entry| search_result(entry, blobs[entry.path], query, modified[entry.path], filters[:content_kind]) }
     else
       filtered = filtered.map { |entry| entry_json(entry).merge(last_modified_at: modified[entry.path]&.iso8601, snippet: nil, highlights: []) }
     end
     filtered = sort_results(filtered, filters[:sort])
     offset = decode_cursor(filters[:cursor])
     page = filtered.slice(offset, PAGE_SIZE) || []
+    previous_offset = [ offset - PAGE_SIZE, 0 ].max
+    previous_cursor = offset.positive? ? encode_cursor(previous_offset) : nil
     next_cursor = offset + PAGE_SIZE < filtered.size ? Base64.urlsafe_encode64((offset + PAGE_SIZE).to_s, padding: false) : nil
-    { results: page, total: filtered.size, next_cursor:, incomplete_reasons: incomplete.uniq }
+    { results: page, total: filtered.size, page_start: page.empty? ? 0 : offset + 1, page_end: offset + page.size,
+      previous_cursor:, next_cursor:, incomplete_reasons: incomplete.uniq }
   end
 
   def metadata_match?(entry, filters)
@@ -94,9 +101,10 @@ class Coworkers::WorkspaceBrowser
     true
   end
 
-  def search_result(revision, entry, query, modified_at, content_kind)
+  def search_result(entry, blob, query, modified_at, content_kind)
+    return unless blob
+
     filename_match = query.blank? || entry.path.downcase.include?(query)
-    blob = @reader.read(revision, entry.path, max_bytes: MAX_FILE_BYTES)
     binary = blob.bytes.include?("\0")
     return if content_kind == "binary" && !binary
     return if content_kind == "text" && binary
@@ -104,26 +112,31 @@ class Coworkers::WorkspaceBrowser
     index = binary || query.blank? ? nil : blob.text.downcase.index(query)
     return unless filename_match || index
 
-    start = [ (index || 0) - (SNIPPET_BYTES / 2), 0 ].max
-    snippet = binary ? nil : blob.text.byteslice(start, SNIPPET_BYTES).to_s.scrub
+    start = [ (index || 0) - (SNIPPET_CHARACTERS / 2), 0 ].max
+    snippet = binary ? nil : blob.text.slice(start, SNIPPET_CHARACTERS)
     entry_json(entry).merge(binary:, truncated: blob.truncated, last_modified_at: modified_at&.iso8601,
       snippet:, highlights: index ? [ { start: index - start, length: query.length } ] : [])
   rescue RepositoryContent::NotFound
     nil
   end
 
-  def last_modified(revision, filters)
+  def last_modified(revision, entries, filters)
     needs_history = filters[:modified_after].present? || filters[:modified_before].present? || filters[:sort] == "modified"
     return [ {}, false ] unless needs_history
 
     commits = @reader.commits(revision:, limit: MAX_HISTORY_COMMITS + 1)
     dates = {}
-    commits.first(MAX_HISTORY_COMMITS).each_cons(2) do |head, base|
+    bounded_commits = commits.first(MAX_HISTORY_COMMITS)
+    bounded_commits.each_cons(2) do |head, base|
       @reader.changes(base: @reader.revision(base.sha), head: @reader.revision(head.sha)).each { |change| dates[change.path] ||= head.authored_at }
     rescue RepositoryContent::Error
       next
     end
-    [ dates, commits.size > MAX_HISTORY_COMMITS ]
+    history_incomplete = commits.size > MAX_HISTORY_COMMITS
+    if !history_incomplete && (root = bounded_commits.last)
+      entries.each { |entry| dates[entry.path] ||= root.authored_at }
+    end
+    [ dates, history_incomplete ]
   rescue RepositoryContent::Error
     [ {}, true ]
   end
@@ -155,6 +168,10 @@ class Coworkers::WorkspaceBrowser
     value
   rescue ArgumentError
     raise InvalidCursor, "Workspace cursor is invalid"
+  end
+
+  def encode_cursor(offset)
+    Base64.urlsafe_encode64(offset.to_s, padding: false)
   end
 
   def selected_file(revision, entries, requested_path)
