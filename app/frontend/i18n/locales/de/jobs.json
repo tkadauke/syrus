@@ -1088,5 +1088,14 @@
   "visual_evidence_unknown_page": "Erfasste Seite",
   "visual_evidence_unknown_viewport": "unbekannter Viewport",
   "visual_evidence_metadata": "Aufnahme {{sequence}} · {{viewport}} · {{timestamp}}",
-  "visual_evidence_submission_failed": "Einreichen fehlgeschlagen; Aufnahme wurde aufbewahrt"
+  "visual_evidence_submission_failed": "Einreichen fehlgeschlagen; Aufnahme wurde aufbewahrt",
+  "reset_job": "Job zurücksetzen",
+  "confirm_reset_job": "Diesen Job zurücksetzen und auf der aktuellen Basis von vorn starten? Der offene PR wird geschlossen, Branch und Checkpoints werden gelöscht und aktive Workflows abgebrochen. Job-ID, Epic-Zugehörigkeit, Abhängigkeiten und Verlauf bleiben erhalten.",
+  "reset_job_discards": "Wird verworfen:",
+  "reset_job_pr": "Pull Request #{{number}}",
+  "reset_job_branch": "Branch {{branch}}",
+  "reset_job_checkpoints_one": "{{count}} Checkpoint",
+  "reset_job_checkpoints_other": "{{count}} Checkpoints",
+  "reset_job_workflows_one": "{{count}} aktiver Workflow",
+  "reset_job_workflows_other": "{{count}} aktive Workflows"
 }

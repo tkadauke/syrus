@@ -251,6 +251,11 @@ specific reason.
 If the workspace has already been cleaned up, retry-in-place is no longer
 available. Use Run again or start over.
 
+Retry, Start over and Reset Job differ: Retry continues from the existing
+branch; Start over closes the Job as replaced and creates a new Job; Reset Job
+(failed Jobs only) keeps the same Job and its history but discards the PR,
+branch, checkpoints and workflows and restarts on the current base.
+
 ## MySQL connection issues
 
 In production, Syrus uses separate Rails database roles for primary,

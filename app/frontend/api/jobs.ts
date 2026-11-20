@@ -1088,6 +1088,7 @@ export type JobActions = {
   retry_failed_step_action?: JobRetryAction | null
   retry_implementation_action?: JobRetryAction | null
   can_restart: boolean
+  reset_job_action?: JobResetAction | null
   can_cancel: boolean
   can_stop_landing: boolean
   can_approve: boolean
@@ -1119,6 +1120,11 @@ export type JobActions = {
   feedback_agent_options: string[]
   rebase_agent_options: string[]
   retry_agent_options: string[]
+}
+
+export type JobResetAction = {
+  path: string
+  destroys: { open_pr_number?: number; branch?: string; checkpoints?: number; active_workflows?: number[] }
 }
 
 export type JobRetryAction = {

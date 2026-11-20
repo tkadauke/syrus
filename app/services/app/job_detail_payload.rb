@@ -1261,6 +1261,16 @@ module App
       keys.all? { |key| artifacts.key?(key.to_s) }
     end
 
+    # Reset Job keeps this Job and restarts it on the current base, unlike
+    # restart (Start over), which closes it and creates a new Job. Only
+    # surfaced for failed Jobs the reset service considers eligible.
+    def reset_job_action(writable)
+      return nil unless writable && @job.failed?
+      return nil if ResetJobs::Operation.preflight(@job)
+
+      { path: "/api/v1/app/jobs/#{@job.id}/reset", destroys: ResetJobs::Operation.destruction_summary(@job) }
+    end
+
     def actions_json
       retry_actions = ::App::JobRetryActions.for(@job)
       send_job_upstream_action = send_job_upstream_action_json
@@ -1312,6 +1322,7 @@ module App
             (@job.closed? && @job.infrastructure?) ||
             (@job.failed? && retry_actions[:implementation].blank? && retry_actions[:failed_step].blank? && @job.landing_failure_reason.blank?)
           ),
+        reset_job_action: reset_job_action(writable),
         can_cancel: writable && @job.open?,
         can_stop_landing: writable && @job.landing?,
         can_approve: writable && approvable_job && @job.can_add_job_approval?(@user),

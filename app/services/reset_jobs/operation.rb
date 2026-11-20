@@ -27,7 +27,7 @@ module ResetJobs
       Workflow.where(id: direct_ids | owned_ids).order(:created_at, :id)
     end
 
-    def initialize(job:, user:, reason:, pending_action:)
+    def initialize(job:, user:, reason:, pending_action: nil)
       @job, @user, @reason, @pending_action = job, user, reason, pending_action
     end
 
@@ -90,7 +90,7 @@ module ResetJobs
       { "superseded_by_reset_at" => Time.current.iso8601, "cancelled_reason" => Workflow::SUPERSEDED_BY_RESET_REASON,
         "reset_reason" => reason,
         "reset_actor_type" => user.class.polymorphic_name, "reset_actor_id" => user.id,
-        "reset_pending_action_id" => pending_action.id }
+        "reset_pending_action_id" => pending_action&.id }.compact
     end
   end
 end

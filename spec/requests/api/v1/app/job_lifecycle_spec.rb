@@ -1381,4 +1381,75 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       expect(entry).not_to have_key("app_dismiss_path")
     end
   end
+
+  describe "POST jobs/:id/reset" do
+    let(:client) { instance_double(GithubClient, close_pull_request: true, delete_branch: true, delete_ref: true) }
+    let(:failed_job) { Factories.job_record(user: user, repository: repo, state: "failed", issue_number: 90, pr_number: 5, branch_name: "syrus/job-90") }
+
+    before do
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(WorkflowWorkspace).to receive(:cleanup_for).and_return(true)
+    end
+
+    it "resets a failed Job in place, keeping its id" do
+      post app_job_path(failed_job, "reset"), as: :json
+
+      expect(response).to have_http_status(:ok), response.body
+      expect(parse_body["job"]["id"]).to eq(failed_job.id)
+      expect(failed_job.reload).to be_queued
+      expect(failed_job.pr_number).to be_nil
+      expect(client).to have_received(:close_pull_request).with(repo.slug, 5)
+      expect(failed_job.workflows.where(trigger_kind: "initial")).to exist
+    end
+
+    it "refuses a Job that is not failed" do
+      running = Factories.job_record(user: user, repository: repo, state: "implemented", issue_number: 91)
+      post app_job_path(running, "reset"), as: :json
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(running.reload).to be_implemented
+    end
+
+    it "refuses a landing Job" do
+      landing = Factories.job_record(user: user, repository: repo, state: "landing", issue_number: 92)
+      post app_job_path(landing, "reset"), as: :json
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.to_s).to include("landing")
+    end
+
+    it "refuses a merged Job" do
+      merged = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged", issue_number: 93)
+      post app_job_path(merged, "reset"), as: :json
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.to_s).to include("create a new Job")
+    end
+
+    it "refuses a Job with live stacked children" do
+      Factories.job_record(user: user, repository: repo, state: "running", issue_number: 94, parent_job_id: failed_job.id, branch_name: "syrus/child")
+      post app_job_path(failed_job, "reset"), as: :json
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.to_s).to include("Live stacked children")
+      expect(failed_job.reload).to be_failed
+    end
+
+    it "refuses a Job in an active merge train" do
+      train = MergeTrain.create!(repository: repo, base_branch: repo.default_branch, priority: "medium", state: "grading")
+      MergeTrainMember.create!(merge_train: train, job: failed_job, position: 0)
+      post app_job_path(failed_job, "reset"), as: :json
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.to_s).to include("merge train")
+    end
+
+    it "403s a read-tier member and 404s a user without access" do
+      reader = Factories.user
+      repo.repository_memberships.create!(user: reader, role: "read")
+      sign_in_as(reader)
+      post app_job_path(failed_job, "reset"), as: :json
+      expect(response).to have_http_status(:forbidden)
+
+      sign_in_as(Factories.user)
+      post app_job_path(failed_job, "reset"), as: :json
+      expect(response).to have_http_status(:not_found)
+      expect(failed_job.reload).to be_failed
+    end
+  end
 end
