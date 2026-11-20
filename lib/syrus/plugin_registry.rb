@@ -77,6 +77,86 @@ module Syrus
       review_gate
     ].freeze
 
+    # Kept with EXTENSION_POINTS so adding a capability also requires explaining
+    # when a plugin author should use it. Generated authoring documentation
+    # consumes these descriptions directly.
+    EXTENSION_POINT_DESCRIPTIONS = {
+      agent_provider: "Runs implementation and review agents and publishes the models and configuration options the host may offer.",
+      approval_provider: "Supplies an external approval source that can satisfy host authorization decisions.",
+      chat_provider: "Runs interactive chat turns and reports their text, usage, session, and process outcomes.",
+      mcp_tool_set: "Adds MCP tools available to workflow agents, subject to the host's run context and authorization checks.",
+      mcp_run_context_contributor: "Adds bounded plugin-owned context to the MCP sidecar environment for a workflow run.",
+      input_source: "Polls an external system for new work and converts stable source records into Syrus inputs.",
+      prompt_injector: "Contributes bounded instructions or context to workflow-agent prompts at documented prompt locations.",
+      coverage_analyzer: "Reads test coverage artifacts and returns normalized coverage evidence for grading and reporting.",
+      ci_log_parser: "Recognizes provider-specific CI logs and extracts normalized failures and diagnostic evidence.",
+      preview_provider: "Starts, inspects, and stops a repository preview using the provider's supported runtime.",
+      admin_page: "Registers a plugin-owned page in the administrative SPA and its navigation metadata.",
+      repo_page_tab: "Registers a plugin-owned tab on repository detail pages, scoped to the current repository and user.",
+      sidebar_page: "Registers a plugin-owned application page and its sidebar navigation entry.",
+      chat_mcp_tool_set: "Adds MCP tools available in interactive chat, subject to chat context and authorization checks.",
+      chat_media_source: "Resolves plugin-owned media references so chat messages can present supported attachments.",
+      chat_payload_contributor: "Adds bounded plugin-owned fields to chat bootstrap and update payloads.",
+      chat_job_status_extension: "Adds plugin-owned status details and actions to Job representations shown in chat.",
+      chat_prompt_injector: "Contributes bounded instructions or context specifically to interactive chat prompts.",
+      chat_turn_orientation: "Supplies the initial orientation material used to frame an interactive chat turn.",
+      chat_workspace_lifecycle: "Prepares and cleans up plugin-owned resources attached to a chat workspace.",
+      chat_turn_lifecycle: "Observes or augments documented lifecycle stages around each interactive chat turn.",
+      chat_turn_finalizer: "Performs plugin-owned finalization after a chat turn has produced its result.",
+      adjudicator: "Evaluates competing implementation or review evidence and returns a normalized adjudication decision.",
+      source_control_provider: "Implements repository-host operations such as issues, pull requests, reviews, and credentials for one source-control service.",
+      artifact_renderer: "Turns a supported workflow artifact into a bounded human-readable representation.",
+      grader_augmentor: "Adds plugin-owned context, files, or checks to a grader invocation without replacing the grader.",
+      grader_failure_summarizer: "Converts provider-specific grader failures into concise normalized explanations.",
+      callbacks: "Receives documented plugin lifecycle callbacks for boot, shutdown, enablement, ticks, metrics, and reversible effects.",
+      platform_delivery: "Publishes or deploys built artifacts through a plugin-owned delivery platform.",
+      prepare_detector: "Inspects repository content and proposes deterministic dependency-preparation commands.",
+      grade_detector: "Inspects repository content and proposes grader definitions appropriate to its frameworks and tooling.",
+      grader_type: "Defines validation and execution behavior for a named custom grader type.",
+      grader_input_materializer: "Materializes additional immutable inputs required by distributed grader execution.",
+      review_criteria_provider: "Adds repository- or workflow-specific criteria that review agents must evaluate.",
+      post_implementation_review_provider: "Adds a post-implementation review step and its provider-specific invocation policy.",
+      diff_review_annotation_provider: "Produces structured annotations attached to files or lines in a reviewed diff.",
+      autofix_command: "Provides a deterministic command that can repair a recognized validation failure.",
+      dependency_audit_command: "Provides a deterministic command for auditing a project's dependency declarations or lockfiles.",
+      diff_review_file_pattern_provider: "Adds file patterns that select or classify files for specialized diff review.",
+      affected_test_analyzer: "Maps changed files to the tests most likely to exercise those changes.",
+      focused_test_command: "Builds the narrow test command for a selected test file or example in a supported framework.",
+      workspace_tab: "Registers a plugin-owned tab in the live workflow workspace UI.",
+      ui_slot: "Registers a plugin-owned component for one of the host's named UI insertion slots.",
+      domain_subscriber: "Subscribes plugin handlers to documented domain events emitted by the host.",
+      step_environment: "Contributes environment variables or setup context to supported workflow step executions.",
+      workflow_kinds: "Registers plugin-owned Job, Workflow trigger, Step, and WorkDefinition kinds with their handlers.",
+      job_origin: "Describes and renders a plugin-owned source from which Jobs may originate.",
+      job_visibility_restriction: "Applies an additional plugin-owned visibility restriction when users query Jobs.",
+      mentionable: "Adds a plugin-owned entity that users and agents can address through mentions.",
+      chat_identity_provider: "Supplies plugin-owned participant identities and presentation metadata for chat.",
+      repository_filter: "Applies a plugin-owned repository filter while preserving the host's authorization scope.",
+      preview_panel_viewer: "Renders a supported content type inside the repository preview panel.",
+      preview_panel_retention: "Decides which plugin-owned preview resources remain available and when they expire.",
+      repository_recommendation: "Produces evidence-backed plugin recommendations for a repository.",
+      memory_store: "Stores and retrieves durable agent memory through a plugin-owned backend.",
+      test_evidence: "Extracts normalized test results and evidence from a supported test runner or artifact.",
+      runtime_session_provider: "Creates and manages a long-lived plugin-owned runtime session used by agent work.",
+      worker_capability_probe: "Detects a worker capability and reports normalized values used for placement decisions.",
+      build_system_graph_provider: "Builds a repository target graph from a supported build system's declarations.",
+      retention_policy: "Contributes expiry and cleanup policy for a plugin-owned or extensible host record type.",
+      repository_content_provider: "Resolves immutable repository revisions and reads trees, files, changes, refs, and history from one backend.",
+      execution_backend: "Claims eligible command executions and runs them with provider-specific isolation or remote infrastructure.",
+      workflow_artifact_contributor: "Collects additional plugin-owned artifacts from a completed workflow run.",
+      speech_to_text_provider: "Transcribes supported audio input and returns normalized text and metadata.",
+      purge_contributor: "Enumerates and removes plugin-owned resources during repository or account purges.",
+      workspace_git_transport: "Provides clone and fetch transport for workflow workspaces backed by a supported repository source.",
+      slug_type: "Defines parsing, lookup, and presentation for a plugin-owned canonical identifier type.",
+      permission_provider: "Declares plugin capabilities, resource scopes, presets, authorization adapters, and permission migrations.",
+      reviewer_target_provider: "Selects and describes plugin-owned targets that a review provider can evaluate.",
+      review_context_contributor: "Adds bounded plugin-owned evidence to the context supplied to review agents.",
+      review_presentation_contributor: "Adds plugin-owned sections or metadata to the presentation of review results.",
+      problem_provider: "Detects and describes a plugin-owned class of actionable repository or workflow problems.",
+      repository_configuration: "Declares and validates plugin-owned repository configuration read from the supported configuration file.",
+      review_gate: "Evaluates plugin-owned evidence to decide whether downstream work may pass a named review gate."
+    }.freeze
+
     # Lambdas defer constant resolution until call time (autoload-friendly).
     INTERFACE_FOR = {
       agent_provider:          -> { Syrus::Plugin::AgentProvider },
@@ -205,6 +285,10 @@ module Syrus
           previous = @plugins.find { |manifest| manifest.name == name }
           requires_syrus ||= previous&.requires_syrus
           external = previous&.external if external.nil?
+          plugin_root ||= previous&.plugin_root
+          if previous&.external && previous.metadata.to_h.key?(:plugin_host_surface_scan)
+            metadata = { plugin_host_surface_scan: previous.metadata.to_h[:plugin_host_surface_scan], **metadata }
+          end
           # Registration runs on every `to_prepare`, so re-registering a name
           # replaces the previous manifest rather than appending a second one.
           # It has to happen before the uniqueness checks, or a plugin would
@@ -515,6 +599,18 @@ module Syrus
         register(name: name, version: version.to_s, provides: {}, external: external,
           requires_syrus: requires_syrus, depends_on: dependencies, loaded: false,
           default_enabled: false, disableable: false, **details)
+      end
+
+      def record_host_surface_scan(name, scan)
+        @mutex.synchronize do
+          index = @plugins.index { |manifest| manifest.name == name }
+          return unless index
+
+          manifest = @plugins.fetch(index)
+          metadata = manifest.metadata.to_h.merge(plugin_host_surface_scan: scan)
+          @plugins[index] = manifest.with(metadata:)
+          @generation += 1
+        end
       end
 
       def validate_dependencies!

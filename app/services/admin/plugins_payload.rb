@@ -236,7 +236,7 @@ module Admin
       circuits = runtime.circuits(plugin: manifest.name).map(&:to_h)
       state = if circuits.any?
         "circuit_open"
-      elsif failures.any? && (status.nil? || status.ok?)
+      elsif failures.any? && (status.nil? || status.healthy?)
         "degraded"
       else
         status&.state&.to_s || "ok"
@@ -250,6 +250,11 @@ module Admin
       payload[:jobs] = plugin_job_health(manifest, record)
       payload[:failures] = failures if failures.any?
       payload[:circuits] = circuits if circuits.any?
+      scan = manifest.metadata.to_h[:plugin_host_surface_scan]
+      payload[:host_surface] = scan.to_h.merge(
+        public: scan.public.map(&:to_h), legacy: scan.legacy.map(&:to_h), unlisted: scan.unlisted.map(&:to_h),
+        dynamic: scan.dynamic.map(&:to_h)
+      ) if scan
       payload
     end
 

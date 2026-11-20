@@ -547,8 +547,11 @@
       "skipped_role": "Praetermissum — munus processus non electum",
       "degraded": "Debilitatum",
       "circuit_open": "Circuitus apertus",
-      "cycle": "Circuitus dependentiarum"
+      "cycle": "Circuitus dependentiarum",
+      "warning": "Monitum"
     },
+    "host_surface_details": "Inventiones API hospitis",
+    "host_surface_minimum": "Versio Syrus minima derivata",
     "disableable": "Deactivabile",
     "yes": "Ita",
     "no": "Non",

@@ -436,6 +436,9 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
   const disableBlockers = plugin.disable_blockers || []
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
   const toggleState = usePluginToggle(plugin, betaModeEnabled, () => pageReload.reloadPage())
+  const hostSurface = plugin.health?.host_surface
+  const hostSurfaceFindings = hostSurface ? [...hostSurface.public, ...hostSurface.legacy, ...hostSurface.unlisted, ...hostSurface.dynamic] : []
+  const showHostSurfaceDetails = plugin.health?.state !== "ok" && hostSurfaceFindings.length > 0
 
   return (
     <>
@@ -465,6 +468,23 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
             <RuntimeCircuits plugin={plugin} />
             <RuntimeFailures plugin={plugin} />
             <PluginJobHealth plugin={plugin} />
+            {showHostSurfaceDetails && hostSurface ? (
+              <div className="mt-3 max-w-3xl rounded border border-amber-300 p-3 text-sm dark:border-amber-700">
+                <div className="font-medium">{t("plugins.host_surface_details")}</div>
+                {hostSurface.minimum_syrus_version ? (
+                  <div className="mt-1">
+                    {t("plugins.host_surface_minimum")}: <span className="font-mono">{hostSurface.minimum_syrus_version}</span>
+                  </div>
+                ) : null}
+                <ul className="mt-2 space-y-1 font-mono text-xs">
+                  {hostSurfaceFindings.map((finding) => (
+                    <li key={`${finding.path}:${finding.line}:${finding.constant}`}>
+                      {finding.constant} ({finding.tier}) — {finding.path}:{finding.line}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{description}</p> : null}
             {longDescription ? (
               <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p>
@@ -776,5 +796,5 @@ function localizedPluginMetadata(
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-text-secondary"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-danger" : "text-text-secondary"}`}>{children}</div>
 }

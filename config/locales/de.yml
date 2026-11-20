@@ -909,6 +909,12 @@ de:
       route_not_found: "Plugin-Route nicht gefunden."
       quarantine_not_locally_clearable: "Diese Quarantäne muss an ihrer Quelle aufgehoben werden."
       route_failed: "Das Plugin %{plugin} konnte diese Anfrage nicht abschließen."
+      host_surface:
+        scan_failed: "Host-API-Prüfung fehlgeschlagen: %{error}"
+        unsupported: "%{count} nicht unterstützte Host-API-Referenz(en)"
+        legacy: "%{count} nicht öffentliche Host-API-Referenz(en)"
+        dynamic: "%{count} dynamische, nicht öffentliche Host-API-Referenz(en)"
+        minimum: "requires_syrus beginnt bei %{declared} und liegt unter dem abgeleiteten Minimum %{derived}"
 
     job_lifecycle:
       direct_only: "Nur direkte Jobs können manuell gestartet werden."

@@ -25,6 +25,30 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
 [plugin-authoring reference](plugins/authoring.md). To build a plugin outside
 this repository, start with [Authoring an external plugin](plugins/external.md).
 
+## Choosing the public host API
+
+Public host APIs live under `Syrus::Host` and declare their contract beside the
+facade with `Syrus::Host.api(name, since:, summary:, members:)`.
+`Syrus::Host.apis` is the authoritative registry. A facade belongs there when
+a typical external plugin needs it, its useful contract is small enough to
+describe and smoke-test, and core can preserve it through a deprecation period.
+Usage across bundled plugins is evidence for that choice, never the decision.
+
+A core constant stays in the legacy inventory when bundled plugins still use
+it but it is too broad, mutable, specialized, or coupled to a core subsystem
+to support externally. The inventory is tolerated only for bundled plugins and
+must shrink. Everything outside a declared host facade or the legacy inventory
+is internal by default.
+
+Alias a core constant into `Syrus::Host` only when the declared members are the
+entire surface plugins should use and can be kept stable. Domain records are
+never aliased: expose a read-oriented facade that wraps records and related
+facades, names each supported lookup, attribute, and association, and does not
+leak persistence, callbacks, credentials, state transitions, or unlisted
+relations. Keep each summary short enough to state both its purpose and what it
+deliberately does not promise; APIs needing a longer contract are not ready to
+be public.
+
 ## Frontend contribution registry
 
 Plugin frontend components are registered through
@@ -104,6 +128,15 @@ The currently registered contribution kinds are:
   Incompatible external plugins are withheld and reported in plugin health;
   when the running release is unknown the check is skipped and health explains
   why. Bundled plugins ship with core and are not checked.
+  Run `bin/plugin-host-surface scan PATH` (optionally with `--json`) against an
+  external plugin before publishing it. The scanner parses Ruby without
+  executing it, allows APIs registered beneath `Syrus::Host`, reports legacy
+  and unsupported core references, and derives the newest `since` release
+  among the registered host APIs in use. Declare the oldest
+  release actually tested as `requires_syrus`, but never below that derived
+  floor. Static analysis cannot follow arbitrary dynamic constant lookup; it
+  warns when literal core names are passed through `class_name`, `constantize`,
+  `safe_constantize`, or `const_get`, but computed strings remain invisible.
 - **Server-backed CLI commands** — A manifest may declare `cli_commands` as an
   array of command objects. Each object has a `path` array (nested command
   words), a one-line `summary`, a string `handler`, and optional `arguments`

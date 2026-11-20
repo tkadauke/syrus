@@ -854,6 +854,70 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       Syrus::PluginInvocation.runtime_health.reset!
     end
 
+    it "includes external host API findings for the admin plugin page" do
+      finding = Syrus::PluginHostSurface::Scanner::Finding.new(
+        constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7
+      )
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ], dynamic: [],
+        minimum_syrus_version: nil, content_hash: "digest", error: nil)
+      Syrus::PluginRegistry.register(name: "external_scan", version: "1.0.0", external: true,
+        plugin_host_surface_scan: scan)
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/plugins/external_scan"
+
+      expect(response.parsed_body.dig("plugin", "health", "state")).to eq("warning")
+      expect(response.parsed_body.dig("plugin", "health", "host_surface", "unlisted", 0)).to include(
+        "constant" => "InternalService", "path" => "lib/external.rb", "line" => 7
+      )
+    end
+
+    it "serializes dynamic host API findings for the admin plugin page" do
+      finding = Syrus::PluginHostSurface::Scanner::StringFinding.new(
+        constant: "Job", tier: "dynamic", path: "lib/external.rb", line: 9, method: "class_name"
+      )
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [ finding ],
+        minimum_syrus_version: nil, content_hash: "digest", error: nil)
+      Syrus::PluginRegistry.register(name: "external_dynamic_scan", version: "1.0.0", external: true,
+        plugin_host_surface_scan: scan)
+      sign_in_as(Factories.user(admin: true))
+
+      get "/api/v1/app/admin/plugins/external_dynamic_scan"
+
+      expect(response.parsed_body.dig("plugin", "health", "host_surface", "dynamic", 0)).to include(
+        "constant" => "Job", "method" => "class_name", "line" => 9
+      )
+    end
+
+    it "reports runtime failures as degraded when the host API scan also warns" do
+      provider = Class.new { include Syrus::Plugin::CiLogParser }
+      finding = Syrus::PluginHostSurface::Scanner::Finding.new(
+        constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7
+      )
+      scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ], dynamic: [],
+        minimum_syrus_version: nil, content_hash: "digest", error: nil)
+      Syrus::PluginRegistry.register(name: "external_runtime_failure", version: "1.0.0", external: true,
+        provides: { ci_log_parser: provider }, plugin_host_surface_scan: scan)
+      Syrus::PluginInvocation.call(
+        extension_point: :ci_log_parser, provider: provider, operation: :call,
+        failure_threshold: 2, cooldown: 75, on_decline: nil
+      ) { raise "provider unavailable" }
+      sign_in_as(Factories.user(admin: true))
+
+      get "/api/v1/app/admin/plugins/external_runtime_failure"
+
+      expect(response.parsed_body.dig("plugin", "health", "state")).to eq("degraded")
+      expect(response.parsed_body.dig("plugin", "health", "host_surface", "unlisted", 0)).to include(
+        "constant" => "InternalService"
+      )
+      expect(response.parsed_body.dig("plugin", "health", "failures", 0)).to include(
+        "extension_point" => "ci_log_parser", "message" => "provider unavailable"
+      )
+    ensure
+      Syrus::PluginInvocation.runtime_health.reset!
+    end
+
     it "reports ok for a plugin with satisfied dependencies" do
       admin = Factories.user(admin: true)
       sign_in_as(admin)
