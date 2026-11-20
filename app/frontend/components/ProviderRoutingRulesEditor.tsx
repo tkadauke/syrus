@@ -837,6 +837,7 @@ function RoutingCandidateRow({
   reviewerTargetEnabled: boolean
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const provider = providerOption(options, candidate.provider)
   const targetType = candidate.reviewer_target?.type || options.reviewer_targets?.[0]?.type
   const targetEditor = matchingReviewContribution(options.review_contributions || [], "target_editor", { targetType })
@@ -862,7 +863,7 @@ function RoutingCandidateRow({
     <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-[repeat(2,minmax(0,1fr))_9rem_auto]">
       <Select
         aria-label={t("provider_routing.provider")}
-        onChange={(event) => onChange({ provider: event.target.value, model: null, effort_level: candidate.effort_level || null })}
+        onChange={(event) => onChange({ provider: event.target.value, model: null, effort_level: candidate.effort_level || null, account_id: null })}
         value={candidate.provider}
       >
         {options.agent_providers.length === 0 ? <option value=""></option> : null}
@@ -903,6 +904,25 @@ function RoutingCandidateRow({
             )
           : targetSelect
         : null}
+      <Button aria-expanded={advancedOpen} onClick={() => setAdvancedOpen((open) => !open)} size="sm" variant="secondary">
+        {t("provider_routing.advanced")}
+      </Button>
+      {advancedOpen ? (
+        <Select
+          aria-label={t("provider_routing.account")}
+          onChange={(event) => onChange({ ...candidate, account_id: event.target.value || null })}
+          value={candidate.account_id || ""}
+        >
+          <option value="">{t("provider_routing.automatic_account")}</option>
+          {(options.provider_accounts || [])
+            .filter((account) => account.provider === candidate.provider)
+            .map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.label}
+              </option>
+            ))}
+        </Select>
+      ) : null}
       <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">
         {t("provider_routing.remove")}
       </Button>
@@ -982,6 +1002,7 @@ function ConditionsSection({
 
 function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOptions {
   return {
+    provider_accounts: options?.provider_accounts || [],
     agent_providers: options?.agent_providers || EMPTY_OPTIONS.agent_providers,
     effort_levels: options?.effort_levels || EMPTY_OPTIONS.effort_levels,
     reviewer_targets: options?.reviewer_targets || [],

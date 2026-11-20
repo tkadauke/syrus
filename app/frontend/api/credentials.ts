@@ -69,6 +69,7 @@ export type CredentialsOptions = {
   locales: string[]
   agent_providers: string[]
   agent_provider_labels?: Record<string, string>
+  provider_account_credential_attributes?: Record<string, string[]>
   chat_providers: string[]
   chat_provider_labels?: Record<string, string>
   roles: string[]
@@ -98,10 +99,26 @@ export type CredentialsPayload = {
   credential_status: CredentialStatus
   github_rate_limit: GithubRateLimit | null
   provider_availability: Record<string, ProviderAvailability>
+  provider_accounts?: ProviderAccount[]
   options: CredentialsOptions
   provider_routing_rules: ProviderRoutingRule[]
   message?: string
   new_api_token?: string
+}
+
+export type ProviderAccount = {
+  id: string
+  provider_key: string
+  label: string | null
+  display_label: string
+  authentication_kind: string
+  enabled: boolean
+  position: number
+  weight: number | null
+  proactive_pause_threshold: number | null
+  effective_proactive_pause_threshold: number
+  removable: boolean
+  availability: ProviderAvailability
 }
 
 export type CredentialsCorePayload = Omit<CredentialsPayload, "options" | "provider_routing_rules">
@@ -185,6 +202,26 @@ export type CredentialsInput = {
 
 export function fetchCredentials() {
   return getJson<CredentialsCorePayload>("/api/v1/app/credentials")
+}
+
+export function createProviderAccount(input: { provider_key: string; label?: string; authentication_kind?: string; credentials: Record<string, string> }) {
+  return postJson<{ provider_account: ProviderAccount; message: string }>("/api/v1/app/provider_accounts", input)
+}
+
+export type ProviderAccountUpdate = Partial<Pick<ProviderAccount, "label" | "enabled" | "weight" | "proactive_pause_threshold" | "authentication_kind">> & {
+  credentials?: Record<string, string>
+}
+
+export function updateProviderAccount(id: string, input: ProviderAccountUpdate) {
+  return patchJson<{ provider_account: ProviderAccount; message: string }>(`/api/v1/app/provider_accounts/${id}`, input)
+}
+
+export function removeProviderAccount(id: string) {
+  return deleteJson<{ id: string; message: string }>(`/api/v1/app/provider_accounts/${id}`)
+}
+
+export function testProviderAccount(id: string) {
+  return postJson<{ provider_account: ProviderAccount; message?: string }>(`/api/v1/app/provider_accounts/${id}/test`, {})
 }
 
 export function fetchCredentialOptions() {
@@ -276,25 +313,30 @@ export type CodexOauthStart = { authorize_url: string; listener_started: boolean
 
 // Begin the Claude subscription OAuth flow; returns the authorize URL the
 // modal opens. The provider shows a code to paste back.
-export function startClaudeOauth() {
-  return postJson<ClaudeOauthStart>("/api/v1/app/credentials/claude_oauth_start")
+export type ProviderAccountOauthTarget = { provider_account?: boolean; provider_account_id?: string; label?: string }
+export type ProviderAccountOauthPayload = CredentialTestPayload & { provider_account?: ProviderAccount }
+
+export function startClaudeOauth(target: ProviderAccountOauthTarget = {}) {
+  return postJson<ClaudeOauthStart>("/api/v1/app/credentials/claude_oauth_start", target)
 }
 
 // Finish the Claude OAuth flow by exchanging the pasted code (raw or the
 // `code#state` form). Saves + tests the token; returns the test result.
-export function exchangeClaudeOauth(code: string) {
-  return postJson<CredentialTestPayload>("/api/v1/app/credentials/claude_oauth_exchange", {
-    code
+export function exchangeClaudeOauth(code: string, target: ProviderAccountOauthTarget = {}) {
+  return postJson<ProviderAccountOauthPayload>("/api/v1/app/credentials/claude_oauth_exchange", {
+    code,
+    ...target
   })
 }
 
-export function startCodexOauth() {
-  return postJson<CodexOauthStart>("/api/v1/app/credentials/codex_oauth_start")
+export function startCodexOauth(target: ProviderAccountOauthTarget = {}) {
+  return postJson<CodexOauthStart>("/api/v1/app/credentials/codex_oauth_start", target)
 }
 
-export function exchangeCodexOauth(code: string) {
-  return postJson<CredentialTestPayload>("/api/v1/app/credentials/codex_oauth_exchange", {
-    code
+export function exchangeCodexOauth(code: string, target: ProviderAccountOauthTarget = {}) {
+  return postJson<ProviderAccountOauthPayload>("/api/v1/app/credentials/codex_oauth_exchange", {
+    code,
+    ...target
   })
 }
 

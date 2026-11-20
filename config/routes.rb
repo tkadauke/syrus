@@ -113,6 +113,9 @@ Rails.application.routes.draw do
             member { get :file }
           end
         end
+        resources :provider_accounts, only: %i[index create update destroy], param: :id do
+          post :test, on: :member
+        end
         get "credentials/provider_routing_rules", to: "provider_routing_rules#index"
         post "credentials/provider_routing_rules", to: "provider_routing_rules#create"
         post "credentials/provider_routing_rules/explain", to: "provider_routing_rules#explain"

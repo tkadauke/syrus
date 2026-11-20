@@ -27,6 +27,8 @@ class ProviderAccount < ApplicationRecord
   end
 
   belongs_to :user
+  has_many :workflows
+  has_many :provider_sessions
 
   encrypts :credential_payload
   serialize :credential_payload, coder: JSON
@@ -35,6 +37,17 @@ class ProviderAccount < ApplicationRecord
 
   scope :enabled, -> { where(enabled: true) }
   scope :in_position_order, -> { order(:position, :id) }
+
+  def self.actively_referenced_ids(accounts)
+    account_ids = Array(accounts).map(&:id)
+    return Set.new if account_ids.empty?
+
+    workflow_ids = Workflow.where(provider_account_id: account_ids, state: %w[queued running]).distinct.pluck(:provider_account_id)
+    run_session_ids = ProviderSession.where(provider_account_id: account_ids).for_active_runs.distinct.pluck(:provider_account_id)
+    chat_session_ids = ProviderSession.where(provider_account_id: account_ids).for_active_chats.distinct.pluck(:provider_account_id)
+
+    (workflow_ids + run_session_ids + chat_session_ids).to_set
+  end
 
   validates :public_id, presence: true, uniqueness: true
   validates :provider_key, presence: true, length: { maximum: 64 }
@@ -55,7 +68,15 @@ class ProviderAccount < ApplicationRecord
   def credential(name) = credential_payload.to_h[name.to_s]
 
   def safe_reference
-    { id: public_id, label: label.presence || "Account #{position + 1}" }
+    { id: public_id, label: display_label }
+  end
+
+  def display_label
+    label.presence || "#{App::Presentation.agent_provider_label(provider_key)} #{position + 1}"
+  end
+
+  def actively_referenced?
+    self.class.actively_referenced_ids([ self ]).include?(id)
   end
 
   def effective_proactive_pause_threshold

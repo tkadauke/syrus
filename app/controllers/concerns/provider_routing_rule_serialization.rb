@@ -93,7 +93,11 @@ module ProviderRoutingRuleSerialization
       repositories: provider_routing_repositories_json(user),
       time_zone: Time.zone.name
     )
-    agent_provider_catalog_options(user).merge(registry)
+    agent_provider_catalog_options(user).merge(registry).merge(
+      provider_accounts: user.provider_accounts.enabled.in_position_order.map do |account|
+        { id: account.public_id, provider: account.provider_key, label: account.display_label }
+      end
+    )
   end
 
   # Repositories the user can see, for the repository condition picker.

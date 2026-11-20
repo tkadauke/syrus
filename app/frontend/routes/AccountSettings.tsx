@@ -48,6 +48,7 @@ import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
 import type { ProviderAvailability, ProviderUsageWindow } from "../api/providerAvailability"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
 import { McpBridgeTokensPanel } from "../components/McpBridgeTokensPanel"
+import { ProviderAccountsPanel } from "../components/ProviderAccountsPanel"
 import {
   clearPersistedMotionPermission,
   MOTION_PERMISSION_CHANGED_EVENT,
@@ -174,7 +175,12 @@ function CredentialsView({
     )
   }
 
-  return <CredentialsForm key={`${payload.user.id}:${section}`} onNotice={onNotice} payload={payload} prefix={prefix} section={section} />
+  return (
+    <>
+      {section === "agent" ? <ProviderAccountsPanel onNotice={onNotice} payload={payload} /> : null}
+      <CredentialsForm key={`${payload.user.id}:${section}`} onNotice={onNotice} payload={payload} prefix={prefix} section={section} />
+    </>
+  )
 }
 
 // Chat provider pick, saved immediately per-change (partial PATCH) — the
