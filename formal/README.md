@@ -12,6 +12,10 @@ cd formal
 lake build                 # checks every proof and every counterexample
 ```
 
+CI runs the same build on every change to `formal/`
+(`.github/workflows/formal-ci.yml`). How the models will stay in sync with the
+Ruby and plug into Syrus is planned in [INTEGRATION.md](INTEGRATION.md).
+
 A green build means every theorem is proved and every `example ... := by decide`
 counterexample was evaluated and holds. There are no `sorry`s; the headline
 theorems depend only on Lean's standard axioms (`#print axioms`).

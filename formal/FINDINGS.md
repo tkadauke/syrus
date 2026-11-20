@@ -412,6 +412,15 @@ found. Unmodelled: Step insertion (review re-materialization, grader fan-out),
 - **Q3. Admin WorkUnits list 500s past page 29** (`Mysql2: Out of sort memory`)
   — found while paging it read-only for O1; not engine-related.
 
+## Pre-existing failures to fix
+
+- `spec/jobs/run_job_parallel_grader_projection_spec.rb:55` (ci_only) fails
+  locally: after `grader_fanout` runs, the materialized grader Steps have no
+  Runs (`step.runs.sole` raises). Reproduced with every app file this work
+  touched restored to the pre-session main commit, so it predates these
+  changes. Not yet known whether it also fails in CI or only on this machine
+  (the spec drives real git over `file://` remotes).
+
 ## Leads not yet worked (from the catalog)
 
 - `approved`/`implemented` Job without a PR: approve guard is `true`, and
