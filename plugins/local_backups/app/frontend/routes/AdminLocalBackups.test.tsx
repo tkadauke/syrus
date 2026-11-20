@@ -46,6 +46,8 @@ describe("AdminLocalBackups", () => {
     expect(await screen.findByText("/srv/backups")).toBeInTheDocument()
     expect(screen.getByText("sqlite3")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Create backup" })).toBeInTheDocument()
+    expect(screen.getByText(/final restore execution requires a separate explicit confirmation/i)).toBeInTheDocument()
+    expect(screen.getByText(/bin\/disaster-recovery/)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Validate" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Pin" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/v1/app/admin/local_backups/backup-1/download")

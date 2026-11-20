@@ -4,6 +4,8 @@
   "aria_main": "Inventarium exemplarium localium",
   "heading": "Exemplaria Localia",
   "description": "Exemplaria obsignata crea, valida, fige atque conserva.",
+  "recovery_guidance": "Praeparatio restitutionis nihil mutat. Fasciculum ipsum valida et ante modum conservationis praevide; restitutio ultima confirmationem expressam separatam requirit.",
+  "bootstrap_guidance": "Si applicatio aut basis datorum incipere non potest, bin/disaster-recovery utere ut fasciculum montatum vel transmissionem terminatam inspicias, valides, copies, importes, et praevideas.",
   "create": "Exemplarium crea",
   "actions": "Actiones",
   "validate": "Valida",
