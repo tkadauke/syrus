@@ -1180,6 +1180,11 @@ Non-agentic. Aggregates preflight grader results using the `GraderOutcome` taxon
 
 Unlike `grader_collect`, this step never raises `StepFailed`.
 
+A conclusive no-change repair records the health-evidence fingerprint that it
+covered. Strict-policy polling suppresses an identical reasserted signal for
+the same commit, but changed CI checks or grader failures on that commit remain
+eligible for a new repair immediately.
+
 The next `main_branch_repair` `implement` prompt includes `preflight_failures`
 and tells the agent to reproduce the exact failed command(s), run focused
 examples against the failure tail first, and commit once the focused checks pass
