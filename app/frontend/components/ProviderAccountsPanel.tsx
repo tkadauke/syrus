@@ -28,27 +28,39 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
   const [label, setLabel] = useState("")
   const [secret, setSecret] = useState("")
   const [authenticationKind, setAuthenticationKind] = useState(() =>
-    payload.user.agent_provider === "codex" ? "api_key" : (payload.options.provider_account_credential_attributes?.[payload.user.agent_provider]?.find((name) => name !== "codex_auth_mode") || "api_key")
+    payload.user.agent_provider === "codex"
+      ? "api_key"
+      : payload.options.provider_account_credential_attributes?.[payload.user.agent_provider]?.find((name) => name !== "codex_auth_mode") || "api_key"
   )
   const [editingAccount, setEditingAccount] = useState<ProviderAccount | null>(null)
   const [oauthStarted, setOauthStarted] = useState(false)
   const [oauthCode, setOauthCode] = useState("")
-  const credentialName = provider === "codex"
-    ? authenticationKind === "chatgpt_login" ? "codex_auth_json" : "codex_api_key"
-    : payload.options.provider_account_credential_attributes?.[provider]?.find((name) => name !== "codex_auth_mode") || ""
+  const credentialName =
+    provider === "codex"
+      ? authenticationKind === "chatgpt_login"
+        ? "codex_auth_json"
+        : "codex_api_key"
+      : payload.options.provider_account_credential_attributes?.[provider]?.find((name) => name !== "codex_auth_mode") || ""
   const replaceAccount = (account: ProviderAccount) =>
     queryClient.setQueryData<CredentialsCorePayload>(["credentials"], (current) =>
       current ? { ...current, provider_accounts: (current.provider_accounts || []).map((item) => (item.id === account.id ? account : item)) } : current
     )
   const create = useMutation({
-    mutationFn: () => editingAccount
-      ? updateProviderAccount(editingAccount.id, { authentication_kind: authenticationKind, credentials: { [credentialName]: secret } })
-      : createProviderAccount({ provider_key: provider, label, authentication_kind: authenticationKind, credentials: { [credentialName]: secret, ...(provider === "codex" ? { codex_auth_mode: authenticationKind } : {}) } }),
+    mutationFn: () =>
+      editingAccount
+        ? updateProviderAccount(editingAccount.id, { authentication_kind: authenticationKind, credentials: { [credentialName]: secret } })
+        : createProviderAccount({
+            provider_key: provider,
+            label,
+            authentication_kind: authenticationKind,
+            credentials: { [credentialName]: secret, ...(provider === "codex" ? { codex_auth_mode: authenticationKind } : {}) }
+          }),
     onSuccess: ({ provider_account, message }) => {
       if (editingAccount) replaceAccount(provider_account)
-      else queryClient.setQueryData<CredentialsCorePayload>(["credentials"], (current) =>
-        current ? { ...current, provider_accounts: [...(current.provider_accounts || []), provider_account] } : current
-      )
+      else
+        queryClient.setQueryData<CredentialsCorePayload>(["credentials"], (current) =>
+          current ? { ...current, provider_accounts: [...(current.provider_accounts || []), provider_account] } : current
+        )
       setAdding(false)
       setEditingAccount(null)
       setLabel("")
@@ -58,20 +70,25 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
   })
   const oauthTarget = editingAccount ? { provider_account_id: editingAccount.id } : { provider_account: true, label }
   const oauthStart = useMutation({
-    mutationFn: () => provider === "claude" ? startClaudeOauth(oauthTarget) : startCodexOauth(oauthTarget),
+    mutationFn: () => (provider === "claude" ? startClaudeOauth(oauthTarget) : startCodexOauth(oauthTarget)),
     onSuccess: ({ authorize_url }) => {
       openInNewTab(authorize_url)
       setOauthStarted(true)
     }
   })
   const oauthExchange = useMutation({
-    mutationFn: () => provider === "claude" ? exchangeClaudeOauth(oauthCode.trim(), oauthTarget) : exchangeCodexOauth(oauthCode.trim(), oauthTarget),
+    mutationFn: () => (provider === "claude" ? exchangeClaudeOauth(oauthCode.trim(), oauthTarget) : exchangeCodexOauth(oauthCode.trim(), oauthTarget)),
     onSuccess: ({ provider_account, message }) => {
       if (provider_account) {
         queryClient.setQueryData<CredentialsCorePayload>(["credentials"], (current) => {
           if (!current) return current
           const exists = (current.provider_accounts || []).some((account) => account.id === provider_account.id)
-          return { ...current, provider_accounts: exists ? (current.provider_accounts || []).map((account) => account.id === provider_account.id ? provider_account : account) : [...(current.provider_accounts || []), provider_account] }
+          return {
+            ...current,
+            provider_accounts: exists
+              ? (current.provider_accounts || []).map((account) => (account.id === provider_account.id ? provider_account : account))
+              : [...(current.provider_accounts || []), provider_account]
+          }
         })
       }
       setAdding(false)
@@ -120,8 +137,14 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
   }
   const manualActions = (
     <div className="mt-3 flex flex-wrap justify-end gap-2">
-      <button className="rounded border px-3 py-2 text-sm" onClick={closeEditor} type="button">{t("provider_accounts.cancel")}</button>
-      <button className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-50" disabled={create.isPending || !credentialName || !secret.trim()} type="submit">
+      <button className="rounded border px-3 py-2 text-sm" onClick={closeEditor} type="button">
+        {t("provider_accounts.cancel")}
+      </button>
+      <button
+        className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
+        disabled={create.isPending || !credentialName || !secret.trim()}
+        type="submit"
+      >
         {editingAccount ? t("provider_accounts.replace") : t("provider_accounts.connect")}
       </button>
     </div>
@@ -133,7 +156,14 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
           <h2 className="font-semibold">{t("provider_accounts.title")}</h2>
           <p className="mt-1 text-xs text-text-secondary">{t("provider_accounts.description")}</p>
         </div>
-        <button className="rounded border px-3 py-2 text-sm" onClick={() => { setAdding(!adding); setEditingAccount(null) }} type="button">
+        <button
+          className="rounded border px-3 py-2 text-sm"
+          onClick={() => {
+            setAdding(!adding)
+            setEditingAccount(null)
+          }}
+          type="button"
+        >
           {t((payload.provider_accounts || []).length === 0 ? "provider_accounts.setup" : "provider_accounts.add")}
         </button>
       </div>
@@ -145,29 +175,71 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
       {adding ? (
         <form className="mt-4 grid gap-3 sm:grid-cols-3" onSubmit={submit}>
           <Form.Field>
-          <Form.Label>{t("provider_accounts.provider")}</Form.Label>
-          <Form.Select disabled={Boolean(editingAccount)} onChange={(event) => { const next = event.target.value; setProvider(next); setAuthenticationKind(next === "codex" ? "api_key" : (payload.options.provider_account_credential_attributes?.[next]?.find((name) => name !== "codex_auth_mode") || "api_key")) }} value={provider}>
-            {payload.options.agent_providers.map((key) => (
-              <option key={key} value={key}>
-                {payload.options.agent_provider_labels?.[key] || key}
-              </option>
-            ))}
-          </Form.Select>
+            <Form.Label>{t("provider_accounts.provider")}</Form.Label>
+            <Form.Select
+              disabled={Boolean(editingAccount)}
+              onChange={(event) => {
+                const next = event.target.value
+                setProvider(next)
+                setAuthenticationKind(
+                  next === "codex"
+                    ? "api_key"
+                    : payload.options.provider_account_credential_attributes?.[next]?.find((name) => name !== "codex_auth_mode") || "api_key"
+                )
+              }}
+              value={provider}
+            >
+              {payload.options.agent_providers.map((key) => (
+                <option key={key} value={key}>
+                  {payload.options.agent_provider_labels?.[key] || key}
+                </option>
+              ))}
+            </Form.Select>
           </Form.Field>
-          {provider === "codex" ? <Form.Field><Form.Label>{t("provider_accounts.auth_method")}</Form.Label><Form.Select onChange={(event) => setAuthenticationKind(event.target.value)} value={authenticationKind}><option value="api_key">{t("provider_accounts.api_key")}</option><option value="chatgpt_login">{t("provider_accounts.chatgpt_login")}</option></Form.Select></Form.Field> : null}
-          {!editingAccount ? <Form.Field>
-          <Form.Label>{t("provider_accounts.label")}</Form.Label>
-          <Form.Input
-            maxLength={100}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder={t("provider_accounts.label_optional")}
-            value={label}
-          />
-          </Form.Field> : null}
-          {(provider === "claude" || (provider === "codex" && authenticationKind === "chatgpt_login")) ? (
+          {provider === "codex" ? (
+            <Form.Field>
+              <Form.Label>{t("provider_accounts.auth_method")}</Form.Label>
+              <Form.Select onChange={(event) => setAuthenticationKind(event.target.value)} value={authenticationKind}>
+                <option value="api_key">{t("provider_accounts.api_key")}</option>
+                <option value="chatgpt_login">{t("provider_accounts.chatgpt_login")}</option>
+              </Form.Select>
+            </Form.Field>
+          ) : null}
+          {!editingAccount ? (
+            <Form.Field>
+              <Form.Label>{t("provider_accounts.label")}</Form.Label>
+              <Form.Input
+                maxLength={100}
+                onChange={(event) => setLabel(event.target.value)}
+                placeholder={t("provider_accounts.label_optional")}
+                value={label}
+              />
+            </Form.Field>
+          ) : null}
+          {provider === "claude" || (provider === "codex" && authenticationKind === "chatgpt_login") ? (
             <div className="space-y-2 sm:col-span-3">
-              <button className="rounded bg-brand px-3 py-2 text-sm text-white" disabled={oauthStart.isPending} onClick={() => oauthStart.mutate()} type="button">{t("provider_accounts.authorize", { provider: payload.options.agent_provider_labels?.[provider] || provider })}</button>
-              {oauthStarted ? <Form.Field><Form.Label>{t("provider_accounts.oauth_code")}</Form.Label><Form.Input onChange={(event) => setOauthCode(event.target.value)} value={oauthCode} /><button className="mt-2 rounded border px-3 py-2 text-sm" disabled={!oauthCode.trim() || oauthExchange.isPending} onClick={() => oauthExchange.mutate()} type="button">{t("provider_accounts.connect")}</button></Form.Field> : null}
+              <button
+                className="rounded bg-brand px-3 py-2 text-sm text-white"
+                disabled={oauthStart.isPending}
+                onClick={() => oauthStart.mutate()}
+                type="button"
+              >
+                {t("provider_accounts.authorize", { provider: payload.options.agent_provider_labels?.[provider] || provider })}
+              </button>
+              {oauthStarted ? (
+                <Form.Field>
+                  <Form.Label>{t("provider_accounts.oauth_code")}</Form.Label>
+                  <Form.Input onChange={(event) => setOauthCode(event.target.value)} value={oauthCode} />
+                  <button
+                    className="mt-2 rounded border px-3 py-2 text-sm"
+                    disabled={!oauthCode.trim() || oauthExchange.isPending}
+                    onClick={() => oauthExchange.mutate()}
+                    type="button"
+                  >
+                    {t("provider_accounts.connect")}
+                  </button>
+                </Form.Field>
+              ) : null}
               <details>
                 <summary className="cursor-pointer text-sm">{t("provider_accounts.manual_alternative")}</summary>
                 <div className="mt-3">
@@ -176,7 +248,12 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
                 </div>
               </details>
             </div>
-          ) : <div className="sm:col-span-3"><AccountSecretField secret={secret} setSecret={setSecret} t={t} />{manualActions}</div>}
+          ) : (
+            <div className="sm:col-span-3">
+              <AccountSecretField secret={secret} setSecret={setSecret} t={t} />
+              {manualActions}
+            </div>
+          )}
         </form>
       ) : null}
       <div className="mt-4 space-y-3">
@@ -185,7 +262,14 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
             account={account}
             key={account.id}
             onRemove={() => remove.mutate(account.id)}
-            onReplace={() => { setProvider(account.provider_key); setAuthenticationKind(account.authentication_kind); setEditingAccount(account); setAdding(true); setSecret(""); setOauthStarted(false) }}
+            onReplace={() => {
+              setProvider(account.provider_key)
+              setAuthenticationKind(account.authentication_kind)
+              setEditingAccount(account)
+              setAdding(true)
+              setSecret("")
+              setOauthStarted(false)
+            }}
             onTest={() => test.mutate(account.id)}
             onUpdate={(values) => update.mutate({ id: account.id, values })}
           />
@@ -195,8 +279,21 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
   )
 }
 
-function AccountSecretField({ secret, setSecret, t }: { secret: string; setSecret: (value: string) => void; t: (key: string, options?: Record<string, unknown>) => string }) {
-  return <Form.Field><Form.Label>{t("provider_accounts.credential")}</Form.Label><Form.Input autoComplete="off" onChange={(event) => setSecret(event.target.value)} required type="password" value={secret} /></Form.Field>
+function AccountSecretField({
+  secret,
+  setSecret,
+  t
+}: {
+  secret: string
+  setSecret: (value: string) => void
+  t: (key: string, options?: Record<string, unknown>) => string
+}) {
+  return (
+    <Form.Field>
+      <Form.Label>{t("provider_accounts.credential")}</Form.Label>
+      <Form.Input autoComplete="off" onChange={(event) => setSecret(event.target.value)} required type="password" value={secret} />
+    </Form.Field>
+  )
 }
 
 function ProviderAccountRow({
@@ -239,7 +336,9 @@ function ProviderAccountRow({
         <button className="rounded border px-2 py-1 text-xs" onClick={() => onUpdate({ enabled: !account.enabled })} type="button">
           {account.enabled ? t("provider_accounts.disable") : t("provider_accounts.enable")}
         </button>
-        <button className="rounded border px-2 py-1 text-xs" onClick={onReplace} type="button">{t("provider_accounts.replace")}</button>
+        <button className="rounded border px-2 py-1 text-xs" onClick={onReplace} type="button">
+          {t("provider_accounts.replace")}
+        </button>
         <button className="rounded border px-2 py-1 text-xs" onClick={() => setRenaming(true)} type="button">
           {t("provider_accounts.rename")}
         </button>
@@ -250,7 +349,27 @@ function ProviderAccountRow({
           {t("provider_accounts.advanced")}
         </button>
       </div>
-      {renaming ? <div className="mt-3 flex items-end gap-2"><Form.Field className="grow"><Form.Label>{t("provider_accounts.label")}</Form.Label><Form.Input autoFocus maxLength={100} onChange={(event) => setDraftLabel(event.target.value)} value={draftLabel} /></Form.Field><button className="rounded border px-3 py-2 text-sm" onClick={() => { onUpdate({ label: draftLabel }); setRenaming(false) }} type="button">{t("provider_accounts.save")}</button><button className="rounded border px-3 py-2 text-sm" onClick={() => setRenaming(false)} type="button">{t("provider_accounts.cancel")}</button></div> : null}
+      {renaming ? (
+        <div className="mt-3 flex items-end gap-2">
+          <Form.Field className="grow">
+            <Form.Label>{t("provider_accounts.label")}</Form.Label>
+            <Form.Input autoFocus maxLength={100} onChange={(event) => setDraftLabel(event.target.value)} value={draftLabel} />
+          </Form.Field>
+          <button
+            className="rounded border px-3 py-2 text-sm"
+            onClick={() => {
+              onUpdate({ label: draftLabel })
+              setRenaming(false)
+            }}
+            type="button"
+          >
+            {t("provider_accounts.save")}
+          </button>
+          <button className="rounded border px-3 py-2 text-sm" onClick={() => setRenaming(false)} type="button">
+            {t("provider_accounts.cancel")}
+          </button>
+        </div>
+      ) : null}
       {!account.removable ? <p className="mt-2 text-xs text-warning-text">{t("provider_accounts.remove_guard")}</p> : null}
       {advanced ? (
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
