@@ -71,7 +71,7 @@ RSpec.describe ProviderAvailabilityEvidence do
     let(:job) { Factories.job(user: user, repository: Factories.repository(user: user), agent_provider: "muse") }
     let(:run) { job.initial_run }
 
-    it "records non-Codex invocation usage evidence without Codex account scoping" do
+    it "scopes non-Codex invocation usage evidence to the run's provider account" do
       run.update!(agent_provider: "muse", agent_outcome: "provider_usage_limit", model: "muse-spark-test")
       run.create_run_failure_classification!(
         classification: "provider_usage_limit",
@@ -91,7 +91,7 @@ RSpec.describe ProviderAvailabilityEvidence do
         user: user,
         run: run,
         provider: "muse",
-        account_id: nil,
+        account_id: run.provider_account.public_id,
         model: "muse-spark-test",
         status: "exhausted",
         source: "muse_invocation_failure"
