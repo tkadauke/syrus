@@ -108,8 +108,7 @@ describe("PlacementOverrideModal", () => {
 
 describe("headerActions Reset Job", () => {
   const t = ((key: string, options?: Record<string, unknown>) => (options ? `${key}:${JSON.stringify(options)}` : key)) as never
-  const base = (actions: Record<string, unknown>) =>
-    ({ actions, paths: {}, job: { state: "failed", summary_state: "failed" }, pinned: false }) as never
+  const base = (actions: Record<string, unknown>) => ({ actions, paths: {}, job: { state: "failed", summary_state: "failed" }, pinned: false }) as never
 
   it("offers a secondary Reset Job action with a discard list when the payload exposes it", () => {
     const action = headerActions(
