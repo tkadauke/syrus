@@ -231,8 +231,15 @@ Operators edit default routing rules from the credentials/account settings
 surfaces and repository-specific rules from the Automation section of repository
 settings. Account rules apply to Jobs that use the user's defaults; repository
 rules override matching account rules for that repository and are gated by the
-same repository-admin permissions as other repository automation settings. Job
-detail surfaces can also edit Job-scoped overrides, gated by the same write
+same repository-admin permissions as other repository automation settings.
+
+Agent Settings also manages multiple subscriptions for one provider. Each
+subscription has an optional label, independent credentials and health, an
+enabled state, an exhaustion threshold, and a routing weight. Disabling an
+account prevents new assignments without removing its history. Routing rules
+may leave account selection automatic or pin an enabled account by its opaque
+identifier; active resumable sessions and Workflows prevent account removal.
+Job detail surfaces can also edit Job-scoped overrides, gated by the same write
 permission used for Job mutation actions. The app API exposes scoped
 collections at
 `/api/v1/app/credentials/provider_routing_rules`,
