@@ -35,6 +35,25 @@ RSpec.describe LocalBackups::Recovery do
     end
   end
 
+  it "rejects files that are absent from the checksum inventory" do
+    Dir.mktmpdir do |directory|
+      artifact = build_artifact(directory)
+      artifact.join("unlisted").write("payload")
+
+      expect { described_class::Artifact.new(artifact).validate }
+        .to raise_error(described_class::InvalidArtifact, /unexpected entry: unlisted/)
+    end
+  end
+
+  it "applies the byte limit to directory artifact metadata" do
+    Dir.mktmpdir do |directory|
+      artifact = build_artifact(directory)
+
+      expect { described_class::Artifact.new(artifact, max_bytes: 7).validate }
+        .to raise_error(described_class::LimitExceeded, /artifact exceeds 7 bytes/)
+    end
+  end
+
   it "rejects archive traversal and decompression beyond the limit" do
     Dir.mktmpdir do |directory|
       archive = Pathname.new(directory).join("attack.tar")
@@ -136,6 +155,29 @@ RSpec.describe LocalBackups::Recovery do
     end
   end
 
+  it "makes an issued token stale when the manifest changes" do
+    Dir.mktmpdir do |directory|
+      path = build_artifact(directory)
+      artifact = described_class::Artifact.new(path)
+      environment = {
+        "SYRUS_INSTALLATION_ID" => "a", "SYRUS_RECOVERY_DESTINATION" => directory,
+        "SYRUS_RECOVERY_AVAILABLE_BYTES" => "100000"
+      }
+      original = described_class::Preflight.new(artifact:, environment:).call
+      manifest_path = path.join("manifest.json")
+      manifest = JSON.parse(manifest_path.read).merge("source_application_version" => "changed")
+      manifest_path.write(JSON.generate(manifest))
+      changed = artifact.validate
+
+      expect(changed.artifact_checksum).not_to eq(original[:artifact_checksum])
+      expect {
+        described_class::Preflight.verify_token!(
+          provided: original[:preflight_token], checksum: changed.artifact_checksum, identity: "a"
+        )
+      }.to raise_error(described_class::Error, /stale/)
+    end
+  end
+
   it "imports mounted artifacts and enforces streamed upload limits" do
     Dir.mktmpdir do |directory|
       artifact = build_artifact(directory)
@@ -145,6 +187,24 @@ RSpec.describe LocalBackups::Recovery do
       expect { described_class::Importer.new(destination:, max_bytes: 3).receive(StringIO.new("four")) }
         .to raise_error(described_class::LimitExceeded)
       expect(destination.children.select { |path| path.basename.to_s.end_with?(".partial") }).to be_empty
+    end
+  end
+
+  it "rejects a mounted artifact that changes while it is imported" do
+    importer_class = Class.new(described_class::Importer) do
+      def copy_bounded(source, target)
+        source.join("database/primary.sqlite3").write("changed after validation")
+        super
+      end
+    end
+
+    Dir.mktmpdir do |directory|
+      artifact = build_artifact(directory)
+      destination = Pathname.new(directory).join("imports")
+
+      expect { importer_class.new(destination:, max_bytes: 1000).import(artifact) }
+        .to raise_error(described_class::InvalidArtifact, /checksum mismatch/)
+      expect(destination.children).to be_empty
     end
   end
 end

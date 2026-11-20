@@ -57,14 +57,18 @@ module LocalBackups
           raise InvalidArtifact, "checksum inventory is missing" unless checksum_path.file?
           total = 0
           seen = {}
+          expected_files = { "manifest.json" => true, "checksums.sha256" => true }
           checksum_path.each_line.with_index(1) do |line, number|
             expected, relative = line.strip.split(/\s+/, 2)
             unless expected&.match?(/\A[0-9a-f]{64}\z/) && relative && !relative.empty?
               raise InvalidArtifact, "malformed checksum inventory at line #{number}"
             end
-            raise InvalidArtifact, "duplicate checksum path #{relative}" if seen[relative]
-            seen[relative] = true
-            path = contained(root, relative)
+            normalized = safe_relative(relative).to_s
+            raise InvalidArtifact, "checksum inventory includes reserved path #{relative}" if expected_files[normalized]
+            raise InvalidArtifact, "duplicate checksum path #{relative}" if seen[normalized]
+            seen[normalized] = true
+            expected_files[normalized] = true
+            path = contained(root, normalized)
             raise InvalidArtifact, "checksum target is not a regular file: #{relative}" unless path.file?
             total += path.size
             raise LimitExceeded, "extracted contents exceed #{max_bytes} bytes" if total > max_bytes
@@ -72,9 +76,11 @@ module LocalBackups
           end
           declared = manifest["checksum"]
           declared = declared["value"] if declared.is_a?(Hash)
-          actual = Digest::SHA256.file(checksum_path).hexdigest
-          raise InvalidArtifact, "artifact checksum does not match manifest" if declared && declared != actual
-          Result.new(artifact: source.to_s, manifest:, artifact_checksum: actual, logical_bytes: total)
+          inventory_checksum = Digest::SHA256.file(checksum_path).hexdigest
+          raise InvalidArtifact, "artifact checksum does not match manifest" if declared && declared != inventory_checksum
+          validate_exact_tree!(root, expected_files)
+          artifact_checksum = exact_tree_checksum(root, expected_files)
+          Result.new(artifact: source.to_s, manifest:, artifact_checksum:, logical_bytes: total)
         end
       rescue JSON::ParserError, KeyError => e
         raise InvalidArtifact, e.message
@@ -149,6 +155,31 @@ module LocalBackups
         resolved
       end
 
+      def validate_exact_tree!(root, expected_files)
+        expected_directories = expected_files.each_key.each_with_object({}) do |relative, directories|
+          parent = Pathname.new(relative).dirname
+          until parent.to_s == "."
+            directories[parent.to_s] = true
+            parent = parent.dirname
+          end
+        end
+        root.find do |path|
+          next if path == root
+
+          relative = path.relative_path_from(root).to_s
+          expected = path.directory? ? expected_directories[relative] : path.file? && expected_files[relative]
+          raise InvalidArtifact, "artifact contains unexpected entry: #{relative}" unless expected
+        end
+      end
+
+      def exact_tree_checksum(root, expected_files)
+        expected_files.keys.sort.each_with_object(Digest::SHA256.new) do |relative, digest|
+          path = root.join(relative)
+          digest << [relative.bytesize].pack("Q>") << relative
+          digest << [path.size].pack("Q>") << Digest::SHA256.file(path).digest
+        end.hexdigest
+      end
+
       def safe_relative(value)
         raise LimitExceeded, "artifact path exceeds #{MAX_PATH_BYTES} bytes" if value.bytesize > MAX_PATH_BYTES
         path = Pathname.new(value).cleanpath
@@ -160,6 +191,7 @@ module LocalBackups
 
       def reject_symlinks!(root)
         entries = 0
+        bytes = 0
         root.find do |path|
           next if path == root
 
@@ -168,6 +200,8 @@ module LocalBackups
           relative = path.relative_path_from(root)
           safe_relative(relative.to_s)
           raise InvalidArtifact, "artifact contains a symlink: #{relative}" if path.symlink?
+          bytes += path.size if path.file?
+          raise LimitExceeded, "artifact exceeds #{max_bytes} bytes" if bytes > max_bytes
         end
       end
 
@@ -321,8 +355,15 @@ module LocalBackups
         name = "#{result.artifact_checksum}-#{File.basename(source.to_s)}"
         target = @destination.join(name)
         raise Error, "import target already exists: #{target}" if target.exist?
-        copy_bounded(Pathname.new(source), target)
-        { imported_to: target.to_s, artifact_checksum: result.artifact_checksum }
+        begin
+          copy_bounded(Pathname.new(source), target)
+          imported = Artifact.new(target, max_bytes: @max_bytes).validate
+          raise InvalidArtifact, "artifact changed during import" unless imported.artifact_checksum == result.artifact_checksum
+          { imported_to: target.to_s, artifact_checksum: imported.artifact_checksum }
+        rescue StandardError
+          FileUtils.rm_rf(target) if target.exist?
+          raise
+        end
       end
 
       def receive(io)
