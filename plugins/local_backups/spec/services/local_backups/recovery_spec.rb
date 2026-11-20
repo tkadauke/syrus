@@ -69,6 +69,18 @@ RSpec.describe LocalBackups::Recovery do
     end
   end
 
+  it "accepts a name-only declaration for an available plugin" do
+    Dir.mktmpdir do |directory|
+      path = create_bundle(directory, manifest: { plugins: [{ name: "durable_plugin", required: true }] })
+      report = described_class::Preflight.new(
+        bundle: described_class::Bundle.new(path), destination: directory, installation_id: "install-a", token_secret: "secret",
+        current: { database_adapter: "sqlite3", plugins: ["durable_plugin"] }
+      ).call
+
+      expect(report[:checks]).to include(include(name: "plugins", status: "pass"))
+    end
+  end
+
   it "issues stable tokens bound to the artifact and installation and explains unknown live work" do
     Dir.mktmpdir do |directory|
       bundle = described_class::Bundle.new(create_bundle(directory))
@@ -99,6 +111,18 @@ RSpec.describe LocalBackups::Recovery do
       bundle = described_class::Bundle.new(create_bundle(source))
       imported = described_class::Importer.new(root: destination).import(bundle)
       expect(described_class::Bundle.new(imported).validate!.manifest["backup_id"]).to eq("backup-1")
+    end
+  end
+
+  it "rejects a backup ID that could escape the import root" do
+    Dir.mktmpdir do |directory|
+      source = Pathname.new(directory).join("source").tap(&:mkpath)
+      destination = Pathname.new(directory).join("destination").tap(&:mkpath)
+      bundle = described_class::Bundle.new(create_bundle(source, manifest: { backup_id: "nested/../../outside" }))
+
+      expect { described_class::Importer.new(root: destination).import(bundle) }
+        .to raise_error(described_class::Error, "backup_id is not a safe filename")
+      expect(Pathname.new(directory).join("outside")).not_to exist
     end
   end
 end
