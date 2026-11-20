@@ -87,8 +87,12 @@ chmod 600 .env
 echo "== Building the worker image (first build can take 20-40 min) =="
 SYRUS_DOCKER_CACHE_PUSH="${SYRUS_DOCKER_CACHE_PUSH:-1}"
 export SYRUS_DOCKER_CACHE_PUSH
-mapfile -t VERSION_METADATA < <(syrus_git_version_metadata)
-syrus_build_local_base_image dev --version="${VERSION_METADATA[0]:-}" --version-description="${VERSION_METADATA[1]:-}"
+# Two lines: the release version, then its description. Read them without
+# `mapfile`, which the bash 3 that macOS ships does not have.
+SYRUS_RELEASE_VERSION=""
+SYRUS_VERSION_DESCRIPTION=""
+{ IFS= read -r SYRUS_RELEASE_VERSION; IFS= read -r SYRUS_VERSION_DESCRIPTION; } < <(syrus_git_version_metadata) || true
+syrus_build_local_base_image dev --version="$SYRUS_RELEASE_VERSION" --version-description="$SYRUS_VERSION_DESCRIPTION"
 
 # 3. Build the local extension (EXTRA_APT_PACKAGES) and start the stack. The
 #    build override turns the pull-based docker-compose.yml into a build-from-

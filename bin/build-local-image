@@ -51,9 +51,11 @@ syrus_require_docker_daemon
 syrus_disable_buildx_attestations
 
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
-mapfile -t VERSION_METADATA < <(syrus_git_version_metadata)
-SYRUS_RELEASE_VERSION="${VERSION_METADATA[0]:-}"
-SYRUS_VERSION_DESCRIPTION="${VERSION_METADATA[1]:-}"
+# Two lines: the release version, then its description. Read them without
+# `mapfile`, which the bash 3 that macOS ships does not have.
+SYRUS_RELEASE_VERSION=""
+SYRUS_VERSION_DESCRIPTION=""
+{ IFS= read -r SYRUS_RELEASE_VERSION; IFS= read -r SYRUS_VERSION_DESCRIPTION; } < <(syrus_git_version_metadata) || true
 # Bake the build time so the BuildBadge tooltip can tell WHICH dev image a
 # stack is running — exactly the "is my backend older than my app?" question
 # this script's iterate-on-the-desktop-app loop keeps raising.
