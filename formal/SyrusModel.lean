@@ -18,3 +18,4 @@ import SyrusModel.MergeFence
 import SyrusModel.LockAcquire
 import SyrusModel.SupersededWork
 import SyrusModel.StepRuns
+import SyrusModel.EpicWide

@@ -1772,9 +1772,9 @@
         "urgent_landing_preempts_blocked_epic_train",
         "epic_merge_train_after_approval_events"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "An Epic-wide workflow starts while children run and the reconciler cancels the children afterwards (6 applied); two Epic-wide starts can race (check-then-act)."
+      "status": "partial",
+      "done_by": "EpicWide.lean · NY2",
+      "notes": "Epic-wide kinds are merge_train and stack_rebase. The start rule (EpicWorkflowLock.blocking_workflow_for) only waits for other Epic-wide Workflows, so a stack rebase can start while a member (e.g. a grandchild in the stack) is mid-implementation; classify_epic_workflow_conflicts then keeps the Epic-wide Workflow and cancels the running member work (6 applied in the production sample). EpicWide.lean: today_breaks; with Epic-wide work waiting for idle members, every interleaving stays exclusive (wait_rule_exclusive). Whether to wait or to preempt-and-relaunch is NY2."
     },
     {
       "id": "epic-conflict-victim-not-relaunched",
@@ -2330,6 +2330,18 @@
         "C. Today's behavior is intended: reviews cover the implementation, graders cover later fixes. Document it and record it as by design."
       ],
       "recommendation": "A. Mechanical steps are deterministic and already gated by graders; agent edits after approval are exactly what the barrier exists to catch. Lean then proves 'the last agent-authored commit was reviewed' for every push."
+    },
+    {
+      "id": "NY2",
+      "item": "epic-wide-workflow-conflict",
+      "title": "Should Epic-wide work wait for running member work, or preempt it?",
+      "context": "Merge trains and stack rebases are Epic-wide. Today an Epic-wide Workflow starts as long as no other Epic-wide Workflow is active, even while a member Job's own Workflow is running; the reconciler then cancels the member's running work (6 times in the production sample). For a stack rebase that means rebasing branches an agent may be writing to, and the cancelled member is not automatically relaunched (see 'A Job cancelled to make room for an Epic-wide Workflow is never restarted').",
+      "options": [
+        "A. Epic-wide work waits: it gets a start block until no member Workflow in the Epic is active, like members already wait for it. No preemption, nothing to relaunch.",
+        "B. Epic-wide work preempts: keep cancelling member work, but cancel it before starting (not via the reconciler afterwards) and relaunch every victim when the Epic-wide Workflow finishes.",
+        "C. Keep today's behavior."
+      ],
+      "recommendation": "A. Waiting is the only option that never discards running agent work, it needs no relaunch bookkeeping, and EpicWide.lean shows it keeps the Epic exclusive under every interleaving. A stack rebase is rarely urgent enough to justify killing an implementation mid-run."
     }
   ]
 }
