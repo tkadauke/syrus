@@ -10,6 +10,7 @@
   "pin": "Pin",
   "unpin": "Unpin",
   "delete": "Delete",
+  "download": "Download",
   "delete_confirm": "Delete this eligible backup permanently?",
   "loading": "Loading local backups...",
   "load_error": "Unable to load local backups.",

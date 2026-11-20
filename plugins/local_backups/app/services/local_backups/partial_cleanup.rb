@@ -5,10 +5,14 @@ module LocalBackups
     end
 
     def call
+      removed = 0
       @root.path.children.select { |path| path.basename.to_s.end_with?(".partial") && path.mtime < @older_than }.each do |path|
         next unless path.parent.realpath == @root.path
         FileUtils.remove_entry_secure(path)
+        removed += 1
       end
+      OperationalEvents.emit("partials_cleaned", removed:) if removed.positive?
+      removed
     end
   end
 end

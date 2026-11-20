@@ -33,3 +33,4 @@ export const validateLocalBackup = (id: string) => postJson(`/api/v1/app/admin/l
 export const pinLocalBackup = (id: string) => postJson(`/api/v1/app/admin/local_backups/${id}/pin`)
 export const unpinLocalBackup = (id: string) => deleteJson(`/api/v1/app/admin/local_backups/${id}/pin`)
 export const deleteLocalBackup = (id: string) => deleteJson(`/api/v1/app/admin/local_backups/${id}`)
+export const localBackupDownloadUrl = (id: string) => `/api/v1/app/admin/local_backups/${id}/download`

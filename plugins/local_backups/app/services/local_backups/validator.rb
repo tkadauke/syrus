@@ -22,9 +22,11 @@ module LocalBackups
       end
       Manifest.read(artifact.join("manifest.json"))
       backup.update!(validated_at: Time.current, verification_state: "valid")
+      OperationalEvents.emit("validated", backup_uuid: backup.uuid)
       backup
     rescue StandardError => e
       backup.update_columns(verification_state: "invalid", error_class: e.class.name, error_summary: e.message.to_s.first(1000))
+      OperationalEvents.emit("validation_failed", backup_uuid: backup.uuid, error_class: e.class.name)
       raise
     end
 
