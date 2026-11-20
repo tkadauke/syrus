@@ -79,6 +79,13 @@ def resolve_diff_base
     abort "[check-migrations] configured diff base #{explicit.inspect} does not exist"
   end
 
+  # Syrus hands every grader the Job's effective base. Prefer it to guessing
+  # from the checkout's refs: a stacked Job's base is its parent's branch, and
+  # a grader checkout can also carry a stale origin/main, against which
+  # migrations that landed on main later look like this branch's own changes.
+  syrus_base = ENV["SYRUS_BASE_REF"].to_s.strip
+  return syrus_base if !syrus_base.empty? && git_ref_exists?(syrus_base)
+
   default = %w[origin/main origin/master main master].find { |ref| git_ref_exists?(ref) }
   return default if default
 
