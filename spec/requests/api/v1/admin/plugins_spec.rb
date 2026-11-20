@@ -48,10 +48,11 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("plugins").sole.fetch("capabilities")).to contain_exactly(
       "family" => "api_family", "capability" => "items", "provider" => "UnloadedApiPlugin::Provider",
-      "tier" => "stable", "priority" => 100
+      "key" => nil, "tier" => "stable", "priority" => 100
     )
     expect(Object.const_defined?(:UnloadedApiPlugin)).to be(false)
   ensure
+    Syrus::PluginRegistry.reset!
     Syrus::Plugin::Family.reset!
   end
 

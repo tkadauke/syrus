@@ -517,6 +517,31 @@ module Syrus
         capability = capability.to_sym
         raise ArgumentError, "Unknown capability #{capability.inspect} for family #{family.inspect}" unless definition.capabilities.key?(capability)
 
+        capability_providers_from(available_capability_plugins, definition, capability)
+      end
+
+      def capability_catalog(family = nil)
+        definitions = family ? [ Syrus::Plugin::Family.fetch(family) ] : Syrus::Plugin::Family.all
+        plugins = available_capability_plugins
+        definitions.flat_map do |definition|
+          definition.capabilities.keys.flat_map do |capability|
+            capability_providers_from(plugins, definition, capability).map(&:catalog_payload)
+          end
+        end
+      end
+
+      def capability_providers_from(plugins, definition, capability)
+        plugins.flat_map do |manifest|
+          manifest.family_provides.filter_map do |declaration|
+            next unless declaration.family == definition.name && declaration.capabilities.include?(capability)
+            Syrus::Plugin::CapabilityProvider.new(plugin_name: manifest.name, family: definition.name,
+              capability:, provider_name: declaration.provider, key: declaration.key, priority: manifest.prepare_priority)
+          end
+        end
+      end
+      private :capability_providers_from
+
+      def available_capability_plugins
         plugins = @mutex.synchronize { @plugins.dup }
         begin
           records = records_for(plugins)
@@ -526,24 +551,9 @@ module Syrus
         rescue ActiveRecord::ActiveRecordError
           # Registration remains usable before the plugin_records table exists.
         end
-
-        sort_by_prepare_priority(plugins).flat_map do |manifest|
-          manifest.family_provides.filter_map do |declaration|
-            next unless declaration.family == definition.name && declaration.capabilities.include?(capability)
-            Syrus::Plugin::CapabilityProvider.new(plugin_name: manifest.name, family: definition.name,
-              capability:, provider_name: declaration.provider, priority: manifest.prepare_priority)
-          end
-        end
+        sort_by_prepare_priority(plugins)
       end
-
-      def capability_catalog(family = nil)
-        definitions = family ? [ Syrus::Plugin::Family.fetch(family) ] : Syrus::Plugin::Family.all
-        definitions.flat_map do |definition|
-          definition.capabilities.keys.flat_map do |capability|
-            capability_providers(definition.name, capability).map(&:catalog_payload)
-          end
-        end
-      end
+      private :available_capability_plugins
 
       def direct_providers_for(extension_point)
         @mutex.synchronize { @direct_providers[extension_point.to_sym].dup }
