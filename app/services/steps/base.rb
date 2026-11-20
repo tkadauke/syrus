@@ -92,6 +92,12 @@ module Steps
     end
 
     class AuthorizationCheckpointReached < StandardError; end
+
+    # Raised when the Run was ended from outside -- a reaper, a workspace
+    # repair or an operator stop -- while this handler was still preparing.
+    # It is not a failure of the step: the Run already holds its terminal
+    # state, and RunJob stops without writing another one.
+    class RunEndedExternally < StandardError; end
     AGENT_RESULT_PROBLEM_CODES = {
       "error_during_execution" => "provider_transient",
       "error_max_turns" => "agent_max_turns",
@@ -407,6 +413,7 @@ module Steps
     # on any of the non-success outcomes.
     def run_agent(prompt:, max_turns: nil, resume_session_id: DEFAULT_AGENT_RESUME, required_mcp_tools: nil,
                   disallowed_tools: nil, enforce_required_mcp_tools: false, workload_policy: nil)
+      ensure_run_still_active!("launching the agent")
       prompt = AgentEnvironmentSnapshot.new(run: run, workspace_path: workspace.path).apply_to(prompt)
       prompt = JobAttachmentContext.new(job: job, workspace_path: workspace.path).apply_to(prompt)
       adapter = resume_session_id.equal?(DEFAULT_AGENT_RESUME) ? agent_adapter : agent_adapter_for(resume_session_id)
@@ -446,6 +453,22 @@ module Steps
       result
     rescue AgentProviders::ConfigurationError => e
       fail_with!(:provider_auth_or_config, e.message, evidence: { provider: agent_provider })
+    end
+
+    # Preparation can take minutes, and the Run may be ended from outside in
+    # the meantime. Launching an agent for an ended Run cannot succeed -- its
+    # invocation context is already closed -- and only buries the real
+    # terminal state under a misleading agent failure. Call at long phase
+    # boundaries; it raises RunEndedExternally when there is nothing to do.
+    def ensure_run_still_active!(phase)
+      # Fresh copies, so the handler's in-memory records (and anything it has
+      # set but not yet saved) are left alone.
+      [ run, step, workflow ].each do |record|
+        fresh = record.class.find_by(id: record.id)
+        label = "#{record.class.name.downcase} ##{record.id}"
+        raise RunEndedExternally, "#{label} no longer exists; stopping before #{phase}" if fresh.nil?
+        raise RunEndedExternally, "#{label} is #{fresh.state}; stopping before #{phase}" if fresh.terminal?
+      end
     end
 
     def authorization_checkpoint_waiting?
