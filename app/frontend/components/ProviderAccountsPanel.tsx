@@ -110,6 +110,22 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
     event.preventDefault()
     create.mutate()
   }
+  const closeEditor = () => {
+    setAdding(false)
+    setEditingAccount(null)
+    setLabel("")
+    setSecret("")
+    setOauthStarted(false)
+    setOauthCode("")
+  }
+  const manualActions = (
+    <div className="mt-3 flex flex-wrap justify-end gap-2">
+      <button className="rounded border px-3 py-2 text-sm" onClick={closeEditor} type="button">{t("provider_accounts.cancel")}</button>
+      <button className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-50" disabled={create.isPending || !credentialName || !secret.trim()} type="submit">
+        {editingAccount ? t("provider_accounts.replace") : t("provider_accounts.connect")}
+      </button>
+    </div>
+  )
   return (
     <Surface data-testid="provider-accounts-panel">
       <div className="flex items-center justify-between gap-3">
@@ -152,10 +168,15 @@ export function ProviderAccountsPanel({ payload, onNotice }: { payload: Credenti
             <div className="space-y-2 sm:col-span-3">
               <button className="rounded bg-brand px-3 py-2 text-sm text-white" disabled={oauthStart.isPending} onClick={() => oauthStart.mutate()} type="button">{t("provider_accounts.authorize", { provider: payload.options.agent_provider_labels?.[provider] || provider })}</button>
               {oauthStarted ? <Form.Field><Form.Label>{t("provider_accounts.oauth_code")}</Form.Label><Form.Input onChange={(event) => setOauthCode(event.target.value)} value={oauthCode} /><button className="mt-2 rounded border px-3 py-2 text-sm" disabled={!oauthCode.trim() || oauthExchange.isPending} onClick={() => oauthExchange.mutate()} type="button">{t("provider_accounts.connect")}</button></Form.Field> : null}
-              {provider === "claude" ? <details><summary className="cursor-pointer text-sm">{t("provider_accounts.manual_alternative")}</summary><AccountSecretField secret={secret} setSecret={setSecret} t={t} /></details> : null}
+              <details>
+                <summary className="cursor-pointer text-sm">{t("provider_accounts.manual_alternative")}</summary>
+                <div className="mt-3">
+                  <AccountSecretField secret={secret} setSecret={setSecret} t={t} />
+                  {manualActions}
+                </div>
+              </details>
             </div>
-          ) : <AccountSecretField secret={secret} setSecret={setSecret} t={t} />}
-          {secret ? <button className="rounded bg-brand px-3 py-2 text-sm text-white sm:col-start-3" disabled={create.isPending || !credentialName} type="submit">{editingAccount ? t("provider_accounts.replace") : t("provider_accounts.connect")}</button> : null}
+          ) : <div className="sm:col-span-3"><AccountSecretField secret={secret} setSecret={setSecret} t={t} />{manualActions}</div>}
         </form>
       ) : null}
       <div className="mt-4 space-y-3">

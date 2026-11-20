@@ -243,6 +243,13 @@ describe("CredentialsRoute (provider cards)", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Rename" })[0])
     expect(screen.getByLabelText("Account label")).toHaveValue("")
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Reconnect / replace" })[0])
+    const manualSummary = screen.getByText("Or enter credentials manually")
+    fireEvent.click(manualSummary)
+    const manualDetails = manualSummary.closest("details")!
+    expect(within(manualDetails).getByRole("button", { name: "Reconnect / replace" })).toBeDisabled()
+    expect(within(manualDetails).getByRole("button", { name: "Cancel" })).toBeInTheDocument()
   })
 
   it("offers provider OAuth for the first account", async () => {
@@ -251,6 +258,27 @@ describe("CredentialsRoute (provider cards)", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Set up a subscription" }))
     expect(screen.getByRole("button", { name: "Authorize with Claude Code" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Or enter credentials manually"))
+    const panel = screen.getByTestId("provider-accounts-panel")
+    expect(within(panel).getByRole("button", { name: "Connect" })).toBeDisabled()
+    expect(within(panel).getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+    fireEvent.change(within(panel).getByLabelText("Credential"), { target: { value: "setup-token" } })
+    expect(within(panel).getByRole("button", { name: "Connect" })).toBeEnabled()
+  })
+
+  it("always shows submit and cancel actions for a manual Codex account", async () => {
+    mockRoutes(makePayload())
+    renderAgentSettings()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Set up a subscription" }))
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "codex" } })
+
+    const panel = screen.getByTestId("provider-accounts-panel")
+    expect(within(panel).getByLabelText("Credential")).toBeInTheDocument()
+    expect(within(panel).getByRole("button", { name: "Connect" })).toBeDisabled()
+    fireEvent.click(within(panel).getByRole("button", { name: "Cancel" }))
+    expect(within(panel).queryByLabelText("Credential")).not.toBeInTheDocument()
   })
 
   it("renders one card per provider from the payload, without a global Save", async () => {
