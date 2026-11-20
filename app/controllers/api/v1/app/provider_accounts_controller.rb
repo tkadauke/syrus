@@ -6,7 +6,7 @@ module Api
         before_action :set_account, only: %i[update destroy test]
 
         def index
-          render json: { provider_accounts: Current.user.provider_accounts.in_position_order.map { |account| provider_account_json(account) } }
+          render json: { provider_accounts: provider_accounts_json(Current.user.provider_accounts.in_position_order) }
         end
 
         def create
