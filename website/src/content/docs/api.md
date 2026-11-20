@@ -145,6 +145,20 @@ engagement telemetry is enabled. Every percentile includes its cleaned sample
 count, and small samples return `not_enough_data` instead of a number. The
 window defaults to 7 days and is limited to 1–90 days.
 
+## Review Workspace
+
+When the bundled Review Workspace plugin is enabled,
+`GET /api/v1/app/review_workspace` returns the signed-in operator's actionable
+review stack and `GET /api/v1/app/review_workspace/count` returns the matching
+sidebar badge count. Both endpoints run the same eligibility query and
+revalidate visibility, write access, approval eligibility, and active runtime
+work on every request.
+
+List entries contain compact Job, repository, priority, ready-time, dependency,
+and pull-request identifiers for opening the active review. Ordering is
+deterministic: dependency-ready first, then explicit priority, oldest ready
+time, and Job ID. Disabled plugins return a not-found response for both routes.
+
 ## Repository API payloads
 
 `GET /api/v1/app/repositories` returns the active and archived rows used by

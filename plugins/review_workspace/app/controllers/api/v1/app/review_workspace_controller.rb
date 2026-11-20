@@ -1,0 +1,25 @@
+module Api
+  module V1
+    module App
+      class ReviewWorkspaceController < BaseController
+        before_action :require_review_workspace_enabled
+
+        def index
+          render json: ReviewWorkspace::Payload.call(user: Current.user)
+        end
+
+        def count
+          render json: { count: ReviewWorkspace::EligibleJobs.call(user: Current.user).length }
+        end
+
+        private
+
+        def require_review_workspace_enabled
+          return if ::ReviewWorkspace.enabled?
+
+          render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "review_workspace"), status: :not_found)
+        end
+      end
+    end
+  end
+end

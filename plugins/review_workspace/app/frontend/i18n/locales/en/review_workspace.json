@@ -1,0 +1,14 @@
+{
+  "nav_review": "Review",
+  "title": "Review",
+  "position": "{{current}} of {{count}} ready now",
+  "ready_now": "Ready now",
+  "ready": "Ready",
+  "priority": "{{priority}} priority",
+  "dependency_blocked": "Dependency blocked",
+  "action_hint": "Open the Job's current review evidence to make a decision. Eligibility is checked again when you act.",
+  "open_review": "Open active review",
+  "all_caught_up": "All caught up",
+  "empty": "There are no Jobs you can approve right now.",
+  "load_error": "Unable to load the review workspace."
+}

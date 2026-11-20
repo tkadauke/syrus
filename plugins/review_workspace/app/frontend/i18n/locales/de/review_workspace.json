@@ -1,0 +1,14 @@
+{
+  "nav_review": "Review",
+  "title": "Review",
+  "position": "{{current}} von {{count}} jetzt bereit",
+  "ready_now": "Jetzt bereit",
+  "ready": "Bereit",
+  "priority": "Priorität: {{priority}}",
+  "dependency_blocked": "Durch Abhängigkeit blockiert",
+  "action_hint": "Öffne die aktuellen Review-Nachweise des Jobs, um zu entscheiden. Deine Berechtigung wird bei der Aktion erneut geprüft.",
+  "open_review": "Aktive Review öffnen",
+  "all_caught_up": "Alles erledigt",
+  "empty": "Es gibt gerade keine Jobs, die du genehmigen kannst.",
+  "load_error": "Der Review-Arbeitsbereich konnte nicht geladen werden."
+}
