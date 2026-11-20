@@ -54,7 +54,12 @@ class ProviderAvailabilityPause
     return admit unless provider.present?
 
     refresh_stale_usage
-    availability = App::ProviderAvailability.for_user(user, provider, provider_account: selected_provider_account, now: now)
+    account = selected_provider_account
+    availability = if account && !account.default?
+      App::ProviderAvailability.for_user(user, provider, provider_account: account, now: now)
+    else
+      App::ProviderAvailability.for_user(user, provider, now: now)
+    end
     return admit if overridden?(availability)
     return decide_unavailable("provider_usage_exhausted", availability) if usage_exhausted?(availability)
     return decide_unavailable("provider_usage_low", availability) if low_usage?(availability)

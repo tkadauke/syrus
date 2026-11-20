@@ -93,12 +93,12 @@ class ProviderAccount < ApplicationRecord
   def provider_is_registered
     return if provider_key.blank? || provider_key.in?(User.agent_providers)
 
-    errors.add(:provider_key, "is not a registered agent provider")
+    errors.add(:provider_key, I18n.t("server.errors.provider_accounts.unregistered_provider"))
   end
 
   def credential_payload_is_an_object
     return if credential_payload.is_a?(Hash)
 
-    errors.add(:credential_payload, "must be an object")
+    errors.add(:credential_payload, I18n.t("server.errors.provider_accounts.invalid_credential_payload"))
   end
 end

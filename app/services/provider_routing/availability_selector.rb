@@ -151,8 +151,8 @@ module ProviderRouting
       first_unavailable_availability = nil
 
       candidates.each do |candidate|
-        account, candidate_availability = select_account(candidate)
-        unless account
+        available, account, candidate_availability = select_account(candidate)
+        unless available
           first_unavailable_candidate ||= candidate
           first_unavailable_availability ||= candidate_availability
           next
@@ -174,11 +174,11 @@ module ProviderRouting
       return nil unless resolution.panel?
 
       members = resolution.members.map do |candidate|
-        account, unavailable = select_account(candidate)
+        available, account, unavailable = select_account(candidate)
         candidate.to_h.stringify_keys.merge(
           "account_id" => account&.public_id || candidate.account_id,
           "selected_account" => account&.safe_reference&.stringify_keys,
-          "available" => account.present?,
+          "available" => available,
           "availability" => unavailable
         ).compact
       end
@@ -210,6 +210,13 @@ module ProviderRouting
     def candidates
       @candidates ||= if routing_resolution.held?
         []
+      elsif original_candidate && !ProviderRouting::Resolver.rule_configured?(
+        job: job,
+        task_key: task_key,
+        trigger: trigger,
+        workflow_trigger_kind: workflow_trigger_kind
+      )
+        [ original_candidate ]
       else
         routing_resolution.candidates.presence || ProviderRouting::Resolver::HARDCODED_FALLBACK
       end
@@ -242,9 +249,16 @@ module ProviderRouting
         accounts = accounts.where(id: workflow.provider_account_id)
       end
       accounts = accounts.to_a
-      return [ nil, credential_unavailability(candidate.provider) ] if accounts.empty?
+      if accounts.empty?
+        unavailable = credential_unavailability(candidate.provider)
+        return [ false, nil, unavailable ] if unavailable
+
+        refresh_stale_usage(candidate.provider)
+        payload = App::ProviderAvailability.for_user(user, candidate.provider, now: now)
+        return [ available_enough?(candidate.provider, payload), nil, payload ]
+      end
       if accounts.one? && accounts.first.default? && !AgentProviders.for(candidate.provider).configured_for_user?(user)
-        return [ nil, credential_unavailability(candidate.provider) ]
+        return [ false, nil, credential_unavailability(candidate.provider) ]
       end
 
       payloads = accounts.to_h do |account|
@@ -260,11 +274,11 @@ module ProviderRouting
         [ account.id, payload ]
       end
       eligible = accounts.select { |account| available_enough?(candidate.provider, payloads[account.id], account) }
-      return [ nil, payloads[accounts.first.id] ] if eligible.empty?
+      return [ false, nil, payloads[accounts.first.id] ] if eligible.empty?
 
-      [ reserve_least_pressured_account(eligible, payloads), nil ]
+      [ true, reserve_least_pressured_account(eligible, payloads), nil ]
     rescue AgentProviders::ConfigurationError
-      [ nil, credential_unavailability(candidate.provider) ]
+      [ false, nil, credential_unavailability(candidate.provider) ]
     end
 
     def reserve_least_pressured_account(accounts, payloads)

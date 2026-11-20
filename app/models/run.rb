@@ -85,7 +85,7 @@ class Run < ApplicationRecord
   validates_agent_provider
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create
-  before_validation :default_provider_account, on: :create
+  before_validation :default_provider_account
   validate :provider_account_matches_execution
   before_validation :set_effective_at
   after_create :ensure_agent_record!
@@ -371,14 +371,17 @@ class Run < ApplicationRecord
   end
 
   def default_provider_account
-    self.provider_account ||= workflow&.provider_account || user&.default_provider_account(agent_provider)
+    self.provider_account = nil if provider_account && provider_account.provider_key != agent_provider && will_save_change_to_agent_provider?
+    workflow_account = workflow&.provider_account
+    workflow_account = nil unless workflow_account&.provider_key == agent_provider
+    self.provider_account ||= workflow_account || user&.default_provider_account(agent_provider)
   end
 
   def provider_account_matches_execution
     return unless provider_account
     return if provider_account.user_id == user_id && provider_account.provider_key == agent_provider
 
-    errors.add(:provider_account, "must belong to the Run user and provider")
+    errors.add(:provider_account, I18n.t("server.errors.provider_accounts.run_mismatch"))
   end
 
   def user_matches_execution_graph

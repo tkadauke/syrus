@@ -286,7 +286,7 @@ module Api
           ProviderAvailabilityWakeup.call(provider: provider, user: Current.user)
           render json: {
             provider: provider,
-            availability: ::App::ProviderAvailability.for_user(Current.user.reload, provider, cached: false),
+            availability: ::App::ProviderAvailability.for_user(Current.user.reload, provider, cached: false, resolve_default_account: false),
             message: result&.message.presence || I18n.t("api.credentials.availability_rechecked", provider: provider.titleize)
           }
         end

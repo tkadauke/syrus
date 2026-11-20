@@ -40,6 +40,12 @@ la:
       search_database_rebuild:
         complete: "Reconstructiones selectae datorum quaestionis perfectae sunt."
     errors:
+      provider_accounts:
+        unregistered_provider: "provisor agentis descriptus non est"
+        invalid_credential_payload: "obiectum esse debet"
+        session_mismatch: "ad usorem rei resumendae et provisorem sessionis pertinere debet"
+        run_mismatch: "ad usorem et provisorem cursus pertinere debet"
+        workflow_mismatch: "ad usorem et provisorem cursus operis pertinere debet"
       invalid_request: "Petitio invalida est."
       unavailable: "Haec actio ad tempus praesto non est."
       plugin_installation:
