@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: syrus-backups }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 100Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: syrus-backup-owner }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app.kubernetes.io/component: backup-owner } }
+  template:
+    metadata: { labels: { app.kubernetes.io/component: backup-owner } }
+    spec:
+      securityContext: { runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: backup-owner
+          image: ghcr.io/tkadauke/syrus-backend:latest
+          command: ["./bin/jobs"]
+          env:
+            - { name: SYRUS_ROLE, value: worker }
+            - { name: SYRUS_BACKUP_ROOT, value: /home/rails/.syrus-backups }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: backups, mountPath: /home/rails/.syrus-backups }
+      volumes:
+        - name: backups
+          persistentVolumeClaim: { claimName: syrus-backups }
