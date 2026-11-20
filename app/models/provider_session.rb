@@ -61,6 +61,15 @@ class ProviderSession < ApplicationRecord
       .where(resumable_type: "Run")
   }
 
+  scope :for_active_runs, -> {
+    for_runs.where(runs: { state: %w[queued running] })
+  }
+
+  scope :for_active_chats, -> {
+    joins("INNER JOIN chat_sessions ON chat_sessions.id = provider_sessions.resumable_id")
+      .where(resumable_type: "ChatSession", chat_sessions: { turn_in_flight: true })
+  }
+
   def self.canonical_path_for(home:, cwd:, session_id:)
     claude_session_paths.canonical_path_for(home: home, cwd: cwd, session_id: session_id)
   end

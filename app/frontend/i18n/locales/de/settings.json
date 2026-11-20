@@ -1589,6 +1589,7 @@
     "passkeys_remove_error": "Passkey konnte nicht entfernt werden."
   },
   "provider_routing": {
+    "advanced": "Erweitert",
     "account": "Abonnementkonto",
     "automatic_account": "Automatische Kontoauswahl",
     "title": "Anbieter-Routing-Regeln",

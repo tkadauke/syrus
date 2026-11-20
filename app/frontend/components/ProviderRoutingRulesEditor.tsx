@@ -837,6 +837,7 @@ function RoutingCandidateRow({
   reviewerTargetEnabled: boolean
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const provider = providerOption(options, candidate.provider)
   const targetType = candidate.reviewer_target?.type || options.reviewer_targets?.[0]?.type
   const targetEditor = matchingReviewContribution(options.review_contributions || [], "target_editor", { targetType })
@@ -873,20 +874,6 @@ function RoutingCandidateRow({
         ))}
       </Select>
       <Select
-        aria-label={t("provider_routing.account")}
-        onChange={(event) => onChange({ ...candidate, account_id: event.target.value || null })}
-        value={candidate.account_id || ""}
-      >
-        <option value="">{t("provider_routing.automatic_account")}</option>
-        {(options.provider_accounts || [])
-          .filter((account) => account.provider === candidate.provider)
-          .map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.label}
-            </option>
-          ))}
-      </Select>
-      <Select
         aria-label={t("provider_routing.model")}
         onChange={(event) => onChange({ ...candidate, model: event.target.value || null })}
         value={candidate.model || ""}
@@ -917,6 +904,25 @@ function RoutingCandidateRow({
             )
           : targetSelect
         : null}
+      <Button aria-expanded={advancedOpen} onClick={() => setAdvancedOpen((open) => !open)} size="sm" variant="secondary">
+        {t("provider_routing.advanced")}
+      </Button>
+      {advancedOpen ? (
+        <Select
+          aria-label={t("provider_routing.account")}
+          onChange={(event) => onChange({ ...candidate, account_id: event.target.value || null })}
+          value={candidate.account_id || ""}
+        >
+          <option value="">{t("provider_routing.automatic_account")}</option>
+          {(options.provider_accounts || [])
+            .filter((account) => account.provider === candidate.provider)
+            .map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.label}
+              </option>
+            ))}
+        </Select>
+      ) : null}
       <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">
         {t("provider_routing.remove")}
       </Button>
