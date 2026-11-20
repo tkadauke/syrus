@@ -243,6 +243,13 @@ la:
       registration_failed: "Relatio GitHub App defecit: %{error}"
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
+  reset_jobs:
+    refusals:
+      landing: "%{slug} nunc terram capit; terram captionem cessa vel perfice antequam Job reponas."
+      merged: "%{slug} coniunctum est nec reponi potest; novum Job crea."
+      merge_train: "%{slug} in agmine coniunctionis activo est; agmen cessa antequam Job reponas."
+      stacked_children: "Filii Job strati vivi ab hoc ramo pendent: %{slugs}; eos prius repone vel terrae affer."
+      state: "%{slug} ex statu %{state} reponi non potest; prius iterum conare vel reaperi."
   api:
     cli_commands:
       errors:

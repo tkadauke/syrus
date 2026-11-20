@@ -243,6 +243,13 @@ de:
       registration_failed: "GitHub-App-Registrierung fehlgeschlagen: %{error}"
       invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
 
+  reset_jobs:
+    refusals:
+      landing: "%{slug} wird gerade gelandet; brich das Landen ab oder schließe es ab, bevor du den Job zurücksetzt."
+      merged: "%{slug} wurde gemergt und kann nicht zurückgesetzt werden; erstelle stattdessen einen neuen Job."
+      merge_train: "%{slug} ist in einem aktiven Merge Train; brich den Merge Train ab, bevor du den Job zurücksetzt."
+      stacked_children: "Aktive gestapelte Kind-Jobs hängen von diesem Branch ab: %{slugs}; setze sie zurück oder lande sie zuerst."
+      state: "%{slug} kann im Status %{state} nicht zurückgesetzt werden; wiederhole oder öffne ihn zuerst erneut."
   api:
     cli_commands:
       errors:
