@@ -5,14 +5,18 @@ module Api
         before_action :require_review_workspace_enabled
 
         def index
-          render json: ReviewWorkspace::Payload.call(user: Current.user)
+          render json: ReviewWorkspace::Payload.call(user: Current.user, scope: reviewable_job_scope)
         end
 
         def count
-          render json: { count: ReviewWorkspace::EligibleJobs.call(user: Current.user).length }
+          render json: { count: ReviewWorkspace::EligibleJobs.call(user: Current.user, scope: reviewable_job_scope).length }
         end
 
         private
+
+        def reviewable_job_scope
+          policy_scope(Job.all)
+        end
 
         def require_review_workspace_enabled
           return if ::ReviewWorkspace.enabled?

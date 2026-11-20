@@ -2,10 +2,11 @@ module ReviewWorkspace
   class EligibleJobs
     PRIORITY_RANK = Job::PRIORITIES.each_with_index.to_h.freeze
 
-    def self.call(user:) = new(user:).call
+    def self.call(user:, scope: Job.all) = new(user:, scope:).call
 
-    def initialize(user:)
+    def initialize(user:, scope:)
       @user = user
+      @scope = scope
     end
 
     def call
@@ -19,13 +20,14 @@ module ReviewWorkspace
 
     private
 
-    attr_reader :user
+    attr_reader :user, :scope
 
     def candidate_scope
       writable_repository_ids = Repository.writable_by(user).select(:id)
       writable_jobs = Job.where(user_id: user.id).or(Job.where(repository_id: writable_repository_ids))
+      scoped_writable_jobs = scope.where(id: writable_jobs.select(:id))
 
-      Job.visible_to(user, scope: writable_jobs)
+      Job.visible_to(user, scope: scoped_writable_jobs)
         .where(state: "implemented", investigation: false, kind: Job::Kind.user_facing_values)
     end
 
