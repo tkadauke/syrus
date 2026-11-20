@@ -871,6 +871,53 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body.fetch("selected_file")).to include("path" => "README.md", "truncated" => true)
   end
 
+  it "searches and combines bounded workspace metadata filters with stable pagination" do
+    stub_const("Coworkers::WorkspaceBrowser::PAGE_SIZE", 1)
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "workspace-search", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/workspace-search", files: {
+      "memory/daily/notes.md" => "A bounded search needle in memory",
+      "memory/daily/other.txt" => "needle in another format",
+      "projects/notes.md" => "needle outside memory",
+      "assets/photo.png" => "\0binary"
+    })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: {
+      search: "needle", extension: "md", path_prefix: "memory", filename: "note"
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("results")).to contain_exactly(
+      include("path" => "memory/daily/notes.md", "snippet" => include("needle"), "binary" => false)
+    )
+    expect(response.parsed_body).to include("total" => 1, "next_cursor" => nil)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { content_kind: "binary", min_size: 2, max_size: 100 }
+    expect(response.parsed_body.fetch("results")).to contain_exactly(include("path" => "assets/photo.png", "binary" => true))
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { path_prefix: "memory" }
+    first_page = response.parsed_body
+    expect(first_page.fetch("results").size).to eq(1)
+    expect(first_page.fetch("next_cursor")).to be_present
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { path_prefix: "memory", cursor: first_page.fetch("next_cursor") }
+    expect(response.parsed_body.fetch("results").pluck("path"))
+      .not_to eq(first_page.fetch("results").pluck("path"))
+  end
+
+  it "rejects invalid workspace cursors" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "cursor-search", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/cursor-search", files: { "SOUL.md" => "identity" })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { cursor: "not-a-cursor" }
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig("error", "code")).to eq("invalid_cursor")
+
+  end
+
   it "distinguishes an unreachable workspace and a missing home branch" do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "missing-workspace", workspace_repo: repository.remote_url)

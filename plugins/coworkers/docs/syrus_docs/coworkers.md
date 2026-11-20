@@ -596,11 +596,15 @@ The Schedule tab uses the shared scheduled-task cadence and lifecycle controls.
 Capabilities remain a coming-later placeholder where its full surface has not
 shipped yet.
 
-The Workspace tab is a read-only view of the coworker's home branch through
-the same cached repository-content providers. It shows the remote and branch,
-the file tree with plain-text or Markdown previews, available commit history,
-and chat branches with unresolved merge conflicts. Partial trees and capped
-files are marked explicitly. The only remote action is **Test push access**,
+Workspace is the single read-only browser for the coworker's identity, memory,
+and other files on its home branch through the same cached repository-content
+providers. Its collapsible folder tree, breadcrumbs, Memory and `SOUL.md`
+shortcuts, and server-side filename/content filters keep large workspaces
+navigable without downloading every file. Search results, bounded history, and
+truncated content say explicitly when they are incomplete. Old Profile and
+Memory links open the corresponding Workspace scope. Workspace also shows the
+remote and branch, available commit history, and chat branches with unresolved
+merge conflicts. The only remote action is **Test push access**,
 which creates and immediately deletes a randomized throwaway ref beneath
 `coworkers/`; file edits and arbitrary pushes are not exposed in the UI.
 

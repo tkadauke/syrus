@@ -34,7 +34,6 @@ import {
   fetchCoworkerTab,
   fetchCoworkerActivity,
   fetchCoworkerApprovals,
-  fetchCoworkerMemory,
   fetchCoworkerWorkspace,
   fetchCoworkers,
   retryCoworkerWorkspaceSave,
@@ -47,7 +46,7 @@ import {
   type CoworkerDetail,
   type CoworkerConversation,
   type CoworkerSchedule,
-  type CoworkerMemoryFile,
+  type CoworkerWorkspacePayload,
   type CoworkerSummary
 } from "../api/coworkers"
 
@@ -446,10 +445,19 @@ function CoworkerPage({ id }: { id: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const requestedTab = new URLSearchParams(location.search).get("tab")
-  const [tab, setTab] = useState(id === "syrus" ? "chats" : requestedTab || "chat")
+  const legacyTab = requestedTab === "profile" || requestedTab === "memory" ? "workspace" : requestedTab
+  const [tab, setTab] = useState(id === "syrus" ? "chats" : legacyTab || "chat")
+  useEffect(() => {
+    if (requestedTab !== "profile" && requestedTab !== "memory") return
+    const params = new URLSearchParams(location.search)
+    params.set("tab", "workspace")
+    if (requestedTab === "profile") params.set("path", "SOUL.md")
+    if (requestedTab === "memory") params.set("path_prefix", "memory")
+    navigate({ search: `?${params}` }, { replace: true })
+  }, [location.search, navigate, requestedTab])
   const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id), enabled: id !== "syrus" })
-  const detailTab = ({ chat: "chats", profile: "profile", capabilities: "capabilities", schedule: "schedules" } as const)[
-    tab as "chat" | "profile" | "capabilities" | "schedule"
+  const detailTab = ({ chat: "chats", capabilities: "capabilities", schedule: "schedules" } as const)[
+    tab as "chat" | "capabilities" | "schedule"
   ]
   const tabQuery = useQuery({
     queryKey: ["coworkers", id, detailTab],
@@ -489,27 +497,14 @@ function CoworkerPage({ id }: { id: string }) {
           </Link>
         </div>
       </Page.Header>
-      <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"]} />
+      <Tabs active={tab} setActive={setTab} labels={["chat", "capabilities", "approvals", "schedule", "workspace", "activity"]} />
       {tab === "chat" ? <CoworkerConversationIndex id={id} create={sideChat} legacyChats={coworker.chats} prefix={prefix} /> : null}
-      {tab === "profile" ? (
-        <section className="space-y-4 rounded border border-border bg-surface p-5">
-          <dl>
-            <dt>{t("fields.model")}</dt>
-            <dd>{coworker.effective_model || t("detail.account_default")}</dd>
-            <dt>{t("fields.remote")}</dt>
-            <dd>{coworker.workspace_repo}</dd>
-          </dl>
-          <h2 className="font-semibold">{t("detail.soul_heading")}</h2>
-          <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
-        </section>
-      ) : null}
       {tab === "capabilities" ? <CoworkerCapabilities coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
       {tab === "approvals" ? <CoworkerApprovals id={id} /> : null}
       {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
-      {tab === "memory" ? <CoworkerMemory id={id} /> : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
       {tab === "activity" ? <CoworkerActivity id={id} /> : null}
-      {!["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"].includes(tab) ? (
+      {!["chat", "capabilities", "approvals", "schedule", "workspace", "activity"].includes(tab) ? (
         <PanelMessage>{t("coming_later")}</PanelMessage>
       ) : null}
     </Page.Root>
@@ -1295,10 +1290,24 @@ function CoworkerActivity({ id }: { id: string }) {
 
 function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
   const { t } = useT("coworkers")
-  const [selectedPath, setSelectedPath] = useState<string | undefined>()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = new URLSearchParams(location.search)
+  const selectedPath = params.get("path") || undefined
+  const workspaceSearch = useMemo(() => {
+    const query = new URLSearchParams(location.search)
+    query.delete("tab")
+    return query.size ? `?${query}` : ""
+  }, [location.search])
+  const selectPath = (path: string) => {
+    const query = new URLSearchParams(location.search)
+    query.set("tab", "workspace")
+    query.set("path", path)
+    navigate({ search: `?${query}` })
+  }
   const query = useQuery({
-    queryKey: ["coworkers", id, "workspace", selectedPath],
-    queryFn: () => fetchCoworkerWorkspace(id, selectedPath)
+    queryKey: ["coworkers", id, "workspace", workspaceSearch],
+    queryFn: () => fetchCoworkerWorkspace(id, workspaceSearch)
   })
   const pushTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
   const coworkerQuery = useQuery({ queryKey: ["coworkers", id, "chats"], queryFn: () => fetchCoworkerTab(id, "chats") })
@@ -1338,6 +1347,8 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
       </section>
     )
   const workspace = query.data
+  const results = workspace.results || []
+  const pathParts = selectedPath?.split("/") || []
   return (
     <section className="space-y-4">
       {unsavedAlerts}
@@ -1358,29 +1369,28 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
         </div>
       </div>
       {workspace.partial ? <PanelMessage>{t("workspace.partial")}</PanelMessage> : null}
+      {workspace.incomplete_reasons?.length ? <PanelMessage>{t("workspace.incomplete")}</PanelMessage> : null}
       {workspace.conflicts.map((conflict) => (
         <PanelMessage key={conflict.branch}>
           {t("workspace.conflict", { branch: conflict.branch })} {conflict.files.join(", ")}
         </PanelMessage>
       ))}
       <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[18rem_minmax(0,1fr)]">
-        <nav aria-label={t("workspace.files")} className="border-b border-border p-3 md:border-b-0 md:border-r">
-          {workspace.files
-            .filter((file) => file.type !== "directory")
-            .map((file) => (
-              <button
-                className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
-                key={file.path}
-                onClick={() => setSelectedPath(file.path)}
-                type="button"
-              >
-                {file.path}
-              </button>
-            ))}
-        </nav>
+        <div className="border-b border-border p-3 md:border-b-0 md:border-r">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <WorkspaceScope label={t("workspace.all")} location={location} navigate={navigate} />
+            <WorkspaceScope label={t("workspace.memory")} location={location} navigate={navigate} prefix="memory" />
+            <button className="rounded-full border border-border px-3 py-1 text-xs" onClick={() => selectPath("SOUL.md")} type="button">SOUL.md</button>
+          </div>
+          <FilterBar buildLink={workspaceFilterLink} filter={workspaceFilterTree(location.search)} filterSchema={workspaceFilterSchema(t)} legacyFilterKeys={["search", "extension", "path_prefix", "filename", "area"]} pathname={location.pathname} search={location.search} />
+          <WorkspaceTree files={workspace.files} selectedPath={selectedPath} onSelect={selectPath} label={t("workspace.files")} />
+        </div>
         <article className="min-w-0 p-5">
           {workspace.selected_file ? (
             <>
+              <nav aria-label={t("workspace.breadcrumbs")} className="mb-3 flex flex-wrap gap-1 text-sm text-text-muted">
+                {pathParts.map((part, index) => <span key={`${part}-${index}`}>{index ? " / " : ""}{part}</span>)}
+              </nav>
               <h2 className="mb-3 font-semibold">{workspace.selected_file.path}</h2>
               {workspace.selected_file.truncated ? <PanelMessage>{t("workspace.truncated")}</PanelMessage> : null}
               {workspace.selected_file.binary ? (
@@ -1392,7 +1402,15 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
               )}
             </>
           ) : (
-            <PanelMessage>{t("workspace.choose_file")}</PanelMessage>
+            <div>
+              <PanelMessage>{results.length ? t("workspace.choose_file") : t("workspace.no_results")}</PanelMessage>
+              {results.map((result) => (
+                <button className="mt-2 block w-full rounded border border-border p-3 text-left text-sm" key={result.path} onClick={() => selectPath(result.path)} type="button">
+                  <span className="font-medium">{result.path}</span>
+                  {result.snippet ? <span className="mt-1 block text-text-muted">{result.snippet}</span> : null}
+                </button>
+              ))}
+            </div>
           )}
         </article>
       </div>
@@ -1412,118 +1430,71 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
   )
 }
 
-const memoryFilterSchema = (label: string) => [{ field: "search", label, bucket: "text", operators: ["contains"], values: [], free_text_search: true }]
-
-function memoryFilterTree(search: string): FilterTree {
-  const value = new URLSearchParams(search).get("search")?.trim()
-  return { and: value ? [{ field: "search", op: "contains", value }] : [] }
+function WorkspaceScope({ label, prefix, location, navigate }: { label: string; prefix?: string; location: ReturnType<typeof useLocation>; navigate: ReturnType<typeof useNavigate> }) {
+  return <button className="rounded-full border border-border px-3 py-1 text-xs" onClick={() => { const query = new URLSearchParams(location.search); prefix ? query.set("path_prefix", prefix) : query.delete("path_prefix"); query.delete("path"); navigate({ search: `?${query}` }) }} type="button">{label}</button>
 }
 
-const memoryFilterLink: FilterLinkBuilder = (path, search, updates) => {
+function WorkspaceTree({ files, selectedPath, onSelect, label }: { files: CoworkerWorkspacePayload["files"]; selectedPath?: string; onSelect: (path: string) => void; label: string }) {
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(["memory"]))
+  const paths = files.filter((file) => file.type === "file")
+  const folders = [...new Set(paths.flatMap((file) => file.path.split("/").slice(0, -1).map((_, index, parts) => parts.slice(0, index + 1).join("/"))))].sort()
+  return <nav aria-label={label} className="mt-3 max-h-96 overflow-auto" role="tree">
+    {folders.map((folder) => <button aria-expanded={expanded.has(folder)} className="block w-full rounded px-2 py-1 text-left text-sm font-medium" key={folder} onClick={() => setExpanded((current) => { const next = new Set(current); next.has(folder) ? next.delete(folder) : next.add(folder); return next })} role="treeitem" style={{ paddingLeft: `${folder.split("/").length * 0.75}rem` }} type="button">{expanded.has(folder) ? "▾" : "▸"} {folder.split("/").at(-1)}</button>)}
+    {paths.filter((file) => file.path.split("/").slice(0, -1).every((_, index, parts) => expanded.has(parts.slice(0, index + 1).join("/")))).map((file) => <button aria-current={selectedPath === file.path ? "page" : undefined} className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-surface-subtle" key={file.path} onClick={() => onSelect(file.path)} role="treeitem" style={{ paddingLeft: `${file.path.split("/").length * 0.75}rem` }} type="button">{file.path.split("/").at(-1)}</button>)}
+  </nav>
+}
+
+const workspaceFilterSchema = (t: (key: string) => string) => [
+  { field: "search", label: t("workspace.search"), bucket: "text", operators: ["contains"], values: [], free_text_search: true },
+  { field: "extension", label: t("workspace.extension"), bucket: "text", operators: ["is"], values: [] },
+  { field: "path_prefix", label: t("workspace.folder"), bucket: "text", operators: ["is"], values: [] },
+  { field: "filename", label: t("workspace.filename"), bucket: "text", operators: ["contains"], values: [] },
+  { field: "filename_exact", label: t("workspace.filename_exact"), bucket: "text", operators: ["is"], values: [] },
+  { field: "area", label: t("workspace.area"), bucket: "text", operators: ["is"], values: [] },
+  { field: "min_size", label: t("workspace.min_size"), bucket: "number", operators: ["is"], values: [] },
+  { field: "max_size", label: t("workspace.max_size"), bucket: "number", operators: ["is"], values: [] },
+  { field: "modified_after", label: t("workspace.modified_after"), bucket: "date", operators: ["after"], values: [] },
+  { field: "modified_before", label: t("workspace.modified_before"), bucket: "date", operators: ["before"], values: [] },
+  {
+    field: "content_kind",
+    label: t("workspace.content_kind"),
+    bucket: "select",
+    operators: ["is"],
+    values: [
+      { value: "text", label: t("workspace.text") },
+      { value: "binary", label: t("workspace.binary_kind") }
+    ]
+  }
+]
+
+function workspaceFilterTree(search: string): FilterTree {
+  const params = new URLSearchParams(search)
+  return { and: ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before"].flatMap((field) => {
+    const value = params.get(field)?.trim()
+    const op = field === "search" || field === "filename" ? "contains" : field === "modified_after" ? "after" : field === "modified_before" ? "before" : "is"
+    return value ? [{ field, op, value }] : []
+  }) }
+}
+
+const workspaceFilterLink: FilterLinkBuilder = (path, search, updates) => {
   const params = new URLSearchParams(search)
   if (typeof updates.q === "string" && updates.q) {
     try {
       const encoded = updates.q.replace(/-/g, "+").replace(/_/g, "/")
       const tree = JSON.parse(atob(encoded)) as { and?: Array<{ field?: string; value?: unknown }> }
-      const value = tree.and?.find((chip) => chip.field === "search")?.value
-      if (typeof value === "string" && value.trim()) params.set("search", value.trim())
-      else params.delete("search")
+      const fields = ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before"]
+      fields.forEach((field) => {
+        const value = tree.and?.find((chip) => chip.field === field)?.value
+        if (typeof value === "string" && value.trim()) params.set(field, value.trim())
+        else params.delete(field)
+      })
     } catch {
       params.delete("search")
     }
-  } else if (updates.q == null) params.delete("search")
+  } else if (updates.q == null) ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before"].forEach((field) => params.delete(field))
+  params.delete("path")
   const query = params.toString()
   return query ? `${path}?${query}` : path
-}
-
-function CoworkerMemory({ id }: { id: string }) {
-  const { t } = useT("coworkers")
-  const location = useLocation()
-  const prefix = usePrefix()
-  const searchValue = new URLSearchParams(location.search).get("search")?.trim() || ""
-  const queryString = searchValue ? `?search=${encodeURIComponent(searchValue)}` : ""
-  const query = useQuery({ queryKey: ["coworkers", id, "memory", searchValue], queryFn: () => fetchCoworkerMemory(id, queryString) })
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const files = query.data?.files || []
-  const selected = files.find((file) => file.path === selectedPath) || files[0]
-
-  useEffect(() => {
-    if (files.length > 0 && !files.some((file) => file.path === selectedPath)) setSelectedPath(files[0].path)
-  }, [files, selectedPath])
-
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <FilterBar
-          buildLink={memoryFilterLink}
-          filter={memoryFilterTree(location.search)}
-          filterSchema={memoryFilterSchema(t("memory.search"))}
-          legacyFilterKeys={["search"]}
-          pathname={location.pathname}
-          search={location.search}
-        />
-        <Link className="shrink-0 text-sm text-brand underline" to={`${prefix}/memories`}>
-          {t("memory.owner_memories")}
-        </Link>
-      </div>
-      {query.isPending ? <PanelMessage>{t("memory.loading")}</PanelMessage> : null}
-      {query.isError ? <PanelMessage>{t("memory.unavailable")}</PanelMessage> : null}
-      {query.data?.search_incomplete ? <PanelMessage>{t("memory.search_incomplete")}</PanelMessage> : null}
-      {query.data?.partial && !query.data.search_incomplete ? <PanelMessage>{t("memory.partial")}</PanelMessage> : null}
-      {query.isSuccess && files.length === 0 && !query.data.search_incomplete ? (
-        <PanelMessage>{searchValue ? t("memory.no_results") : t("memory.empty")}</PanelMessage>
-      ) : null}
-      {query.isSuccess && files.length > 0 ? (
-        <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[15rem_minmax(0,1fr)]">
-          <MemoryFileList files={files} selectedPath={selected?.path} setSelectedPath={setSelectedPath} />
-          <article className="min-w-0 border-t border-border p-5 md:border-l md:border-t-0">
-            <div className="mb-4 border-b border-border pb-3">
-              <h2 className="font-semibold text-text-primary">{selected?.name}</h2>
-              <p className="text-xs text-text-muted">{selected?.path}</p>
-            </div>
-            {selected?.truncated ? <p className="mb-3 text-sm text-warning">{t("memory.truncated")}</p> : null}
-            <Markdown className="chat-prose text-sm text-text-primary" text={selected?.content || ""} />
-          </article>
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
-function MemoryFileList({
-  files,
-  selectedPath,
-  setSelectedPath
-}: {
-  files: CoworkerMemoryFile[]
-  selectedPath?: string
-  setSelectedPath: (path: string) => void
-}) {
-  const { t } = useT("coworkers")
-  const categories = ["daily", "people", "repos", "banks"] as const
-  return (
-    <nav aria-label={t("memory.files")} className="p-3">
-      {categories.map((category) => {
-        const categoryFiles = files.filter((file) => file.category === category)
-        if (categoryFiles.length === 0) return null
-        return (
-          <div className="mb-4" key={category}>
-            <h3 className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t(`memory.categories.${category}`)}</h3>
-            {categoryFiles.map((file) => (
-              <button
-                className={`block w-full rounded px-2 py-1.5 text-left text-sm ${selectedPath === file.path ? "bg-brand-soft text-brand" : "text-text-secondary hover:bg-surface-subtle"}`}
-                key={file.path}
-                onClick={() => setSelectedPath(file.path)}
-                type="button"
-              >
-                {file.name}
-              </button>
-            ))}
-          </div>
-        )
-      })}
-    </nav>
-  )
 }
 
 function Tabs({ active, setActive, labels }: { active: string; setActive: (value: string) => void; labels: string[] }) {

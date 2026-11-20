@@ -1,6 +1,12 @@
 class Coworkers::WorkspaceBrowser
   MAX_FILES = 1_000
+  PAGE_SIZE = 100
+  MAX_SEARCH_FILES = 250
+  MAX_HISTORY_COMMITS = 25
   MAX_FILE_BYTES = 256.kilobytes
+  SNIPPET_BYTES = 240
+
+  class InvalidCursor < StandardError; end
 
   def initialize(coworker:, repository:, user:)
     @coworker = coworker
@@ -8,15 +14,20 @@ class Coworkers::WorkspaceBrowser
     @reader = RepositoryContent.for(repository, user: user)
   end
 
-  def call(path: nil)
+  def call(path: nil, filters: {})
     home = @reader.resolve(home_branch)
     entries, partial = workspace_entries(home)
     selected = selected_file(home, entries, path)
+    result = search(home, entries.select(&:file?), filters)
     {
       remote: @repository.remote_url,
       branch: home_branch,
-      files: entries.map { |entry| { path: entry.path, type: entry.type } },
-      partial: partial,
+      files: entries.map { |entry| entry_json(entry) },
+      results: result[:results],
+      next_cursor: result[:next_cursor],
+      total: result[:total],
+      incomplete_reasons: result[:incomplete_reasons] + (partial ? [ "tree_limit" ] : []),
+      partial: partial || result[:incomplete_reasons].any?,
       selected_file: selected,
       commits: commits(home),
       conflicts: active_conflicts(home),
@@ -41,6 +52,109 @@ class Coworkers::WorkspaceBrowser
     [ entries.first(MAX_FILES), entries.size > MAX_FILES ]
   rescue RepositoryContent::Truncated => error
     [ Array(error.partial).sort_by(&:path).first(MAX_FILES), true ]
+  end
+
+  def entry_json(entry)
+    { path: entry.path, type: entry.type, size: entry.size, extension: File.extname(entry.path).delete_prefix(".").downcase,
+      area: entry.path.split("/").first }
+  end
+
+  def search(revision, entries, filters)
+    query = filters[:search].to_s.strip.downcase
+    filtered = entries.select { |entry| metadata_match?(entry, filters) }
+    modified, history_incomplete = last_modified(revision, filters)
+    filtered.select! { |entry| modified_match?(modified[entry.path], filters) }
+    incomplete = history_incomplete ? [ "history_limit" ] : []
+    if query.present? || filters[:content_kind].present?
+      searchable = filtered.first(MAX_SEARCH_FILES)
+      incomplete << "search_limit" if filtered.size > searchable.size
+      filtered = searchable.filter_map { |entry| search_result(revision, entry, query, modified[entry.path], filters[:content_kind]) }
+    else
+      filtered = filtered.map { |entry| entry_json(entry).merge(last_modified_at: modified[entry.path]&.iso8601, snippet: nil, highlights: []) }
+    end
+    filtered = sort_results(filtered, filters[:sort])
+    offset = decode_cursor(filters[:cursor])
+    page = filtered.slice(offset, PAGE_SIZE) || []
+    next_cursor = offset + PAGE_SIZE < filtered.size ? Base64.urlsafe_encode64((offset + PAGE_SIZE).to_s, padding: false) : nil
+    { results: page, total: filtered.size, next_cursor:, incomplete_reasons: incomplete.uniq }
+  end
+
+  def metadata_match?(entry, filters)
+    path = entry.path
+    extension = filters[:extension].to_s.delete_prefix(".").downcase
+    prefix = filters[:path_prefix].to_s.sub(%r{\A/+}, "").sub(%r{/+\z}, "")
+    filename = File.basename(path)
+    return false if extension.present? && File.extname(path).delete_prefix(".").downcase != extension
+    return false if prefix.present? && path != prefix && !path.start_with?("#{prefix}/")
+    return false if filters[:filename].present? && !filename.downcase.include?(filters[:filename].to_s.downcase)
+    return false if filters[:filename_exact].present? && filename.downcase != filters[:filename_exact].to_s.downcase
+    return false if filters[:area].present? && path.split("/").first != filters[:area]
+    return false if filters[:min_size].present? && entry.size.to_i < filters[:min_size].to_i
+    return false if filters[:max_size].present? && entry.size.to_i > filters[:max_size].to_i
+    true
+  end
+
+  def search_result(revision, entry, query, modified_at, content_kind)
+    filename_match = query.blank? || entry.path.downcase.include?(query)
+    blob = @reader.read(revision, entry.path, max_bytes: MAX_FILE_BYTES)
+    binary = blob.bytes.include?("\0")
+    return if content_kind == "binary" && !binary
+    return if content_kind == "text" && binary
+    return if binary && !filename_match
+    index = binary || query.blank? ? nil : blob.text.downcase.index(query)
+    return unless filename_match || index
+
+    start = [ (index || 0) - (SNIPPET_BYTES / 2), 0 ].max
+    snippet = binary ? nil : blob.text.byteslice(start, SNIPPET_BYTES).to_s.scrub
+    entry_json(entry).merge(binary:, truncated: blob.truncated, last_modified_at: modified_at&.iso8601,
+      snippet:, highlights: index ? [ { start: index - start, length: query.length } ] : [])
+  rescue RepositoryContent::NotFound
+    nil
+  end
+
+  def last_modified(revision, filters)
+    needs_history = filters[:modified_after].present? || filters[:modified_before].present? || filters[:sort] == "modified"
+    return [ {}, false ] unless needs_history
+
+    commits = @reader.commits(revision:, limit: MAX_HISTORY_COMMITS + 1)
+    dates = {}
+    commits.first(MAX_HISTORY_COMMITS).each_cons(2) do |head, base|
+      @reader.changes(base: @reader.revision(base.sha), head: @reader.revision(head.sha)).each { |change| dates[change.path] ||= head.authored_at }
+    rescue RepositoryContent::Error
+      next
+    end
+    [ dates, commits.size > MAX_HISTORY_COMMITS ]
+  rescue RepositoryContent::Error
+    [ {}, true ]
+  end
+
+  def modified_match?(value, filters)
+    after = parse_time(filters[:modified_after])
+    before = parse_time(filters[:modified_before])
+    (!after || (value && value >= after)) && (!before || (value && value <= before))
+  end
+
+  def parse_time(value)
+    Time.zone.parse(value.to_s) if value.present?
+  rescue ArgumentError
+    nil
+  end
+
+  def sort_results(results, sort)
+    sorter = {
+      "size" => -> { results.sort_by { |result| [ result[:size].to_i, result[:path].downcase ] } },
+      "modified" => -> { results.sort_by { |result| [ result[:last_modified_at].to_s, result[:path].downcase ] }.reverse }
+    }.fetch(sort, -> { results.sort_by { |result| result[:path].downcase } })
+    sorter.call
+  end
+
+  def decode_cursor(cursor)
+    return 0 if cursor.blank?
+    value = Integer(Base64.urlsafe_decode64(cursor.to_s))
+    raise InvalidCursor if value.negative?
+    value
+  rescue ArgumentError
+    raise InvalidCursor, "Workspace cursor is invalid"
   end
 
   def selected_file(revision, entries, requested_path)
