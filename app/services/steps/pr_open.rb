@@ -171,11 +171,17 @@ module Steps
       raise AwaitingStableBase.new(error.message, evidence: error.evidence)
     end
 
-    # Runs the repository's required graders against the rebased tree.
+    POST_REBASE_VALIDATION_PHASE = "review".freeze
+
+    # Runs the repository's required review-phase graders against the rebased
+    # tree -- the bar this branch already met before review. It used to run
+    # every required grader of every phase, one after another inside this
+    # step: the full landing suite included, about 35 minutes per attempt,
+    # repeated on every retry while a stacked parent kept moving. Landing
+    # validation still grades the final tree with the landing set.
     # No configured graders means nothing to run.
     def post_rebase_validation_passed?
-      plan = RepoGradePlan.for(workspace.path)
-      plan.graders.select(&:required).all? do |grader|
+      post_rebase_graders.all? do |grader|
         log("pr_open: post-rebase validation $ #{grader.command}")
         result = ProcessRunner.new(
           env: ProcessRunner.forwarded_env(Prepare.prep_env_forward, extra: workspace_dependency_env),
@@ -189,6 +195,12 @@ module Steps
           on_output_chunk: ->(chunk) { log(chunk, kind: "grade_log") }
         ).run
         !result.timed_out && result.exit_status.to_i.zero?
+      end
+    end
+
+    def post_rebase_graders
+      RepoGradePlan.for(workspace.path).graders.select do |grader|
+        grader.required && Array(grader.phases).map(&:to_s).include?(POST_REBASE_VALIDATION_PHASE)
       end
     end
 
