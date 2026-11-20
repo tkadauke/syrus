@@ -3638,6 +3638,7 @@ module WorkEngine
         .select(&:failed?)
         .reject(&:superseded_retry_until_failure?)
         .reject(&:superseded_try_branch_failure?)
+        .reject(&:superseded_by_later_loop_iteration?)
       return nil if failed_steps.empty?
       return nil if workflow.live_descendants?
 

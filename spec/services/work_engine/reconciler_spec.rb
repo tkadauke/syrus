@@ -7339,6 +7339,26 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  # Regression: a grader loop's failed first iteration was followed by a passing
+  # one and the chain moved on; between two later Steps the reconciler saw "a
+  # failed Step and nothing live" and planned to continue the loop from that
+  # old failure.
+  it "does not treat a failed loop iteration a later one superseded as orphaned" do
+    workflow.update_columns(state: "running", started_at: 60.minutes.ago)
+    step.update_columns(kind: "grader_collect", loop_id: "grade", iteration: 1, position: 10,
+                        state: "failed", finished_at: 30.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 30.minutes.ago)
+    later = workflow.steps.create!(kind: "grader_collect", loop_id: "grade", iteration: 2, position: 20,
+                                   state: "succeeded", finished_at: 10.minutes.ago)
+    later.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+                       state: "succeeded", finished_at: 10.minutes.ago)
+    workflow.steps.create!(kind: "summarize", position: 30, state: "queued")
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :running_workflow_with_failed_step)).to be_nil
+  end
+
   it "ignores retryable failed Runs that were superseded by a later successful Run on the same Step" do
     step.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
     workflow.update_columns(state: "running", started_at: 30.minutes.ago)

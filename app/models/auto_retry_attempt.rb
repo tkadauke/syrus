@@ -149,6 +149,7 @@ class AutoRetryAttempt < ApplicationRecord
     return "job is terminal" if job&.state.in?(Job::TERMINAL_STATES)
     return "source workflow was already superseded by a successful workflow" if superseded_by_successful_workflow?
     return "source step already recovered" if run&.step&.state.in?(%w[succeeded skipped])
+    return "source step superseded by a later loop iteration" if run&.step&.superseded_by_later_loop_iteration?
     return BRANCH_REWRITTEN_SKIP_REASON if branch_head_moved?
 
     nil

@@ -678,47 +678,69 @@ found. Unmodelled: Step insertion (review re-materialization, grader fan-out),
   `RunHostAdmissionCapacity.host_compute_capacity`, as `step_dispatcher_spec`
   already does. It passes in CI whenever the runner's capacity is ≥ 2.
 
-## Lead L1 (in progress): an hourly revive/refail cycle on a deliberately stopped grader loop
+## F22. Retries of a superseded loop iteration revived a stopped Workflow hourly — fixed
 
-Production, read-only. This is the `running_workflow_with_failed_step` item.
+**Property.** Retry, resume and continue-loop work target only a loop's latest
+iteration. Once iteration k+1 exists, iteration k's outcome has already been
+acted on (`Agreement.iter_after_actionable`).
 
-**Timeline (2026-11-16, Eastern).**
-- 09:39:32: a retry Workflow's `grader_collect` (iteration 3) decided
-  `grader_loop_no_progress`, and the Workflow went running → failed. That is a
-  deliberate stop by the domain.
-- 10:05 to 17:15, about once an hour: a `grader_collect` Run failed
-  `worker_died`, beginning with four Runs in 12 s at 10:05 on the iteration-1
-  collect Step, which had long been superseded.
-  1. The failure recorded `grader_loop_repair_enqueued` and the Workflow was
-     reopened.
-  2. About a minute later the reconciler's `continue_loop_iteration_from_failed_step`
-     ran `fail_from`.
-  3. `fail_from` decided `no_progress` again, and the Workflow went back to
-     failed.
+**Evidence (production, read-only; a retry Workflow on 2026-11-16, Eastern).**
+- 09:01: the iteration-1 `grader_collect` Run failed with a retryable
+  classification. An `AutoRetryAttempt` was created for it, and the loop went on
+  to iterations 2 and 3.
+- 09:39: iteration 3 decided `grader_loop_no_progress`. The Workflow failed,
+  deliberately.
+- Every minute after that, the reconciler's `retryable_run_failure` planned
+  `retry_failed_step` for the *iteration-1* Run. Each plan was skipped with
+  "retry already pending".
+- 10:05: the pending retry fired. It re-ran that superseded collect, which
+  reopened the stopped Workflow. The loop then decided `no_progress` again and
+  the Workflow failed again, and the re-run's failure scheduled the next retry.
+  The cycle repeated about hourly until 17:15: 12 Runs on the old collect, and
+  9 "applied" continue-loop repairs on the iteration-3 collect.
+- 17:56: the next iteration started, and the Workflow succeeded at 18:18.
 
-  That is nine "applied" continuations for one Step.
-- 17:56: the next iteration's `format` finally started, and the Workflow
-  succeeded at 18:18.
+**Counterexample.** `iter_before_not_actionable`: nothing asked whether a failed
+Step had been superseded by a later iteration of its loop. The existing
+supersession checks only covered retry-until barriers, manual restarts and
+try-branches.
 
-**Open questions.**
-- Why do Runs on an old iteration's collect Step keep existing and die as
-  `worker_died` about an hour later? The interval suggests the stale-heartbeat
-  reaper.
-- Should an in-place retry (or anything else) reopen a Workflow whose grader
-  loop stopped on `no_progress`?
-- What started the 17:56 iteration?
+**Fix.** A new `Step#superseded_by_later_loop_iteration?` (indexed query on
+workflow, loop_id and iteration). It is used by:
+- `AutoRetryAttempt#stale_pending_reason`, so the pending retry is skipped and
+  pruned. That breaks the cycle.
+- `orphaned_failed_step` (running Workflows only), which closes the classifier
+  gap where a failed iteration superseded by a passing one looked orphaned
+  between two later Steps.
 
-**Classifier side.** 71 `running_workflow_with_failed_step` skips ("Workflow
-still has running descendants") across 47 Workflows. One sampled case was the
-classifier catching the gap between two later chain Steps, after the failed
-loop iteration had already been superseded by a passing one. `orphaned_failed_step`
-only treats retry-until-barrier and manual-restart failures as superseded, not
-a loop iteration followed by a later passing one.
+**Deliberately not applied: the reconciler's failed-Run retry classifiers.** I
+first added the guard to all five. The merge-train simulation scenario
+`terminal_bundle_train_final_fix_rebuilds` then stopped converging. There, the
+workflow-level remedy (`rebuild_merge_train`) is planned from the retryable
+failure of an *earlier* iteration's grader, and the latest iteration's failure
+only plans operator review. Those classifiers choose a Workflow-level repair,
+not a re-run of that Step. The guard belongs on step-level re-runs only.
 
-**Not explained.** 31 repairs failed during 30 minutes on 2026-11-14 with
-`NoMethodError: undefined method 'step_agent_diff' for an instance of Run`. The
-method has existed since 2026-11-10 and the error has not recurred. Version skew
-during a deploy is likely but unconfirmed.
+**Specs.**
+- `auto_retry_attempt_spec.rb`: pruned when superseded (red before), and kept
+  for the latest iteration.
+- `reconciler_spec.rb`: "does not treat a failed loop iteration a later one
+  superseded as orphaned" (red before).
+
+**Also fixed here.** `chat_pending_action_spec.rb:595` (ci_only) had failed
+since F15. Its fixture failed a Step with `update_columns` but left the Step's
+Run queued, a state the engine can't produce, and F15's guard then refused the
+retry. The fixture now fails the Run as well. Earlier wide runs missed this
+because they didn't set `RUN_CI_ONLY_SPECS`.
+
+**Not explained.**
+- Why each re-run of the old collect failed within a second as `worker_died`.
+- 31 repairs crashed during 30 minutes on 2026-11-14 with
+  `NoMethodError: undefined method 'step_agent_diff' for an instance of Run`.
+  The method has existed since 2026-11-10 and the error has not recurred.
+  Version skew during a deploy is likely but unconfirmed.
+
+---
 
 ## Leads not yet worked (from the catalog)
 

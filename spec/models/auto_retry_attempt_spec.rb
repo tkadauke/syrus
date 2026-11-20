@@ -263,6 +263,29 @@ RSpec.describe AutoRetryAttempt, type: :model do
       }.to change { attempt.reload.skipped_reason }.from(nil).to("source step already recovered")
     end
 
+    # Regression: a failed grader_collect in a loop's first iteration kept its
+    # pending retry after the loop moved on to later iterations (and then
+    # stopped on no progress). The retry later re-ran that superseded collect,
+    # which reopened the stopped Workflow; it failed again and scheduled the
+    # next retry, hourly, for eight hours.
+    it "skips pending attempts whose source step a later loop iteration superseded" do
+      attempt = described_class.create!(valid_attrs)
+      run.step.update_columns(kind: "grader_collect", loop_id: "grade", iteration: 1, state: "failed")
+      workflow.steps.create!(kind: "grader_collect", loop_id: "grade", iteration: 2, position: 50, state: "failed")
+
+      expect {
+        expect(described_class.prune_stale_pending!).to eq(1)
+      }.to change { attempt.reload.skipped_reason }.from(nil).to("source step superseded by a later loop iteration")
+    end
+
+    it "keeps pending attempts for the latest iteration of a loop" do
+      run.step.update_columns(kind: "grader_collect", loop_id: "grade", iteration: 2, state: "failed")
+      workflow.steps.create!(kind: "grader_collect", loop_id: "grade", iteration: 1, position: 1, state: "failed")
+      attempt = described_class.create!(valid_attrs)
+
+      expect(attempt.stale_pending_reason).to be_nil
+    end
+
     it "does not prune active repair attempts superseded only by successful maintenance" do
       attempt = described_class.create!(valid_attrs(retry_kind: "retry_workflow"))
       workflow.update_columns(trigger_kind: "ci_failure", state: "failed", finished_at: 10.minutes.ago)

@@ -250,6 +250,16 @@ class Step < ApplicationRecord
     details.to_h[RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY] == true
   end
 
+  # A later iteration of the same loop exists, so this Step's outcome no longer
+  # decides anything: the loop already acted on it and moved on. Retrying it
+  # re-runs a stale iteration -- in production that revived a Workflow whose
+  # loop had deliberately stopped, hourly, for eight hours.
+  def superseded_by_later_loop_iteration?
+    return false if loop_id.blank? || workflow_id.blank?
+
+    Step.where(workflow_id: workflow_id, loop_id: loop_id).where("iteration > ?", iteration.to_i).exists?
+  end
+
   def superseded_retry_until_failure?
     retry_until_barrier_superseded? ||
       details.to_h["superseded_by_manual_grade_loop_restart"] == true

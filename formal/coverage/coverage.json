@@ -851,9 +851,9 @@
         "running_workflow_with_failed_step",
         "manual_grade_loop_restart_ignores_superseded_failures"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Investigating (FINDINGS Lead L1). Production: a retry Workflow whose grader loop stopped on no_progress was revived and re-failed about hourly for 8 hours by worker_died Runs on a superseded iteration's grader_collect, with the reconciler's continue-loop repair in each cycle (9 'applied' continuations on one Step). Also: 71 classifier skips; orphaned_failed_step does not treat a loop iteration superseded by a later passing one as superseded; 31 repair crashes (NoMethodError step_agent_diff, one 30-min window on 11-14, not recurring)."
+      "status": "partial",
+      "done_by": "F22",
+      "notes": "Production: a pending retry for a first-iteration grader_collect fired after the loop had moved two iterations on and stopped on no progress; it reopened the Workflow, re-failed and rescheduled, hourly for 8 hours (12 Runs on the stale Step, 9 'applied' continue-loop repairs). Fixed F22: Step#superseded_by_later_loop_iteration? stops the pending retry and orphaned_failed_step from acting on a superseded iteration (not applied to Workflow-level retry classifiers: a merge-train rebuild keys off an earlier iteration) (Agreement.iter_after_actionable). Still open: lost continuations where fail_from itself does not materialize the next iteration, and why the stale collect's Runs died as worker_died within a second."
     },
     {
       "id": "running-workflow-nothing-left",

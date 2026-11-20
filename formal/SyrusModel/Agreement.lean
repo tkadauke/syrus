@@ -312,5 +312,40 @@ theorem lift_after_complete :
   intro ⟨j, o, n, p⟩
   cases j <;> cases o <;> cases n <;> cases p <;> decide
 
+/-! ## Instance: only a loop's latest iteration is actionable
+
+A loop's iterations are numbered; once iteration `k+1` exists, the loop has
+already acted on iteration `k`'s outcome. Retrying or "continuing" from a
+failed earlier iteration re-runs stale work. Production: a pending retry for a
+first-iteration `grader_collect` fired after the loop had moved two iterations
+on and stopped on no progress; it reopened the Workflow and, failing again,
+scheduled the next retry -- hourly for eight hours. The pending auto-retry
+and the orphaned-failed-Step check now skip superseded iterations. This guard
+is for re-running a Step: the reconciler's Workflow-level repairs (a merge-train
+rebuild) legitimately key off an earlier iteration's failure, so they are not
+instances of it. -/
+
+structure IterFailure where
+  iteration : Nat
+  latest : Nat
+  deriving DecidableEq, Repr
+
+def detectIterBefore (_ : IterFailure) : Prop := True
+def detectIterAfter (f : IterFailure) : Prop := ¬ f.latest > f.iteration
+
+/-- Acting is sound only on the iteration the loop has not yet moved past. -/
+def iterGuard (f : IterFailure) : Prop := f.iteration ≥ f.latest
+
+theorem iter_before_not_actionable : ¬ Actionable detectIterBefore iterGuard := by
+  intro h
+  have := h ⟨1, 3⟩ trivial
+  exact absurd this (by unfold iterGuard; decide)
+
+theorem iter_after_actionable : Actionable detectIterAfter iterGuard := by
+  intro f h
+  unfold iterGuard
+  unfold detectIterAfter at h
+  omega
+
 end Agreement
 end SyrusModel
