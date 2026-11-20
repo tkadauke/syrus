@@ -32,12 +32,8 @@ module Mcp::Tools
           payload[:repository] = repository.slug
         end
 
-        if document.file?
-          payload[:content_type] = document.content_type
-          payload[:size_bytes] = document.file.byte_size if document.file.attached?
-        else
-          payload[:url] = document.google_docs_url
-        end
+        payload[:content_type] = document.content_type
+        payload[:size_bytes] = document.file.byte_size if document.file.attached?
 
         payload
       end
@@ -52,9 +48,6 @@ module Mcp::Tools
 
       def document_status(document)
         return "attached" if document.file.attached?
-        return "cached" if document.content_cache.present?
-        return "linked" if document.google_docs_url.present?
-
         "unavailable"
       end
     end

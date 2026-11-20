@@ -45,6 +45,10 @@ class ChatTurnJob < ApplicationJob
       attached_epics: [ :repository, { jobs: :repository } ]
     ).find(chat_session_id)
     return if chat.deleted?
+    # The external MCP client is this chat's agent. A card outcome or an
+    # operator message here is for that client to read, not a turn for
+    # Syrus's own chat agent to take.
+    return if chat.mcp_bridge?
 
     user_message = chat.messages.find(user_message_id)
     lifecycle = ChatTurnLifecycles.for(chat_session: chat, user_message: user_message)
@@ -217,21 +221,22 @@ class ChatTurnJob < ApplicationJob
 
   def finalize_plugin_turns!
     Syrus::PluginRegistry.providers_for(:chat_turn_finalizer).each do |provider|
-      begin
-        PerformanceLogging.plugin_call(extension_point: :chat_turn_finalizer, provider: provider, operation: :after_chat_turn) do
+      result = Syrus::PluginInvocation.call(
+        extension_point: :chat_turn_finalizer, provider:, operation: :after_chat_turn, on_decline: nil
+      ) do
           provider.after_chat_turn(
             chat_session: @chat,
             user_message: @user_message,
             turn_succeeded: @turn_completed_successfully == true
           )
-        end
-      rescue StandardError => e
+      end
+      if result.is_a?(Syrus::PluginInvocation::Failed)
         @chat.messages.create!(
           role: "system",
-          content: { "text" => "Workspace changes are still recoverable locally, but Syrus could not save them to the coworker's home branch: #{e.message}" },
+          content: { "text" => "Workspace changes are still recoverable locally, but Syrus could not save them to the coworker's home branch: #{result.message}" },
           skip_turn_trigger: true
         )
-        Rails.logger.error("[ChatTurnJob] chat_turn_finalizer #{provider}: #{e.class}: #{e.message}")
+        Rails.logger.error("[ChatTurnJob] chat_turn_finalizer #{provider}: #{result.exception_class}: #{result.message}")
       end
     end
   end
@@ -239,8 +244,14 @@ class ChatTurnJob < ApplicationJob
   def ensure_workspace!
     workspace_path = ChatWorkspace.ensure_root!(@chat)
     if (lifecycle = plugin_workspace_lifecycle)
-      workspace_path = lifecycle.prepare!(chat_session: @chat)
-      @plugin_workspace_prepared = true
+      prepared = Syrus::PluginInvocation.call(
+        extension_point: :chat_workspace_lifecycle, provider: lifecycle, operation: :prepare,
+        on_decline: workspace_path
+      ) { lifecycle.prepare!(chat_session: @chat) }
+      unless prepared.is_a?(Syrus::PluginInvocation::Failed)
+        workspace_path = Syrus::PluginInvocation.value(prepared)
+        @plugin_workspace_prepared = true
+      end
     elsif coding_mode_active?
       ensure_coding_checkout!
     else
@@ -251,15 +262,26 @@ class ChatTurnJob < ApplicationJob
 
   def plugin_workspace_lifecycle
     @plugin_workspace_lifecycle ||= Syrus::PluginRegistry.providers_for(:chat_workspace_lifecycle).find do |provider|
-      provider.applies_to?(chat_session: @chat)
+      Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :chat_workspace_lifecycle, provider:, operation: :applies_to, on_decline: false
+      ) { provider.applies_to?(chat_session: @chat) })
     end
   end
 
   def finalize_plugin_workspace!
-    plugin_workspace_lifecycle&.finalize!(chat_session: @chat) if @plugin_workspace_prepared
-  rescue StandardError => error
-    create_message!("system", text: "The coworker workspace could not be merged: #{error.message}")
-    Rails.logger.error("[ChatTurnJob] plugin workspace finalization failed for chat ##{@chat.id}: #{error.class}: #{error.message}")
+    return unless @plugin_workspace_prepared && plugin_workspace_lifecycle
+
+    result = Syrus::PluginInvocation.call(
+      extension_point: :chat_workspace_lifecycle, provider: plugin_workspace_lifecycle,
+      operation: :finalize, on_decline: nil
+    ) { plugin_workspace_lifecycle.finalize!(chat_session: @chat) }
+    return unless result.is_a?(Syrus::PluginInvocation::Failed)
+
+    create_message!("system", text: "The coworker workspace could not be merged: #{result.message}")
+    Rails.logger.error(
+      "[ChatTurnJob] plugin workspace finalization failed for chat ##{@chat.id}: " \
+      "#{result.exception_class}: #{result.message}"
+    )
   end
 
   def chat_provider
@@ -381,14 +403,12 @@ class ChatTurnJob < ApplicationJob
   # message is claimed by nobody, which is the fast path.
   def plugin_turn_orientation(user_note:)
     Syrus::PluginRegistry.providers_for(:chat_turn_orientation).each do |provider|
-      text = PerformanceLogging.plugin_call(extension_point: :chat_turn_orientation, provider: provider, operation: :chat_turn_orientation) do
+      text = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :chat_turn_orientation, provider:, operation: :chat_turn_orientation, on_decline: nil
+      ) do
         provider.chat_turn_orientation(chat_session: @chat, message: @user_message, user_note: user_note)
-      end
+      end)
       return text if text.present?
-    rescue StandardError => e
-      # A provider that cannot orient the turn must not cost the user their
-      # turn: fall through to a normal one on whatever they typed.
-      Rails.logger.warn("[ChatTurnJob] chat_turn_orientation #{provider}: #{e.class}: #{e.message}")
     end
 
     nil

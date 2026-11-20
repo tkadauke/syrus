@@ -6,6 +6,7 @@
 require_relative "../retention_archive_storage"
 
 Rails.application.configure do
+  config.active_record.dump_schema_after_migration = false if ENV["SKIP_SCHEMA_DUMP"] == "1"
   # Settings specified here will take precedence over those in config/application.rb.
 
   # The suite assumes a UTC deployment regardless of the host's TZ; only an

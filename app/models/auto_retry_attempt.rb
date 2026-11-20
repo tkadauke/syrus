@@ -13,6 +13,7 @@ class AutoRetryAttempt < ApplicationRecord
   RETRY_KINDS = %w[ failed_step resume_failed_step retry_workflow preserved_merge_train ].freeze
 
   WORKER_DIED_CLASSIFICATION = "worker_died"
+  IN_PLACE_STEP_CLASSIFICATIONS = [ WORKER_DIED_CLASSIFICATION, "git_transport_transient" ].freeze
   MAX_ATTEMPTS = 3
   MAX_WORKER_DIED_ATTEMPTS = 20
   BACKOFFS = [ 5.minutes, 20.minutes, 1.hour ].freeze

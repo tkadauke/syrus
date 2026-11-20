@@ -74,6 +74,7 @@ module Coworkers
     route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/fire_now", to: "api/v1/app/coworkers#fire_schedule"
     route :post, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#create_chat"
     route :post, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#add_to_chat"
+    route :patch, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#update_chat_agent"
     route :delete, "/api/v1/app/chats/:chat_id/agents/:id", to: "api/v1/app/coworkers#remove_from_chat"
     frontend routes: {
           "coworkers/Coworkers" => "app/frontend/routes/Coworkers.tsx"

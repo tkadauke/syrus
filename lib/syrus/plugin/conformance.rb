@@ -3,6 +3,8 @@
 module Syrus
   module Plugin
     class Conformance
+      Finding = Data.define(:plugin, :family, :provider, :code, :message)
+
       def initialize(manifests) = @manifests = manifests
 
       def findings
@@ -59,19 +61,23 @@ module Syrus
         required_keywords = parameters.filter_map { |kind, name| name if kind == :keyreq }
         optional_keywords = parameters.filter_map { |kind, name| name if kind == :key }
         variadic = parameters.any? { |kind, _| %i[rest keyrest block].include?(kind) }
-        !variadic && positional == contract.required_positionals && required == contract.required_positionals &&
-          required_keywords == contract.required_keywords && optional_keywords == contract.optional_keywords
+        optional = parameters.count { |kind, _| kind == :opt }
+        !variadic && positional == contract.required_positionals + contract.optional_positionals &&
+          required == contract.required_positionals && optional == contract.optional_positionals &&
+          required_keywords.map(&:to_sym).sort == contract.required_keywords &&
+          optional_keywords.map(&:to_sym).sort == contract.optional_keywords
       end
 
       def signature_label(contract)
-        return "no arguments" if contract.required_positionals.zero? && contract.required_keywords.empty? && contract.optional_keywords.empty?
+        return "no arguments" if contract.required_positionals.zero? && contract.optional_positionals.zero? &&
+          contract.required_keywords.empty? && contract.optional_keywords.empty?
 
-        "#{contract.required_positionals} required context argument(s), required keywords #{contract.required_keywords.inspect}, " \
-          "and optional keywords #{contract.optional_keywords.inspect}"
+        "#{contract.required_positionals} required and #{contract.optional_positionals} optional positional argument(s), " \
+          "required keywords #{contract.required_keywords.inspect}, and optional keywords #{contract.optional_keywords.inspect}"
       end
 
       def finding(plugin, declaration, code, message)
-        PluginHealth::Finding.conformance(plugin: plugin.to_s, family: declaration.family.to_sym,
+        Finding.new(plugin: plugin.to_s, family: declaration.family.to_sym,
           provider: declaration.provider.to_s, code:, message:)
       end
     end

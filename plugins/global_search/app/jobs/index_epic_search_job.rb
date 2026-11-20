@@ -1,5 +1,5 @@
-class IndexEpicSearchJob < ApplicationJob
-  queue_as :indexing
+class IndexEpicSearchJob < PluginJob
+  plugin :global_search
 
   def perform(epic_id)
     epic = Epic.find_by(id: epic_id)

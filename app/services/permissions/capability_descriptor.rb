@@ -25,6 +25,25 @@ module Permissions
     # which bounded, reversible, user-authorized kind it is.
     BENIGN_INTERNAL_KINDS = %i[context_binding owner_interaction authority_reduction draft_proposal].freeze
 
+    # Effects that cross a real consequence barrier. An operation declaring
+    # none of them has no consequence outside the agent's bounded internal
+    # work; internal persistence alone (internal_write) is not a barrier.
+    BARRIER_EFFECTS = %i[
+      credential_use external_write communication financial privilege_change
+      operational destructive irreversible persistent_autonomy operator_host_access
+    ].freeze
+
+    # Why an operation without a barrier effect is nevertheless deniable. Every
+    # such operation must name one, so "the default happened to be ask" can
+    # never be the classification.
+    DENIABLE_REASONS = %i[
+      material_control privilege_change shared_state confidential_cross_boundary
+      instance_wide_observability external_ingestion autonomy_expansion operator_scoping
+    ].freeze
+
+    # How broadly a rule or lease may target an operation, broadest first.
+    BREADTHS = %i[family tool resource].freeze
+
     # Argument types a descriptor may expose as durable-authority constraints.
     # `string_prefix` is matched as a token prefix rather than for equality, so
     # one rule can stand for a family of invocations ("every `git commit ...`")
@@ -41,7 +60,7 @@ module Permissions
       :resource_scope, :classifier, :fingerprint_normalizer, :redactor, :presets,
       :capability_aliases, :operation_aliases, :constraint_fields,
       :fresh_authentication_window, :budget_dimensions, :benign_internal, :tool_set_bundle,
-      :resource_scope_resolver
+      :resource_scope_resolver, :essential, :deniable_reason, :breadth_ceilings
     attr_reader :presentation
 
     def initialize(capability:, operation:, effects:, risk:, requestable_roles:, defaults:,
@@ -49,7 +68,7 @@ module Permissions
       fingerprint_normalizer:, redactor:, maximum_duration: nil, presets: [],
       capability_aliases: [], operation_aliases: [], constraint_fields: {},
       fresh_authentication_window: nil, budget_dimensions: [], benign_internal: nil, tool_set_bundle: nil,
-      resource_scope_resolver: nil, presentation: nil)
+      resource_scope_resolver: nil, presentation: nil, essential: false, deniable_reason: nil, breadth_ceilings: nil)
       @capability = versioned_identifier(capability, :capability)
       @operation = versioned_identifier(operation, :operation)
       @presentation = if presentation.is_a?(CapabilityPresentation)
@@ -67,8 +86,21 @@ module Permissions
       @risk = risk.to_sym
       @requestable_roles = Array(requestable_roles).map(&:to_s).uniq.freeze
       @defaults = defaults.to_h.transform_keys(&:to_s).transform_values(&:to_sym).freeze
-      @maximum_autonomy = maximum_autonomy.to_sym
-      @authority_durations = Array(authority_durations).map(&:to_sym).uniq.freeze
+      @breadth_ceilings = normalize_breadth_ceilings(breadth_ceilings)
+      # Every ordinary operation can be allowed forever; breadth_ceilings is
+      # the one place a descriptor narrows that (raw SQL: once for the family,
+      # forever for one database). The overall autonomy ceiling and the
+      # durations a grant may name follow from the broadest ceiling. Only an
+      # operation that must never be delegated at all (maximum_autonomy :none)
+      # keeps its declared durations.
+      if maximum_autonomy.to_sym == :none
+        @maximum_autonomy = :none
+        @authority_durations = Array(authority_durations).map(&:to_sym).uniq.freeze
+      else
+        rank = AUTONOMY_CEILINGS.each_with_index.to_h
+        @maximum_autonomy = @breadth_ceilings.values.max_by { |ceiling| rank.fetch(ceiling) }
+        @authority_durations = AUTHORITY_DURATIONS.select { |duration| rank.fetch(duration) <= rank.fetch(@maximum_autonomy) }.freeze
+      end
       @maximum_duration = maximum_duration
       @resource_scope = resource_scope.is_a?(ResourceScopeSchema) ? resource_scope : ResourceScopeSchema.new(**resource_scope)
       @classifier = classifier
@@ -81,6 +113,8 @@ module Permissions
       @budget_dimensions = Array(budget_dimensions).map(&:to_sym).uniq.freeze
       @benign_internal = benign_internal&.to_sym
       @tool_set_bundle = (tool_set_bundle.presence || ToolSetBundles.classify(@effects)).to_s.freeze
+      @essential = essential == true
+      @deniable_reason = deniable_reason&.to_sym
       @capability_aliases = aliases(capability_aliases, :capability_aliases)
       @operation_aliases = aliases(operation_aliases, :operation_aliases)
       validate!
@@ -88,6 +122,31 @@ module Permissions
     end
 
     def requires_fresh_authentication? = !fresh_authentication_window.nil?
+
+    # A non-deniable agent essential: still evaluated and audited by the
+    # permission system, but no rule, preset, lease or request can change the
+    # outcome. See config/syrus_docs/permission_authority.md.
+    def essential? = essential
+
+    def barrier_effects = effects & BARRIER_EFFECTS
+
+    # The longest authority a rule or lease of the given breadth may carry.
+    def breadth_ceiling(breadth) = breadth_ceilings.fetch(breadth.to_sym)
+
+    # Whether authority of +duration+ may be granted at +breadth+.
+    def breadth_permits?(breadth, duration)
+      rank = AUTONOMY_CEILINGS.each_with_index.to_h
+      rank.fetch(duration.to_sym) <= rank.fetch(breadth_ceiling(breadth))
+    end
+
+    # The breadth a rule targets: a resource scope or argument constraint makes
+    # it resource-level, an operation tool-level, a capability alone family-level.
+    def self.breadth_of(operation:, resource_scope:, constraints: nil)
+      return :resource if resource_scope.present? || constraints.present?
+      return :tool if operation.present?
+
+      :family
+    end
 
     def classify(arguments) = classifier.call(arguments)
     def normalize_fingerprint(arguments) = fingerprint_normalizer.call(arguments)
@@ -97,11 +156,22 @@ module Permissions
 
     def contract_key
       [
+        *authorization_contract_key,
+        requestable_roles.sort, defaults.sort
+      ]
+    end
+
+    def authorization_contract_key
+      [
         capability, effects.sort, risk, maximum_autonomy, authority_durations.sort,
         maximum_duration, resource_scope.type, resource_scope.options,
-        requestable_roles.sort, defaults.sort, presets,
+        presets,
         capability_aliases.sort, operation_aliases.sort, constraint_fields.sort,
-        fresh_authentication_window, budget_dimensions.sort, benign_internal
+        fresh_authentication_window, budget_dimensions.sort, benign_internal,
+        breadth_ceilings.sort
+        # essential and deniable_reason are deliberately not part of the
+        # contract: they classify one tool on one surface (a coworker sees the
+        # same operation as a chat, under the operator's delegation scope).
       ]
     end
 
@@ -129,11 +199,24 @@ module Permissions
         budget_dimensions: budget_dimensions,
         benign_internal: benign_internal,
         tool_set_bundle: tool_set_bundle,
+        essential: essential,
+        deniable_reason: deniable_reason,
+        breadth_ceilings: breadth_ceilings,
         presentation: presentation.to_h
       }
     end
 
     private
+
+    # Ordinary operations may be allowed forever at every breadth; a descriptor
+    # narrows only where a broad grant would be unsafe (for example raw SQL:
+    # once for the family and the tool, forever for one named database).
+    def normalize_breadth_ceilings(ceilings)
+      defaults = BREADTHS.index_with { :permanent }
+      return defaults.freeze if ceilings.nil?
+
+      defaults.merge(ceilings.to_h.transform_keys(&:to_sym).transform_values(&:to_sym)).freeze
+    end
 
     def versioned_identifier(value, field)
       identifier = value.to_s
@@ -188,6 +271,17 @@ module Permissions
       end
       if resource_scope_resolver && !resource_scope_resolver.respond_to?(:call)
         raise ArgumentError, "resource_scope_resolver must respond to call"
+      end
+      unknown_breadths = breadth_ceilings.keys - BREADTHS
+      raise ArgumentError, "unknown breadths: #{unknown_breadths.join(', ')}" if unknown_breadths.any?
+      unknown_ceilings = breadth_ceilings.values - AUTONOMY_CEILINGS
+      raise ArgumentError, "unknown breadth ceilings: #{unknown_ceilings.join(', ')}" if unknown_ceilings.any?
+      if deniable_reason && !DENIABLE_REASONS.include?(deniable_reason)
+        raise ArgumentError, "unknown deniable reason: #{deniable_reason}"
+      end
+      if essential
+        raise ArgumentError, "essential operations cannot declare barrier effects: #{barrier_effects.join(', ')}" if barrier_effects.any?
+        raise ArgumentError, "essential operations cannot carry a deniable reason" if deniable_reason
       end
     end
   end

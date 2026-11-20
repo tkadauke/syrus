@@ -59,6 +59,17 @@ RSpec.describe "bin/test-react" do
     end
   end
 
+  it "uses one Vitest worker on GitHub Actions to stay within runner memory" do
+    Dir.mktmpdir do |dir|
+      mark_node_modules_fresh(dir)
+
+      stdout, stderr, status = run_script(dir, "GITHUB_ACTIONS" => "true")
+      expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+
+      expect(File.read(File.join(dir, "npx-calls.log"))).to include("vitest run --coverage --maxWorkers 1")
+    end
+  end
+
   it "does not run Vitest when typecheck fails" do
     Dir.mktmpdir do |dir|
       mark_node_modules_fresh(dir)

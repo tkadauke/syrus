@@ -10,6 +10,10 @@ class ChatSession < ApplicationRecord
   TITLE_MAX_LENGTH = 120
   SUGGESTED_NEXT_STEP_MAX_BYTES = 200
   MODES = %w[planning coding local].freeze
+  # A chat an external MCP client acts in through /mcp/bridge (see
+  # McpBridgeToken). The client is the agent: Syrus never runs a chat turn
+  # of its own here, and there is no platform to deliver messages to.
+  MCP_BRIDGE_PLATFORM = "mcp_bridge".freeze
   DAEMON_STATES = %w[connected disconnected].freeze
   EFFORT_LEVELS = %w[none medium high].freeze
   CONVERSATION_KINDS = { direct: "direct", group: "group" }.freeze
@@ -66,6 +70,7 @@ class ChatSession < ApplicationRecord
   has_many :context_checkpoints, class_name: "ChatContextCheckpoint", dependent: :destroy
   has_many :scoped_events, class_name: "ChatScopedEvent", dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
+  has_many :mcp_bridge_tokens, dependent: :nullify
   has_many :chat_queued_messages, class_name: "ChatQueuedMessage", dependent: :destroy
   has_many :queued_messages, -> { pending.order(:created_at, :id) }, class_name: "ChatQueuedMessage"
   has_many :scratchpad_items, -> { ordered }, class_name: "ChatScratchpadItem", dependent: :destroy
@@ -255,6 +260,8 @@ class ChatSession < ApplicationRecord
   def ensure_agent_record!
     Agent.find_or_create_for!(self)
   end
+
+  def mcp_bridge? = origin_platform == MCP_BRIDGE_PLATFORM
 
   def deleted?
     deleted_at.present?
@@ -702,6 +709,11 @@ class ChatSession < ApplicationRecord
     else
       resolve_mentions(message_or_mentions)
     end
+    return false if mentions.any? do |mention|
+      mentionable = Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
+      mentionable&.delegates_chat_turn?(self)
+    end
+
     decision = ChatIdentityContributions.trigger_decision(
       chat_session: self,
       message: message_or_mentions.is_a?(Array) ? nil : message_or_mentions,

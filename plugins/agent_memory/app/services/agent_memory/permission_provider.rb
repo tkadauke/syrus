@@ -12,6 +12,17 @@ module AgentMemory
     }.freeze
     OPERATIONS = EFFECTS.keys.index_with { |name| "agent_memory.entries/#{name}@v1" }.freeze
 
+    # A user's private memories are the agent's own context: reading them and
+    # writing a new one cross no consequence barrier, so they are essential
+    # (always allowed, never deniable) while scope validation, content policy,
+    # duplicate detection and provenance stay in the tools. Publishing shares
+    # state with other users and deleting destroys it, so both stay gated.
+    ESSENTIAL = %w[read_memory search_memories list_memories write_memory].freeze
+    DENIABLE_REASONS = {
+      "unpublish_memory" => :shared_state,
+      "admin_read_memory_audit_history" => :instance_wide_observability
+    }.freeze
+
     class << self
       def normalize(arguments) = arguments.to_h.stringify_keys.sort.to_h
       def redact(arguments) = normalize(arguments).transform_values { |value| value.is_a?(String) && value.length > 120 ? "[REDACTED MEMORY CONTENT]" : value }
@@ -26,6 +37,7 @@ module AgentMemory
       end
       register_capability(
         capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        essential: ESSENTIAL.include?(name), deniable_reason: DENIABLE_REASONS[name],
         effects:, risk:, requestable_roles: ROLES, defaults:,
         maximum_autonomy: mutation ? :invocation : :permanent,
         authority_durations: mutation ? %i[invocation] : Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,

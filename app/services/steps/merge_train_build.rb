@@ -131,6 +131,7 @@ module Steps
     # Replay the member's commits onto the integration tip on a scratch
     # branch, then fast-forward the integration branch to the result.
     def integrate!(member, branch)
+      GitMergeDrivers.register!(git: @git, path: @chdir)
       temp = "__mt_member_#{member.id}"
       previous_tip = @git.run("rev-parse", @integration, chdir: @chdir).strip
       @git.run("checkout", "-B", temp, "FETCH_HEAD", chdir: @chdir)

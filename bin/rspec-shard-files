@@ -1,0 +1,45 @@
+#!/usr/bin/env ruby
+# Prints the spec files belonging to one CI shard, one per line:
+#
+#   bin/rspec-ci $(bin/rspec-shard-files 2 4)
+#
+# The whole suite no longer fits one GitHub runner's job timeout, so CI splits
+# it across a matrix. Files are spread with a greedy longest-first assignment,
+# weighted by the recorded per-file runtimes in RSPEC_RUNTIME_LOG when that file
+# exists and by file size otherwise. The assignment is deterministic, and the
+# shards together cover exactly the files bin/rspec-fast runs by default.
+
+index, total = ARGV.map { |arg| Integer(arg, exception: false) }
+unless ARGV.size == 2 && index && total && total.positive? && index.between?(1, total)
+  warn "usage: bin/rspec-shard-files INDEX TOTAL   (INDEX is 1-based)"
+  exit 2
+end
+
+Dir.chdir(File.expand_path("..", __dir__))
+
+roots = [ "plugins" ]
+plugin_path = ENV["SYRUS_PLUGIN_PATH"].to_s
+roots << plugin_path if !plugin_path.empty? && File.directory?(plugin_path)
+files = Dir["spec/**/*_spec.rb"]
+roots.each { |root| files.concat(Dir[File.join(root, "**", "spec", "**", "*_spec.rb")]) }
+files = files.uniq.sort
+
+runtime_log = ENV.fetch("RSPEC_RUNTIME_LOG", ".syrus/parallel_runtime_rspec.log")
+runtimes = {}
+if File.file?(runtime_log)
+  File.foreach(runtime_log) do |line|
+    file, seconds = line.strip.split(":", 2)
+    runtimes[file.sub(%r{\A\./}, "")] = seconds.to_f if file && seconds
+  end
+end
+# Without a runtime for a file, its size stands in, scaled to seconds roughly.
+weight = ->(file) { runtimes.fetch(file) { File.size(file) / 1000.0 } }
+
+shards = Array.new(total) { { load: 0.0, files: [] } }
+files.sort_by { |file| [ -weight.(file), file ] }.each do |file|
+  shard, = shards.each_with_index.min_by { |candidate, i| [ candidate[:load], i ] }
+  shard[:load] += weight.(file)
+  shard[:files] << file
+end
+
+puts shards[index - 1][:files].sort

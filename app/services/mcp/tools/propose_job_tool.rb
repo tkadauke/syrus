@@ -143,8 +143,9 @@ module Mcp::Tools
     class << self
       def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, priority: "medium", planned_execution: nil, for_active_goal: false)
         # Unattended coworker runs carry only a run; proposals land in the coworker's main chat.
-        chat_session = server_context[:chat_session] || McpToolContext.from_server_context(server_context).chat_session ||
-          server_context.fetch(:chat_session)
+        context = McpToolContext.from_server_context(server_context)
+        response_chat = context.chat_session
+        chat_session = context.owner_chat
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
         description = normalize_proposal_markdown(description).strip
@@ -228,6 +229,7 @@ module Mcp::Tools
             provider_setting: provider_setting,
             priority: priority,
             proposer: proposal_proposer(server_context),
+            response_chat_session: (response_chat unless response_chat == chat_session),
             **planned_execution_attrs,
             **goal_attrs
           )

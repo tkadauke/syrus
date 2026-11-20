@@ -128,15 +128,25 @@ describe("profile routes", () => {
 
     expect(await screen.findByRole("main", { name: "Team profile" })).toBeInTheDocument()
     expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "@ada" })).toHaveAttribute("href", "https://github.com/ada")
+    expect(screen.getByText("Operator")).toBeInTheDocument()
+    const githubLink = screen.getByRole("link", { name: "GitHub profile for @ada" })
+    expect(githubLink).toHaveAttribute("href", "https://github.com/ada")
+    expect(githubLink).toHaveAttribute("target", "_blank")
+    expect(githubLink).toHaveAttribute("rel", "noreferrer")
     expect(screen.getByText("Mathematician and operator.")).toBeInTheDocument()
+    expect(screen.getByText("Analytical Engines Ltd")).toBeInTheDocument()
+    expect(screen.getByText("London")).toBeInTheDocument()
+    const websiteLink = screen.getByRole("link", { name: "example.com" })
+    expect(websiteLink).toHaveAttribute("href", "https://example.com/ada")
+    expect(websiteLink).toHaveAttribute("target", "_blank")
+    expect(screen.getByRole("group", { name: "Profile work counts" })).toBeInTheDocument()
 
-    const epics = screen.getByRole("heading", { name: "Owned epics" }).closest("section")
-    expect(within(epics as HTMLElement).getByRole("link", { name: "Profile coverage" })).toHaveAttribute("href", "/app-shell/epics/12")
-    const jobs = screen.getByRole("heading", { name: "Owned jobs" }).closest("section")
-    expect(within(jobs as HTMLElement).getByRole("link", { name: "Ship profile page" })).toHaveAttribute("href", "/app-shell/jobs/55")
+    const recentWork = screen.getByRole("heading", { name: "Recent work" }).closest("section")
+    expect(within(recentWork as HTMLElement).getByRole("link", { name: "Profile coverage" })).toHaveAttribute("href", "/app-shell/epics/12")
+    expect(within(recentWork as HTMLElement).getByRole("link", { name: "Ship profile page" })).toHaveAttribute("href", "/app-shell/jobs/55")
     const repositories = screen.getByRole("heading", { name: "Repositories" }).closest("section")
     expect(within(repositories as HTMLElement).getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
+    expect(screen.queryByRole("link", { name: "Edit profile" })).not.toBeInTheDocument()
     expect(screen.queryByText("ada@example.com")).not.toBeInTheDocument()
     expect(screen.queryByText("sk-profile-secret")).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/profiles/7", expect.objectContaining({ credentials: "same-origin" }))
@@ -167,10 +177,24 @@ describe("profile routes", () => {
 
     expect(await screen.findByRole("main", { name: "Team profile" })).toBeInTheDocument()
     expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument()
-    expect(screen.getByText("No active epics.")).toBeInTheDocument()
-    expect(screen.getByText("No jobs.")).toBeInTheDocument()
+    expect(screen.getByText("No recent jobs or epics.")).toBeInTheDocument()
     expect(screen.getByText("No active repositories.")).toBeInTheDocument()
-    expect(screen.getByText("No activity yet.")).toBeInTheDocument()
+    expect(screen.queryByText("Company")).not.toBeInTheDocument()
+    expect(screen.queryByText("Location")).not.toBeInTheDocument()
+    expect(screen.queryByText("Website")).not.toBeInTheDocument()
+  })
+
+  it("links the current operator to the prefixed profile editor", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(teamProfilePayload({ is_current_user: true })))
+
+    renderRoute(
+      <Routes>
+        <Route element={<TeamProfileRoute />} path="/app-shell/profiles/:id" />
+      </Routes>,
+      "/app-shell/profiles/7"
+    )
+
+    expect(await screen.findByRole("link", { name: "Edit profile" })).toHaveAttribute("href", "/app-shell/profile")
   })
 })
 
@@ -192,6 +216,7 @@ function teamProfilePayload(overrides: Record<string, unknown> = {}) {
       last_name: "Lovelace",
       github_handle: "ada",
       role_label: "Operator",
+      is_current_user: false,
       profile_bio: "Mathematician and operator.",
       profile_location: "London",
       profile_company: "Analytical Engines Ltd",

@@ -998,14 +998,13 @@ describe("App Job detail", () => {
 
     const file = new File(["notes"], "notes.md", { type: "text/markdown" })
     fireEvent.change(await screen.findByLabelText("Files"), { target: { files: [file] } })
-    fireEvent.change(screen.getByLabelText("Google Doc URL"), { target: { value: "https://docs.google.com/document/d/context/edit" } })
     fireEvent.click(within(screen.getByRole("heading", { name: "Add attachment" }).closest("form")!).getByRole("button", { name: "Add" }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/attachments", expect.objectContaining({ method: "POST", body: expect.any(FormData) }))
     })
     const formData = fetchSpy.mock.calls.find(([path, init]) => path === "/api/v1/app/jobs/42/attachments" && init?.method === "POST")?.[1]?.body as FormData
-    expect(formData.get("job_attachment[google_doc_url]")).toBe("https://docs.google.com/document/d/context/edit")
+    expect(formData.get("job_attachment[google_doc_url]")).toBeNull()
     expect(formData.get("job_attachment[files][]")).toBe(file)
 
     fireEvent.click(screen.getByRole("button", { name: "Remove" }))

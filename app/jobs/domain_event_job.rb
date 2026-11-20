@@ -15,7 +15,7 @@ class DomainEventJob < ApplicationJob
 
     event = Syrus::DomainEvent.new(name: event_name, payload: payload || {})
 
-    PerformanceLogging.plugin_call(extension_point: :domain_subscriber, provider: provider, operation: event_name) do
+    Syrus::PluginInvocation.call(extension_point: :domain_subscriber, provider:, operation: event_name, on_decline: nil) do
       provider.public_send(method_name, event)
     end
   end

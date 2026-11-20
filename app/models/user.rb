@@ -8,6 +8,7 @@ class User < ApplicationRecord
 
   has_secure_password
   has_many :sessions, dependent: :destroy
+  has_many :mcp_bridge_tokens, dependent: :destroy
   has_many :repositories, dependent: :destroy
   has_many :repository_memberships, dependent: :destroy
   has_many :team_memberships, dependent: :destroy

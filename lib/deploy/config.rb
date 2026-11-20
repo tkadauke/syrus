@@ -67,6 +67,18 @@ module Deploy
     # every code deploy. Worth turning on where the local BuildKit cache is cold.
     def inline_cache? = truthy?(fetch("SYRUS_DEPLOY_INLINE_CACHE", "0"))
 
+    # The worker toolchain as its own, digest-tagged image (see
+    # Images#ensure_worker_deps!). On by default; 0 builds the in-file stage.
+    def worker_deps_image? = !truthy_off?(fetch("SYRUS_WORKER_DEPS_IMAGE", "1"))
+
+    # Rebuild the toolchain image even though its Dockerfile text is
+    # unchanged, to take newer upstream base images and packages.
+    def worker_deps_refresh? = truthy?(fetch("SYRUS_WORKER_DEPS_REFRESH", "0"))
+
+    def worker_deps_registry
+      fetch("WORKER_DEPS_REGISTRY", worker_dev_registry.sub(/-dev\z/, "-deps"))
+    end
+
     # --- clusters -------------------------------------------------------
 
     def clusters
@@ -97,11 +109,10 @@ module Deploy
 
     # What this has to cover is pod startup, which is dominated by the
     # worker-dev image pull; the pre-pull phase removes most of it. It is not
-    # about the worker's 600s terminationGracePeriodSeconds, which is not
-    # load-bearing: SolidQueue's shutdown_timeout is 5s and Syrus does not
-    # override it, and measured termination during a production rollout was
-    # 6-13 seconds. In-flight Runs do not survive a deploy; the stale-run
-    # reaper and the auto-retry path are what recover them.
+    # about draining: a workload that surges new pods (maxSurge) counts as
+    # rolled once they are ready, while old pods keep finishing in-flight Runs
+    # for up to their SOLID_QUEUE_SHUTDOWN_TIMEOUT. The deploy never waits for
+    # that, and Verifications only asks pods that are not terminating.
     def rollout_timeout = duration("ROLLOUT_TIMEOUT", "15m")
     def rollout_poll_interval = duration("ROLLOUT_POLL_INTERVAL", "5s")
     def rollout_report_interval = duration("ROLLOUT_STALL_DIAGNOSE_INTERVAL", "90s")
@@ -184,7 +195,6 @@ module Deploy
 
     # --- other cluster-side controls ------------------------------------
 
-    def mise_cache_host_path = fetch("MISE_CACHE_HOST_PATH", "/data/syrus-mise-cache")
     def mysql_backup_cronjob = fetch("MYSQL_BACKUP_CRONJOB", "syrus-mysql-backup")
     def mysql_backup_drain_timeout = duration("MYSQL_BACKUP_DRAIN_SECONDS", "30s")
 

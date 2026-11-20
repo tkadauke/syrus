@@ -695,7 +695,7 @@ export function AttachmentPreview({ attachments }: { attachments: JobAttachment[
 
 export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
   const { t } = useT("jobs")
-  const title = attachment.title || attachment.filename || attachment.google_doc_url || `Attachment #${attachment.id}`
+  const title = attachment.title || attachment.filename || `Attachment #${attachment.id}`
   const [previewOpen, setPreviewOpen] = useState(false)
   const imagePreviewable = !!attachment.file_path && isImageContentType(attachment.content_type)
   const textPreviewable = !!attachment.content_path && isPreviewableTextContentType(attachment.content_type)
@@ -723,13 +723,7 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
         )}
       </div>
       <Text as="div" className="mt-1" muted variant="caption">
-        {attachment.google_doc_url ? (
-          <a className="text-brand hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">
-            {t("attachment_google_doc")}
-          </a>
-        ) : (
-          attachment.content_type || attachment.attachment_type
-        )}
+        {attachment.content_type || attachment.attachment_type}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
       </Text>
       {previewOpen && imagePreviewable ? (

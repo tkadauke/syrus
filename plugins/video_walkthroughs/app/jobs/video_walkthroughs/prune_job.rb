@@ -14,9 +14,9 @@
 # In BOTH cases only the heavy video blob is removed. The analysis JSON and
 # the issue screenshots (attached to the chat turn) persist — they're the
 # durable value. "Archive" here means the record survives, the media doesn't.
-# Runs daily on `cleanup`.
-class VideoWalkthroughs::PruneJob < ApplicationJob
-  queue_as :cleanup
+# Runs daily on the plugin queue.
+class VideoWalkthroughs::PruneJob < PluginJob
+  plugin :video_walkthroughs
 
   # Only videos from SETTLED walkthroughs are candidates — never purge one
   # that's mid-analysis (its blob is in use).

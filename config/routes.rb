@@ -1,5 +1,7 @@
 Rails.application.routes.draw do
   mount ActionCable.server => "/cable"
+  # External MCP clients authenticated by an McpBridgeToken.
+  match McpBridge::Endpoint::PATH, to: McpBridge::Endpoint, via: %i[ get post delete ]
 
   get "session/new", to: "spa#show", as: :new_session
   resource :session, only: %i[ create destroy ]
@@ -90,6 +92,7 @@ Rails.application.routes.draw do
           delete :reset
         end
         post "desktop/api_token", to: "desktop_tokens#create"
+        resources :mcp_bridge_tokens, only: %i[ index create destroy ]
         resource :credentials, only: %i[ show update ] do
           get :options
           post :clear_credential
@@ -485,8 +488,10 @@ Rails.application.routes.draw do
           post "macos_worker_update/clear", to: "macos_worker_updates#clear"
           post "macos_worker_update/force_terminate", to: "macos_worker_updates#force_terminate"
           get "plugins", to: "plugins#index"
+          get "plugin_convergence", to: "plugin_convergence#show"
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
+          post "plugins/:name/clear_quarantine", to: "plugins#clear_quarantine", constraints: { name: /[^\/]+/ }
           get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
           patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
           get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }
@@ -568,6 +573,8 @@ Rails.application.routes.draw do
       end
 
       namespace :admin do
+        get "plugin_desired_state", to: "plugin_desired_state#show"
+        post "plugin_desired_state/apply", to: "plugin_desired_state#apply"
         # `#show` returns the deep-nested Job state (workflows + steps
         # + runs + diagnostics + provider_session metadata). `#index`
         # is a compact list — supports `?pr_number=`, `?issue_number=`,
@@ -805,6 +812,6 @@ Rails.application.routes.draw do
   # are excluded so a missing file is a 404 rather than the HTML shell -- or,
   # signed out, a redirect to the login page -- which a browser loading a
   # module reports only as "'text/html' is not a valid JavaScript MIME type".
-  spa_excluded_prefixes = [ "/api", "/rails", "/assets/", "/excalidraw-assets/", "/plugin-icons/", "/favicon.ico" ].freeze
+  spa_excluded_prefixes = [ "/api", "/mcp/", "/rails", "/assets/", "/excalidraw-assets/", "/plugin-icons/", "/favicon.ico" ].freeze
   get "*path", to: "spa#show", constraints: ->(req) { !req.path.start_with?(*spa_excluded_prefixes) }, format: false
 end

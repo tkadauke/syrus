@@ -73,6 +73,14 @@ en:
     errors:
       invalid_request: "The request is invalid."
       unavailable: "This action is temporarily unavailable."
+      plugin_installation:
+        release_name_mismatch: "must match the release name"
+        invalid_roles_shape: "must be an array of non-empty names"
+        invalid_roles: "contains invalid roles: %{roles}"
+        missing_verified_artifact: "must have a verified artifact"
+      plugin_release:
+        bundled_archive_present: "must be absent for bundled releases"
+        artifact_identity_immutable: "plugin release artifact identity is immutable after storage or selection"
       chat_attachments:
         default_name: "Attachment"
         must_be_array: "Attachments must be an array."
@@ -157,8 +165,6 @@ en:
       file_too_large: "must be %{size} MB or smaller"
       unsupported_file_type: "must be a supported text, PDF, Office, or image file"
       must_be_blank_for_file: "must be blank for file documents"
-      invalid_google_doc_url: "must be a docs.google.com HTTPS URL"
-      cannot_attach_to_google_doc: "can't be attached to a Google Doc link"
       content_cache_too_large: "must be %{size} KB or smaller"
       too_many_job_attachments: "Jobs can have at most %{count} attachments"
       already_recorded: "has already been recorded for this source and anchor"
@@ -286,6 +292,9 @@ en:
       errors:
         unknown_rule: "That permission rule could not be found."
         operation_required: "Choose the exact operation this rule covers."
+        essential_operation: "This operation is an agent essential: it is always allowed and no rule can change that."
+        exceeds_breadth_ceiling: "This operation cannot be allowed %{duration} at %{breadth} breadth. Narrow the rule to a specific resource or allow it once."
+        unknown_breadth: "Choose whether the rule covers this resource, the whole tool, or the whole family."
         unknown_capability: "That capability or operation is not in the permission catalog."
         unknown_policy: "Unknown rule policy."
         unsupported_duration: "Choose chat session, job, or permanent authority."
@@ -700,7 +709,7 @@ en:
       documents:
         added: "Document added."
         partially_added: "Some documents could not be added: %{errors}"
-        choose_source: "Choose a file or enter a Google Doc URL."
+        choose_source: "Choose a file."
         removed: "Document removed."
       labels:
         github_token: "GitHub token"
@@ -964,6 +973,8 @@ en:
         legacy: "%{count} non-public host API reference(s)"
         dynamic: "%{count} dynamic non-public host API reference(s)"
         minimum: "requires_syrus starts at %{declared}, below the derived minimum %{derived}"
+      quarantine_not_locally_clearable: "This quarantine must be cleared at its source."
+      route_failed: "The %{plugin} plugin could not complete this request."
 
     job_lifecycle:
       direct_only: "Only direct Jobs can be started manually."
@@ -1089,3 +1100,7 @@ en:
       syrus_communication_spawn_chats: "Start new chats"
       syrus_documents_create: "Create a repository document"
       syrus_documents_delete: "Delete a repository document"
+  mcp_bridge:
+    chat_title: "MCP bridge: %{name}"
+    unauthorized: "A valid MCP bridge token is required."
+    name_required: "Give the token a name."

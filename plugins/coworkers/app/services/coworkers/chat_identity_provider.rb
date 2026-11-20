@@ -20,7 +20,7 @@ module Coworkers
       end
 
       def chat_turn_identity(chat_session:, message:)
-        coworker = rostered_coworker(chat_session, message) || linked_coworker(chat_session)
+        coworker = linked_coworker(chat_session)
         identity(coworker) if coworker
       end
 
@@ -29,7 +29,7 @@ module Coworkers
       # explicit mention of an addressable agent. Returning nil for all other
       # chats leaves the generic host policy in charge.
       def chat_turn_trigger(chat_session:, message:, mentions:)
-        owns_turn = linked_coworker(chat_session) || coworker_mentions(mentions).any?
+        owns_turn = linked_coworker(chat_session)
         return unless owns_turn
 
         trigger = chat_session.chat_participants.count <= 1 || Array(mentions).any? do |mention|
@@ -47,7 +47,10 @@ module Coworkers
         links = Coworkers::Chat.includes(coworker: { avatar_attachment: :blob })
           .joins(:coworker).where(coworkers: { owner_user_id: user.id })
         metadata = links.index_with do |link|
-          { agent_appearance: appearance(link.coworker) }
+          { agent_appearance: appearance(link.coworker).merge(
+            coworker_id: link.coworker_id, coworker_chat_role: link.role,
+            side_chat_action_path: "/api/v1/app/coworkers/#{link.coworker_id}/chats"
+          ) }
         end.transform_keys(&:chat_session_id)
         {
           key: "coworkers",
@@ -77,19 +80,6 @@ module Coworkers
 
       def linked_coworker(chat_session)
         Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat_session.id)&.coworker
-      end
-
-      def rostered_coworker(chat_session, message)
-        ids = coworker_mentions(message&.resolved_mentions)
-        return if ids.empty?
-
-        roster = Coworkers::ChatAgent.where(chat_session_id: chat_session.id, coworker_id: ids)
-          .includes(:coworker).index_by(&:coworker_id)
-        ids.lazy.filter_map { |id| roster[id]&.coworker }.first
-      end
-
-      def coworker_mentions(mentions)
-        Array(mentions).filter_map { |mention| mention["id"].to_i if mention["kind"] == "coworker" }
       end
 
       def identity(coworker, role: nil)

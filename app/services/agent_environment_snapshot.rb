@@ -262,10 +262,17 @@ class AgentEnvironmentSnapshot
 
   def dependency_summary
     signals = Syrus::PluginRegistry.providers_for(:prepare_detector).filter_map do |detector|
-      next unless detector.detect?(workspace_path.to_s)
+      detected = Syrus::PluginInvocation.call(
+        extension_point: :prepare_detector, provider: detector, operation: :detect?, on_decline: false
+      ) { detector.detect?(workspace_path.to_s) }
+      next unless Syrus::PluginInvocation.value(detected)
 
-      commands = Array(detector.prepare_commands(workspace_path.to_s))
-      commands.any? ? "#{detector.name} (#{commands.join(', ')})" : detector.name
+      result = Syrus::PluginInvocation.call(
+        extension_point: :prepare_detector, provider: detector, operation: :prepare_commands, on_decline: []
+      ) { detector.prepare_commands(workspace_path.to_s) }
+      commands = Array(Syrus::PluginInvocation.value(result))
+      name = detector.to_s
+      commands.any? ? "#{name} (#{commands.join(', ')})" : name
     end
     signals.presence&.join(", ") || "no common dependency signals found"
   rescue StandardError => e

@@ -17,6 +17,11 @@ module DesignDocs
       def redact(arguments) = normalize(arguments).transform_values { |value| value.is_a?(String) && value.length > 200 ? "[REDACTED CONTENT]" : value }
     end
 
+    # Reading design docs is research. Drafting, suggesting and archiving
+    # change documents other people read, so they stay deniable.
+    ESSENTIAL = %w[list_design_docs read_design_doc list_design_doc_sections].freeze
+    DENIABLE_REASONS = %w[propose_design_doc suggest_design_doc_change archive_design_docs].index_with { :shared_state }.freeze
+
     EFFECTS.each do |name, effects|
       operation = OPERATIONS.fetch(name)
       mutation = effects.include?(:internal_write)
@@ -24,6 +29,7 @@ module DesignDocs
       register_capability(
         capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
         effects:, risk:, requestable_roles: ROLES,
+        essential: ESSENTIAL.include?(name), deniable_reason: DENIABLE_REASONS[name],
         defaults: ROLES.index_with { mutation ? :ask : :allow }, maximum_autonomy: mutation ? :invocation : :permanent,
         authority_durations: mutation ? %i[invocation] : Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
         resource_scope: { type: :none }, classifier: ->(_arguments) { { operation:, effects:, risk:, confidence: :certain } },

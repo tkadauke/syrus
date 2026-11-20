@@ -11,6 +11,8 @@ module AdminMysql
       chat_session.user.admin? && AdminMysql.mysql? && %i[ essential deferred ].include?(tier.to_sym)
     end
 
+    def self.coworker_excluded? = true
+
     def self.tool_definitions(tier:)
       TOOL_CLASSES.map do |klass|
         {

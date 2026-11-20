@@ -77,8 +77,17 @@ module Go
       prefix = "mise exec go@1.26.5 --"
       return "#{prefix} go test ./..." if root_module?
 
-      "#{prefix} sh -c #{single_quote("cd #{Shellwords.escape(root_relative_module_path)} && go test ./...")}"
+      "#{prefix} sh -c #{single_quote("cd #{Shellwords.escape(root_relative_module_path)} && #{WORKSPACE_FALLBACK} && go test ./...")}"
     end
+
+    # A nested module that the repository's go.work deliberately leaves out
+    # (plugin CLI modules are kept out of the workspace on purpose) cannot be
+    # resolved through it: `go test ./...` there fails before testing anything
+    # ("directory prefix . does not contain modules listed in go.work").
+    # `go list ./...` fails the same way, so it is the probe: when the module
+    # does not resolve through the workspace, test it on its own. A module that
+    # is in the workspace keeps it, so its workspace replacements still apply.
+    WORKSPACE_FALLBACK = "{ go list ./... >/dev/null 2>&1 || export GOWORK=off; }".freeze
 
     def root_module?
       project_path.blank? && module_path == "."

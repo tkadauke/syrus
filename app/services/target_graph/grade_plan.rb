@@ -33,6 +33,11 @@ class TargetGraph
         "target_label" => target.label.to_s,
         "owner_config_path" => target.owner_config_path
       ).compact
+      # A nested project's graders are renamed with its package prefix below;
+      # a CI variant's `supersedes` names its sibling by the unprefixed name,
+      # so it has to be renamed the same way or it never matches. Without
+      # this, every plugin suite ran twice in every merge train.
+      metadata["supersedes"] = scoped_grader_name(target, metadata["supersedes"]) if metadata["supersedes"].present?
 
       RepoGradePlan::Grader.new(
         name: grader_name_for_target(target),
@@ -54,7 +59,10 @@ class TargetGraph
     end
 
     def grader_name_for_target(target)
-      name = target.label.name.delete_prefix("grade/")
+      scoped_grader_name(target, target.label.name.delete_prefix("grade/"))
+    end
+
+    def scoped_grader_name(target, name)
       return name if target.label.root?
 
       "#{target.label.package.tr('/', '-')}-#{name.tr('/', '-')}"

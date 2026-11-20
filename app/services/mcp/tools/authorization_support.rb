@@ -63,7 +63,10 @@ module Mcp::Tools
 
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor
-        return if descriptor.ungated
+        if descriptor.ungated
+          audit_essential!(context, coworker_capability_descriptor(descriptor), arguments)
+          return
+        end
         if descriptor.approval_effect
           enforce_coworker_policy_without_generic_request(context:, server_context:, descriptor:, arguments:)
           return
@@ -97,7 +100,10 @@ module Mcp::Tools
         entry = McpToolRegistry.entry_for(tool)
         descriptor = entry&.descriptor || declared_capability_descriptor(tool)
         return unless descriptor
-        return if entry&.ungated
+        if descriptor.essential? || entry&.ungated
+          audit_essential!(context, descriptor, arguments)
+          return
+        end
         # Local command/file effects have their own canonical evaluator and
         # resumable local_tool_call boundary inside the tool. Do not create a
         # second generic request in front of that same decision.
@@ -241,6 +247,31 @@ module Mcp::Tools
           approval_policy: "queue",
           message: I18n.t("server.permissions.coworker_request_waiting")
         )
+      end
+
+      # Essential operations still go through the permission system: the
+      # evaluator classifies the call, notes any rule it overrides, and the
+      # decision is audited. Nothing here can create a request, consult a
+      # lease or refuse the call.
+      def audit_essential!(context, descriptor, arguments)
+        return unless descriptor&.essential? && context.user
+
+        Permissions::Management.new(context.user).authorize(
+          descriptor:, role: context.role, resource_scope: descriptor.resource_scope_for(arguments), arguments:,
+          context: { role: context.role, user_id: context.user.id, agent_actor: context.agent_actor,
+            chat_session_id: context.chat_session&.id, job_id: context.job&.id, run_id: context.run&.id }.compact
+        )
+      rescue StandardError => error
+        Rails.logger.warn("[AuthorizationSupport] essential audit failed: #{error.class}: #{error.message}")
+        nil
+      end
+
+      def coworker_capability_descriptor(descriptor)
+        if descriptor.tool
+          McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == descriptor.tool }&.descriptor
+        elsif descriptor.definition
+          Permissions::CapabilityDescriptorAdapter.for_plugin_definition(descriptor.definition)
+        end
       end
 
       def pending_scheduled_authorization(tool, server_context, arguments)

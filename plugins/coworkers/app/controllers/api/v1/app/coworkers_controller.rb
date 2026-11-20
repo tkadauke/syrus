@@ -165,7 +165,10 @@ module Api
           coworker = find_coworker
           authorize coworker, :update?, policy_class: CoworkerPolicy
           Coworkers::BranchLifecycle.new(coworker).rename!(handle: params.require(:handle))
-          head :no_content
+          attributes = update_params.except(:handle, :about)
+          attributes[:role_summary] = update_params[:about] if update_params.key?(:about)
+          coworker.update!(attributes)
+          render json: { coworker: base_detail_json(coworker) }
         rescue Coworkers::OperationLock::Busy => error
           render_error("coworker_busy", error.message, status: :conflict)
         rescue ActiveRecord::RecordInvalid, ArgumentError => error
@@ -199,14 +202,7 @@ module Api
         def create_chat
           coworker = find_coworker
           authorize coworker, :manage_chats?, policy_class: CoworkerPolicy
-          chat = ApplicationRecord.transaction do
-            session = ChatSession.create!(
-              user: Current.user, repository: workspace_repository(coworker), title: coworker.name,
-              **coworker.chat_configuration
-            )
-            Coworkers::Chat.create!(coworker: coworker, chat_session: session, role: "side")
-            session
-          end
+          chat = Coworkers::CreateSideChat.call(coworker:, user: Current.user, repository: workspace_repository(coworker))
           render json: { chat_path: "/chats/#{chat.id}" }, status: :created
         end
 
@@ -225,6 +221,14 @@ module Api
           entry = Coworkers::ChatAgent.find_by!(chat_session: owned_chat, coworker: find_coworker)
           entry.destroy!
           head :no_content
+        end
+
+        def update_chat_agent
+          entry = Coworkers::ChatAgent.find_by!(chat_session: owned_chat, coworker: find_coworker)
+          entry.update!(after_reply: params.require(:after_reply))
+          render json: { agent: roster_json(entry) }
+        rescue ActiveRecord::RecordInvalid => error
+          render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
 
         def memory
@@ -417,11 +421,16 @@ module Api
         def roster_json(entry)
           coworker = entry.coworker
           { id: coworker.id, name: coworker.name, handle: coworker.handle, accent_hex: coworker.accent_hex,
-            avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url, removable: true }
+            avatar_key: coworker.avatar_key, avatar_url: coworker.avatar_url, removable: true,
+            after_reply: entry.after_reply }
         end
 
         def create_params
           params.permit(:name, :handle, :workspace_repo, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model, :chat_effort)
+        end
+
+        def update_params
+          params.permit(:name, :handle, :about, :accent_hex, :avatar_key, :chat_provider, :chat_model)
         end
 
         def grant_constraints
@@ -467,7 +476,7 @@ module Api
           summary_json(coworker).merge(
             chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
             effective_model: coworker.chat_model,
-            workspace_repo: coworker.workspace_repo
+            workspace_repo: coworker.workspace_repo, about: coworker.role_summary
           )
         end
 
@@ -486,7 +495,7 @@ module Api
         end
 
         def chats_json(coworker)
-          coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map do |link|
+          coworker.listed_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map do |link|
             { id: link.chat_session_id, link_id: link.id, role: link.role, title: link.chat_session.title,
               path: "/chats/#{link.chat_session_id}", unsaved_workspace: link.unsaved_workspace_json }
           end

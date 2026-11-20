@@ -80,6 +80,14 @@ default: &default
       threads: <%= ENV.fetch("CONTROL_PLANE_CONCURRENCY", 3) %>
       processes: 1
       polling_interval: 0.1
+    # Operator-confirmed pending actions. A confirmation is a person waiting
+    # on a spinner; on control_plane it queued behind reconciler sweeps and
+    # domain-event bursts for minutes, and a long one (a 10-minute SSH call)
+    # held a scheduler thread for its whole run.
+    - queues: "operator_actions"
+      threads: <%= ENV.fetch("OPERATOR_ACTION_CONCURRENCY", 2) %>
+      processes: 1
+      polling_interval: 0.1
     # External polling fans out into per-repository / per-PR checks. These jobs
     # can burst when many repositories are active, so they do not share threads
     # with the scheduler/control-plane queue.
@@ -114,6 +122,14 @@ default: &default
       threads: 1
       processes: 1
       polling_interval: 1
+    # Solid Queue treats a trailing `*` as a queue-name prefix match. PluginJob
+    # uses plugin_<slug>, so this also consumes queues from external plugins
+    # that were not present when this file was rendered. PluginJob's shared
+    # concurrency semaphore enforces the per-plugin cap across job classes.
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("PLUGIN_JOB_THREADS", 6) %>
+      processes: 1
+      polling_interval: 0.2
 
 development:
   dispatchers:
@@ -152,6 +168,10 @@ development:
       threads: <%= ENV.fetch("DEV_CONTROL_PLANE_CONCURRENCY", 1) %>
       processes: 1
       polling_interval: 0.5
+    - queues: "operator_actions"
+      threads: <%= ENV.fetch("DEV_OPERATOR_ACTION_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
     - queues: "polling"
       threads: <%= ENV.fetch("DEV_POLLING_CONCURRENCY", 1) %>
       processes: 1
@@ -172,6 +192,10 @@ development:
       threads: 1
       processes: 1
       polling_interval: 1
+    - queues: "plugin_*"
+      threads: <%= ENV.fetch("DEV_PLUGIN_JOB_THREADS", 2) %>
+      processes: 1
+      polling_interval: 0.5
 
 test:
   <<: *default

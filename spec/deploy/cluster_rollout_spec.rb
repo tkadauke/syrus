@@ -129,6 +129,18 @@ RSpec.describe Deploy::ClusterRollout do
     expect(fake.actions.grep(/rollout/)).to be_empty
   end
 
+  # Regression: a deploy-time patch of the worker pod templates (the per-node
+  # mise cache mount) is not in the GitOps manifests, so Flux strips it when it
+  # resumes. The patch and the revert each rolled every worker pod -- with
+  # draining workers, extra generations of pods per node on every deploy. The
+  # image pin is the only template change a deploy may make.
+  it "changes worker pod templates only by pinning their image" do
+    fake = roll!
+
+    template_patches = fake.actions.grep(/\Apatch (deployment|daemonset) syrus-worker/)
+    expect(template_patches).to be_empty
+  end
+
   it "leaves no control outstanding after a clean rollout" do
     roll!
 

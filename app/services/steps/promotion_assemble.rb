@@ -40,7 +40,9 @@ module Steps
     end
 
     def merge_clean?(source)
-      GitRunner.new.run("merge", "--no-ff", "origin/#{source}", "-m", merge_commit_message(source), chdir: workspace.path.to_s)
+      git = GitRunner.new
+      GitMergeDrivers.register!(git: git, path: workspace.path)
+      git.run("merge", "--no-ff", "origin/#{source}", "-m", merge_commit_message(source), chdir: workspace.path.to_s)
       true
     rescue GitRunner::GitError => e
       return false if merge_conflict?(e)

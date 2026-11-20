@@ -23,7 +23,8 @@ require "tempfile"
 # Failure contract: NOTHING may strand a walkthrough in "analyzing" — every
 # exit path either marks it analyzed or failed (the retry endpoint only
 # accepts failed rows, and the chat chip spins until a terminal broadcast).
-class VideoWalkthroughs::AnalysisJob < ApplicationJob
+class VideoWalkthroughs::AnalysisJob < PluginJob
+  plugin :video_walkthroughs
   queue_as :videos
 
   # Test seam, mirroring RunJob.agent_runner: specs swap in a fake client
@@ -165,7 +166,7 @@ class VideoWalkthroughs::AnalysisJob < ApplicationJob
   # Orient Gemini to WHICH app it's watching so it can name UI surfaces and read
   # intent precisely (the chat scopes the walkthrough to a repository). Kept to
   # cheap, already-loaded signal — the repo slug and the operator's pinned chat
-  # context — so no GitHub fetch or checkout is needed on the videos queue. nil
+  # context — so no GitHub fetch or checkout is needed on the plugin queue. nil
   # for an unscoped chat, which the prompt handles by omitting the section.
   def repo_context_for(walkthrough)
     chat = walkthrough.chat_session

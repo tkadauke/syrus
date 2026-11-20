@@ -494,7 +494,12 @@ module App
     # configuration). A deployment without the owning plugin contributes none.
     def review_gate_fields_json
       Syrus::PluginRegistry.providers_for(:review_gate).each_with_object({}) do |provider, fields|
-        fields.merge!(provider.job_detail_fields(@job)) if provider.respond_to?(:job_detail_fields)
+        next unless provider.respond_to?(:job_detail_fields)
+
+        result = Syrus::PluginInvocation.call(
+          extension_point: :review_gate, provider:, operation: :job_detail_fields, on_decline: {}
+        ) { provider.job_detail_fields(@job) }
+        fields.merge!(Syrus::PluginInvocation.value(result))
       end
     end
 
@@ -826,7 +831,6 @@ module App
         filename: attachment.filename,
         content_type: attachment.content_type,
         byte_size: attachment.byte_size,
-        google_doc_url: attachment.google_doc_url,
         uploaded_file: attachment.uploaded_file?,
         file_path: attachment.file.attached? ? "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}/file" : nil,
         content_path: attachment.file.attached? ? "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}/content" : nil,

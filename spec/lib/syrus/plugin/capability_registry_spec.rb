@@ -8,6 +8,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       shape :facet
       capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: "PrepareContext"
       capability :resolve, composition: :keyed, absent: "raises", tier: :stable, context: "ResolveContext"
+      capability :keyword_probe, composition: :collect, absent: [], tier: :stable, context: "KeywordContext",
+        parameters: [ [ :req, :context ], [ :keyreq, :repository ], [ :key, :job ] ]
     end
     begin
       example.run
@@ -160,7 +162,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     described_class.register(name: "unknown", version: "1", family_provides: [ unknown ])
 
     expect(described_class.health.status("wrong-signature").reasons.join)
-      .to include("1 required context argument(s), required keywords [], and optional keywords []")
+      .to include("1 required and 0 optional positional argument(s), required keywords [], and optional keywords []")
     expect(described_class.health.status("missing-core").reasons).to include(
       "ConformanceVariantsSpec::MissingCore does not define required method key",
       "ConformanceVariantsSpec::MissingCore does not define required method display_name"
@@ -170,6 +172,36 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     )
   ensure
     Object.send(:remove_const, :ConformanceVariantsSpec) if Object.const_defined?(:ConformanceVariantsSpec)
+  end
+
+  it "checks keyword names against the declared capability contract" do
+    namespace = Object.const_set(:KeywordConformanceSpec, Module.new)
+    namespace.const_set(:Conforming, Class.new do
+      def self.key = :conforming
+      def self.display_name = "Conforming"
+      def self.keyword_probe(context, repository:, job: nil) = [ context, repository, job ]
+    end)
+    namespace.const_set(:WrongKeywords, Class.new do
+      def self.key = :wrong
+      def self.display_name = "Wrong"
+      def self.keyword_probe(context, repo:, workflow: nil) = [ context, repo, workflow ]
+    end)
+    declaration_for = lambda do |provider|
+      Syrus::Plugin::FamilyDeclaration.build(
+        family: :ecosystem, provider:, implements: %i[keyword_probe]
+      )
+    end
+    described_class.register(name: "keyword-conforming", version: "1",
+      family_provides: [ declaration_for.call("KeywordConformanceSpec::Conforming") ])
+    described_class.register(name: "keyword-wrong", version: "1",
+      family_provides: [ declaration_for.call("KeywordConformanceSpec::WrongKeywords") ])
+
+    expect(described_class.health.status("keyword-conforming")).to be_ok
+    expect(described_class.health.status("keyword-wrong").reasons.join).to include(
+      "required keywords [:repository], and optional keywords [:job]"
+    )
+  ensure
+    Object.send(:remove_const, :KeywordConformanceSpec) if Object.const_defined?(:KeywordConformanceSpec)
   end
 
   it "accepts a conforming provider" do

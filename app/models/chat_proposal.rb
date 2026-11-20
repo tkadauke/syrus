@@ -17,6 +17,7 @@ class ChatProposal < ApplicationRecord
   after_initialize :default_media_ids
 
   belongs_to :chat_session
+  belongs_to :response_chat_session, class_name: "ChatSession", optional: true
   belongs_to :repository, optional: true
   belongs_to :job, optional: true
   belongs_to :epic, optional: true

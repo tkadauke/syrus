@@ -3,15 +3,18 @@
 Team Directory is the bundled, read-only people directory for a multi-user
 Syrus instance. It adds a Team sidebar entry at `/profiles` and profile pages
 at `/profiles/:id`, summarising each operator's recent jobs, epics, and active
-repositories from records Syrus already owns.
+repositories from records Syrus already owns. Profile pages show optional
+company, location, website, and GitHub details, and link the signed-in operator
+to the existing profile editor only when viewing their own profile.
 
 ## Visibility and authorization
 
 The directory is available to signed-in operators; its app API returns `401`
 to signed-out requests. It exposes profile fields and safe work summaries, but
 not email addresses, credentials, provider settings, or other private user
-configuration. It is informational only and does not grant access to linked
-work or replace Syrus's core team authorization.
+configuration. It does not grant access to linked work, allow editing another
+operator, or replace Syrus's core team authorization; the self-profile action
+only links to the existing account editor.
 
 On a single-operator instance the sidebar entry is hidden because there is no
 team to browse. The authenticated API and direct profile routes remain valid,

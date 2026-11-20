@@ -10,6 +10,17 @@ module AgentInsights
     KNOWN_PENDING_INSIGHT_LIMIT = 50
     KNOWN_RESOLVED_INSIGHT_LIMIT = 25
     RECENT_JOB_LIMIT = 50
+    # Infrastructure jobs are dropped after loading (Job#infrastructure? reads
+    # the latest workflow), so fetch some spare candidates.
+    RECENT_JOB_CANDIDATES = RECENT_JOB_LIMIT * 2
+    LATEST_WORKFLOW_FINISH_SQL = "(SELECT MAX(workflows.finished_at) FROM workflows WHERE workflows.job_id = jobs.id)".freeze
+    # When the job finished or its latest workflow did, whichever is later --
+    # the same recency the prompt ranks by. CASE rather than GREATEST, which
+    # SQLite lacks.
+    RECENT_COMPLETION_SQL = <<~SQL.squish.freeze
+      CASE WHEN #{LATEST_WORKFLOW_FINISH_SQL} IS NULL OR jobs.finished_at >= #{LATEST_WORKFLOW_FINISH_SQL}
+      THEN jobs.finished_at ELSE #{LATEST_WORKFLOW_FINISH_SQL} END
+    SQL
     FALLBACK_ANALYSIS_WINDOW = 14.days
     EXCLUDED_RECENT_JOB_KINDS = %w[ agent_insight main_grader deploy ].freeze
 
@@ -69,12 +80,59 @@ module AgentInsights
                              AND workflows.finished_at >= :window_start
                          )
                        SQL
-                       .includes(workflows: { steps: :runs })
+                       # Rank and cap in SQL, then load history only for those.
+                       # Loading every job in the window first -- each with its
+                       # workflows, steps (grader output) and runs (full prompts)
+                       # -- and keeping 50 afterwards ran an insight past its
+                       # pod's 16Gi memory limit, OOM-killing every run on that
+                       # compute worker; a failed insight never moves the window,
+                       # so each retry loaded more.
+                       .reorder(Arel.sql("#{RECENT_COMPLETION_SQL} DESC, jobs.id DESC"))
+                       .limit(RECENT_JOB_CANDIDATES)
+                       .to_a
+      preload_workflows_steps_and_runs(jobs)
 
       jobs.reject(&:infrastructure?)
           .sort_by { |recent_job| recent_completion_at(recent_job) || Time.zone.at(0) }
           .reverse
           .first(RECENT_JOB_LIMIT)
+    end
+
+    # `includes(workflows: { steps: :runs })` preloads three ordered
+    # associations across IN lists of ids, which no index can sort: MySQL
+    # filesorted every workflow, step (grader output in `details`) and run (the
+    # full prompt) of the analysis window, and every insight run failed with
+    # `Out of sort memory`. Load them unsorted and order them in Ruby.
+    def preload_workflows_steps_and_runs(jobs)
+      return if jobs.empty?
+
+      workflows_by_job_id = ::Workflow.where(job_id: jobs.map(&:id)).reorder(nil).to_a.group_by(&:job_id)
+      jobs.each do |recent_job|
+        attach!(recent_job, :workflows, workflows_by_job_id.fetch(recent_job.id, []).sort_by { |workflow| [ workflow.created_at, workflow.id ] })
+      end
+
+      # Done here rather than through core's internal step preloader: a plugin
+      # may only reach core through the declared host surface.
+      workflows = jobs.flat_map(&:workflows)
+      steps_by_workflow_id = ::Step.where(workflow_id: workflows.map(&:id)).reorder(nil).to_a.group_by(&:workflow_id)
+      workflows.each do |workflow|
+        ordered = steps_by_workflow_id.fetch(workflow.id, []).sort_by { |step| [ step.position, step.id ] }
+        ordered.each { |step| step.association(:workflow).target = workflow }
+        attach!(workflow, :steps, ordered)
+      end
+      steps = workflows.flat_map(&:steps)
+      return if steps.empty?
+
+      runs_by_step_id = Run.where(step_id: steps.map(&:id)).reorder(nil).to_a.group_by(&:step_id)
+      steps.each do |step|
+        attach!(step, :runs, runs_by_step_id.fetch(step.id, []).sort_by { |run| [ run.created_at, run.id ] })
+      end
+    end
+
+    def attach!(owner, name, records)
+      association = owner.association(name)
+      association.target = records
+      association.loaded!
     end
 
     def recent_completion_at(recent_job)

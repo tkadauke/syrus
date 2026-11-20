@@ -19,6 +19,9 @@ module OperatorBriefing
       effects = mutation ? %i[internal_write] : %i[confidential_read]
       register_capability(
         capability: CAPABILITY, operation:, presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation:),
+        # The briefing agent's evidence reads and its own briefing output are
+        # bounded workflow work with no consequence outside the briefing.
+        essential: true,
         effects:, risk: mutation ? :medium : :low, requestable_roles: ROLES, defaults: ROLES.index_with { mutation ? :ask : :allow },
         maximum_autonomy: mutation ? :invocation : :job,
         authority_durations: mutation ? %i[invocation] : %i[invocation job], resource_scope: { type: :none },

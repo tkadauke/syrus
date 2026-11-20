@@ -62,19 +62,19 @@ module Steps
 
     def providers
       Syrus::PluginRegistry.providers_for(:post_implementation_review_provider).select do |provider|
-        provider.review_needed?(job: job, trigger_kind: workflow.trigger_kind)
-      rescue StandardError => e
-        log("[post_implementation_review] #{provider}.review_needed? failed: #{e.class}: #{e.message}")
-        false
+        result = Syrus::PluginInvocation.call(
+          extension_point: :post_implementation_review_provider, provider:, operation: :review_needed?, on_decline: false
+        ) { provider.review_needed?(job: job, trigger_kind: workflow.trigger_kind) }
+        Syrus::PluginInvocation.value(result)
       end
     end
 
     def prompt_for(active_providers)
       sections = active_providers.flat_map do |provider|
-        Array(provider.prompt_sections(job: job, workflow: workflow, run: run))
-      rescue StandardError => e
-        log("[post_implementation_review] #{provider}.prompt_sections failed: #{e.class}: #{e.message}")
-        []
+        result = Syrus::PluginInvocation.call(
+          extension_point: :post_implementation_review_provider, provider:, operation: :prompt_sections, on_decline: []
+        ) { provider.prompt_sections(job: job, workflow: workflow, run: run) }
+        Array(Syrus::PluginInvocation.value(result))
       end.map(&:to_s).reject(&:blank?)
 
       if sections.empty?

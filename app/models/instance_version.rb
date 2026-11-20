@@ -14,7 +14,7 @@
 class InstanceVersion < ApplicationRecord
   include TracksFinishedAt
 
-  ROLES = %w[ web worker local ].freeze
+  ROLES = %w[ web worker preview local ].freeze
   HEARTBEAT_STALE_THRESHOLD = 2.minutes
   REAPER_STALE_THRESHOLD = 5.minutes
   MACOS_UPDATER_STALE_THRESHOLD = 15.minutes
@@ -44,6 +44,7 @@ class InstanceVersion < ApplicationRecord
 
     SolidQueue::Process.where.not(last_heartbeat_at: nil).any? do |process|
       next false unless process.last_heartbeat_at >= HEARTBEAT_STALE_THRESHOLD.ago
+      next false if Syrus::QueueDrain.draining?(process)
 
       queue_names(process.metadata&.dig("queues")).include?(queue_name.to_s)
     end
@@ -140,6 +141,7 @@ class InstanceVersion < ApplicationRecord
     self.capability_diagnostics ||= {}
     self.desired_version ||= {}
     self.macos_updater_status ||= {}
+    self.plugin_set_details ||= {}
   end
 
   def parse_updater_time(value)

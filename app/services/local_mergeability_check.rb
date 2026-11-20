@@ -22,7 +22,7 @@ class LocalMergeabilityCheck
     clone_base_branch
     fetch_and_checkout_feature_branch
     configure_git_author
-    register_merge_drivers
+    GitMergeDrivers.register!(git: @git, path: clone_path)
 
     observed_base_sha = base_head_sha
     observed_head_sha = head_sha
@@ -129,23 +129,6 @@ class LocalMergeabilityCheck
 
   def configure_git_author
     @git.configure_author(BotIdentity.for(@job), chdir: clone_path.to_s)
-  end
-
-  def register_merge_drivers
-    attrs = clone_path.join(".gitattributes")
-    return unless attrs.exist?
-
-    names = attrs.each_line.flat_map { |line| line.scan(/merge=(\S+)/).flatten }.uniq
-    names.each do |name|
-      script = clone_path.join("bin", "merge-#{name}")
-      next unless script.exist? && File.executable?(script)
-
-      @git.run(
-        "config", "merge.#{name}.driver",
-        "#{script} %O %A %B",
-        chdir: clone_path.to_s
-      )
-    end
   end
 
   def rebase_succeeded?

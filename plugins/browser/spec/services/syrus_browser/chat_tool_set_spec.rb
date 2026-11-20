@@ -4,6 +4,10 @@ RSpec.describe SyrusBrowser::ChatToolSet do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 
+  it "excludes its Coding Mode surface from coworker chats" do
+    expect(described_class.coworker_excluded?).to be(true)
+  end
+
   describe ".available_for?" do
     it "is available for a Coding Mode chat at essential/deferred tiers" do
       chat = ChatSession.create!(user: user, repository: repository, mode: "coding")

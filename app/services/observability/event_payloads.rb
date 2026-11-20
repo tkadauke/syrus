@@ -13,6 +13,10 @@ module Observability
         path: event.path,
         route_id: event.route_id,
         trace_id: event.trace_id,
+        correlation_id: event.correlation_id,
+        occurrence_count: event.occurrence_count,
+        burst_duration_ms: event.burst_duration_ms,
+        last_occurred_at: event.last_occurred_at&.iso8601,
         user: {
           id: event.user_id,
           display_name: event.user&.display_name,
@@ -22,6 +26,11 @@ module Observability
         payload.merge!(
           stack: event.stack,
           component_stack: event.component_stack,
+          component_stack_unavailable_reason: event.component_stack_unavailable_reason,
+          error_cause: event.error_cause || {},
+          last_interaction: event.last_interaction || {},
+          resource_timings: event.resource_timings || [],
+          recoverable: event.recoverable,
           recent_api_requests: event.recent_api_requests || [],
           recent_errors: event.recent_errors || [],
           feature_flags: event.feature_flags || {},

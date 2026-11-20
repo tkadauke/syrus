@@ -342,7 +342,7 @@ class AutoRetryJob < ApplicationJob
   end
 
   def retry_failed_step(attempt)
-    return retry_running_worker_died_step(attempt) if running_worker_died_step_retry?(attempt)
+    return retry_running_in_place_step(attempt) if running_in_place_step_retry?(attempt)
 
     if attempt.workflow.retry_available?
       clear_failed_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
@@ -440,16 +440,16 @@ class AutoRetryJob < ApplicationJob
     id.present? ? MergeTrain.find_by(id: id) : nil
   end
 
-  def running_worker_died_step_retry?(attempt)
-    return false unless attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+  def running_in_place_step_retry?(attempt)
+    return false unless attempt.failure_classification.in?(AutoRetryAttempt::IN_PLACE_STEP_CLASSIFICATIONS)
 
     step = attempt.run&.step
-    step&.running? && attempt.workflow&.running?
+    step && Step::Kind.fetch(step.kind).deterministic_idempotent_repair? && step.running? && attempt.workflow&.running?
   end
 
-  def retry_running_worker_died_step(attempt)
+  def retry_running_in_place_step(attempt)
     step = attempt.run.step
-    clear_failed_worker_affinity!(attempt)
+    clear_failed_worker_affinity!(attempt) if attempt.failure_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
     replacement = StepDispatcher.create_run_and_enqueue(step, attempt.workflow)
 
     RetryFailedStepEnqueuer::Result.new(

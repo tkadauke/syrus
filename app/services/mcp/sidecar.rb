@@ -168,13 +168,10 @@ module Mcp
       end
     end
 
-    # Applies the policy flags a plugin tool definition may declare. Nothing
-    # to apply for an ordinary chat: a plugin that says nothing keeps every
-    # tool it advertises.
     def self.filter_by_policy(definitions, policy)
       case policy
       when :evaluator  then definitions.select { |defn| defn[:evaluator] || defn["evaluator"] }
-      when :coworker   then definitions.select { |defn| defn[:coworker_safe] || defn["coworker_safe"] }
+      when :coworker   then definitions.select { |defn| Mcp::CoworkerToolExposure.plugin_definition?(defn) }
       else definitions
       end
     end
@@ -186,10 +183,9 @@ module Mcp
 
       tool_sets
         .select do |tool_set|
-          PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set, operation: :available_for) do
+          invoke_plugin(:chat_mcp_tool_set, tool_set, :available_for, false) do
             if policy == :coworker
-              tool_set.respond_to?(:available_for_coworker?) &&
-                tool_set.available_for_coworker?(chat_session, tier: tier)
+              Mcp::CoworkerToolExposure.plugin_provider_available?(tool_set, chat_session, tier: tier)
             else
               tool_set.available_for?(chat_session, tier: tier)
             end
@@ -199,7 +195,7 @@ module Mcp
     end
 
     def self.mcp_tools_for(tool_set_class, tier:, chat_session: nil, policy: nil, agent_actor: nil)
-      definitions = PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set_class, operation: :tool_definitions) do
+      definitions = invoke_plugin(:chat_mcp_tool_set, tool_set_class, :tool_definitions, []) do
         # Optional `chat_session:` keyword, mirroring the workflow side's
         # optional `context:`: a tool set whose advertised set depends on who
         # is asking (an admin-only audit tool, say) cannot decide from the
@@ -222,7 +218,23 @@ module Mcp
           definition.merge(coworker_default_policy: defaults_by_tool[name.to_s])
         end
       end
-      definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
+      normalized = definitions.map do |definition|
+        [ definition, Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition) ]
+      end
+      family_defaults = normalized.group_by { |_definition, descriptor| descriptor.capability }.transform_values do |pairs|
+        pairs.all? do |_definition, descriptor|
+          descriptor.defaults.fetch(AgentRole::CHAT_PLANNER, :ask) == :allow &&
+            Permissions::CoworkerDefaultPolicy.descriptor_auto_allowable?(descriptor)
+        end ? :allow : :ask
+      end
+      definitions = normalized.map do |definition, descriptor|
+        if policy == :coworker
+          descriptor = Permissions::CapabilityDescriptorAdapter.for_coworker_parity(
+            descriptor, default_policy: family_defaults.fetch(descriptor.capability)
+          )
+        end
+        definition.merge(capability_descriptor: descriptor)
+      end
       definitions.map do |defn|
         tool = MCP::Tool.define(
           name: defn[:name],
@@ -254,7 +266,7 @@ module Mcp
 
       tool_sets
         .select do |tool_set|
-          PerformanceLogging.plugin_call(extension_point: :mcp_tool_set, provider: tool_set, operation: :available_for) do
+          invoke_plugin(:mcp_tool_set, tool_set, :available_for, false) do
             if tool_set.respond_to?(:available_for_context?)
               tool_set.available_for_context?(context)
             else
@@ -265,12 +277,16 @@ module Mcp
         .flat_map { |tool_set| workflow_mcp_tools_for(tool_set, context: context) }
     rescue ReviewContextContributions::Unavailable
       tool_sets
-        .select { |tool_set| tool_set.respond_to?(:available_for_context?) ? tool_set.available_for_context?(context) : tool_set.available_for?(context.repository) }
+        .select do |tool_set|
+          invoke_plugin(:mcp_tool_set, tool_set, :available_for, false) do
+            tool_set.respond_to?(:available_for_context?) ? tool_set.available_for_context?(context) : tool_set.available_for?(context.repository)
+          end
+        end
         .flat_map { |tool_set| workflow_mcp_tools_for(tool_set, context: context) }
     end
 
     def self.workflow_mcp_tools_for(tool_set_class, context:)
-      definitions = PerformanceLogging.plugin_call(extension_point: :mcp_tool_set, provider: tool_set_class, operation: :tool_definitions) do
+      definitions = invoke_plugin(:mcp_tool_set, tool_set_class, :tool_definitions, []) do
         if tool_set_class.method(:tool_definitions).parameters.any? { |type, name| [ :key, :keyreq ].include?(type) && name == :context }
           tool_set_class.tool_definitions(context: context)
         else
@@ -303,6 +319,13 @@ module Mcp
       tool.singleton_class.prepend(Tools::AuthorizationSupport::ToolDispatch) unless tool.singleton_class < Tools::AuthorizationSupport::ToolDispatch
       tool
     end
+
+    def self.invoke_plugin(extension_point, provider, operation, decline, &block)
+      Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point:, provider:, operation:, on_decline: decline, &block
+      ))
+    end
+    private_class_method :invoke_plugin
 
     def self.wrap_stdio_tool_dispatch(tool)
       tool.singleton_class.prepend(StdioToolDispatch) unless tool.singleton_class < StdioToolDispatch

@@ -55,6 +55,7 @@ system-wide overview and routes here for detail.
   activity data and its boundary with the worker-timeline plugin.
 - [Work-engine reconciler](work_engine_reconciler.md)
 - [Persistent MCP sidecar](persistent_mcp_sidecar.md)
+- [MCP bridge](mcp_bridge.md) — the chat tool surface over HTTP for external MCP clients
 - [Agent conversation](agent_conversation.md)
 - [Admin API prefix ownership](admin_api_prefixes.md)
 - [Admin API catalog](admin_api_catalog.md) — generated route inventory.

@@ -2069,4 +2069,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(PluginRecord.find_by!(name: "warm_experimental_plugin").enabled).to be(false)
     end
   end
+
+  describe ".eager_load_skippable_plugin_names" do
+    it "withholds app code for a quarantined manifest even when its record cannot be disabled" do
+      described_class.record_load_failure(
+        name: "broken_plugin", state: :quarantined, message: "safe mode", external: true
+      )
+
+      expect(described_class.eager_load_skippable_plugin_names).to include("broken_plugin")
+    end
+  end
 end

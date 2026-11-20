@@ -127,6 +127,7 @@ module Steps
     end
 
     def run_rebase_onto_remote_branch!(git, head_ref)
+      GitMergeDrivers.register!(git: git, path: workspace.path)
       git.run("rebase", "refs/remotes/origin/#{head_ref}", chdir: workspace.path.to_s)
     rescue GitRunner::GitError => e
       abort_rebase(git)

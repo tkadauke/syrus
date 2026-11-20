@@ -441,7 +441,7 @@ module Syrus
         return [] if plugins.empty?
 
         records = records_for(plugins)
-        plugins.reject { |manifest| plugin_enabled?(manifest, records[manifest.name]) }.map(&:name)
+        plugins.reject { |manifest| manifest.loaded && plugin_enabled?(manifest, records[manifest.name]) }.map(&:name)
       rescue StandardError => e
         Rails.logger.warn("[PluginRegistry] eager-load skip disabled: #{e.class}: #{e.message}") if defined?(Rails.logger)
         []
@@ -530,6 +530,14 @@ module Syrus
 
       def direct_providers_for(extension_point)
         @mutex.synchronize { @direct_providers[extension_point.to_sym].dup }
+      end
+
+      def plugin_name_for(provider)
+        @mutex.synchronize do
+          @plugins.find do |manifest|
+            manifest.provides.values.any? { |providers| Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider.class } }
+          end&.name
+        end
       end
 
       # Returns every definition a tool set can advertise, independent of a

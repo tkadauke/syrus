@@ -271,6 +271,10 @@ function BrowserErrorDetails({ id }: { id: number }) {
     <div className="grid gap-4 lg:grid-cols-2">
       <DetailBlock title={t("browser_errors.stack")} value={detail.data.stack} />
       <DetailBlock title={t("browser_errors.component_stack")} value={detail.data.component_stack} />
+      <DetailBlock title={t("browser_errors.component_stack_unavailable_reason")} value={detail.data.component_stack_unavailable_reason} />
+      <JsonBlock title={t("browser_errors.error_cause")} value={detail.data.error_cause} />
+      <JsonBlock title={t("browser_errors.last_interaction")} value={detail.data.last_interaction} />
+      <JsonBlock title={t("browser_errors.resource_timings")} value={detail.data.resource_timings} />
       <JsonBlock title={t("browser_errors.recent_api_requests")} value={detail.data.recent_api_requests} />
       <JsonBlock title={t("browser_errors.recent_errors")} value={detail.data.recent_errors} />
       <JsonBlock
@@ -281,7 +285,12 @@ function BrowserErrorDetails({ id }: { id: number }) {
           metadata: detail.data.metadata,
           route_params: detail.data.route_params,
           url: detail.data.url,
-          user_agent: detail.data.user_agent
+          user_agent: detail.data.user_agent,
+          correlation_id: detail.data.correlation_id,
+          occurrence_count: detail.data.occurrence_count,
+          burst_duration_ms: detail.data.burst_duration_ms,
+          last_occurred_at: detail.data.last_occurred_at,
+          recoverable: detail.data.recoverable
         }}
       />
     </div>

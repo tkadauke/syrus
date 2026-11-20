@@ -328,7 +328,16 @@ and a reason that names the target when a required result is:
 Landing grading runs under the main-grading contract: for ordinary landing,
 `LandingGraderPlan` adds every required CI-phase grader that is not already
 part of the landing phase, filtered by the same target selection, so the
-additional targets run on the exact SHA before merge.
+additional targets run on the exact SHA before merge. When an added CI
+variant already contains a landing grader -- the `-ci` variant of an `rspec`,
+`vitest` or `minitest` grader runs the full suite plus its CI-only tests --
+the landing variant is dropped rather than run a second time, unless it is the
+only one producing coverage.
+
+A required CI-phase grader that is too slow or too unreliable to gate a landing
+on can opt out with `metadata: { landing_parity: false }`. Landing then does not
+run it and does not block on it; the gate lists it in `post_merge_delta`, and
+main grading, CI repair and main-branch repair still run it.
 
 The gate result is stored in the `landing_parity_gate` artifact, including
 the `post_merge_delta`: CI-phase targets that main will run but landing did

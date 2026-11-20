@@ -14,6 +14,8 @@ module CognitiveReview
     register_capability(
       capability: CAPABILITY, operation: OPERATION,
       presentation: Permissions::CapabilityPresentation.for(capability: CAPABILITY, operation: OPERATION),
+      # The reviewer's own notes are bounded workflow output. Essential.
+      essential: true,
       effects: %i[internal_write], risk: :medium, requestable_roles: ROLES, defaults: ROLES.index_with(:ask),
       maximum_autonomy: :job, authority_durations: %i[invocation job], resource_scope: { type: :none },
       classifier: ->(_arguments) { { operation: OPERATION, effects: %i[internal_write], risk: :medium, confidence: :certain } },

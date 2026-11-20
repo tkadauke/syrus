@@ -29,8 +29,10 @@ module Permissions
 
       def initialize(descriptor:, owner:, actor:, subject_selector_type:, subject_selector_id: nil,
         subject_repository: nil, role:, resource_scope:, rules: [], context: {}, arguments: {}, constraints: {}, source: nil,
-        expires_at: nil, max_uses: nil, rationale: nil, **lifecycle)
+        expires_at: nil, max_uses: nil, rationale: nil, family_wide: false, **lifecycle)
         @descriptor = descriptor
+        # A family-wide grant covers every operation of the capability.
+        @family_wide = family_wide
         @owner = owner
         @actor = actor
         @subject_selector_type = subject_selector_type.to_s
@@ -63,19 +65,26 @@ module Permissions
         normalized = @descriptor.resource_scope.normalize(@resource_scope, context: @context)
         raise ArgumentError, "resource scope could not be normalized" if normalized.fail_closed?
 
+        scope = normalized.value
+
         candidate = PolicyRule.new(id: "proposed-authority", layer: layer, policy: :allow, source: "authority_grant",
-          capability: @descriptor.capability, operation: @descriptor.operation, resource_scope: normalized.value,
-          selectors: subject_selectors)
-        decision = PolicyEvaluator.new(descriptor: @descriptor, role: @role, resource_scope: normalized.value,
+          capability: @descriptor.capability, operation: granted_operation, resource_scope: scope.presence,
+          selectors: subject_selectors, duration:,
+          # The grant is resource-level when it pins a scope or an argument
+          # constraint, even though only the scope takes part in matching here.
+          breadth: CapabilityDescriptor.breadth_of(operation: granted_operation, resource_scope: scope.presence,
+            constraints: @constraints.presence))
+        decision = PolicyEvaluator.new(descriptor: @descriptor, role: @role, resource_scope: scope,
           rules: @rules + [ candidate ], context: @context, arguments: @arguments).call
         raise CeilingExceeded.new("authority exceeds the effective policy ceiling", decision:) unless decision.allow?
 
-        Evaluation.new(scope: normalized.value, decision:, expires_at: @expires_at)
+        Evaluation.new(scope:, decision:, expires_at: @expires_at)
       end
 
       private
 
       def duration = raise NotImplementedError
+      def granted_operation = (@descriptor.operation unless @family_wide)
       def layer = :lease
 
       def validate_descriptor!
@@ -114,7 +123,7 @@ module Permissions
           owner_user: @owner, issued_by_user: @actor, subject_selector_type: @subject_selector_type,
           subject_selector_id: @subject_selector_id, subject_repository: @subject_repository,
           capability: @descriptor.capability,
-          operation: @descriptor.operation, resource_type: @descriptor.resource_scope.type.to_s,
+          operation: granted_operation, resource_type: @descriptor.resource_scope.type.to_s,
           resource_scope: scope, constraints: @constraints, effects:,
           duration_kind: duration.to_s, source: @source, expires_at: @expires_at, max_uses: @max_uses
         }
@@ -162,7 +171,7 @@ module Permissions
           owner_user: @owner, subject_selector_type: @subject_selector_type,
           subject_selector_id: @subject_selector_id, subject_repository: @subject_repository,
           subject_role_keys: [], capability: @descriptor.capability,
-          operation: @descriptor.operation, resource_type: @descriptor.resource_scope.type.to_s,
+          operation: granted_operation, resource_type: @descriptor.resource_scope.type.to_s,
           resource_scope: scope, policy: "allow", constraints: @constraints, policy_layer: "agent",
           source: "operator", provenance: { authority_duration: "permanent" }, created_by_user: @actor,
           updated_by_user: @actor, rationale: @rationale

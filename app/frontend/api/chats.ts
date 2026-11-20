@@ -78,8 +78,21 @@ export type ChatRecord = {
   agent_appearance?: ChatAgentAppearance
 }
 
-export type ChatAgentAppearance = { name: string; accent_hex: string; avatar_key: string | null; avatar_url: string | null }
-export type ChatAgentRosterItem = ChatAgentAppearance & { id: number; handle: string; removable: boolean }
+export type ChatAgentAppearance = {
+  name: string
+  accent_hex: string
+  avatar_key: string | null
+  avatar_url: string | null
+  coworker_id?: number
+  coworker_chat_role?: "main" | "side" | "mention"
+  side_chat_action_path?: string
+}
+export type ChatAgentRosterItem = ChatAgentAppearance & {
+  id: number
+  handle: string
+  removable: boolean
+  after_reply: "wake" | "quiet"
+}
 
 export type ChatMentionable = {
   id: number | string
@@ -1183,6 +1196,10 @@ export function removeChatAgent(chatId: number | string, coworkerId: number) {
   return deleteJson<void>(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`)
 }
 
+export function updateChatAgent(chatId: number | string, coworkerId: number, afterReply: "wake" | "quiet") {
+  return patchJson<{ agent: ChatAgentRosterItem }>(`/api/v1/app/chats/${chatId}/agents/${coworkerId}`, { after_reply: afterReply })
+}
+
 export function createChatShare(chatId: number | string, target: Pick<ChatShareTarget, "target_type" | "target_id">) {
   return postJson<{ shares: ChatShareTarget[] }>(`/api/v1/app/chats/${chatId}/shares`, target)
 }
@@ -1196,6 +1213,7 @@ export type ChatSearchMatch = {
   role: "user" | "assistant" | "tool_use" | "tool_result" | "system" | string
   snippet: string | null
   created_at: string | null
+  author?: { id: number; name: string; handle?: string; accent_hex?: string; avatar_key?: string | null; avatar_url?: string | null }
 }
 
 export type ChatSearchResult = {
@@ -1372,6 +1390,10 @@ export function fetchMoreChatsForGroup(
   search.set("group_key", groupValue)
   search.set("before_id", String(beforeChatId))
   return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?${search.toString()}`).then(withChatNavAppearances)
+}
+
+export function createChatFromAction(path: string) {
+  return postJson<{ chat_path: string }>(path)
 }
 
 function withChatNavAppearances<
@@ -1850,8 +1872,16 @@ export function confirmPendingAction(path: string) {
   return postJson<ChatPayload>(path)
 }
 
-export function smartDecideAuthorizationItem(path: string, option: Pick<SmartPermissionOption, "duration" | "digest">) {
-  return postJson<ChatPayload>(path, { duration: option.duration, digest: option.digest })
+export function smartDecideAuthorizationItem(
+  path: string,
+  option: Pick<SmartPermissionOption, "duration" | "digest"> & Partial<Pick<SmartPermissionOption, "breadth" | "prefix">>
+) {
+  return postJson<ChatPayload>(path, {
+    duration: option.duration,
+    ...(option.breadth ? { breadth: option.breadth } : {}),
+    digest: option.digest,
+    ...(option.prefix ? { prefix: option.prefix.value } : {})
+  })
 }
 
 export function decideAuthorizationItem(path: string, decision: "approved" | "denied") {

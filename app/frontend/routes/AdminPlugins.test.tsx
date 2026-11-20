@@ -96,6 +96,112 @@ describe("AdminPlugins", () => {
     await i18n.changeLanguage("en")
   })
 
+  it("shows recovery state and clears one quarantined plugin", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        recovery: { safe_mode: null, quarantines: { weather: "changed since last good boot" }, locally_clearable: ["weather"] },
+        plugins: [
+          {
+            name: "weather",
+            display_name: "Weather",
+            version: "1.0.0",
+            enabled: false,
+            default_enabled: true,
+            disableable: true,
+            experimental: false,
+            category: null,
+            category_label: null,
+            description: "Forecasts",
+            homepage: null,
+            icon_url: null,
+            author: null,
+            source: null,
+            extension_points: [],
+            disable_blockers: [],
+            // The recovery action must follow the explicit ledger capability,
+            // even if this process still has its pre-quarantine boot health.
+            health: { state: "ok", reasons: [] },
+            quarantine_clearable: true
+          }
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+    expect(await screen.findByRole("alert")).toHaveTextContent("Plugin recovery mode is active")
+    fireEvent.click(screen.getByRole("button", { name: "Re-enable after restart" }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/admin/plugins/weather/clear_quarantine", expect.objectContaining({ method: "POST" }))
+    )
+  })
+
+  it("does not offer local recovery for fleet quarantine", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        recovery: { safe_mode: null, quarantines: { weather: "fleet quarantine" }, locally_clearable: [] },
+        plugins: [
+          {
+            name: "weather",
+            display_name: "Weather",
+            version: "1.0.0",
+            enabled: false,
+            default_enabled: true,
+            disableable: true,
+            experimental: false,
+            category: null,
+            category_label: null,
+            description: "Forecasts",
+            homepage: null,
+            icon_url: null,
+            author: null,
+            source: null,
+            extension_points: [],
+            disable_blockers: [],
+            health: { state: "quarantined", reasons: ["fleet quarantine"] },
+            quarantine_clearable: false
+          }
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+    expect(await screen.findByRole("alert")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Re-enable after restart" })).not.toBeInTheDocument()
+  })
+
+  it("shows process and per-plugin convergence states", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [],
+        convergence: {
+          desired_revision: 7,
+          divergence_threshold_seconds: 300,
+          processes: [
+            {
+              hostname: "worker-a",
+              role: "worker",
+              state: "pending_restart",
+              running_revision: 6,
+              running_digest: "old",
+              last_heartbeat_at: "2026-11-18T12:00:00Z",
+              diverged_since: "2026-11-18T11:50:00Z",
+              diverged_too_long: true,
+              plugins: [{ name: "weather", desired_version: "2.0.0", running_version: "1.0.0", state: "ok", reasons: [] }]
+            }
+          ]
+        }
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText("worker-a")).toBeInTheDocument()
+    expect(screen.getByText("Pending restart")).toBeInTheDocument()
+    expect(screen.getByText("Diverged beyond the configured threshold")).toBeInTheDocument()
+    expect(screen.getByText("weather")).toBeInTheDocument()
+  })
+
   it("localizes plugin metadata on cards", async () => {
     i18n.addResourceBundle(
       "en",
@@ -1320,6 +1426,54 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("Duplicate name")).toBeInTheDocument()
     expect(screen.getByText("Skipped — dependency failed")).toBeInTheDocument()
     expect(screen.getByText("SyntaxError: unexpected end-of-input")).toBeInTheDocument()
+  })
+
+  it("shows open plugin circuits on the health page", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        plugins: [
+          {
+            name: "parser",
+            display_name: "Parser",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.0.0",
+            enabled: true,
+            description: "Parses output",
+            extension_points: [],
+            health: {
+              state: "circuit_open",
+              reasons: [],
+              circuits: [
+                {
+                  extension_point: "ci_log_parser",
+                  state: "open",
+                  failure_count: 3,
+                  opened_at: "2026-01-01T00:00:00Z",
+                  retry_at: "2026-01-01T00:00:30Z"
+                }
+              ],
+              failures: [
+                {
+                  extension_point: "ci_log_parser",
+                  operation: "call",
+                  exception_class: "RuntimeError",
+                  message: "offline",
+                  count: 3,
+                  last_at: "2026-01-01T00:00:00Z"
+                }
+              ]
+            }
+          }
+        ]
+      })
+    )
+
+    renderRoute(<AdminPlugins />)
+
+    expect(await screen.findByText("Circuit open")).toBeInTheDocument()
+    expect(screen.getByText(/ci_log_parser circuit opened after 3 failures/)).toBeInTheDocument()
+    expect(screen.getByText(/ci_log_parser.call failed 3 time\(s\): RuntimeError: offline/)).toBeInTheDocument()
   })
 })
 

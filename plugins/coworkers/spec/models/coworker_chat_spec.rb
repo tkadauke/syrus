@@ -10,9 +10,10 @@ RSpec.describe Coworkers::Chat do
 
   it "allows one main chat and any number of side chats" do
     described_class.create!(coworker: coworker, chat_session: chat, role: "main")
-    described_class.create!(coworker: coworker, chat_session: chat, role: "side")
+    2.times { described_class.create!(coworker: coworker, chat_session: chat, role: "side") }
     duplicate = described_class.new(coworker: coworker, chat_session: chat, role: "main")
 
+    expect(described_class.where(coworker:, role: "side").count).to eq(2)
     expect(duplicate).not_to be_valid
   end
 

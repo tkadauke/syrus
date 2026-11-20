@@ -227,6 +227,51 @@ RSpec.describe AgentInsights::RunStep do
         expect(prompt).to include("Scheduled dependency sweep")
       end
 
+      # Regression: the recent-job context preloaded workflows' Steps and Runs
+      # with `includes`, which orders both across an IN list of ids that no
+      # index can serve. MySQL filesorted whole step and run rows, and every
+      # insight run failed with `Out of sort memory`.
+      it "builds the recent-job context without sorting whole Step or Run rows" do
+        jobs = 3.times.map do |index|
+          completed_job(kind: "direct", issue_number: nil, issue_title: "Context job #{index}",
+            completed_at: Time.utc(2026, 7, 22, 9, index, 0), step_kind: "grader")
+        end
+
+        offenders = wide_row_sort_statements { handler.call }
+
+        expect(offenders).to be_empty
+        prompt = run.reload.prompt
+        jobs.each do |recent|
+          expect(prompt).to include("WF-#{recent.latest_workflow.id}")
+          expect(prompt).to include("RUN-#{recent.latest_workflow.steps.first.runs.first.id}")
+        end
+      end
+
+      # Regression: every job in the window was loaded with its workflows,
+      # steps and runs before the 50 most recent were kept, which ran an
+      # insight past its compute pod's memory limit and OOM-killed every run on
+      # that worker. History is loaded only for the ranked candidates.
+      it "loads history only for the most recent candidate jobs" do
+        stub_const("AgentInsights::RunStep::RECENT_JOB_LIMIT", 2)
+        stub_const("AgentInsights::RunStep::RECENT_JOB_CANDIDATES", 3)
+        jobs = 6.times.map do |index|
+          completed_job(kind: "direct", issue_number: nil, issue_title: "Window job #{index}",
+            completed_at: Time.utc(2026, 7, 22, 9, index, 0))
+        end
+        loaded_ids = []
+        allow(::Workflow).to receive(:where).and_wrap_original do |original, *args, **kwargs|
+          loaded_ids.concat(Array(kwargs[:job_id] || args.first.try(:[], :job_id)))
+          original.call(*args, **kwargs)
+        end
+
+        handler.call
+
+        expect(loaded_ids).to match_array(jobs.last(3).map(&:id))
+        prompt = run.reload.prompt
+        expect(prompt).to include(jobs[5].slug, jobs[4].slug)
+        expect(prompt).not_to include(jobs[0].slug)
+      end
+
       it "includes workflow and run identifiers for evidence lookup" do
         direct = completed_job(
           kind: "direct",

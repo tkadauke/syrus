@@ -241,7 +241,7 @@ RSpec.describe "native macOS worker updater" do
       %w[bundle npm].each do |command|
         write_executable(File.join(bin_dir, command), <<~BASH)
           #!/usr/bin/env bash
-          printf '#{command} %s\n' "$PWD $*" >> #{command_log.inspect}
+          printf '#{command} %s BUNDLE_FROZEN=%s\n' "$PWD $*" "${BUNDLE_FROZEN:-}" >> #{command_log.inspect}
         BASH
       end
       write_executable(File.join(bin_dir, "chown"), <<~BASH)
@@ -279,6 +279,7 @@ RSpec.describe "native macOS worker updater" do
       commands = File.read(command_log)
       expect(commands).to include("sudo -H -u test-worker env")
       expect(commands).to include("bundle #{release_path}")
+      expect(commands).to match(/^bundle .* BUNDLE_FROZEN=true$/)
       expect(commands).to include("npm #{install_root}/shared/node/bbb2222")
       expect(commands).to include("check --env-file #{env_file}")
       expect(commands).to include("chown -R root:wheel #{release_path}")

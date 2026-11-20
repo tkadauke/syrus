@@ -51,7 +51,8 @@ RSpec.describe "permanent per-connection grant for read-only MySQL queries" do
 
     expect(Permissions::Catalog.find!(capability: "mysql.query@v1", operation: "mysql.query/read@v1"))
       .to have_attributes(maximum_autonomy: :permanent, risk: :medium)
-    expect(execute_descriptor).to have_attributes(maximum_autonomy: :invocation, risk: :critical)
+    expect(execute_descriptor).to have_attributes(risk: :critical,
+      breadth_ceilings: { family: :invocation, tool: :invocation, resource: :permanent })
   end
 
   it "authorizes a read without asking once the grant is in place" do

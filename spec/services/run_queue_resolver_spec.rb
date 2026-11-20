@@ -35,6 +35,27 @@ RSpec.describe RunQueueResolver, :ci_only do
     expect(decision).not_to be_blocked
   end
 
+  # A draining worker still heartbeats but never claims again, so offering it
+  # as a routing target strands whatever is sent to its private queue.
+  it "does not offer a draining worker as a live routing target" do
+    ensure_solid_queue_test_tables!
+    %w[compute-old compute-new].each do |hostname|
+      process = SolidQueue::Process.create!(
+        hostname: hostname, kind: "Worker", name: "#{hostname}-1", pid: 123, last_heartbeat_at: Time.current,
+        metadata: { "queues" => "worker-#{hostname},runs", "polling_interval" => 0.1, "pool_size" => 1 }
+      )
+      Syrus::QueueDrain.mark!(process) if hostname == "compute-old"
+    end
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    step = Step.create!(workflow: workflow, kind: "summarize", position: 1)
+    run = step.runs.create!(job: job, trigger_kind: "initial", agent_provider: workflow.agent_provider)
+
+    hostnames = Array(described_class.resolve(run: run).details["live_workers"]).map { |worker| worker["hostname"] }
+
+    expect(hostnames).to include("compute-new")
+    expect(hostnames).not_to include("compute-old")
+  end
+
   it "uses the process hostname column when worker metadata omits capability identity" do
     ensure_solid_queue_test_tables!
     instance = InstanceVersion.create!(

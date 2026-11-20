@@ -34,17 +34,20 @@ module Steps
     # the dispatcher advances only on success. Cascade the cancel to downstream
     # queued Steps, then cancel the Workflow if no active descendants remain.
     def cancelled!
-      return if Thread.current[:syrus_step_suppress_cancel_cascade]
       return unless step.reload.cancelled?
 
-      Step.suppress_cancel_cascade { cancel_downstream_queued_steps! }
+      reason = "upstream_step_cancelled"
+      cancelled_steps = Step.suppress_cancel_cascade { cancel_downstream_queued_steps!(reason:) }
+      log_cancellation_cascade!(cancelled_steps, reason:, code_path: "cancelled!")
       cancel_workflow_if_idle!
     end
 
     def blocked!
       return unless step.reload.blocked?
 
-      Step.suppress_cancel_cascade { cancel_downstream_queued_steps! }
+      reason = "upstream_step_blocked"
+      cancelled_steps = Step.suppress_cancel_cascade { cancel_downstream_queued_steps!(reason:) }
+      log_cancellation_cascade!(cancelled_steps, reason:, code_path: "blocked!")
       block_workflow_if_idle!
     end
 
@@ -52,15 +55,39 @@ module Steps
 
     attr_reader :step
 
-    def cancel_downstream_queued_steps!
+    def cancel_downstream_queued_steps!(reason:)
+      cancelled = []
       cursor = step.next_step
       while cursor
         if cursor.may_cancel?
+          cursor.cancellation_reason = reason
+          cursor.details = cursor.details.to_h.merge(
+            "cancelled_reason" => reason,
+            "cancelled_source_step_id" => step.id,
+            "cancelled_source_step_kind" => step.kind
+          )
           cursor.cancel!
           cursor.save!
+          cancelled << cursor
         end
         cursor = cursor.next_step
       end
+      cancelled
+    end
+
+    def log_cancellation_cascade!(cancelled_steps, reason:, code_path:)
+      return if cancelled_steps.empty?
+
+      Rails.logger.info({
+        event: "step_cancellation_cascade",
+        workflow_id: step.workflow_id,
+        source_step_id: step.id,
+        source_step_kind: step.kind,
+        reason: reason,
+        cancelled_step_count: cancelled_steps.size,
+        cancelled_step_ids: cancelled_steps.map(&:id),
+        code_path: "Steps::LifecyclePropagation##{code_path}"
+      }.to_json)
     end
 
     def cancel_workflow_if_idle!

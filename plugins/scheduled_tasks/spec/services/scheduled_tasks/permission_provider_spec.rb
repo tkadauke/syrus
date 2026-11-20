@@ -17,11 +17,13 @@ RSpec.describe ScheduledTasks::PermissionProvider do
     end
   end
 
-  it "limits session authority to creating and editing, and binds the rest to one invocation" do
-    expect(%w[create update].map { |name| descriptor(name).maximum_autonomy }.uniq).to eq([ :chat_session ])
-    %w[resume fire_now delete].each do |name|
-      expect(descriptor(name)).to have_attributes(maximum_autonomy: :invocation, authority_durations: [ :invocation ])
+  it "asks for every autonomy change while letting the operator allow it forever" do
+    %w[create update resume fire_now delete].each do |name|
+      expect(descriptor(name)).to have_attributes(maximum_autonomy: :permanent, essential: false)
+      expect(descriptor(name).defaults.values.uniq).to eq([ :ask ])
     end
+    # Observing and pausing never add autonomy: they are essential.
+    expect(%w[list read pause].map { |name| descriptor(name).essential? }.uniq).to eq([ true ])
     expect(descriptor("delete").classify({})[:effects]).to include(:destructive)
   end
 

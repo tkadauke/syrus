@@ -27,6 +27,55 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     expect(workflow.first_step.runs.reload).to include(result.run)
   end
 
+  # Regression: a Run that fails before it starts (a GitHub outage while the
+  # Workflow waits for its landing slot) is retried by reopening its Step,
+  # whose admission can then defer. The failed Run stays on the Step as
+  # history and must not read as "a Run already exists": otherwise every
+  # later admission check skips the Step and the Workflow -- here, the only
+  # landing train -- stays queued forever.
+  describe "a Step reopened after a Run that failed before starting" do
+    let(:job) { Factories.job_record(user: user, repository: repository, state: "queued", agent_provider: "codex") }
+    let(:workflow) { WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex") }
+    let(:first_step) { workflow.first_step }
+    let!(:failed_run) do
+      first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "codex").tap do |run|
+        run.update_columns(state: "failed", finished_at: 1.minute.ago)
+      end
+    end
+
+    before { workflow.work_unit.block!(reason: "admission_control", details: { "action" => "delay_until" }) }
+
+    it "starts a replacement Run" do
+      result = described_class.call(workflow.id)
+
+      expect(result).to be_started
+      expect(result.run).not_to eq(failed_run)
+      expect(first_step.runs.reload).to contain_exactly(failed_run, result.run)
+    end
+
+    it "leaves the Step to a retry that is already scheduled for the failed Run" do
+      AutoRetryAttempt.create!(
+        job: job, workflow: workflow, run: failed_run, agent_provider: "codex",
+        failure_classification: "git_transport_transient", retry_kind: "failed_step",
+        attempt_number: 1, scheduled_at: 5.minutes.from_now
+      )
+
+      result = described_class.call(workflow.id, first_step.id)
+
+      expect(result.status).to eq("run_exists")
+      expect(first_step.runs.reload).to contain_exactly(failed_run)
+    end
+
+    it "never starts a second Run beside an active one" do
+      active = first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "codex")
+
+      result = described_class.call(workflow.id, first_step.id)
+
+      expect(result.status).to eq("run_exists")
+      expect(first_step.runs.reload).to contain_exactly(failed_run, active)
+    end
+  end
+
   it "resumes a later queued step only after the WorkUnit scheduler passes" do
     job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")

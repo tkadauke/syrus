@@ -2082,7 +2082,9 @@ export function UnifiedDiffTable({
   }
 
   return (
-    <div className={`${scrollClass} [container-type:inline-size]`} data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
+    // data-capture-hollow: bug-report screenshots skip a whole file's code when
+    // it is off-screen, and its rows when it is partly visible (lib/screenshotCapture).
+    <div className={`${scrollClass} [container-type:inline-size]`} data-capture-hollow="" data-testid={testId ? `${testId}-scroll` : "diff-file-scroll"}>
       <table
         className={diffTableClass(reviewSettings, splitView, mobileUnifiedWrap)}
         data-review-diff-view={isMobileViewport ? "unified" : reviewSettings.desktop_view}
@@ -2164,7 +2166,7 @@ export function UnifiedDiffTable({
             if (splitView) {
               return (
                 <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
-                  <tr className={`group ${diffLineClass(line.kind)} ${reviewNoteRowClass}`} data-diff-kind={line.kind}>
+                  <tr className={`group ${diffLineClass(line.kind)} ${reviewNoteRowClass}`} data-capture-hollow="" data-diff-kind={line.kind}>
                     <td
                       className={`overflow-hidden whitespace-pre text-text-primary ${diffDensityClasses(reviewSettings).codeCell}`}
                       colSpan={splitInlineColSpan}
@@ -2189,6 +2191,7 @@ export function UnifiedDiffTable({
               <Fragment key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
                 <tr
                   className={`group ${diffLineClass(line.kind)} ${reviewNoteRowClass}`}
+                  data-capture-hollow=""
                   data-coverage={annotation}
                   data-diff-anchor={lineAnchorKey || undefined}
                   data-diff-kind={line.kind}
@@ -2440,6 +2443,7 @@ function SplitDiffRow({
   return (
     <tr
       className={`group ${diffLineClass(line.kind)} ${reviewNoteRowClass}`}
+      data-capture-hollow=""
       data-coverage={annotation}
       data-diff-anchor={lineAnchorKey || undefined}
       data-diff-kind={line.kind}

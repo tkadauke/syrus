@@ -31,12 +31,13 @@ const documentRows = [
   },
   {
     id: 13,
-    kind: "google_doc",
+    kind: "file",
     title: "Launch Notes",
-    status: "pending",
+    status: "attached",
     repository_id: 7,
     repository_slug: "tkadauke/syrus",
-    url: "https://docs.google.com/document/d/abc/edit"
+    content_type: "application/pdf",
+    size_bytes: 4096
   }
 ]
 
@@ -87,20 +88,16 @@ describe("repository document tool cards", () => {
     expect(documentLink.closest("article")).toHaveClass("min-w-0")
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
     expect(screen.getByText("repo-doc-12")).toBeInTheDocument()
-    expect(screen.getByText("file")).toBeInTheDocument()
-    expect(screen.getByText("attached")).toBeInTheDocument()
+    expect(screen.getAllByText("file")).toHaveLength(2)
+    expect(screen.getAllByText("attached")).toHaveLength(2)
     const repositoryLinks = screen.getAllByRole("link", { name: "tkadauke/syrus" })
     expect(repositoryLinks).toHaveLength(2)
     expect(repositoryLinks[0]).toHaveAttribute("href", "/repositories/7")
     expect(screen.getByText("text/markdown")).toBeInTheDocument()
     expect(screen.getByText("2.0 KB")).toBeInTheDocument()
-    expect(screen.getByText("google_doc")).toBeInTheDocument()
-    expect(screen.getByText("pending")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Launch Notes" })).toHaveAttribute("href", "https://docs.google.com/document/d/abc/edit")
-    expect(screen.getByRole("link", { name: "https://docs.google.com/document/d/abc/edit" })).toHaveAttribute(
-      "href",
-      "https://docs.google.com/document/d/abc/edit"
-    )
+    expect(screen.getByRole("link", { name: "Launch Notes" })).toHaveAttribute("href", "/api/v1/app/repository_documents/13/file")
+    expect(screen.getByText("application/pdf")).toBeInTheDocument()
+    expect(screen.getByText("4.0 KB")).toBeInTheDocument()
   })
 
   it("normalizes root-array and wrapped list envelopes from different providers", () => {

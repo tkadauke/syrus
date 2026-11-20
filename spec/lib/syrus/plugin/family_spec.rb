@@ -23,7 +23,9 @@ RSpec.describe Syrus::Plugin::Family do
     expect(family.required_core).to eq(%i[key display_name])
     expect(family.capabilities.fetch(:detect_prepare)).to have_attributes(
       composition: :collect, absent: [], tier: :stable, context: "PrepareContext",
-      method_contract: have_attributes(required_positionals: 1, required_keywords: [], optional_keywords: [])
+      method_contract: have_attributes(
+        required_positionals: 1, optional_positionals: 0, required_keywords: [], optional_keywords: []
+      )
     )
     expect(family.core_method_contract(:key)).to have_attributes(required_positionals: 0)
   end
@@ -42,14 +44,27 @@ RSpec.describe Syrus::Plugin::Family do
       end
     end.to raise_error(ArgumentError, /Duplicate capability/)
     expect do
-      described_class.define(:missing_context) do
+      described_class.define(:variadic) do
         shape :facet
-        capability :x, composition: :collect, absent: [], tier: :stable, context: nil
+        capability :x, composition: :collect, absent: [], tier: :stable, context: Object, parameters: [ [ :keyrest, :options ] ]
       end
-    end.to raise_error(ArgumentError, /context contract is required/)
+    end.to raise_error(ArgumentError, /Unsupported method parameters/)
 
     define_family
     expect { define_family }.to raise_error(ArgumentError, /already defined/)
+  end
+
+  it "records declared positional and keyword parameter contracts" do
+    family = described_class.define(:keyword_contract) do
+      shape :facet
+      capability :resolve, composition: :collect, absent: [], tier: :stable, context: "ResolveContext",
+        parameters: [ [ :req, :context ], [ :keyreq, :repository ], [ :key, :job ] ]
+    end
+
+    expect(family.method_contract(:resolve)).to have_attributes(
+      required_positionals: 1, optional_positionals: 0,
+      required_keywords: [ :repository ], optional_keywords: [ :job ]
+    )
   end
 
   it "validates known capabilities, tiers, and duplicates at declaration time" do

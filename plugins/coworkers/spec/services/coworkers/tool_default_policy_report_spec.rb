@@ -50,19 +50,19 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
     )
   end
 
-  it "keeps the coworker's confidential memory reads, searches, and listings gated" do
+  it "keeps inherited confidential memory reads and mutations gated" do
     memory = report.rows.select { |row| row.source == "AgentMemory::ChatToolSet" }.map(&:tool)
 
-    expect(memory).to match_array(%w[read_memory search_memories list_memories])
-    expect(group(:ask)).to include(*memory)
+    reads = %w[read_memory search_memories list_memories]
+    mutations = %w[write_memory delete_memory publish_memory unpublish_memory]
+    expect(memory).to match_array(reads + mutations)
+    expect(group(:ask)).to include(*(reads + mutations))
   end
 
   it "keeps confidential, operational, communicating, scheduling, and spawning tools gated" do
     expect(group(:ask)).to include(
       "list_chats", "search_chats", "read_chat_messages",
-      "admin_read_operational_logs", "read_worker_health", "read_backend_exception_events", "read_browser_error_events",
-      "read_performance_log_events", "read_metrics_diagnostics", "read_worker_occupancy", "read_workflow_timeline",
-      "read_workflow_waterfall", "read_admission_diagnostics", "diagnose_run_queue",
+        "read_backend_exception_events", "read_browser_error_events", "read_performance_log_events",
       "message_coworker", "manage_coworker_schedule", "spawn_coworker_chat", "read_syrus_logs", "read_performance_diagnostics"
     )
     expect(group(:allow)).not_to include("message_coworker", "manage_coworker_schedule", "spawn_coworker_chat", "list_chats")
@@ -89,19 +89,22 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
       descriptor = entry.descriptor
       expect(entry.approval_effect).to eq(true)
       expect(descriptor.benign_internal).to eq(:draft_proposal)
-      expect(descriptor.maximum_autonomy).to eq(:invocation)
+      # Drafting is essential: never deniable, and the card is the decision.
+      expect(descriptor).to be_essential
     end
     expect(report.rows.map(&:tool)).not_to include("confirm_proposal", "confirm_job_proposal")
   end
 
   it "reports a grant whose advertised policy disagrees with the effective descriptor default" do
+    # Repository reads are essential now, so use a deniable tool that still
+    # defaults to allow: the coworker workspace file tools.
     grant = Coworkers::GrantCatalog::Descriptor.new(
-      name: "code.read", label: "x", description: "x", default_policy: "confirm", maximum_policy: "auto",
-      tools: [ "read_repository_file" ], scope_options_callback: nil, scope_label_callback: nil, valid_scope_callback: nil
+      name: "workspace.files", label: "x", description: "x", default_policy: "confirm", maximum_policy: "auto",
+      tools: [ "edit_coworker_file" ], scope_options_callback: nil, scope_label_callback: nil, valid_scope_callback: nil
     )
     contradictory = described_class.new(chat_session: chat, grants: [ grant ])
 
-    expect(contradictory.findings).to include(match(/read_repository_file: grant code\.read advertises confirm.*effective default is allow/))
+    expect(contradictory.findings).to include(match(/edit_coworker_file: grant workspace\.files advertises confirm.*effective default is allow/))
     expect { contradictory.validate! }.to raise_error(ArgumentError, /invariants failed/)
   end
 

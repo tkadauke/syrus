@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { memo, Suspense, useRef, useState } from "react"
+import { memo, useRef, useState } from "react"
 import type { ComponentProps, ReactNode } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
@@ -1291,8 +1291,8 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
 }, sameToolGroupProps)
 
 function PluginToolCardLocaleGate({ namespaces, children }: { namespaces: string[]; children: ReactNode }) {
-  useT(namespaces)
-  return children
+  const { ready } = useT(namespaces, { useSuspense: false })
+  return ready ? children : null
 }
 
 export const ToolGroup = memo(function ToolGroup(props: ToolGroupProps) {
@@ -1301,11 +1301,9 @@ export const ToolGroup = memo(function ToolGroup(props: ToolGroupProps) {
   if (namespaces.length === 0) return <ToolGroupContent {...props} />
 
   return (
-    <Suspense fallback={null}>
-      <PluginToolCardLocaleGate namespaces={namespaces}>
-        <ToolGroupContent {...props} />
-      </PluginToolCardLocaleGate>
-    </Suspense>
+    <PluginToolCardLocaleGate namespaces={namespaces}>
+      <ToolGroupContent {...props} />
+    </PluginToolCardLocaleGate>
   )
 }, sameToolGroupProps)
 

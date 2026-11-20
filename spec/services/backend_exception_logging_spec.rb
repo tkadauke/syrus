@@ -43,6 +43,31 @@ RSpec.describe BackendExceptionLogging do
     ])
   end
 
+  # Regression: Rails' default cleaner silences every frame outside app/,
+  # config/, lib/ and test/, so a crash inside a plugin was recorded as a bare
+  # `RunJob#perform_step` with nothing saying which plugin code failed.
+  it "keeps plugin frames and drops gem frames in recorded backtraces" do
+    allow(OperationalLogging).to receive(:enabled_for_instance?).and_return(false)
+    exception = ActiveRecord::StatementInvalid.new("Mysql2::Error: Out of sort memory")
+    exception.set_backtrace([
+      "/usr/local/bundle/gems/activerecord-8.1.4/lib/active_record/connection_adapters/abstract_mysql_adapter.rb:747",
+      Rails.root.join("vendor/bundle/ruby/3.4.0/gems/mysql2-0.5.7/lib/mysql2/client.rb:151").to_s,
+      Rails.root.join("plugins/agent_insights/app/services/agent_insights/run_step.rb:72").to_s,
+      Rails.root.join("app/jobs/run_job.rb:485").to_s
+    ])
+
+    described_class.ingest_request({
+      exception: [ "ActiveRecord::StatementInvalid", exception.message ],
+      exception_object: exception,
+      method: "GET", path: "/jobs/1", controller: "JobsController", action: "show", status: 500, request_id: "req-plugin"
+    }, 1.0)
+
+    expect(BackendExceptionEvent.last.backtrace.lines.map(&:chomp)).to eq([
+      "plugins/agent_insights/app/services/agent_insights/run_step.rb:72",
+      "app/jobs/run_job.rb:485"
+    ])
+  end
+
   it "preserves backtrace frame line breaks when normalizing direct event writes" do
     event = BackendExceptionEvent.create!(
       source: "action_controller",

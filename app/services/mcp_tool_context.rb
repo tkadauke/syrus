@@ -7,6 +7,15 @@ class McpToolContext
   attr_reader :agent_actor
   attr_reader :permission_authorization
 
+  # The chat whose owner-facing records should be rendered. Most turns use
+  # their own chat; delegated/hidden sessions may nominate their visible
+  # origin chat while retaining +chat_session+ as the execution context.
+  def owner_chat
+    return chat_session unless chat_session&.respond_to?(:owner_facing_chat_session)
+
+    chat_session.owner_facing_chat_session || chat_session
+  end
+
   def initialize(surface:, role:, user:, repository: nil, epic: nil, job: nil,
                  workflow: nil, run: nil, chat_session: nil,
                  allowed_memory_scopes: [], allowed_repository_ids: [],
@@ -189,7 +198,9 @@ class McpToolContext
 
   private_class_method def self.run_context_attributes(run, role)
     Syrus::PluginRegistry.providers_for(:mcp_run_context_contributor).each_with_object({}) do |provider, attributes|
-      contributed = provider.context_attributes(run: run, role: role).to_h.symbolize_keys
+      contributed = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :mcp_run_context_contributor, provider:, operation: :context_attributes, on_decline: {}
+      ) { provider.context_attributes(run: run, role: role) }).to_h.symbolize_keys
       duplicate = attributes.keys & contributed.keys
       raise ArgumentError, "duplicate MCP run context attributes: #{duplicate.join(', ')}" if duplicate.any?
 

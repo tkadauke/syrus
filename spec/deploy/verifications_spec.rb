@@ -30,6 +30,33 @@ RSpec.describe Deploy::Verifications do
     # and a workload on an untagged image can bring up new pods before kubelet
     # notices that :latest moved. Both end with a happy controller and stale
     # code, so the pods themselves are the only witness that counts.
+    # Regression guard for surge rollouts: compute pods drain in-flight Runs
+    # after the new pods are up, so an old pod -- terminating, still on the
+    # previous image -- can outlive the rollout by an hour. Letting kubectl
+    # pick it would fail a successful deploy and unwind it into a rollback.
+    it "asks the newest live pod, never one that is draining" do
+      daemonset = { "kind" => "DaemonSet", "metadata" => { "name" => "syrus-worker-compute" },
+                    "spec" => { "selector" => { "matchLabels" => { "name" => "syrus-worker-compute" } } } }
+      ready = [ { "type" => "Ready", "status" => "True" } ]
+      pods = { "items" => [
+        { "metadata" => { "name" => "compute-old", "creationTimestamp" => "2026-11-19T09:00:00Z", "deletionTimestamp" => "2026-11-19T10:00:00Z" },
+          "status" => { "conditions" => ready } },
+        { "metadata" => { "name" => "compute-new", "creationTimestamp" => "2026-11-19T10:00:00Z" }, "status" => { "conditions" => ready } }
+      ] }
+      verifications, fake = build(
+        resources: { "daemonset/syrus-worker-compute" => daemonset, "pods -l name=syrus-worker-compute" => pods },
+        exec: {
+          "pod/compute-new printenv GIT_SHA" => { stdout: "abc1234\n" },
+          "pod/compute-old printenv GIT_SHA" => { stdout: "old9999\n" },
+          "daemonset/syrus-worker-compute printenv GIT_SHA" => { stdout: "old9999\n" }
+        }
+      )
+
+      expect { verifications.verify_revision!([ "daemonset/syrus-worker-compute" ]) }.not_to raise_error
+      expect(fake.actions.join("\n")).to include("pod/compute-new")
+      expect(fake.actions.join("\n")).not_to include("compute-old")
+    end
+
     it "passes when every pod reports the revision being deployed" do
       verifications, _fake = build(exec: {
         "deployment/syrus-web printenv GIT_SHA" => { stdout: "abc1234\n" },

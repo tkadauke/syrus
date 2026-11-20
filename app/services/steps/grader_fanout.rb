@@ -210,7 +210,9 @@ module Steps
             {
               "name" => grader.name,
               "target_label" => target_label_for(grader),
-              "required" => grader.required,
+              # A grader that opted out of landing parity is main grading's to
+              # run: name it as a post-merge delta, never block landing on it.
+              "required" => grader.required && LandingGraderPlan.landing_parity?(grader),
               "affected" => selection.affected,
               "reason" => selection.reason,
               "target_fingerprints" => target_fingerprints_for(grader).to_h
@@ -304,7 +306,9 @@ module Steps
 
     def affected_test_files(files)
       Syrus::PluginRegistry.providers_for(:affected_test_analyzer).flat_map do |analyzer|
-        begin
+        result = Syrus::PluginInvocation.call(
+          extension_point: :affected_test_analyzer, provider: analyzer, operation: :affected_files, on_decline: []
+        ) do
           result = analyzer.affected_files(repo_path: workspace.path.to_s, changed_files: files)
           if result.nil?
             log("[grader_fanout] #{analyzer} declined to analyze this diff — falling back to glob-only for it")
@@ -313,10 +317,8 @@ module Steps
             log("[grader_fanout] #{analyzer} reports #{result.size} additional affected file(s)") if result.any?
             Array(result)
           end
-        rescue StandardError => e
-          log("[grader_fanout] affected_test_analyzer #{analyzer} raised #{e.class}: #{e.message} — falling back to glob-only for it")
-          []
         end
+        Array(Syrus::PluginInvocation.value(result))
       end.uniq
     end
 

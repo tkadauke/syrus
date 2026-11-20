@@ -416,18 +416,18 @@ RSpec.describe Prompts::ChatSystem do
       title: "API spec",
       file: file
     )
-    google_doc = repo.repository_documents.create!(
+    notes = repo.repository_documents.create!(
       user: repo.user,
-      kind: "google_doc",
+      kind: "file",
       title: "Architecture notes",
-      google_docs_url: "https://docs.google.com/document/d/abc/edit"
+      file: Rack::Test::UploadedFile.new(StringIO.new("notes"), "text/plain", original_filename: "architecture.txt")
     )
 
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("Supporting documents available (use read_repo_document to fetch):")
     expect(out).to include("- [#{pdf.id}] API spec (PDF, 3 bytes)")
-    expect(out).to include("- [#{google_doc.id}] Architecture notes (Google Doc)")
+    expect(out).to include("- [#{notes.id}] Architecture notes (PLAIN, 5 bytes)")
     expect(out.index("Supporting documents available")).to be < out.index("Your environment:")
   end
 
@@ -454,9 +454,9 @@ RSpec.describe Prompts::ChatSystem do
     )
     document = repo.repository_documents.create!(
       user: repo.user,
-      kind: "google_doc",
+      kind: "file",
       title: "Drainage notes",
-      google_docs_url: "https://docs.google.com/document/d/drains/edit"
+      file: Rack::Test::UploadedFile.new(StringIO.new("drains"), "text/plain", original_filename: "drains.txt")
     )
     chat.chat_attachments.create!(attachable: epic)
     chat.chat_attachments.create!(attachable: attached_job)
@@ -473,7 +473,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Jobs:")
     expect(out).to include("#{attached_job.slug}: Inventory existing drains")
     expect(out).to include("Documents:")
-    expect(out).to include("[#{document.id}] Drainage notes (Google Doc; use `read_repo_document`)")
+    expect(out).to include("[#{document.id}] Drainage notes (PLAIN, 6 bytes; use `read_repo_document`)")
     expect(out.index("Attached context:")).to be < out.index("What Syrus is")
   end
 

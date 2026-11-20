@@ -346,6 +346,7 @@ class MergeTrainMultisect
       raise "member #{member.job.slug} has no branch" if branch.blank?
 
       fetch_branch(branch)
+      GitMergeDrivers.register!(git: git, path: workspace_path)
       temp_branch = "__syrus_multisect_member_#{member.id}"
       previous_tip = git.run("rev-parse", "HEAD", chdir: workspace_path.to_s).strip
       git.run("checkout", "-B", temp_branch, "FETCH_HEAD", chdir: workspace_path.to_s)
@@ -378,17 +379,16 @@ class MergeTrainMultisect
       return files_as_args_command(context.step, context.failed_cases) if config.fetch("strategy") == "files_as_args"
 
       Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
-        command = Syrus::Plugin::FocusedTestCommand.invoke(
-          provider,
-          grader_name: context.name,
-          grader_command: context.step.details.to_h["command"],
-          failed_cases: context.failed_cases,
-          base_retry: config,
-          project_path: context.step.details.to_h["project_path"]
-        )
+        result = Syrus::PluginInvocation.call(
+          extension_point: :focused_test_command, provider:, operation: :focused_test_command, on_decline: nil
+        ) do
+          Syrus::Plugin::FocusedTestCommand.invoke(
+            provider, grader_name: context.name, grader_command: context.step.details.to_h["command"],
+            failed_cases: context.failed_cases, base_retry: config, project_path: context.step.details.to_h["project_path"]
+          )
+        end
+        command = Syrus::PluginInvocation.value(result)
         return command.to_s.strip if command.to_s.strip.present?
-      rescue StandardError => e
-        log.call("[merge_train_multisect] focused_test_command #{provider} declined with #{e.class}: #{e.message}")
       end
       nil
     end

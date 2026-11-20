@@ -25,14 +25,6 @@ class JobAttachmentContext
     attachments.map.with_object([]) do |attachment, entries|
       if attachment.uploaded_file?
         entries << materialize_file(attachment)
-      elsif attachment.google_doc_link?
-        entries << Entry.new(
-          name: "Google Doc",
-          type: "google_doc_link",
-          path: nil,
-          url: attachment.google_doc_url,
-          reference_only: false
-        )
       end
     end
   end

@@ -319,6 +319,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       ))
       entry = Struct.new(:tool, :descriptor, :ungated).new(actor_tool, descriptor, false)
       allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
+      allow(McpToolRegistry).to receive(:entries).and_call_original
       allow(McpToolRegistry).to receive(:entries).with(surface: :chat).and_return([ entry ])
       # Approval rebuilds the actor's current tool surface instead of trusting
       # the request, so the fake tool has to be offered by it.
@@ -348,6 +349,14 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       )
 
       item = request.authorization_items.sole
+      # The card offers every safe combination of how long and how broadly;
+      # this call names no resource, so the narrowest breadth is the tool.
+      options = Permissions::SmartDecision.new(request:, item:, user:).options
+      expect(options.map { |option| [ option[:breadth], option[:duration] ] }).to include(
+        [ "tool", "chat_session" ], [ "tool", "permanent" ], [ "family", "permanent" ]
+      )
+      expect(options.map { |option| option[:breadth] }.uniq).to eq(%w[tool family])
+
       preview = Permissions::RuleDraft.from_request_item(
         user:, request:, item:, duration: "chat_session"
       ).preview
@@ -365,15 +374,17 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       )
     end
 
-    it "bypasses permission evaluation for an ungated tool" do
+    it "never creates a request for an essential tool, but still audits it" do
       actor_tool = Class.new(MCP::Tool) { tool_name "ask_user_question" }
-      descriptor = instance_double(Permissions::CapabilityDescriptor)
+      descriptor = McpToolRegistry.entries(surface: :chat).find { |entry| entry.tool_name == "ask_user_question" }.descriptor
       entry = Struct.new(:descriptor, :ungated).new(descriptor, true)
       allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
+      allow(Permissions::DecisionAudit).to receive(:record)
 
       expect(Permissions::AuthorizationRequest).not_to receive(:new)
 
       expect(described_class.pending_actor_approval(actor_tool, { chat_session: }, { prompt: "Continue?" })).to be_nil
+      expect(Permissions::DecisionAudit).to have_received(:record).with(hash_including(decision: having_attributes(policy: :allow)))
     end
 
     it "executes benign defaults without creating an approval" do

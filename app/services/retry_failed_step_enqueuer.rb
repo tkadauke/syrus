@@ -298,11 +298,16 @@ class RetryFailedStepEnqueuer
     if step.failed?
       step.reopen!
       step.save!
-    elsif step.cancelled? && step.runs.none?
+    elsif step.cancelled? && (step.runs.none? || retryable_cancelled_grade_loop_step?(step))
       revive_cancelled_step!(step)
     else
       raise Error, "Step #{step.id} cannot be reopened from #{step.state}"
     end
+  end
+
+  def retryable_cancelled_grade_loop_step?(step)
+    latest_run = step.latest_run
+    grade_loop_failure?(step) && (latest_run&.failed? || latest_run&.cancelled?)
   end
 
   def grade_loop_restart_retry?(step)

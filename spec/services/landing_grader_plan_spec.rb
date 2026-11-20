@@ -35,6 +35,76 @@ RSpec.describe LandingGraderPlan do
       expect(effective.graders.map(&:name)).to eq(%w[landing-check both])
     end
 
+    describe "a CI variant that supersedes its full variant" do
+      def variant(name, phases:, supersedes: nil, coverage: false)
+        metadata = { "filter_capabilities" => { "coverage" => coverage } }
+        metadata["supersedes"] = supersedes if supersedes
+        grader(name, phases: phases).with(metadata: metadata)
+      end
+
+      it "runs only the superset in landing instead of the same suite twice" do
+        plan_with_variants = plan.with(graders: [
+          variant("rspec", phases: %w[landing]),
+          variant("rspec-ci", phases: %w[ci], supersedes: "rspec"),
+          grader("lint", phases: %w[landing ci])
+        ])
+
+        effective = described_class.effective(plan_with_variants, trigger_kind: "merge_train", iteration: 1, repository: repository)
+
+        expect(effective.graders.map(&:name)).to eq(%w[lint rspec-ci])
+      end
+
+      it "keeps the full variant when it alone produces coverage evidence" do
+        plan_with_variants = plan.with(graders: [
+          variant("rspec", phases: %w[landing], coverage: true),
+          variant("rspec-ci", phases: %w[ci], supersedes: "rspec")
+        ])
+
+        effective = described_class.effective(plan_with_variants, trigger_kind: "auto_merge", iteration: 1, repository: repository)
+
+        expect(effective.graders.map(&:name)).to eq(%w[rspec rspec-ci])
+      end
+
+      it "leaves review and CI plans alone" do
+        plan_with_variants = plan.with(graders: [
+          variant("rspec", phases: %w[landing review]),
+          variant("rspec-ci", phases: %w[ci], supersedes: "rspec")
+        ])
+
+        expect(described_class.effective(plan_with_variants, trigger_kind: "initial", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[rspec])
+        expect(described_class.effective(plan_with_variants, trigger_kind: "main_grader", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[rspec-ci])
+      end
+
+      # This repository's own merge trains ran the full RSpec, Vitest and
+      # plugin suites twice -- once as the landing variant and again as the
+      # CI parity variant that already contains it.
+      it "keeps a grader that opted out of landing parity out of landing" do
+        plan_with_e2e = plan.with(graders: [ grader("lint", phases: %w[landing ci]),
+          grader("e2e", phases: %w[ci]).with(metadata: { "landing_parity" => false }) ])
+
+        expect(described_class.effective(plan_with_e2e, trigger_kind: "merge_train", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[lint])
+        expect(described_class.effective(plan_with_e2e, trigger_kind: "main_grader", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[lint e2e])
+      end
+
+      # Graded through the full target-graph plan, as the fan-out does: a
+      # root-only plan has no plugin projects, which is how every plugin
+      # suite kept running twice -- nested graders are renamed with their
+      # package prefix and `supersedes` was not.
+      it "runs each suite once in this repository's merge-train landing" do
+        full_plan = TargetGraph::GradePlan.for(workspace_path: Rails.root, graph: TargetGraph::Compiler.compile(Rails.root))
+        names = described_class.effective(full_plan, trigger_kind: "merge_train", iteration: 1, repository: repository).graders.map(&:name)
+
+        expect(names).to include("plugins-coworkers-rspec-ci")
+        expect(names).not_to include("plugins-coworkers-rspec")
+
+        expect(names).to include("rspec-ci", "react-tests-ci")
+        expect(names).not_to include("rspec", "react-tests", "e2e")
+        names.select { |name| name.end_with?("-ci") }.each do |ci_name|
+          expect(names).not_to include(ci_name.delete_suffix("-ci")), ci_name
+        end
+      end
+    end
+
     it "leaves CI, promotion and explicit-phase plans untouched" do
       expect(described_class.effective(parity_plan, trigger_kind: "main_grader", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[ci-only both])
       expect(described_class.effective(parity_plan, trigger_kind: "auto_merge", iteration: 1, phase: :landing, repository: repository).graders.map(&:name)).to eq(%w[landing-check both])

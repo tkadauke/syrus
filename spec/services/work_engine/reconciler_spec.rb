@@ -47,6 +47,30 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     end
   end
 
+  it "records an explicit failure when only cancelled steps remain runnable" do
+    workflow.steps.delete_all
+    workflow.update!(
+      state: "running",
+      started_at: (described_class::ORPHAN_RUN_GRACE_PERIOD * 2).ago
+    )
+    completed = workflow.steps.create!(kind: "implement", position: 0, state: "succeeded")
+    cancelled = workflow.steps.create!(
+      kind: "pr_open",
+      position: 1,
+      state: "cancelled",
+      cancellation_reason: "upstream_step_cancelled"
+    )
+    completed.update!(next_step: cancelled)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_workflow_without_active_descendants)).to be_present
+    expect(workflow.reload).to be_failed
+    expect(workflow.failure_reason).to eq("no_runnable_steps_after_cancellation")
+    expect(workflow.artifact("no_runnable_steps_after_cancellation"))
+      .to eq("cancelled_step_ids" => [ cancelled.id ])
+  end
+
   it "cancels a persisted queued downstream Run while a required review barrier is unresolved" do
     workflow.steps.delete_all
     workflow.update!(state: "running", started_at: 2.minutes.ago)
@@ -1021,6 +1045,38 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :reenqueue_run)).to be_nil
     expect(stale.reload).to be_skipped
     expect(step.reload).to be_succeeded
+  end
+
+  # Parallel grader Runs each get their own RunJob; none executes a sibling.
+  # Counting a sibling's live claim as this Run's queue job hid a grader that
+  # had lost its RunJob for as long as any other grader in the fan-out ran.
+  it "flags a parallel grader Run with no queue job even while a sibling grader holds a live claim" do
+    ensure_solid_queue_test_tables!
+    allow(Feature).to receive(:distributed_workflow_dag_enabled?).and_return(true)
+    workflow.update_columns(state: "running", started_at: 30.minutes.ago)
+    live_process = SolidQueue::Process.create!(
+      hostname: "compute-a", kind: "worker", last_heartbeat_at: Time.current,
+      metadata: { "queues" => %w[runs] }, name: "compute-a:1", pid: 456
+    )
+    grader_run = lambda do |position, name|
+      grader_step = workflow.steps.create!(
+        kind: "grader", position: step.position + position, state: "queued",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, details: { "name" => name }
+      )
+      grader_step.runs.create!(
+        job: job, user: job.user, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+        state: "queued", created_at: 30.minutes.ago, updated_at: 30.minutes.ago
+      )
+    end
+    running = grader_run.call(1, "rspec-ci")
+    running.update_columns(state: "running", started_at: 25.minutes.ago, last_heartbeat_at: Time.current)
+    solid_queue_run_job(running, claimed: true, process_id: live_process.id, created_at: 25.minutes.ago)
+    stranded = grader_run.call(2, "plugins-kotlin-rspec-ci")
+
+    result = reconcile(run_id: stranded.id)
+
+    expect(kind(result, :queued_run_without_queue_claim)).to be_present
+    expect(plan(result, :reenqueue_run)).to have_attributes(target_id: stranded.id)
   end
 
   it "does not plan reenqueue_run for a queued Run while an auto-retry attempt is already pending for the workflow" do
@@ -7254,6 +7310,45 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "auto_retry_backoff")
     expect(unit.blocked_details).to include("auto_retry_attempt_id" => attempt.id)
     expect(result.repair_executions.map(&:message)).to include(match(/scheduled failed_step auto-retry/))
+  end
+
+  it "schedules one delayed bounded retry for a transient prepare Git transport failure" do
+    now = Time.zone.parse("2026-11-17 12:00:00 UTC")
+    travel_to(now) do
+      step.update_columns(kind: "prepare", state: "failed", finished_at: now)
+      workflow.update_columns(state: "failed", finished_at: now, cleaned_up_at: nil)
+      run.update_columns(state: "failed", finished_at: now)
+      unit = attach_work_unit(workflow, state: "failed")
+      RunDiagnostic.create!(
+        run: run,
+        error_class: "GitRunner::GitError",
+        error_message: "git ls-remote --heads https://github.com/owner/repo.git refs/heads/topic exited 128\n" \
+          "fatal: Failed to connect to github.com port 443: Could not connect to server"
+      )
+
+      expect {
+        reconcile_and_execute(run_id: run.id)
+      }.to change { AutoRetryAttempt.where(run: run, failure_classification: "git_transport_transient").count }.by(1)
+        .and have_enqueued_job(AutoRetryJob).exactly(:once)
+
+      attempt = AutoRetryAttempt.find_by!(run: run, failure_classification: "git_transport_transient")
+      expect(attempt).to have_attributes(
+        retry_kind: "failed_step",
+        attempt_number: 1,
+        scheduled_at: now + AutoRetryAttempt::BACKOFFS.first,
+        performed_at: nil,
+        skipped_reason: nil
+      )
+      expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "auto_retry_backoff")
+      expect(run.reload.run_failure_classification).to have_attributes(
+        classification: "git_transport_transient",
+        retryable: true
+      )
+
+      expect {
+        reconcile_and_execute(run_id: run.id)
+      }.not_to change { AutoRetryAttempt.where(run: run, failure_classification: "git_transport_transient").count }
+    end
   end
 
   it "opens a repeated-failure circuit instead of rebuilding a merge train after identical diagnostics recur" do

@@ -232,8 +232,7 @@ export function PreviewPanel({
         prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
         priority: "high",
         createMore: false,
-        files: [],
-        googleDocUrl: ""
+        files: []
       }),
     onSuccess: (created) => navigate(withRoutePrefix(created.redirect_to, routePrefix(location.pathname))),
     onError: (err) => setError(errorMessage(err, t("preview_fix_error")))

@@ -2,6 +2,24 @@
 
 Use these rules for plugin lifecycle, registration, boundaries, suggestions, and plugin-owned test coverage.
 
+## Runtime invocation boundary
+
+Core calls provider operations through `Syrus::PluginInvocation.call`, retaining
+the `PerformanceLogging.plugin_call` timing seam while containing ordinary
+provider failures. Return `Syrus::PluginInvocation.decline(value)` for an
+expected refusal; expected declines are not health failures. Choose a neutral
+decline value that preserves the extension point's composition contract: an
+empty array for contributions, `nil` for an optional single answer, or `false`
+for a predicate. Unexpected failures return a typed `Failed` result containing
+that value, so callers can distinguish failure from an expected `Declined`.
+
+Timeouts are opt-in and must have an explicit call-site budget. Ruby's
+in-process `Timeout` can interrupt provider code at any point, including while
+it mutates shared state or holds a lock, so only use it when the provider
+operation and its dependencies are interruption-safe. This boundary contains
+ordinary bugs, not malicious code, native-code hangs, memory growth, monkey
+patches, or process termination.
+
 The complete extension-point interfaces, examples, frontend integration rules,
 icon pipeline, lifecycle hooks, and boundary tooling live in the
 [plugin-authoring reference](plugins/authoring.md). To build a plugin outside
@@ -76,9 +94,12 @@ The currently registered contribution kinds are:
   core methods and claimed capability signatures. Non-conformance withholds
   only declarations for the affected family; other registrations remain
   available. The check is timed under `plugin_registry.capability_conformance`.
-  Disabled providers are not loaded. Boot conformance and later runtime
-  capability failures use `PluginHealth::Finding`, distinguished by `source`,
-  so health presentation and diagnostics consume one record contract.
+  Disabled providers are not loaded. Boot conformance reasons and failures
+  recorded by the runtime invocation boundary are serialized together in the
+  plugin health payload consumed by admin and CLI surfaces.
+  Capability definitions default to `[[:req, :context]]`; use `parameters:`
+  only when a family intentionally declares another exact positional/keyword
+  signature. Variadic parameters are not conforming contracts.
 - **A disabled plugin is not eager loaded.** Its `app/` dirs stay on the
   autoload path, so Zeitwerk resolves constants on demand and enabling needs no
   restart, but its code is skipped at eager load (`Syrus::PluginEagerLoad`,

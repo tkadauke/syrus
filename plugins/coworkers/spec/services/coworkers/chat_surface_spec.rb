@@ -35,8 +35,8 @@ RSpec.describe "Coworker chat surface" do
       .map { |tool| McpToolRegistry.tool_name_for(tool) }
   end
 
-  def coworker_tool(name)
-    Mcp::Sidecar.chat_tools(chat.reload, tier: :essential)
+  def coworker_tool(name, tier: :essential)
+    Mcp::Sidecar.chat_tools(chat.reload, tier: tier)
       .find { |tool| McpToolRegistry.tool_name_for(tool) == name }
   end
 
@@ -90,18 +90,45 @@ RSpec.describe "Coworker chat surface" do
     entries = McpToolRegistry.entries(surface: :coworker)
     expect(entries).to all(have_attributes(capability: be_present))
 
-    entries.reject { |entry| entry.interactive_only || entry.ungated }.each do |entry|
-      coworker.grants.delete_all
-      expect(names(tier: entry.tier)).to include(entry.tool_name)
-
-      attributes = { capability: entry.capability.to_s, approval_policy: "auto" }
-      attributes[:scope] = [ repository.id ] if entry.capability.to_s == "code.read"
-      coworker.grants.create!(attributes)
-      expect(names(tier: entry.tier)).to include(entry.tool_name)
-    end
+    expect(names).to include("list_jobs", "read_job", "approve_job", "cancel_job")
+    expect(names(tier: :deferred)).to include(
+      "list_job_workflows", "read_workflow", "read_run_transcript", "send_chat_message"
+    )
 
     coworker.grants.delete_all
     expect(names(tier: :deferred)).to include("discover_coworker_capabilities")
+  end
+
+  it "inspects a readable Job's failed Workflow and pages through its Run transcript" do
+    allow_tool(Mcp::Tools::ReadRunTranscriptTool)
+    job = Factories.job(repository: repository)
+    workflow = job.latest_workflow
+    run = job.initial_run
+    workflow.update_columns(state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", agent_outcome: "failure", finished_at: Time.current)
+    run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "first diagnostic")
+    run.job_logs.create!(sequence: 1, kind: "stderr", chunk: "second diagnostic")
+    context = { chat_session: chat, agent_actor: coworker }
+
+    workflows = response_payload(coworker_tool("list_job_workflows", tier: :deferred).call(
+      job_id: job.id, server_context: context
+    ))
+    inspected = response_payload(coworker_tool("read_workflow", tier: :deferred).call(
+      workflow_id: workflow.id, server_context: context
+    ))
+    first_page = response_payload(coworker_tool("read_run_transcript", tier: :deferred).call(
+      run_id: run.id, page: 1, per: 1, server_context: context
+    ))
+    second_page = response_payload(coworker_tool("read_run_transcript", tier: :deferred).call(
+      run_id: run.id, page: 2, per: 1, server_context: context
+    ))
+
+    expect(workflows.fetch("workflows").map { |entry| entry.fetch("id") }).to include(workflow.id)
+    expect(inspected.dig("workflow", "steps").flat_map { |step| step.fetch("runs") }.map { |entry| entry.fetch("id") })
+      .to include(run.id)
+    expect(first_page).to include("run_id" => run.id, "page" => 1, "total_pages" => 2)
+    expect(first_page.fetch("chunks").sole.fetch("chunk")).to eq("first diagnostic")
+    expect(second_page.fetch("chunks").sole.fetch("chunk")).to eq("second diagnostic")
   end
 
   it "exposes both proposal tools without treating a legacy grant as authority" do
@@ -110,7 +137,8 @@ RSpec.describe "Coworker chat surface" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "auto")
 
     expect(names).to include("propose_job", "propose_epic_with_jobs")
-    expect(names).not_to include("list_proposals", "confirm_proposal", "delete_proposal")
+    expect(names).to include("list_proposals", "delete_proposal")
+    expect(names).not_to include("confirm_proposal")
   end
 
   it "creates ordinary pending Job proposal cards with coworker provenance" do
@@ -174,6 +202,21 @@ RSpec.describe "Coworker chat surface" do
       workflow_id: workflow.id,
       feedback_source: action.payload.fetch("feedback_source")
     )
+  end
+
+  it "preserves a lifecycle tool's mandatory pending action after permission allows the call" do
+    allow_tool(Mcp::Tools::CancelJobTool)
+    job = Factories.job(repository: repository)
+
+    response = coworker_tool("cancel_job").call(
+      job_id: job.id, reason: "Superseded work", server_context: { chat_session: chat }
+    )
+
+    expect(response).not_to be_error
+    action = chat.pending_actions.find(response_payload(response).fetch("pending_action_id"))
+    expect(action).to have_attributes(action: "cancel_job", state: "pending", requested_by: "agent")
+    expect(action.payload).to eq("job_id" => job.id, "reason" => "Superseded work")
+    expect(job.reload).to be_open
   end
 
   it "creates an ordinary pending Epic card and child cards with coworker provenance" do
@@ -256,7 +299,9 @@ RSpec.describe "Coworker chat surface" do
     expect(Job.count).to eq(0)
   end
 
-  it "keeps proposals gated behind an explicit deny rule" do
+  # Drafting a proposal only creates the owner's confirmation card, which is
+  # the decision that creates real work, so a deny rule cannot block it.
+  it "drafts a proposal for the owner to confirm even under an explicit deny rule" do
     descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == Mcp::Tools::ProposeJobTool }.descriptor
     PermissionRule.create!(
       owner_user: owner, created_by_user: owner, updated_by_user: owner,
@@ -267,12 +312,12 @@ RSpec.describe "Coworker chat surface" do
     )
 
     response = coworker_tool("propose_job").call(
-      repo: repository.slug, title: "Denied", description: "Should never be drafted.",
+      repo: repository.slug, title: "Drafted", description: "The owner decides on the card.",
       planned_execution: { capabilities: { os: [ "linux" ] } }, server_context: { chat_session: chat }
     )
 
-    expect(response).to be_error
-    expect(chat.proposals).to be_empty
+    expect(response).not_to be_error
+    expect(chat.proposals.count).to eq(1)
   end
 
   it "uses descriptor defaults for read-only core tools despite legacy policy changes" do
@@ -387,7 +432,7 @@ RSpec.describe "Coworker chat surface" do
     expect(names).to include("ask_user_question", "suggest_next_step")
   end
 
-  it "delegates the owner's accessible chats to list, search, and read without widening to other users" do
+  it "limits chat discovery and reads to native and explicitly shared chats" do
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
     [ Mcp::Tools::ListChatsTool, Mcp::Tools::SearchChatsTool, Mcp::Tools::ReadChatMessagesTool ].each { |tool| allow_tool(tool) }
     owner_chat = ChatSession.create!(user: owner, title: "Owner chat")
@@ -405,18 +450,18 @@ RSpec.describe "Coworker chat surface" do
     context = { chat_session: chat }
     list_response = Mcp::Tools::ListChatsTool.call(server_context: context)
     listed_ids = JSON.parse(list_response.content.first[:text]).fetch("chats").pluck("id")
-    expect(listed_ids).to contain_exactly(chat.id, owner_chat.id, other_coworker_chat.id, owner_accessible_chat.id)
+    expect(listed_ids).to contain_exactly(chat.id)
 
     Mcp::Tools::AuthorizationSupport.with_server_context(context) do
       expect(Mcp::Tools::SearchChatsTool.send(:searchable_chat_session_ids))
-        .to match_array([ chat.id, owner_chat.id, other_coworker_chat.id, owner_accessible_chat.id ])
+        .to match_array([ chat.id ])
     end
 
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_chat.id)).not_to be_error
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: other_coworker_chat.id)).not_to be_error
-    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).not_to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_chat.id)).to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: other_coworker_chat.id)).to be_error
+    expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).to be_error
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: inaccessible_chat.id)).to be_error
-    expect(names(tier: :deferred)).not_to include("send_chat_message")
+    expect(names(tier: :deferred)).to include("send_chat_message")
 
     owner_accessible_chat.chat_shares.destroy_all
     expect(Mcp::Tools::ReadChatMessagesTool.call(server_context: context, chat_session_id: owner_accessible_chat.id)).to be_error
@@ -476,16 +521,21 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.reload.suggested_next_step).to be_nil
   end
 
-  it "offers only read-only memory tools without a grant" do
+  it "registers ordinary memory tools while leaving mutations gated without a grant" do
     allow(AgentMemory).to receive(:enabled?).and_return(true)
 
     essential_names = Mcp::Sidecar.chat_tool_names(chat, tier: :essential)
     expect(essential_names).to include("read_memory")
     deferred_names = Mcp::Sidecar.chat_tool_names(chat, tier: :deferred)
     expect(deferred_names).to include("search_memories", "list_memories")
-    expect(essential_names + deferred_names).not_to include(
-      "write_memory", "update_memory", "delete_memory", "publish_memory", "unpublish_memory"
+    expect(essential_names + deferred_names).to include(
+      "write_memory", "delete_memory", "publish_memory", "unpublish_memory"
     )
+    expect(essential_names + deferred_names).not_to include("update_memory")
+
+    report = Coworkers::ToolDefaultPolicyReport.new(chat_session: chat)
+    mutations = %w[write_memory delete_memory publish_memory unpublish_memory]
+    expect(report.grouped.fetch(:ask).map(&:tool)).to include(*mutations)
   end
 
   it "gives memory reads exactly the owner's visibility across repositories and scopes" do

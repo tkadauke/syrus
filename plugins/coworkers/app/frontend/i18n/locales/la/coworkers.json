@@ -244,10 +244,17 @@
     "description": "Recensores nominati concessionibus repositorii et memoria protecta utuntur.",
     "aria_label": "Summarium directionis recensionis collegae"
   },
-  "chat": { "message_to": "ad @{{handle}}", "bridge_link": "Colloquium #{{id}}: {{title}}", "new_title": "Colloquium novum" },
+  "chat": {
+    "message_to": "ad @{{handle}}",
+    "bridge_link": "Colloquium #{{id}}: {{title}}",
+    "new_title": "Colloquium novum",
+    "view_working_session": "Sessionem laboris vide"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",
+    "creating_side_chat": "Colloquium creatur…",
+    "edit": "Emenda",
     "add_to_chat": "Ad colloquium adde",
     "remove_from_chat": "E colloquio remove",
     "choose_chat": "Colloquium elige",
@@ -257,5 +264,6 @@
     "soul_unavailable": "SOUL.md praesto non est.",
     "engineer_capabilities": "Facultates machinatoriae fixae",
     "existing_link": "Hanc facultatem ex pagina Syrus iam exstante aperi."
-  }
+  },
+  "edit": { "title": "Collegam emenda", "save": "Mutationes serva", "saving": "Servatur…" }
 }

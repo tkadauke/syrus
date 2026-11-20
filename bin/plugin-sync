@@ -1,0 +1,267 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "base64"
+require "digest"
+require "fileutils"
+require "json"
+require "optparse"
+require "pathname"
+require "rubygems/package"
+require "securerandom"
+require "tmpdir"
+require "zlib"
+
+class PluginSync
+  MANIFEST_KEY = "plugins/desired/manifest.json"
+  SIGNATURE_KEY = "plugins/desired/manifest.json.sig"
+  ARTIFACT_PREFIX = "plugins/artifacts/"
+  SAFE_NAME = /\A[a-zA-Z0-9][a-zA-Z0-9_.-]*\z/
+
+  class Error < StandardError; end
+
+  def initialize(env:, strict:, env_file: nil, if_configured: false)
+    @env = env
+    @strict = strict
+    @env_file = env_file
+    @if_configured = if_configured
+    @data_root = Pathname.new(env.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")))
+    @root = Pathname.new(env.fetch("SYRUS_PLUGIN_SYNC_ROOT", @data_root.join("plugin-sync").to_s))
+    @role = env["SYRUS_ROLE"].to_s
+    @retain = Integer(env.fetch("SYRUS_PLUGIN_SYNC_RETENTION", "2"), 10)
+  end
+
+  def call
+    return write_existing_state || 0 if @if_configured && !configured?
+
+    FileUtils.mkdir_p(@root.join("sets"))
+    manifest_body = storage.read(MANIFEST_KEY)
+    verify_manifest!(manifest_body, storage.read(SIGNATURE_KEY))
+    manifest = parse_manifest(manifest_body)
+    entries = active_entries(manifest)
+    quarantines = fleet_quarantines(manifest)
+    identity = Digest::SHA256.hexdigest(JSON.generate(entries))
+
+    unless current_identity == identity
+      build_set(identity, entries)
+      activate(identity)
+      prune
+    end
+    write_fleet_quarantines(quarantines)
+    write_state(identity, manifest.fetch("revision"))
+    0
+  rescue StandardError => e
+    warn "plugin-sync: #{e.message}; keeping last-good plugin set"
+    write_existing_state
+    @strict ? 1 : 0
+  end
+
+  private
+
+  def configured?
+    @env["SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY"].to_s != "" &&
+      (@env["SYRUS_PLUGIN_SYNC_STORAGE_PATH"].to_s != "" || @env["S3_BUCKET"].to_s != "")
+  end
+
+  def storage
+    @storage ||= if (path = @env["SYRUS_PLUGIN_SYNC_STORAGE_PATH"]) && !path.empty?
+      LocalStorage.new(path)
+    else
+      S3Storage.new(@env)
+    end
+  end
+
+  def verify_manifest!(body, encoded_signature)
+    require "ed25519"
+    public_key = @env.fetch("SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY")
+    signature = Base64.strict_decode64(encoded_signature.strip)
+    Ed25519::VerifyKey.new(Base64.strict_decode64(public_key)).verify(signature, body)
+  rescue KeyError
+    raise Error, "SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY is required"
+  rescue ArgumentError, Ed25519::VerifyError
+    raise Error, "manifest signature verification failed"
+  end
+
+  def parse_manifest(body)
+    manifest = JSON.parse(body)
+    raise Error, "unsupported manifest schema" unless manifest["schema_version"] == 1
+    raise Error, "manifest revision is invalid" unless manifest["revision"].is_a?(Integer)
+    raise Error, "manifest plugins are invalid" unless manifest["plugins"].is_a?(Array)
+    manifest
+  rescue JSON::ParserError
+    raise Error, "manifest is not valid JSON"
+  end
+
+  def active_entries(manifest)
+    manifest.fetch("plugins").filter_map do |entry|
+      validate_entry!(entry)
+      next if entry["fleet_quarantined"] || entry["revoked"]
+      roles = Array(entry["roles"])
+      next if roles.any? && !@role.empty? && !roles.include?(@role)
+      entry.slice("name", "version", "digest", "size")
+    end.sort_by { |entry| entry.fetch("name") }
+  end
+
+  def fleet_quarantines(manifest)
+    quarantines = manifest.fetch("plugins").select { |entry| entry["fleet_quarantined"] }
+      .to_h { |entry| [ entry.fetch("name"), "fleet quarantine in desired plugin state" ] }
+  end
+
+  def write_fleet_quarantines(quarantines)
+    write_atomic(@root.join("fleet-quarantines.json"), JSON.pretty_generate(quarantines) + "\n")
+  end
+
+  def validate_entry!(entry)
+    raise Error, "plugin manifest entry is invalid" unless entry.is_a?(Hash)
+    raise Error, "plugin name is invalid" unless entry["name"].to_s.match?(SAFE_NAME)
+    raise Error, "plugin digest is invalid" unless entry["digest"].to_s.match?(/\A[0-9a-f]{64}\z/)
+    raise Error, "plugin size is invalid" unless entry["size"].is_a?(Integer) && entry["size"] >= 0
+  end
+
+  def build_set(identity, entries)
+    destination = @root.join("sets", identity)
+    return if destination.directory?
+
+    temporary = @root.join("sets", ".#{identity}.tmp-#{Process.pid}-#{SecureRandom.hex(4)}")
+    FileUtils.mkdir_p(temporary)
+    entries.each do |entry|
+      artifact = storage.read("#{ARTIFACT_PREFIX}#{entry.fetch("digest")}")
+      verify_artifact!(artifact, entry)
+      unpack(artifact, temporary.join(entry.fetch("name")))
+    end
+    File.write(temporary.join(".plugin-set.json"), JSON.generate("digest" => identity, "plugins" => entries))
+    File.rename(temporary, destination)
+  ensure
+    FileUtils.rm_rf(temporary) if temporary&.exist?
+  end
+
+  def verify_artifact!(artifact, entry)
+    raise Error, "artifact size mismatch for #{entry.fetch("name")}" unless artifact.bytesize == entry.fetch("size")
+    actual = Digest::SHA256.hexdigest(artifact)
+    raise Error, "artifact digest mismatch for #{entry.fetch("name")}" unless actual == entry.fetch("digest")
+  end
+
+  def unpack(artifact, destination)
+    FileUtils.mkdir_p(destination)
+    Dir.mktmpdir("plugin-sync") do |directory|
+      archive = File.join(directory, "artifact")
+      File.binwrite(archive, artifact)
+      io = File.open(archive, "rb")
+      reader_io = artifact.start_with?("\x1F\x8B".b) ? Zlib::GzipReader.new(io) : io
+      Gem::Package::TarReader.new(reader_io) do |tar|
+        tar.each do |entry|
+          relative = Pathname.new(entry.full_name).cleanpath
+          raise Error, "artifact contains an unsafe path" if relative.absolute? || relative.each_filename.include?("..")
+          target = destination.join(relative)
+          if entry.directory?
+            FileUtils.mkdir_p(target)
+          elsif entry.file?
+            FileUtils.mkdir_p(target.dirname)
+            File.binwrite(target, entry.read)
+            File.chmod(entry.header.mode & 0o777, target)
+          else
+            raise Error, "artifact contains an unsupported entry"
+          end
+        end
+      end
+    ensure
+      reader_io&.close
+      io&.close unless io&.closed?
+    end
+  rescue Gem::Package::TarInvalidError, Zlib::GzipFile::Error
+    raise Error, "plugin artifact is not a valid tar archive"
+  end
+
+  def activate(identity)
+    current = @root.join("current")
+    previous = current_identity
+    replace_link(@root.join("last-good"), "sets/#{previous}") if previous && previous != identity
+    replace_link(current, "sets/#{identity}")
+  end
+
+  def replace_link(link, target)
+    temporary = Pathname.new("#{link}.tmp-#{Process.pid}-#{SecureRandom.hex(4)}")
+    File.symlink(target, temporary)
+    File.rename(temporary, link)
+  ensure
+    FileUtils.rm_f(temporary) if temporary&.exist?
+  end
+
+  def current_identity
+    metadata = @root.join("current", ".plugin-set.json")
+    JSON.parse(metadata.read).fetch("digest") if metadata.file?
+  rescue JSON::ParserError, KeyError
+    nil
+  end
+
+  def prune
+    protected = [ current_identity, link_identity(@root.join("last-good")) ].compact
+    candidates = @root.join("sets").children.select(&:directory?).reject { |path| path.basename.to_s.start_with?(".") }
+    removable = candidates.reject { |path| protected.include?(path.basename.to_s) }
+      .sort_by { |path| path.stat.mtime }.reverse.drop(@retain)
+    removable.each { |path| FileUtils.rm_rf(path) }
+  end
+
+  def link_identity(link)
+    link.symlink? ? link.readlink.basename.to_s : nil
+  end
+
+  def write_state(identity, revision)
+    state = { "SYRUS_PLUGIN_SET_DIGEST" => identity, "SYRUS_PLUGIN_SET_REVISION" => revision.to_s }
+    path = @root.join("active.env")
+    write_atomic(path, state.map { |key, value| "#{key}=#{value}" }.join("\n") + "\n")
+    write_atomic(Pathname.new(@env_file), path.read) if @env_file
+  end
+
+  def write_existing_state
+    source = @root.join("active.env")
+    write_atomic(Pathname.new(@env_file), source.read) if @env_file && source.file?
+  rescue SystemCallError
+    nil
+  end
+
+  def write_atomic(path, body)
+    FileUtils.mkdir_p(path.dirname)
+    temporary = Pathname.new("#{path}.tmp-#{Process.pid}")
+    File.write(temporary, body)
+    File.rename(temporary, path)
+  ensure
+    FileUtils.rm_f(temporary) if temporary&.exist?
+  end
+
+  class LocalStorage
+    def initialize(root) = @root = Pathname.new(root)
+    def read(key)
+      direct = @root.join(key)
+      active_storage = @root.join(key[0, 2], key[2, 2], key)
+      (direct.file? ? direct : active_storage).binread
+    rescue SystemCallError => e
+      raise Error, "storage read failed for #{key}: #{e.message}"
+    end
+  end
+
+  class S3Storage
+    def initialize(env)
+      require "aws-sdk-s3"
+      @bucket = env.fetch("S3_BUCKET")
+      @client = Aws::S3::Client.new(
+        endpoint: env["S3_ENDPOINT"], region: env.fetch("S3_REGION", "us-east-1"),
+        access_key_id: env["S3_ACCESS_KEY_ID"], secret_access_key: env["S3_SECRET_ACCESS_KEY"],
+        force_path_style: true
+      )
+    rescue KeyError
+      raise Error, "S3_BUCKET or SYRUS_PLUGIN_SYNC_STORAGE_PATH is required"
+    end
+
+    def read(key) = @client.get_object(bucket: @bucket, key:).body.read
+  end
+end
+
+options = { strict: false, if_configured: false }
+OptionParser.new do |parser|
+  parser.banner = "Usage: bin/plugin-sync [--strict] [--env-file PATH]"
+  parser.on("--strict") { options[:strict] = true }
+  parser.on("--env-file PATH") { |path| options[:env_file] = path }
+  parser.on("--if-configured") { options[:if_configured] = true }
+end.parse!
+exit PluginSync.new(env: ENV, **options).call

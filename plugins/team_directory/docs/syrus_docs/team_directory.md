@@ -7,14 +7,18 @@ Plugins**.
 ## What operators can see
 
 The Team page at `/profiles` shows safe profile summaries and counts for each
-operator. `/profiles/:id` shows one person's profile plus bounded lists of
-their active repositories, non-archived epics, jobs, and recent activity.
+operator. `/profiles/:id` shows one person's role, optional public profile
+details, work counts, recent jobs and epics, and active repositories. When an
+operator views their own directory profile, an **Edit profile** action opens
+the existing account profile editor; other operators' profiles remain
+read-only.
 The payload excludes email addresses, credentials, agent-provider settings,
 and other private user configuration.
 
 Every page and API endpoint requires an authenticated operator. The directory
-does not grant access to linked work and does not alter core team
-authorization; it is only a view over records the instance already has.
+does not grant access to linked work, allow editing another operator, or alter
+core team authorization. Its self-profile action only links to the existing
+account editor.
 
 ## Single-operator instances
 

@@ -30,6 +30,57 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
   end
 
+  it "clears one local plugin quarantine and requires a restart" do
+    sign_in_as(admin)
+    safety = instance_double(Syrus::PluginBootSafety)
+    allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+    allow(safety).to receive(:locally_clearable?).with("weather").and_return(true)
+    allow(safety).to receive(:clear!).with("weather").and_return(true)
+
+    post "/api/v1/app/admin/plugins/weather/clear_quarantine"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("ok" => true, "plugin" => "weather", "restart_required" => true)
+    expect(safety).to have_received(:clear!).with("weather")
+  end
+
+  it "rejects clearing a quarantine controlled by safe mode or fleet state" do
+    sign_in_as(admin)
+    safety = instance_double(Syrus::PluginBootSafety, locally_clearable?: false)
+    allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+
+    post "/api/v1/app/admin/plugins/weather/clear_quarantine"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("quarantine_not_locally_clearable")
+  end
+
+  it "shows a newly recorded local quarantine before the process restarts" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "weather", version: "1.0.0")
+    safety = instance_double(
+      Syrus::PluginBootSafety,
+      mode: nil,
+      quarantines: { "weather" => "manually quarantined by an administrator" },
+      local_quarantines: { "weather" => "manually quarantined by an administrator" },
+      fleet_quarantines: {}
+    )
+    allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+
+    get "/api/v1/app/admin/plugins"
+
+    plugin = parse_body.fetch("plugins").sole
+    expect(plugin).to include(
+      "name" => "weather",
+      "health" => {
+        "state" => "quarantined",
+        "reasons" => [ "manually quarantined by an administrator" ]
+      },
+      "quarantine_clearable" => true
+    )
+  end
+
   it "returns slim registered-plugin rows" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
@@ -814,6 +865,68 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       )
     end
 
+    it "reports an open runtime circuit" do
+      provider = Class.new { include Syrus::Plugin::CiLogParser }
+      Syrus::PluginRegistry.register(
+        name: "runtime-failure-plugin", version: "1.0.0", provides: { ci_log_parser: provider }
+      )
+      Syrus::PluginInvocation.call(
+        extension_point: :ci_log_parser, provider: provider, operation: :call,
+        failure_threshold: 1, cooldown: 75, on_decline: nil
+      ) { raise "provider unavailable" }
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/plugins"
+
+      entry = response.parsed_body["plugins"].find { |plugin| plugin["name"] == "runtime-failure-plugin" }
+      expect(entry.dig("health", "state")).to eq("circuit_open")
+      circuit = entry.dig("health", "circuits", 0)
+      expect(circuit).to include(
+        "extension_point" => "ci_log_parser", "state" => "open", "failure_count" => 1
+      )
+      expect(Time.iso8601(circuit.fetch("retry_at")) - Time.iso8601(circuit.fetch("opened_at"))).to eq(75)
+    ensure
+      Syrus::PluginInvocation.runtime_health.reset!
+    end
+
+    it "serializes conformance reasons and runtime failures in one health payload" do
+      Syrus::Plugin::Family.define(:health_payload_spec) do
+        shape :facet
+        capability :detect, composition: :collect, absent: [], tier: :stable, context: "HealthContext"
+      end
+      namespace = Object.const_set(:HealthPayloadSpec, Module.new)
+      provider = namespace.const_set(:Provider, Class.new do
+        include Syrus::Plugin::CiLogParser
+        def self.key = :health_payload
+        def self.display_name = "Health payload"
+      end)
+      declaration = Syrus::Plugin::FamilyDeclaration.build(
+        family: :health_payload_spec, provider: "HealthPayloadSpec::Provider", implements: %i[detect]
+      )
+      Syrus::PluginRegistry.register(
+        name: "combined-health-plugin", version: "1.0.0", provides: { ci_log_parser: provider },
+        family_provides: [ declaration ]
+      )
+      Syrus::PluginInvocation.call(
+        extension_point: :ci_log_parser, provider:, operation: :call, on_decline: nil
+      ) { raise "runtime failure" }
+      sign_in_as(Factories.user(admin: true))
+
+      get "/api/v1/app/admin/plugins"
+
+      health = response.parsed_body.fetch("plugins").find { |plugin| plugin["name"] == "combined-health-plugin" }.fetch("health")
+      expect(health).to include("state" => "non_conforming")
+      expect(health.fetch("reasons")).to include("HealthPayloadSpec::Provider does not define required method detect")
+      expect(health.fetch("failures").sole).to include(
+        "extension_point" => "ci_log_parser", "operation" => "call", "message" => "runtime failure"
+      )
+    ensure
+      Syrus::PluginInvocation.runtime_health.reset!
+      Syrus::Plugin::Family.reset!
+      Object.send(:remove_const, :HealthPayloadSpec) if Object.const_defined?(:HealthPayloadSpec)
+    end
+
     it "reports ok for a plugin with satisfied dependencies" do
       admin = Factories.user(admin: true)
       sign_in_as(admin)
@@ -821,7 +934,12 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       get "/api/v1/app/admin/plugins"
 
       entry = response.parsed_body["plugins"].find { |p| p["name"] == "github_source" }
-      expect(entry["health"]).to eq({ "state" => "ok", "reasons" => [] })
+      expect(entry["health"]).to include(
+        "state" => "ok", "reasons" => [], "request_count" => 0, "last_error_at" => nil
+      )
+      expect(entry.dig("health", "jobs")).to include(
+        "queue" => "plugin_github_source", "depth" => 0, "failed_count" => 0, "discarded_count" => 0
+      )
     end
 
     it "reports the unmet dependency for a degraded plugin" do
@@ -849,8 +967,9 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       get "/api/v1/app/admin/plugins"
 
       entry = response.parsed_body["plugins"].find { |plugin| plugin["name"] == "broken_external" }
-      expect(entry["health"]).to eq(
-        "state" => "failed", "reasons" => [ "SyntaxError: unexpected end-of-input" ]
+      expect(entry["health"]).to include(
+        "state" => "failed", "reasons" => [ "SyntaxError: unexpected end-of-input" ],
+        "request_count" => 0, "last_error_at" => nil
       )
     end
   end

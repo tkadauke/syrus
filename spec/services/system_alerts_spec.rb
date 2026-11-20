@@ -12,6 +12,17 @@ RSpec.describe SystemAlerts do
       expect(described_class.active_for(user: nil)).to eq([])
     end
 
+    it "shows admins a global warning while plugin safe mode or quarantine is active" do
+      user = Factories.user(admin: true)
+      safety = instance_double(Syrus::PluginBootSafety, active?: true, mode: "recent", quarantines: { "weather" => "changed" })
+      allow(Syrus::PluginBootSafety).to receive(:default).and_return(safety)
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).find { |candidate| candidate.id == "plugin_recovery_mode" }
+
+      expect(alert).to have_attributes(severity: :warn, cta: { text: "Review plugins", path: "/admin/plugins" })
+    end
+
     it "surfaces a github-token-blocked alert when the user is flagged" do
       user = Factories.user
       user.mark_gh_api_blocked!("Resource not accessible by personal access token")

@@ -165,6 +165,75 @@ container, move its directory out of the shared root, and restart all
 containers. Uninstalling retains plugin data and migrations for rollback;
 purging data is a separate destructive operation.
 
+For fleet-managed plugins, set `SYRUS_PLUGIN_SYNC_ENABLED=1` and distribute
+the control plane's `SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY` to every Rails process.
+The pre-boot sync reads the signed desired-state manifest and content-addressed
+archives from the configured S3-compatible attachment bucket. In single-node
+mode, `SYRUS_PLUGIN_SYNC_STORAGE_PATH` may point to the local attachment root.
+It verifies the Ed25519 signature plus every archive's size and SHA-256 digest,
+then atomically switches `$SYRUS_DATA_ROOT/plugin-sync/current`. The preceding
+set remains at `last-good`, and hand-placed plugins in `SYRUS_PLUGIN_PATH`
+continue to take precedence when a name occurs in both roots.
+
+Storage, signature, manifest, and artifact failures print one error, retain the
+last-good set, and allow boot. `SYRUS_PLUGIN_SYNC_STRICT=1` changes failures to
+a nonzero exit for diagnostic or explicitly fail-closed processes.
+`SYRUS_PLUGIN_SYNC_RETENTION` sets the number of additional inactive sets to
+keep (default `2`). Fleet-quarantined and revoked entries are removed from the
+activated set. Rails and spawned sidecars receive `SYRUS_PLUGIN_SET_DIGEST` and
+`SYRUS_PLUGIN_SET_REVISION` for the active set.
+
+Plugin manifests may declare `roles %w[web worker preview sidecar]`. Omitting
+`roles` (or using an empty desired-state list) loads the plugin everywhere.
+Only those four names are valid. An unlisted process skips the plugin and
+records the reason in plugin health. Preview-provider, language, and framework
+plugins must remain available to the `preview` role.
+
+Desired-state changes do not hot-unload Ruby code. **Apply changes** records
+the desired revision, gracefully drains web, worker, and preview processes,
+and relies on the container supervisor to restart them in place. The entrypoint
+then syncs before Rails boots. Setup and web apply plugin migrations through
+the existing database preparation path; workers abort while migrations are
+pending. Status reports each process as pending, restarted, or stuck. This is
+tested with Docker Compose restart policies; native macOS workers and external
+plugin distribution on Kubernetes are not supported by this flow.
+
+Admin → Plugins also shows fleet convergence. A process is **converged** when
+its role-specific plugin-set digest matches desired state. **Pending restart**
+means an applied revision has not started there; **behind** means an older set
+without a current restart request; **ahead** usually indicates the process is
+connected to the wrong control plane or manifest store; and **unreachable**
+means its heartbeat is stale. Restart pending/behind processes after verifying
+sync configuration, investigate the control-plane connection for ahead
+processes, and restore or replace unreachable processes. Per-plugin rows show
+running versions plus local skips, failures, missing entries, and quarantine.
+
+Divergence older than `SYRUS_PLUGIN_DIVERGENCE_THRESHOLD_SECONDS` (default:
+300) is highlighted and emits the standard system alarm linked to the Plugins
+page.
+
+## Safe-mode recovery
+
+`SYRUS_SAFE_MODE=third_party` withholds every hand-placed and synced plugin.
+`recent` withholds external plugins whose content differs from the last good
+boot, and `all` withholds every plugin; Syrus currently requires no plugin to
+boot. The loader records every withheld plugin and reason in Admin → Plugins.
+
+Boot attempts are stored in `$SYRUS_DATA_ROOT/plugin-boot-safety.json`, without
+using the database. Three incomplete boots in ten minutes automatically
+quarantine external plugins changed since the last good boot on the following
+start. Override these defaults with `SYRUS_BOOT_FAILURE_LIMIT`,
+`SYRUS_BOOT_FAILURE_WINDOW_SECONDS`, and `SYRUS_BOOT_SUCCESS_AFTER_SECONDS`.
+A fleet quarantine in desired state is also applied at the next restart.
+
+When the UI is available, the global warning links to Admin → Plugins; correct
+the plugin and use **Re-enable after restart** for one plugin at a time. When
+Rails cannot boot, run `bin/plugin-recovery list`, then
+`bin/plugin-recovery quarantine NAME` or `bin/plugin-recovery clear NAME`.
+Restart the affected processes after each change. Fleet quarantine must be
+cleared in desired state rather than locally. Remove `SYRUS_SAFE_MODE` only
+after the instance stays healthy, and reintroduce plugins one at a time.
+
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore
 removes its documentation too.
@@ -233,6 +302,36 @@ its engine declaration is made inert; the remaining plugins continue to load.
 Bundled plugins remain
 strict in development and test so defects are immediately visible; production
 isolates and reports their failures in the same way as external plugins.
+
+Plugin-owned routes follow the same environment rule. In development and test,
+an unhandled controller exception propagates so the defect remains visible. In
+production, Syrus contains the exception to that plugin, returns a structured
+error naming it, and records the failure under **Admin → Plugins**. Plugin
+health also shows each plugin's request count and the time of its latest route
+error. Timestamp writes are rate-limited so a hot failing route does not create
+unbounded health traffic. Each process retains at most 100 distinct recent
+failure signatures per plugin, bounding both runtime memory and the Admin
+health payload; a healthy plugin continues serving requests normally.
+
+Runtime provider failures are isolated from core work and recorded under
+**Admin → Plugins**. Repeated failures open a process-local circuit for that
+plugin capability; calls decline without invoking the provider until one trial
+is allowed after the cool-down. A successful trial closes the circuit, while a
+failed trial opens it again. Because circuit state is process-local, different
+web and worker processes can show different runtime histories.
+
+Operators can tune the breaker for every process at startup:
+
+| Environment variable | Default | Meaning |
+| --- | --- | --- |
+| `SYRUS_PLUGIN_CIRCUIT_FAILURE_THRESHOLD` | `5` | Failures within the window that open a circuit. |
+| `SYRUS_PLUGIN_CIRCUIT_WINDOW_SECONDS` | `60` | Sliding failure window in seconds. |
+| `SYRUS_PLUGIN_CIRCUIT_COOLDOWN_SECONDS` | `30` | Delay before one trial call may run. |
+
+Provider timeouts are opt-in at individual call sites rather than controlled by
+a global setting. In-process isolation contains ordinary provider bugs; it
+cannot contain malicious code, native-code hangs, memory growth, monkey
+patches, or process termination.
 
 Enablement can cascade through hard dependencies. Disabling a dependency can
 cascade through its enabled dependents, but the admin must confirm the complete
@@ -419,6 +518,10 @@ disabled plugin contributes no capability providers.
 Providers are ordered by the plugin's `prepare_priority`. Each capability
 documents its context, stability tier, absent behavior, and one composition
 mode: `collect`, `broadcast`, `first_claim`, or `keyed`.
+The default method contract is one required positional context object. A family
+that declares a different contract uses `parameters:` with Ruby reflection
+tuples such as `[[:req, :context], [:keyreq, :repository], [:key, :job]]`;
+boot conformance checks exact arity and keyword names.
 Providers implementing a `keyed` capability declare the selector with `key:`
 in the manifest, allowing selection without loading candidate classes.
 Enabled providers are checked when plugin health is first resolved after boot.
@@ -426,3 +529,18 @@ Missing core methods, unknown capabilities, and incompatible signatures mark
 the plugin non-conforming and withhold that family's declarations without
 disabling unrelated registrations. Disabled plugins remain unloaded. Admin and
 `syrus plugin capabilities` show declarations and conformance failures.
+
+## Background jobs
+
+Plugin-owned Active Jobs subclass `PluginJob` and declare their owner with
+`plugin :plugin_name`. They run on `plugin_<name>` by default, including jobs
+from external plugins. Core jobs keep their existing queues.
+
+The default cap is two concurrent jobs across a plugin's job classes. Raise it
+with `plugin :plugin_name, concurrency: 5`, or use `queue_as` when one job has a
+specific worker-placement requirement. Concurrency slots use a renewable
+15-minute lease so long-running jobs remain capped while abandoned slots can
+recover; plugins with an unusual recovery window can pass
+`concurrency_duration: 30.minutes`. Ordinary failures retry five times with
+polynomial backoff, then the job is discarded and recorded in plugin health.
+The admin Queue and Plugins pages show plugin queue depth and failures.

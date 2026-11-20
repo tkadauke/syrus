@@ -4,7 +4,7 @@ module Admin
   # and the session-authenticated SPA API (Api::V1::App::Admin::RestartController),
   # same split as Admin::Console::Payload.
   class RestartService
-    COMPONENTS = %w[ web worker all ].freeze
+    COMPONENTS = %w[ web worker preview all ].freeze
     POISON_PILL_TTL = 5.minutes
 
     class InvalidComponent < ArgumentError; end
@@ -45,7 +45,7 @@ module Admin
     end
 
     def roles_for(component)
-      component == "all" ? %w[ web worker ] : [ component ]
+      component == "all" ? %w[ web worker preview ] : [ component ]
     end
 
     def write_poison_pill(role)

@@ -47,6 +47,7 @@ import { deletePasskey, fetchPasskeyRegistrationOptions, fetchPasskeys, register
 import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
 import type { ProviderAvailability, ProviderUsageWindow } from "../api/providerAvailability"
 import { ProviderRoutingRulesEditor } from "../components/ProviderRoutingRulesEditor"
+import { McpBridgeTokensPanel } from "../components/McpBridgeTokensPanel"
 import {
   clearPersistedMotionPermission,
   MOTION_PERMISSION_CHANGED_EVENT,
@@ -168,6 +169,7 @@ function CredentialsView({
         <PasskeysPanel />
         {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} prefix={prefix} /> : null}
         {payload.user.admin ? <ApiTokenPanel onNotice={onNotice} payload={payload} /> : null}
+        <McpBridgeTokensPanel />
       </>
     )
   }

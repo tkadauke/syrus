@@ -19,14 +19,15 @@ module WorkspaceGitTransportPreference
   # hasn't been told about it since it last restarted. `op` receives
   # `(url, env)` and performs the actual `GitRunner#run` call.
   #
-  # Returns true when `op` succeeded and (when `verify_sha` is given) the
-  # wanted commit actually ended up on disk, checked via the includer's own
+  # Returns true when `op` succeeded and either the optional `verify` callback
+  # accepts the fetched refs or (when `verify_sha` is given) the wanted commit
+  # actually ended up on disk, checked via the includer's own
   # `#git_object_present?(sha)`. Returns false when no transport is
   # available, or every attempt either raised a GitRunner::GitError or
   # landed on a stale commit -- the caller should fall back to the hosting
   # platform exactly as if this method had never been called; nothing here
   # ever raises for a transport-side failure.
-  def try_mirror_transport(repository:, user:, verify_sha: nil, &op)
+  def try_mirror_transport(repository:, user:, verify_sha: nil, verify: nil, &op)
     transport = WorkspaceGitTransports.for(repository, user: user)
     return false unless transport
 
@@ -34,7 +35,8 @@ module WorkspaceGitTransportPreference
       begin
         transport.register! if register_first
         op.call(transport.url, transport.env)
-        return true if verify_sha.blank? || git_object_present?(verify_sha)
+        verified = verify ? verify.call : (verify_sha.blank? || git_object_present?(verify_sha))
+        return true if verified
       rescue GitRunner::GitError, RepositoryContent::Error
         nil
       end
@@ -71,9 +73,9 @@ module WorkspaceGitTransportPreference
   # before trusting it, and otherwise falling back via `fallback` -- which
   # only runs when the mirror is unavailable, stale, or every attempt
   # failed.
-  def fetch_via_transport!(repository:, user:, refspec:, chdir:, verify_sha: nil, env: {}, &fallback)
-    fetched = try_mirror_transport(repository: repository, user: user, verify_sha: verify_sha) do |url, mirror_env|
-      @git.run("fetch", url, refspec, chdir: chdir, env: env.merge(mirror_env))
+  def fetch_via_transport!(repository:, user:, refspec:, chdir:, verify_sha: nil, verify: nil, env: {}, fetch_args: [], &fallback)
+    fetched = try_mirror_transport(repository: repository, user: user, verify_sha: verify_sha, verify: verify) do |url, mirror_env|
+      @git.run("fetch", *fetch_args, url, refspec, chdir: chdir, env: env.merge(mirror_env))
     end
     return if fetched
 

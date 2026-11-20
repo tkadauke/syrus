@@ -374,8 +374,11 @@ module MysqlDbBrowser
         truncated_row = truncate_row(row)
         row_bytes = retained_bytes(truncated_row)
         if rows.length >= limit || result_bytes + row_bytes > MAX_RESULT_BYTES
+          # Stop reading. The rest of this streamed result stays unread on the
+          # connection (abandon_results! only discards *further* result sets,
+          # not the remainder of this one), so the connection must not be used
+          # again -- see run_read_only.
           truncated = true
-          client.abandon_results! if client.respond_to?(:abandon_results!)
           break
         end
 
@@ -392,12 +395,26 @@ module MysqlDbBrowser
       }
     end
 
+    # A truncated SELECT leaves the unread rest of its streamed result on the
+    # connection, and MySQL rejects any further command there with "Commands
+    # out of sync" -- which replaced every truncated result with that error.
+    # The transaction is read-only and the connection is closed right after
+    # (with_client), which discards it, so the ROLLBACK is skipped then, and
+    # never allowed to mask the query's own outcome otherwise.
     def run_read_only(client, statement, limit)
       client.query("START TRANSACTION READ ONLY")
-      transaction_started = true
-      run_select(client, statement, limit)
+      transaction_open = true
+      payload = run_select(client, statement, limit)
+      transaction_open = false if payload[:truncated]
+      payload
     ensure
-      client.query("ROLLBACK") if transaction_started
+      rollback_quietly(client) if transaction_open
+    end
+
+    def rollback_quietly(client)
+      client.query("ROLLBACK")
+    rescue Mysql2::Error => e
+      Rails.logger.warn("[MysqlDbBrowser::QueryExecutor] ROLLBACK after a read-only query failed: #{e.message}")
     end
 
     def run_write(client, statement)

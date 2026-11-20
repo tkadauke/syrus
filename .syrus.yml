@@ -623,6 +623,21 @@ grade:
       unknown_runtime: 0.1
       exec_args: bin/rspec-worker
       prepare_command: bundle exec rake parallel:prepare
+      # The CI grader runs CI-only examples in the parallel pass (each worker
+      # has its own database); only these stay in a serial pass of their own:
+      # migration specs that change the schema in-process, subprocess-heavy
+      # script specs, and specs that commit outside a transaction.
+      serial_paths:
+        - spec/migrations/
+        - spec/bin/
+        - spec/desktop/
+        - spec/services/stack_base_freshness_spec.rb
+        - spec/models/command_span_mysql_concurrency_spec.rb
+        - spec/models/chat_pending_action_query_budget_spec.rb
+        - spec/models/authorized_invocation_concurrency_spec.rb
+        - spec/models/pending_action_transition_concurrency_spec.rb
+        - spec/jobs/run_job_parallel_grader_projection_spec.rb
+        - spec/services/internal_cli_runtime_smoke_spec.rb
     when_files_changed:
       - "app/**/*.rb"
       - "lib/**/*.rb"
@@ -690,6 +705,13 @@ grade:
       landing attempt pays for a browser run. Revisit `landing` only once the
       flake rate is known -- a flaky grader there fails real landings.
 
+      `landing_parity: false` keeps it that way. Main-grading parity adds every
+      required CI-phase grader to landing, which put this suite back on every
+      merge train's critical path: red or timed out on every run, its result
+      ignored as inherited, yet each train waited 17-25 minutes for it (a red
+      run reruns the whole suite at the base). Landing names it as a
+      post-merge delta; main grading still runs it.
+
       Failures that reproduce on the base revision are inherited rather than
       charged to a ci_failure repair. The full suite reruns on the base because
       Playwright's custom grader does not emit structured test identities.
@@ -699,6 +721,8 @@ grade:
       quietly grade each other's checkouts. See bin/test-e2e.
     run: E2E_ISOLATE=1 bin/test-e2e
     phases: [ci]
+    metadata:
+      landing_parity: false
     failures: allow_inherited
     base_retry:
       strategy: full_command

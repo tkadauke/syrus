@@ -7,7 +7,9 @@ module Mcp::Tools
     tool_name "reenqueue_work"
     description <<~DESC
       Request re-enqueue of an existing queued Run, or start the first Step of
-      an active queued Workflow that has no Runs. The Job may be in any state,
+      an active queued Workflow that has no Runs -- or whose first Step was
+      reopened after a Run that failed before starting and is still waiting
+      for a replacement. The Job may be in any state,
       but the selected Workflow must be queued/running and the selected Run must
       be queued; this never creates a Job or Workflow. The call creates a pending
       action. Confirmation revalidates those predicates, then either re-enqueues

@@ -5,6 +5,7 @@ module Steps
       verify_checkpoint!
       fetch_and_verify_base!
       pre_sha = head_sha
+      GitMergeDrivers.register!(git: git, path: workspace.path)
       git.run("rebase", pinned_base_sha, chdir: workspace.path.to_s)
       post_sha = head_sha
       record_result("rebased", pre_sha: pre_sha, post_sha: post_sha)

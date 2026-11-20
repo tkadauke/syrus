@@ -10,7 +10,6 @@ export type RepositoryDocument = {
   id: number
   kind: string
   title: string
-  google_doc_url: string | null
   filename: string | null
   content_type: string | null
   byte_size: number | null
@@ -28,9 +27,8 @@ export type RepositoryDocumentsPayload = {
 }
 
 export type RepositoryDocumentInput = {
-  kind: "file" | "google_doc"
+  kind: "file"
   title: string
-  google_docs_url: string
   file: File | null
 }
 
@@ -57,10 +55,7 @@ export function createRepositoryDocument(repositoryId: number, values: Repositor
   const formData = new FormData()
   formData.append("repository_document[kind]", values.kind)
   formData.append("repository_document[title]", values.title)
-  if (values.kind === "google_doc") {
-    formData.append("repository_document[google_docs_url]", values.google_docs_url)
-  }
-  if (values.kind === "file" && values.file) {
+  if (values.file) {
     formData.append("repository_document[file]", values.file)
   }
 

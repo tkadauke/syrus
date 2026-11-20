@@ -76,6 +76,13 @@ module Deploy
 
     def containers_of(item)
       target = "#{item.fetch("kind").downcase}/#{item.dig("metadata", "name")}"
+      # The deploy's own pre-pull DaemonSet runs our worker image but is not a
+      # workload: it is started as soon as images are pushed, so it is live
+      # when this list is first read, and deleted before pinning. Pinning it
+      # and then waiting on a DaemonSet that no longer exists hangs the
+      # rollout until it times out and unwinds the whole deploy.
+      return [] if target == "daemonset/#{context.config.prepull_daemonset}"
+
       spec = item.dig("spec", "template", "spec") || {}
 
       (Array(spec["containers"]) + Array(spec["initContainers"])).filter_map do |container|

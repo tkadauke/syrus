@@ -11,7 +11,7 @@ RSpec.describe "Coworkers plugin" do
     expect(declarations.flatten).to all(include("presentation:"))
   end
 
-  it "owns its adapters outside core except for actor-neutral permission policy" do
+  it "owns its adapters outside core except for actor-neutral permission and exposure policy" do
     core_paths = %w[
       app/services/permissions/coworker_*.rb
       app/services/mcp/coworker_*.rb
@@ -23,6 +23,7 @@ RSpec.describe "Coworkers plugin" do
     ].flat_map { |pattern| Rails.root.glob(pattern) }
 
     expect(core_paths.map { |path| path.relative_path_from(Rails.root).to_s }).to contain_exactly(
+      "app/services/mcp/coworker_tool_exposure.rb",
       "app/services/permissions/coworker_default_policy.rb",
       "app/services/mcp/tools/coworker_observability_authorization.rb"
     )
@@ -41,7 +42,10 @@ RSpec.describe "Coworkers plugin" do
       "20261101193036_reset_coworker_legacy_authority.rb",
       "20261104120818_migrate_coworker_grants_to_permission_rules.rb",
       "20261104140858_add_unsaved_workspace_to_coworker_chats.rb",
-      "20261106105035_create_coworker_review_contexts.rb"
+      "20261106105035_create_coworker_review_contexts.rb",
+      "20261117201026_add_mention_sessions_to_coworker_chats.rb",
+      "20261117202643_add_mention_owner_destinations_and_after_reply.rb",
+      "20261118155251_repair_coworker_main_chat_constraint.rb"
     )
   end
 
@@ -145,7 +149,7 @@ RSpec.describe "Coworkers plugin" do
   end
 
 
-  it "selects a roster-mentioned coworker as the active turn context" do
+  it "does not expose a roster mention through the source chat turn context" do
     repository = Factories.repository(user: owner, owner: "acme", name: "coworker-workspace")
     coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Maya", handle: "maya-turn", workspace_repo: repository.remote_url,
@@ -153,41 +157,19 @@ RSpec.describe "Coworkers plugin" do
     )
     chat = ChatSession.create!(user: owner, title: "Planning")
     Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
-    coworker.permission_rules.update!(capability: "workspace.files", approval_policy: "auto", actor: owner)
     message = chat.messages.build(
       role: "user", content: { "text" => "Ask @maya-turn" },
       mentions: [ { "kind" => "coworker", "id" => coworker.id, "handle" => coworker.handle, "start" => 4, "end" => 14 } ]
     )
     message.skip_turn_trigger = true
     message.save!
-    chat.update_columns(current_turn_message_id: message.id)
     scope = Syrus::EffectScope.new(label: "rostered coworker turn spec")
     Coworkers::ChatExtension.install_into(scope)
 
-    context = chat.reload.agent_turn_context(message)
-
-    expect(chat.coworker).to eq(coworker)
-    expect(context).to have_attributes(
-      coworker: coworker, effective_chat_provider: "codex", chat_model: "gpt-6.1-sol",
-      chat_effort: "high", repository: repository
-    )
-    expect(McpToolContext.from_chat_session(context)).to have_attributes(
-      role: AgentRole::COWORKER_CHAT, granted_capabilities: [ "workspace.files" ]
-    )
-
-    job = ChatTurnJob.new
-    job.instance_variable_set(:@chat, chat)
-    job.instance_variable_set(:@user_message, message)
-    job.instance_variable_set(:@agent_chat, context)
-    allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(Pathname("/tmp/roster-chat"))
-    lifecycle = class_double(Coworkers::ChatWorkspaceLifecycle, applies_to?: true)
-    allow(lifecycle).to receive(:prepare!).with(chat_session: chat).and_return(Pathname("/tmp/roster-coworker"))
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:chat_workspace_lifecycle).and_return([ lifecycle ])
-
-    expect(job.send(:chat_provider)).to have_attributes(provider: "codex")
-    expect(job.send(:ensure_workspace!)).to eq(Pathname("/tmp/roster-coworker"))
-    expect(job.send(:resume_session_id_for, nil)).to be_nil
+    expect(chat.coworker).to be_a(Coworker::Syrus)
+    expect(Coworkers::ChatTurnLifecycle.applies_to?(chat_session: chat, user_message: message)).to be(false)
+    expect(chat).not_to respond_to(:agent_turn_context)
+    expect(chat).not_to respond_to(:coworker_roster_mention)
   ensure
     scope&.dispose
   end

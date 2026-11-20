@@ -1,7 +1,7 @@
 class McpToolUsage < ApplicationRecord
   SURFACES = %w[ workflow chat ].freeze
   STATUSES = %w[ started completed failed ].freeze
-  SIDECAR_MODES = %w[ stdio persistent ].freeze
+  SIDECAR_MODES = %w[ stdio persistent bridge ].freeze
   AUTHORITIES = %w[ workspace operator_host ].freeze
   ERROR_SUMMARY_MAX_LENGTH = 512
 

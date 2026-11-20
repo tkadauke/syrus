@@ -154,8 +154,8 @@ state.
 
 Jobs also own optional operator metadata around the execution thread:
 `job_tags`, `job_pins`, `documents` / `job_attachments`, and
-`notifications`. Attachments are `Document` rows, so uploaded files,
-Google Doc links, and issue/comment image captures all flow through the
+`notifications`. Attachments are `Document` rows, so uploaded files and
+issue/comment image captures all flow through the
 same prompt-context path. Jobs also have optional `chat_proposals`
 source links for work created from chat. `App::JobSourceChat` uses the
 direct Job proposal when present, or falls back to the Epic proposal for
@@ -2501,12 +2501,13 @@ session outcome.
   workspaces at `workflows/<workflow_id>/`, hosted preview clones under
   `previews/<environment_id>/`, and provider homes under the
   agent workspace area. Web pods don't need this volume.
-- A shared `mise` runtime cache is mounted at `/opt/mise` on worker pods
-  (`bin/deploy` patches both the `syrus-worker-home` Deployment and the
-  `syrus-worker-compute` DaemonSet with a hostPath volume,
-  `MISE_CACHE_HOST_PATH`, default `/data/syrus-mise-cache`; Docker Compose
-  mirrors it with a named volume) so per-Workflow `mise install` runs reuse
-  downloaded language runtimes instead of re-fetching them every time. The
+- Worker pods keep mise's data directory on their node-local data volume
+  (`MISE_DATA_DIR`, set by the cluster manifests; Docker Compose mounts a
+  named volume at `/opt/mise`) so per-Workflow `mise install` runs reuse
+  downloaded language runtimes instead of re-fetching them every time.
+  `bin/deploy` does not patch pod templates for this: a deploy-time patch
+  that the GitOps manifests lack is stripped again when Flux resumes, and
+  each patch and revert rolled every worker pod. The
   image also seeds `/opt/mise-seed` from a cached runtime layer so a cold
   cache directory still has usable shims before the shared cache
   populates.

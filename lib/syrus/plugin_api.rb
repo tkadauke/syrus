@@ -80,7 +80,8 @@ module Syrus
         version default_enabled disableable experimental home_queue tick_interval prepare_priority
       ].freeze
 
-      LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema cli_commands].freeze
+      PROCESS_ROLES = %w[web worker preview sidecar].freeze
+      LISTS = %i[depends_on optionally_depends_on conflicts_with hosts config_schema cli_commands roles].freeze
 
       # Kept next to the DSL that accepts these keys so generated authoring
       # documentation cannot acquire a parallel manifest vocabulary.
@@ -305,6 +306,9 @@ module Syrus
       def routes = @routes
 
       def build!
+        invalid_roles = roles.map(&:to_s) - PROCESS_ROLES
+        raise Error, "#{name} declares invalid process roles: #{invalid_roles.join(', ')}" if invalid_roles.any?
+
         build_engine!
         namespace.const_set(:Engine, @engine) unless namespace.const_defined?(:Engine, false)
       end

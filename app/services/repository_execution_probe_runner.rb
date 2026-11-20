@@ -62,7 +62,10 @@ class RepositoryExecutionProbeRunner
     return true if Steps::Prepare::UNIVERSAL_MISE_VERSION_FILES.any? { |file| path.join(file).file? }
 
     Syrus::PluginRegistry.providers_for(:prepare_detector).any? do |detector|
-      file = detector.mise_version_file
+      result = Syrus::PluginInvocation.call(
+        extension_point: :prepare_detector, provider: detector, operation: :mise_version_file, on_decline: nil
+      ) { detector.mise_version_file }
+      file = Syrus::PluginInvocation.value(result)
       file.present? && path.join(file).file?
     end
   end

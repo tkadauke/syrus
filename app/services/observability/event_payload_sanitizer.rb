@@ -36,7 +36,20 @@ module Observability
         key = request.key?("path") ? "path" : :path
         request[key] = scrub_location(request[key]) if request.key?(key)
       end
-      payload
+      scrub_nested_locations(payload)
+    end
+
+    def scrub_nested_locations(value)
+      case value
+      when Array
+        value.map { |entry| scrub_nested_locations(entry) }
+      when Hash
+        value.each_with_object({}) do |(key, entry), sanitized|
+          sanitized[key] = %w[url path pathname name].include?(key.to_s) ? scrub_location(entry) : scrub_nested_locations(entry)
+        end
+      else
+        value
+      end
     end
 
     def scrub_location(value)
