@@ -15,6 +15,7 @@ class MainHealthChangedService
         "",
         "Default branch: #{@repository.default_branch}",
         "Commit: #{sha}",
+        "Evidence fingerprint: #{repair_evidence_fingerprint(sha)}",
         "",
         "Current health:",
         "- CI: #{@repository.ci_health}",
