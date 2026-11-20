@@ -286,7 +286,7 @@
       ],
       "status": "partial",
       "done_by": "model round 1 (Reconciler.lean activeChildOfTerminal)",
-      "notes": "Repair cancelChild is modelled; the terminal transition itself does not cascade in the model or the code."
+      "notes": "Production (7 executions, all applied, read-only): in 6 the parent landing/merge-train/bundle unit had SUCCEEDED while its landing_validation / merge_train_validation / job_bundle_validation child was running; 1 parent had failed. Those children are LandingValidationPrefetcher prefetches: started once the parent's landing graders pass, they validate the NEXT landing on top of the parent's result and record a landing_validation artifact that LandingValidationCache lets that next landing reuse. Cancelling them when the parent succeeds discards exactly that work. The reconciler rule and its spec are deliberate ('terminal parents cannot keep descendant runtime work alive'), so this is queued as NY5 rather than changed."
     },
     {
       "id": "one-unit-per-workflow",
@@ -2366,6 +2366,18 @@
         "C. Keep both as they are."
       ],
       "recommendation": "A. It matches the documented intent of fail!, needs no change to Retry, removes ~127 repairs a week, and still gives a provable invariant (no live Runs under a terminal Workflow). B is cleaner on paper but makes Retry responsible for reconstructing state it currently simply keeps."
+    },
+    {
+      "id": "NY5",
+      "item": "terminal-parent-active-children",
+      "title": "May a landing-validation prefetch outlive the landing that started it?",
+      "context": "LandingValidationPrefetcher starts a child validation WorkUnit for the next landing on top of the current landing's result, once the current landing's graders pass; when it finishes, LandingValidationCache lets the next landing reuse it. The reconciler treats any active child of a finished parent as abnormal and cancels it (reconciler_spec asserts this for a succeeded auto_merge parent). In production 6 of the 7 cancellations were prefetches whose parent had just landed successfully -- the case the prefetch exists for -- so the next landing re-validated from scratch.",
+      "options": [
+        "A. Yes, if the parent succeeded: the reconciler leaves a succeeded parent's LandingValidationChild children alone (it still cancels children of a failed or cancelled parent, whose base never landed). Invariant: a terminal parent's active children are exactly validation prefetches of a succeeded landing.",
+        "B. No: keep cancelling, and instead have the prefetcher re-parent the child to the next landing's unit (or to no parent) once the parent succeeds, so the state never arises.",
+        "C. Keep the current behaviour; prefetches only pay off when they finish before their parent."
+      ],
+      "recommendation": "A. It is the smallest change, keeps the prefetch's value in exactly the case it is built for, and still cancels prefetches whose base did not land. B is cleaner structurally but moves ownership logic into the prefetcher and the landing queue."
     }
   ]
 }
