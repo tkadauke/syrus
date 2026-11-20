@@ -5,7 +5,7 @@ module Syrus
   class PluginRuntimeHealth
     MAX_FAILURES_PER_PLUGIN = 100
 
-    Failure = Data.define(:plugin, :extension_point, :operation, :exception_class, :message, :backtrace, :count, :last_at)
+    Failure = PluginHealth::Finding
     Circuit = Data.define(:plugin, :extension_point, :state, :failure_count, :opened_at, :retry_at)
 
     def initialize(clock: -> { Time.current }, max_failures_per_plugin: MAX_FAILURES_PER_PLUGIN)
@@ -34,16 +34,16 @@ module Syrus
       @mutex.synchronize { @circuits.delete(circuit_key(plugin, extension_point)) }
     end
 
-    def record_failure(plugin:, extension_point:, operation:, exception:, threshold:, window:, cooldown:, circuit: true)
+    def record_failure(plugin:, extension_point:, operation:, exception:, threshold:, window:, cooldown:, circuit: true,
+      family: nil, provider: nil)
       timestamp = now
       @mutex.synchronize do
         failure_key = [ plugin.to_s, extension_point.to_s, operation.to_s, exception.class.name, exception.message.to_s ]
         previous = @failures[failure_key]
-        @failures[failure_key] = {
-          plugin: plugin.to_s, extension_point: extension_point.to_s, operation: operation.to_s,
-          exception_class: exception.class.name, message: exception.message.to_s,
-          backtrace: Array(exception.backtrace).first(12), count: previous.to_h.fetch(:count, 0) + 1, last_at: timestamp
-        }
+        @failures[failure_key] = Failure.runtime(
+          plugin:, family:, provider:, extension_point:, operation:, exception:,
+          count: previous.to_h.fetch(:count, 0) + 1, last_at: timestamp
+        ).to_h
         prune_failures(plugin.to_s)
 
         next unless circuit
