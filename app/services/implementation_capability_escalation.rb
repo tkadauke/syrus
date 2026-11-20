@@ -92,7 +92,7 @@ class ImplementationCapabilityEscalation
   attr_reader :workflow, :graph, :changed_files
 
   def planned_capabilities
-    @planned_capabilities ||= PlannedExecutionRequirement.from_record(workflow).capabilities
+    @planned_capabilities ||= PlannedExecutionRequirement.from_stored_record(workflow).capabilities
   end
 
   def no_escalation(affected)

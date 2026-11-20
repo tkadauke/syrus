@@ -63,6 +63,19 @@ RSpec.describe PlannedExecutionRequirement do
     }.to raise_error(ActiveRecord::RecordInvalid, /forbidden keys: runtime/)
   end
 
+  # Regression: a Job stored before only `os` was permitted kept `arch` in its
+  # capabilities, and reading its requirement raised -- its job page was a 500.
+  it "reads a legacy stored requirement without the keys that are no longer permitted" do
+    job = Factories.job_record(state: "implemented")
+    job.update_columns(planned_execution_capabilities: { "os" => [ "macos" ], "arch" => [ "arm64" ] })
+
+    expect(job.reload.planned_execution_requirement.capabilities).to eq("os" => [ "macos" ])
+    expect(job.planned_execution_json).to include("capabilities" => { "os" => [ "macos" ] })
+    expect {
+      job.update!(planned_execution_capabilities: { "os" => [ "linux" ], "arch" => [ "x86_64" ] })
+    }.to raise_error(ActiveRecord::RecordInvalid, /forbidden keys: arch/)
+  end
+
   it "prevents unsupported capability labels from being persisted on Jobs" do
     user = Factories.user
     repository = Factories.repository(user: user)

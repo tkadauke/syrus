@@ -183,7 +183,7 @@ class Workflow < ApplicationRecord
   end
 
   def planned_execution_requirement
-    PlannedExecutionRequirement.from_record(self)
+    PlannedExecutionRequirement.from_stored_record(self)
   end
 
   def planned_execution_json
