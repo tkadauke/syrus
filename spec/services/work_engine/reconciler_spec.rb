@@ -7414,6 +7414,25 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(kind(result, :running_workflow_with_failed_step)).to be_nil
   end
 
+  # Regression: two merge trains landed and succeeded while failed grader
+  # Steps from an earlier grade round were still on them. The reconciler
+  # planned rebuild_merge_train for those Runs on every pass -- 115 skips
+  # ("Workflow is not in a failed state") in 13 hours. Nothing is left to
+  # retry once the Workflow has succeeded.
+  it "does not plan a retry for a failed Run on a succeeded Workflow" do
+    workflow.update_columns(state: "succeeded", started_at: 60.minutes.ago, finished_at: 5.minutes.ago)
+    step.update_columns(kind: "grader", state: "failed", finished_at: 40.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 40.minutes.ago)
+    RunFailureClassification.create!(
+      run: run, classification: "git_transport_transient", retryable: true,
+      confidence: 0.95, reason: "early EOF", classified_at: 40.minutes.ago
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+  end
+
   it "ignores retryable failed Runs that were superseded by a later successful Run on the same Step" do
     step.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
     workflow.update_columns(state: "running", started_at: 30.minutes.ago)

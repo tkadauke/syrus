@@ -772,6 +772,30 @@ workspace the repair cannot act on" (red before).
 
 ---
 
+## F27. Succeeded merge trains drew merge-train rebuild plans every pass — fixed
+
+**Property.** `classify_retryable_failures` fires only where one of its repairs
+can act. Its guard now also excludes succeeded Workflows
+(`Agreement.retry_strict_actionable`), which tightens F4.
+
+**Evidence (production, read-only).** Of the latest 150 `retryable_run_failure`
+executions (13 hours), 115 were skipped `rebuild_merge_train`: "Workflow is not
+in a failed state". There were 77 on one merge train and 38 on another, and both
+had landed and succeeded. Each still carried failed grader Steps from an earlier
+grade round, several of them the Steps F18's bug had failed.
+
+**Counterexample.** `retry_after_not_actionable_strict`: F4 excluded queued and
+running Workflows. But `rebuild_merge_train` requires failed, and
+`retry_failed_step` requires `retry_available?` (failed), so a succeeded
+Workflow was planned and refused forever.
+
+**Fix.** Skip Runs whose Workflow succeeded.
+
+**Spec.** `reconciler_spec.rb` "does not plan a retry for a failed Run on a
+succeeded Workflow" (red before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

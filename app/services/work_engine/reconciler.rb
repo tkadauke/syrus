@@ -3070,6 +3070,10 @@ module WorkEngine
         # the Workflow is still queued or running (e.g. a grade loop handling
         # its own failed graders) the plan could only ever be skipped.
         next if run.workflow&.queued? || run.workflow&.running?
+        # A succeeded Workflow has nothing left to retry: its failed Steps are
+        # history (e.g. an earlier grade round), and every retry this issue can
+        # plan refuses a Workflow that is not failed.
+        next if run.workflow&.succeeded?
         next unless latest_workflow_run?(run) || repair_failure_still_needs_validation?(run)
         next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)

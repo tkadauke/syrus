@@ -158,6 +158,24 @@ theorem retry_after_complete_on_finished (r : FailedRun)
   · intro h; exact ⟨h, hf⟩
   · intro h; exact h.1
 
+/-- F27 tightening: the retries also refuse a succeeded Workflow (rebuild
+    requires failed; step retry requires `retry_available?`). Production: two
+    landed merge trains with failed graders from an earlier round drew 115
+    refused rebuilds in 13 hours. -/
+def retryGuardStrict (r : FailedRun) : Prop :=
+  r.workflow ≠ .queued ∧ r.workflow ≠ .running ∧ r.workflow ≠ .succeeded
+
+def detectRetryStrict (r : FailedRun) : Prop :=
+  r.retryable = true ∧ r.workflow ≠ .queued ∧ r.workflow ≠ .running ∧ r.workflow ≠ .succeeded
+
+theorem retry_after_not_actionable_strict : ¬ Actionable detectRetryAfter retryGuardStrict := by
+  intro h
+  have := h ⟨.succeeded, true⟩ ⟨rfl, by decide, by decide⟩
+  exact this.2.2 rfl
+
+theorem retry_strict_actionable : Actionable detectRetryStrict retryGuardStrict :=
+  fun _ h => h.2
+
 /-! ## Instance: queued Step held by a pause
 
 `classify_queued_steps_without_runs` flagged a ready queued Step with no Run;
