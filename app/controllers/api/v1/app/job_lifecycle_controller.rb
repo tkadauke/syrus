@@ -245,6 +245,29 @@ module Api
           end
         end
 
+        # Keeps the same Job (id, Epic membership, dependency edges, history) and
+        # returns it to its initial workflow on the current base. Unlike
+        # #restart, which closes this Job as replaced and creates a new one.
+        def reset
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          refusal = ResetJobs::Operation.preflight(job)
+          if refusal
+            render_error("validation_failed", refusal, status: :unprocessable_content)
+            return
+          end
+          unless job.failed?
+            render_error("validation_failed", lifecycle_t("reset_failed_only", slug: job.slug), status: :unprocessable_content)
+            return
+          end
+
+          ResetJobs::Operation.new(
+            job: job, user: Current.user, reason: lifecycle_t("reset_reason", user: Current.user.try(:display_name) || Current.user.id)
+          ).call
+          render_job(job.reload, message: lifecycle_t("reset_done", slug: job.slug), changed: [ "state", "workflows", "runs" ], tab: "workflows")
+        end
+
         def cancel
           job = find_mutable_job
           return unless authorize_job_mutation!(job)

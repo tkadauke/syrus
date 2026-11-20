@@ -1088,5 +1088,14 @@
   "visual_evidence_unknown_page": "Pagina capta",
   "visual_evidence_unknown_viewport": "dimensio ignota",
   "visual_evidence_metadata": "Captura {{sequence}} · {{viewport}} · {{timestamp}}",
-  "visual_evidence_submission_failed": "Summissio defecit; imago servata est"
+  "visual_evidence_submission_failed": "Summissio defecit; imago servata est",
+  "reset_job": "Job reponere",
+  "confirm_reset_job": "Hunc Job reponere et de integro in basi currenti incipere? PR apertum claudetur, ramus et puncta servata delebuntur, fluxus activi cessabunt. Id Job, pertinentia ad Epic, dependentiae et historia servantur.",
+  "reset_job_discards": "Abicientur:",
+  "reset_job_pr": "Rogatio traductionis #{{number}}",
+  "reset_job_branch": "ramus {{branch}}",
+  "reset_job_checkpoints_one": "{{count}} punctum servatum",
+  "reset_job_checkpoints_other": "{{count}} puncta servata",
+  "reset_job_workflows_one": "{{count}} fluxus activus",
+  "reset_job_workflows_other": "{{count}} fluxus activi"
 }
