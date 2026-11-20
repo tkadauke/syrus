@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe ReviewWorkspace::SidebarPages do
+RSpec.describe ReviewWorkspacePlugin::SidebarPages do
   it "declares the list and deep-link routes with a badge endpoint" do
     expect(described_class.sidebar_pages).to contain_exactly(
       include(

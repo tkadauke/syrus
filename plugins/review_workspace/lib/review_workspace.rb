@@ -1,4 +1,4 @@
-module ReviewWorkspace
+module ReviewWorkspacePlugin
   extend Syrus::PluginApi
 
   syrus_plugin "review_workspace" do
@@ -11,7 +11,7 @@ module ReviewWorkspace
     disableable true
 
     link "Open Review", "/review", description: "Review Jobs that can receive your decision now."
-    provides sidebar_page: "ReviewWorkspace::SidebarPages"
+    provides sidebar_page: "ReviewWorkspacePlugin::SidebarPages"
 
     route :get, "/api/v1/app/review_workspace", to: "api/v1/app/review_workspace#index"
     route :get, "/api/v1/app/review_workspace/count", to: "api/v1/app/review_workspace#count"
