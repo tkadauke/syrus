@@ -615,6 +615,15 @@ grade:
       ci:
         include:
           - ci_only
+    # Repository-wide invariants (architecture rules, documentation
+    # audiences, i18n debt, plugin documentation) fail on changes that no
+    # changed-file selection maps to them, and were the most common merge
+    # train failure. They take about 35 seconds, so every focused review
+    # round runs them.
+    focused_always_include:
+      - spec/architecture/
+      - spec/i18n/
+      - spec/lib/syrus/plugin_documentation_spec.rb
     parallel_rspec:
       enabled: true
       rspec_modes: [full, focused, ci]

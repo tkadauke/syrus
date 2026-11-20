@@ -589,6 +589,21 @@ grade:
         include: [ci_only]
 ```
 
+Set `focused_always_include` on a `type: rspec` grader to add spec paths to
+every focused review run, on top of the specs selected from the changed files.
+Use it for specs that guard repository-wide rules, such as architecture or
+documentation checks, which fail on changes that no changed-file selection
+would pick them for. Paths that do not exist are ignored. When no spec covers
+the changed files, the focused run executes only these paths instead of
+skipping.
+
+```yaml
+grade:
+  - type: rspec
+    focused_always_include:
+      - spec/architecture/
+```
+
 `parallel_rspec` is opt-in because repositories differ in database setup and
 result-shard merging. A repository can ask the Ruby plugin to use
 `parallel_rspec` for selected RSpec modes (`full`, `focused`, `ci`) and, when

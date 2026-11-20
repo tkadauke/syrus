@@ -385,6 +385,44 @@ RSpec.describe Ruby::RspecGraderType do
     end
   end
 
+  describe "focused_always_include" do
+    def focused_args_for(referencing_spec: nil)
+      command = described_class.grade_steps(
+        config: { "focused_always_include" => [ "spec/architecture/", "spec/missing/" ] },
+        default_failures: "strict"
+      ).second.run
+      args_file = Tempfile.new("focused-rspec-args")
+      stdout, stderr, status = run_generated_rspec_command(command, parallel_status: 0, serial_status: 0,
+        extra_env: { "SYRUS_BASE_REF" => "main" }) do |dir|
+        commit_uncovered_change(dir, referencing_spec: referencing_spec)
+        FileUtils.mkdir_p(File.join(dir, "spec/architecture"))
+        File.write(File.join(dir, "spec/architecture/layers_spec.rb"), "RSpec.describe(:layers) {}\n")
+        File.write(File.join(dir, "bin/rspec"), "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" > #{args_file.path}\nexit 0\n")
+      end
+      expect(status).to be_success, stderr
+      [ stdout, File.read(args_file.path) ]
+    ensure
+      args_file&.close!
+    end
+
+    # Repository-wide invariant specs fail on changes no changed-file
+    # selection maps to them, so they surfaced first on merge trains.
+    it "adds the configured paths that exist to the selected focused specs" do
+      _stdout, args = focused_args_for(referencing_spec: "RSpec.describe(Billing::InvoiceMailer) {}\n")
+
+      expect(args).to include("spec/services/caller_spec.rb", "spec/architecture/")
+      expect(args).not_to include("spec/missing/")
+    end
+
+    it "runs only the configured paths when no spec covers the change" do
+      stdout, args = focused_args_for
+
+      expect(stdout).to include("running only the always-included specs")
+      expect(args).to include("spec/architecture/")
+      expect(args).not_to include("unrelated_spec.rb")
+    end
+  end
+
   # Regression: a change with no covering spec fell back to the full suite
   # under the 10-minute focused budget, which it can never finish -- the
   # grader timed out on every attempt and failed the workflow.

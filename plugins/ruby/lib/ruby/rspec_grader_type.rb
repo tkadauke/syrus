@@ -459,6 +459,25 @@ module Ruby
       Array(raw).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
     end
 
+    # Specs that guard repository-wide invariants -- architecture rules,
+    # documentation audiences, i18n debt -- fail on changes that no
+    # changed-file selection maps to them. Left to the CI suite, they surfaced
+    # first on merge trains, where each miss cost a failed grading round and a
+    # landing-fix agent while the landing slot was held.
+    def focused_always_include
+      Array(config["focused_always_include"]).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
+    end
+
+    def focused_always_include_snippet
+      return ":;" if focused_always_include.empty?
+
+      appends = focused_always_include.map do |path|
+        escaped = Shellwords.escape(path)
+        "if [ -e #{escaped} ]; then echo #{escaped} >> .syrus/rspec-focused-files; fi;"
+      end
+      "#{appends.join(' ')} sort -u -o .syrus/rspec-focused-files .syrus/rspec-focused-files;"
+    end
+
     def focused_command(coverage:)
       fallback_command = rspec_command(
         mode: "focused",
@@ -484,12 +503,19 @@ module Ruby
           echo "No changed Ruby files matched this RSpec grader's scope; skipping";
           : > .syrus/rspec-focused-files;
         elif grep -qx '__SYRUS_NO_FOCUSED_SPECS__' .syrus/rspec-focused-files; then
-          echo "No RSpec files cover the changed Ruby files; skipping the focused run (the full RSpec graders cover it before landing)";
           : > .syrus/rspec-focused-files;
+          #{focused_always_include_snippet}
+          if [ -s .syrus/rspec-focused-files ]; then
+            echo "No RSpec files cover the changed Ruby files; running only the always-included specs";
+            #{focused_rspec_command}
+          else
+            echo "No RSpec files cover the changed Ruby files; skipping the focused run (the full RSpec graders cover it before landing)";
+          fi
         elif [ ! -s .syrus/rspec-focused-files ]; then
           echo "No focused RSpec files matched changed Ruby files; falling back to full RSpec suite";
           #{fallback_command}
         else
+          #{focused_always_include_snippet}
           #{focused_rspec_command}
         fi
       BASH
