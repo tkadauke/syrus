@@ -854,6 +854,12 @@ class LandingQueueProcessor
     if (retry_after = landing_start_blocker_retry_after(job))
       return blocked({ key: "landing_start_blocked_retrying", params: { retry_at: retry_after.iso8601 } })
     end
+    # The last landing could not place a step on any live worker: do not
+    # re-launch it until a worker with those capabilities is back.
+    # The column check keeps this free for every other Job (no per-entry query).
+    if job.landing_failure_code == LandingFailureCode::NO_CAPABLE_WORKER && LandingCapabilityHold.active_for([ job.id ])
+      return blocked({ key: "waiting_for_capable_worker" })
+    end
     # Don't burn a fail_landing cycle on a Job whose repo isn't set
     # up for auto-merge — that wipes the operator's approval without
     # surfacing the real misconfiguration. Keep the Job in :approved

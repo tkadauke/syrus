@@ -218,6 +218,45 @@ until then).
 
 ---
 
+## F7. A landing that cannot place a step fails and is held — fixed (operator-approved design, was Q1)
+
+**Property.** Running ⇔ holding the landing slot (`LandingSlot.SlotExact`),
+preserved by launch, fail and finish; the slot is free as soon as a landing
+cannot proceed (`cannotPlace_frees_slot`); a held landing is not re-launched
+while no capable worker is live (`held_not_relaunched`). `parkSurrendering_breaks`:
+the old park-and-surrender let a second landing run alongside one still in flight.
+
+**Design (decided in review).**
+- `StepDispatcher.capability_worker_deferred?`: when the step belongs to a
+  landing Workflow, record a `LandingCapabilityHold` (queue + requirements from
+  the resolver's Decision) and fail the landing with a `no_capable_worker: …`
+  reason instead of recording a start block. Applies before and after the first
+  Run, so the landing never parks in flight.
+- New `LandingFailureCode::NoCapableWorker`: defers landing (the Job stays
+  `approved`, approval kept) and skips the time-based train cooldown.
+- The hold gates re-launch: `LandingQueueProcessor#blockage_for` reports
+  `waiting_for_capable_worker` (en/de/la), `MergeTrainDispatcher#blocker_reason`
+  refuses the Epic's next train. The hold releases itself once
+  `RunQueueResolver.live_capable_worker?` sees a matching live worker; any later
+  landing attempt supersedes it.
+
+**Specs.** `landing_capability_hold_spec.rb` (fail + hold + Job stays approved
+with the code; release when a capable worker heartbeats; superseded by a later
+attempt; train dispatcher refuses a held Epic); `landing_queue_processor_spec.rb`
+"does not re-launch a landing held for a capable worker until one is live".
+
+**Caught while building it.** The hold check ran one Workflow query per queue
+entry and broke the landing queue's no-N+1 guard; it is now gated on the Job's
+`landing_failure_code` column.
+
+**Not done — "ideally never start a landing without a capable worker".** The
+first attempt still starts and fails fast at the first step no live worker can
+run (then the hold prevents repeats). A true pre-launch check needs every step's
+requirements before the landing is instantiated (grader targets are materialized
+during fanout), which is a larger change. Worth an explicit follow-up.
+
+---
+
 ## Open questions for review
 
 - **Q1. A landing parked mid-run gives up the landing slot.** `block!` with

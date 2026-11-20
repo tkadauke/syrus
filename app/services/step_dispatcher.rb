@@ -930,6 +930,20 @@ class StepDispatcher
       "phase_step_kind" => step.kind,
       "phase_step_position" => step.position
     )
+    # A landing never parks in flight: parking gives up the landing slot while
+    # the landing is still mid-way. Fail it and hold it until a capable worker
+    # is live (LandingCapabilityHold); it keeps its approval.
+    if workflow.landing_workflow?
+      LandingCapabilityHold.record!(workflow, decision)
+      fail_unstartable_landing_workflow!(
+        workflow,
+        "#{LandingFailureCode::NO_CAPABLE_WORKER}: no live worker can run #{step.kind} " \
+          "(requires #{decision.requirements.to_h.to_json})",
+        details: details
+      )
+      return true
+    end
+
     if start_blocked_backoff_active?(workflow, RunQueueResolver::BLOCKED_OUTCOME)
       return true
     end
