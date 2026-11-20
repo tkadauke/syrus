@@ -178,7 +178,17 @@
     "latest_result": "Letztes Ergebnis",
     "view_all_runs": "Alle Läufe anzeigen",
     "no_job_needed": "Kein Job war erforderlich",
-    "outcomes": { "never_run": "Noch nie ausgeführt", "queued": "Eingereiht", "running": "Läuft", "succeeded": "Erfolgreich", "failed": "Fehlgeschlagen", "blocked": "Blockiert", "cancelled": "Abgebrochen", "journaled": "Journalisiert", "skipped": "Übersprungen" }
+    "outcomes": {
+      "never_run": "Noch nie ausgeführt",
+      "queued": "Eingereiht",
+      "running": "Läuft",
+      "succeeded": "Erfolgreich",
+      "failed": "Fehlgeschlagen",
+      "blocked": "Blockiert",
+      "cancelled": "Abgebrochen",
+      "journaled": "Journalisiert",
+      "skipped": "Übersprungen"
+    }
   },
   "capabilities": {
     "sentences": {
