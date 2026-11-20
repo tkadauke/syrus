@@ -212,6 +212,36 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     expect(admitted.steps).to eq([ candidate ])
   end
 
+  # Regression: a landing train's graders waited behind a main-branch grader
+  # whose last grader never got admitted, with the whole fleet idle.
+  it "lends spare capacity beyond what older deferred workflows still need" do
+    older_job = Factories.job
+    older_workflow = older_job.workflows.last
+    older_job.repository.update!(distributed_workflow_dag_enabled: true)
+    older_workflow.update!(
+      state: "running",
+      artifacts: { "grader_fanout_admission" => { "deferred_at" => 10.minutes.ago.iso8601 } }
+    )
+    2.times do |index|
+      older_workflow.steps.create!(
+        kind: "grader", position: 200 + index,
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT
+      )
+    end
+    candidates = grader_steps(3)
+
+    allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(20)
+    roomy = described_class.call(workflow: workflow, steps: candidates)
+    allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(4)
+    partial = described_class.call(workflow: workflow, steps: candidates)
+    allow_any_instance_of(described_class).to receive(:healthy_worker_capacity).and_return(2)
+    contended = described_class.call(workflow: workflow, steps: candidates)
+
+    expect(roomy).to have_attributes(steps: candidates, reason: "capacity_available")
+    expect(partial.steps).to eq(candidates.first(2))
+    expect(contended).to have_attributes(steps: [], reason: "waiting_for_fair_turn")
+  end
+
   it "bounds runnable fanout work and reaches collect as completions release slots" do
     workflow.update_columns(state: "running")
     fanout = workflow.steps.create!(kind: "grader_fanout", position: 90, state: "succeeded", finished_at: Time.current)

@@ -27,8 +27,9 @@ class GraderFanoutAdmission
     active_runs = active_grader_runs
     available_slots = [ capacity - active_runs, 0 ].max
     fair_turn = fair_turn?
-    released_steps = fair_turn ? steps.first(available_slots) : []
-    reason = if !fair_turn
+    grantable = fair_turn ? available_slots : spare_slots_beyond_older_demand(available_slots)
+    released_steps = steps.first(grantable)
+    reason = if !fair_turn && released_steps.empty?
       "waiting_for_fair_turn"
     elsif available_slots.positive?
       "capacity_available"
@@ -122,14 +123,38 @@ class GraderFanoutAdmission
     oldest.nil? || ([ own_deferred_at, workflow.id ] <=> [ deferred_at_for(oldest), oldest.id ]) <= 0
   end
 
-  def deferred_workflows
-    workflow_ids = Step
+  # Fairness orders contended capacity; it must not idle spare capacity. Older
+  # deferred workflows keep first claim on as many slots as they still have
+  # unmaterialized graders, and only the remainder goes to a later workflow.
+  # Holding every slot for the oldest workflow let one that could not start
+  # (an unadmitted grader that never got its recheck) starve every grader
+  # behind it -- a landing train sat behind a main-branch grader with the
+  # whole fleet idle.
+  def spare_slots_beyond_older_demand(available_slots)
+    own_deferred_at = deferred_at_for(workflow) || now
+    older_ids = deferred_workflows.select do |candidate|
+      ([ deferred_at_for(candidate), candidate.id ] <=> [ own_deferred_at, workflow.id ]).negative?
+    end.map(&:id)
+    older_demand = unmaterialized_graders.where(workflow_id: older_ids).count
+    [ available_slots - older_demand, 0 ].max
+  end
+
+  def unmaterialized_graders
+    Step
       .where(
         kind: %w[grader preflight_grader],
         placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
         state: "queued"
       )
       .where.missing(:runs)
+  end
+
+  def deferred_workflows
+    @deferred_workflows ||= load_deferred_workflows
+  end
+
+  def load_deferred_workflows
+    workflow_ids = unmaterialized_graders
       .where.not(workflow_id: workflow.id)
       .distinct
       .pluck(:workflow_id)
