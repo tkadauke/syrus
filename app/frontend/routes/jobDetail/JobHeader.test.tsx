@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { PlacementConfirmationModal, PlacementOverrideModal } from "./JobHeader"
+import { PlacementConfirmationModal, PlacementOverrideModal, headerActions } from "./JobHeader"
 
 function renderModal() {
   const mutate = vi.fn()
@@ -96,5 +96,36 @@ describe("PlacementOverrideModal", () => {
       },
       expect.any(Object)
     )
+  })
+})
+
+describe("headerActions Reset Job", () => {
+  const t = ((key: string, options?: Record<string, unknown>) => (options ? `${key}:${JSON.stringify(options)}` : key)) as never
+  const base = (actions: Record<string, unknown>) =>
+    ({ actions, paths: {}, job: { state: "failed", summary_state: "failed" }, pinned: false }) as never
+
+  it("offers a secondary Reset Job action with a discard list when the payload exposes it", () => {
+    const action = headerActions(
+      base({
+        reset_job_action: {
+          path: "/api/v1/app/jobs/7/reset",
+          destroys: { open_pr_number: 12, branch: "syrus/job-7", checkpoints: 2, active_workflows: [3] }
+        }
+      }),
+      t
+    ).find((entry) => entry.key === "reset_job")
+
+    expect(action?.tone).toBe("secondary")
+    expect(action?.input).toMatchObject({ method: "post", path: "/api/v1/app/jobs/7/reset" })
+    const confirm = (action?.input as { confirm: string }).confirm
+    expect(confirm).toContain("confirm_reset_job")
+    expect(confirm).toContain('reset_job_pr:{"number":12}')
+    expect(confirm).toContain('reset_job_branch:{"branch":"syrus/job-7"}')
+    expect(confirm).toContain('reset_job_checkpoints:{"count":2}')
+    expect(confirm).toContain('reset_job_workflows:{"count":1}')
+  })
+
+  it("hides Reset Job when the payload does not expose it", () => {
+    expect(headerActions(base({ reset_job_action: null }), t).some((entry) => entry.key === "reset_job")).toBe(false)
   })
 })
