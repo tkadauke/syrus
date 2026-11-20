@@ -976,9 +976,9 @@
       "simulator": [
         "queued_job_with_published_pr_converges"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Recurs in production (14 applied). Property: Job.state = f(latest workflow); each silent return in JobLifecyclePropagation is a proof obligation."
+      "status": "partial",
+      "done_by": "F20",
+      "notes": "Production (~2.5 days, 303 executions): 75 queued->running repairs were lifecycle-owning Workflows (coworker_run, main_branch_repair) whose start deliberately leaves the Job; 41 implemented->running were Jobs the lifecycle kept implemented (pr_open mid-chain). Fixed: one rule, JobLifecyclePropagation.lifts_job_on_start?, used by start! and the plan; published-PR Workflows are not drift. Agreement.lean: lift_before_disagrees / lift_after_agrees / lift_after_complete (exhaustive). Remaining: running->implemented (5) and failed->queued (2) not yet traced; other silent returns in JobLifecyclePropagation (fail! on newer_active_workflow?, RetryWorkflowEnqueuer update_columns) still to model."
     },
     {
       "id": "job-state-vs-active-workflow-kind",

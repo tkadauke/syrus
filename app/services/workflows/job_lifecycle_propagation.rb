@@ -13,10 +13,21 @@ module Workflows
     # Landing-flow workflows own their Job state through landing-specific
     # machinery. Lifecycle-owner definitions do the same through workflow
     # hooks. Ordinary workflows drive their parent Job into :running here.
+    # Whether starting `workflow` moves its Job to :running. The reconciler's
+    # Job-state repair asks the same question (ReconcileJobStatesJob::Plan), so
+    # a Job this leaves where it is -- a lifecycle-owning Workflow's Job, an
+    # implemented Job under a non-approval-blocking follow-up -- is not then
+    # forced to :running on the next pass.
+    def self.lifts_job_on_start?(workflow, job = workflow.job)
+      return false if workflow.landing_workflow?
+      return false if workflow.infrastructure_workflow?
+      return false if job.implemented? && Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+
+      true
+    end
+
     def start!
-      return if workflow.landing_workflow?
-      return if workflow.infrastructure_workflow?
-      return if job.implemented? && Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+      return unless self.class.lifts_job_on_start?(workflow, job)
       return unless job.may_start_running?
 
       StateTransition.with_source("propagate") do

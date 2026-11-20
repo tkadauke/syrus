@@ -259,5 +259,58 @@ theorem terminal_after_complete (s : WaitingStep) (h : s.pendingRetry = none) :
     detectTerminalBefore s ↔ detectTerminalAfter s := by
   simp [detectTerminalBefore, detectTerminalAfter, awaitingRetry, h]
 
+/-! ## Instance: lifting a Job to running
+
+`Workflows::JobLifecyclePropagation#start!` leaves the Job alone for a
+lifecycle-owning Workflow (`coworker_run`, `main_branch_repair`, landing) and
+for an implemented Job under a non-approval-blocking follow-up; `Steps::PrOpen`
+marks the Job implemented while the rest of the chain runs. The reconciler's
+`[queued|implemented, running]` repair lifted every one of them to running.
+Production: 75 + 41 repairs in ~2.5 days. -/
+
+inductive JState where
+  | queued | implemented | running
+  deriving DecidableEq, Repr
+
+structure StartCtx where
+  job : JState
+  ownsLifecycle : Bool
+  nonBlocking : Bool
+  publishedInWorkflow : Bool
+  deriving DecidableEq, Repr
+
+/-- The domain's rule (`lifts_job_on_start?`). -/
+def lifts (c : StartCtx) : Bool :=
+  !c.ownsLifecycle && !(c.job = .implemented && c.nonBlocking)
+
+/-- Job state the domain leaves behind once the Workflow is running. -/
+def domainState (c : StartCtx) : JState :=
+  if c.job = .implemented && c.publishedInWorkflow then .implemented
+  else if lifts c then .running else c.job
+
+def liftBefore (c : StartCtx) : Bool := c.job ≠ .running
+def liftAfter (c : StartCtx) : Bool :=
+  c.job ≠ .running && lifts c && !(c.job = .implemented && c.publishedInWorkflow)
+
+/-- The reconciler may only lift a Job the domain would have lifted. -/
+def liftAgrees (detect : StartCtx → Bool) : Prop :=
+  ∀ c, detect c = true → domainState c = .running
+
+theorem lift_before_disagrees : ¬ liftAgrees liftBefore := by
+  intro h
+  have := h ⟨.queued, true, false, false⟩ rfl
+  exact absurd this (by decide)
+
+/-- Exhaustive over all 24 contexts. -/
+theorem lift_after_agrees : liftAgrees liftAfter := by
+  intro ⟨j, o, n, p⟩
+  cases j <;> cases o <;> cases n <;> cases p <;> decide
+
+/-- The fix keeps every lift the domain would have made. -/
+theorem lift_after_complete :
+    ∀ c : StartCtx, c.job ≠ .running → domainState c = .running → liftAfter c = true := by
+  intro ⟨j, o, n, p⟩
+  cases j <;> cases o <;> cases n <;> cases p <;> decide
+
 end Agreement
 end SyrusModel

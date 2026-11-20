@@ -552,6 +552,55 @@ the more accurate view.
 
 ---
 
+## F20. The Job-state repair lifted Jobs the lifecycle left alone on purpose — fixed
+
+**Property.** The reconciler lifts a Job to running only when starting its
+latest Workflow would have lifted it (`Agreement.lift_after_agrees`). Every lift
+the domain would make is kept (`lift_after_complete`).
+
+**Evidence (production, read-only).** `unambiguous_job_state_drift` had 303
+executions in about 2.5 days:
+- 75 were queued → running, each on a different Job. Sampled Jobs were all
+  `coworker_run` or `main_branch_repair` Workflows, which own their Job's
+  lifecycle.
+- 41 were implemented → running. For example, an implemented Job whose
+  `initial` Workflow was still running after `pr_open`.
+- 27 were skips where the drift had already gone.
+
+**Counterexample.** `lift_before_disagrees`: `ReconcileJobStatesJob::Plan` lifted
+every `[queued|implemented, running]` pair. Meanwhile:
+- `JobLifecyclePropagation#start!` returns early for lifecycle-owning Workflows
+  (infrastructure and `ManagesOwnJobLifecycle`).
+- It also returns early for an implemented Job under a non-approval-blocking
+  follow-up.
+- `Steps::PrOpen` marks the Job implemented while the rest of the chain still
+  runs.
+
+The plan's own guard only exempted *child* lifecycle owners.
+
+**Fix.**
+- `JobLifecyclePropagation.lifts_job_on_start?` is the single rule. `start!`
+  and both plan cases use it.
+- `[implemented, running]` is no longer drift once the running Workflow has
+  published its review PR (`review_publication_step_kinds`).
+
+**Specs.** `reconcile_job_states_job_spec.rb` "lifting a Job to :running"
+(5 examples):
+- Red before: the lifecycle-owning case and the published-PR case.
+- Kept: an approval-blocking follow-up and an ordinary start still lift.
+
+**Review note.** One history is now left unrepaired. A succeeded Workflow that
+had already published its PR is reopened, the reopen callback is bypassed, and
+the Job stays implemented while the Workflow runs. With callbacks intact,
+`reopen!` lifts it itself. From the Job and Workflow alone, "implemented after
+pr_open" and "missed reopen" can't be told apart, so this is not
+*unambiguous* drift.
+
+The non-approval-blocking case already returned nil in a spec (`latest_workflow`
+skips those follow-ups). The guard keeps the plan honest if that changes.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/
