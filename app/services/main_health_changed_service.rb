@@ -527,13 +527,20 @@ class MainHealthChangedService
     sha = checked_sha
     return if sha == "unknown"
 
-    fingerprint = repair_evidence_fingerprint(sha)
-    repair_jobs
+    candidates = repair_jobs
       .where(state: "closed", closure_reason: "preflight_passed")
       .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
-      .where("jobs.issue_body LIKE ?", "%Evidence fingerprint: #{fingerprint}%")
-      .order(updated_at: :desc, id: :desc)
-      .first
+
+    if @repository.ci_health_broken?
+      fingerprint = repair_evidence_fingerprint(sha, signal: :ci)
+      candidates = candidates.where("jobs.issue_body LIKE ?", "%CI evidence fingerprint: #{fingerprint}%")
+    end
+    if @repository.grader_health_broken?
+      fingerprint = repair_evidence_fingerprint(sha, signal: :grader)
+      candidates = candidates.where("jobs.issue_body LIKE ?", "%Grader evidence fingerprint: #{fingerprint}%")
+    end
+
+    candidates.order(updated_at: :desc, id: :desc).first
   end
 
   def recent_open_failed_fix_jobs
@@ -607,23 +614,36 @@ class MainHealthChangedService
       .to_a
   end
 
-  # A clean preflight only suppresses the failure evidence that caused that
-  # repair. Polls may reassert the same broken signal after preflight marked
-  # the repository healthy; timestamps alone cannot distinguish that stale
-  # signal from a genuinely new failure on the same commit. Persisting this
-  # content identity in the repair prompt lets identical evidence deduplicate
-  # while changed CI checks or grader failures remain eligible immediately.
-  def repair_evidence_fingerprint(sha)
-    evidence = health_checks_for(sha).map do |check|
-      {
-        ci_health: check.ci_health,
-        grader_health: check.grader_health,
-        ci_failed_checks: check.ci_failed_checks,
-        grader_failed_names: Array(check.grader_failed_names).sort
-      }
+  # CI and grader signals are polled independently and update different parts
+  # of the same health row. Fingerprinting them independently means a stale CI
+  # reassertion remains covered even if the clean preflight has already reset
+  # the grader half (and vice versa), while genuinely changed evidence for the
+  # currently broken signal remains eligible immediately.
+  def repair_evidence_fingerprint(sha, signal:)
+    checks = health_checks_for(sha)
+    evidence = if signal == :ci
+      checks.select { |check| check.ci_health == "broken" }
+        .flat_map { |check| Array(check.ci_failed_checks) }
+        .map { |entry| canonical_repair_evidence(entry) }
+        .sort_by { |entry| JSON.generate(entry) }
+    else
+      checks.select { |check| check.grader_health == "broken" }
+        .flat_map { |check| Array(check.grader_failed_names) }
+        .map(&:to_s)
+        .uniq
+        .sort
     end
 
     Digest::SHA256.hexdigest(JSON.generate(evidence))
+  end
+
+  def canonical_repair_evidence(value)
+    if value.is_a?(Hash)
+      return value.keys.sort_by(&:to_s).to_h { |key| [ key.to_s, canonical_repair_evidence(value[key]) ] }
+    end
+    return value.map { |entry| canonical_repair_evidence(entry) } if value.is_a?(Array)
+
+    value
   end
 
   def repair_evidence_ready?
