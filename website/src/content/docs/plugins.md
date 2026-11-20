@@ -43,6 +43,63 @@ minimum Syrus release required by the host APIs in use. Computed dynamic
 constant names cannot be detected. The tested release may be
 newer, but must not be older than that derived floor.
 
+## Validate and test a plugin
+
+Plugin Ruby may use only public `Syrus::Host::*` APIs, the plugin DSL and
+documented interface modules, its own code, Rails, and the Ruby standard
+library. Every other Syrus core constant is internal and may change without
+notice. Validation rejects unsupported direct references and reports legacy
+and literal string references; if the host surface lacks a capability, request
+a public facade instead of reaching around it.
+
+Create a project with `syrus plugin new NAME`. The command writes `./NAME` by
+default; use `--path DIR` to choose another empty directory. The generated
+project includes a gemspec and manifest, a callback-provider example, English,
+German, and Latin locales, host-contract specs, a README, and a GitHub Actions
+workflow that runs `syrus plugin test`.
+
+Add `--frontend` for an admin-page source example and prebuilt bundle,
+`--model` for a namespaced model and migration, or `--cli` for a server-backed
+CLI command. `requires_syrus` defaults to the connected instance release and
+falls back to the CLI release; override it with `--syrus-version X.Y.Z`.
+Names must be lower-case Ruby-compatible snake case and cannot collide with a
+plugin known to the instance or bundled into the CLI. Existing non-empty
+directories are never overwritten.
+
+Run `syrus plugin validate [DIR]` to check the manifest, Ruby dependencies,
+release compatibility, host API usage, prebuilt frontend hash, and English,
+German, and Latin locale parity. Run `syrus plugin test [DIR]` for the same
+validation followed by the plugin's own RSpec suite. Both commands default to
+the current directory and run against the connected instance's release when it
+is available, otherwise the CLI release. Use `--syrus-version X.Y.Z` to select
+a release explicitly and `--json` for the stable summary object.
+
+The CLI pulls the matching `ghcr.io/tkadauke/syrus-plugin-test` companion image
+and mounts only the plugin directory; no instance credentials enter the
+container. Syrus contributors can use `--checkout PATH` to execute the same
+runner from a local Syrus checkout without Docker.
+
+## Develop with live reload
+
+Run `syrus plugin dev [DIR]` for a fast editing loop against a real,
+release-matched Syrus image. The command starts a throwaway SQLite instance,
+mounts and enables the plugin, and prints its URL, health, and the seeded sign-in
+(`demo@syrus.local` / `password`). Use `--syrus-version X.Y.Z` to choose another
+release.
+
+Frontend source edits run the plugin frontend builder inside the container, so
+Node does not need to be installed on the host. Reload the browser to fetch the
+new content-hashed bundle. Ruby, manifest, and locale edits restart Syrus and
+print the new plugin health; syntax and load errors are shown without ending the
+watch loop. Rapid edits are debounced.
+
+Press Ctrl-C for a clean shutdown. Data is discarded by default; `--keep-data`
+retains the stopped container and its named Docker volume and prints both names.
+The development host runs
+one plugin, uses SQLite, and has no real agent credentials. You may configure an
+existing agent provider through the normal settings UI, but its credentials are
+stored only in that throwaway volume. Docker is required.
+
 ## Hand-install an external plugin
 
 External plugins are trusted, in-process code. Review the source before

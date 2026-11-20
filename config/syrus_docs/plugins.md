@@ -25,6 +25,17 @@ catalog declarations. If neither matches, the CLI searches `PATH` from the
 longest command path to the first word for a trusted `syrus-<path>` executable,
 passes it the unmatched arguments, and exposes the configured instance and
 token as `SYRUS_URL` and `SYRUS_TOKEN`.
+
+The built-in local SDK commands are `syrus plugin new NAME`, `validate [DIR]`,
+`test [DIR]`, and `dev [DIR]`. `new` creates a tested project; `validate` uses
+an isolated, release-matched SQLite host; `test` also runs the plugin's RSpec
+suite; and `dev` starts a disposable, reloadable host. Docker runners receive
+the plugin directory but no instance credentials. Use `--syrus-version` to
+select a release, `--json` for a machine-readable test summary, `--checkout`
+for contributor testing, and `--keep-data` to retain a stopped dev instance.
+The full authoring workflow and option reference live in
+`docs/engineering/conventions/plugins/external.md`.
+
 ## Per-origin Job visibility
 
 Repository membership remains the outer visibility boundary for Jobs. A plugin

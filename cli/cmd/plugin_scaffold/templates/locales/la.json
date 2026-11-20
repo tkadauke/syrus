@@ -1,0 +1,4 @@
+{
+  "plugin": { "display_name": "{{DISPLAY_NAME}}", "description": "Plugin {{DISPLAY_NAME}} pro Syro." },
+  "admin": { "title": "{{DISPLAY_NAME}}", "message": "Plugin tuum paratum est." }
+}

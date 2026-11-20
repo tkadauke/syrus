@@ -35,8 +35,9 @@ database_url="sqlite3:$temporary_root/plugin-relocation.sqlite3"
 SYRUS_PLUGIN_PATH="$external_root" SYRUS_VERSION=0.1.0 DATABASE_URL="$database_url" RAILS_ENV=test \
   "$repo_root/bin/rails" db:schema:load >/dev/null
 
-SYRUS_PLUGIN_PATH="$external_root" RELOCATABLE_PLUGIN_ROOT="$plugin_root" SYRUS_VERSION=0.1.0 DATABASE_URL="$database_url" RAILS_ENV=test \
-  "$repo_root/bin/rails" runner "$repo_root/spec/fixtures/plugin_relocation_acceptance.rb"
+SYRUS_PLUGIN_PATH="$external_root" RELOCATABLE_PLUGIN_ROOT="$plugin_root" SYRUS_HOST_ROOT="$repo_root" SYRUS_VERSION=0.1.0 DATABASE_URL="$database_url" RAILS_ENV=test \
+  "$repo_root/bin/rspec" "$plugin_root/spec/relocatable_plugin_spec.rb"
+echo "plugin relocation acceptance passed"
 
 empty_root="$temporary_root/empty"
 mkdir -p "$empty_root"
