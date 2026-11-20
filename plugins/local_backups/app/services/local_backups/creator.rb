@@ -132,9 +132,24 @@ module LocalBackups
         source_application_version: SyrusVersion.description, source_revision: SyrusVersion.current,
         artifact: { format: "directory", checksum_path: "checksums.sha256" }, checksum: artifact_checksum,
         database: @snapshotter.manifest(snapshot),
+        encryption: { key_fingerprints: encryption_key_fingerprints },
         active_storage: { service: ActiveStorage::Blob.service.class.name.demodulize.delete_suffix("Service"), blob_count: entries.length, logical_bytes: entries.sum(&:byte_size),
           blobs: entries.map(&:to_h) }, validation: { result: "valid", path: "validation.json" }
       }
+    end
+
+    def encryption_key_fingerprints
+      configuration = Rails.configuration.active_record.encryption
+      {
+        primary: fingerprint_values(configuration.primary_key),
+        deterministic: fingerprint_values(configuration.deterministic_key),
+        derivation_salt: fingerprint_values(configuration.key_derivation_salt)
+      }.compact
+    end
+
+    def fingerprint_values(value)
+      fingerprints = Array(value).filter_map { |item| EncryptionFingerprint.for(item) }
+      fingerprints.one? ? fingerprints.first : fingerprints.presence
     end
 
     def fsync_tree(root)
