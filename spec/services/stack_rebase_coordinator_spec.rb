@@ -154,6 +154,34 @@ RSpec.describe StackRebaseCoordinator do
       .with(repository.slug, child.pr_number, base: repository.default_branch)
   end
 
+  # A merge train lands a whole stacked Epic at once. Each parent then closes
+  # as merged a few seconds before its child does, and rebasing that child
+  # would only rewrite (and force-push) a branch whose work already landed.
+  it "does not rebase a child that landed in the same merge train as its parent" do
+    parent.update_columns(state: "closed", closure_reason: "pr_merged")
+    train = MergeTrain.create!(repository: repository, base_branch: "main", state: "succeeded", priority: "medium")
+    train.members.create!(job: parent, position: 0, state: "merged")
+    train.members.create!(job: child, position: 1, state: "merged")
+    client = instance_double(GithubClient, update_pull_request_base: nil, pull_request: OpenStruct.new(body: ""), update_pull_request_body: nil)
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    expect {
+      described_class.parent_merged(parent)
+    }.not_to change { child.workflows.where(trigger_kind: %w[rebase stack_rebase]).count }
+  end
+
+  it "still rebases a child whose earlier train landed it but not with this parent" do
+    parent.update_columns(state: "closed", closure_reason: "pr_merged")
+    earlier = MergeTrain.create!(repository: repository, base_branch: "main", state: "succeeded", priority: "medium")
+    earlier.members.create!(job: child, position: 0, state: "merged")
+    client = instance_double(GithubClient, update_pull_request_base: nil, pull_request: OpenStruct.new(body: ""), update_pull_request_body: nil)
+    allow(GithubClient).to receive(:for).and_return(client)
+
+    expect {
+      described_class.parent_merged(parent)
+    }.to change { child.workflows.where(trigger_kind: "rebase").count }.by(1)
+  end
+
   it "re-points children to main and rebases them when the parent closes with no changes" do
     client = instance_double(
       GithubClient,

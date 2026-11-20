@@ -139,6 +139,32 @@ remained blocked") look like the same shape but may be intended "nudge" repairs.
 
 ---
 
+## F5. Stacked Epic members rebased right after their train landed them — fixed
+
+**Evidence.** Production: an Epic merge train succeeded; 19s later a `rebase`
+Workflow was created for a member; 2.7s after that the PR poller closed the
+member as `pr_merged`; the rebase *started* after the close and had a
+`force_push` queued when the reconciler cancelled it.
+
+**Cause.** `Job#rebase_stack_children_after_successful_parent_close` →
+`StackRebaseCoordinator.parent_merged` rebases open stack children when a parent
+closes as merged. A train lands the whole stack, so each child is still open for
+a few seconds after its parent closes; the coordinator's guards ("child closed?",
+"merge train active?") both miss.
+
+**Fix.** Skip a child merged (`MergeTrainMember` state `merged`) by the same
+train that merged its parent. A child landed only by an earlier train is still
+rebased.
+
+**Specs.** `stack_rebase_coordinator_spec.rb` "does not rebase a child that
+landed in the same merge train as its parent" (red before), "still rebases a
+child whose earlier train landed it but not with this parent".
+
+**Lean.** None: a single direct guard, a theorem would restate it. The general
+property it serves — no Run starts for a closed Job — is F6.
+
+---
+
 ## Open questions for review
 
 - **Q1. A landing parked mid-run gives up the landing slot.** `block!` with
