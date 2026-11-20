@@ -25,7 +25,12 @@ module ProviderRouting
         super
       end
       def selected_provider = candidate&.provider
-      def failover? = selected_provider.present? && original_candidate&.provider.present? && selected_provider != original_candidate.provider
+      def failover?
+        return false unless selected_provider.present? && original_candidate&.provider.present?
+
+        selected_provider != original_candidate.provider ||
+          (original_candidate.account_id.present? && provider_account&.public_id != original_candidate.account_id)
+      end
       def exhausted? = exhausted
       def held? = routing_resolution&.held? || false
 
@@ -249,7 +254,12 @@ module ProviderRouting
         accounts = accounts.where(id: workflow.provider_account_id)
       end
       accounts = accounts.to_a
+      known_unavailable_account = if availability && workflow&.provider_account&.provider_key == candidate.provider
+        workflow.provider_account
+      end
+      accounts.reject! { |account| account.id == known_unavailable_account.id } if known_unavailable_account
       if accounts.empty?
+        return [ false, nil, availability ] if known_unavailable_account
         return [ false, nil, credential_unavailability(candidate.provider) ] if candidate.account_id.present?
 
         unavailable = credential_unavailability(candidate.provider)

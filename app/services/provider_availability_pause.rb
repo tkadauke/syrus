@@ -80,7 +80,8 @@ class ProviderAvailabilityPause
     @current_candidate ||= candidate || ProviderRouting::AvailabilitySelector.candidate(
       provider: workflow.agent_provider.presence || workflow.job.workflow_agent_provider,
       model: workflow.model,
-      effort_level: workflow.effort_level
+      effort_level: workflow.effort_level,
+      account_id: workflow.provider_account&.public_id
     )
   end
 
@@ -127,7 +128,8 @@ class ProviderAvailabilityPause
       original_candidate: current_candidate,
       reason: reason,
       availability: availability,
-      now: now
+      now: now,
+      workflow: workflow
     )
     return Decision.new(
       pause: false,
