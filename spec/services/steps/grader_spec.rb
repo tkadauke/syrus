@@ -72,6 +72,35 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join).to include("durable output")
   end
 
+  # macOS workers have no /proc/self/fd. Without a path-based fallback every
+  # grader log there went to /dev/null and failures lost their diagnostics.
+  context "on a host without /proc/self/fd" do
+    before do
+      allow(File).to receive(:directory?).and_call_original
+      allow(File).to receive(:directory?).with("/proc/self/fd").and_return(false)
+    end
+
+    it "still writes grader output to the workspace log file" do
+      handler.call
+
+      details = step.reload.details
+      expect(details["diagnostic_warnings"]).to be_blank
+      expect(@ws_path.join(details["log_path"]).read).to include("durable output")
+    end
+
+    it "does not follow a grader log ancestor symlink" do
+      outside = @ws_path.dirname.join("outside-grade-output-no-proc")
+      FileUtils.mkdir_p(outside)
+      FileUtils.mkdir_p(@ws_path.join(".syrus"))
+      FileUtils.ln_s(outside, @ws_path.join(".syrus/grade-output"))
+
+      handler.call
+
+      expect(outside.children).to be_empty
+      expect(step.reload.details.dig("diagnostic_warnings", 0, "status")).to eq("unsafe_symlink")
+    end
+  end
+
   it "retains only declared regular coverage outputs on the successful Run" do
     FileUtils.mkdir_p(@ws_path.join("coverage"))
     @ws_path.join("coverage/lcov.info").write("TN:\nSF:app/models/user.rb\nDA:1,1\nend_of_record\n")
