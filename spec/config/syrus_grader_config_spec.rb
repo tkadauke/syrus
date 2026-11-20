@@ -108,7 +108,7 @@ RSpec.describe "Syrus grader configuration" do
   it "gives every CI-mode RSpec shard enough time to finish its serial examples" do
     shards = RepoGradePlan.for(Rails.root).graders.select { |entry| entry.name.start_with?("rspec-ci-") }
 
-    expect(shards.map(&:name)).to eq(%w[rspec-ci-1-of-4 rspec-ci-2-of-4 rspec-ci-3-of-4 rspec-ci-4-of-4])
+    expect(shards.map(&:name)).to eq(%w[rspec-ci-1-of-4 rspec-ci-2-of-4 rspec-ci-3-of-4 rspec-ci-4-of-4 rspec-ci-serial])
     shards.each { |grader| expect(grader).to have_attributes(phases: [ "ci" ], timeout_minutes: 150) }
   end
 

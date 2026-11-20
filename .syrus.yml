@@ -627,6 +627,10 @@ grade:
       # pass (median an hour, up to two) on one worker while the rest of the
       # fan-out had finished. Four shards run it on four workers at once.
       shards: 4
+      # The serial paths below added about ten minutes to the last shard,
+      # which made it the long pole of every grading round. Run them as a
+      # grader of their own, beside the shards.
+      serial_shard: true
       # The CI grader runs CI-only examples in the parallel pass (each worker
       # has its own database); only these stay in a serial pass of their own:
       # migration specs that change the schema in-process, subprocess-heavy

@@ -101,14 +101,14 @@ RSpec.describe Ruby::RspecGraderType do
   # on one worker while the rest of the fan-out had finished. Shards split it
   # into disjoint slices that run on different workers at once.
   describe "CI grader shards" do
-    def sharded_steps(shards: 3, serial_paths: [ "spec/migrations/" ])
+    def sharded_steps(shards: 3, serial_paths: [ "spec/migrations/" ], serial_shard: nil)
       described_class.grade_steps(
         config: {
           "tags" => { "ci" => { "include" => [ "ci_only" ] } },
           "parallel_rspec" => {
             "enabled" => true, "rspec_modes" => [ "ci" ], "exec_args" => "bin/rspec-worker",
-            "serial_paths" => serial_paths, "shards" => shards
-          }
+            "serial_paths" => serial_paths, "shards" => shards, "serial_shard" => serial_shard
+          }.compact
         },
         default_failures: "strict"
       ).select { |step| step.name.start_with?("rspec-ci") }
@@ -163,6 +163,20 @@ RSpec.describe Ruby::RspecGraderType do
 
       expect(first.run).not_to match(%r{bundle exec rspec [^;]* spec/migrations/})
       expect(last.run).to match(%r{RUN_CI_ONLY_SPECS=true bundle exec rspec [^;]* spec/migrations/})
+    end
+
+    it "runs the serial paths in a grader of their own with serial_shard" do
+      steps = sharded_steps(serial_shard: true)
+
+      expect(steps.map(&:name)).to eq(%w[rspec-ci-1-of-3 rspec-ci-2-of-3 rspec-ci-3-of-3 rspec-ci-serial])
+      steps.first(3).each do |shard|
+        expect(shard.run).not_to match(%r{bundle exec rspec [^;]* spec/migrations/})
+      end
+      serial = steps.last
+      expect(serial.run).to match(%r{RUN_CI_ONLY_SPECS=true bundle exec rspec [^;]* spec/migrations/})
+      expect(serial.run).not_to include("parallel_rspec")
+      expect(serial.metadata).to include("supersedes" => "rspec", "grader_mode" => "ci")
+      expect(serial.phases).to eq(%w[ci])
     end
 
     it "passes an empty shard without running the whole default suite" do

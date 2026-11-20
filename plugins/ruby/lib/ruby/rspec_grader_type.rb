@@ -57,7 +57,7 @@ module Ruby
       count = ci_shard_count
       return [ grade_step(name: ci_name, run: ci_command(coverage: coverage), phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope, coverage: coverage) ] if count <= 1
 
-      (1..count).map do |index|
+      shards = (1..count).map do |index|
         grade_step(
           name: ci_shard_name(index, count),
           run: ci_command(coverage: false, shard: [ index, count ]),
@@ -66,6 +66,33 @@ module Ruby
           shard: { "index" => index, "count" => count }
         )
       end
+      return shards unless serial_shard?
+
+      # The serial paths otherwise ran after the last shard's parallel pass,
+      # making that shard the long pole of every grading round (about twice
+      # the others). As a grader of its own they run beside the shards.
+      shards + [
+        grade_step(
+          name: "#{ci_name}-serial",
+          run: ci_serial_command,
+          phases: ci_phases, mode: "ci", junit_output: extra_junit_output(ci_name, "serial"),
+          when_files_changed: configured_scope, coverage: false
+        )
+      ]
+    end
+
+    def serial_shard?
+      parallel_config["serial_shard"] == true
+    end
+
+    def ci_serial_command
+      serial_rspec_command(
+        junit_output: extra_junit_output(ci_name, "serial"),
+        json_output: extra_json_output(ci_name, "serial"),
+        coverage: false,
+        env: { "RUN_CI_ONLY_SPECS" => "true" },
+        args: [ *combined_ci_tag_args, *parallel_serial_paths ]
+      )
     end
 
     def ci_shard_name(index, count)
@@ -368,8 +395,9 @@ module Ruby
         exclude_paths: serial_paths,
         pre_command: shard_files_command(index, count, serial_paths),
         guard_empty_shard: true,
-        # The serial paths run once, in the last shard.
-        extra_serial: index == count ? serial : nil
+        # The serial paths run once: in a grader of their own with
+        # `serial_shard`, otherwise in the last shard.
+        extra_serial: index == count && !serial_shard? ? serial : nil
       )
     end
 
