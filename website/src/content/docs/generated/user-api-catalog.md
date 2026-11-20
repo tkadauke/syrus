@@ -364,6 +364,12 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/preview_panels/:id/export` | `api/v1/app/preview_panels#export` |
 | core | GET | `/api/v1/app/preview_panels/:id/files/*path` | `api/v1/app/preview_panels#file` |
 | core | POST | `/api/v1/app/preview_panels/:id/token` | `api/v1/app/preview_panels#token` |
+| core | GET | `/api/v1/app/provider_accounts` | `api/v1/app/provider_accounts#index` |
+| core | POST | `/api/v1/app/provider_accounts` | `api/v1/app/provider_accounts#create` |
+| core | DELETE | `/api/v1/app/provider_accounts/:id` | `api/v1/app/provider_accounts#destroy` |
+| core | PATCH | `/api/v1/app/provider_accounts/:id` | `api/v1/app/provider_accounts#update` |
+| core | PUT | `/api/v1/app/provider_accounts/:id` | `api/v1/app/provider_accounts#update` |
+| core | POST | `/api/v1/app/provider_accounts/:id/test` | `api/v1/app/provider_accounts#test` |
 | core | POST | `/api/v1/app/report_issue` | `api/v1/app/report_issue#create` |
 | core | GET | `/api/v1/app/repositories` | `api/v1/app/repositories#index` |
 | core | POST | `/api/v1/app/repositories` | `api/v1/app/repositories#create` |

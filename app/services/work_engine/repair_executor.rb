@@ -340,13 +340,9 @@ module WorkEngine
 
           account = workflow.provider_account if workflow.agent_provider == agent_provider
           account ||= workflow.user.default_provider_account(agent_provider)
-          circuit = ProviderCircuitBreaker.call(
-            agent_provider,
-            now: now,
-            include_logs: false,
-            user: workflow.user,
-            provider_account: account
-          )
+          circuit_options = { now: now, include_logs: false }
+          circuit_options.merge!(user: workflow.user, provider_account: account) if account
+          circuit = ProviderCircuitBreaker.call(agent_provider, **circuit_options)
           if respect_provider_circuit && circuit.open?
             retry_at = circuit.retry_after ? " until #{circuit.retry_after.iso8601}" : ""
             return skipped("provider circuit is open for #{agent_provider}#{retry_at}: #{circuit.reason}")

@@ -110,7 +110,6 @@ module AgentProviders
     end
 
     def self.refresh_stale_usage!(user:, provider_account: nil, now: Time.current)
-      provider_account ||= user.default_provider_account(provider_key)
       mode = provider_account&.credential(:codex_auth_mode) || user.codex_auth_mode
       return unless mode == "chatgpt_login"
       probe_options = { now: now }
@@ -123,8 +122,9 @@ module AgentProviders
     end
 
     def self.refresh_usage!(user:, provider_account: nil, force: false)
-      provider_account ||= user.default_provider_account(provider_key)
-      CodexUsageProbe.refresh_for(user: user, provider_account: provider_account, force: force)
+      options = { user: user, force: force }
+      options[:provider_account] = provider_account if provider_account
+      CodexUsageProbe.refresh_for(**options)
     end
 
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)

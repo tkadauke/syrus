@@ -748,6 +748,7 @@ class StepDispatcher
       "agent_provider_resolved" => desired_candidate.provider
     )
     artifacts["agent_provider_routing_decision"] = routed_selection.artifact if routed_selection
+    artifacts["provider_failover_decision"] = routed_selection.artifact if routed_selection&.failover?
     workflow.update!(
       agent_provider: desired_candidate.provider,
       model: desired_candidate.model,

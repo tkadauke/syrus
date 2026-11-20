@@ -60,7 +60,7 @@ class Workflow < ApplicationRecord
   validate :user_matches_job
   validate :job_must_be_open_on_create, on: :create
   before_validation :default_user_from_job, on: :create
-  before_validation :default_provider_account, on: :create
+  before_validation :default_provider_account
   validate :provider_account_matches_execution
   before_save :sync_workflow_admission_override_metadata
 
@@ -1108,6 +1108,7 @@ class Workflow < ApplicationRecord
   end
 
   def default_provider_account
+    self.provider_account = nil if provider_account && provider_account.provider_key != agent_provider && will_save_change_to_agent_provider?
     self.provider_account ||= user&.default_provider_account(agent_provider)
   end
 
@@ -1115,7 +1116,7 @@ class Workflow < ApplicationRecord
     return unless provider_account
     return if provider_account.user_id == user_id && provider_account.provider_key == agent_provider
 
-    errors.add(:provider_account, "must belong to the Workflow user and provider")
+    errors.add(:provider_account, I18n.t("server.errors.provider_accounts.workflow_mismatch"))
   end
 
   def user_matches_job

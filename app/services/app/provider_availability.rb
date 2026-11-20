@@ -13,8 +13,8 @@ module App
     @cache_mutex = Mutex.new
     @process_cache = {}
 
-    def self.for_user(user, provider, provider_account: nil, now: Time.current, cached: true)
-      provider_account ||= user&.default_provider_account(provider)
+    def self.for_user(user, provider, provider_account: nil, now: Time.current, cached: true, resolve_default_account: true)
+      provider_account ||= user&.default_provider_account(provider) if resolve_default_account
       return PerformanceLogging.phase("provider_availability.status", provider: provider, cached: false) { new(user: user, provider: provider, provider_account: provider_account, now: now).status } unless cached
 
       key = cache_key(user, provider, provider_account: provider_account)
@@ -148,7 +148,10 @@ module App
       return rate_limited_status(latest_signal) if latest_signal
 
       circuit = PerformanceLogging.phase("provider_availability.circuit_breaker", provider: provider) do
-        ProviderCircuitBreaker.call(provider, now: now, include_logs: false, user: user, provider_account: provider_account || user.default_provider_account(provider))
+        account = provider_account || user.default_provider_account(provider)
+        options = { now: now, include_logs: false }
+        options.merge!(user: user, provider_account: account) if account
+        ProviderCircuitBreaker.call(provider, **options)
       end
       return open_status(circuit) if circuit.open? && !circuit.usage_limit?
 
