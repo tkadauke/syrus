@@ -112,7 +112,12 @@ import { updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
 import { firstUnstartedChatInRecentCaches } from "../lib/unstartedChat"
 import { useResizableSplitter } from "./chat/useResizableSplitter"
-import { MOBILE_CHROME_BOTTOM_OVERLAP_CLASS, MOBILE_CHROME_SURFACE_CLASS, MOBILE_STATUS_BAR_BACKDROP_CLASS, MobileChromeContext } from "../components/mobileChrome"
+import {
+  MOBILE_CHROME_BOTTOM_OVERLAP_CLASS,
+  MOBILE_CHROME_SURFACE_CLASS,
+  MOBILE_STATUS_BAR_BACKDROP_CLASS,
+  MobileChromeContext
+} from "../components/mobileChrome"
 import { CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX } from "./chat/constants"
 import { keyboardVisualViewport } from "../lib/visualViewport"
 import { ApiVersionBanner } from "../components/ApiVersionBanner"
@@ -426,12 +431,14 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     : 0
   const mobileChatAppContentStyle = isMobileLayeredChromePage
     ? ({
-        "--mobile-chat-app-header-height": measuredMobileChatAppHeaderHeight == null
-          ? `calc(${MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT}px + env(safe-area-inset-top))`
-          : `${measuredMobileChatAppHeaderHeight}px`,
-        "--mobile-chrome-top-overlap-height": measuredMobileChatAppHeaderHeight == null
-          ? `calc(${MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT}px + env(safe-area-inset-top))`
-          : `${measuredMobileChatAppHeaderHeight}px`,
+        "--mobile-chat-app-header-height":
+          measuredMobileChatAppHeaderHeight == null
+            ? `calc(${MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT}px + env(safe-area-inset-top))`
+            : `${measuredMobileChatAppHeaderHeight}px`,
+        "--mobile-chrome-top-overlap-height":
+          measuredMobileChatAppHeaderHeight == null
+            ? `calc(${MOBILE_CHAT_APP_HEADER_FALLBACK_HEIGHT}px + env(safe-area-inset-top))`
+            : `${measuredMobileChatAppHeaderHeight}px`,
         "--mobile-chrome-visible-top-inset": mobileChatHeaderHidden
           ? "0px"
           : measuredMobileChatAppHeaderHeight == null
@@ -464,9 +471,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       hidden: mobileChatHeaderHidden,
       hideHeader: hideMobileChatHeader,
       offset: mobileChatHeaderOffset,
-      offsetTransform: mobileChatHeaderHidden && measuredMobileChatAppHeaderHeight == null
-        ? `translateY(calc(-${mobileChatHeaderOffset}px - env(safe-area-inset-top)))`
-        : `translateY(-${mobileChatHeaderOffset}px)`,
+      offsetTransform:
+        mobileChatHeaderHidden && measuredMobileChatAppHeaderHeight == null
+          ? `translateY(calc(-${mobileChatHeaderOffset}px - env(safe-area-inset-top)))`
+          : `translateY(-${mobileChatHeaderOffset}px)`,
       reportScrollDelta: reportMobileChatScrollDelta,
       revealHeader: revealMobileChatHeader,
       setContentHeight: setMobileChatHeaderContentHeight,
@@ -780,10 +788,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
               </aside>
 
               {drawerOpen ? (
-                <div
-                  className="fixed inset-0 z-40 bg-gray-950 pt-[env(safe-area-inset-top)] lg:hidden"
-                  data-testid="mobile-sidebar-drawer"
-                >
+                <div className="fixed inset-0 z-40 bg-gray-950 pt-[env(safe-area-inset-top)] lg:hidden" data-testid="mobile-sidebar-drawer">
                   <SidebarContent
                     collapsed={false}
                     dashboardSubnavEnabled={false}
@@ -839,9 +844,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     mobileChatHeaderAutoHideActive
                       ? {
                           opacity: mobileChatHeaderHidden ? 0 : 1,
-                          transform: mobileChatHeaderHidden && measuredMobileChatAppHeaderHeight == null
-                            ? `translateY(calc(-${mobileChatHeaderOffset}px - env(safe-area-inset-top)))`
-                            : `translateY(-${mobileChatHeaderOffset}px)`
+                          transform:
+                            mobileChatHeaderHidden && measuredMobileChatAppHeaderHeight == null
+                              ? `translateY(calc(-${mobileChatHeaderOffset}px - env(safe-area-inset-top)))`
+                              : `translateY(-${mobileChatHeaderOffset}px)`
                         }
                       : undefined
                   }

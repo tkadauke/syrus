@@ -138,7 +138,9 @@ describe("App chat mobile", () => {
       class ResizeObserverStub {
         constructor(private readonly callback: ResizeObserverCallback) {}
         disconnect() {}
-        observe() { this.callback([], this as unknown as ResizeObserver) }
+        observe() {
+          this.callback([], this as unknown as ResizeObserver)
+        }
         unobserve() {}
       }
     )
@@ -225,14 +227,7 @@ describe("App chat mobile", () => {
       expect(mobileTabsShell).toHaveStyle({ opacity: "0", transform: "translateY(-166px)" })
       expect(screen.getByTestId("mobile-chat-hidden-header-sidebar-button")).toHaveAccessibleName("Open sidebar")
       const hiddenHeaderScrim = screen.getByTestId("mobile-chat-hidden-header-scrim")
-      expect(hiddenHeaderScrim).toHaveClass(
-        "absolute",
-        "top-0",
-        "h-32",
-        "from-gray-950/80",
-        "backdrop-blur-md",
-        "backdrop-saturate-150"
-      )
+      expect(hiddenHeaderScrim).toHaveClass("absolute", "top-0", "h-32", "from-gray-950/80", "backdrop-blur-md", "backdrop-saturate-150")
       expect(screen.getByTestId("mobile-chat-route-shell")).toContainElement(hiddenHeaderScrim)
       expect(hiddenHeaderScrim).not.toHaveClass("h-14")
       expect(stream).toHaveAttribute("data-mobile-header-hidden", "true")
