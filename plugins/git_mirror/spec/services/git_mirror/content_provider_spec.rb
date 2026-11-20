@@ -90,15 +90,19 @@ RSpec.describe GitMirror::ContentProvider do
   end
 
   it "reads workspace files and history through one mirror request" do
-    request_body = { revision: sha, paths: %w[a.md], max_bytes: 20, last_modified: true, history_limit: 25 }
+    request_body = { revision: sha, paths: %w[a.md large.md], max_bytes: 20, last_modified: true, history_limit: 25 }
     stub_mirror_post("workspace-files", request_body, body: {
-      blobs: { "a.md" => { bytes: Base64.strict_encode64("hello"), size: 5, truncated: false, content_id: "blob" } },
+      blobs: {
+        "a.md" => { bytes: Base64.strict_encode64("hello"), size: 5, truncated: false, content_id: "blob" },
+        "large.md" => { bytes: nil, size: 25, truncated: true, content_id: "large-blob" }
+      },
       last_modified: { "a.md" => "2026-01-02T03:04:05Z" }, history_incomplete: false
     }.to_json)
 
-    result = provider.workspace_files(sha, paths: %w[a.md], max_bytes: 20, last_modified: true, history_limit: 25)
+    result = provider.workspace_files(sha, paths: %w[a.md large.md], max_bytes: 20, last_modified: true, history_limit: 25)
 
     expect(result[:blobs]["a.md"]).to have_attributes(text: "hello", content_id: "blob")
+    expect(result[:blobs]["large.md"]).to have_attributes(bytes: "".b, size: 25, truncated: true, content_id: "large-blob")
     expect(result[:last_modified]["a.md"]).to eq(Time.zone.parse("2026-01-02T03:04:05Z"))
   end
 
