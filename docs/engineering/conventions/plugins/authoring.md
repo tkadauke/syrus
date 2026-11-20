@@ -3277,6 +3277,9 @@ class methods `provider_key`, `display_name`, `role` (`:upstream` or
 guard calls it for every repository), and `build(repository:, user:)`, which
 returns an instance or nil. Instances implement `resolve(ref, max_age:)`,
 `tree(revision_id)`, `children(revision_id, path)`, `read(revision_id, path)`, and optionally
+`workspace_files(revision_id, paths:, max_bytes:, last_modified:, history_limit:)`
+(a single bounded provider operation returning `blobs`, `last_modified`, and
+`history_incomplete` for workspace search),
 `changes(base_id, head_id, patch:)` (three-dot: what `head` introduced since
 its merge base with `base`), `refs(pattern:, max_age:)`,
 `relation(base_id, head_id)`, `history(base_id, head_id)`,

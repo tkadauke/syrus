@@ -62,6 +62,19 @@ module GitMirror
       RepositoryContent::Blob.new(path: path, bytes: bytes, content_id: content_id)
     end
 
+    def workspace_files(revision_id, paths:, max_bytes:, last_modified:, history_limit:)
+      result = registered do
+        @client.workspace_files(mirror_id, revision_id, paths: paths, max_bytes: max_bytes,
+          last_modified: last_modified, history_limit: history_limit)
+      end
+      blobs = result.fetch("blobs").to_h do |path, blob|
+        [ path, RepositoryContent::Blob.new(path: path, bytes: Base64.strict_decode64(blob.fetch("bytes")),
+          size: blob.fetch("size"), truncated: blob.fetch("truncated"), content_id: blob["content_id"]) ]
+      end
+      dates = result.fetch("last_modified", {}).transform_values { |value| Time.zone.parse(value) }
+      { blobs: blobs, last_modified: dates, history_incomplete: result.fetch("history_incomplete") }
+    end
+
     def changes(base_id, head_id, patch: false)
       registered { @client.changes(mirror_id, base_id, head_id, patch: patch) }.map do |change|
         RepositoryContent::Change.new(

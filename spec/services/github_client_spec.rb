@@ -1296,6 +1296,36 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#workspace_files" do
+    it "fetches all blobs and path histories in one GraphQL request" do
+      client = GithubClient.for(repository: repository, user: user)
+      request = stub_request(:post, "https://api.github.com/graphql")
+        .with(body: hash_including("variables" => hash_including("expression0" => "#{'a' * 40}:a.md", "path0" => "a.md")))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { data: { repository: {
+          blob0: { byteSize: 5, isBinary: false, isTruncated: false, oid: "blob", text: "hello" },
+          revision: { history0: { nodes: [ { authoredDate: "2026-01-02T03:04:05Z" } ] } }
+        } } }.to_json)
+
+      result = client.workspace_files("acme/widgets", "a" * 40, [ "a.md" ], include_last_modified: true)
+
+      expect(result.dig("a.md", :blob, :text)).to eq("hello")
+      expect(result.dig("a.md", :authored_at)).to eq("2026-01-02T03:04:05Z")
+      expect(request).to have_been_requested.once
+    end
+
+    it "omits commit history when only content is requested" do
+      client = GithubClient.for(repository: repository, user: user)
+      request = stub_request(:post, "https://api.github.com/graphql")
+        .with { |call| !JSON.parse(call.body).fetch("query").include?("history(") }
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { data: { repository: {
+          blob0: { byteSize: 5, isBinary: false, isTruncated: false, oid: "blob", text: "hello" }
+        } } }.to_json)
+
+      expect(client.workspace_files("acme/widgets", "a" * 40, [ "a.md" ], include_last_modified: false).dig("a.md", :blob, :text)).to eq("hello")
+      expect(request).to have_been_requested.once
+    end
+  end
+
   describe "#accessible_owners" do
     let(:client) { GithubClient.for_user(user) }
 

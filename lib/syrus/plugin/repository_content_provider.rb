@@ -56,6 +56,9 @@ module Syrus
     #   children(revision_id, path)   -> direct child entries for a directory;
     #                                    `path` is empty for the snapshot root.
     #   read(revision_id, path)       -> RepositoryContent::Blob
+    #   workspace_files(revision_id, paths:, max_bytes:, last_modified:)
+    #                                 -> bounded blobs and optional modification
+    #                                    dates in one provider operation.
     #   changes(base_id, head_id, patch:)
     #                                 -> Array<RepositoryContent::Change> for
     #                                    what `head` introduced since its merge
@@ -137,6 +140,10 @@ module Syrus
 
       def read(_revision_id, _path)
         raise NotImplementedError, "#{self.class.name} must implement #read"
+      end
+
+      def workspace_files(_revision_id, paths:, max_bytes:, last_modified:, history_limit:)
+        raise ::RepositoryContent::Unsupported, "#{self.class.display_name} does not batch workspace files"
       end
 
       def changes(_base_id, _head_id, patch: false)

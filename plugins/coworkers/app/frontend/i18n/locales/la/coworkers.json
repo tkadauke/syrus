@@ -16,6 +16,7 @@
     "search": "Quaere fasciculos et textum",
     "extension": "Extensio",
     "folder": "Directorium vel initium viae",
+    "exact_folder": "Directorium exactum",
     "filename": "Nomen fasciculi",
     "filename_exact": "Nomen fasciculi exactum",
     "area": "Regio summa",

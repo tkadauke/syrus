@@ -21,6 +21,7 @@
     "search": "Dateien und Inhalte durchsuchen",
     "extension": "Dateiendung",
     "folder": "Ordner oder Pfadpräfix",
+    "exact_folder": "Exakter Ordner",
     "filename": "Dateiname",
     "filename_exact": "Exakter Dateiname",
     "area": "Oberster Bereich",

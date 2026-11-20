@@ -31,6 +31,11 @@ RSpec.describe GitMirror::ContentProvider do
       .to_return(status: status, body: body, headers: headers)
   end
 
+  def stub_mirror_post(path, request_body, body: "{}")
+    stub_request(:post, "#{base}/#{path}").with(body: request_body.to_json, headers: { "Authorization" => "Bearer #{token}" })
+      .to_return(status: 200, body: body, headers: { "Content-Type" => "application/json" })
+  end
+
   def error(code) = { error: { code: code, message: code } }.to_json
 
   describe ".available_for?" do
@@ -82,6 +87,19 @@ RSpec.describe GitMirror::ContentProvider do
     stub_mirror("blob", { revision: sha, path: "logo.png" }, body: "\x89PNG".b, headers: { "X-Content-Id" => "b2" })
 
     expect(provider.read(sha, "logo.png")).to have_attributes(bytes: "\x89PNG".b, content_id: "b2", size: 4)
+  end
+
+  it "reads workspace files and history through one mirror request" do
+    request_body = { revision: sha, paths: %w[a.md], max_bytes: 20, last_modified: true, history_limit: 25 }
+    stub_mirror_post("workspace-files", request_body, body: {
+      blobs: { "a.md" => { bytes: Base64.strict_encode64("hello"), size: 5, truncated: false, content_id: "blob" } },
+      last_modified: { "a.md" => "2026-01-02T03:04:05Z" }, history_incomplete: false
+    }.to_json)
+
+    result = provider.workspace_files(sha, paths: %w[a.md], max_bytes: 20, last_modified: true, history_limit: 25)
+
+    expect(result[:blobs]["a.md"]).to have_attributes(text: "hello", content_id: "blob")
+    expect(result[:last_modified]["a.md"]).to eq(Time.zone.parse("2026-01-02T03:04:05Z"))
   end
 
   it "lists changes with line counts, and patches when asked" do
