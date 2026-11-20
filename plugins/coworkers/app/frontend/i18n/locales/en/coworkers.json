@@ -167,7 +167,17 @@
     "latest_result": "Latest result",
     "view_all_runs": "View all runs",
     "no_job_needed": "No Job was needed",
-    "outcomes": { "never_run": "Never run", "queued": "Queued", "running": "Running", "succeeded": "Succeeded", "failed": "Failed", "blocked": "Blocked", "cancelled": "Cancelled", "journaled": "Journaled", "skipped": "Skipped" }
+    "outcomes": {
+      "never_run": "Never run",
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "blocked": "Blocked",
+      "cancelled": "Cancelled",
+      "journaled": "Journaled",
+      "skipped": "Skipped"
+    }
   },
   "capabilities": {
     "sentences": {
