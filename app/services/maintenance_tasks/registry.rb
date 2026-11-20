@@ -6,6 +6,7 @@ module MaintenanceTasks
           Definitions::AgentsBackfill.new,
           Definitions::BareCloneRemoteScrub.new,
           Definitions::ChatAttachmentBackfill.new,
+          Definitions::GraderFanoutDetailsCompaction.new,
           Definitions::LandedCommitsBackfill.new,
           Definitions::PreemptedExternalPrBackfill.new,
           Definitions::SearchDatabaseRebuild.new,
