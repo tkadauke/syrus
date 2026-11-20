@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import ReviewWorkspaceRoute from "./ReviewWorkspace"
 
 const jobApi = vi.hoisted(() => ({
-  fetchJobDetail: vi.fn(async () => ({ job: { id: 42 }, actions: {}, paths: {} })),
+  fetchJobDetail: vi.fn(async () => ({ job: { id: 42, summary_state: "implemented" }, actions: { can_approve: true }, paths: { app_approve_path: "/canonical/jobs/42/approve" } })),
   fetchJobTab: vi.fn(async () => ({ visual_evidence: { screenshots: [] } })),
   postJobCommand: vi.fn(async () => ({})),
   submitJobFeedback: vi.fn(async () => undefined)
@@ -14,7 +14,7 @@ const jobApi = vi.hoisted(() => ({
 
 vi.mock("@app/api/jobs", () => jobApi)
 vi.mock("@app/lib/entityStore", () => ({ normalizeJobDetailPayload: (payload: unknown) => payload }))
-vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({ ReviewWorkspace: () => <div>Canonical review evidence</div> }))
+vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({ ReviewWorkspace: ({ visualEvidenceNavigation }: { visualEvidenceNavigation?: { direction: number } }) => <div>Canonical review evidence{visualEvidenceNavigation ? <span>Evidence direction {visualEvidenceNavigation.direction}</span> : null}</div> }))
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -78,7 +78,7 @@ describe("ReviewWorkspaceRoute", () => {
     expect(await screen.findByText("Canonical review evidence")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing (A)" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
-    await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/api/v1/app/jobs/42/approve"))
+    await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/canonical/jobs/42/approve"))
   })
 
   it("focuses the discoverable exit and supports keyboard Job navigation", async () => {
@@ -91,6 +91,25 @@ describe("ReviewWorkspaceRoute", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Exit review workspace" })).toHaveFocus())
     fireEvent.keyDown(window, { key: "j" })
     await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
+  })
+
+  it("navigates canonical visual evidence with both arrow keys", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    renderRoute("/review/JOB-42")
+    await screen.findByText("Canonical review evidence")
+    fireEvent.keyDown(window, { key: "ArrowRight" })
+    expect(await screen.findByText("Evidence direction 1")).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: "ArrowLeft" })
+    expect(await screen.findByText("Evidence direction -1")).toBeInTheDocument()
+  })
+
+  it("does not offer approval when the canonical payload denies it", async () => {
+    jobApi.fetchJobDetail.mockResolvedValueOnce({ job: { id: 42, summary_state: "implemented" }, actions: { can_approve: false }, paths: { app_approve_path: "/canonical/jobs/42/approve" } })
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    renderRoute("/review/JOB-42")
+    expect(await screen.findByRole("button", { name: "Approve for landing (A)" })).toBeDisabled()
+    fireEvent.keyDown(window, { key: "a" })
+    expect(screen.queryByText("Approve JOB-42 for landing?")).not.toBeInTheDocument()
   })
 
   it("submits feedback through the canonical chat-feedback endpoint and progresses the stack", async () => {

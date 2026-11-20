@@ -9,7 +9,7 @@ import { normalizeJobDetailPayload } from "@app/lib/entityStore"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { ReviewWorkspace as CanonicalReviewWorkspace } from "@app/routes/jobDetail/ReviewWorkspace"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ReactNode, useEffect, useRef, useState } from "react"
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { fetchReviewWorkspace, type ReviewWorkspaceJob } from "../api/reviewWorkspace"
 
@@ -21,9 +21,12 @@ export default function ReviewWorkspaceRoute() {
   const prefix = routePrefix(location.pathname)
   const review = useQuery({ queryKey: ["review_workspace"], queryFn: fetchReviewWorkspace })
   const [deferred, setDeferred] = useState<Set<number>>(() => new Set())
+  const [loadedDetail, setLoadedDetail] = useState<{ jobId: number; payload: JobDetailPayload } | null>(null)
+  const [evidenceNavigation, setEvidenceNavigation] = useState<{ direction: -1 | 1; sequence: number }>()
   const exitRef = useRef<HTMLButtonElement>(null)
+  const handleDetail = useCallback((jobId: number, payload: JobDetailPayload) => setLoadedDetail({ jobId, payload }), [])
   usePageTitle(t("title"))
-  useEffect(() => exitRef.current?.focus(), [requestedJobId, review.isSuccess])
+  useEffect(() => exitRef.current?.focus(), [review.isSuccess])
 
   function exitWorkspace() {
     if (window.history.length > 1) navigate(-1)
@@ -69,14 +72,16 @@ export default function ReviewWorkspaceRoute() {
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)_20rem]">
         <JobRail active={active} jobs={jobs} prefix={prefix} />
-        <JobReview job={active} />
+        <JobReview job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
         <DecisionPanel
+          detail={loadedDetail?.jobId === active.id ? loadedDetail.payload : undefined}
           job={active}
           onCompleted={() => {
             setDeferred((current) => new Set(current).add(active.id))
             void review.refetch()
           }}
           onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
+          onEvidenceMove={(direction) => setEvidenceNavigation((current) => ({ direction, sequence: (current?.sequence ?? 0) + 1 }))}
           onExit={exitWorkspace}
           onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
         />
@@ -110,16 +115,18 @@ function JobRail({ active, jobs, prefix }: { active: ReviewWorkspaceJob; jobs: R
   )
 }
 
-function JobReview({ job }: { job: ReviewWorkspaceJob }) {
+function JobReview({ job, onDetail, visualEvidenceNavigation }: { job: ReviewWorkspaceJob; onDetail: (jobId: number, payload: JobDetailPayload) => void; visualEvidenceNavigation?: { direction: -1 | 1; sequence: number } }) {
   const { t } = useT("review_workspace")
   const detail = useQuery({
     queryKey: ["review_workspace", "job", job.id],
     queryFn: async () => {
-      const header = await fetchJobDetail(String(job.id))
-      const review = await fetchJobTab(String(job.id), "review")
-      return normalizeJobDetailPayload({ ...header, ...review } as JobDetailPayload, "focused_review_workspace")
+      const [header, summary, review] = await Promise.all([fetchJobDetail(String(job.id)), fetchJobTab(String(job.id), "summary"), fetchJobTab(String(job.id), "review")])
+      return normalizeJobDetailPayload({ ...header, attachments: [], typed_artifacts: [], coverage: null, summary: null, test_plan: null, report: null, feedback_history: [], ...summary, ...review } as JobDetailPayload, "focused_review_workspace")
     }
   })
+  useEffect(() => {
+    if (detail.data) onDetail(job.id, detail.data)
+  }, [detail.data, job.id, onDetail])
   if (detail.isPending)
     return (
       <section className="overflow-y-auto p-5">
@@ -140,21 +147,25 @@ function JobReview({ job }: { job: ReviewWorkspaceJob }) {
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{job.title}</h1>
       </div>
-      <CanonicalReviewWorkspace payload={detail.data} />
+      <CanonicalReviewWorkspace payload={detail.data} visualEvidenceNavigation={visualEvidenceNavigation} />
     </section>
   )
 }
 
 function DecisionPanel({
+  detail,
   job,
   onCompleted,
   onDefer,
+  onEvidenceMove,
   onExit,
   onMove
 }: {
+  detail?: JobDetailPayload
   job: ReviewWorkspaceJob
   onCompleted: () => void
   onDefer: () => void
+  onEvidenceMove: (direction: -1 | 1) => void
   onExit: () => void
   onMove: (offset: number) => void
 }) {
@@ -168,21 +179,24 @@ function DecisionPanel({
     await queryClient.invalidateQueries({ queryKey: ["jobs", String(job.id)] })
     onCompleted()
   }
-  const approve = useMutation({ mutationFn: () => postJobCommand(`/api/v1/app/jobs/${job.id}/approve`), onSuccess: completed })
+  const canApprove = Boolean(detail?.actions.can_approve && detail.job.summary_state.toLowerCase() === "implemented" && detail.paths.app_approve_path)
+  const approve = useMutation({ mutationFn: () => postJobCommand(detail!.paths.app_approve_path), onSuccess: completed })
   const submitFeedback = useMutation({ mutationFn: () => submitJobFeedback(job.id, feedback.trim()), onSuccess: completed })
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
       const key = event.key.toLowerCase()
-      if (key === "a") setConfirming(true)
+      if (key === "a" && canApprove) setConfirming(true)
       if (key === "f") setFeedbackOpen(true)
       if (key === "j") onMove(1)
       if (key === "k") onMove(-1)
+      if (event.key === "ArrowLeft") onEvidenceMove(-1)
+      if (event.key === "ArrowRight") onEvidenceMove(1)
       if (event.key === "Escape") onExit()
     }
     window.addEventListener("keydown", shortcut)
     return () => window.removeEventListener("keydown", shortcut)
-  }, [onExit, onMove])
+  }, [canApprove, onEvidenceMove, onExit, onMove])
   const mutationError = approve.error ?? submitFeedback.error
   return (
     <aside aria-label={t("decision_context")} className="overflow-y-auto border-l border-border bg-surface p-5 max-lg:border-t">
@@ -202,7 +216,7 @@ function DecisionPanel({
             </div>
           </div>
         ) : (
-          <Button className="w-full" onClick={() => setConfirming(true)} variant="primary">
+          <Button className="w-full" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
             {t("approve_shortcut")}
           </Button>
         )}

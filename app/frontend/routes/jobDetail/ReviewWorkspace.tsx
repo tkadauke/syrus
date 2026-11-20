@@ -109,7 +109,7 @@ export async function fetchProfiledSourceDiff(jobId: string, search = "") {
   }
 }
 
-export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLineMetricProviders?: DiffLineMetricProvider[]; payload: JobDetailPayload }) {
+export function ReviewWorkspace({ diffLineMetricProviders, payload, visualEvidenceNavigation }: { diffLineMetricProviders?: DiffLineMetricProvider[]; payload: JobDetailPayload; visualEvidenceNavigation?: { direction: -1 | 1; sequence: number } }) {
   const { t } = useT("jobs")
   const { t: commonT } = useT("common")
   const jobId = payload.job.id
@@ -455,6 +455,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             selectedRange={selectedRange}
             selectedVersion={selectedVersion}
             versions={versions}
+            navigation={visualEvidenceNavigation}
           />
 
           {/*
@@ -608,7 +609,8 @@ export function VisualEvidenceGallery({
   gallery,
   selectedRange = null,
   selectedVersion = null,
-  versions = []
+  versions = [],
+  navigation
 }: {
   approved: boolean
   artifacts?: TypedArtifact[]
@@ -616,13 +618,22 @@ export function VisualEvidenceGallery({
   selectedRange?: { baseSha: string; headSha: string } | null
   selectedVersion?: DiffReviewVersion | null
   versions?: DiffReviewVersion[]
+  navigation?: { direction: -1 | 1; sequence: number }
 }) {
   const { t } = useT("jobs")
   const [showAll, setShowAll] = useState(false)
-  const [preview, setPreview] = useState<{ title: string; url: string } | null>(null)
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const evidence = gallery || { captured_count: 0, submitted_count: 0, screenshots: [] }
   const submitted = evidence.screenshots.filter((screenshot) => screenshot.status === "submitted")
   const screenshots = showAll ? evidence.screenshots : submitted
+  useEffect(() => {
+    if (!navigation || screenshots.length === 0) return
+    setPreviewIndex((current) => {
+      const startingIndex = current == null ? (navigation.direction === 1 ? -1 : 0) : current
+      return (startingIndex + navigation.direction + screenshots.length) % screenshots.length
+    })
+  }, [navigation, screenshots.length])
+  const preview = previewIndex == null ? null : screenshots[previewIndex]
 
   const typedArtifacts = artifacts.filter((artifact) => !isRepresentedByGalleryEvidence(artifact, submitted))
 
@@ -664,7 +675,7 @@ export function VisualEvidenceGallery({
               <figure className={`${surfaceClasses("panel", "sm")} max-w-lg`} key={screenshot.id}>
                 <button
                   className="flex w-full cursor-zoom-in justify-center"
-                  onClick={() => setPreview({ title: pageLabel, url: screenshot.image_url })}
+                  onClick={() => setPreviewIndex(screenshots.indexOf(screenshot))}
                   type="button"
                 >
                   <img
@@ -696,7 +707,10 @@ export function VisualEvidenceGallery({
         </div>
       ) : null}
       {preview ? (
-        <DocumentPreviewModal file={{ contentType: "image/png", rawUrl: preview.url, title: preview.title }} onClose={() => setPreview(null)} />
+        <DocumentPreviewModal
+          file={{ contentType: "image/png", rawUrl: preview.image_url, title: preview.page?.title || preview.page?.path || t("visual_evidence_unknown_page") }}
+          onClose={() => setPreviewIndex(null)}
+        />
       ) : null}
     </Section.Root>
   )
