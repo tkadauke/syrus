@@ -116,6 +116,7 @@ export type ProviderRoutingRegistryOptions = {
 }
 
 export type ProviderRoutingOptions = {
+  provider_accounts?: Array<{ id: string; provider: string; label: string }>
   agent_providers: AgentProviderOption[]
   effort_levels: EffortLevelOption[]
   reviewer_targets?: ProviderRoutingReviewerTarget[]

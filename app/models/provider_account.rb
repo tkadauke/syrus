@@ -55,8 +55,20 @@ class ProviderAccount < ApplicationRecord
   def credential(name) = credential_payload.to_h[name.to_s]
 
   def safe_reference
-    { id: public_id, label: label.presence || "Account #{position + 1}" }
+    { id: public_id, label: display_label }
   end
+
+  def display_label
+    label.presence || "#{App::Presentation.agent_provider_label(provider_key)} #{position + 1}"
+  end
+
+  def actively_referenced?
+    workflows.where(state: %w[queued running]).exists? ||
+      provider_sessions.for_runs.where(runs: { state: %w[queued running] }).exists?
+  end
+
+  has_many :workflows
+  has_many :provider_sessions
 
   def effective_proactive_pause_threshold
     return proactive_pause_threshold.to_f if proactive_pause_threshold.present?
