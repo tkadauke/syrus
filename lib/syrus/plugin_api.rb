@@ -138,7 +138,8 @@ module Syrus
       # A constant captured here would be captured once and go stale on the
       # next reload; a string is re-resolved every time, and cannot be
       # referenced before the plugin's own autoload paths exist.
-      def provides(pairs = nil, implements: nil, provisional: nil, **entries)
+      def provides(pairs = nil, key: nil, implements: nil, provisional: nil, **entries)
+        entries[:key] = key if !key.nil? && !implements && !provisional
         pairs = (pairs || {}).merge(entries)
         return @provides if pairs.empty?
 
@@ -146,7 +147,9 @@ module Syrus
           raise Error, "A family provides declaration must name exactly one family" unless pairs.size == 1
           family, providers = pairs.first
           Array(providers).each do |provider|
-            @family_provides << Syrus::Plugin::FamilyDeclaration.build(family:, provider:, implements: implements || [], provisional: provisional || [])
+            @family_provides << Syrus::Plugin::FamilyDeclaration.build(
+              family:, provider:, key:, implements: implements || [], provisional: provisional || []
+            )
           end
           return
         end

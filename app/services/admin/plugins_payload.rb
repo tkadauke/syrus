@@ -133,6 +133,7 @@ module Admin
           routes: Array(metadata[:routes]).map { |route| route.to_h },
           links: links_payload(manifest),
           extension_points: PerformanceLogging.phase("admin_plugins.plugin.extension_points", plugin: manifest.name) { extension_points_payload(manifest) },
+          capabilities: capability_payload(manifest),
           depends_on: Array(manifest.depends_on),
           optionally_depends_on: Array(manifest.optionally_depends_on),
           conflicts_with: Array(manifest.conflicts_with),
@@ -302,6 +303,21 @@ module Admin
       return provider.name || provider.to_s if provider.respond_to?(:name)
 
       provider.to_h.with_indifferent_access[:provider].presence || provider.to_s
+    end
+
+    def capability_payload(manifest)
+      manifest.family_provides.flat_map do |declaration|
+        declaration.capabilities.map do |capability|
+          {
+            family: declaration.family.to_s,
+            capability: capability.to_s,
+            provider: declaration.provider,
+            key: declaration.key&.to_s,
+            tier: declaration.provisional.include?(capability) ? "provisional" : "stable",
+            priority: manifest.prepare_priority
+          }
+        end
+      end
     end
 
     def availability_for(extension_point, provider)
