@@ -765,7 +765,9 @@ function CapabilitiesTable({ capabilities }: { capabilities: AdminPluginCapabili
             <DataTable.Cell className="font-mono text-xs">{capability.capability}</DataTable.Cell>
             <DataTable.Cell className="font-mono text-xs">{capability.provider}</DataTable.Cell>
             <DataTable.Cell className="font-mono text-xs">{capability.key || "-"}</DataTable.Cell>
-            <DataTable.Cell><StatusBadge status={capability.tier === "provisional" ? "experimental" : "registered"} label={capability.tier} /></DataTable.Cell>
+            <DataTable.Cell>
+              <StatusBadge status={capability.tier === "provisional" ? "experimental" : "registered"} label={capability.tier} />
+            </DataTable.Cell>
             <DataTable.Cell className="font-mono text-xs">{capability.priority}</DataTable.Cell>
           </DataTable.Row>
         ))}
