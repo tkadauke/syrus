@@ -225,6 +225,25 @@ describe("pending action carousel", () => {
     expect(screen.queryByRole("button", { name: "Next pending action" })).not.toBeInTheDocument()
   })
 
+  it("keeps an expanded action within the mobile viewport while its carousel controls remain outside the scroll region", () => {
+    renderPendingActionCarousel([
+      {
+        key: "action:1",
+        type: "action",
+        action: pendingAction(1, "Authorize access", { detail: "Long permission detail. ".repeat(200) })
+      }
+    ])
+
+    const body = screen.getByTestId("pending-action-carousel-body")
+    expect(body).toHaveClass(
+      "max-md:max-h-[min(50dvh,calc(var(--chat-visual-viewport-height,100dvh)-12rem))]",
+      "max-md:overflow-y-auto",
+      "max-md:overscroll-contain"
+    )
+    expect(screen.getByRole("button", { name: "Collapse pending actions" })).not.toBe(body)
+    expect(body).toContainElement(screen.getByText("Long permission detail.", { exact: false }))
+  })
+
   it("collapses the selected card into a one-line summary and restores carousel navigation when expanded", () => {
     renderPendingActionCarousel([
       { key: "action:1", type: "action", action: pendingAction(1, "Deploy service") },
