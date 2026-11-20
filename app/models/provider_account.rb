@@ -66,7 +66,8 @@ class ProviderAccount < ApplicationRecord
 
   def actively_referenced?
     workflows.where(state: %w[queued running]).exists? ||
-      provider_sessions.exists?
+      provider_sessions.for_active_runs.exists? ||
+      provider_sessions.for_active_chats.exists?
   end
 
   def effective_proactive_pause_threshold

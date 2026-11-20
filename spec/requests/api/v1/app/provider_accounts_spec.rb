@@ -93,12 +93,27 @@ RSpec.describe "API: provider accounts", type: :request do
 
   it "guards removal while a resumable chat session references the account" do
     account = user.provider_accounts.create!(provider_key: "claude", authentication_kind: "claude_oauth_token", credential_payload: { "claude_oauth_token" => "one" }, position: 0)
-    chat = ChatSession.create!(user: user, chat_provider: "claude")
+    chat = ChatSession.create!(user: user, chat_provider: "claude", turn_in_flight: true)
     ProviderSession.create!(resumable: chat, provider: "claude", provider_account: account, session_id: "resumable-chat")
 
     delete "/api/v1/app/provider_accounts/#{account.public_id}"
 
     expect(response).to have_http_status(:conflict)
     expect(body.dig("error", "code")).to eq("provider_account_in_use")
+  end
+
+  it "allows removal after a Run-backed resumable session becomes historical" do
+    user.update!(claude_oauth_token: "one")
+    account = user.default_provider_account("claude")
+    workflow = Factories.job(repository: Factories.repository(user: user), agent_provider: "claude").latest_workflow
+    run = workflow.runs.first
+    workflow.update_columns(state: "succeeded")
+    run.update_columns(state: "succeeded")
+    ProviderSession.create!(resumable: run, provider: "claude", provider_account: account, session_id: "historical-run")
+
+    delete "/api/v1/app/provider_accounts/#{account.public_id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(user.provider_accounts.where(id: account.id)).not_to exist
   end
 end
