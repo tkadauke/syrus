@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe ReviewWorkspace::EligibleJobs do
+RSpec.describe ReviewWorkspacePlugin::EligibleJobs do
   let!(:instance_admin) { Factories.user }
   let(:user) { Factories.user(global_role: "user") }
   let(:repository) { Factories.repository(user:, auto_merge_enabled: true) }

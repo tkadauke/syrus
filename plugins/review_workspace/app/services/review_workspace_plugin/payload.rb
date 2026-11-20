@@ -1,4 +1,4 @@
-module ReviewWorkspace
+module ReviewWorkspacePlugin
   class Payload
     def self.call(user:, scope: Job.all)
       jobs = EligibleJobs.call(user:, scope:)

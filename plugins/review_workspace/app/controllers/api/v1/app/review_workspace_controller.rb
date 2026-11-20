@@ -5,11 +5,11 @@ module Api
         before_action :require_review_workspace_enabled
 
         def index
-          render json: ReviewWorkspace::Payload.call(user: Current.user, scope: reviewable_job_scope)
+          render json: ReviewWorkspacePlugin::Payload.call(user: Current.user, scope: reviewable_job_scope)
         end
 
         def count
-          render json: { count: ReviewWorkspace::EligibleJobs.call(user: Current.user, scope: reviewable_job_scope).length }
+          render json: { count: ReviewWorkspacePlugin::EligibleJobs.call(user: Current.user, scope: reviewable_job_scope).length }
         end
 
         private
@@ -19,7 +19,7 @@ module Api
         end
 
         def require_review_workspace_enabled
-          return if ::ReviewWorkspace.enabled?
+          return if ::ReviewWorkspacePlugin.enabled?
 
           render_error("plugin_disabled", I18n.t("api.plugins.disabled", plugin: "review_workspace"), status: :not_found)
         end
