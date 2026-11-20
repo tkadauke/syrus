@@ -2167,9 +2167,9 @@
       "simulator": [
         "dependent_active_initial_dedup_collision"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Inconsistent with the dedup path, which raises LockConflict. A lock row left on a non-active unit would make the key permanently lockless for newcomers."
+      "status": "done",
+      "done_by": "F13",
+      "notes": "WorkUnit#ensure_active_locks! and Launcher#create_lock! treated a uniqueness violation followed by an empty owner lookup as success. That happens when the holder releases the key between our insert and the lookup: the key is free and we hold nothing, so mark_running! started the unit without its lock and a third unit could take the key. Fixed: retry the insert once, then fail closed with LockConflict. LockAcquire.lean: old_silent_no_lock, new_sound."
     },
     {
       "id": "single-live-executor",

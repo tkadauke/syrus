@@ -343,4 +343,27 @@ RSpec.describe WorkUnit do
     unit.clear_pause!
     expect(unit.reload.pause_requested).to be false
   end
+
+  # A uniqueness violation followed by "no owner" means the previous owner
+  # released the key between our insert and the lookup: the key is free and we
+  # hold nothing. Treating that as success let the unit run without its lock.
+  # formal/SyrusModel/LockAcquire.lean.
+  it "acquires its runtime lock when the previous owner released it mid-insert" do
+    job = Factories.job_record(state: "queued")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    unit = workflow.work_unit
+    unit.work_unit_locks.active.find_each(&:release!)
+    attempts = 0
+    allow_any_instance_of(WorkUnitLock).to receive(:save!).and_wrap_original do |original, *args, **kwargs|
+      attempts += 1
+      raise ActiveRecord::RecordNotUnique, "Duplicate entry for active_lock_key" if attempts == 1
+
+      original.call(*args, **kwargs)
+    end
+
+    unit.mark_running!
+
+    expect(unit.reload).to be_running
+    expect(unit.work_unit_locks.active.pluck(:lock_key)).to include("job:#{job.id}")
+  end
 end

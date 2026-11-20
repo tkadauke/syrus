@@ -276,6 +276,7 @@ class WorkUnit < ApplicationRecord
   end
 
   def ensure_active_locks!
+    retried = Set.new
     lock_keys_for_runtime.each do |lock_key|
       next if work_unit_locks.active.exists?(lock_key: lock_key)
 
@@ -292,8 +293,16 @@ class WorkUnit < ApplicationRecord
       work_unit_locks.create!(lock_key: lock_key)
     rescue ActiveRecord::RecordNotUnique
       owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
-      if owner &&
-          !same_runtime_lock_owner?(owner) &&
+      if owner.nil?
+        # The holder released the key between our insert and the lookup: the
+        # key is free and we hold nothing. Try once more, then fail closed
+        # rather than run without the lock (formal/SyrusModel/LockAcquire.lean).
+        raise WorkUnits::Launcher::LockConflict.new(lock_key: lock_key, work_unit: nil) if retried.include?(lock_key)
+
+        retried << lock_key
+        retry
+      end
+      if !same_runtime_lock_owner?(owner) &&
           definition.lock_conflicts_enforced? &&
           !WorkUnits::Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
         raise WorkUnits::Launcher::LockConflict.new(lock_key: lock_key, work_unit: owner)

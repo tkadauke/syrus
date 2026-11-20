@@ -376,6 +376,25 @@ integration PR open; `stale_active_merge_train_without_runtime` repairs that.
 
 ---
 
+## F13. Lock acquisition could succeed without a lock row — fixed
+
+**Property.** Acquisition reports success only when the unit holds the key;
+anything else is a `LockConflict` (`LockAcquire.new_sound`).
+
+**Counterexample.** `old_silent_no_lock`: our insert hits the unique index, the
+holder then releases the key, and the owner lookup finds nobody.
+`WorkUnit#ensure_active_locks!` and `Launcher#create_lock!` returned as if they
+had acquired it, so `mark_running!` ran the unit without its lock and the free
+key could go to a third unit — breaking `LockSafety.HoldsOwnLocks`.
+
+**Fix.** After a violation with no owner, retry the insert once; then fail
+closed with `LockConflict`.
+
+**Spec.** `work_unit_spec.rb` "acquires its runtime lock when the previous owner
+released it mid-insert" (red before: running with no active lock).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/
