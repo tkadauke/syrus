@@ -61,6 +61,42 @@ RSpec.describe Workflows::JobLifecyclePropagation do
     expect(job.closure_reason).to be_nil
   end
 
+  # fail! already ignored a Workflow that is no longer the Job's current
+  # attempt; cancel! did not, so cancelling an older Workflow failed a Job a
+  # newer Workflow was actively working on. For job-scoped work the WorkUnit
+  # lock keeps two active Workflows apart; Epic-scoped Workflows (Epic-wide
+  # feedback, with this Job as their representative) do not hold it.
+  it "does not fail the Job when an older Workflow is cancelled while a newer one works on it" do
+    job = Factories.job
+    older = job.workflows.last
+    older.work_unit&.preempt!(reason: "operator_cancelled")
+    newer = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running", started_at: Time.current)
+    unit = WorkUnit.new(work_intent: older.work_unit.work_intent, kind: "pr_comment", state: "running",
+                        repository: job.repository, scope_type: "epic", scope_id: 1, workflow: newer)
+    unit.save!(validate: false)
+    unit.work_unit_members.create!(job: job, role: "primary")
+    job.update_columns(state: "running")
+    older.update_columns(state: "cancelled", finished_at: Time.current)
+    older.set_artifact!("cancelled_reason", "operator_cancelled")
+
+    described_class.cancel!(older.reload)
+
+    expect(job.reload).to be_running
+  end
+
+  it "still fails the Job when its only Workflow is cancelled" do
+    job = Factories.job
+    workflow = job.workflows.last
+    job.update_columns(state: "running")
+    workflow.work_unit&.preempt!(reason: "operator_cancelled")
+    workflow.update_columns(state: "cancelled", finished_at: Time.current)
+    workflow.set_artifact!("cancelled_reason", "operator_cancelled")
+
+    described_class.cancel!(workflow.reload)
+
+    expect(job.reload).to be_failed
+  end
+
   it "does not overwrite a Job state owned by later lifecycle phases" do
     job = Factories.job
     workflow = job.workflows.last

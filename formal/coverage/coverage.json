@@ -1045,9 +1045,9 @@
       "simulator": [
         "stale_initial_intent_after_successful_retry"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "chat_feedback, rebase and stack_rebase materialize behind an active lock, so a queued second Workflow next to a running one is normal and its cancel can fail the running Job. Likely real bug."
+      "status": "done",
+      "done_by": "F10",
+      "notes": "JobLifecyclePropagation#cancel! lacked the newer-active-attempt guard fail! has: cancelling an older Workflow for a non-superseding reason marked a running Job failed while a newer Workflow worked on it. Job-scoped work cannot overlap (WorkUnit lock), so the reachable case is Epic-scoped Workflows that use the Job as representative (Epic-wide conflicts repaired 6x in the production sample). JobAttempt.lean: old_cancel_fails_worked_job, older_outcome_keeps_job. Stale-provider relaunch was checked and is safe (it uses a superseding reason)."
     },
     {
       "id": "superseded-active-runtime-work",

@@ -308,6 +308,26 @@ Workflow finishes, not at the moment graders pass.
 
 ---
 
+## F10. Cancelling an old Workflow failed a Job a newer one was running — fixed
+
+**Property.** Only the Job's current attempt decides its state: a Workflow's
+terminal outcome never fails a Job a newer Workflow still works on
+(`JobAttempt.older_outcome_keeps_job`).
+
+**Counterexample.** `old_cancel_fails_worked_job`. `JobLifecyclePropagation#fail!`
+returns when a newer Workflow is active; `#cancel!` did not, so any
+non-superseding cancel of an older Workflow marked the running Job failed.
+Job-scoped work cannot overlap (the WorkUnit lock); Epic-scoped Workflows that
+use the Job as their representative can.
+
+**Fix.** `cancel!` applies the same `newer_active_workflow?` guard.
+
+**Specs.** `job_lifecycle_propagation_spec.rb` "does not fail the Job when an
+older Workflow is cancelled while a newer one works on it" (red before), "still
+fails the Job when its only Workflow is cancelled".
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

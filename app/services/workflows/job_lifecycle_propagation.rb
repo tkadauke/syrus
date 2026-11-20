@@ -120,6 +120,9 @@ module Workflows
       return if workflow.local_mode_handoff_workflow?
       return if workflow.infrastructure_workflow?
       return if workflow.superseded_cancellation?
+      # Same rule as fail!: a Workflow that is no longer the Job's current
+      # attempt does not decide the Job's state.
+      return if newer_active_workflow?
 
       if cancelled_rebase_without_runs_on_triaging_job?
         StateTransition.with_source("propagate") do

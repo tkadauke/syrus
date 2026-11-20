@@ -12,3 +12,4 @@ import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet
 import SyrusModel.EpicTurn
 import SyrusModel.AutoApproval
+import SyrusModel.JobAttempt
