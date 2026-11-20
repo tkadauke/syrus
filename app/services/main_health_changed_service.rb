@@ -527,9 +527,11 @@ class MainHealthChangedService
     sha = checked_sha
     return if sha == "unknown"
 
+    fingerprint = repair_evidence_fingerprint(sha)
     repair_jobs
       .where(state: "closed", closure_reason: "preflight_passed")
       .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
+      .where("jobs.issue_body LIKE ?", "%Evidence fingerprint: #{fingerprint}%")
       .order(updated_at: :desc, id: :desc)
       .first
   end
@@ -603,6 +605,25 @@ class MainHealthChangedService
       .recent
       .limit(20)
       .to_a
+  end
+
+  # A clean preflight only suppresses the failure evidence that caused that
+  # repair. Polls may reassert the same broken signal after preflight marked
+  # the repository healthy; timestamps alone cannot distinguish that stale
+  # signal from a genuinely new failure on the same commit. Persisting this
+  # content identity in the repair prompt lets identical evidence deduplicate
+  # while changed CI checks or grader failures remain eligible immediately.
+  def repair_evidence_fingerprint(sha)
+    evidence = health_checks_for(sha).map do |check|
+      {
+        ci_health: check.ci_health,
+        grader_health: check.grader_health,
+        ci_failed_checks: check.ci_failed_checks,
+        grader_failed_names: Array(check.grader_failed_names).sort
+      }
+    end
+
+    Digest::SHA256.hexdigest(JSON.generate(evidence))
   end
 
   def repair_evidence_ready?

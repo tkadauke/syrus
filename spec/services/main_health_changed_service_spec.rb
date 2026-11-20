@@ -830,12 +830,13 @@ RSpec.describe MainHealthChangedService, :ci_only do
 
       it "does not immediately replace a conclusive no-change repair for the same SHA under strict policy" do
         repository.update!(risk_profile: "production")
+        fingerprint = described_class.new(repository).send(:repair_evidence_fingerprint, "abc123def456")
         repair = repository.jobs.create!(
           user: user,
           kind: "direct",
           system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
           issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
-          issue_body: "Main branch repair\nCommit: abc123def456",
+          issue_body: "Main branch repair\nCommit: abc123def456\nEvidence fingerprint: #{fingerprint}",
           agent_provider: "claude",
           priority: "urgent",
           state: "closed",
@@ -847,6 +848,32 @@ RSpec.describe MainHealthChangedService, :ci_only do
         }.not_to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }
 
         expect(repair.reload).to be_closed
+      end
+
+      it "allows a new repair for genuinely new evidence on the same SHA under strict policy" do
+        repository.update!(risk_profile: "production")
+        fingerprint = described_class.new(repository).send(:repair_evidence_fingerprint, "abc123def456")
+        repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          issue_body: "Main branch repair\nCommit: abc123def456\nEvidence fingerprint: #{fingerprint}",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "closed",
+          closure_reason: "preflight_passed"
+        )
+        MainBranchHealthCheck.record_ci_poll(
+          repository: repository,
+          sha: "abc123def456",
+          ci_health: "broken",
+          ci_failed_checks: [ { name: "new failing check", conclusion: "failure" } ]
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository.reload)
+        }.to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }.by(1)
       end
 
       it "allows a new repair after a conclusive no-change result when main advances" do
