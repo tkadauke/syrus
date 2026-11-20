@@ -113,6 +113,30 @@ RSpec.describe WorkUnits::WorkflowCancellation do
     expect(workflow.artifact("start_cancelled_reason")).to eq("job_closed")
   end
 
+  it "does not revert an artifact another writer set after the caller loaded the Workflow" do
+    workflow = Workflows::Initial.instantiate(job: job)
+    workflow.set_artifact!("review_head_sha", "old")
+    stale_workflow = Workflow.find(workflow.id)
+    expect(stale_workflow.artifacts.to_h).to include("review_head_sha" => "old")
+
+    Workflow.find(workflow.id).set_artifact!("review_head_sha", "new")
+
+    described_class.cancel!(stale_workflow, reason: "job_closed", artifacts: { "start_cancelled_reason" => "job_closed" })
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("review_head_sha")).to eq("new")
+    expect(workflow.artifact("start_cancelled_reason")).to eq("job_closed")
+  end
+
+  it "keeps artifacts the caller staged on its instance but had not saved" do
+    workflow = Workflows::Initial.instantiate(job: job)
+    workflow.artifacts = workflow.artifacts.to_h.merge("staged_note" => "kept")
+
+    described_class.cancel!(workflow, reason: "job_closed", artifacts: { "start_cancelled_reason" => "job_closed" })
+
+    expect(workflow.reload.artifact("staged_note")).to eq("kept")
+  end
+
   it "does not preempt the work unit when a stale workflow instance has already completed" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, idempotency_key: "stale-cancel-spec")
     stale_workflow = Workflow.find(workflow.id)

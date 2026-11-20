@@ -1271,6 +1271,34 @@ RSpec.describe Workflow, :ci_only do
       expect(reloaded.artifact("pr_body")).to eq("Adds a tiny greet helper.")
     end
 
+    # A bag assignment on a long-lived instance used to write back every key it
+    # had loaded, reverting keys another writer changed in the meantime.
+    # formal/SyrusModel/Artifacts.lean proves the delta write cannot.
+    it "does not revert a key another writer changed after the instance loaded" do
+      wf.set_artifact!("review_head_sha", "old")
+      stale = described_class.find(wf.id)
+      loaded_bag = stale.artifacts
+      expect(loaded_bag).to include("review_head_sha" => "old")
+      described_class.find(wf.id).set_artifact!("review_head_sha", "new")
+
+      stale.update!(artifacts: loaded_bag.merge("pr_title" => "Title"))
+
+      reloaded = described_class.find(wf.id)
+      expect(reloaded.artifact("review_head_sha")).to eq("new")
+      expect(reloaded.artifact("pr_title")).to eq("Title")
+    end
+
+    it "persists a loaded value the caller mutated in place before reassigning" do
+      wf.set_artifact!("notes", { "items" => [ "a" ] })
+      instance = described_class.find(wf.id)
+      bag = instance.artifacts
+      bag["notes"]["items"] << "b"
+
+      instance.update!(artifacts: bag)
+
+      expect(described_class.find(wf.id).artifact("notes")).to eq("items" => %w[a b])
+    end
+
     it "round-trips an unregistered key through every artifact API using external storage" do
       value = [ { "payload" => "x" * 20_000 } ]
 

@@ -670,6 +670,20 @@ class Workflow < ApplicationRecord
     external&.value&.deep_dup
   end
 
+  # Keys this instance staged via `artifacts=` that differ from what it loaded.
+  # Callers that must reload before writing carry these over instead of the
+  # whole bag, so they never write back a stale value another writer replaced.
+  def staged_artifact_changes
+    staged = defined?(@assigned_external_artifacts) ? @assigned_external_artifacts.to_h : {}
+    return staged unless persisted?
+
+    # Compare against the value as read from the database, not the loaded
+    # object: `artifacts` hands out the association's own values, so a caller
+    # mutating one in place would otherwise look unchanged.
+    loaded = workflow_artifact_values.to_h { |entry| [ entry.key, entry.attribute_in_database(:value) ] }
+    staged.reject { |key, value| loaded.key?(key) && loaded[key] == value }
+  end
+
   # Preserve the historical bag-shaped API while keeping growth-bound values
   # out of the frequently updated workflows row.
   def artifacts
@@ -999,7 +1013,9 @@ class Workflow < ApplicationRecord
   def persist_assigned_external_artifacts
     return unless defined?(@assigned_external_artifacts) && @assigned_external_artifacts
 
-    assigned = @assigned_external_artifacts
+    # Write only keys this instance changed. Rewriting an unchanged key would
+    # revert a value another writer stored after this instance loaded it.
+    assigned = staged_artifact_changes
     # after_save runs inside Active Record's save transaction. Keep the side
     # table replacement in that transaction so a failed artifact write rolls
     # back the workflows row too.
