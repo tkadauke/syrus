@@ -764,7 +764,7 @@ func (s *Store) WorkspaceFiles(ctx context.Context, id, revision string, paths [
 		path := string(listed)
 		contentIDs[path] = fields[2]
 		if size > int64(maxBytes) {
-			result.Blobs[path] = Blob{ContentID: fields[2], Size: size, Truncated: true}
+			result.Blobs[path] = Blob{Bytes: []byte{}, ContentID: fields[2], Size: size, Truncated: true}
 		} else {
 			smallPaths = append(smallPaths, path)
 		}
@@ -791,9 +791,12 @@ func (s *Store) WorkspaceFiles(ctx context.Context, id, revision string, paths [
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
-		content, readErr := io.ReadAll(reader)
+		content, readErr := io.ReadAll(io.LimitReader(reader, int64(maxBytes)+1))
 		if readErr != nil {
 			return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, readErr)
+		}
+		if len(content) > maxBytes {
+			return WorkspaceFiles{}, fmt.Errorf("%w: archive entry exceeded content limit", ErrUnavailable)
 		}
 		result.Blobs[header.Name] = Blob{Bytes: content, ContentID: contentIDs[header.Name], Size: header.Size}
 	}

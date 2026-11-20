@@ -68,7 +68,7 @@ module GitMirror
           last_modified: last_modified, history_limit: history_limit)
       end
       blobs = result.fetch("blobs").to_h do |path, blob|
-        [ path, RepositoryContent::Blob.new(path: path, bytes: Base64.strict_decode64(blob.fetch("bytes")),
+        [ path, RepositoryContent::Blob.new(path: path, bytes: Base64.strict_decode64(blob.fetch("bytes") || ""),
           size: blob.fetch("size"), truncated: blob.fetch("truncated"), content_id: blob["content_id"]) ]
       end
       dates = result.fetch("last_modified", {}).transform_values { |value| Time.zone.parse(value) }
