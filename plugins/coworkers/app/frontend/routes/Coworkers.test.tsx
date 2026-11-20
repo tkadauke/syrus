@@ -79,15 +79,6 @@ const detailPayload = {
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
-    permission_cutover_report: {
-      ready: false,
-      legacy_grants: [{ capability: "workspace.files", approval_policy: "auto", effective_policy: "allow", scope: null, constraints: {} }],
-      recommended_defaults: [],
-      lost_authority: [],
-      requestable_replacements: [],
-      descriptor_gaps: [{ legacy_capability: "workspace.files", tools: [], reasons: ["missing explicit descriptors"] }],
-      migration_errors: []
-    },
     grant_catalog: grantCatalog,
     schedules: [
       {
@@ -101,7 +92,8 @@ const detailPayload = {
         fire_at: null,
         next_fire_at: "2026-10-30T09:00:00Z",
         last_fired_at: null,
-        after_run: "wake"
+        after_run: "wake",
+        latest_result: { occurred_at: null, target_date: null, outcome: "never_run", reason: null, job: null, job_needed: null }
       },
       {
         id: 32,
@@ -114,7 +106,15 @@ const detailPayload = {
         fire_at: "2026-10-29T09:00:00Z",
         next_fire_at: null,
         last_fired_at: "2026-10-29T09:00:00Z",
-        after_run: "quiet"
+        after_run: "quiet",
+        latest_result: {
+          occurred_at: "2026-10-29T09:00:00Z",
+          target_date: null,
+          outcome: "succeeded",
+          reason: null,
+          job: { id: 42, slug: "JOB-42", path: "/jobs/42" },
+          job_needed: true
+        }
       }
     ],
     message_traffic: {
@@ -194,7 +194,14 @@ it("shows overdue journaling with the durable failure reason", async () => {
     last_system_result: "failed",
     last_system_result_reason: "RuntimeError: workspace locked",
     journaling_overdue: true,
-    system_result_history: []
+    latest_result: {
+      occurred_at: "2026-11-06T00:30:00Z",
+      target_date: "2026-11-05",
+      outcome: "failed",
+      reason: "RuntimeError: workspace locked",
+      job: { id: 43, slug: "JOB-43", path: "/jobs/43" },
+      job_needed: true
+    }
   } as never)
   vi.stubGlobal(
     "fetch",
@@ -205,6 +212,9 @@ it("shows overdue journaling with the durable failure reason", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: "Schedule" }))
   expect(await screen.findByRole("status")).toHaveTextContent("Journaling overdue / failed: RuntimeError: workspace locked")
+  expect(screen.getByRole("alert")).toHaveTextContent("Latest result: Failed")
+  expect(screen.getByRole("alert")).toHaveTextContent("RuntimeError: workspace locked")
+  expect(screen.getByRole("link", { name: "JOB-43" })).toHaveAttribute("href", "/jobs/43")
 })
 
 it("tests the remote and submits appearance, upload, grants, and About", async () => {
@@ -382,17 +392,85 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   expect(await screen.findByText("gpt-6.1-sol")).toBeInTheDocument()
   expect(screen.getByText(/Curious and concise/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(await screen.findByRole("heading", { name: "Permission cutover report" })).toBeInTheDocument()
-  expect(screen.getByText("Blocked")).toBeInTheDocument()
-  expect(screen.getByText(/workspace.files: missing explicit descriptors/)).toBeInTheDocument()
-  expect(screen.getByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
+  expect(await screen.findByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
+  expect(screen.queryByRole("heading", { name: "Permission cutover report" })).not.toBeInTheDocument()
   expect(screen.getByText("Gmail")).toBeInTheDocument()
   expect(screen.getAllByText("Coming later")).toHaveLength(2)
   fireEvent.click(screen.getByRole("button", { name: "Chat" }))
   fireEvent.click(screen.getByRole("button", { name: "New side chat" }))
   expect(await screen.findByText("Chat destination")).toBeInTheDocument()
   expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["coworkers", "7", "chats"] })
+  expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["coworkers", "7", "conversation-index"] })
   expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chats"] })
+})
+
+it("renders the pinned conversation index and keeps sorting in the URL", async () => {
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path.includes("conversation_index")) {
+      return jsonResponse({
+        main_chat: {
+          id: 12,
+          title: "Maya",
+          path: "/chats/12",
+          main: true,
+          preview: "Main thread",
+          last_activity_at: "2026-11-18T10:00:00Z",
+          created_at: "2026-11-01T10:00:00Z",
+          archived: false,
+          unread: false,
+          active_work: false,
+          title_match: false,
+          match_count: 0,
+          match: null
+        },
+        side_chats: [
+          {
+            id: 44,
+            title: "Release research",
+            path: "/chats/44",
+            main: false,
+            preview: "Compare the release notes",
+            last_activity_at: "2026-11-18T11:00:00Z",
+            created_at: "2026-11-17T10:00:00Z",
+            archived: false,
+            unread: true,
+            active_work: true,
+            title_match: false,
+            match_count: 2,
+            match: { message_id: 91, snippet: "Compare the <mark>release</mark> notes" }
+          }
+        ],
+        result_count: 1,
+        result_count_exact: false,
+        next_cursor: null,
+        filter: { and: [] },
+        filter_schema: [{ field: "search", label: "Search", bucket: "text", operators: ["contains"], values: [], free_text_search: true }],
+        sort: path.includes("sort=title") ? "title" : "last_activity"
+      })
+    }
+    if (path.endsWith("/chats")) return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7?tab=chat")
+
+  expect(await screen.findByRole("link", { name: /Release research/ })).toHaveAttribute("href", "/chats/44#message-91")
+  expect(screen.getByText("Unread")).toBeInTheDocument()
+  expect(screen.getByText("Active work")).toBeInTheDocument()
+  expect(screen.getByText("2 matches")).toBeInTheDocument()
+  expect(screen.getByText("First 1 matching side chats")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: /Add filter/ })).toBeInTheDocument()
+  expect(screen.getByText("release", { selector: "mark" })).toBeInTheDocument()
+  expect(screen.getByLabelText("Actions for Release research")).toBeInTheDocument()
+
+  const sort = screen.getByRole("combobox", { name: "Sort" })
+  expect(sort).toHaveClass("mt-1", "max-w-full", "sm:ml-2", "sm:mt-0")
+  expect(sort.parentElement).toHaveClass("w-full", "sm:w-auto")
+  expect(sort.parentElement?.parentElement).toHaveClass("flex-col", "items-stretch", "sm:flex-row", "sm:items-end")
+
+  fireEvent.change(sort, { target: { value: "title" } })
+  await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("conversation_index?sort=title"))).toBe(true))
 })
 
 it("prevents duplicate side-chat submissions and shows API failures", async () => {
@@ -913,6 +991,12 @@ it("lists and manages schedules on the coworker page", async () => {
   expect(await screen.findByText("Morning briefing")).toBeInTheDocument()
   expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "After each run" })).toHaveValue("wake")
+  expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+  const historyLink = screen.getAllByRole("link", { name: "View all runs" })[0]
+  const encoded = new URL(historyLink.getAttribute("href")!, "https://example.test").searchParams.get("q")!
+  const standard = encoded.replace(/-/g, "+").replace(/_/g, "/")
+  const decoded = JSON.parse(decodeURIComponent(escape(atob(standard.padEnd(Math.ceil(standard.length / 4) * 4, "=")))))
+  expect(decoded).toEqual({ and: [{ field: "scheduled_task_id", op: "is", value: "31" }] })
   const firedRow = screen.getByText("Completed one-shot").closest("li")
   expect(firedRow).not.toBeNull()
   expect(within(firedRow!).queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()

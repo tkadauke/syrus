@@ -174,7 +174,21 @@
     "last_result": "Letztes Ergebnis: {{result}} · journalisiert bis {{date}}",
     "never_run": "noch nie ausgeführt",
     "system_run_time": "Ausführungszeit des Systemzeitplans",
-    "save_time": "Zeit speichern"
+    "save_time": "Zeit speichern",
+    "latest_result": "Letztes Ergebnis",
+    "view_all_runs": "Alle Läufe anzeigen",
+    "no_job_needed": "Kein Job war erforderlich",
+    "outcomes": {
+      "never_run": "Noch nie ausgeführt",
+      "queued": "Eingereiht",
+      "running": "Läuft",
+      "succeeded": "Erfolgreich",
+      "failed": "Fehlgeschlagen",
+      "blocked": "Blockiert",
+      "cancelled": "Abgebrochen",
+      "journaled": "Journalisiert",
+      "skipped": "Übersprungen"
+    }
   },
   "capabilities": {
     "sentences": {
@@ -213,19 +227,6 @@
     "integrations": { "gmail": "Gmail", "calendar": "Kalender" },
     "coming_later": "Kommt später"
   },
-  "cutover": {
-    "title": "Bericht zur Berechtigungsumstellung",
-    "description": "Nur ein Probelauf. Alte Freigaben sind Auditnachweise und werden nicht zu einheitlichen Berechtigungsregeln.",
-    "ready": "Bereit",
-    "blocked": "Blockiert",
-    "legacy_grants": "Alte Freigaben (vorher)",
-    "recommended_defaults": "Empfohlene Standardwerte (nachher)",
-    "lost_authority": "Entfernte Berechtigungen",
-    "requestable_replacements": "Anforderbare Alternativen",
-    "descriptor_gaps": "Deskriptorlücken",
-    "migration_errors": "Blockierende Migrationsfehler",
-    "none": "Keine"
-  },
   "review_target_editor": {
     "label": "Coworker-Prüfer",
     "description": "Wähle einen autorisierten Coworker-Prüfer.",
@@ -254,6 +255,35 @@
     "bridge_link": "Chat #{{id}}: {{title}}",
     "new_title": "Neuer Chat",
     "view_working_session": "Arbeitssitzung ansehen"
+  },
+  "conversations": {
+    "index_label": "Konversationsübersicht",
+    "heading": "Konversationen",
+    "description": "Finde und verwalte die Chats dieses Coworkers.",
+    "pinned": "Angeheftet",
+    "loading": "Konversationen werden geladen…",
+    "loading_more": "Weitere werden geladen…",
+    "error": "Konversationen sind nicht verfügbar.",
+    "result_count_one": "{{count}} Nebenchat",
+    "result_count_other": "{{count}} Nebenchats",
+    "result_count_limited": "Erste {{count}} passende Nebenchats",
+    "sort": "Sortieren",
+    "sort_last_activity": "Letzte Aktivität",
+    "sort_title": "Titel",
+    "sort_created": "Erstellt",
+    "no_matches": "Keine Nebenchats entsprechen diesen Filtern.",
+    "unread": "Ungelesen",
+    "active_work": "Aktive Arbeit",
+    "archived": "Archiviert",
+    "matches_one": "{{count}} Treffer",
+    "matches_other": "{{count}} Treffer",
+    "actions": "Aktionen für {{title}}",
+    "rename": "Umbenennen",
+    "rename_prompt": "Chat umbenennen",
+    "archive": "Archivieren",
+    "restore": "Wiederherstellen",
+    "delete": "Löschen",
+    "delete_confirm": "{{title}} löschen?"
   },
   "detail": {
     "soul_heading": "SOUL.md",

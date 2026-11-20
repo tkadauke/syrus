@@ -163,7 +163,21 @@
     "last_result": "Last result: {{result}} · journaled through {{date}}",
     "never_run": "never run",
     "system_run_time": "System schedule run time",
-    "save_time": "Save time"
+    "save_time": "Save time",
+    "latest_result": "Latest result",
+    "view_all_runs": "View all runs",
+    "no_job_needed": "No Job was needed",
+    "outcomes": {
+      "never_run": "Never run",
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "blocked": "Blocked",
+      "cancelled": "Cancelled",
+      "journaled": "Journaled",
+      "skipped": "Skipped"
+    }
   },
   "capabilities": {
     "sentences": {
@@ -202,19 +216,6 @@
     "integrations": { "gmail": "Gmail", "calendar": "Calendar" },
     "coming_later": "Coming later"
   },
-  "cutover": {
-    "title": "Permission cutover report",
-    "description": "Dry-run comparison only. Legacy grants are audit evidence and do not become unified permission rules.",
-    "ready": "Ready",
-    "blocked": "Blocked",
-    "legacy_grants": "Legacy grants (before)",
-    "recommended_defaults": "Recommended defaults (after)",
-    "lost_authority": "Authority removed",
-    "requestable_replacements": "Requestable replacements",
-    "descriptor_gaps": "Descriptor gaps",
-    "migration_errors": "Blocking migration errors",
-    "none": "None"
-  },
   "review_target_editor": {
     "label": "Coworker reviewer",
     "description": "Select an authorized coworker reviewer.",
@@ -243,6 +244,35 @@
     "bridge_link": "via Chat #{{id}}: {{title}}",
     "new_title": "New chat",
     "view_working_session": "View working session"
+  },
+  "conversations": {
+    "index_label": "Conversation index",
+    "heading": "Conversations",
+    "description": "Find and manage this coworker’s chats.",
+    "pinned": "Pinned",
+    "loading": "Loading conversations…",
+    "loading_more": "Loading more…",
+    "error": "Conversations are unavailable.",
+    "result_count_one": "{{count}} side chat",
+    "result_count_other": "{{count}} side chats",
+    "result_count_limited": "First {{count}} matching side chats",
+    "sort": "Sort",
+    "sort_last_activity": "Recent activity",
+    "sort_title": "Title",
+    "sort_created": "Created",
+    "no_matches": "No side chats match these filters.",
+    "unread": "Unread",
+    "active_work": "Active work",
+    "archived": "Archived",
+    "matches_one": "{{count}} match",
+    "matches_other": "{{count}} matches",
+    "actions": "Actions for {{title}}",
+    "rename": "Rename",
+    "rename_prompt": "Rename chat",
+    "archive": "Archive",
+    "restore": "Restore",
+    "delete": "Delete",
+    "delete_confirm": "Delete {{title}}?"
   },
   "detail": {
     "soul_heading": "SOUL.md",

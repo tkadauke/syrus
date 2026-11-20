@@ -28,7 +28,6 @@ export type CoworkerDetail = CoworkerSummary & {
     constraints: { confirm_paths?: string[]; max_spawns_per_run?: number; max_spawns_per_day?: number }
     scope?: unknown
   }[]
-  permission_cutover_report: PermissionCutoverReport
   grant_catalog: {
     name: string
     label: string
@@ -59,6 +58,31 @@ export type CoworkerDetail = CoworkerSummary & {
     delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
   }
 }
+export type CoworkerConversation = {
+  id: number
+  title: string
+  path: string
+  main: boolean
+  preview: string | null
+  last_activity_at: string
+  created_at: string
+  archived: boolean
+  unread: boolean
+  active_work: boolean
+  title_match: boolean
+  match_count: number
+  match: { message_id: number; snippet: string } | null
+}
+export type CoworkerConversationIndex = {
+  main_chat: CoworkerConversation | null
+  side_chats: CoworkerConversation[]
+  result_count: number
+  result_count_exact: boolean
+  next_cursor: string | null
+  filter: Record<string, unknown>
+  filter_schema: import("@app/components/FilterBar").FilterSchemaField[]
+  sort: "last_activity" | "title" | "created_at"
+}
 export type UnsavedWorkspace = {
   branch: string
   path: string
@@ -69,15 +93,6 @@ export type UnsavedWorkspace = {
   last_failed_at: string
   attempt_count: number
   retry_exhausted: boolean
-}
-export type PermissionCutoverReport = {
-  ready: boolean
-  legacy_grants: { capability: string; approval_policy: string; effective_policy: "ask" | "allow"; scope: unknown; constraints: Record<string, unknown> }[]
-  recommended_defaults: { capability: string; operation: string; tools: string[]; roles: Record<string, "deny" | "ask" | "allow"> }[]
-  lost_authority: { legacy_capability: string; capability: string; operation: string; role: string; before: string; after: string }[]
-  requestable_replacements: { capability: string; operation: string; tools: string[]; roles: string[] }[]
-  descriptor_gaps: { legacy_capability: string; tools: string[]; reasons: string[] }[]
-  migration_errors: { code: string; message: string; tools: string[] }[]
 }
 export type CoworkerSchedule = {
   id: number
@@ -96,7 +111,14 @@ export type CoworkerSchedule = {
   last_system_result: string | null
   last_system_result_reason: string | null
   journaling_overdue: boolean
-  system_result_history: Array<{ date: string; result: string; reason: string | null; recorded_at?: string }>
+  latest_result: {
+    occurred_at: string | null
+    target_date: string | null
+    outcome: string
+    reason: string | null
+    job: { id: number; slug: string; path: string } | null
+    job_needed: boolean | null
+  }
 }
 export type CoworkerActivityPayload = {
   spend: { week_usd: number; total_usd: number }
@@ -190,6 +212,12 @@ export function fetchCoworker(id: string) {
 export function fetchCoworkerTab(id: string, tab: "profile" | "chats" | "capabilities" | "schedules") {
   return getJson<Partial<CoworkerDetail>>(`/api/v1/app/coworkers/${id}/${tab}`)
 }
+export function fetchCoworkerConversationIndex(id: string, search = "") {
+  return getJson<CoworkerConversationIndex>(`/api/v1/app/coworkers/${id}/conversation_index${search}`)
+}
+export const renameCoworkerConversation = (chatId: number, title: string) => patchJson(`/api/v1/app/chats/${chatId}/rename`, { name: title })
+export const archiveCoworkerConversation = (chatId: number, archived: boolean) => patchJson(`/api/v1/app/chats/${chatId}/${archived ? "unhide" : "hide"}`)
+export const deleteCoworkerConversation = (chatId: number) => deleteJson(`/api/v1/app/chats/${chatId}`)
 export function fetchCoworkerMemory(id: string, search: string) {
   return getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
 }

@@ -161,9 +161,15 @@ seven-day catch-up bound. Older dates are recorded as
 is retried at most once per hour and stops after three attempts until the next
 daily window. System schedules stay scheduled rather than being auto-paused. Fire errors
 are retained with their exception reason, and journaling is called out as
-overdue only when it is more than one day behind. The periodically sampled
+overdue only when it is more than one day behind.
 
-`syrus_coworkers_journaling_unhealthy_total` metric counts active coworkers
+The Schedule tab presents one latest-result summary per schedule rather than
+inline result history. It links the exact scheduled Job when one exists and
+offers **View all runs**, which opens the Jobs dashboard filtered by the
+schedule's `scheduled_task_id`. A skipped Journaling occurrence explicitly
+states that no Job was needed; a schedule with no result is shown as never run.
+
+The periodically sampled `syrus_coworkers_journaling_unhealthy_total` metric counts active coworkers
 older than 25 hours without a fire or recorded dormant skip inside that window.
 Successful journaling is also completely
 silent: the only output is the persisted workspace update and
@@ -185,6 +191,16 @@ The initial foundation stores user-owned coworker identities, globally unique
 handles, model preferences, workspace remotes, appearance, explicit capability
 grants, and main or side chat links. Existing chats remain Syrus chats unless a
 coworker chat link explicitly assigns them to a coworker.
+
+The Chat tab keeps the main chat pinned above a paginated side-chat index. Its
+shared FilterBar searches titles and indexed message contents and filters by
+active or archived state, unread state, active work, creation date, and last
+activity. The URL preserves filters and sorting. Results include bounded
+message previews or highlighted search excerpts, match counts, activity and
+unread indicators, and standard rename, archive or restore, and delete actions.
+Hidden mention working sessions are excluded. New side chats receive a normal
+generated title after their first substantive message, while explicit renames
+remain authoritative.
 
 Coworker creation validates and tests the GitHub remote before creating any
 records. It registers a previously unknown remote with polling and PR

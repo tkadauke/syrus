@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { FormEvent, useEffect, useState } from "react"
+import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Avatar } from "@app/components/Avatar"
 import { AvatarPicker } from "@app/components/AvatarPicker"
@@ -10,8 +10,10 @@ import { Select } from "@app/components/Select"
 import { Textarea } from "@app/components/Textarea"
 import { PageHeading } from "@app/components/Heading"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { ToolApprovalDetails } from "@app/components/ToolApprovalDetails"
 import { FilterBar, type FilterLinkBuilder, type FilterTree } from "@app/components/FilterBar"
+import { encodeFilterTree } from "@app/components/filterBar/helpers"
 import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { Markdown } from "@app/lib/Markdown"
@@ -24,6 +26,10 @@ import {
   createCoworker,
   createSideChat,
   fetchCoworker,
+  fetchCoworkerConversationIndex,
+  renameCoworkerConversation,
+  archiveCoworkerConversation,
+  deleteCoworkerConversation,
   fetchCoworkerOptions,
   fetchCoworkerTab,
   fetchCoworkerActivity,
@@ -39,6 +45,7 @@ import {
   updateCoworker,
   updateCoworkerGrant,
   type CoworkerDetail,
+  type CoworkerConversation,
   type CoworkerSchedule,
   type CoworkerMemoryFile,
   type CoworkerSummary
@@ -452,7 +459,11 @@ function CoworkerPage({ id }: { id: string }) {
   const sideChat = useMutation({
     mutationFn: () => createSideChat(Number(id)),
     onSuccess: async (data) => {
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }), queryClient.invalidateQueries({ queryKey: ["chats"] })])
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }),
+        queryClient.invalidateQueries({ queryKey: ["coworkers", id, "conversation-index"] }),
+        queryClient.invalidateQueries({ queryKey: ["chats"] })
+      ])
       navigate(withRoutePrefix(data.chat_path, prefix))
     }
   })
@@ -479,19 +490,7 @@ function CoworkerPage({ id }: { id: string }) {
         </div>
       </Page.Header>
       <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"]} />
-      {tab === "chat" ? (
-        <section className="space-y-3">
-          <button className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60" disabled={sideChat.isPending} onClick={() => sideChat.mutate()}>
-            {sideChat.isPending ? t("detail.creating_side_chat") : t("detail.new_side_chat")}
-          </button>
-          {sideChat.isError ? <PanelMessage>{sideChat.error.message}</PanelMessage> : null}
-          {coworker.chats.map((chat) => (
-            <Link className="block rounded border border-border bg-surface p-3 text-brand" key={chat.id} to={withRoutePrefix(chat.path, prefix)}>
-              {chat.role === "main" ? t("detail.main_chat") : chat.title}
-            </Link>
-          ))}
-        </section>
-      ) : null}
+      {tab === "chat" ? <CoworkerConversationIndex id={id} create={sideChat} legacyChats={coworker.chats} prefix={prefix} /> : null}
       {tab === "profile" ? (
         <section className="space-y-4 rounded border border-border bg-surface p-5">
           <dl>
@@ -515,6 +514,248 @@ function CoworkerPage({ id }: { id: string }) {
       ) : null}
     </Page.Root>
   )
+}
+
+function CoworkerConversationIndex({
+  id,
+  prefix,
+  create,
+  legacyChats
+}: {
+  id: string
+  prefix: string
+  create: { isPending: boolean; isError: boolean; error: Error | null; mutate: () => void }
+  legacyChats: CoworkerDetail["chats"]
+}) {
+  const { t } = useT("coworkers")
+  const location = useLocation()
+  const navigate = useNavigate()
+  const querySearch = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    params.delete("tab")
+    const value = params.toString()
+    return value ? `?${value}` : ""
+  }, [location.search])
+  const query = useQuery({
+    queryKey: ["coworkers", id, "conversation-index", querySearch],
+    queryFn: () => fetchCoworkerConversationIndex(id, querySearch),
+    placeholderData: (previous) => previous
+  })
+  const [older, setOlder] = useState<CoworkerConversation[]>([])
+  const [cursor, setCursor] = useState<string | null>(null)
+  const loadMore = useMutation({
+    mutationFn: () => {
+      const params = new URLSearchParams(querySearch)
+      if (cursor) params.set("cursor", cursor)
+      return fetchCoworkerConversationIndex(id, `?${params}`)
+    },
+    onSuccess: (page) => {
+      setOlder((current) => [...current, ...page.side_chats])
+      setCursor(page.next_cursor)
+    }
+  })
+  useEffect(() => {
+    setOlder([])
+    setCursor(query.data?.next_cursor || null)
+  }, [query.data, querySearch])
+
+  function setSort(event: React.ChangeEvent<HTMLSelectElement>) {
+    const params = new URLSearchParams(location.search)
+    if (event.target.value === "last_activity") params.delete("sort")
+    else params.set("sort", event.target.value)
+    params.delete("cursor")
+    navigate(`${location.pathname}?${params}`)
+  }
+
+  if (query.isPending) return <PanelMessage>{t("conversations.loading")}</PanelMessage>
+  if (query.isError || !query.data) return <PanelMessage>{t("conversations.error")}</PanelMessage>
+  const payload = Array.isArray(query.data.side_chats) && Array.isArray(query.data.filter_schema) ? query.data : legacyConversationPayload(legacyChats)
+  const sideChats = [...payload.side_chats, ...older]
+  return (
+    <section className="space-y-5" aria-label={t("conversations.index_label")}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">{t("conversations.heading")}</h2>
+          <p className="text-sm text-text-secondary">{t("conversations.description")}</p>
+        </div>
+        <button
+          className="shrink-0 rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60"
+          disabled={create.isPending}
+          onClick={() => create.mutate()}
+        >
+          {create.isPending ? t("detail.creating_side_chat") : t("detail.new_side_chat")}
+        </button>
+      </div>
+      {create.isError && create.error ? <PanelMessage>{create.error.message}</PanelMessage> : null}
+      {payload.main_chat ? (
+        <div>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("conversations.pinned")}</h3>
+          <ConversationRow chat={payload.main_chat} coworkerId={id} prefix={prefix} />
+        </div>
+      ) : null}
+      <div className="space-y-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="font-semibold">{t("activity.side_chats")}</h3>
+            <p className="text-sm text-text-secondary">
+              {t(payload.result_count_exact ? "conversations.result_count" : "conversations.result_count_limited", { count: payload.result_count })}
+            </p>
+          </div>
+          <label className="w-full text-sm font-medium sm:w-auto">
+            {t("conversations.sort")}
+            <Select className="mt-1 max-w-full sm:ml-2 sm:mt-0" onChange={setSort} value={payload.sort}>
+              <option value="last_activity">{t("conversations.sort_last_activity")}</option>
+              <option value="title">{t("conversations.sort_title")}</option>
+              <option value="created_at">{t("conversations.sort_created")}</option>
+            </Select>
+          </label>
+        </div>
+        <div className="rounded border border-border bg-surface p-3">
+          <FilterBar filter={payload.filter} filterSchema={payload.filter_schema} pathname={location.pathname} search={location.search} />
+        </div>
+        {sideChats.length ? (
+          <ul className="divide-y divide-border rounded border border-border bg-surface">
+            {sideChats.map((chat) => (
+              <li key={chat.id}>
+                <ConversationRow chat={chat} coworkerId={id} prefix={prefix} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <PanelMessage>
+            {payload.result_count === 0 && !hasConversationFilters(payload.filter) ? t("activity.no_side_chats") : t("conversations.no_matches")}
+          </PanelMessage>
+        )}
+        {cursor ? (
+          <button
+            className="rounded border border-border px-3 py-2 text-sm disabled:opacity-60"
+            disabled={loadMore.isPending}
+            onClick={() => loadMore.mutate()}
+          >
+            {loadMore.isPending ? t("conversations.loading_more") : t("activity.load_more")}
+          </button>
+        ) : null}
+        {loadMore.isError ? <PanelMessage>{t("conversations.error")}</PanelMessage> : null}
+      </div>
+    </section>
+  )
+}
+
+function legacyConversationPayload(chats: CoworkerDetail["chats"]): Awaited<ReturnType<typeof fetchCoworkerConversationIndex>> {
+  const row = (chat: CoworkerDetail["chats"][number]): CoworkerConversation => ({
+    id: chat.id,
+    title: chat.title,
+    path: chat.path,
+    main: chat.role === "main",
+    preview: null,
+    last_activity_at: "",
+    created_at: "",
+    archived: false,
+    unread: false,
+    active_work: false,
+    title_match: false,
+    match_count: 0,
+    match: null
+  })
+  return {
+    main_chat: chats.find((chat) => chat.role === "main") ? row(chats.find((chat) => chat.role === "main")!) : null,
+    side_chats: chats.filter((chat) => chat.role === "side").map(row),
+    result_count: chats.filter((chat) => chat.role === "side").length,
+    result_count_exact: true,
+    next_cursor: null,
+    filter: { and: [] },
+    filter_schema: [],
+    sort: "last_activity"
+  }
+}
+
+function hasConversationFilters(filter: Record<string, unknown>) {
+  return Array.isArray(filter.and) && filter.and.length > 0
+}
+
+function ConversationRow({ chat, coworkerId, prefix }: { chat: CoworkerConversation; coworkerId: string; prefix: string }) {
+  const { t } = useT("coworkers")
+  const queryClient = useQueryClient()
+  const action = useMutation({
+    mutationFn: async (kind: "rename" | "archive" | "delete") => {
+      if (kind === "rename") {
+        const title = window.prompt(t("conversations.rename_prompt"), chat.title)?.trim()
+        if (title) await renameCoworkerConversation(chat.id, title)
+      } else if (kind === "archive") {
+        await archiveCoworkerConversation(chat.id, chat.archived)
+      } else if (window.confirm(t("conversations.delete_confirm", { title: chat.title }))) {
+        await deleteCoworkerConversation(chat.id)
+      }
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["coworkers", coworkerId, "conversation-index"] })
+  })
+  const destination = `${withRoutePrefix(chat.path, prefix)}${chat.match ? `#message-${chat.match.message_id}` : ""}`
+  return (
+    <article className={`flex min-w-0 items-start gap-3 p-4 ${chat.main ? "rounded border border-brand/30 bg-brand/5" : ""}`}>
+      <Link className="min-w-0 flex-1" to={destination}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-brand">{chat.main ? t("detail.main_chat") : chat.title_match ? <mark>{chat.title}</mark> : chat.title}</span>
+          {chat.unread ? <span className="rounded-full bg-brand px-2 py-0.5 text-xs text-white">{t("conversations.unread")}</span> : null}
+          {chat.active_work ? <span className="rounded-full bg-warning-subtle px-2 py-0.5 text-xs">{t("conversations.active_work")}</span> : null}
+          {chat.archived ? <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs">{t("conversations.archived")}</span> : null}
+          {chat.match_count > 0 ? <span className="text-xs text-text-secondary">{t("conversations.matches", { count: chat.match_count })}</span> : null}
+        </div>
+        {chat.match ? (
+          <p className="mt-1 line-clamp-2 text-sm text-text-secondary" dangerouslySetInnerHTML={{ __html: safeMatchSnippet(chat.match.snippet) }} />
+        ) : chat.preview ? (
+          <p className="mt-1 line-clamp-2 text-sm text-text-secondary">{chat.preview}</p>
+        ) : null}
+        {chat.last_activity_at ? <RelativeTimestamp value={chat.last_activity_at} /> : null}
+      </Link>
+      {!chat.main ? (
+        <details className="relative shrink-0">
+          <summary aria-label={t("conversations.actions", { title: chat.title })} className="cursor-pointer list-none rounded px-2 py-1 text-text-secondary">
+            •••
+          </summary>
+          <div className="absolute right-0 z-10 mt-1 min-w-32 rounded border border-border bg-surface p-1 shadow-lg">
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("rename")}
+            >
+              {t("conversations.rename")}
+            </button>
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("archive")}
+            >
+              {t(chat.archived ? "conversations.restore" : "conversations.archive")}
+            </button>
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm text-danger-text hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("delete")}
+            >
+              {t("conversations.delete")}
+            </button>
+          </div>
+        </details>
+      ) : null}
+    </article>
+  )
+}
+
+function safeMatchSnippet(html: string) {
+  const template = document.createElement("template")
+  template.innerHTML = html
+  const output = document.createElement("span")
+  const clean = (node: Node, parent: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) return parent.appendChild(document.createTextNode(node.textContent || ""))
+    if (node instanceof HTMLElement && node.tagName.toLowerCase() === "mark") {
+      const mark = document.createElement("mark")
+      node.childNodes.forEach((child) => clean(child, mark))
+      return parent.appendChild(mark)
+    }
+    node.childNodes.forEach((child) => clean(child, parent))
+  }
+  template.content.childNodes.forEach((child) => clean(child, output))
+  return output.innerHTML
 }
 
 function CoworkerApprovals({ id }: { id: string }) {
@@ -644,7 +885,6 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
 
   return (
     <section className="space-y-5">
-      <PermissionCutoverReport report={coworker.permission_cutover_report} />
       <div className="divide-y divide-border rounded border border-border bg-surface">
         {coworker.grant_catalog.map((descriptor) => {
           const capability = descriptor.name
@@ -764,76 +1004,6 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
   )
 }
 
-function PermissionCutoverReport({ report }: { report: CoworkerDetail["permission_cutover_report"] }) {
-  const { t } = useT("coworkers")
-  return (
-    <section className="rounded border border-border bg-surface p-4" aria-labelledby="permission-cutover-heading">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold" id="permission-cutover-heading">
-          {t("cutover.title")}
-        </h2>
-        <span
-          className={`rounded px-2 py-1 text-xs font-medium ${report.ready ? "bg-success-surface text-success-text" : "bg-danger-surface text-danger-text"}`}
-        >
-          {t(report.ready ? "cutover.ready" : "cutover.blocked")}
-        </span>
-      </div>
-      <p className="mt-1 text-sm text-text-secondary">{t("cutover.description")}</p>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <CutoverList
-          title={t("cutover.legacy_grants")}
-          empty={t("cutover.none")}
-          items={report.legacy_grants.map((grant) => `${grant.capability}: ${grant.approval_policy}`)}
-        />
-        <CutoverList
-          title={t("cutover.recommended_defaults")}
-          empty={t("cutover.none")}
-          items={report.recommended_defaults.map(
-            (item) =>
-              `${item.operation}: ${Object.entries(item.roles)
-                .map(([role, policy]) => `${role}=${policy}`)
-                .join(", ")}`
-          )}
-        />
-        <CutoverList
-          title={t("cutover.lost_authority")}
-          empty={t("cutover.none")}
-          items={report.lost_authority.map((item) => `${item.operation} (${item.role}): ${item.before} → ${item.after}`)}
-        />
-        <CutoverList
-          title={t("cutover.requestable_replacements")}
-          empty={t("cutover.none")}
-          items={report.requestable_replacements.map((item) => `${item.operation}: ${item.roles.join(", ")}`)}
-        />
-        <CutoverList
-          title={t("cutover.descriptor_gaps")}
-          empty={t("cutover.none")}
-          items={report.descriptor_gaps.map((gap) => `${gap.legacy_capability}: ${gap.reasons.join(", ")}`)}
-          danger
-        />
-        <CutoverList title={t("cutover.migration_errors")} empty={t("cutover.none")} items={report.migration_errors.map((error) => error.message)} danger />
-      </div>
-    </section>
-  )
-}
-
-function CutoverList({ title, items, empty, danger = false }: { title: string; items: string[]; empty: string; danger?: boolean }) {
-  return (
-    <div>
-      <h3 className="text-sm font-medium">{title}</h3>
-      {items.length ? (
-        <ul className={`mt-1 list-disc space-y-1 pl-5 text-sm ${danger ? "text-danger-text" : "text-text-secondary"}`}>
-          {items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-1 text-sm text-text-secondary">{empty}</p>
-      )}
-    </div>
-  )
-}
-
 function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
   const { t } = useT("coworkers")
   const [kind, setKind] = useState("cron")
@@ -916,26 +1086,13 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
                         })}
                       </div>
                     ) : null}
-                    <div className="text-sm text-text-secondary">
-                      {schedule.state === "paused"
-                        ? t("schedule.journaling_paused")
-                        : t("schedule.last_result", {
-                            result: schedule.last_system_result || t("schedule.never_run"),
-                            date: schedule.last_journaled_on || "—"
-                          })}
-                    </div>
-                    {schedule.system_result_history
-                      .slice(-7)
-                      .reverse()
-                      .map((entry) => (
-                        <div className="text-xs text-text-secondary" key={entry.date}>
-                          {entry.date}: {entry.result}
-                          {entry.reason ? ` (${entry.reason})` : ""}
-                        </div>
-                      ))}
                     <SystemScheduleTime coworkerId={String(coworker.id)} onChanged={onChanged} schedule={schedule} />
                   </>
                 ) : null}
+                <LatestScheduleResult result={schedule.latest_result} />
+                <Link className="text-sm text-brand hover:underline" to={`/dashboard/jobs?q=${scheduleFilter(schedule.id)}`}>
+                  {t("schedule.view_all_runs")}
+                </Link>
               </div>
               <div className="flex gap-2">
                 {schedule.state === "scheduled" ? (
@@ -971,6 +1128,33 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
         </ul>
       )}
     </section>
+  )
+}
+
+function scheduleFilter(id: number) {
+  return encodeFilterTree({ and: [{ field: "scheduled_task_id", op: "is", value: String(id) }] })
+}
+
+function LatestScheduleResult({ result }: { result: CoworkerSchedule["latest_result"] }) {
+  const { t } = useT("coworkers")
+  const failure = ["failed", "blocked", "cancelled"].includes(result.outcome)
+  return (
+    <div className={`mt-2 text-sm ${failure ? "font-medium text-danger-text" : "text-text-secondary"}`} role={failure ? "alert" : undefined}>
+      <span>
+        {t("schedule.latest_result")}: {t(`schedule.outcomes.${result.outcome}`, { defaultValue: result.outcome })}
+      </span>
+      {result.target_date || result.occurred_at ? <span> · {result.target_date || new Date(result.occurred_at!).toLocaleString()}</span> : null}
+      {result.job ? (
+        <>
+          {" · "}
+          <Link className="underline" to={result.job.path}>
+            {result.job.slug}
+          </Link>
+        </>
+      ) : null}
+      {result.job_needed === false ? <span> · {t("schedule.no_job_needed")}</span> : null}
+      {result.reason ? <div>{result.reason}</div> : null}
+    </div>
   )
 }
 

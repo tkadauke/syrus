@@ -169,7 +169,21 @@
     "last_result": "Eventus ultimus: {{result}} · usque ad {{date}} scriptum",
     "never_run": "numquam actum",
     "system_run_time": "Hora consilii systematis",
-    "save_time": "Horam serva"
+    "save_time": "Horam serva",
+    "latest_result": "Eventus ultimus",
+    "view_all_runs": "Omnes cursus vide",
+    "no_job_needed": "Nullum Opus necessarium erat",
+    "outcomes": {
+      "never_run": "Numquam actum",
+      "queued": "In ordine",
+      "running": "Agitur",
+      "succeeded": "Perfectum",
+      "failed": "Defecit",
+      "blocked": "Impedita",
+      "cancelled": "Revocatum",
+      "journaled": "Scriptum",
+      "skipped": "Praetermissum"
+    }
   },
   "capabilities": {
     "sentences": {
@@ -208,19 +222,6 @@
     "integrations": { "gmail": "Gmail", "calendar": "Calendarium" },
     "coming_later": "Postea adveniet"
   },
-  "cutover": {
-    "title": "Relatio transitionis permissionum",
-    "description": "Haec tantum probatio est. Concessiones veteres testimonia actorum sunt neque regulae permissionum fiunt.",
-    "ready": "Parata",
-    "blocked": "Impedita",
-    "legacy_grants": "Concessiones veteres (ante)",
-    "recommended_defaults": "Praedefinita commendata (post)",
-    "lost_authority": "Potestas remota",
-    "requestable_replacements": "Substitutiones petibiles",
-    "descriptor_gaps": "Lacunae descriptorum",
-    "migration_errors": "Errores migrationem impedientes",
-    "none": "Nulla"
-  },
   "review_target_editor": {
     "label": "Recensor collega",
     "description": "Recensorem collegam auctoritate praeditum elige.",
@@ -249,6 +250,35 @@
     "bridge_link": "Colloquium #{{id}}: {{title}}",
     "new_title": "Colloquium novum",
     "view_working_session": "Sessionem laboris vide"
+  },
+  "conversations": {
+    "index_label": "Index colloquiorum",
+    "heading": "Colloquia",
+    "description": "Colloquia huius collegae quaere et administra.",
+    "pinned": "Affixum",
+    "loading": "Colloquia onerantur…",
+    "loading_more": "Plura onerantur…",
+    "error": "Colloquia praesto non sunt.",
+    "result_count_one": "{{count}} colloquium secundarium",
+    "result_count_other": "{{count}} colloquia secundaria",
+    "result_count_limited": "Prima {{count}} colloquia secundaria congruentia",
+    "sort": "Ordina",
+    "sort_last_activity": "Actio recens",
+    "sort_title": "Titulus",
+    "sort_created": "Creatum",
+    "no_matches": "Nulla colloquia secundaria his filtris respondent.",
+    "unread": "Non lectum",
+    "active_work": "Opus activum",
+    "archived": "Archivatum",
+    "matches_one": "{{count}} congruentia",
+    "matches_other": "{{count}} congruentiae",
+    "actions": "Actiones pro {{title}}",
+    "rename": "Renomina",
+    "rename_prompt": "Colloquium renomina",
+    "archive": "In archivum mitte",
+    "restore": "Restitue",
+    "delete": "Dele",
+    "delete_confirm": "{{title}} delere?"
   },
   "detail": {
     "soul_heading": "SOUL.md",
