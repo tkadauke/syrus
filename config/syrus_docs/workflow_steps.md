@@ -175,6 +175,16 @@ A repository with no repository rules follows the user's rules. Workflow creatio
 candidate in `agent_provider_routing_decision`, including a
 `routing_resolution` payload with the matched rule, source scope, condition
 results, and final action.
+After choosing a provider, Syrus selects from that user's enabled accounts for
+the provider. Disabled, uncredentialed, authentication-failed, rate-limited,
+exhausted, and below-threshold accounts are skipped. Selection balances active
+Workflows, remaining capacity, and optional account weights; when usage is
+unknown it rotates fairly by weighted assignment history. The selected account
+is pinned before the first Run and is retained by retries and resumable
+sessions. An advanced rule candidate may set `account_id` to pin one account;
+otherwise the candidate represents the whole provider pool. Account-specific
+proactive thresholds override the provider default, and zero disables only
+proactive pausing, not hard-unavailability checks.
 When that action is a hold, Syrus also creates a durable
 `ProviderRoutingHold` before workflow admission. The record captures the
 matched rule and scope, condition evidence, operator-facing reason, resumption
@@ -221,8 +231,15 @@ Operators edit default routing rules from the credentials/account settings
 surfaces and repository-specific rules from the Automation section of repository
 settings. Account rules apply to Jobs that use the user's defaults; repository
 rules override matching account rules for that repository and are gated by the
-same repository-admin permissions as other repository automation settings. Job
-detail surfaces can also edit Job-scoped overrides, gated by the same write
+same repository-admin permissions as other repository automation settings.
+
+Agent Settings also manages multiple subscriptions for one provider. Each
+subscription has an optional label, independent credentials and health, an
+enabled state, an exhaustion threshold, and a routing weight. Disabling an
+account prevents new assignments without removing its history. Routing rules
+may leave account selection automatic or pin an enabled account by its opaque
+identifier; active resumable sessions and Workflows prevent account removal.
+Job detail surfaces can also edit Job-scoped overrides, gated by the same write
 permission used for Job mutation actions. The app API exposes scoped
 collections at
 `/api/v1/app/credentials/provider_routing_rules`,

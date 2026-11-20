@@ -186,11 +186,24 @@ class StepDispatcher
     run_provider_candidate = run_provider_candidate_for(first, workflow)
     return if run_provider_candidate.nil?
 
-    provider_pause = ProviderAvailabilityPause.call(
-      workflow: workflow,
-      task_key: provider_task_key_for(first, workflow),
-      candidate: run_provider_candidate
-    )
+    provider_pause = if routed_failover_already_admitted?(workflow, run_provider_candidate)
+      ProviderAvailabilityPause::Decision.new(
+        pause: false,
+        reason: nil,
+        provider: run_provider_candidate.provider,
+        threshold_percent: nil,
+        remaining_percent: nil,
+        retry_at: nil,
+        availability: nil,
+        failover: nil
+      )
+    else
+      ProviderAvailabilityPause.call(
+        workflow: workflow,
+        task_key: provider_task_key_for(first, workflow),
+        candidate: run_provider_candidate
+      )
+    end
     apply_provider_failover!(workflow, provider_pause) if provider_pause.failover? && !step_specific_provider_task_key?(first, workflow)
     if provider_pause.pause?
       backoff = provider_pause.retry_at ? provider_pause.retry_at - Time.current : START_BLOCKED_BACKOFF
@@ -255,6 +268,11 @@ class StepDispatcher
     workflow.job.log_pending_dependency_warnings!
     log_prepare_skip(run, workflow)
     run
+  end
+
+  def self.routed_failover_already_admitted?(workflow, candidate)
+    decision = workflow.artifact("provider_failover_decision").to_h
+    decision["selected_provider"] == candidate.provider && decision["exhausted"] != true
   end
 
   def self.provider_routing_held?(workflow)
@@ -670,10 +688,20 @@ class StepDispatcher
           return nil
         end
 
+        run_provider_account = if run_provider_candidate.account_id.present?
+          workflow.user.provider_accounts.find_by(
+            provider_key: run_provider_candidate.provider,
+            public_id: run_provider_candidate.account_id
+          )
+        elsif workflow.agent_provider == run_provider_candidate.provider
+          workflow.provider_account
+        end
+
         step.runs.create!(
           job: workflow.job,
           trigger_kind: workflow.trigger_kind,
           agent_provider: run_provider_candidate.provider,
+          provider_account: run_provider_account,
           model: run_provider_candidate.model,
           effort_level: run_provider_candidate.effort_level,
           iteration: step.iteration,
@@ -712,15 +740,14 @@ class StepDispatcher
       effort_level: workflow.effort_level
     )
     task_key = workflow.trigger_kind
-    routed_selection = if ProviderRouting::Resolver.rule_configured?(job: workflow.job.reload, task_key: task_key)
-      ProviderRouting::AvailabilitySelector.call(
-        job: workflow.job,
-        task_key: task_key,
-        workflow_trigger_kind: workflow.trigger_kind,
-        original_candidate: current_candidate,
-        released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
-      )
-    end
+    routed_selection = ProviderRouting::AvailabilitySelector.call(
+      job: workflow.job.reload,
+      task_key: task_key,
+      workflow_trigger_kind: workflow.trigger_kind,
+      original_candidate: current_candidate,
+      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids"),
+      workflow: workflow
+    )
     desired_candidate = routed_selection&.candidate ||
       ProviderRouting::AvailabilitySelector.candidate(
         provider: workflow.job.workflow_agent_provider.presence,
@@ -739,6 +766,7 @@ class StepDispatcher
       "agent_provider_resolved" => desired_candidate.provider
     )
     artifacts["agent_provider_routing_decision"] = routed_selection.artifact if routed_selection
+    artifacts["provider_failover_decision"] = routed_selection.artifact if routed_selection&.failover?
     workflow.update!(
       agent_provider: desired_candidate.provider,
       model: desired_candidate.model,
@@ -758,7 +786,8 @@ class StepDispatcher
       return ProviderRouting::AvailabilitySelector.candidate(
         provider: step.details["provider"],
         model: step.details["model"],
-        effort_level: step.details["effort_level"], reviewer_target: reviewer_target
+        effort_level: step.details["effort_level"], reviewer_target: reviewer_target,
+        account_id: step.details["account_id"]
       )
     end
     if (panel_execution = step.details.to_h["panel_execution"])
@@ -768,7 +797,8 @@ class StepDispatcher
         reviewer_target = reauthorized_reviewer_target(step, member["reviewer_target"])
         step.update!(details: step.details.to_h.merge("reviewer_target" => reviewer_target).compact)
         return ProviderRouting::AvailabilitySelector.candidate(
-          provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: reviewer_target
+          provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: reviewer_target,
+          account_id: member["account_id"]
         )
       end
 
@@ -794,7 +824,8 @@ class StepDispatcher
       end
 
       return ProviderRouting::AvailabilitySelector.candidate(
-        provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: member["reviewer_target"]
+        provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: member["reviewer_target"],
+        account_id: member["account_id"]
       )
     end
 
@@ -804,7 +835,8 @@ class StepDispatcher
       trigger: provider_invocation_for(step),
       workflow_trigger_kind: workflow.trigger_kind,
       original_candidate: current_candidate,
-      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
+      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids"),
+      workflow: workflow
     )
     if selection.held?
       workflow.update!(

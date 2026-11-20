@@ -40,6 +40,12 @@ de:
       search_database_rebuild:
         complete: "Die ausgewählten Neuerstellungen der Suchdatenbank sind abgeschlossen."
     errors:
+      provider_accounts:
+        unregistered_provider: "ist kein registrierter Agentenanbieter"
+        invalid_credential_payload: "muss ein Objekt sein"
+        session_mismatch: "muss zum Benutzer des fortsetzbaren Vorgangs und zum Sitzungsanbieter gehören"
+        run_mismatch: "muss zum Benutzer und Anbieter des Laufs gehören"
+        workflow_mismatch: "muss zum Benutzer und Anbieter des Workflows gehören"
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
       plugin_installation:
@@ -124,6 +130,7 @@ de:
       entry_must_be_object: "Eintrag %{index} muss ein Objekt mit Anbieterschlüssel sein"
       entry_missing_provider: "Eintrag %{index} enthält keinen Anbieter"
       entry_unknown_provider: "Eintrag %{index} enthält den unbekannten Anbieter %{provider}"
+      entry_unknown_account: "Eintrag %{index} enthält ein unbekanntes Konto für diesen Anbieter"
       entry_weight_not_positive: "Gewicht von Eintrag %{index} muss positiv sein"
       entry_unknown_model: "Eintrag %{index} enthält das Modell %{model}, das nicht zu den bekannten Modellen von %{provider} gehört"
       candidates_must_be_array: "Kandidaten müssen ein Array sein"
@@ -676,6 +683,11 @@ de:
       availability_rechecked: "Verfügbarkeit von %{provider} erneut geprüft."
       availability_override_enabled: "Verfügbarkeitsausnahme für den Anbieter %{provider} aktiviert."
       unknown_provider: "Unbekannter Agentenanbieter."
+    provider_accounts:
+      created: "Anbieterkonto verbunden."
+      updated: "Anbieterkonto aktualisiert."
+      removed: "Anbieterkonto entfernt."
+      in_use: "Dieses Konto wird von einem aktiven Workflow oder einer fortsetzbaren Sitzung verwendet und kann nicht entfernt werden. Deaktiviere es, um neue Zuweisungen zu stoppen."
 
     filters:
       unsupported_operator: "Der Operator für %{field} wird nicht unterstützt."

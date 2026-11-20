@@ -100,6 +100,33 @@ RSpec.describe CodexUsageProbe do
     expect(result.snapshot["remaining_percent"]).to eq(98.0)
   end
 
+  it "keeps usage probes independent for two Codex accounts" do
+    user = Factories.user(codex_auth_mode: "chatgpt_login", codex_auth_json: auth_json(account_id: "first"))
+    first = user.default_provider_account("codex")
+    second = ProviderAccount.create!(
+      user: user,
+      provider_key: "codex",
+      authentication_kind: "chatgpt_login",
+      credential_payload: {
+        "codex_auth_mode" => "chatgpt_login",
+        "codex_auth_json" => auth_json(account_id: "second")
+      },
+      position: 1
+    )
+    stub_request(:get, usage_url)
+      .with(headers: { "ChatGPT-Account-ID" => "first" })
+      .to_return(status: 200, body: usage_payload(primary: 100, secondary: 10).to_json)
+    stub_request(:get, usage_url)
+      .with(headers: { "ChatGPT-Account-ID" => "second" })
+      .to_return(status: 200, body: usage_payload(primary: 10, secondary: 10).to_json)
+
+    described_class.refresh_for(user: user, provider_account: first, force: true)
+    described_class.refresh_for(user: user, provider_account: second, force: true)
+
+    expect(ProviderAvailabilityEvidence.for_scope(user: user, provider: "codex", account_id: first.public_id).recent.first.status).to eq("exhausted")
+    expect(ProviderAvailabilityEvidence.for_scope(user: user, provider: "codex", account_id: second.public_id).recent.first.status).to eq("available")
+  end
+
   def usage_payload(primary:, secondary:)
     secondary_window =
       if secondary.nil?

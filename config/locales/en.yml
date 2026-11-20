@@ -73,6 +73,12 @@ en:
     errors:
       invalid_request: "The request is invalid."
       unavailable: "This action is temporarily unavailable."
+      provider_accounts:
+        unregistered_provider: "is not a registered agent provider"
+        invalid_credential_payload: "must be an object"
+        session_mismatch: "must belong to the resumable user and match the session provider"
+        run_mismatch: "must belong to the Run user and provider"
+        workflow_mismatch: "must belong to the Workflow user and provider"
       plugin_installation:
         release_name_mismatch: "must match the release name"
         invalid_roles_shape: "must be an array of non-empty names"
@@ -154,6 +160,7 @@ en:
       entry_must_be_object: "entry %{index} must be an object with a provider key"
       entry_missing_provider: "entry %{index} is missing a provider"
       entry_unknown_provider: "entry %{index} has unknown provider %{provider}"
+      entry_unknown_account: "entry %{index} has an unknown account for this provider"
       entry_weight_not_positive: "entry %{index} weight must be positive"
       entry_unknown_model: "entry %{index} has model %{model} not in %{provider}'s known models"
       candidates_must_be_array: "candidates must be an array"
@@ -736,6 +743,11 @@ en:
       availability_rechecked: "%{provider} availability rechecked."
       availability_override_enabled: "%{provider} provider availability override enabled."
       unknown_provider: "Unknown agent provider."
+    provider_accounts:
+      created: "Provider account connected."
+      updated: "Provider account updated."
+      removed: "Provider account removed."
+      in_use: "This account is referenced by an active Workflow or resumable session and cannot be removed. Disable it to stop new assignments."
 
     filters:
       unsupported_operator: "%{field} operator is not supported."

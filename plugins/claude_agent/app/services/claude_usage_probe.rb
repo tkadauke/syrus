@@ -27,35 +27,36 @@ class ClaudeUsageProbe
   Result = Data.define(:status, :snapshot, :message)
 
   class << self
-    def refresh_for(user:, force: false)
-      new(user: user).refresh(force: force)
+    def refresh_for(user:, provider_account: nil, force: false)
+      new(user: user, provider_account: provider_account).refresh(force: force)
     end
 
-    def stale?(user, now: Time.current)
-      evidence = latest_probe_evidence(user)
+    def stale?(user, provider_account: nil, now: Time.current)
+      evidence = latest_probe_evidence(user, provider_account: provider_account)
       return true if evidence.blank?
 
       evidence.observed_at < now - STALE_AFTER
     end
 
-    def latest_probe_evidence(user)
-      ProviderAvailabilityEvidence
+    def latest_probe_evidence(user, provider_account: nil)
+      scope = ProviderAvailabilityEvidence
         .where(user: user, provider: "claude", source: "usage_probe")
-        .recent
-        .first
+      scope = scope.where(account_id: provider_account.public_id) if provider_account
+      scope.recent.first
     end
   end
 
-  def initialize(user:, http: Net::HTTP, messages_url: ENV.fetch("CLAUDE_USAGE_PROBE_URL", MESSAGES_URL))
+  def initialize(user:, provider_account: nil, http: Net::HTTP, messages_url: ENV.fetch("CLAUDE_USAGE_PROBE_URL", MESSAGES_URL))
     @user = user
+    @provider_account = provider_account
     @http = http
     @messages_url = messages_url
   end
 
   def refresh(force: false)
-    return stored_result if !force && !self.class.stale?(@user)
+    return stored_result if !force && !self.class.stale?(@user, provider_account: @provider_account)
 
-    token = @user.claude_oauth_token.presence
+    token = credential(:claude_oauth_token).presence
     return persist(status: "unsupported", snapshot: {}, message: "Claude usage probing requires a Claude OAuth token.", http_status: nil) if token.blank?
 
     response = request_probe(token: token)
@@ -73,7 +74,7 @@ class ClaudeUsageProbe
   private
 
   def stored_result
-    evidence = self.class.latest_probe_evidence(@user)
+    evidence = self.class.latest_probe_evidence(@user, provider_account: @provider_account)
     return Result.new(status: "unsupported", snapshot: {}, message: nil) if evidence.blank?
 
     Result.new(status: evidence.status, snapshot: evidence.details&.dig("snapshot") || {}, message: nil)
@@ -167,6 +168,7 @@ class ClaudeUsageProbe
   def persist(status:, snapshot:, message:, http_status:)
     ProviderAvailabilityEvidence.record_claude_probe!(
       user: @user,
+      provider_account: @provider_account,
       status: status,
       snapshot: snapshot,
       message: message,
@@ -175,6 +177,10 @@ class ClaudeUsageProbe
     )
     App::ProviderAvailability.clear_cache!(user: @user, provider: "claude")
     Result.new(status: status, snapshot: snapshot, message: message)
+  end
+
+  def credential(name)
+    @provider_account ? @provider_account.credential(name) : @user.public_send(name)
   end
 
   def header_percent(response, name)

@@ -14,6 +14,10 @@ import type {
 } from "../api/providerRoutingRules"
 
 const options: ProviderRoutingOptions = {
+  provider_accounts: [
+    { id: "codex-account-1", provider: "codex", label: "Work Codex" },
+    { id: "claude-account-1", provider: "claude", label: "Claude Max" }
+  ],
   agent_providers: [
     { value: "codex", label: "Codex", configured: true, models: [{ id: "gpt-5", label: "GPT-5" }] },
     { value: "claude", label: "Claude", configured: true, models: [{ id: "sonnet", label: "Sonnet" }] }
@@ -143,6 +147,27 @@ const emptyWorkflowConditionRules: ProviderRoutingRule[] = [
 ]
 
 describe("ProviderRoutingRulesEditor", () => {
+  it("selects an opaque account id for an advanced routing candidate", async () => {
+    const onUpdateRule = vi.fn()
+    renderPanel({ onUpdateRule, rules })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit CI fast path" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    expect(within(dialog).queryByLabelText("Subscription account")).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Advanced" })[0])
+    const accountSelect = within(dialog).getByLabelText("Subscription account")
+    fireEvent.change(accountSelect, { target: { value: "codex-account-1" } })
+    await waitFor(() => expect(accountSelect).toHaveValue("codex-account-1"))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    expect(onUpdateRule).toHaveBeenCalledWith(
+      rules[0],
+      expect.objectContaining({
+        action: expect.objectContaining({ candidates: [expect.objectContaining({ account_id: "codex-account-1" })] })
+      })
+    )
+  })
+
   it("renders ordered first-match rules with read-only inherited rows", () => {
     renderPanel({ inheritedContext, rules })
 

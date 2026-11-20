@@ -38,10 +38,12 @@ class User < ApplicationRecord
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
   has_many :passkeys, dependent: :destroy
   has_many :platform_identities, dependent: :destroy
+  has_many :provider_accounts, dependent: :destroy
   has_one :handle_record, as: :owner, class_name: "Handle", dependent: :destroy
   belongs_to :color_theme, class_name: "Theme", optional: true
 
   after_update_commit :wake_default_provider_work_after_agent_provider_change, if: :saved_change_to_agent_provider?
+  after_save :sync_legacy_provider_accounts, if: :saved_legacy_provider_credentials?
 
   DEFAULT_PROVIDER_AVAILABILITY_PAUSE_THRESHOLD_PERCENT = 10
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
@@ -61,6 +63,11 @@ class User < ApplicationRecord
     "gemini_api_key" => "Gemini API key",
     "muse_api_key" => "Muse API key"
   }.freeze
+  # Compatibility boundary for the singular credential rollout. Delete these
+  # columns and this list after callers consume ProviderAccount payloads.
+  LEGACY_PROVIDER_CREDENTIALS = %w[
+    claude_oauth_token codex_api_key codex_auth_json codex_auth_mode gemini_api_key muse_api_key
+  ].freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",
     "last_view" => "list",
@@ -599,12 +606,12 @@ class User < ApplicationRecord
     [ provider_availability_pause_threshold_for(provider) * 2, provider_availability_pause_threshold_for(provider) + 10 ].max.clamp(0, 100)
   end
 
-  def provider_availability_override_for(provider)
-    provider_availability_overrides.to_h[provider.to_s]
+  def provider_availability_override_for(provider, provider_account: nil)
+    provider_availability_overrides.to_h[provider_availability_override_key(provider, provider_account)]
   end
 
-  def provider_availability_overridden?(provider, evidence_observed_at: nil)
-    override = provider_availability_override_for(provider)
+  def provider_availability_overridden?(provider, provider_account: nil, evidence_observed_at: nil)
+    override = provider_availability_override_for(provider, provider_account: provider_account)
     return false unless override.is_a?(Hash)
 
     override_at = parse_provider_availability_time(override["overridden_at"])
@@ -613,28 +620,41 @@ class User < ApplicationRecord
     override_at.present? && override_at >= evidence_observed_at
   end
 
-  def override_provider_availability!(provider, by_user: self)
+  def override_provider_availability!(provider, provider_account: nil, by_user: self)
     provider = provider.to_s
     update!(
       provider_availability_overrides: provider_availability_overrides.to_h.merge(
-        provider => {
+        provider_availability_override_key(provider, provider_account) => {
           "overridden_at" => Time.current.iso8601,
           "overridden_by_user_id" => by_user&.id
         }.compact
       )
     )
-    App::ProviderAvailability.broadcast_changed(user: self, provider: provider)
+    broadcast_provider_availability_change(provider, provider_account)
   end
 
-  def clear_provider_availability_override!(provider)
+  def clear_provider_availability_override!(provider, provider_account: nil)
     provider = provider.to_s
     overrides = provider_availability_overrides.to_h
-    return false unless overrides.key?(provider)
+    key = provider_availability_override_key(provider, provider_account)
+    return false unless overrides.key?(key)
 
-    overrides.delete(provider)
+    overrides.delete(key)
     update!(provider_availability_overrides: overrides.presence)
-    App::ProviderAvailability.broadcast_changed(user: self, provider: provider)
+    broadcast_provider_availability_change(provider, provider_account)
     true
+  end
+
+  def provider_availability_override_key(provider, provider_account)
+    return provider.to_s if provider_account.nil? || provider_account.default?
+
+    "#{provider}:#{provider_account.public_id}"
+  end
+
+  def broadcast_provider_availability_change(provider, provider_account)
+    options = { user: self, provider: provider }
+    options[:provider_account] = provider_account if provider_account
+    App::ProviderAvailability.broadcast_changed(**options)
   end
 
   def update_dashboard_columns!(subject:, columns:)
@@ -736,6 +756,22 @@ class User < ApplicationRecord
 
   def configured_agent_providers
     User.agent_providers.select { |provider| agent_provider_configured?(provider) }
+  end
+
+  def default_provider_account(provider = agent_provider)
+    if provider_accounts.loaded?
+      return provider_accounts.target
+        .select { |account| account.enabled? && account.provider_key == provider }
+        .min_by { |account| [ account.position, account.id ] }
+    end
+
+    provider_accounts.enabled.where(provider_key: provider).in_position_order.first
+  end
+
+  def enabled_provider_accounts(provider = nil)
+    accounts = provider_accounts.enabled
+    accounts = accounts.where(provider_key: provider) if provider.present?
+    accounts.order(:provider_key, :position, :id)
   end
 
   def self.chat_providers
@@ -866,8 +902,20 @@ class User < ApplicationRecord
 
   private
 
+  def saved_legacy_provider_credentials?
+    (saved_changes.keys & LEGACY_PROVIDER_CREDENTIALS).any?
+  end
+
+  def sync_legacy_provider_accounts
+    ProviderAccount.sync_legacy_defaults_for!(self)
+  end
+
   def provider_configured?(provider)
-    AgentProviders.for(provider).configured_for_user?(self)
+    provider_class = AgentProviders.for(provider)
+    accounts = enabled_provider_accounts(provider)
+    return provider_class.configured_for_user?(self) if accounts.empty?
+
+    accounts.any? { |account| provider_class.configured_for_account?(account, user: self) }
   rescue AgentProviders::ConfigurationError
     false
   end

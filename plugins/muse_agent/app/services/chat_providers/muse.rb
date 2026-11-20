@@ -127,7 +127,7 @@ module ChatProviders
       MuseInvocation.new(
         workspace_path,
         prompt: prompt,
-        api_key: chat.user.reload.muse_api_key,
+        api_key: credential(:muse_api_key),
         log_sink: log_sink,
         runner: runner,
         session_id: resume_session_id,

@@ -46,7 +46,7 @@ module WorkUnits
         workflow.with_lock do
           workflow.reload
           return if workflow.runs.exists?
-          return if workflow.agent_provider == decision.failover.selected_provider
+          return if workflow.agent_provider == decision.failover.selected_provider && workflow.artifact("provider_failover_decision").present?
 
           workflow.update!(
             agent_provider: decision.failover.selected_provider,

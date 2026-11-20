@@ -19,6 +19,8 @@ module AgentProviders
       user.claude_oauth_token.present?
     end
 
+    def self.configured_for_account?(account, user:) = account.credential(:claude_oauth_token).present?
+
     def self.mcp_tool_name(tool_name, server_name:)
       "mcp__#{server_name}__#{tool_name}"
     end
@@ -80,17 +82,24 @@ module AgentProviders
       nil
     end
 
-    def self.refresh_stale_usage!(user:, now: Time.current)
-      return unless user.claude_oauth_token.present?
-      return unless ClaudeUsageProbe.stale?(user, now: now)
+    def self.refresh_stale_usage!(user:, provider_account: nil, now: Time.current)
+      provider_account ||= user.default_provider_account(provider_key)
+      token = provider_account&.credential(:claude_oauth_token) || user.claude_oauth_token
+      return unless token.present?
+      return unless ClaudeUsageProbe.stale?(user, provider_account: provider_account, now: now)
 
-      ClaudeUsageProbe.refresh_for(user: user)
+      options = { user: user }
+      options[:provider_account] = provider_account if provider_account
+      ClaudeUsageProbe.refresh_for(**options)
     end
 
-    def self.refresh_usage!(user:, force: false)
-      return unless user.claude_oauth_token.present?
+    def self.refresh_usage!(user:, provider_account: nil, force: false)
+      token = provider_account&.credential(:claude_oauth_token) || user.claude_oauth_token
+      return unless token.present?
 
-      ClaudeUsageProbe.refresh_for(user: user, force: force)
+      options = { user: user, force: force }
+      options[:provider_account] = provider_account if provider_account
+      ClaudeUsageProbe.refresh_for(**options)
     end
 
     def session_capture(result)
@@ -199,7 +208,7 @@ module AgentProviders
       ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
-        oauth_token: invocation_user.claude_oauth_token,
+        oauth_token: credential(:claude_oauth_token, user: invocation_user),
         log_sink: log_sink,
         runner: RunJob.agent_runner,
         timeout: timeout,

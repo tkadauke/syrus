@@ -21,6 +21,7 @@ function makePayload(
     codex_auth_mode?: string
     provider_routing_rules?: CredentialsPayload["provider_routing_rules"]
     provider_routing_options?: CredentialsPayload["options"]["provider_routing_options"]
+    provider_accounts?: CredentialsPayload["provider_accounts"]
   } = {}
 ): CredentialsPayload {
   return {
@@ -63,11 +64,17 @@ function makePayload(
     },
     github_rate_limit: null,
     provider_availability: {},
+    provider_accounts: overrides.provider_accounts ?? [],
     provider_routing_rules: overrides.provider_routing_rules ?? [],
     options: {
       locales: ["en", "de", "la"],
       agent_providers: overrides.agent_providers ?? ["agy", "claude", "codex"],
       agent_provider_labels: overrides.agent_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
+      provider_account_credential_attributes: {
+        claude: ["claude_oauth_token"],
+        codex: ["codex_api_key", "codex_auth_json", "codex_auth_mode"],
+        agy: ["gemini_api_key"]
+      },
       chat_providers: overrides.chat_providers ?? [],
       chat_provider_labels: overrides.chat_provider_labels ?? { claude: "Claude Code", codex: "Codex" },
       roles: overrides.roles ?? ["developer", "product_owner"],
@@ -193,6 +200,85 @@ describe("CredentialsRoute (provider cards)", () => {
     client.setQueryData(["credentials"], refetched)
 
     await waitFor(() => expect(screen.getByLabelText("Max turns")).toHaveValue(321))
+  })
+
+  it("shows four independently controlled Claude subscriptions in Agent Settings", async () => {
+    const accounts = Array.from({ length: 4 }, (_, index) => ({
+      id: `account-${index + 1}`,
+      provider_key: "claude",
+      label: index === 1 ? "Work" : null,
+      display_label: index === 1 ? "Work" : `Claude Code ${index + 1}`,
+      authentication_kind: "claude_oauth_token",
+      enabled: index !== 2,
+      position: index,
+      weight: 1,
+      proactive_pause_threshold: null,
+      effective_proactive_pause_threshold: 10,
+      removable: index !== 0,
+      availability: {
+        provider: "claude",
+        label: "Claude",
+        model: null,
+        state: "available",
+        open: false,
+        usage_exhausted: false,
+        retry_after: null,
+        reason: null,
+        message: "Available",
+        usage: { remaining_percent: 75 }
+      }
+    }))
+    mockRoutes(makePayload({ provider_accounts: accounts }))
+    renderAgentSettings()
+
+    expect(await screen.findByText("Claude Code 1")).toBeInTheDocument()
+    expect(screen.getByText("Work")).toBeInTheDocument()
+    expect(screen.getByText("Claude Code 4")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Advanced" })).toHaveLength(4)
+    expect(screen.getAllByRole("button", { name: "Remove" })[0]).toBeDisabled()
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Advanced" })[0])
+    expect(screen.getByLabelText("Routing weight")).toHaveValue(1)
+    expect(screen.getByLabelText("Exhaustion threshold (%)")).toHaveValue(10)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Rename" })[0])
+    expect(screen.getByLabelText("Account label")).toHaveValue("")
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Reconnect / replace" })[0])
+    const manualSummary = screen.getByText("Or enter credentials manually")
+    fireEvent.click(manualSummary)
+    const manualDetails = manualSummary.closest("details")!
+    expect(within(manualDetails).getByRole("button", { name: "Reconnect / replace" })).toBeDisabled()
+    expect(within(manualDetails).getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+  })
+
+  it("offers provider OAuth for the first account", async () => {
+    mockRoutes(makePayload())
+    renderAgentSettings()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Set up a subscription" }))
+    expect(screen.getByRole("button", { name: "Authorize with Claude Code" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Or enter credentials manually"))
+    const panel = screen.getByTestId("provider-accounts-panel")
+    expect(within(panel).getByRole("button", { name: "Connect" })).toBeDisabled()
+    expect(within(panel).getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+    fireEvent.change(within(panel).getByLabelText("Credential"), { target: { value: "setup-token" } })
+    expect(within(panel).getByRole("button", { name: "Connect" })).toBeEnabled()
+  })
+
+  it("always shows submit and cancel actions for a manual Codex account", async () => {
+    mockRoutes(makePayload())
+    renderAgentSettings()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Set up a subscription" }))
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "codex" } })
+
+    const panel = screen.getByTestId("provider-accounts-panel")
+    expect(within(panel).getByLabelText("Credential")).toBeInTheDocument()
+    expect(within(panel).getByRole("button", { name: "Connect" })).toBeDisabled()
+    fireEvent.click(within(panel).getByRole("button", { name: "Cancel" }))
+    expect(within(panel).queryByLabelText("Credential")).not.toBeInTheDocument()
   })
 
   it("renders one card per provider from the payload, without a global Save", async () => {

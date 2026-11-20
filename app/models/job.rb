@@ -1645,6 +1645,7 @@ class Job < ApplicationRecord
   private
 
   def repin_provider_paused_unstarted_workflows!(from:, to:)
+    provider_account_id = user.default_provider_account(to)&.id
     workflows
       .joins(:work_unit)
       .where(state: %w[queued running], agent_provider: from)
@@ -1655,7 +1656,7 @@ class Job < ApplicationRecord
       .where.not(
         id: Workflow.joins(steps: :runs).select("workflows.id")
       )
-      .update_all(agent_provider: to, updated_at: Time.current)
+      .update_all(agent_provider: to, provider_account_id: provider_account_id, updated_at: Time.current)
   end
 
   def finish_stale_work_units_after_close
@@ -1972,7 +1973,10 @@ class Job < ApplicationRecord
     workflow = WorkUnits::Launcher.instantiate(
       kind: initial_work_kind,
       job: self,
-      artifacts: skill_launch? ? skill_workflow_artifacts : nil
+      artifacts: skill_launch? ? skill_workflow_artifacts : nil,
+      agent_provider: job_provider_setting_default? ? nil : workflow_agent_provider,
+      model: model,
+      effort_level: effort_level
     )
     prompt = if direct? && !skill_launch? && !investigation_launch?
       Prompts::DirectJob.new(

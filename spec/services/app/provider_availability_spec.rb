@@ -571,6 +571,32 @@ RSpec.describe App::ProviderAvailability do
     expect(user.reload.provider_availability_overridden?("codex")).to be(false)
   end
 
+  it "keeps provider availability overrides isolated by account" do
+    user.update!(codex_auth_mode: "api_key", codex_api_key: "default-key", provider_availability_pause_thresholds: { "codex" => 10 })
+    first = user.default_provider_account("codex")
+    second = ProviderAccount.create!(
+      user: user,
+      provider_key: "codex",
+      authentication_kind: "api_key",
+      credential_payload: { "codex_auth_mode" => "api_key", "codex_api_key" => "second-key" },
+      position: 1
+    )
+    user.override_provider_availability!("codex", provider_account: first)
+    user.override_provider_availability!("codex", provider_account: second)
+
+    ProviderAvailabilityEvidence.record_codex_probe!(
+      user: user,
+      provider_account: second,
+      status: "ok",
+      snapshot: { "remaining_percent" => 25.0 },
+      message: "Second account recovered.",
+      observed_at: now
+    )
+
+    expect(user.reload.provider_availability_overridden?("codex", provider_account: first)).to be(true)
+    expect(user.provider_availability_overridden?("codex", provider_account: second)).to be(false)
+  end
+
   it "keeps measured low Codex usage even when a later chat turn succeeds" do
     ProviderAvailabilityEvidence.record_codex_probe!(
       user: user,
@@ -851,6 +877,46 @@ RSpec.describe App::ProviderAvailability do
     expect(evidence.count { |row| row.status == "exhausted" }).to eq(described_class::USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
   end
 
+  it "limits batched evidence independently for sibling accounts" do
+    user.update!(claude_oauth_token: "default-token")
+    first = user.default_provider_account("claude")
+    sibling = ProviderAccount.create!(
+      user: user,
+      provider_key: "claude",
+      authentication_kind: "claude_oauth_token",
+      credential_payload: { "claude_oauth_token" => "sibling-token" },
+      position: 1
+    )
+    selected = ProviderAvailabilityEvidence.create!(
+      user: user,
+      provider: "claude",
+      account_id: first.public_id,
+      status: "available",
+      source: "usage_probe",
+      observed_at: now - 2.days,
+      details: {}
+    )
+    ProviderAvailabilityEvidence.insert_all!(
+      105.times.map do |index|
+        {
+          user_id: user.id,
+          provider: "claude",
+          account_id: sibling.public_id,
+          status: "available",
+          source: "usage_probe",
+          observed_at: now - index.minutes,
+          details: {},
+          created_at: now,
+          updated_at: now
+        }
+      end
+    )
+
+    batch = described_class::Batch.new(user: user, providers: [ "claude" ], now: now)
+
+    expect(batch.evidence_for("claude", provider_account: first).map(&:id)).to include(selected.id)
+  end
+
   it "uses one index-bounded latest terminal Run lookup per provider" do
     providers = User.agent_providers
     jobs = providers.index_with do |provider|
@@ -990,5 +1056,46 @@ RSpec.describe App::ProviderAvailability do
 
     expect(first.dig(:usage, :remaining_percent)).to be_nil
     expect(second.dig(:usage, :remaining_percent)).to eq(18.0)
+  end
+
+  it "keeps direct and batched availability isolated between sibling accounts" do
+    user.update!(claude_oauth_token: "default-token")
+    first = user.default_provider_account("claude")
+    second = ProviderAccount.create!(
+      user: user,
+      provider_key: "claude",
+      authentication_kind: "claude_oauth_token",
+      credential_payload: { "claude_oauth_token" => "second-token" },
+      position: 1
+    )
+    ProviderAvailabilityEvidence.record_claude_probe!(
+      user: user,
+      provider_account: first,
+      status: "available",
+      snapshot: { "session_pct" => 10.0 },
+      message: "Default account is available.",
+      observed_at: now
+    )
+    ProviderAvailabilityEvidence.record_claude_probe!(
+      user: user,
+      provider_account: second,
+      status: "exhausted",
+      snapshot: { "session_pct" => 100.0 },
+      message: "Second account is exhausted.",
+      observed_at: now
+    )
+
+    expect(described_class.for_user(user, "claude", provider_account: second, now: now, cached: false)).to include(
+      state: "exhausted",
+      usage_exhausted: true
+    )
+    expect(described_class.for_user(user, "claude", now: now, cached: false)).to include(
+      state: "available",
+      usage_exhausted: false
+    )
+    expect(described_class.all_for_user(user, now: now).fetch("claude")).to include(
+      state: "available",
+      usage_exhausted: false
+    )
   end
 end
