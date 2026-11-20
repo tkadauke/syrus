@@ -86,4 +86,18 @@ RSpec.describe "install.sh" do
       expect(script).to include("mv .env.tmp .env && chmod 600 .env")
     end
   end
+
+  describe "local backup storage" do
+    it "provisions the configured host bind mount privately and separately from safety archives" do
+      provision = script.index('backup_host_path="$(sed -n')
+      stack_up = script.index('run_logged up compose up -d')
+
+      expect(provision).not_to be_nil
+      expect(provision).to be < stack_up
+      expect(script).to include('backup_host_path="${backup_host_path:-./local-backups}"')
+      expect(script).to include('mkdir -p "$backup_host_path"')
+      expect(script).to include('chmod 700 "$backup_host_path"')
+      expect(script).to include('backup_dir="$PWD/backups"')
+    end
+  end
 end

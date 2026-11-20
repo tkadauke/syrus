@@ -23,6 +23,26 @@ RSpec.describe "API: local backup inventory", type: :request do
     expect(response).to have_http_status(:unauthorized)
   end
 
+  it "forbids every backup operation to a signed-in non-administrator" do
+    admin
+    sign_in_as(Factories.user(global_role: "user"))
+    requests = [
+      -> { get "/api/v1/app/admin/local_backups" },
+      -> { post "/api/v1/app/admin/local_backups" },
+      -> { post "/api/v1/app/admin/local_backups/missing/validate" },
+      -> { post "/api/v1/app/admin/local_backups/missing/pin" },
+      -> { delete "/api/v1/app/admin/local_backups/missing/pin" },
+      -> { delete "/api/v1/app/admin/local_backups/missing" },
+      -> { get "/api/v1/app/admin/local_backups/missing/download" }
+    ]
+
+    requests.each_with_index do |request, index|
+      request.call
+      expect(response).to have_http_status(:forbidden), "request #{index} unexpectedly returned #{response.status}"
+    end
+    expect(AdminAction.where(action: "local_backup_downloaded")).to be_empty
+  end
+
   it "returns rediscovered sealed artifacts without mutation actions" do
     artifact = Pathname.new(ENV.fetch("SYRUS_BACKUP_ROOT")).join("sealed").tap(&:mkpath)
     uuid = SecureRandom.uuid
