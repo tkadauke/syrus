@@ -258,8 +258,11 @@ module Api
           authorize coworker, :show?, policy_class: CoworkerPolicy
           payload = Coworkers::WorkspaceBrowser.new(
             coworker: coworker, repository: workspace_repository(coworker), user: Current.user
-          ).call(path: params[:path])
+          ).call(path: params[:path], filters: params.permit(:search, :extension, :path_prefix, :filename,
+            :filename_exact, :area, :content_kind, :min_size, :max_size, :modified_after, :modified_before, :sort, :cursor).to_h.symbolize_keys)
           render json: payload
+        rescue Coworkers::WorkspaceBrowser::InvalidCursor => error
+          render_error("invalid_cursor", error.message, status: :bad_request)
         rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
           Rails.logger.info("[Coworkers::WorkspaceBrowser] workspace unavailable: #{error.class}: #{error.message}")
           render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
