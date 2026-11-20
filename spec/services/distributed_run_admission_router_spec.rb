@@ -75,6 +75,25 @@ RSpec.describe DistributedRunAdmissionRouter do
     worker(hostname, nil).tap { |payload| payload.delete("worker_storage_key") }
   end
 
+  # Production hosts run one SolidQueue process per queue group, so the
+  # process consuming the Run's queue never also listens on the host's
+  # dispatch queue. Requiring one process to do both found no alternative,
+  # ever, and a refused shard waited on the host that refused it.
+  it "reroutes to a host whose eligible process and dispatch-queue process are separate" do
+    resolver_with(
+      { "hostname" => "worker-b", "worker_storage_key" => "storage-b", "queues" => %w[merges merges-linux-amd64], "eligible" => true },
+      { "hostname" => "worker-b", "worker_storage_key" => "storage-b", "queues" => [ "worker-worker-b" ], "eligible" => false },
+      { "hostname" => "worker-b", "worker_storage_key" => "storage-b", "queues" => [ "resume-storage-b" ], "eligible" => false }
+    )
+    sample("worker-b")
+    dispatch_depths({})
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).to be_reroute
+    expect(decision.queue_name).to eq("worker-worker-b")
+  end
+
   it "reroutes to a worker that has not reported a storage key" do
     resolver_with(anonymous_worker("worker-b"))
     sample("worker-b")
