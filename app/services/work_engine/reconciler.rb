@@ -2751,12 +2751,13 @@ module WorkEngine
         reason = start_block_reason(workflow)
         dependency_block = dependency_block_reason?(reason)
         admission_block = admission_block_reason?(reason)
+        serialization_block = serialization_block_reason?(reason)
         issue(
-          kind: start_block_issue_kind(dependency_block: dependency_block, admission_block: admission_block),
+          kind: start_block_issue_kind(dependency_block: dependency_block, admission_block: admission_block, serialization_block: serialization_block),
           severity: :info,
           affected_ids: ids_for(workflow),
           safe_to_auto_repair: false,
-          recommended_repair_action: start_block_repair_action(dependency_block: dependency_block, admission_block: admission_block),
+          recommended_repair_action: start_block_repair_action(dependency_block: dependency_block, admission_block: admission_block, serialization_block: serialization_block),
           check_after: start_block_next_check_at(workflow),
           evidence: workflow_evidence(workflow).merge(
             start_blocked_reason: reason,
@@ -2767,16 +2768,18 @@ module WorkEngine
       end
     end
 
-    def start_block_issue_kind(dependency_block:, admission_block:)
+    def start_block_issue_kind(dependency_block:, admission_block:, serialization_block: false)
       return :dependency_stack_start_block if dependency_block
       return :resource_admission_start_block if admission_block
+      return :serialized_start_block if serialization_block
 
       :main_health_start_block
     end
 
-    def start_block_repair_action(dependency_block:, admission_block:)
+    def start_block_repair_action(dependency_block:, admission_block:, serialization_block: false)
       return "wait_for_dependency_or_stack_readiness" if dependency_block
       return "wait_for_resource_admission" if admission_block
+      return "wait_for_turn" if serialization_block
 
       "wait_for_main_health"
     end
@@ -3642,6 +3645,19 @@ module WorkEngine
       ]) &&
         !start_blocked_check_due?(workflow) &&
         workflow.job.dependencies_satisfied_for_execution?
+    end
+
+    # Work that is deliberately waiting its turn behind other work -- an Epic
+    # runs one child at a time, an Epic-wide workflow or an urgent Job holds
+    # the line -- is neither a dependency problem nor a main-health one, and
+    # reporting it as "main health blocked" sends an operator after a red
+    # main that does not exist.
+    def serialization_block_reason?(reason)
+      [
+        StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
+        StepDispatcher::EPIC_WIDE_BLOCK_REASON,
+        StepDispatcher::URGENT_BLOCK_REASON
+      ].include?(reason.to_s)
     end
 
     def dependency_block_reason?(reason)

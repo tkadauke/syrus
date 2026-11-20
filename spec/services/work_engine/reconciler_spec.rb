@@ -5674,6 +5674,30 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
+  it "reports an Epic child waiting for its sibling as waiting its turn, not as main health" do
+    run.destroy!
+    update_columns_with_artifacts(workflow, state: "queued",
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    attach_work_unit(
+      workflow,
+      blocked_reason: StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::EPIC_SIBLING_BLOCK_REASON }
+    )
+    allow(StepDispatcher).to receive(:epic_sibling_blocking?).and_return(true)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :main_health_start_block)).to be_nil
+    issue = kind(result, :serialized_start_block)
+    expect(issue).to have_attributes(severity: "info", safe_to_auto_repair: false, recommended_repair_action: "wait_for_turn")
+    expect(plan(result, :wait_for_turn).auto_executable).to eq(false)
+  end
+
   it "classifies main-health start blocks with the matching wait-only action" do
     run.destroy!
     job.repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, ci_health: "broken", landing_paused: true)
