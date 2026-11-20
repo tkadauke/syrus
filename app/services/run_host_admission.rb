@@ -75,38 +75,58 @@ class RunHostAdmission
     return defer("host_resource_semaphore_busy") if resource_guard_full?
     return defer("host_resource_semaphore_busy") if whole_host_grader_conflict?
     return defer("host_admission_staggering") if admitted_within_stagger_window?
+    return defer("host_resource_semaphore_busy") unless claim_whole_host_slot!
 
-    record_whole_host_admission!
     admit("host_capacity_available")
   end
 
-  # Process-local record of whole-host graders admitted on this host but not
-  # yet visible as SpawnedProcess rows. One worker claims several ready Runs
-  # within seconds, before any of them spawns, so the database alone shows
-  # each of them an empty host.
-  @whole_host_admissions = {}
-  @whole_host_mutex = Mutex.new
+  # Host-local record of whole-host graders admitted here but not yet
+  # visible as SpawnedProcess rows. A worker pod runs one SolidQueue process
+  # per queue group, and two of them admitted sibling shards within seconds
+  # -- one off the merges queue, one rerouted onto the host's dispatch queue
+  # -- each seeing an empty host. The processes share the pod's filesystem,
+  # so the record is a directory of claims, checked and written under one
+  # file lock.
+  module WholeHostClaims
+    module_function
 
-  class << self
-    def record_whole_host_admission!(run_id)
-      @whole_host_mutex.synchronize { @whole_host_admissions[run_id] = true }
+    def dir
+      Pathname.new(Dir.tmpdir).join("syrus-whole-host-claims#{ENV['TEST_ENV_NUMBER']}")
     end
 
-    def admitted_whole_host_run_ids(excluding:)
-      ids = @whole_host_mutex.synchronize { @whole_host_admissions.keys } - [ excluding ]
+    def claim!(run_id)
+      FileUtils.mkdir_p(dir)
+      File.open(dir.join(".lock"), File::RDWR | File::CREAT, 0o644) do |lock|
+        lock.flock(File::LOCK_EX)
+        return true if dir.join(run_id.to_s).exist?
+        return false if live_claims(excluding: run_id).any?
+
+        FileUtils.touch(dir.join(run_id.to_s))
+        true
+      end
+    rescue SystemCallError
+      # A claim registry we cannot use must not stop admission; the
+      # database check above still applies.
+      true
+    end
+
+    def live_claims(excluding:)
+      ids = Dir.children(dir).filter_map { |name| Integer(name, exception: false) } - [ excluding ]
       return [] if ids.empty?
 
       live = Run.where(id: ids).where.not(state: Run::TERMINAL_STATES).pluck(:id)
-      @whole_host_mutex.synchronize { (ids - live).each { |id| @whole_host_admissions.delete(id) } }
+      (ids - live).each { |id| FileUtils.rm_f(dir.join(id.to_s)) }
       live
-    rescue StandardError
+    rescue SystemCallError
       []
     end
 
-    def reset_whole_host_admissions!
-      @whole_host_mutex.synchronize { @whole_host_admissions.clear }
+    def reset!
+      FileUtils.rm_rf(dir)
     end
   end
+
+  def self.reset_whole_host_admissions! = WholeHostClaims.reset!
 
   private
 
@@ -351,12 +371,13 @@ class RunHostAdmission
   def whole_host_grader_conflict?
     return false unless whole_host_grader?(step)
 
-    self.class.admitted_whole_host_run_ids(excluding: run.id).any? ||
-      active_run_scope.includes(:step).any? { |active_run| whole_host_grader?(active_run.step) }
+    active_run_scope.includes(:step).any? { |active_run| whole_host_grader?(active_run.step) }
   end
 
-  def record_whole_host_admission!
-    self.class.record_whole_host_admission!(run.id) if whole_host_grader?(step)
+  def claim_whole_host_slot!
+    return true unless whole_host_grader?(step)
+
+    WholeHostClaims.claim!(run.id)
   end
 
   def whole_host_grader?(candidate_step)

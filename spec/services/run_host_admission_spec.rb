@@ -162,6 +162,31 @@ RSpec.describe RunHostAdmission do
       expect(described_class.call(run: grader_run(63))).to be_defer
     end
 
+    # A pod runs one SolidQueue process per queue group: one admitted a
+    # shard off the merges queue while another admitted its sibling off the
+    # host's dispatch queue, and an in-memory record saw neither.
+    it "defers a whole-host grader while another process on this host holds a claim" do
+      first = grader_run(68)
+      described_class.reset_whole_host_admissions!
+      claims = described_class::WholeHostClaims.dir
+      FileUtils.mkdir_p(claims)
+      FileUtils.touch(claims.join(first.id.to_s)) # as the other process records it
+
+      decision = described_class.call(run: grader_run(69))
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+    end
+
+    it "does not hold a claim for a whole-host grader it deferred for another reason" do
+      deferred = grader_run(70)
+      admission = described_class.new(run: deferred)
+      allow(admission).to receive(:admitted_within_stagger_window?).and_return(true)
+      expect(admission.call).to be_defer
+
+      expect(described_class.call(run: grader_run(71))).to be_admit
+    end
+
     it "still packs ordinary graders next to a whole-host one" do
       expect(described_class.call(run: grader_run(64))).to be_admit
 
