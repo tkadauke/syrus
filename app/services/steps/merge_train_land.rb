@@ -52,7 +52,8 @@ module Steps
       merged = merge.respond_to?(:merged) ? merge.merged : merge[:merged]
       raise StepFailed, "merge_train: GitHub did not report the integration PR as merged" unless merged
 
-      integration_sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
+      integration_sha = (merge.respond_to?(:sha) ? merge.sha : merge[:sha]).presence ||
+        merged_pr_merge_commit_sha(client, pr)
       record_integration_merge_commit!(train, integration_sha)
       delete_branch_after_landing(client, train.integration_branch)
       unverified_members = reconcile_members_after_landing!(train, client, pr, integration_sha: integration_sha)
@@ -388,6 +389,16 @@ module Steps
       nil
     end
 
+    # GitHub's merge response normally carries the merge commit SHA; when it
+    # does not, the merged PR's own record does.
+    def merged_pr_merge_commit_sha(client, pr)
+      merged_pr = client.pull_request(repository.slug, pr.number)
+      (merged_pr.respond_to?(:merge_commit_sha) ? merged_pr.merge_commit_sha : merged_pr[:merge_commit_sha]).presence
+    rescue Octokit::Error, Faraday::Error => e
+      log("merge_train: could not read merge commit for integration PR ##{pr.number} (#{e.class}); members stay unverified", kind: "system")
+      nil
+    end
+
     def reconcile_members!(train, client, integration_pr, integration_sha: nil)
       ensure_landed_history_fetched!(train, integration_sha) if integration_sha.present?
       unverified_members = []
@@ -395,7 +406,9 @@ module Steps
       train.members.includes(:job).each do |member|
         member_job = member.job
 
-        if integration_sha.present? && !member_landed?(member_job, integration_sha, train: train, client: client)
+        # No integration SHA means no evidence: never mark a member merged
+        # (and close its Job) without verifying its work reached the base.
+        unless integration_sha.present? && member_landed?(member_job, integration_sha, train: train, client: client)
           handle_unverified_member!(member, member_job, integration_sha)
           unverified_members << member
           next

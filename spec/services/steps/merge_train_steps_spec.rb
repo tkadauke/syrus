@@ -1180,7 +1180,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(repository).to receive(:authenticated_push_url).and_return("https://push.example/repo.git")
       allow(client).to receive(:open_pull_request_for_head).and_return(nil)
       allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 777))
-      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
       allow(client).to receive(:add_issue_comment)
       allow(client).to receive(:close_pull_request)
       allow(client).to receive(:delete_branch).and_return(true)
@@ -1461,6 +1461,52 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(b.reload).to be_closed
       expect(train.reload.state).to eq("succeeded")
       expect(train.members.pluck(:state).uniq).to eq([ "merged" ])
+    end
+
+    # Member verification ran only when an integration SHA was known; a merge
+    # response without one marked every member merged and closed its Job with
+    # no evidence. formal/SyrusModel/TrainEvidence.lean.
+    it "does not mark members merged when GitHub's merge response carries no SHA" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: nil))
+      allow(client).to receive(:pull_request).with("acme/widgets", 777).and_return(OpenStruct.new(merge_commit_sha: nil))
+
+      begin
+        handler.call
+      rescue Steps::Base::StepFailed
+        nil
+      end
+
+      apply_pending_job_closures!
+      expect(train.reload.members.pluck(:state)).not_to include("merged")
+      expect(a.reload).not_to be_closed
+      expect(b.reload).not_to be_closed
+    end
+
+    it "reads the merge commit from the merged PR when the merge response omits it" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: nil))
+      allow(client).to receive(:pull_request).with("acme/widgets", 777).and_return(OpenStruct.new(merge_commit_sha: "trainsha789"))
+
+      handler.call
+
+      expect(train.reload.members.pluck(:state).uniq).to eq([ "merged" ])
+      apply_pending_job_closures!
+      expect(a.reload).to be_closed
     end
 
     it "refuses to merge an integration SHA without SHA-bound validation evidence", :real_landing_validation_gate do
@@ -2449,7 +2495,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(repository).to receive(:authenticated_push_url).and_return("https://push.example/repo.git")
       allow(client).to receive(:open_pull_request_for_head).and_return(nil)
       allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 777))
-      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
       allow(client).to receive(:add_issue_comment)
       allow(client).to receive(:close_pull_request)
       allow(client).to receive(:delete_branch).and_return(true)
@@ -2458,6 +2504,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     it "lands the rebased integration branch exactly like MergeTrainLand" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
+      record_landed_commit!(a, sha: "a-landed-1")
       handler = step_handler(described_class, "merge_train_land_after_rebase", train, a)
       handler.workflow.set_artifact!(Steps::MergeTrainLand::BASE_SHA_ARTIFACT, "basesha123")
       allow(handler).to receive(:repository).and_return(repository)

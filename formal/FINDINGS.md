@@ -328,6 +328,31 @@ fails the Job when its only Workflow is cancelled".
 
 ---
 
+## F11. Merge trains could mark members merged without evidence — fixed
+
+**Property.** A member is marked merged (and its Job closed) only with an
+integration SHA and evidence its work reached it
+(`TrainEvidence.after_merged_has_evidence`).
+
+**Counterexample.** `before_merges_without_evidence`: `reconcile_members!`
+verified members only `if integration_sha.present?`. A GitHub merge response
+without a SHA skipped verification for every member.
+
+**Fix.** Read the merge commit from the merged PR when the response omits it;
+with no SHA at all, every member is unverified (re-landing; the already-on-base
+path settles work that did land).
+
+**Specs.** `merge_train_steps_spec.rb` "does not mark members merged when
+GitHub's merge response carries no SHA" (red before), "reads the merge commit
+from the merged PR when the merge response omits it".
+
+**Review note.** The default merge stubs in that spec returned no SHA, so many
+landing specs passed only because verification never ran; one asserted that a
+member with no recorded commit lands. They now use a realistic SHA, and that
+test records the member's commit.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

@@ -1702,9 +1702,9 @@
         "parallel_merge_train_blocks_dirty_publication",
         "happy_path_epic_merge_train_lands"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "The safety half of the evidence property; provable once there is one evidence predicate."
+      "status": "done",
+      "done_by": "F11",
+      "notes": "reconcile_members! verified members only `if integration_sha.present?`; a merge response without a SHA marked every member merged and closed its Job with no evidence. Fixed: read the merge commit from the merged PR when the response omits it, and treat a missing SHA as no evidence (members go back through re-landing; the already-on-base path settles work that did land). Several existing specs stubbed merges without a SHA and passed only because verification was skipped; one asserted a member with no recorded commit lands. TrainEvidence.lean: before_merges_without_evidence, after_merged_has_evidence. The 'trust this Workflow's own build record when git cannot tell' fallback was reviewed and kept."
     },
     {
       "id": "stale-active-merge-train",
