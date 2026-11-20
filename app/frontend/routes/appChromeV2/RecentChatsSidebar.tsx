@@ -767,7 +767,7 @@ function RecentChatsSettingsMenu({
               "none",
               isDesktop
                 ? "z-40 w-64 py-1 text-sm shadow-lg"
-                : "fixed inset-0 z-50 h-dvh w-screen overflow-y-auto !rounded-none !border-0 py-0 text-sm shadow-lg"
+                : "fixed inset-0 z-50 flex h-dvh w-screen flex-col overflow-hidden !rounded-none !border-0 py-0 text-sm shadow-lg"
             )}
             data-testid="recent-chats-settings-menu"
             ref={floatingRefs.setFloating}
@@ -776,101 +776,106 @@ function RecentChatsSettingsMenu({
             {isDesktop ? null : (
               <div aria-hidden="true" className="h-[env(safe-area-inset-top)] shrink-0 bg-gray-950" data-testid="recent-chats-settings-safe-area" />
             )}
-            {isDesktop ? null : (
-              <div className="mb-2 flex items-center justify-between border-b border-border px-4 pb-3 pt-3">
-                <div className="font-semibold text-text-primary">{t("recent_chats_settings")}</div>
-                <button aria-label={t("recent_chats_settings_close")} className={SIDEBAR_DIALOG_CLOSE_CLASS} onClick={closeMenu} type="button">
-                  <CloseIcon />
-                </button>
-              </div>
-            )}
-            <div className={isDesktop ? undefined : "mx-auto w-full max-w-md pb-3"}>
-              {submenu === "root" ? (
-                <>
-                  <SettingsParentRow current={statusLabel} label={t("recent_chats_options.status_label")} onClick={() => setSubmenu("status")} />
-                  {chatTypeFeatureVisible ? (
-                    <SettingsParentRow current={chatTypeLabel} label={t("recent_chats_options.chat_type_label")} onClick={() => setSubmenu("chat_type")} />
-                  ) : null}
-                  <SettingsParentRow current={groupByLabel} label={t("recent_chats_options.group_by_label")} onClick={() => setSubmenu("group_by")} />
-                  <SettingsParentRow current={sortByLabel} label={t("recent_chats_options.sort_by_label")} onClick={() => setSubmenu("sort_by")} />
-                  <button
-                    className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
-                    onClick={() => apply({ unread_only: !settings.unread_only })}
-                    role="switch"
-                    aria-checked={settings.unread_only}
-                    type="button"
-                  >
-                    <span>{t("recent_chats_unread_only")}</span>
-                    <span className={`h-5 w-9 rounded-full p-0.5 ${settings.unread_only ? "bg-brand" : "bg-border"}`}>
-                      <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.unread_only ? "translate-x-4" : ""}`} />
-                    </span>
+            <div
+              className={isDesktop ? undefined : "min-h-0 flex-1 overflow-y-auto bg-surface"}
+              data-testid={isDesktop ? undefined : "recent-chats-settings-content"}
+            >
+              {isDesktop ? null : (
+                <div className="mb-2 flex items-center justify-between border-b border-border px-4 pb-3 pt-3">
+                  <div className="font-semibold text-text-primary">{t("recent_chats_settings")}</div>
+                  <button aria-label={t("recent_chats_settings_close")} className={SIDEBAR_DIALOG_CLOSE_CLASS} onClick={closeMenu} type="button">
+                    <CloseIcon />
                   </button>
-                  {settings.group_by !== "date" ? (
+                </div>
+              )}
+              <div className={isDesktop ? undefined : "mx-auto w-full max-w-md pb-3"}>
+                {submenu === "root" ? (
+                  <>
+                    <SettingsParentRow current={statusLabel} label={t("recent_chats_options.status_label")} onClick={() => setSubmenu("status")} />
+                    {chatTypeFeatureVisible ? (
+                      <SettingsParentRow current={chatTypeLabel} label={t("recent_chats_options.chat_type_label")} onClick={() => setSubmenu("chat_type")} />
+                    ) : null}
+                    <SettingsParentRow current={groupByLabel} label={t("recent_chats_options.group_by_label")} onClick={() => setSubmenu("group_by")} />
+                    <SettingsParentRow current={sortByLabel} label={t("recent_chats_options.sort_by_label")} onClick={() => setSubmenu("sort_by")} />
                     <button
                       className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
-                      onClick={() => apply({ show_empty_groups: !settings.show_empty_groups })}
+                      onClick={() => apply({ unread_only: !settings.unread_only })}
                       role="switch"
-                      aria-checked={settings.show_empty_groups}
+                      aria-checked={settings.unread_only}
                       type="button"
                     >
-                      <span>{t("recent_chats_show_empty_groups")}</span>
-                      <span className={`h-5 w-9 rounded-full p-0.5 ${settings.show_empty_groups ? "bg-brand" : "bg-border"}`}>
-                        <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.show_empty_groups ? "translate-x-4" : ""}`} />
+                      <span>{t("recent_chats_unread_only")}</span>
+                      <span className={`h-5 w-9 rounded-full p-0.5 ${settings.unread_only ? "bg-brand" : "bg-border"}`}>
+                        <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.unread_only ? "translate-x-4" : ""}`} />
                       </span>
                     </button>
-                  ) : null}
-                  <SettingsParentRow
-                    current={String(settings.per_group)}
-                    label={t("recent_chats_options.per_group_label")}
-                    onClick={() => setSubmenu("per_group")}
+                    {settings.group_by !== "date" ? (
+                      <button
+                        className={`${SIDEBAR_MENU_ROW_CLASS} justify-between`}
+                        onClick={() => apply({ show_empty_groups: !settings.show_empty_groups })}
+                        role="switch"
+                        aria-checked={settings.show_empty_groups}
+                        type="button"
+                      >
+                        <span>{t("recent_chats_show_empty_groups")}</span>
+                        <span className={`h-5 w-9 rounded-full p-0.5 ${settings.show_empty_groups ? "bg-brand" : "bg-border"}`}>
+                          <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${settings.show_empty_groups ? "translate-x-4" : ""}`} />
+                        </span>
+                      </button>
+                    ) : null}
+                    <SettingsParentRow
+                      current={String(settings.per_group)}
+                      label={t("recent_chats_options.per_group_label")}
+                      onClick={() => setSubmenu("per_group")}
+                    />
+                  </>
+                ) : null}
+                {submenu === "status" ? (
+                  <SettingsOptionList
+                    label={t("recent_chats_options.status_label")}
+                    onBack={() => setSubmenu("root")}
+                    onSelect={(value) => apply({ status: value as ChatSidebarStatus })}
+                    options={localizedStatusOptions}
+                    value={settings.status}
                   />
-                </>
-              ) : null}
-              {submenu === "status" ? (
-                <SettingsOptionList
-                  label={t("recent_chats_options.status_label")}
-                  onBack={() => setSubmenu("root")}
-                  onSelect={(value) => apply({ status: value as ChatSidebarStatus })}
-                  options={localizedStatusOptions}
-                  value={settings.status}
-                />
-              ) : null}
-              {submenu === "group_by" ? (
-                <SettingsOptionList
-                  label={t("recent_chats_options.group_by_label")}
-                  onBack={() => setSubmenu("root")}
-                  onSelect={(value) => apply({ group_by: value as ChatSidebarGroupBy })}
-                  options={localizedGroupByOptions}
-                  value={settings.group_by}
-                />
-              ) : null}
-              {submenu === "chat_type" ? (
-                <SettingsCheckboxList
-                  label={t("recent_chats_options.chat_type_label")}
-                  onBack={() => setSubmenu("root")}
-                  onToggle={toggleChatType}
-                  options={localizedChatTypeOptions}
-                  values={settings.chat_types}
-                />
-              ) : null}
-              {submenu === "sort_by" ? (
-                <SettingsOptionList
-                  label={t("recent_chats_options.sort_by_label")}
-                  onBack={() => setSubmenu("root")}
-                  onSelect={(value) => apply({ sort_by: value as ChatSidebarSortBy })}
-                  options={localizedSortByOptions}
-                  value={settings.sort_by}
-                />
-              ) : null}
-              {submenu === "per_group" ? (
-                <SettingsOptionList
-                  label={t("recent_chats_options.per_group_label")}
-                  onBack={() => setSubmenu("root")}
-                  onSelect={(value) => apply({ per_group: Number(value) as ChatSidebarPerGroup })}
-                  options={PER_GROUP_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
-                  value={String(settings.per_group)}
-                />
-              ) : null}
+                ) : null}
+                {submenu === "group_by" ? (
+                  <SettingsOptionList
+                    label={t("recent_chats_options.group_by_label")}
+                    onBack={() => setSubmenu("root")}
+                    onSelect={(value) => apply({ group_by: value as ChatSidebarGroupBy })}
+                    options={localizedGroupByOptions}
+                    value={settings.group_by}
+                  />
+                ) : null}
+                {submenu === "chat_type" ? (
+                  <SettingsCheckboxList
+                    label={t("recent_chats_options.chat_type_label")}
+                    onBack={() => setSubmenu("root")}
+                    onToggle={toggleChatType}
+                    options={localizedChatTypeOptions}
+                    values={settings.chat_types}
+                  />
+                ) : null}
+                {submenu === "sort_by" ? (
+                  <SettingsOptionList
+                    label={t("recent_chats_options.sort_by_label")}
+                    onBack={() => setSubmenu("root")}
+                    onSelect={(value) => apply({ sort_by: value as ChatSidebarSortBy })}
+                    options={localizedSortByOptions}
+                    value={settings.sort_by}
+                  />
+                ) : null}
+                {submenu === "per_group" ? (
+                  <SettingsOptionList
+                    label={t("recent_chats_options.per_group_label")}
+                    onBack={() => setSubmenu("root")}
+                    onSelect={(value) => apply({ per_group: Number(value) as ChatSidebarPerGroup })}
+                    options={PER_GROUP_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
+                    value={String(settings.per_group)}
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
         </FloatingPortal>
