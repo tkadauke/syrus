@@ -1,4 +1,6 @@
 require "rails_helper"
+require "rubygems/package"
+require "zlib"
 
 RSpec.describe PluginDesiredState::Publisher do
   class RecordingPluginManifestStorage
@@ -18,7 +20,39 @@ RSpec.describe PluginDesiredState::Publisher do
   end
 
   let(:service) { RecordingPluginManifestStorage.new }
-  let(:body) { "archive" }
+  let(:body) do
+    gemspec = <<~RUBY
+      Gem::Specification.new do |spec|
+        spec.name = "weather"
+        spec.version = "2.0.0"
+        spec.metadata["requires_syrus"] = ">= 1.0"
+        spec.add_dependency "rails", ">= 8.1"
+      end
+    RUBY
+    files = {
+      "plugin/weather.gemspec" => gemspec,
+      "plugin/lib/weather.rb" => "module Weather; end\n"
+    }
+    manifest = {
+      "format_version" => 1, "name" => "weather", "version" => "2.0.0", "requires_syrus" => ">= 1.0",
+      "roles" => [], "extension_points" => [], "routes" => [], "credential_types" => [], "cli_commands" => [],
+      "frontend" => {}, "locales" => [], "public_host_apis" => [],
+      "files" => files.map { |path, data| { "path" => path, "sha256" => Digest::SHA256.hexdigest(data) } }
+    }
+    package = { "package.json" => JSON.pretty_generate(manifest) + "\n", **files }
+    package["CHECKSUMS.sha256"] = package.sort.map do |path, data|
+      "#{Digest::SHA256.hexdigest(data)}  #{path}\n"
+    end.join
+    StringIO.new.tap do |io|
+      Zlib::GzipWriter.wrap(io) do |gzip|
+        Gem::Package::TarWriter.new(gzip) do |tar|
+          package.sort.each do |path, data|
+            tar.add_file_simple(path, 0o644, data.bytesize) { |file| file.write(data) }
+          end
+        end
+      end
+    end.string
+  end
   let(:digest) { Digest::SHA256.hexdigest(body) }
   let!(:release) do
     PluginRelease.create!(name: "weather", version: "2.0.0", content_digest: digest,
