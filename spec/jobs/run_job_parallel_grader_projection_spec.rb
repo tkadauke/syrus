@@ -175,6 +175,10 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
   end
 
   def clear_persisted_records!
+    # The graders really run, so their spawned-process rows (which belong to
+    # no user) would otherwise outlive this non-transactional example and
+    # leak into every later spec that lists processes.
+    SpawnedProcess.delete_all
     User.destroy_all
     Feature.where(slug: "distributed_workflow_dag").delete_all
     AppSetting.delete_all
