@@ -1797,6 +1797,8 @@ describe("AppChromeV2 mobile header pinning", () => {
 
       const drawer = document.querySelector(".fixed.inset-0.z-40") as HTMLElement
       expect(drawer).not.toBeNull()
+      expect(drawer).toHaveAttribute("data-testid", "mobile-sidebar-drawer")
+      expect(drawer).toHaveClass("bg-gray-950", "pt-[env(safe-area-inset-top)]")
       expect(within(drawer).getByText("Syrus").closest("div")?.querySelector("svg")).not.toBeNull()
     } finally {
       restoreMatchMedia()

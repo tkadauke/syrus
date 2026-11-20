@@ -12,6 +12,7 @@ export type MobileChromeControls = {
   visibleTopInset: number
   hideHeader: () => void
   offset: number
+  offsetTransform: string
   reportScrollDelta: (delta: number) => void
   revealHeader: () => void
   setContentHeight: (height: number) => void
@@ -26,6 +27,7 @@ export const MobileChromeContext = createContext<MobileChromeControls>({
   visibleTopInset: 0,
   hideHeader: noop,
   offset: 0,
+  offsetTransform: "translateY(0px)",
   reportScrollDelta: noop,
   revealHeader: noop,
   setContentHeight: noop
