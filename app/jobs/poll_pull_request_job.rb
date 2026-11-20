@@ -501,6 +501,8 @@ class PollPullRequestJob < ApplicationJob
     return if active_ci_repair_for_same_base?
 
     enqueue_ci_failure_run(head_sha, repairable_failed_checks(detail[:failed_checks]))
+  rescue *PollingPersistenceRetry::RETRYABLE_ERRORS => e
+    schedule_persistence_contention_catch_up(error: e, boundary: "pr_checks")
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
     # Check-runs requires `Checks: read` (fine-grained) or `repo`
     # (classic). PR-comment polling above doesn't, so we treat
