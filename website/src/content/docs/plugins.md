@@ -638,6 +638,8 @@ Every capability specifies its stability tier, input context, absent behavior,
 and composition rule (`collect`, `broadcast`, `first_claim`, or `keyed`).
 Providers implementing a keyed capability also declare their selector with
 `key:`, keeping provider selection manifest-only and lazy.
+Operators can inspect declarations on the plugin's Admin detail page or with
+`syrus plugin capabilities` without loading provider classes.
 
 ## Execution Backend Contract
 
