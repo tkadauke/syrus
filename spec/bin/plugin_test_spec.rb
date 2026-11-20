@@ -25,6 +25,13 @@ RSpec.describe "bin/plugin-test" do
     end
   end
 
+  it "requires an explicit plugin directory" do
+    output, status = Open3.capture2e(Rails.root.join("bin/plugin-test").to_s, chdir: Rails.root.to_s)
+
+    expect(status).not_to be_success
+    expect(output).to include("usage: bin/plugin-test PLUGIN_DIR")
+  end
+
   it "validates and tests a passing plugin with a stable summary" do
     with_built_fixture do |plugin|
       output, status = run_plugin(plugin)

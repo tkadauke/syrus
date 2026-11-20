@@ -24,6 +24,12 @@ RSpec.describe Syrus::Host::PublicApis do
     }.to have_enqueued_job(ChatTitleJob).with(12, 34)
   end
 
+  it "requires admin page providers to implement their declared metadata" do
+    provider = Class.new { include Syrus::Host::AdminPage }
+
+    expect { provider.admin_pages }.to raise_error(NotImplementedError, /implement \.admin_pages/)
+  end
+
   it "resolves alias targets again instead of retaining an earlier class generation" do
     original = ApplicationRecord
     replacement = Class.new
