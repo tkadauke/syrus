@@ -125,4 +125,16 @@ RSpec.describe ResetJobs::Operation do
     expect(described_class.preflight(parent)).to include("Live stacked children", parent.stack_children.sole.slug)
     expect(described_class.preflight(train_job)).to include("cancel the merge train")
   end
+
+  it "localizes refusal messages" do
+    merged = Factories.job_record(user:, repository:, state: "closed", closure_reason: "pr_merged", issue_number: 60)
+
+    %i[de la].each do |locale|
+      I18n.with_locale(locale) do
+        message = described_class.preflight(merged)
+        expect(message).to include(merged.slug)
+        expect(message).not_to eq(I18n.t("reset_jobs.refusals.merged", slug: merged.slug, locale: :en))
+      end
+    end
+  end
 end
