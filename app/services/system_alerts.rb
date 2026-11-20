@@ -98,7 +98,7 @@ module SystemAlerts
   def self.provider_availability_for_alerts(user)
     return {} unless user
 
-    User.agent_providers.index_with { |provider| App::ProviderAvailability.for_user(user, provider) }
+    App::ProviderAvailability.all_for_user(user)
   end
   private_class_method :provider_availability_for_alerts
 

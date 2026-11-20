@@ -40,6 +40,12 @@ de:
       search_database_rebuild:
         complete: "Die ausgewählten Neuerstellungen der Suchdatenbank sind abgeschlossen."
     errors:
+      provider_accounts:
+        unregistered_provider: "ist kein registrierter Agentenanbieter"
+        invalid_credential_payload: "muss ein Objekt sein"
+        session_mismatch: "muss zum Benutzer des fortsetzbaren Vorgangs und zum Sitzungsanbieter gehören"
+        run_mismatch: "muss zum Benutzer und Anbieter des Laufs gehören"
+        workflow_mismatch: "muss zum Benutzer und Anbieter des Workflows gehören"
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
       plugin_installation:

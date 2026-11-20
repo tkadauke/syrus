@@ -73,6 +73,12 @@ en:
     errors:
       invalid_request: "The request is invalid."
       unavailable: "This action is temporarily unavailable."
+      provider_accounts:
+        unregistered_provider: "is not a registered agent provider"
+        invalid_credential_payload: "must be an object"
+        session_mismatch: "must belong to the resumable user and match the session provider"
+        run_mismatch: "must belong to the Run user and provider"
+        workflow_mismatch: "must belong to the Workflow user and provider"
       plugin_installation:
         release_name_mismatch: "must match the release name"
         invalid_roles_shape: "must be an array of non-empty names"

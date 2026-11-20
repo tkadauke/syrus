@@ -98,7 +98,8 @@ class ProviderSession < ApplicationRecord
   end
 
   def default_provider_account
-    self.provider_account ||= resumable.provider_account if resumable.respond_to?(:provider_account)
+    resumable_account = resumable.provider_account if resumable.respond_to?(:provider_account)
+    self.provider_account ||= resumable_account if resumable_account&.provider_key == provider
   end
 
   def provider_account_matches_resumable
@@ -107,7 +108,7 @@ class ProviderSession < ApplicationRecord
     account_matches_user = !resumable.respond_to?(:user_id) || provider_account.user_id == resumable.user_id
     return if account_matches_provider && account_matches_user
 
-    errors.add(:provider_account, "must belong to the resumable user and match the session provider")
+    errors.add(:provider_account, I18n.t("server.errors.provider_accounts.session_mismatch"))
   end
 
   def sync_transcript_pruned
