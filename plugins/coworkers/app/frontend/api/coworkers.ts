@@ -168,7 +168,18 @@ export type CoworkerWorkspacePayload = {
   remote: string
   branch: string
   files: { path: string; type: string; size: number | null; extension: string; area: string }[]
-  results: { path: string; type: string; size: number | null; extension: string; area: string; binary?: boolean; truncated?: boolean; snippet: string | null; highlights: { start: number; length: number }[]; last_modified_at: string | null }[]
+  results: {
+    path: string
+    type: string
+    size: number | null
+    extension: string
+    area: string
+    binary?: boolean
+    truncated?: boolean
+    snippet: string | null
+    highlights: { start: number; length: number }[]
+    last_modified_at: string | null
+  }[]
   total: number
   page_start: number
   page_end: number
