@@ -1536,6 +1536,7 @@ const workspaceFilterSchema = (t: (key: string) => string) => [
   { field: "search", label: t("workspace.search"), bucket: "text", operators: ["contains"], values: [], free_text_search: true },
   { field: "extension", label: t("workspace.extension"), bucket: "text", operators: ["is"], values: [] },
   { field: "path_prefix", label: t("workspace.folder"), bucket: "text", operators: ["is"], values: [] },
+  { field: "folder", label: t("workspace.exact_folder"), bucket: "text", operators: ["is"], values: [] },
   { field: "filename", label: t("workspace.filename"), bucket: "text", operators: ["contains"], values: [] },
   { field: "filename_exact", label: t("workspace.filename_exact"), bucket: "text", operators: ["is"], values: [] },
   { field: "area", label: t("workspace.area"), bucket: "text", operators: ["is"], values: [] },
@@ -1568,7 +1569,7 @@ const workspaceFilterSchema = (t: (key: string) => string) => [
 
 function workspaceFilterTree(search: string): FilterTree {
   const params = new URLSearchParams(search)
-  return { and: ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"].flatMap((field) => {
+  return { and: ["search", "extension", "folder", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"].flatMap((field) => {
     const value = params.get(field)?.trim()
     const op = field === "search" || field === "filename" ? "contains" : field === "modified_after" ? "after" : field === "modified_before" ? "before" : "is"
     return value ? [{ field, op, value }] : []
@@ -1581,7 +1582,7 @@ const workspaceFilterLink: FilterLinkBuilder = (path, search, updates) => {
     try {
       const encoded = updates.q.replace(/-/g, "+").replace(/_/g, "/")
       const tree = JSON.parse(atob(encoded)) as { and?: Array<{ field?: string; value?: unknown }> }
-      const fields = ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"]
+      const fields = ["search", "extension", "folder", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"]
       fields.forEach((field) => {
         const value = tree.and?.find((chip) => chip.field === field)?.value
         if (typeof value === "string" && value.trim()) params.set(field, value.trim())
@@ -1590,7 +1591,7 @@ const workspaceFilterLink: FilterLinkBuilder = (path, search, updates) => {
     } catch {
       params.delete("search")
     }
-  } else if (updates.q == null) ["search", "extension", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"].forEach((field) => params.delete(field))
+  } else if (updates.q == null) ["search", "extension", "folder", "path_prefix", "filename", "filename_exact", "area", "content_kind", "min_size", "max_size", "modified_after", "modified_before", "sort"].forEach((field) => params.delete(field))
   params.delete("path")
   params.delete("cursor")
   const query = params.toString()

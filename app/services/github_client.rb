@@ -951,6 +951,41 @@ class GithubClient
     raise
   end
 
+  def workspace_files(repo_slug, revision, paths, include_last_modified:)
+    owner, name = repo_slug.split("/", 2)
+    variables = { owner: owner, name: name }
+    blob_fields = paths.each_with_index.map do |path, index|
+      variables[:"expression#{index}"] = "#{revision}:#{path}"
+      "blob#{index}: object(expression: $expression#{index}) { ... on Blob { byteSize isBinary isTruncated oid text } }"
+    end.join("\n")
+    history_fields = if include_last_modified
+      variables[:revision] = revision
+      paths.each_with_index.map do |path, index|
+        variables[:"path#{index}"] = path
+        "history#{index}: history(first: 1, path: $path#{index}) { nodes { authoredDate } }"
+      end.join("\n")
+    end
+    declarations = paths.each_index.flat_map do |index|
+      [ "$expression#{index}: String!", ("$path#{index}: String!" if include_last_modified) ]
+    end.compact.join(", ")
+    revision_declaration = include_last_modified ? ", $revision: GitObjectID!" : ""
+    history_query = include_last_modified ? "revision: object(oid: $revision) { ... on Commit { #{history_fields} } }" : ""
+    query = <<~GQL
+      query($owner: String!, $name: String!#{revision_declaration}, #{declarations}) {
+        repository(owner: $owner, name: $name) {
+          #{blob_fields}
+          #{history_query}
+        }
+      }
+    GQL
+    result = track_rate_limits { @client.post("/graphql", { query: query, variables: variables }.to_json) }
+    repository = result.to_h.dig(:data, :repository) || {}
+    commit = repository.dig(:revision) || {}
+    paths.each_with_index.to_h do |path, index|
+      [ path, { blob: repository[:"blob#{index}"], authored_at: commit.dig(:"history#{index}", :nodes, 0, :authoredDate) } ]
+    end
+  end
+
   # The commit SHA `ref` (a branch, tag, or SHA) points at. Raises
   # Octokit::NotFound when GitHub does not know the ref -- unlike most readers
   # here, absence is not folded into nil, because callers must tell an unknown

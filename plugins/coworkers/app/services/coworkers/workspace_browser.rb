@@ -65,14 +65,21 @@ class Coworkers::WorkspaceBrowser
   def search(revision, entries, filters)
     query = filters[:search].to_s.strip.downcase
     filtered = entries.select { |entry| metadata_match?(entry, filters) }
-    modified, history_incomplete = last_modified(revision, filtered, filters)
+    needs_contents = query.present? || filters[:content_kind].present?
+    needs_history = filters[:modified_after].present? || filters[:modified_before].present? || filters[:sort] == "modified"
+    searchable = filtered.first(MAX_SEARCH_FILES)
+    batch = if needs_contents || needs_history
+      @reader.workspace_files(revision, paths: searchable.map(&:path), max_bytes: MAX_FILE_BYTES,
+        last_modified: needs_history, history_limit: MAX_HISTORY_COMMITS)
+    else
+      { blobs: {}, last_modified: {}, history_incomplete: false }
+    end
+    modified = batch[:last_modified]
     filtered.select! { |entry| modified_match?(modified[entry.path], filters) }
-    incomplete = history_incomplete ? [ "history_limit" ] : []
-    if query.present? || filters[:content_kind].present?
-      searchable = filtered.first(MAX_SEARCH_FILES)
-      incomplete << "search_limit" if filtered.size > searchable.size
-      blobs = @reader.files(revision, glob: searchable.map(&:path), max_files: MAX_SEARCH_FILES, max_bytes: MAX_FILE_BYTES)
-      filtered = searchable.filter_map { |entry| search_result(entry, blobs[entry.path], query, modified[entry.path], filters[:content_kind]) }
+    incomplete = batch[:history_incomplete] ? [ "history_limit" ] : []
+    incomplete << "search_limit" if (needs_contents || needs_history) && filtered.size > MAX_SEARCH_FILES
+    if needs_contents
+      filtered = filtered.first(MAX_SEARCH_FILES).filter_map { |entry| search_result(entry, batch[:blobs][entry.path], query, modified[entry.path], filters[:content_kind]) }
     else
       filtered = filtered.map { |entry| entry_json(entry).merge(last_modified_at: modified[entry.path]&.iso8601, snippet: nil, highlights: []) }
     end
@@ -90,9 +97,11 @@ class Coworkers::WorkspaceBrowser
     path = entry.path
     extension = filters[:extension].to_s.delete_prefix(".").downcase
     prefix = filters[:path_prefix].to_s.sub(%r{\A/+}, "").sub(%r{/+\z}, "")
+    folder = filters[:folder].to_s.sub(%r{\A/+}, "").sub(%r{/+\z}, "")
     filename = File.basename(path)
     return false if extension.present? && File.extname(path).delete_prefix(".").downcase != extension
     return false if prefix.present? && path != prefix && !path.start_with?("#{prefix}/")
+    return false if folder.present? && File.dirname(path) != folder
     return false if filters[:filename].present? && !filename.downcase.include?(filters[:filename].to_s.downcase)
     return false if filters[:filename_exact].present? && filename.downcase != filters[:filename_exact].to_s.downcase
     return false if filters[:area].present? && path.split("/").first != filters[:area]
@@ -114,31 +123,15 @@ class Coworkers::WorkspaceBrowser
 
     start = [ (index || 0) - (SNIPPET_CHARACTERS / 2), 0 ].max
     snippet = binary ? nil : blob.text.slice(start, SNIPPET_CHARACTERS)
+    highlight_start = index && utf16_length(snippet.slice(0, index - start))
     entry_json(entry).merge(binary:, truncated: blob.truncated, last_modified_at: modified_at&.iso8601,
-      snippet:, highlights: index ? [ { start: index - start, length: query.length } ] : [])
+      snippet:, highlights: index ? [ { start: highlight_start, length: utf16_length(query) } ] : [])
   rescue RepositoryContent::NotFound
     nil
   end
 
-  def last_modified(revision, entries, filters)
-    needs_history = filters[:modified_after].present? || filters[:modified_before].present? || filters[:sort] == "modified"
-    return [ {}, false ] unless needs_history
-
-    commits = @reader.commits(revision:, limit: MAX_HISTORY_COMMITS + 1)
-    dates = {}
-    bounded_commits = commits.first(MAX_HISTORY_COMMITS)
-    bounded_commits.each_cons(2) do |head, base|
-      @reader.changes(base: @reader.revision(base.sha), head: @reader.revision(head.sha)).each { |change| dates[change.path] ||= head.authored_at }
-    rescue RepositoryContent::Error
-      next
-    end
-    history_incomplete = commits.size > MAX_HISTORY_COMMITS
-    if !history_incomplete && (root = bounded_commits.last)
-      entries.each { |entry| dates[entry.path] ||= root.authored_at }
-    end
-    [ dates, history_incomplete ]
-  rescue RepositoryContent::Error
-    [ {}, true ]
+  def utf16_length(value)
+    value.to_s.encode(Encoding::UTF_16LE).bytesize / 2
   end
 
   def modified_match?(value, filters)

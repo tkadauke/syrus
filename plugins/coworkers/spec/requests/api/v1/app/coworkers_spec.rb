@@ -799,7 +799,7 @@ RSpec.describe "API: coworkers", type: :request do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "workspace-search", workspace_repo: repository.remote_url)
     stub_repository_content(repository, ref: "coworkers/workspace-search", files: {
-      "memory/daily/notes.md" => "A bounded search needle in memory",
+      "memory/daily/notes.md" => "😀 needle in memory",
       "memory/daily/other.txt" => "needle in another format",
       "projects/notes.md" => "needle outside memory",
       "assets/photo.png" => "\0binary"
@@ -807,12 +807,13 @@ RSpec.describe "API: coworkers", type: :request do
     sign_in_as(owner)
 
     get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: {
-      search: "needle", extension: "md", path_prefix: "memory", filename: "note"
+      search: "needle", extension: "md", folder: "memory/daily", path_prefix: "memory", filename: "note"
     }
 
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.fetch("results")).to contain_exactly(
-      include("path" => "memory/daily/notes.md", "snippet" => include("needle"), "binary" => false)
+      include("path" => "memory/daily/notes.md", "snippet" => include("needle"), "binary" => false,
+        "highlights" => [ { "start" => 3, "length" => 6 } ])
     )
     expect(response.parsed_body).to include("total" => 1, "next_cursor" => nil)
 
@@ -862,8 +863,8 @@ RSpec.describe "API: coworkers", type: :request do
     })
     sign_in_as(owner)
 
-    expect_any_instance_of(RepositoryContent::Reader).to receive(:files)
-      .once.with(instance_of(RepositoryContent::Revision), glob: match_array(%w[one.md two.md]), max_files: 250, max_bytes: 256.kilobytes)
+    expect_any_instance_of(FakeRepositoryContentProvider).to receive(:workspace_files)
+      .once.with(anything, paths: match_array(%w[one.md two.md]), max_bytes: 256.kilobytes, last_modified: false, history_limit: 25)
       .and_call_original
 
     get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { search: "needle" }

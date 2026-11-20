@@ -65,6 +65,7 @@ type Store interface {
 	Tree(ctx context.Context, id, revision string) ([]mirror.Entry, error)
 	Children(ctx context.Context, id, revision, path string) ([]mirror.Entry, error)
 	Read(ctx context.Context, id, revision, path string) (mirror.Blob, error)
+	WorkspaceFiles(ctx context.Context, id, revision string, paths []string, maxBytes, historyLimit int, lastModified bool) (mirror.WorkspaceFiles, error)
 	Changes(ctx context.Context, id, base, head string, withPatch bool) ([]mirror.Change, error)
 	FilePatch(ctx context.Context, destination io.Writer, id, base, head, path, previousPath string) (int64, error)
 	Refs(ctx context.Context, id, pattern string, maxAge time.Duration) ([]mirror.Ref, error)
@@ -97,6 +98,7 @@ func NewWithLogger(store Store, token string, logger *log.Logger) http.Handler {
 	mux.Handle("GET /v1/repositories/{id}/tree", s.auth(s.tree))
 	mux.Handle("GET /v1/repositories/{id}/children", s.auth(s.children))
 	mux.Handle("GET /v1/repositories/{id}/blob", s.auth(s.blob))
+	mux.Handle("POST /v1/repositories/{id}/workspace-files", s.auth(s.workspaceFiles))
 	mux.Handle("GET /v1/repositories/{id}/changes", s.auth(s.changes))
 	mux.Handle("GET /v1/repositories/{id}/patch", s.auth(s.filePatch))
 	mux.Handle("GET /v1/repositories/{id}/refs", s.auth(s.refs))
@@ -267,6 +269,26 @@ func (s *server) blob(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(blob.Bytes)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(blob.Bytes)
+}
+
+func (s *server) workspaceFiles(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Revision     string   `json:"revision"`
+		Paths        []string `json:"paths"`
+		MaxBytes     int      `json:"max_bytes"`
+		HistoryLimit int      `json:"history_limit"`
+		LastModified bool     `json:"last_modified"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 256<<10)).Decode(&input); err != nil || len(input.Paths) > 250 || input.MaxBytes <= 0 || input.HistoryLimit <= 0 {
+		writeError(w, http.StatusBadRequest, "bad_request", "invalid workspace files request")
+		return
+	}
+	result, err := s.store.WorkspaceFiles(r.Context(), r.PathValue("id"), input.Revision, input.Paths, input.MaxBytes, input.HistoryLimit, input.LastModified)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *server) changes(w http.ResponseWriter, r *http.Request) {
