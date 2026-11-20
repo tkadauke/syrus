@@ -521,6 +521,37 @@ the next target: make it unreachable.
 
 ---
 
+## F19. A succeeded Run under a running Step was committed on every success — made unreachable
+
+**Property.** No committed state has a running Step whose Runs have all
+succeeded on the success path (`AtomicSuccess.atomic_hides`).
+
+**Evidence.** 92 of the 324 `running_step_with_terminal_runs` executions in two
+days were skips: "Step is succeeded, not active". The classifier saw the state
+and the Step's commit landed before the executor ran.
+
+**Counterexample.** `AtomicSuccess.split_exposes`:
+`RunJob#record_successful_step!` (and the pre-admission skip path) committed
+`run.succeed!`, then ran the Run's after-commit propagation, then committed
+`step.succeed!`.
+
+**Fix.** `RunJob#commit_run_and_step_success!` commits both in one transaction.
+The trailing no-op `save!` calls were dropped. Inside a single transaction they
+clear `saved_changes`, and then the `saved_change_to_state` conditions on the
+commit callbacks never fire. The spec catches that, because the Step's chain
+advance stopped while the Run and Step states still looked right.
+
+**Specs.** `spec/jobs/run_job_success_atomicity_spec.rb`:
+- Red before: the Run's propagation observed the Step as `running`.
+- It also asserts the Step's propagation fires once.
+- A second example covers clearing a stale `worker_died` outcome.
+
+**Review note.** The Run's commit callbacks now run with the Step already
+succeeded. Workflow admission wakeups therefore see the Step terminal, which is
+the more accurate view.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

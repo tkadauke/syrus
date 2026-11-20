@@ -406,9 +406,7 @@ class RunJob < ApplicationJob
     @workflow.reload
     return true if @run.terminal? || @step.terminal? || @workflow.terminal?
 
-    succeed_run!(@run)
-    @step.succeed!
-    @step.save!
+    commit_run_and_step_success!
     log("step #{@step.kind} done (#{@workflow.slug})")
     true
   end
@@ -624,9 +622,25 @@ class RunJob < ApplicationJob
       return if @workflow.terminal? || @step.terminal?
       return if @run.terminal? && !@run.succeeded?
 
-      succeed_run!(@run)
+      commit_run_and_step_success!
+    end
+  end
+
+  # One commit for both: separately, the Run's after-commit propagation ran
+  # -- and the reconciler could observe -- a running Step whose Runs were all
+  # terminal. A lock error rolls both back, and the retry reloads.
+  #
+  # The AASM bang events persist. Do not add a trailing `save!` here: inside
+  # one transaction a no-op save clears `saved_changes`, and the
+  # `saved_change_to_state` conditions on the commit callbacks -- the Step's
+  # chain advance among them -- would then never fire.
+  def commit_run_and_step_success!
+    ActiveRecord::Base.transaction do
+      unless @run.succeeded?
+        @run.agent_outcome = nil if @run.agent_outcome == "worker_died"
+        @run.succeed!
+      end
       @step.succeed! if @step.may_succeed?
-      @step.save!
     end
   end
 

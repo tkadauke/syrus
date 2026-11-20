@@ -662,8 +662,8 @@
         "running_step_with_terminal_run"
       ],
       "status": "partial",
-      "done_by": "F18",
-      "notes": "Production (~2 days, 324 executions): ~50 applied repairs were F18 (in-place git_transport_transient retries thrown away) — fixed. The 92 'Step is succeeded, not active' skips are the classifier catching RunJob#record_successful_step! between run.succeed! and step.succeed! (separate commits in one with_lifecycle_lock_retry block); harmless but noisy — next: commit both in one transaction so the state is unreachable. Barrier no-cascade cancellations still open."
+      "done_by": "F18, F19",
+      "notes": "Production (~2 days, 324 executions). ~50 applied repairs were F18 (in-place git_transport_transient retries thrown away) — fixed. The 92 'Step is succeeded, not active' skips were RunJob committing run.succeed! and step.succeed! separately — F19 commits them together, so the success path can no longer produce the state (AtomicSuccess.atomic_hides). Still open: Workflow#fail! cancel_orphan_active_runs! via update_columns, and ImmutableReviewHeadBarrier.cancel_run_without_cascade!."
     },
     {
       "id": "in-place-retry-reconciled-away",
