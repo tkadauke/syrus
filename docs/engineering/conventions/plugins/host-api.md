@@ -441,7 +441,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Appearance::ColorPalette`
 - `Appearance::ColorPalette::HEX_PATTERN`
 - `ApplicationCable::Channel`
-- `ApplicationJob`
 - `ApplicationPolicy`
 - `ApplicationPolicy::Scope`
 - `ApplicationRecord`
@@ -542,6 +541,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Filters::SmartFolderResolution::PRESET_FIELD`
 - `Filters::UnknownFilterField`
 - `FtsQueryParser`
+- `GitMergeDrivers`
 - `GitRunner`
 - `GitRunner::GitError`
 - `GithubApiUsageRollup`
@@ -584,6 +584,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `LandedCommit`
 - `LandingFailureHandler`
 - `MaintenanceTasks::Definitions::Base::Result`
+- `Mcp::CoworkerToolExposure`
 - `Mcp::Pagination`
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`
@@ -654,6 +655,8 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PlatformIdentity::PlatformConfig::Base`
 - `PlatformPollingJob`
 - `PluginDataCleanup`
+- `PluginJob`
+- `PluginJob::DEFAULT_ATTEMPTS`
 - `PluginRecord`
 - `PrReviewComment`
 - `PreviewCommandSource`
