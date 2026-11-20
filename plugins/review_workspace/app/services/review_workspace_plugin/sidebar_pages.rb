@@ -1,4 +1,4 @@
-module ReviewWorkspace
+module ReviewWorkspacePlugin
   class SidebarPages
     include Syrus::Plugin::SidebarPage
 

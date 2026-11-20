@@ -1,4 +1,4 @@
-module ReviewWorkspace
+module ReviewWorkspacePlugin
   class EligibleJobs
     PRIORITY_RANK = Job::PRIORITIES.each_with_index.to_h.freeze
 
