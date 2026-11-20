@@ -104,6 +104,16 @@ Supported members:
 - `title`
 - `user`
 
+### `Syrus::Host::ChatTitles`
+
+Since: `0.1.16`
+
+Queues automatic title generation for a chat; job implementation and queue details are not promised.
+
+Supported members:
+
+- `enqueue`
+
 ### `Syrus::Host::CliCommandHandler`
 
 Since: `0.1.16`
