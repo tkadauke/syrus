@@ -31,6 +31,14 @@ export function AdminLocalBackups() {
       {query.isPending ? <Notice>{t("loading")}</Notice> : null}
       {query.isError ? <Notice tone="danger">{t("load_error")}</Notice> : null}
       {query.data ? <Inventory payload={query.data} /> : null}
+      <Section.Root>
+        <Section.Header>
+          <Section.Title>{t("recovery_title")}</Section.Title>
+        </Section.Header>
+        <Text>{t("recovery_normal")}</Text>
+        <Text tone="muted">{t("recovery_bootstrap")}</Text>
+        <Notice tone="warning">{t("recovery_execution_warning")}</Notice>
+      </Section.Root>
     </Page.Root>
   )
 }

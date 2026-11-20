@@ -1,0 +1,62 @@
+#!/usr/bin/env ruby
+
+require "optparse"
+require_relative "../lib/local_backups/recovery"
+
+options = { root: ENV.fetch("SYRUS_BACKUP_ROOT", "."), max_bytes: ENV.fetch("SYRUS_RECOVERY_MAX_BYTES", LocalBackups::Recovery::DEFAULT_MAX_BYTES) }
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: syrus-recovery [--root PATH] [--max-bytes N] COMMAND [ARTIFACT]"
+  opts.on("--root PATH") { |value| options[:root] = value }
+  opts.on("--max-bytes N", Integer) { |value| options[:max_bytes] = value }
+  opts.on("--destination PATH") { |value| options[:destination] = value }
+  opts.on("--token TOKEN") { |value| options[:token] = value }
+  opts.on("--confirm") { options[:confirm] = true }
+end
+parser.order!
+command = ARGV.shift
+artifact_path = ARGV.shift
+
+def output(value) = puts(JSON.pretty_generate(value))
+
+begin
+  case command
+  when "list"
+    root = Pathname.new(options[:root]).expand_path
+    output(artifacts: root.directory? ? root.children.reject { |path| path.basename.to_s.start_with?(".") }.map(&:to_s).sort : [])
+  when "inspect"
+    raise OptionParser::MissingArgument, "ARTIFACT" unless artifact_path
+    LocalBackups::Recovery::Artifact.new(artifact_path, max_bytes: options[:max_bytes]).with_directory do |root|
+      output(JSON.parse(root.join("manifest.json").binread))
+    end
+  when "validate"
+    raise OptionParser::MissingArgument, "ARTIFACT" unless artifact_path
+    result = LocalBackups::Recovery::Artifact.new(artifact_path, max_bytes: options[:max_bytes]).validate
+    output(valid: true, artifact_checksum: result.artifact_checksum, logical_bytes: result.logical_bytes)
+  when "preflight"
+    raise OptionParser::MissingArgument, "ARTIFACT" unless artifact_path
+    artifact = LocalBackups::Recovery::Artifact.new(artifact_path, max_bytes: options[:max_bytes])
+    output(LocalBackups::Recovery::Preflight.new(artifact:).call)
+  when "copy", "import"
+    raise OptionParser::MissingArgument, "ARTIFACT" unless artifact_path
+    destination = options[:destination] || options[:root]
+    output(LocalBackups::Recovery::Importer.new(destination:, max_bytes: options[:max_bytes]).import(artifact_path))
+  when "upload"
+    destination = options[:destination] || options[:root]
+    output(LocalBackups::Recovery::Importer.new(destination:, max_bytes: options[:max_bytes]).receive($stdin))
+  when "restore"
+    raise OptionParser::MissingArgument, "ARTIFACT" unless artifact_path
+    raise LocalBackups::Recovery::Error, "--confirm is required" unless options[:confirm]
+    raise LocalBackups::Recovery::Error, "SYRUS_MAINTENANCE_MODE=1 is required" unless ENV["SYRUS_MAINTENANCE_MODE"] == "1"
+    result = LocalBackups::Recovery::Artifact.new(artifact_path, max_bytes: options[:max_bytes]).validate
+    LocalBackups::Recovery::Preflight.verify_token!(provided: options[:token], checksum: result.artifact_checksum,
+      identity: ENV.fetch("SYRUS_INSTALLATION_ID", ""))
+    raise LocalBackups::Recovery::Error, "restore execution is not available in this non-mutating release"
+  else
+    warn parser
+    warn "Commands: list, inspect, copy, validate, preflight, import, upload, restore"
+    exit 2
+  end
+rescue LocalBackups::Recovery::Error, OptionParser::ParseError, Errno::ENOENT => e
+  warn JSON.generate(error: e.class.name, message: e.message)
+  exit 1
+end

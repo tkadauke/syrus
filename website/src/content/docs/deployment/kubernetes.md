@@ -241,6 +241,13 @@ class, `SYRUS_BACKUP_MIN_FREE_BYTES`, `SYRUS_BACKUP_MIN_FREE_PERCENT`, and
 claim read-only in web pods. The plugin's capacity admission blocks new
 construction before the configured reserve is consumed.
 
+For bootstrap recovery when Rails or MySQL is unavailable, mount the backup PVC
+in a maintenance pod and run `syrus-recovery` there. Validation and preflight do
+not connect to the application database; `import` accepts a mounted artifact
+and `upload` accepts a size-bounded stream. Preserve the installation identity
+and encryption-key material outside the database so token and fingerprint
+checks can succeed.
+
 For the data-root PVC, use your cluster storage snapshot mechanism or a volume
 backup tool such as Velero with CSI snapshots.
 

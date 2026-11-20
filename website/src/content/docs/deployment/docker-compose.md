@@ -413,6 +413,14 @@ Existing stored settings survive upgrades. Inspect the instance defaults and
 each worker's latest reported effective cache limit under **Admin → Retention
 & Storage**; change the instance values under **Admin → Settings**, or set
 `SYRUS_PREPARED_LAYER_CACHE_GB` on an individual worker.
+
+If the application database cannot boot, use the Local Backups plugin's
+`syrus-recovery` executable directly. It can list, inspect, copy, validate, and
+preflight a mounted bundle without Rails. A fresh instance can stage a bounded
+bundle from a mounted file with `import` or from standard input with `upload`.
+Preflight is non-mutating and issues a token bound to the bundle checksum and
+`SYRUS_INSTALLATION_ID`; destructive restore is not enabled in this release.
+
 Back it up by copying the SQLite files out:
 
 ```bash

@@ -130,11 +130,21 @@ module LocalBackups
         backup_id: backup.uuid, started_at: backup.started_at.iso8601(6), snapshot_at: snapshot.path.mtime.utc.iso8601(6),
         completed_at: completed_at.iso8601(6), validated_at: completed_at.iso8601(6), reason: backup.reason,
         source_application_version: SyrusVersion.description, source_revision: SyrusVersion.current,
+        installation_id: ENV["SYRUS_INSTALLATION_ID"], encryption_key_fingerprints: encryption_key_fingerprints,
         artifact: { format: "directory", checksum_path: "checksums.sha256" }, checksum: artifact_checksum,
         database: @snapshotter.manifest(snapshot),
         active_storage: { service: ActiveStorage::Blob.service.class.name.demodulize.delete_suffix("Service"), blob_count: entries.length, logical_bytes: entries.sum(&:byte_size),
           blobs: entries.map(&:to_h) }, validation: { result: "valid", path: "validation.json" }
       }
+    end
+
+    def encryption_key_fingerprints
+      {
+        "primary" => EncryptionFingerprint.for(ENV["ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY"]),
+        "deterministic" => EncryptionFingerprint.for(ENV["ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY"]),
+        "derivation_salt" => EncryptionFingerprint.for(ENV["ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT"]),
+        "master_key" => EncryptionFingerprint.for(ENV["RAILS_MASTER_KEY"])
+      }.compact
     end
 
     def fsync_tree(root)

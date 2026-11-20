@@ -25,5 +25,9 @@
   "database": "Database",
   "blobs": "Blobs",
   "size": "Stored size",
-  "validation": "Validation"
+  "validation": "Validation",
+  "recovery_title": "Disaster recovery",
+  "recovery_normal": "Validate and preflight the selected bundle with syrus-recovery before entering maintenance mode.",
+  "recovery_bootstrap": "If this application or its database cannot boot, run syrus-recovery directly to inspect a mounted bundle or stream a bounded upload into an empty instance.",
+  "recovery_execution_warning": "Preflight does not change installation data. Final restore remains unavailable and will require explicit confirmation, maintenance mode, and the exact preflight token."
 }

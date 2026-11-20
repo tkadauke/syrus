@@ -25,5 +25,9 @@
   "database": "Datenbank",
   "blobs": "Blobs",
   "size": "Gespeicherte Größe",
-  "validation": "Validierung"
+  "validation": "Validierung",
+  "recovery_title": "Notfallwiederherstellung",
+  "recovery_normal": "Validiere und prüfe das ausgewählte Paket vor dem Wartungsmodus mit syrus-recovery.",
+  "recovery_bootstrap": "Wenn diese Anwendung oder ihre Datenbank nicht startet, kannst du syrus-recovery direkt ausführen, um ein eingehängtes Paket zu prüfen oder einen begrenzten Upload in eine leere Instanz zu streamen.",
+  "recovery_execution_warning": "Die Vorabprüfung ändert keine Installationsdaten. Die endgültige Wiederherstellung ist noch nicht verfügbar und erfordert später eine ausdrückliche Bestätigung, den Wartungsmodus und das exakte Vorabprüfungs-Token."
 }

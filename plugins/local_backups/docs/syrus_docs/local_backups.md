@@ -66,4 +66,30 @@ identity and install `config/deploy/systemd/syrus-backups.tmpfiles` so
 `/var/lib/syrus/backups` is mode `0700`. Do not grant the web service write
 access; expose only authenticated, bounded download operations to it.
 
-Replication execution and restore remain separate product stages.
+## Disaster-recovery preflight
+
+The `syrus-recovery` executable reads recovery bundles without booting Rails or
+connecting to the application database. Point `SYRUS_BACKUP_ROOT` at local or
+mounted backup storage and use `list`, `inspect`, `copy`, `validate`, or
+`preflight ARTIFACT`. Validation rejects unsafe archive paths, links, checksum
+failures, unsupported manifest versions, and artifacts whose compressed or
+expanded size exceeds `SYRUS_RECOVERY_MAX_BYTES`.
+
+Preflight checks application and database compatibility, required plugins,
+encryption-key fingerprints, destination health, and free space. It reports
+derived indexes that will be rebuilt and the consequences for in-flight work.
+Set `SYRUS_INSTALLATION_ID` to the stable identity retained with the
+installation's secrets; the returned token is bound to that identity and the
+exact checksum inventory. A changed artifact or identity makes the token stale.
+
+An empty installation can stage a mounted bundle with
+`syrus-recovery --destination /recovery/inbox import /mnt/backup.tar` or stream
+a bounded archive on standard input with
+`syrus-recovery --destination /recovery/inbox upload`. Neither path needs a
+backup inventory row. This release deliberately stops after preparation:
+`restore` verifies `--confirm`, `SYRUS_MAINTENANCE_MODE=1`, and the exact
+preflight token, then refuses because destructive execution is not implemented
+yet. Keep the application stopped or in maintenance mode for the future final
+restore operation.
+
+Replication execution and destructive restore remain separate product stages.

@@ -25,5 +25,9 @@
   "database": "Repositorium datorum",
   "blobs": "Globuli",
   "size": "Magnitudo servata",
-  "validation": "Validatio"
+  "validation": "Validatio",
+  "recovery_title": "Restitutio calamitatis",
+  "recovery_normal": "Fasciculum electum per syrus-recovery valida et ante modum conservationis praetenta.",
+  "recovery_bootstrap": "Si applicatio vel repositorium datorum incipere non potest, syrus-recovery directe exsequere ut fasciculum adiunctum inspicias aut onerationem finitam in institutionem vacuam transmittas.",
+  "recovery_execution_warning": "Praetentatio data institutionis non mutat. Restitutio ultima nondum praesto est atque confirmationem expressam, modum conservationis, et tesseram praetentationis exactam requiret."
 }
