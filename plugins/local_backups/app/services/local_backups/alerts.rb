@@ -1,6 +1,6 @@
 module LocalBackups
   module Alerts
-    include Syrus::Plugin::SystemAlertProvider
+    include Syrus::Host::SystemAlertProvider
 
     def self.system_alerts
       [ recent_failure, invalid_backups ].compact
@@ -10,7 +10,7 @@ module LocalBackups
       failed = Backup.where(state: "failed", failed_at: 24.hours.ago..).order(failed_at: :desc).first
       return unless failed
 
-      SystemAlerts::Alert.new(
+      Syrus::Host::SystemAlert.build(
         id: "local_backups:failed",
         dismissal_key: "local_backups:failed:#{failed.id}:#{failed.failed_at.to_i}",
         severity: :alarm,
@@ -25,7 +25,7 @@ module LocalBackups
       count = Backup.where(state: "completed", verification_state: "invalid").count
       return unless count.positive?
 
-      SystemAlerts::Alert.new(
+      Syrus::Host::SystemAlert.build(
         id: "local_backups:invalid",
         dismissal_key: "local_backups:invalid:#{count}",
         severity: :warn,

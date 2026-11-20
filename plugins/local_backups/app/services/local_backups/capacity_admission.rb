@@ -46,7 +46,7 @@ module LocalBackups
     end
 
     def filesystem
-      @filesystem ||= DataRootDiskUsage.read(@root.path) || raise("backup filesystem capacity is unavailable")
+      @filesystem ||= Syrus::Host::DiskUsage.read(@root.path) || raise("backup filesystem capacity is unavailable")
     end
 
     def available_bytes
