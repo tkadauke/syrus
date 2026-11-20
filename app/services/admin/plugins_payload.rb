@@ -236,7 +236,7 @@ module Admin
       circuits = runtime.circuits(plugin: manifest.name).map(&:to_h)
       state = if circuits.any?
         "circuit_open"
-      elsif failures.any? && (status.nil? || status.ok?)
+      elsif failures.any? && (status.nil? || status.healthy?)
         "degraded"
       else
         status&.state&.to_s || "ok"
