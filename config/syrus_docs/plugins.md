@@ -514,6 +514,11 @@ documents its context, stability tier, absent behavior, and one composition
 mode: `collect`, `broadcast`, `first_claim`, or `keyed`.
 Providers implementing a `keyed` capability declare the selector with `key:`
 in the manifest, allowing selection without loading candidate classes.
+Enabled providers are checked when plugin health is first resolved after boot.
+Missing core methods, unknown capabilities, and incompatible signatures mark
+the plugin non-conforming and withhold that family's declarations without
+disabling unrelated registrations. Disabled plugins remain unloaded. Admin and
+`syrus plugin capabilities` show declarations and conformance failures.
 
 ## Background jobs
 

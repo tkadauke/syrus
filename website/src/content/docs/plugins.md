@@ -640,6 +640,10 @@ Providers implementing a keyed capability also declare their selector with
 `key:`, keeping provider selection manifest-only and lazy.
 Operators can inspect declarations on the plugin's Admin detail page or with
 `syrus plugin capabilities` without loading provider classes.
+Enabled providers are checked when plugin health is first resolved after boot.
+Non-conforming family declarations are withheld without disabling unrelated
+features, while disabled plugins stay unloaded. Both surfaces show the precise
+conformance failure.
 
 ## Execution Backend Contract
 
