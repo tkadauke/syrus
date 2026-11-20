@@ -2225,6 +2225,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil, wait_details: {})
   end
 
+  # ChatFeedback, Rebase and StackRebase deliberately materialize behind the
+  # Job lock (materialize_behind_active_lock?) and wait their turn. That is two
+  # active Workflows by design; the newer one is waiting, not superseding.
+  it "does not cancel a running Workflow for feedback queued behind its Job lock" do
+    feedback_job = Factories.job_record(state: "running")
+    running = WorkUnits::Launcher.instantiate(kind: "initial", job: feedback_job)
+    running.update_columns(state: "running", started_at: 5.minutes.ago)
+    running.work_unit.mark_running!
+    queued_feedback = WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: feedback_job)
+    expect(queued_feedback).to be_queued
+    expect(queued_feedback.work_unit).to be_active
+
+    result = reconcile_and_execute(job_id: feedback_job.id)
+
+    expect(result.issues.map(&:kind)).not_to include("superseded_active_runtime_work")
+    expect(running.reload).to be_running
+  end
+
   # JobWakeup deliberately parks a dependent Job's intent as waiting on its
   # dependency while the queued Workflow's WorkUnit already exists. Clearing
   # that justified wait made the reconciler and JobWakeup undo each other on

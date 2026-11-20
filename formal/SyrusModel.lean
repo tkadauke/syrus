@@ -16,3 +16,4 @@ import SyrusModel.JobAttempt
 import SyrusModel.TrainEvidence
 import SyrusModel.MergeFence
 import SyrusModel.LockAcquire
+import SyrusModel.SupersededWork

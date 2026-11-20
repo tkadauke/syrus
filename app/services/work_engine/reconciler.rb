@@ -2041,7 +2041,9 @@ module WorkEngine
     def classify_superseded_active_runtime_work
       jobs.reject(&:closed?).flat_map do |job|
         active = active_runtime_workflows_for_job(job)
-        active = active.reject { |workflow| patient_rebase_waiting_for_active_workflow?(workflow) }
+        active = active.reject do |workflow|
+          patient_rebase_waiting_for_active_workflow?(workflow) || waiting_behind_job_lock?(workflow)
+        end
         next [] if active.size < 2
 
         keeper = active.last
@@ -2062,6 +2064,16 @@ module WorkEngine
           )
         end
       end
+    end
+
+    # ChatFeedback, Rebase and StackRebase materialize behind the Job lock and
+    # wait for it (WorkDefinitions#materialize_behind_active_lock?). Until such
+    # a Workflow starts it is queued work, not a second attempt; treating it as
+    # the "keeper" would cancel the running Workflow it is waiting for.
+    def waiting_behind_job_lock?(workflow)
+      workflow.queued? && workflow.work_definition.materialize_behind_active_lock?
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def patient_rebase_waiting_for_active_workflow?(workflow)

@@ -395,6 +395,26 @@ released it mid-insert" (red before: running with no active lock).
 
 ---
 
+## F14. The reconciler cancelled running work for feedback queued behind it — fixed
+
+**Property.** A Workflow waiting behind the Job lock never causes the Workflow
+it waits for to be cancelled (`SupersededWork.after_waiters_never_supersede`).
+
+**Counterexample.** `before_cancels_running`: ChatFeedback, Rebase and
+StackRebase materialize behind the Job lock (`materialize_behind_active_lock?`).
+`classify_superseded_active_runtime_work` saw two active Workflows, kept the
+newest — the queued feedback — and auto-repaired by cancelling the running
+implementation. The executor re-checks activity, Job and age, none of which
+exclude this case.
+
+**Fix.** A queued Workflow of a materialize-behind kind is excluded from the
+classifier, alongside the existing patient-rebase exemption.
+
+**Spec.** `reconciler_spec.rb` "does not cancel a running Workflow for feedback
+queued behind its Job lock" (red before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

@@ -1068,9 +1068,9 @@
       "simulator": [
         "dependent_active_initial_dedup_collision"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: at most one active first-class unit per Job; the dedup key or a job lock must cover every first-class kind."
+      "status": "done",
+      "done_by": "F14",
+      "notes": "Two active first-class Workflows on one Job is legitimate for ChatFeedback, Rebase and StackRebase, which materialize behind the Job lock and wait. classify_superseded_active_runtime_work only exempted patient rebases and kept the newest Workflow, so chat feedback queued behind a running implementation made the reconciler (auto-repair, no executor guard) cancel the running Workflow. Fixed: a queued Workflow of a materialize-behind kind is waiting, not superseding. SupersededWork.lean: before_cancels_running, after_waiters_never_supersede. Job-scoped first-class kinds otherwise cannot overlap (WorkUnit lock, LockSafety)."
     },
     {
       "id": "closed-job-active-workflow",
