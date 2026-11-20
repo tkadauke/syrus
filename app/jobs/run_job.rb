@@ -435,6 +435,17 @@ class RunJob < ApplicationJob
       return
     end
 
+    if StepDispatcher.job_closed_for_execution?(@workflow)
+      log("#{@job.slug} is closed; cancelling #{@workflow.slug} instead of running #{@step.kind}")
+      StepDispatcher.cancel_unstartable_closed_job_workflow!(@workflow)
+      @run.reload
+      if @run.may_cancel?
+        @run.cancel!
+        @run.save!
+      end
+      return
+    end
+
     return if cancel_ineligible_retry_workflow!
 
     if @step.terminal?

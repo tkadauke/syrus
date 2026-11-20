@@ -165,6 +165,59 @@ property it serves — no Run starts for a closed Job — is F6.
 
 ---
 
+## F6. Workflows kept running on closed Jobs — fixed (operator-approved design)
+
+**Property.** No active runtime Workflow works on a closed Job
+(`JobClosure.ClosedQuiet`), and every closure a Workflow requests is applied
+when it finishes (`finish_honors_pending`). `plainClose_breaks`: closing without
+cancelling the Job's other Workflows violates it.
+
+**Evidence.** The F5 timeline (rebase started after its Job closed);
+`closed_job_active_runtime_work` repairs in production.
+
+**Design (decided in review).** A Workflow never closes a Job while running:
+- Steps call `Workflow#request_job_closure!(job, reason)` (pending closure on
+  the Workflow). Migrated: `auto_merge`, `merge_train_land` (member Jobs),
+  `stack_auto_rebase`, `auto_rebase`, `external_pr_merge`, `mergeability_preflight`,
+  `pr_open` (no_changes), `promotion_publish`, `hotfix_sync_publish`,
+  `upstream_export_publish`, `auto_close`.
+- When the Workflow's *own* Job has a pending closure, the dispatcher skips the
+  remaining queued steps and finishes — the close is always the final act.
+- `Workflows::LifecyclePropagation` applies pending closures on every terminal
+  outcome (succeeded/failed/cancelled/blocked), before Job propagation.
+- `JobClosure.close_now!` cancels the Job's other active Workflows, then closes.
+- External closers (`PullRequestMergeCloser`, `PollPullRequestJob`,
+  `PollExternalPrJob`, `GracePeriodExpiryJob`) use `JobClosure.request!`: defer
+  to an active landing Workflow that owns the Job (e.g. a train landing its
+  members), otherwise close now. Branch deletion only when closed now.
+- Backstop: the dispatcher never starts a next step, and `RunJob` never runs a
+  step, for a closed Job (same deploy exception as the existing start guard).
+
+**Bugs found while building it (both covered by specs).**
+- A cached `workflow.job` still in its pre-close state made success
+  propagation save `implemented` over the close; `apply_pending!` reloads it.
+- `Job#active_runtime_workflows` runs `TerminalWorkflowSync` first; mid-cancel
+  that re-cancelled the finishing Workflow and recursed. `close_now!` queries
+  ownership directly.
+- A Workflow ended early by its own closure is exempt from "PR publication
+  missing after success".
+
+**Specs.** `job_closure_spec.rb` (6: early finish + close, close on failure,
+no next step after an external close, `close_now!` cancels others, deferral to
+a landing owner, close now otherwise); step specs now assert the pending closure
+and the close on finish (`auto_merge` additionally that the Job stays `landing`
+until then).
+
+**Review notes.**
+- Behavior change: Jobs closed by landing steps now close a moment later (at
+  Workflow finish) instead of mid-step. A merge train's members all close when
+  the train finishes, not one by one as it lands them.
+- Other plain `close_with_reason!` callers outside Workflows (operator cancel,
+  Epic archive, too-many-failures, ingestion, plugins' after-success hooks) are
+  unchanged; the step-boundary and `RunJob` backstops cover them.
+
+---
+
 ## Open questions for review
 
 - **Q1. A landing parked mid-run gives up the landing slot.** `block!` with

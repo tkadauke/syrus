@@ -190,7 +190,7 @@ module Steps
     end
 
     def close_job!(reason)
-      job.close_with_reason!(reason) if job.may_close?
+      workflow.request_job_closure!(job, reason) if job.may_close?
     end
   end
 end

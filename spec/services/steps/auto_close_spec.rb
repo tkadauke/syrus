@@ -16,6 +16,8 @@ RSpec.describe Steps::AutoClose do
   it "closes the anchor Job with the Job's kind as the closure reason" do
     handler.call
 
+    expect(workflow.reload.pending_job_closures_by_id).to eq(job.id => "main_grader")
+    JobClosure.apply_pending!(workflow)
     expect(job.reload.state).to eq("closed")
     expect(job.closure_reason).to eq("main_grader")
   end
@@ -28,13 +30,13 @@ RSpec.describe Steps::AutoClose do
     expect(job.reload.state).to eq("closed")
   end
 
-  it "raises instead of silently succeeding when the Job doesn't actually close" do
-    # Regression guard for if the close attempt no-ops for any
-    # reason, the step must surface that as a failure rather than let the
-    # Run/Step report "succeeded" while the Job stays open.
+  it "raises instead of silently succeeding when the Job cannot close" do
+    # Regression guard: a Job that cannot close must surface as a step
+    # failure rather than let the Run/Step report "succeeded" while the Job
+    # stays open.
     allow_any_instance_of(Job).to receive(:may_close?).and_return(false)
 
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /not closed/)
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /cannot close/)
     expect(job.reload.state).not_to eq("closed")
   end
 end

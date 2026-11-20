@@ -449,6 +449,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     handler.call
 
+    apply_pending_job_closures!
     expect(direct_job.reload).to be_closed
     expect(direct_job.closure_reason).to eq("no_changes")
     expect(direct_workflow.reload.artifact("no_pr_reason")).to include(
@@ -527,6 +528,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     handler.call
 
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("no_changes")
     expect(workflow.reload.artifact("pr_open_force_pushed_unopened_branch")).to include(

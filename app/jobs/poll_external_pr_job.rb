@@ -42,15 +42,11 @@ class PollExternalPrJob < ApplicationJob
 
   def close_with(reason)
     Rails.logger.info("[PollExternalPrJob] closing #{@job.slug}: #{reason}")
-    @job.runs.active.find_each do |r|
-      r.cancel! if r.may_cancel?
-      r.save!
-    end
     if reason == "external_pr_merged"
       sha = @pr.respond_to?(:merge_commit_sha) ? @pr.merge_commit_sha : @pr[:merge_commit_sha]
       @job.update_column(:landed_sha, sha) if sha.present?
     end
-    @job.close_with_reason!(reason)
+    JobClosure.request!(@job, reason)
   end
 
   # ----- upstream PR review state ---------------------------------------

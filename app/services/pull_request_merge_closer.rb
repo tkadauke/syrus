@@ -8,21 +8,20 @@ class PullRequestMergeCloser
     @landed_sha = landed_sha
   end
 
+  # Closing goes through JobClosure outside the Job lock: it cancels the Job's
+  # other Workflows (Workflow lock, then Job), and an active landing Workflow
+  # that merged this PR keeps it until it finishes. The branch is deleted only
+  # when the Job closed here; a deferring landing still owns it.
   def call
-    closed = @job.with_lock do
+    recorded = @job.with_lock do
       next false unless @job.open?
 
-      @job.runs.active.find_each do |run|
-        run.cancel! if run.may_cancel?
-        run.save!
-      end
-
       @job.update!(grace_period_expires_at: nil, landed_sha: @landed_sha.presence || @job.landed_sha)
-      @job.close_with_reason!("pr_merged")
       true
     end
+    return unless recorded
 
-    delete_branch if closed
+    delete_branch if JobClosure.request!(@job, "pr_merged") == :closed
   end
 
   private

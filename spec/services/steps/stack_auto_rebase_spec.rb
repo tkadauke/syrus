@@ -87,6 +87,7 @@ RSpec.describe Steps::StackAutoRebase do
 
     described_class.new(run).call
 
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
     expect(client).to have_received(:close_pull_request).with(repository.slug, 7)

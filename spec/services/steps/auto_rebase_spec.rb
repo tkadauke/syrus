@@ -64,6 +64,7 @@ RSpec.describe Steps::AutoRebase do
 
       described_class.new(run).call
 
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.closure_reason).to eq("pr_merged")
       expect(client).to have_received(:close_pull_request).with(job.repository.slug, 3235)
@@ -86,6 +87,7 @@ RSpec.describe Steps::AutoRebase do
       allow(client).to receive(:add_issue_comment).and_raise(Octokit::Error.new)
 
       expect { described_class.new(run).call }.not_to raise_error
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
     end
   end

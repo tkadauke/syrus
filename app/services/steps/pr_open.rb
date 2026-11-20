@@ -537,7 +537,7 @@ module Steps
       workflow.set_artifact!("no_pr_reason", reason)
       log("pr_open: closing #{job.slug} as no_changes; #{workspace.branch_name} has no changes against #{base_branch} (#{base_ref})")
       StateTransition.with_source("system") do
-        job.close_with_reason!("no_changes") if job.may_close?
+        workflow.request_job_closure!(job, "no_changes") if job.may_close?
       end
       true
     end

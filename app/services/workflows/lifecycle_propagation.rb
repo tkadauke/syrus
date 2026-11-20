@@ -24,6 +24,7 @@ module Workflows
     def succeeded!
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("succeeded")
+      JobClosure.apply_pending!(workflow)
       workflow.cleanup_workspace!
       workflow.job.clear_needs_attention!(reason: GraderLoopProgress::NO_PROGRESS_REASON)
       workflow.propagate_succeed_to_job!
@@ -35,6 +36,7 @@ module Workflows
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("failed")
       workflow.cancel_orphan_active_runs!
+      JobClosure.apply_pending!(workflow)
       workflow.propagate_fail_to_job!
       dispatch_hook(:after_fail)
       workflow.cleanup_workspace! if workflow.infrastructure_workflow?
@@ -48,6 +50,7 @@ module Workflows
       Workflows::CancellationAttribution.with_parent(workflow) do
         workflow.sync_work_unit_terminal!("cancelled")
         workflow.cancel_active_descendants!
+        JobClosure.apply_pending!(workflow)
         workflow.propagate_cancel_to_job!
         workflow.cleanup_workspace!
         dispatch_hook(:after_cancel)
@@ -67,7 +70,8 @@ module Workflows
           details: workflow.artifact("cannot_proceed").to_h
         )
       end
-      workflow.job.set_needs_attention!(reason: "agent_cannot_proceed")
+      JobClosure.apply_pending!(workflow)
+      workflow.job.set_needs_attention!(reason: "agent_cannot_proceed") unless workflow.job.closed?
       workflow.cleanup_workspace!
     end
 

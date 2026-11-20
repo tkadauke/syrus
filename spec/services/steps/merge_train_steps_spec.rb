@@ -1263,6 +1263,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
         handler.call
 
+        apply_pending_job_closures!
         expect(a.reload).to be_closed
         expect(a.closure_reason).to eq("pr_merged")
         expect(train.members.find_by(job: a).state).to eq("merged")
@@ -1342,6 +1343,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
         handler.call
 
+        apply_pending_job_closures!
         expect(a.reload).to be_closed
         expect(a.closure_reason).to eq("pr_merged")
         expect(train.members.find_by(job: a).state).to eq("merged")
@@ -1416,6 +1418,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
         handler.call
 
+        apply_pending_job_closures!
         expect(a.reload).to be_closed
         expect(a.closure_reason).to eq("pr_merged")
         expect(train.members.find_by(job: a).state).to eq("merged")
@@ -1451,8 +1454,10 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         .with("acme/widgets", 777, hash_including(merge_method: "merge", sha: "intsha999"))
       expect(client).to have_received(:close_pull_request).with("acme/widgets", a.pr_number)
       expect(client).to have_received(:close_pull_request).with("acme/widgets", b.pr_number)
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
       expect(a.closure_reason).to eq("pr_merged")
+      apply_pending_job_closures!
       expect(b.reload).to be_closed
       expect(train.reload.state).to eq("succeeded")
       expect(train.members.pluck(:state).uniq).to eq([ "merged" ])
@@ -1516,7 +1521,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         .with("acme/widgets", hash_including(title: "Land job bundle ##{train.id}: 2 approved Jobs"))
       expect(client).to have_received(:merge_pull_request)
         .with("acme/widgets", 777, hash_including(commit_title: "Merge job bundle ##{train.id} via Syrus merge-train"))
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
+      apply_pending_job_closures!
       expect(b.reload).to be_closed
       expect(train.reload.state).to eq("succeeded")
     end
@@ -1543,6 +1550,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(a.state).to eq("implemented")
       expect(client).not_to have_received(:close_pull_request).with("acme/widgets", a.pr_number)
       expect(client).not_to have_received(:delete_branch).with("acme/widgets", a.branch_name)
+      apply_pending_job_closures!
       expect(b.reload).to be_closed
       expect(b.closure_reason).to eq("pr_merged")
       expect(b.landed_sha).to eq("trainsha789")
@@ -1639,6 +1647,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       # object was detected.
       expect(git).to have_received(:run)
         .with("fetch", "https://push.example/repo.git", "refs/heads/master", chdir: "/tmp/ws").twice
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
       expect(a.closure_reason).to eq("pr_merged")
       expect(train.members.find_by(job: a).state).to eq("merged")
@@ -1668,6 +1677,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       handler.call
 
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
       expect(a.closure_reason).to eq("pr_merged")
       expect(train.members.find_by(job: a).state).to eq("merged")
@@ -1800,6 +1810,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler.call
 
       expect(client).not_to have_received(:delete_branch).with("acme/widgets", nil)
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
       expect(a.branch_deleted_at).to be_nil
     end
@@ -1825,6 +1836,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler.call
 
       expect(train.reload.state).to eq("succeeded")
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
       expect(a.branch_deleted_at).to be_nil
       expect(b.reload.branch_deleted_at).to be_present
@@ -1852,7 +1864,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
 
       expect(train.reload.state).to eq("succeeded")
       expect(train.members.pluck(:state).uniq).to eq([ "merged" ])
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
+      apply_pending_job_closures!
       expect(b.reload).to be_closed
     end
 
@@ -1885,6 +1899,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(client).not_to have_received(:create_pull_request)
       expect(client).to have_received(:merge_pull_request).with("acme/widgets", 888, hash_including(merge_method: "merge"))
       expect(handler.workflow.artifact("merge_train_pr_number")).to eq(888)
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
     end
 
@@ -1907,6 +1922,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(client).to have_received(:create_pull_request)
       expect(client).to have_received(:merge_pull_request).with("acme/widgets", 888, hash_including(merge_method: "merge"))
       expect(handler.workflow.artifact("merge_train_pr_number")).to eq(888)
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
     end
 
@@ -2411,6 +2427,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         .with("acme/widgets", hash_including(base: "master", head: train.integration_branch))
       expect(client).to have_received(:merge_pull_request).with("acme/widgets", 777, hash_including(merge_method: "merge"))
       expect(client).to have_received(:close_pull_request).with("acme/widgets", a.pr_number)
+      apply_pending_job_closures!
       expect(a.reload).to be_closed
       expect(train.reload.state).to eq("succeeded")
     end

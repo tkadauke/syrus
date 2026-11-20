@@ -49,8 +49,8 @@ module Steps
     # let us comment on, must not fail a rebase that itself did nothing wrong.
     def finalize_already_landed!
       if job.may_close?
-        job.close_with_reason!("pr_merged")
-        log("auto_rebase: #{job.slug} closed as pr_merged — its commits are already on #{rebase_base_branch}")
+        workflow.request_job_closure!(job, "pr_merged")
+        log("auto_rebase: #{job.slug} will close as pr_merged — its commits are already on #{rebase_base_branch}")
       else
         log("auto_rebase: #{job.slug} is #{job.state} and was left as-is; its commits are already on #{rebase_base_branch}")
       end

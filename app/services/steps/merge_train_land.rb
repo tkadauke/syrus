@@ -376,7 +376,7 @@ module Steps
         reconcile_member_pull_request_after_landing(client, member_job, integration_pr)
         if member_job.may_close?
           member_job.update_column(:landed_sha, integration_sha) if integration_sha.present?
-          member_job.close_with_reason!("pr_merged")
+          workflow.request_job_closure!(member_job, "pr_merged")
         end
         if member_job.branch_name.present?
           member_job.update_column(:branch_deleted_at, Time.current) if delete_branch_after_landing(client, member_job.branch_name)

@@ -469,6 +469,14 @@ class StepDispatcher
     workflow.trigger_kind == "deploy" && workflow.job.landed_sha.present?
   end
 
+  # Reads the Job row fresh: a closer in another process must be seen.
+  def self.job_closed_for_execution?(workflow)
+    return false unless workflow.job_id
+    return false unless Job.where(id: workflow.job_id, state: "closed").exists?
+
+    !redeploy_on_closed_job?(workflow)
+  end
+
   def self.cancel_unstartable_closed_job_workflow!(workflow)
     WorkUnits::WorkflowCancellation.cancel!(
       workflow,
@@ -1280,7 +1288,19 @@ class StepDispatcher
   end
 
   def enqueue_next_runnable_steps!
+    # A step that asked to close this Workflow's own Job was its final act:
+    # skip the rest and finish, so the closure is applied on completion.
+    return finish_after_own_job_closure! if @workflow.own_job_closure_pending?
+
     next_steps = find_next_runnables
+
+    # Never start a step for a closed Job (the start-time guard in
+    # .start_workflow, applied at every step boundary). A Workflow with
+    # nothing left to start still finishes normally below.
+    if next_steps.any? && self.class.job_closed_for_execution?(@workflow)
+      self.class.cancel_unstartable_closed_job_workflow!(@workflow)
+      return nil
+    end
 
     if next_steps.any?
       # Idempotency: failure propagation fires fail_from twice
@@ -2442,6 +2462,19 @@ class StepDispatcher
     StackRebaseCoordinator.parent_amended(@workflow.job) if pushed_workflow? && @workflow.trigger_kind != "stack_rebase"
     schedule_mergeability_recheck
     schedule_auto_merge_recheck
+  end
+
+  def finish_after_own_job_closure!
+    @workflow.steps.where(state: "queued").find_each do |step|
+      next if step.runs.active.exists?
+
+      step.skip!
+      step.save!
+    end
+    return nil if downstream_work_pending?
+
+    finish_workflow!
+    nil
   end
 
   def fail_for_cancelled_tail!

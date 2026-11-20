@@ -161,6 +161,8 @@ module Workflows
       return false if publication_step_kinds.empty?
       return false unless workflow.steps.where(kind: publication_step_kinds).exists?
       return false if workflow.steps.where(kind: publication_step_kinds, state: "succeeded").exists?
+      # A Workflow closing its own Job ended early on purpose; nothing is left to publish.
+      return false if workflow.own_job_closure_pending?
       return false if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
       return false if job.infrastructure_job?
       return false if workflow.trigger_kind == "main_branch_repair" && (workflow.artifact("preflight_passed") || workflow.artifact("preflight_inconclusive"))

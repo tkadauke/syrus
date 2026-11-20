@@ -146,6 +146,7 @@ RSpec.describe Steps::UpstreamExportPublish do
       handler.call
 
       expect(job.pr_links.find_by!(role: JobPrLink::ROLE_UPSTREAM_EXPORT).metadata).to eq("pr_state" => "merged")
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.closure_reason).to eq("pr_merged")
     end

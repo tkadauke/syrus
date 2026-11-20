@@ -176,12 +176,9 @@ class PollPullRequestJob < ApplicationJob
     return close_merged_pr if reason == "pr_merged"
 
     Rails.logger.info("[PollPullRequestJob] closing #{@job.slug}: #{reason}")
-    @job.runs.active.find_each do |r|
-      r.cancel! if r.may_cancel?
-      r.save!
-    end
     @job.update!(grace_period_expires_at: nil)
-    @job.close_with_reason!(reason)
+    return unless JobClosure.request!(@job, reason) == :closed
+
     StackRebaseCoordinator.parent_closed(@job) if reason == "pr_closed"
 
     if @job.branch_name.present? && @job.branch_deleted_at.nil?

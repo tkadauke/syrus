@@ -57,6 +57,7 @@ RSpec.describe Steps::ExternalPrMerge do
 
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 99, hash_including(merge_method: "rebase", sha: "abc123"))
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("external_pr_merged")
   end
@@ -177,6 +178,7 @@ RSpec.describe Steps::ExternalPrMerge do
     expect(AutoRebase).to have_received(:new).with(job, base_branch: "main", branch_name: "contributor-branch")
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 99, hash_including(merge_method: "rebase", sha: "def5678"))
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(workflow.artifact("external_pr_head_sha")).to eq("def5678")
     expect(workflow.artifact(LandingValidationCache::ARTIFACT_KEY)).to include(
@@ -219,6 +221,7 @@ RSpec.describe Steps::ExternalPrMerge do
     expect(push_git).not_to have_received(:run)
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 99, hash_including(merge_method: "rebase", sha: "def5678"))
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(workflow.artifact("external_pr_head_sha")).to eq("def5678")
   end
@@ -274,6 +277,7 @@ RSpec.describe Steps::ExternalPrMerge do
 
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 99, hash_including(sha: "def999"))
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("external_pr_merged")
   end
@@ -357,6 +361,7 @@ RSpec.describe Steps::ExternalPrMerge do
     described_class.new(run).call
 
     expect(workflow.reload).to be_cancelled
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("external_pr_merged")
   end
@@ -367,6 +372,7 @@ RSpec.describe Steps::ExternalPrMerge do
     described_class.new(run).call
 
     expect(workflow.reload).to be_cancelled
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("external_pr_closed")
   end

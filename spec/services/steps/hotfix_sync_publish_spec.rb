@@ -59,6 +59,7 @@ RSpec.describe Steps::HotfixSyncPublish do
       expect(link.target_ref).to eq("develop")
       expect(link.pr_number).to be_nil
       expect(link.metadata).to eq("pr_state" => "merged")
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.closure_reason).to eq("hotfix_sync_landed")
     end
@@ -100,6 +101,7 @@ RSpec.describe Steps::HotfixSyncPublish do
       link = job.pr_links.find_by!(role: JobPrLink::ROLE_HOTFIX_SYNC)
       expect(link.pr_number).to eq(501)
       expect(link.metadata).to eq("pr_state" => "merged")
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.closure_reason).to eq("hotfix_sync_landed")
     end
@@ -133,6 +135,7 @@ RSpec.describe Steps::HotfixSyncPublish do
 
       expect(client).not_to have_received(:merge_pull_request)
       expect(job.pr_links.find_by!(role: JobPrLink::ROLE_HOTFIX_SYNC).metadata).to eq("pr_state" => "merged")
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
     end
   end

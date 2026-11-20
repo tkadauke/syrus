@@ -715,6 +715,31 @@ class Workflow < ApplicationRecord
     end
   end
 
+  PENDING_JOB_CLOSURES_ARTIFACT = "pending_job_closures".freeze
+
+  # A Workflow never closes a Job while it is still running: it records the
+  # closure here and JobClosure applies it when the Workflow finishes,
+  # whatever its outcome. Closing the Workflow's own Job also ends the
+  # Workflow after the requesting step (see StepDispatcher), so the close is
+  # always its final act. formal/SyrusModel/JobClosure.lean proves no active
+  # Workflow then ever works on a closed Job.
+  def request_job_closure!(job, reason)
+    self.class.transaction do
+      locked = self.class.lock.find(id)
+      closures = locked.pending_job_closures_by_id.transform_keys(&:to_s).merge(job.id.to_s => reason.to_s)
+      locked.set_artifact!(PENDING_JOB_CLOSURES_ARTIFACT, closures)
+    end
+    workflow_artifact_values.reset
+  end
+
+  def pending_job_closures_by_id
+    artifact(PENDING_JOB_CLOSURES_ARTIFACT).to_h.to_h { |job_id, reason| [ job_id.to_i, reason.to_s ] }
+  end
+
+  def own_job_closure_pending?
+    pending_job_closures_by_id.key?(job_id)
+  end
+
   # Append-only artifact write. Inline domain-event subscribers can write
   # artifacts during a step before the step writes its own artifact, so merge
   # against the locked current row rather than a possibly stale instance copy.

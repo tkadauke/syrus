@@ -86,7 +86,7 @@ module Steps
 
       comment = "Merged automatically by Syrus after approval and green checks. #{job.slug}: #{job_url}"
       add_merge_comment(client, comment)
-      job.close_with_reason!("pr_merged") if job.may_close?
+      workflow.request_job_closure!(job, "pr_merged") if job.may_close?
       if job.branch_name.present?
         job.update_column(:branch_deleted_at, Time.current) if client.delete_branch(repository.slug, job.branch_name)
       end
@@ -175,7 +175,7 @@ module Steps
     def close_job_for_closed_pull_request!(pr, client)
       return unless job.may_close?
 
-      job.close_with_reason!(ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
+      workflow.request_job_closure!(job, ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
     end
 
     def mirror_durable_approval_to_github!(client, pr)

@@ -18,12 +18,8 @@ class GracePeriodExpiryJob < ApplicationJob
 
     Rails.logger.info("[GracePeriodExpiryJob] Grace period expired for #{job.slug}; closing.")
     reason = grace_period_closure_reason(job)
-    job.runs.active.find_each do |run|
-      run.cancel! if run.may_cancel?
-      run.save!
-    end
     job.update!(grace_period_expires_at: nil)
-    job.close_with_reason!(reason)
+    return unless JobClosure.request!(job, reason) == :closed
 
     delete_branch_if_needed(job)
   end
