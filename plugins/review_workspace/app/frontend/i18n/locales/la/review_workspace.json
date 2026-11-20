@@ -10,5 +10,20 @@
   "open_review": "Recensionem praesentem aperi",
   "all_caught_up": "Omnia perfecta",
   "empty": "Nulla Jobs nunc a te approbari possunt.",
-  "load_error": "Spatium recensionis onerari non potuit."
+  "load_error": "Spatium recensionis onerari non potuit.",
+  "loading_job": "Argumenta recensionis praesentia onerantur...",
+  "job_load_error": "Argumenta recensionis huius operis onerari non potuerunt.",
+  "exit": "Spatium recensionis relinquere",
+  "evidence": "Argumenta recensionis",
+  "decision_context": "Contextus iudicii",
+  "decision_hint": "Facultas approbandi contra caput PR praesens iterum examinatur.",
+  "approve": "Ad coniunctionem approbare",
+  "approve_shortcut": "Ad coniunctionem approbare (A)",
+  "approve_confirm": "{{slug}} ad coniunctionem approbare?",
+  "feedback_shortcut": "Responsum dare (F)",
+  "feedback_label": "Quid mutandum est?",
+  "send_feedback": "Responsum mittere",
+  "defer": "In hac sessione differre",
+  "mutation_error": "Iudicium adhiberi non potuit. Argumenta renova et iterum tenta.",
+  "shortcuts": "J / K movere · ← / → argumenta · A approbare · F responsum · Esc exire"
 }
