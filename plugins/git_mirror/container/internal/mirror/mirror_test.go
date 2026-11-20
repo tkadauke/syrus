@@ -200,6 +200,9 @@ func TestWorkspaceFilesBatchesContentAndHistory(t *testing.T) {
 	if len(result.Blobs["nested/recent.md"].Bytes) != 0 || result.Blobs["nested/recent.md"].Size != 1<<20 || !result.Blobs["nested/recent.md"].Truncated {
 		t.Fatalf("unexpected recent blob: %+v", result.Blobs["nested/recent.md"])
 	}
+	if result.Blobs["nested/recent.md"].Bytes == nil {
+		t.Fatal("truncated blob bytes must serialize as an empty base64 string, not null")
+	}
 	if string(result.Blobs["root.md"].Bytes) != "root" || result.Blobs["root.md"].Truncated {
 		t.Fatalf("unexpected root blob: %+v", result.Blobs["root.md"])
 	}
