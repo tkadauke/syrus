@@ -38,6 +38,17 @@ class ProviderAccount < ApplicationRecord
   scope :enabled, -> { where(enabled: true) }
   scope :in_position_order, -> { order(:position, :id) }
 
+  def self.actively_referenced_ids(accounts)
+    account_ids = Array(accounts).map(&:id)
+    return Set.new if account_ids.empty?
+
+    workflow_ids = Workflow.where(provider_account_id: account_ids, state: %w[queued running]).distinct.pluck(:provider_account_id)
+    run_session_ids = ProviderSession.where(provider_account_id: account_ids).for_active_runs.distinct.pluck(:provider_account_id)
+    chat_session_ids = ProviderSession.where(provider_account_id: account_ids).for_active_chats.distinct.pluck(:provider_account_id)
+
+    (workflow_ids + run_session_ids + chat_session_ids).to_set
+  end
+
   validates :public_id, presence: true, uniqueness: true
   validates :provider_key, presence: true, length: { maximum: 64 }
   validates :authentication_kind, presence: true, length: { maximum: 64 }
@@ -65,9 +76,7 @@ class ProviderAccount < ApplicationRecord
   end
 
   def actively_referenced?
-    workflows.where(state: %w[queued running]).exists? ||
-      provider_sessions.for_active_runs.exists? ||
-      provider_sessions.for_active_chats.exists?
+    self.class.actively_referenced_ids([ self ]).include?(id)
   end
 
   def effective_proactive_pause_threshold
