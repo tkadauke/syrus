@@ -1390,6 +1390,66 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
     # and manually reconciling it. Patch equivalence (the same git-cherry
     # check ClosedPullRequestResolution already trusts for "this PR was
     # closed unmerged, but did the work land anyway?") can see it.
+    # Regression: merge_train_rebase rewrites every member's integrated
+    # commits when it replays the integration branch onto a moved base, but
+    # their LandedCommit rows keep the pre-rebase SHAs. The land-after-rebase
+    # step then found each member "not reachable", failed its landing, and
+    # left the reconciler to close it as merged a minute later -- 12 trains
+    # in a week, up to 7 members each.
+    describe "after merge_train_rebase rewrote the integration branch" do
+      def land_after_rebase(integration_patch_ids)
+        a = member_job(issue_number: 44)
+        train = build_train([ a ])
+        handler = step_handler(described_class, "merge_train_land", train, a)
+        handler.send(:workflow).set_artifact!("merge_train_rebase_new_base_sha", "newbase222")
+        record_landed_commit!(a, sha: "a-prerebase-1")
+        allow(handler).to receive(:repository).and_return(repository)
+        git = stub_git(handler)
+        allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+        allow(git).to receive(:run).with("merge-base", "--is-ancestor", anything, anything, hash_including(:chdir))
+          .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not an ancestor"))
+        allow(git).to receive(:run).with("rev-list", start_with("newbase222.."), hash_including(:chdir))
+          .and_return(integration_patch_ids.keys.join("\n"))
+        allow(git).to receive(:run).with("diff-tree", "-p", "--no-color", anything, hash_including(:chdir)) { |*args, **| "diff of #{args[3]}" }
+        patch_ids = integration_patch_ids.merge("a-prerebase-1" => "pid-a")
+        allow(git).to receive(:run).with("patch-id", "--stable", hash_including(:stdin_data)) do |*_, stdin_data:, **|
+          sha = stdin_data.delete_prefix("diff of ")
+          "#{patch_ids.fetch(sha)} #{sha}\n"
+        end
+        # The member's original branch is not patch-equivalent to base (a
+        # landing fix changed it), so only the rebased-integration check can
+        # tell that it landed.
+        allow(git).to receive(:run)
+          .with("clone", "--branch", "master", "--no-tags", anything, anything, hash_including(:env)).and_return("")
+        allow(git).to receive(:run)
+          .with("fetch", anything, "refs/heads/#{a.branch_name}:refs/remotes/syrus-closed-pr/head", hash_including(:chdir)).and_return("")
+        allow(git).to receive(:run)
+          .with("cherry", "-v", "origin/master", "refs/remotes/syrus-closed-pr/head", hash_including(:chdir))
+          .and_return("+ abc still unique\n")
+        [ handler, a, train ]
+      end
+
+      it "recognises the member's rebased commit in the integration it just landed" do
+        handler, a, train = land_after_rebase("rebased-1" => "pid-other", "rebased-2" => "pid-a")
+
+        handler.call
+
+        apply_pending_job_closures!
+        expect(a.reload).to be_closed
+        expect(a.closure_reason).to eq("pr_merged")
+        expect(train.members.find_by(job: a).state).to eq("merged")
+      end
+
+      it "still fails a member none of whose patches reached the integration" do
+        handler, a, train = land_after_rebase("rebased-1" => "pid-other")
+
+        handler.call
+
+        expect(a.reload.state).not_to eq("closed")
+        expect(train.members.find_by(job: a).state).to eq("failed")
+      end
+    end
+
     describe "when ancestry says no but the member's branch is patch-equivalent to base" do
       def land_with_stale_ancestry(cherry_output)
         a = member_job(issue_number: 43)

@@ -507,7 +507,9 @@ module Steps
 
       case ancestor_of_integration(last_row.sha, integration_sha)
       when :ancestor then true
-      when :not_ancestor then patch_equivalent_on_landed_base?(member_job, train, client)
+      when :not_ancestor
+        rebased_into_integration?(member_job, last_row.sha, integration_sha) ||
+          patch_equivalent_on_landed_base?(member_job, train, client)
       when :indeterminate then trust_recent_build_evidence?(member_job, last_row) || patch_equivalent_on_landed_base?(member_job, train, client)
       end
     end
@@ -524,6 +526,47 @@ module Steps
     # reached once ancestry has already said no or could not say -- this is a
     # fallback, not a replacement, because it costs a full clone of the base
     # branch.
+    # merge_train_rebase replays the whole integration branch onto a moved
+    # base, which gives every member's integrated commit a new SHA, while the
+    # member's LandedCommit rows (written by merge_train_build) keep the old
+    # ones. Ancestry then says "no" for every member of every rebased train.
+    # A clean rebase preserves each commit's patch-id, so the member landed if
+    # a commit with the same patch-id is in what this train integrated on top
+    # of the new base. Checked against the integration itself, not the base
+    # branch: a landing fix changes the member's content relative to its own
+    # branch, which defeats patch_equivalent_on_landed_base?.
+    def rebased_into_integration?(member_job, recorded_sha, integration_sha)
+      new_base = workflow.artifact("merge_train_rebase_new_base_sha").presence
+      return false unless new_base
+
+      chdir = workspace.path.to_s
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      target = patch_id_for(git, recorded_sha, chdir)
+      return false if target.blank?
+
+      candidates = git.run("rev-list", "#{new_base}..#{integration_sha}", chdir: chdir).to_s.split("\n").map(&:strip).reject(&:empty?)
+      match = candidates.find { |sha| patch_id_for(git, sha, chdir) == target }
+      if match
+        log(
+          "merge_train: #{member_job.slug}'s recorded commit #{recorded_sha.to_s.first(9)} was rewritten by the " \
+          "integration rebase; #{match.to_s.first(9)} carries the same patch into what landed",
+          kind: "system"
+        )
+      end
+      match.present?
+    rescue GitRunner::GitError => e
+      log("merge_train: rebased-integration check for #{member_job.slug} failed: #{e.class}: #{e.message}", kind: "system")
+      false
+    end
+
+    def patch_id_for(git, sha, chdir)
+      @patch_ids ||= {}
+      return @patch_ids[sha] if @patch_ids.key?(sha)
+
+      diff = git.run("diff-tree", "-p", "--no-color", sha, chdir: chdir).to_s
+      @patch_ids[sha] = diff.blank? ? nil : git.run("patch-id", "--stable", chdir: chdir, stdin_data: diff).to_s.split.first.presence
+    end
+
     def patch_equivalent_on_landed_base?(member_job, train, client)
       return false if member_job.branch_name.blank?
 

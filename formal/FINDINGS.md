@@ -698,6 +698,53 @@ reaper. That fits "lose as little work as possible on restart".
 
 ---
 
+## F25. Every member of a rebased merge train failed verification — fixed
+
+**Property.** A member whose commit reached the landed integration through a
+clean rebase is recognised as landed (`RebasedMembers.after_accepts_rebased`).
+A member none of whose patches reached it is still rejected (`after_sound`).
+
+**Evidence (production, read-only).**
+`succeeded_merge_train_failed_member_reconciliation` repaired 12 succeeded
+trains in a week, with 1–7 members each. Three of the repairs line up to the
+second with trains that finished through `merge_train_land_after_rebase`.
+For one repaired member (a provider-account Job) I checked `main`:
+- the member's PR head is not an ancestor of `main`;
+- seven of its commits are on `main`, with new SHAs.
+
+So the member landed, the inline check rejected it, and the reconciler closed it
+about a minute later. In between, its landing was failed through
+`LandingFailureHandler`.
+
+**Counterexample.** `before_rejects_rebased`:
+- `merge_train_rebase` rebases the whole integration branch onto the new base
+  tip, and nothing re-records the members' LandedCommit rows.
+- `member_landed?` asks whether the recorded (pre-rebase) SHA is an ancestor,
+  and the answer is honestly no.
+- The existing patch-equivalence fallback compares the member's *own branch*
+  with the base. A `landing_fix` or a conflict resolution changes the content,
+  so that fails too.
+
+**Fix.** `rebased_into_integration?`: when this Workflow rebased its integration
+branch (`merge_train_rebase_new_base_sha`), the member landed if a commit in
+`new_base..integration_sha` has the same stable patch-id as the member's
+recorded commit. Patch-ids are memoised per step. A conflict that an agent
+resolved changes the patch-id and still falls through to the old checks.
+
+**Specs.** `merge_train_steps_spec.rb` "after merge_train_rebase rewrote the
+integration branch":
+- recognises the rebased commit (red before);
+- still fails a member whose patch is absent.
+
+**Review note.** The reconciler's `RepairMergeTrainMemberReconciliation` closes
+members as `pr_merged` from any `implementation` LandedCommit row in the train's
+lifetime, without checking reachability. That was right for every case I
+checked. But it would also close a member that a rebuilt train genuinely
+dropped. With this fix it should rarely run. Worth hardening to the same
+patch-id check if it keeps firing after deploy.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

@@ -1680,9 +1680,9 @@
         "succeeded_merge_train_failed_member_reconciliation",
         "merge_train_unverified_member_reconciles_after_land"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Produced by design through two different evidence windows: a member built by an earlier attempt on the same train is rejected inline and accepted by the repair. One shared evidence predicate removes the state."
+      "status": "done",
+      "done_by": "F25",
+      "notes": "Root cause was not the evidence windows but the rebase: merge_train_rebase rewrites every member's integrated commit SHAs, the LandedCommit rows keep the old ones, and land-after-rebase found every member 'not reachable' (12 trains/week, 1-7 members each; a checked member's commits are on main under new SHAs). Fixed F25: a member landed if a commit with its patch-id is in new_base..integration. RebasedMembers.after_accepts_rebased / after_sound. Follow-up: the reconciler repair trusts build rows without git; harden if it keeps firing."
     },
     {
       "id": "merge-train-merged-implies-evidence",
