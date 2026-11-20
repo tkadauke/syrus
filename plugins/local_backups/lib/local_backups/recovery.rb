@@ -238,8 +238,9 @@ module LocalBackups
         end
         missing = required.filter_map { |plugin| plugin["name"] unless available.key?(plugin["name"]) }
         incompatible = required.filter_map do |plugin|
-          next unless plugin["version"] && available[plugin["name"]] && available[plugin["name"]] != plugin["version"].to_s
-          "#{plugin['name']} (bundle #{plugin['version']}, destination #{available[plugin['name']]})"
+          next unless plugin["version"] && available.key?(plugin["name"]) && available[plugin["name"]] != plugin["version"].to_s
+          destination_version = available[plugin["name"]] || "unknown"
+          "#{plugin['name']} (bundle #{plugin['version']}, destination #{destination_version})"
         end
         failures = missing + incompatible
         result("plugins", failures.empty? ? "pass" : "fail", failures.empty? ? "required plugins are available" : "missing or incompatible: #{failures.join(', ')}")
