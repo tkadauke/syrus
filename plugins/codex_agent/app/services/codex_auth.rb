@@ -5,6 +5,12 @@ class CodexAuth
   class Error < AgentProviders::ConfigurationError; end
 
   DEFAULT_REFRESH_LOCK_TIMEOUT_SECONDS = 30.minutes.to_i
+  # MySQL rejects user-level lock names longer than 64 characters. Spelled
+  # out, a provider account's UUID pushed the name to 70, and every Codex run
+  # that had to refresh a ChatGPT login failed before invoking the agent. A
+  # digest keeps the lock per user and account at a fixed length.
+  REFRESH_LOCK_PREFIX = "syrus:codex_auth:".freeze
+  MYSQL_LOCK_NAME_LIMIT = 64
 
   Result = Data.define(:api_key)
 
@@ -19,6 +25,11 @@ class CodexAuth
       end
     end
 
+    def refresh_lock_name(user, provider_account)
+      identity = "#{user.id}:#{provider_account&.public_id || 'legacy'}"
+      "#{REFRESH_LOCK_PREFIX}#{Digest::SHA256.hexdigest(identity).first(40)}"
+    end
+
     private
 
     def refreshing_login?(user, provider_account)
@@ -31,7 +42,7 @@ class CodexAuth
     end
 
     def with_mysql_refresh_lock(user, provider_account, timeout:)
-      lock_name = "syrus:codex_auth:user:#{user.id}:account:#{provider_account&.public_id || 'legacy'}"
+      lock_name = refresh_lock_name(user, provider_account)
 
       ActiveRecord::Base.connection_pool.with_connection do |connection|
         quoted_name = connection.quote(lock_name)
