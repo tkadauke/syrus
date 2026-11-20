@@ -107,6 +107,19 @@ RSpec.describe LocalBackups::Creator do
     expect(@root.path.glob(".*.partial")).to be_empty
   end
 
+  it "reclaims eligible backups before retrying capacity admission" do
+    denied_once = instance_double(LocalBackups::CapacityAdmission)
+    attempts = 0
+    allow(denied_once).to receive(:admit!) do
+      attempts += 1
+      raise LocalBackups::CapacityAdmission::InsufficientSpace.new(required_bytes: 20, available_bytes: 10) if attempts == 1
+      true
+    end
+    allow_any_instance_of(LocalBackups::Retention).to receive(:reclaim!).with(bytes: 10)
+    expect(described_class.new(root: @root, capacity: denied_once).call.state).to eq("completed")
+    expect(denied_once).to have_received(:admit!).twice
+  end
+
   def create_blob(content)
     ActiveStorage::Blob.create_and_upload!(
       io: StringIO.new(content), filename: "backup.txt", content_type: "text/plain"
