@@ -37,7 +37,7 @@ missing = [x for x in P1 + P2 if x not in {i["id"] for i in d["items"]}]
 if missing:
     print("UNKNOWN IDS", missing); sys.exit(1)
 
-data = json.dumps({"areas": d["areas"], "items": d["items"], "commit": d.get("generated_from_commit")}).replace("</", "<\\/")
+data = json.dumps({"areas": d["areas"], "items": d["items"], "commit": d.get("generated_from_commit"), "needs_you": d.get("needs_you", [])}).replace("</", "<\\/")
 tpl = open(sys.argv[3]).read()
 open(out, "w").write(tpl.replace("__DATA__", data))
 counts = {}

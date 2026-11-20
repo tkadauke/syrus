@@ -1279,9 +1279,9 @@
         "cancelled_retry_until_barrier_blocks_tail",
         "parallel_merge_train_blocks_dirty_publication"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Three gaps against CLAUDE.md's 'fail closed' promise: an incomplete mutating-kind list, a silent fallback to older evidence, and blank-sha fail-open. Largest fixture cluster in the corpus."
+      "status": "partial",
+      "done_by": "ReviewBarrier.lean · NY1",
+      "notes": "Proved: when every HEAD move is a tracked implement/respond step, whatever the barrier lets through was approved (tracked_only_push_reviewed). Counterexamples: a format or generate commit after approval is pushed unreviewed while the barrier passes; so is an agent-authored landing_fix or conflict-resolving rebase. The blank-SHA fail-open is harmless unless combined with such an untracked move. No code bug found in the tracked path (implement always records head_sha). Policy question queued as NY1."
     },
     {
       "id": "retry-planned-for-active-workflow",
@@ -2316,6 +2316,20 @@
       "status": "partial",
       "done_by": "F1",
       "notes": "Agreement.Agrees/converges proved for waiting intents; the same check applies to cleanup_blocked_by_active_descendants (fail! keeps the tail on purpose) and active-step-with-terminal-runs (barrier no-cascade cancels)."
+    }
+  ],
+  "needs_you": [
+    {
+      "id": "NY1",
+      "item": "review-evidence-matches-head",
+      "title": "Which commits may follow required reviews without a re-review?",
+      "context": "The barrier only tracks implement/respond. In the initial Workflow the grade loop (format, generate) runs after the review loops, so a formatter or generator commit is pushed without any review having seen it. Landing Workflows have no review gates at all, so landing_fix (an agent editing code after approval) and agent conflict resolution during rebases land without review.",
+      "options": [
+        "A. Mechanical commits (format, generate) are trusted; agent-authored commits after review (landing_fix, agent rebases) must be re-reviewed before landing.",
+        "B. Everything that moves HEAD after review requires re-review (strictest; formatter changes would trigger review rounds).",
+        "C. Today's behavior is intended: reviews cover the implementation, graders cover later fixes. Document it and record it as by design."
+      ],
+      "recommendation": "A. Mechanical steps are deterministic and already gated by graders; agent edits after approval are exactly what the barrier exists to catch. Lean then proves 'the last agent-authored commit was reviewed' for every push."
     }
   ]
 }

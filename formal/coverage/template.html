@@ -90,6 +90,15 @@ details > summary::-webkit-details-marker { display: none; }
 .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 560px) { .kv { grid-template-columns: 1fr; } .body { padding-left: 4px; } }
 
+.needs { margin: 0 0 28px; background: var(--surface); border: 1px solid var(--warn); border-radius: 8px; padding: 16px 18px; display: grid; gap: 10px; }
+.needs .why { color: var(--muted); font-size: 0.9rem; margin: 0; max-width: 72ch; }
+.q { border-top: 1px solid var(--rule); padding-top: 12px; display: grid; gap: 6px; }
+.q h3 { font-size: 1.05rem; font-weight: 600; }
+.q .ref { font-family: var(--font-mono); font-size: 0.75rem; color: var(--warn); }
+.q p, .q li { margin: 0; max-width: 72ch; font-size: 0.92rem; }
+.q ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.q .rec { color: var(--fg); }
+.q .rec b { color: var(--accent); }
 .later { margin-top: 40px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; }
 .later ul { margin: 8px 0 0; padding-left: 1.2em; }
 .later li { margin: 4px 0; max-width: 72ch; }
@@ -105,6 +114,12 @@ details > summary::-webkit-details-marker { display: none; }
   </header>
 
   <div class="stats" id="stats"></div>
+
+  <section class="needs" id="needs" hidden>
+    <h2>Needs you</h2>
+    <p class="why">Design or intent questions found while working the list. The loop keeps going on other items; these wait for a decision.</p>
+    <div id="needs-list"></div>
+  </section>
 
   <div class="legend">
     <div><strong>Preventable (class a)</strong>Some code path wrongly produces the state. Model it, find the path, fix it, prove it unreachable.</div>
@@ -221,6 +236,15 @@ details > summary::-webkit-details-marker { display: none; }
     });
     document.getElementById("tiers").innerHTML = html;
     document.getElementById("f-count").textContent = shown + " of " + D.items.length;
+  }
+  var NY = D.needs_you || [];
+  if (NY.length) {
+    document.getElementById("needs").hidden = false;
+    document.getElementById("needs-list").innerHTML = NY.map(function (q) {
+      return '<div class="q"><span class="ref">' + esc(q.id) + ' · ' + esc(q.item) + '</span><h3>' + esc(q.title) + '</h3>' +
+        '<p>' + esc(q.context) + '</p><ul>' + (q.options || []).map(function (o) { return '<li>' + esc(o) + '</li>'; }).join("") + '</ul>' +
+        (q.recommendation ? '<p class="rec"><b>Recommendation:</b> ' + esc(q.recommendation) + '</p>' : "") + '</div>';
+    }).join("");
   }
   ["f-area", "f-status", "f-q"].forEach(function (id) { document.getElementById(id).addEventListener("input", render); });
   render();

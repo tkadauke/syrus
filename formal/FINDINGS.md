@@ -257,6 +257,20 @@ during fanout), which is a larger change. Worth an explicit follow-up.
 
 ---
 
+## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
+
+`ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/
+`respond` step, whatever the barrier lets through was approved
+(`tracked_only_push_reviewed`). Counterexamples: `mechanical_after_review`
+(format/generate after approval — pushed unreviewed, barrier passes) and
+`agent_untracked_after_review` (landing_fix / agent rebase — not even the last
+agent-authored commit was reviewed). The blank-SHA fail-open only matters
+combined with an untracked move (`vacuous_barrier_with_untracked`). No code bug
+in the tracked path: both agentic success paths record `head_sha`. Policy
+question NY1 on the coverage page.
+
+---
+
 ## Open questions for review
 
 - **Q1 — resolved as F7** (fail and hold instead of parking).
