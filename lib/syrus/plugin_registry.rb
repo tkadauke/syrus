@@ -262,7 +262,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, family_provides: [], display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -315,6 +315,7 @@ module Syrus
             display_name_i18n_key: display_name_i18n_key,
             version:         version,
             provides:        provides,
+            family_provides: family_provides,
             metadata:        metadata,
             description:     description,
             description_i18n_key: description_i18n_key,
@@ -509,6 +510,39 @@ module Syrus
 
         direct = @mutex.synchronize { @direct_providers[ep].dup }
         manifest_providers + direct
+      end
+
+      def capability_providers(family, capability)
+        definition = Syrus::Plugin::Family.fetch(family)
+        capability = capability.to_sym
+        raise ArgumentError, "Unknown capability #{capability.inspect} for family #{family.inspect}" unless definition.capabilities.key?(capability)
+
+        plugins = @mutex.synchronize { @plugins.dup }
+        begin
+          records = records_for(plugins)
+          enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
+          health = health_for(plugins, enabled_names: enabled.map(&:name))
+          plugins = enabled.select { |manifest| health.healthy?(manifest.name) }
+        rescue ActiveRecord::ActiveRecordError
+          # Registration remains usable before the plugin_records table exists.
+        end
+
+        sort_by_prepare_priority(plugins).flat_map do |manifest|
+          manifest.family_provides.filter_map do |declaration|
+            next unless declaration.family == definition.name && declaration.capabilities.include?(capability)
+            Syrus::Plugin::CapabilityProvider.new(plugin_name: manifest.name, family: definition.name,
+              capability:, provider_name: declaration.provider, priority: manifest.prepare_priority)
+          end
+        end
+      end
+
+      def capability_catalog(family = nil)
+        definitions = family ? [ Syrus::Plugin::Family.fetch(family) ] : Syrus::Plugin::Family.all
+        definitions.flat_map do |definition|
+          definition.capabilities.keys.flat_map do |capability|
+            capability_providers(definition.name, capability).map(&:catalog_payload)
+          end
+        end
       end
 
       def direct_providers_for(extension_point)
