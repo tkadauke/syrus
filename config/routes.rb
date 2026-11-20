@@ -190,6 +190,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/reject_triage", to: "job_lifecycle#reject_triage", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/run_again", to: "job_lifecycle#run_again", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/retry_implementation", to: "job_lifecycle#retry_implementation", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/reset", to: "job_lifecycle#reset", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/workflows/:workflow_id/dismiss", to: "job_lifecycle#dismiss_workflow", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }

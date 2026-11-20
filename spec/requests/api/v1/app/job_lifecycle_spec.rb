@@ -498,6 +498,65 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     )
   end
 
+  describe "POST /jobs/:job_id/reset" do
+    before do
+      allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, close_pull_request: true, delete_branch: true, delete_ref: true))
+      allow(WorkflowWorkspace).to receive(:cleanup_for).and_return(true)
+    end
+
+    it "resets a failed Job in place and returns it through the lifecycle response" do
+      job.update!(state: "failed", branch_name: "syrus/stale", pr_number: 42)
+      job.initial_run.update!(state: "failed", finished_at: 1.minute.ago)
+      job.latest_workflow.update!(state: "failed", finished_at: 1.minute.ago)
+      finish_work_units_for(job)
+
+      expect { post app_job_path(job, "reset"), as: :json }
+        .to change { job.reload.workflows.where(trigger_kind: "initial").count }.by(1)
+
+      expect(response).to have_http_status(:ok), response.body
+      expect(job.reload).to have_attributes(state: "queued", branch_name: nil, pr_number: nil)
+      expect(parse_body).to include("message" => "Job reset. Work restarted from the current base.")
+      expect(parse_body.dig("job", "id")).to eq(job.id)
+    end
+
+    it "returns localized validation errors for landing, merged, stacked-child, merge-train, and ineligible Jobs" do
+      landing = Factories.job_record(user:, repository: repo, state: "landing", issue_number: 50)
+      merged = Factories.job_record(user:, repository: repo, state: "closed", closure_reason: "pr_merged", issue_number: 51)
+      parent = Factories.job_record(user:, repository: repo, state: "failed", issue_number: 52)
+      child = Factories.job_record(user:, repository: repo, state: "running", issue_number: 53, parent_job_id: parent.id, branch_name: "syrus/child")
+      train_job = Factories.job_record(user:, repository: repo, state: "failed", issue_number: 54)
+      train = MergeTrain.create!(repository: repo, base_branch: repo.default_branch, priority: "medium", state: "grading")
+      MergeTrainMember.create!(merge_train: train, job: train_job, position: 0)
+      ineligible = Factories.job_record(user:, repository: repo, state: "closed", closure_reason: "cancelled", issue_number: 55)
+
+      {
+        landing => "is landing",
+        merged => "was merged",
+        parent => child.slug,
+        train_job => "active merge train",
+        ineligible => "cannot be reset from closed"
+      }.each do |record, message|
+        post app_job_path(record, "reset"), as: :json
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(parse_body.dig("error", "message")).to include(message)
+      end
+    end
+
+    it "rejects users without write access and users who cannot see the Job" do
+      failed = Factories.job_record(user:, repository: repo, state: "failed", issue_number: 56)
+      reader = Factories.user
+      RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+      sign_in_as(reader)
+      post app_job_path(failed, "reset"), as: :json
+      expect(response).to have_http_status(:forbidden)
+
+      outsider = Factories.user
+      sign_in_as(outsider)
+      post app_job_path(failed, "reset"), as: :json
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   # Regression: when the agent reported it could not proceed, the primary
   # workflow blocked while its WorkUnit kept holding the Job lock. Retry,
   # retry-from-step, resume, restart and dismiss all refused, leaving only

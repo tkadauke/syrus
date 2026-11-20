@@ -1249,6 +1249,7 @@ module App
       approvable_job = @job.implemented? && !@job.approved? && !@job.investigation? && !job_has_approval_blocking_runtime_work?
       has_tracked_pr = @job.pr_number.present? || @job.external_pr_number.present?
       coding_mode_takeover_blocked_reason = coding_mode_takeover_blocked_reason(writable: writable)
+      reset_preflight = ResetJobs::Operation.preflight_result(@job)
       {
         can_write: writable,
         can_override_planned_execution: writable && planned_execution_override_json[:eligible],
@@ -1274,6 +1275,15 @@ module App
         can_retry_from_failed_step: writable && retry_actions[:failed_step].present?,
         retry_failed_step_action: writable ? retry_actions[:failed_step] : nil,
         retry_implementation_action: writable ? retry_actions[:implementation] : nil,
+        reset_job_action: (
+          if writable && @job.failed? && reset_preflight.nil?
+            {
+              key: "reset_job",
+              path: "/api/v1/app/jobs/#{@job.id}/reset",
+              destroys: ResetJobs::Operation.destruction_summary(@job)
+            }
+          end
+        ),
         can_restart: writable && !active_runtime_work && !@job.backlog? && !@job.cron? && !@job.no_change_needed? &&
           (
             (@job.closed? && @job.infrastructure?) ||

@@ -188,6 +188,22 @@ module Api
           render_job(job.reload, message: notice, changed: [ "workflows", "runs" ], tab: "workflows")
         end
 
+        def reset
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          refusal = ResetJobs::Operation.preflight_result(job)
+          if refusal
+            render_error("validation_failed", lifecycle_t("reset_refusals.#{refusal.code}", **refusal.options), status: :unprocessable_content)
+            return
+          end
+
+          ResetJobs::Operation.new(job: job, user: Current.user, reason: lifecycle_t("reset_reason")).call
+          render_job(job.reload, message: lifecycle_t("reset_succeeded"), changed: [ "state", "workflows", "runs" ], tab: "workflows")
+        rescue ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
+        end
+
         def restart
           job = find_mutable_job
           return unless authorize_job_mutation!(job)

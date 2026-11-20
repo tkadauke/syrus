@@ -12,12 +12,14 @@ RSpec.describe ResetJobs::Operation do
   end
 
   it "returns a failed Job to normal queued admission with a fresh initial Workflow" do
-    job = Factories.job_record(user:, repository:, state: "failed")
+    job = Factories.job_with_run(user:, repository:, state: "failed",
+      workflow_attrs: { state: "failed" }, step_attrs: { state: "failed" }, run_attrs: { state: "failed" })
 
-    described_class.new(job:, user:, reason: "Start over", pending_action: action).call
+    expect {
+      described_class.new(job:, user:, reason: "Start over", pending_action: action).call
+    }.to change { job.reload.workflows.where(trigger_kind: "initial").count }.by(1)
 
     expect(job.reload).to be_queued
-    expect(job.workflows.where(trigger_kind: "initial")).to exist
   end
 
   it "cancels active runtime history, every active WorkUnit, and releases its locks" do

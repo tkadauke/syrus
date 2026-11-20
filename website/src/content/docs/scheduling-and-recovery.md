@@ -92,6 +92,11 @@ Syrus prefers the smallest safe retry:
   reported it cannot proceed: the blocked attempt is retired first, so the Job
   does not have to be cancelled.
 
+On a failed Job, **Reset Job** discards its open PR, branch, checkpoints, and
+active workflows, then restarts the same Job from the current base while
+keeping its history and relationships. **Retry** keeps usable work and starts
+another attempt; **Start over** abandons the existing Job and creates a new one.
+
 Cannot-proceed is reserved for permanent environmental or workflow-capability
 gaps. Timeout, network/proxy, worker-capacity, dependency-preparation, and
 inconclusive-grader reports are treated as retryable failures instead. A Job

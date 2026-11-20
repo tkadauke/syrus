@@ -50,6 +50,7 @@ const HEADER_ACTION_ORDER: Record<string, number> = {
 
   retry_failed_step: 400,
   retry_with: 410,
+  reset_job: 420,
   restart: 500,
   unapprove: 510,
   reopen: 520,
@@ -601,6 +602,13 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
       label: t("retry_with"),
       input: { method: "post", path: actions.retry_implementation_action.path },
       tone: actions.retry_failed_step_action ? "secondary" : "primary"
+    })
+  if (actions.reset_job_action)
+    available.push({
+      key: "reset_job",
+      label: t("reset_job"),
+      input: { method: "post", path: actions.reset_job_action.path, confirm: t("confirm_reset_job") },
+      tone: "secondary"
     })
   if (actions.can_restart)
     available.push({

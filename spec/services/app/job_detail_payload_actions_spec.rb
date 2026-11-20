@@ -641,6 +641,34 @@ RSpec.describe App::JobDetailPayload, :ci_only do
     end
   end
 
+  describe "#actions_json reset_job_action" do
+    it "exposes the destruction preview only for eligible writable failed Jobs" do
+      job = Factories.job_record(user:, repository: repo, state: "failed", branch_name: "syrus/stale", pr_number: 42)
+
+      expect(payload_for(job).dig(:actions, :reset_job_action)).to include(
+        key: "reset_job",
+        path: "/api/v1/app/jobs/#{job.id}/reset",
+        destroys: hash_including(open_pr_number: 42, branch: "syrus/stale")
+      )
+
+      job.update!(state: "implemented")
+      expect(payload_for(job).dig(:actions, :reset_job_action)).to be_nil
+    end
+
+    it "hides the action when reset is refused or the user has read-only access" do
+      parent = Factories.job_record(user:, repository: repo, state: "failed", issue_number: 70)
+      Factories.job_record(user:, repository: repo, state: "running", issue_number: 71,
+        parent_job_id: parent.id, branch_name: "syrus/child")
+      expect(payload_for(parent).dig(:actions, :reset_job_action)).to be_nil
+
+      eligible = Factories.job_record(user:, repository: repo, state: "failed", issue_number: 72)
+      reader = Factories.user
+      RepositoryMembership.create!(repository: repo, user: reader, role: "read")
+      payload = described_class.build(job: eligible, user: reader)
+      expect(payload.dig(:actions, :reset_job_action)).to be_nil
+    end
+  end
+
   describe "#actions_json can_restart" do
     def create_failed_workflow(job, trigger_kind:, failed_step_kind:)
       workflow = Workflow.create!(

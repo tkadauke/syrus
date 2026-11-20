@@ -387,6 +387,7 @@ describe("App Job detail", () => {
       ["/api/v1/app/jobs/42/visual_review", "Visual review enqueued."],
       ["/api/v1/app/jobs/42/visual_diff", "Before/after comparison enqueued."],
       ["/api/v1/app/jobs/42/run_again", "Retry workflow enqueued."],
+      ["/api/v1/app/jobs/42/reset", "Job reset."],
       ["/api/v1/app/jobs/42/restart", "Started over."],
       ["/api/v1/app/jobs/42/approve", "Job approved."],
       ["/api/v1/app/jobs/42/unapprove", "Job unapproved."],
@@ -429,6 +430,11 @@ describe("App Job detail", () => {
                   path: "/api/v1/app/jobs/42/run_again"
                 },
                 retry_failed_step_action: null,
+                reset_job_action: {
+                  key: "reset_job",
+                  path: "/api/v1/app/jobs/42/reset",
+                  destroys: { open_pr_number: 42, branch: "syrus/stale", checkpoints: 2, active_workflows: [1] }
+                },
                 retry_agent_options: ["claude"],
                 can_restart: true,
                 can_cancel: true,
@@ -476,6 +482,7 @@ describe("App Job detail", () => {
       ["Retry PR ingestion", "POST", "/api/v1/app/jobs/42/retry_pr_ingestion"],
       ["Run visual review", "POST", "/api/v1/app/jobs/42/visual_review"],
       ["Run before/after comparison", "POST", "/api/v1/app/jobs/42/visual_diff"],
+      ["Reset Job", "POST", "/api/v1/app/jobs/42/reset"],
       ["Start over", "POST", "/api/v1/app/jobs/42/restart"],
       ["Unapprove", "POST", "/api/v1/app/jobs/42/unapprove"],
       ["Reopen", "POST", "/api/v1/app/jobs/42/reopen"],
@@ -498,6 +505,7 @@ describe("App Job detail", () => {
       "Run visual review",
       "Run before/after comparison",
       "Retry with ...",
+      "Reset Job",
       "Start over",
       "Unapprove",
       "Reopen",
@@ -539,6 +547,9 @@ describe("App Job detail", () => {
     for (const [label, method, path] of overflowCommands) {
       fireEvent.click(screen.getByRole("button", { name: "More actions" }))
       fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: label }))
+      if (label === "Reset Job") {
+        expect(await screen.findByText(/open PR, branch, checkpoints, and active workflows will be discarded/i)).toBeInTheDocument()
+      }
       // Some commands guard with a ConfirmDialog; click through it when present
       const confirmBtn = await screen.findByRole("button", { name: "Confirm" }, { timeout: 200 }).catch(() => null)
       if (confirmBtn) await act(async () => fireEvent.click(confirmBtn))
@@ -598,6 +609,53 @@ describe("App Job detail", () => {
 
     expect(await screen.findByRole("button", { name: "Reapprove" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reset Job" })).not.toBeInTheDocument()
+  })
+
+  it("shows a reset refusal returned after confirmation", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/reset") {
+        return new Response(JSON.stringify({ error: { code: "validation_failed", message: "This Job entered a merge train." } }), {
+          status: 422,
+          headers: { "Content-Type": "application/json" }
+        })
+      }
+      if (path === "/api/v1/app/jobs/42/timeline") {
+        return new Response(JSON.stringify(jobTimelinePayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+      }
+      return new Response(
+        JSON.stringify(
+          jobDetailPayload({
+            job: { state: "failed", summary_state: "failed" },
+            actions: {
+              can_approve: false,
+              can_retry: false,
+              can_poll_feedback: false,
+              can_rebase: false,
+              can_check_mergeability: false,
+              can_restart: false,
+              can_cancel: false,
+              reset_job_action: { key: "reset_job", path: "/api/v1/app/jobs/42/reset", destroys: { active_workflows: [1] } }
+            }
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }))
+    fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Reset Job" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm" }))
+    expect(await screen.findByText("This Job entered a merge train.")).toBeInTheDocument()
   })
 
   it("shows a Stop Landing button for a landing job and stops landing on click", async () => {

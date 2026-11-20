@@ -1,14 +1,30 @@
 module ResetJobs
   class Operation
     RESETTABLE_STATES = %w[running failed implemented approved no_change_needed].freeze
+    Preflight = Data.define(:code, :message, :options)
 
     def self.preflight(job)
-      return "#{job.slug} is landing; cancel or finish landing before reset_job." if job.landing?
-      return "#{job.slug} was merged and cannot be reset; create a new Job instead." if job.closed? && job.closure_reason == "pr_merged"
-      return "#{job.slug} is in an active merge train; cancel the merge train before reset_job." if MergeTrain.active.joins(:members).exists?(merge_train_members: { job_id: job.id })
+      preflight_result(job)&.message
+    end
+
+    def self.preflight_result(job)
+      return Preflight.new(code: :landing, message: "#{job.slug} is landing; cancel or finish landing before reset_job.", options: { slug: job.slug }) if job.landing?
+      if job.closed? && job.closure_reason == "pr_merged"
+        return Preflight.new(code: :merged, message: "#{job.slug} was merged and cannot be reset; create a new Job instead.", options: { slug: job.slug })
+      end
+      if MergeTrain.active.joins(:members).exists?(merge_train_members: { job_id: job.id })
+        return Preflight.new(code: :merge_train, message: "#{job.slug} is in an active merge train; cancel the merge train before reset_job.", options: { slug: job.slug })
+      end
       children = job.stack_children.where.not(state: Job::TERMINAL_STATES).where("pr_number IS NOT NULL OR branch_name IS NOT NULL")
-      return "Live stacked children depend on this branch: #{children.map(&:slug).join(', ')}; reset or land them first." if children.any?
-      "#{job.slug} cannot be reset from #{job.state}; retry or reopen it first." unless RESETTABLE_STATES.include?(job.state)
+      if children.any?
+        child_slugs = children.map(&:slug).join(", ")
+        return Preflight.new(code: :stacked_children,
+          message: "Live stacked children depend on this branch: #{child_slugs}; reset or land them first.", options: { children: child_slugs })
+      end
+      unless RESETTABLE_STATES.include?(job.state)
+        Preflight.new(code: :state, message: "#{job.slug} cannot be reset from #{job.state}; retry or reopen it first.",
+          options: { slug: job.slug, state: job.state })
+      end
     end
 
     def self.destruction_summary(job)
@@ -27,7 +43,7 @@ module ResetJobs
       Workflow.where(id: direct_ids | owned_ids).order(:created_at, :id)
     end
 
-    def initialize(job:, user:, reason:, pending_action:)
+    def initialize(job:, user:, reason:, pending_action: nil)
       @job, @user, @reason, @pending_action = job, user, reason, pending_action
     end
 
@@ -79,10 +95,14 @@ module ResetJobs
     end
 
     def restart!
+      previous_workflow_ids = job.workflow_ids
       job.with_lock do
         job.update!(pr_number: nil, branch_name: nil, branch_deleted_at: Time.current,
           closure_reason: nil, landed_sha: nil)
         job.reset_from_scratch!
+      end
+      if job.queued? && job.workflows.where.not(id: previous_workflow_ids).none?
+        WorkUnits::Launcher.instantiate(kind: "initial", job: job)
       end
     end
 
@@ -90,7 +110,7 @@ module ResetJobs
       { "superseded_by_reset_at" => Time.current.iso8601, "cancelled_reason" => Workflow::SUPERSEDED_BY_RESET_REASON,
         "reset_reason" => reason,
         "reset_actor_type" => user.class.polymorphic_name, "reset_actor_id" => user.id,
-        "reset_pending_action_id" => pending_action.id }
+        "reset_pending_action_id" => pending_action&.id }.compact
     end
   end
 end

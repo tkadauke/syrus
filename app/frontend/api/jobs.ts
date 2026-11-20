@@ -1087,6 +1087,16 @@ export type JobActions = {
   can_retry_from_failed_step: boolean
   retry_failed_step_action?: JobRetryAction | null
   retry_implementation_action?: JobRetryAction | null
+  reset_job_action?: {
+    key: "reset_job"
+    path: string
+    destroys: {
+      open_pr_number?: number
+      branch?: string
+      checkpoints?: number
+      active_workflows?: number[]
+    }
+  } | null
   can_restart: boolean
   can_cancel: boolean
   can_stop_landing: boolean
