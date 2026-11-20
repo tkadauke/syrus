@@ -1,3 +1,5 @@
+require "set"
+
 module LocalBackups
   class Retention
     Result = Data.define(:deleted, :blocked)
@@ -14,7 +16,7 @@ module LocalBackups
       completed = Backup.where(state: "completed").includes(:replications).order(completed_at: :desc).to_a
       protected = protected_backup(completed)
       total = completed.sum(&:stored_bytes)
-      deleted = []
+      candidate_ids = []
       blocked = []
       completed.each_with_index do |backup, index|
         next unless over_limit?(backup, index:, total:)
@@ -23,11 +25,13 @@ module LocalBackups
           next
         end
 
-        bytes = backup.stored_bytes
-        delete!(backup, protected:)
-        total -= bytes
-        deleted << backup.uuid
+        candidate_ids << backup.id
+        total -= backup.stored_bytes
       end
+      claimed = claim_deletions!(candidate_ids)
+      blocked.concat((candidate_ids - claimed.map(&:id)).filter_map { |id| completed.find { |backup| backup.id == id }&.uuid })
+      delete_claimed_batch!(claimed)
+      deleted = claimed.map(&:uuid)
       OperationalEvents.emit("retention", deleted_count: deleted.length, blocked_count: blocked.length)
       Result.new(deleted:, blocked:)
     end
@@ -42,22 +46,44 @@ module LocalBackups
       remaining = bytes
       completed = Backup.where(state: "completed").includes(:replications).order(completed_at: :desc).to_a
       protected = protected_backup(completed)
-      deleted = []
+      candidate_ids = []
       completed.reverse_each do |backup|
         next if ineligible?(backup, protected:)
 
-        delete!(backup, protected:)
-        deleted << backup.uuid
+        candidate_ids << backup.id
         remaining -= backup.stored_bytes
         break unless remaining.positive?
       end
+      claimed = claim_deletions!(candidate_ids)
+      delete_claimed_batch!(claimed)
+      deleted = claimed.map(&:uuid)
+      remaining += (candidate_ids - claimed.map(&:id)).sum { |id| completed.find { |backup| backup.id == id }&.stored_bytes.to_i }
       OperationalEvents.emit("reclamation_blocked", required_bytes: remaining) if remaining.positive?
-      Result.new(deleted:, blocked: remaining.positive? ? completed.filter_map { |backup| backup.uuid if ineligible?(backup, protected:) } : [])
+      newly_blocked = candidate_ids - claimed.map(&:id)
+      blocked = completed.filter_map { |backup| backup.uuid if ineligible?(backup, protected:) || newly_blocked.include?(backup.id) }
+      Result.new(deleted:, blocked: remaining.positive? ? blocked : [])
     end
 
-    def delete!(backup, protected: nil)
-      claim_deletion!(backup, protected:)
+    def delete!(backup)
+      claimed = claim_deletions!([backup.id]).first
+      raise ArgumentError, "backup is protected from deletion" unless claimed
 
+      delete_claimed!(claimed)
+    end
+
+    private
+
+    def delete_claimed_batch!(backups)
+      backups.each_with_index do |backup, index|
+        delete_claimed!(backup)
+      rescue StandardError
+        remaining_ids = backups.drop(index + 1).map(&:id)
+        Backup.where(id: remaining_ids, state: "deleting").update_all(state: "completed", updated_at: @clock.call)
+        raise
+      end
+    end
+
+    def delete_claimed!(backup)
       begin
         FileUtils.remove_entry_secure(@root.contained(backup.artifact_relative_path))
       rescue Errno::ENOENT
@@ -72,8 +98,6 @@ module LocalBackups
       OperationalEvents.emit("deleted", backup_uuid: backup.uuid, stored_bytes: backup.stored_bytes)
     end
 
-    private
-
     def over_limit?(backup, index:, total:)
       index >= @keep_count || backup.completed_at < @keep_days.days.ago(@clock.call) || (@max_bytes.positive? && total > @max_bytes)
     end
@@ -87,24 +111,22 @@ module LocalBackups
       completed.find { |backup| backup.verification_state == "valid" } || completed.first
     end
 
-    # The lock makes the protection decision and tombstone transition one
-    # operation. Pin/unpin uses the same row lock, so a successful pin can
-    # never be overtaken by an already-approved deletion.
-    def claim_deletion!(backup, protected:)
-      if protected
-        raise ArgumentError, "backup is protected from deletion" if ineligible?(backup, protected:)
-        claimed = Backup.where(id: backup.id, state: "completed", pinned: false)
-          .update_all(state: "deleting", updated_at: @clock.call)
-        raise ArgumentError, "backup is no longer eligible for deletion" unless claimed == 1
-        return
-      end
+    # Claim a sweep's candidates together so every safety gate is evaluated
+    # from one locked, current view without per-backup eligibility queries.
+    def claim_deletions!(candidate_ids)
+      return [] if candidate_ids.empty?
 
       Backup.transaction do
-        completed = Backup.lock.where(state: "completed").includes(:replications).order(completed_at: :desc).to_a
-        candidate = completed.find { |record| record.id == backup.id }
-        raise ArgumentError, "backup is protected from deletion" unless candidate && !ineligible?(candidate, protected: protected_backup(completed))
-
-        candidate.update!(state: "deleting")
+        completed = Backup.lock.where(state: "completed").order(completed_at: :desc).to_a
+        Replication.lock.where(backup_id: completed.map(&:id)).load
+        verified_ids = Replication.where(backup_id: completed.map(&:id), state: "verified").distinct.pluck(:backup_id).to_set
+        protected = protected_backup(completed)
+        candidates = completed.select do |backup|
+          candidate_ids.include?(backup.id) && !backup.pinned? && backup != protected &&
+            (!@require_replication || verified_ids.include?(backup.id))
+        end
+        candidates.each { |backup| backup.update!(state: "deleting") }
+        candidates
       end
     end
   end
