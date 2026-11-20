@@ -864,8 +864,14 @@ module WorkEngine
 
           return skipped("Upstream handoff is not ready") unless StepDispatcher.deferred_phase_handoff_ready?(step)
 
-          run = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id).run
-          run ? success("resumed #{step_label(step)} with #{run_label(run)}") : skipped("queued Step remained deferred")
+          resume = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id)
+          run = resume.run
+          return success("resumed #{step_label(step)} with #{run_label(run)}") if run
+
+          # Say why. A bare "remained deferred" left workflows parked behind a
+          # scheduler gate for weeks with nothing in the activity log naming
+          # the gate.
+          skipped(["queued Step remained deferred", resume.status, resume.reason].compact_blank.join(": "))
         end
       end
 

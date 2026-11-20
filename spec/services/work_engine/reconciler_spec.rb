@@ -5021,6 +5021,26 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("resumed #{prepare.slug} with #{prepare.runs.last.slug}")
   end
 
+  it "names the gate when a queued step without a run stays deferred" do
+    prepare = workflow.steps.order(:position).second
+    step.update!(next_step: prepare)
+    job.update_columns(state: "landing", started_at: 30.minutes.ago)
+    workflow.update_columns(trigger_kind: "auto_merge", state: "running", started_at: 30.minutes.ago)
+    step.update_columns(kind: "mergeability_preflight", state: "succeeded", started_at: 30.minutes.ago, finished_at: 29.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 30.minutes.ago, finished_at: 29.minutes.ago)
+    prepare.runs.delete_all
+    prepare.update_columns(state: "queued", started_at: nil, finished_at: nil, created_at: 30.minutes.ago)
+    allow(WorkUnits::DeferredPhaseResume).to receive(:call).and_return(
+      WorkUnits::DeferredPhaseResume::Result.new(
+        workflow: workflow, run: nil, work_unit: nil, status: "blocked", reason: "landing_slot_held"
+      )
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(result.repair_executions.map(&:message)).to include("queued Step remained deferred: blocked: landing_slot_held")
+  end
+
   it "resumes a grader collector after a semantic failure and a replacement grader success" do
     workflow.steps.destroy_all
     fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 0, state: "succeeded")
