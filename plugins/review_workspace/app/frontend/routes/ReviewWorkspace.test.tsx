@@ -98,6 +98,20 @@ describe("ReviewWorkspaceRoute", () => {
     await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/canonical/jobs/42/approve"))
   })
 
+  it("owns mobile scrolling inside the fixed dynamic-viewport workspace", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+
+    await screen.findByText("Canonical review evidence")
+    const workspace = screen.getByRole("main", { name: "Review" })
+    const scroller = screen.getByTestId("review-workspace-scroll-container")
+    expect(workspace).toHaveClass("h-dvh", "overflow-hidden")
+    expect(scroller).toHaveClass("h-[calc(100dvh-4rem)]", "overflow-y-scroll", "overscroll-contain", "lg:overflow-hidden")
+    expect(scroller).toContainElement(screen.getByRole("complementary", { name: "Decision context" }))
+  })
+
   it("focuses the discoverable exit and supports keyboard Job navigation", async () => {
     const second = { ...job(), id: 43, slug: "JOB-43", title: "Review next" }
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

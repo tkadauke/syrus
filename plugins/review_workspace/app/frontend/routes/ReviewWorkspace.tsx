@@ -13,6 +13,9 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { fetchReviewWorkspace, type ReviewWorkspaceJob } from "../api/reviewWorkspace"
 
+const WORKSPACE_SCROLL_CLASS =
+  "h-[calc(100dvh-4rem)] shrink-0 overflow-x-hidden overflow-y-scroll overscroll-contain [-webkit-overflow-scrolling:touch] lg:grid lg:h-auto lg:min-h-0 lg:flex-1 lg:grid-cols-[17rem_minmax(0,1fr)_20rem] lg:overflow-hidden"
+
 export default function ReviewWorkspaceRoute() {
   const { t } = useT("review_workspace")
   const location = useLocation()
@@ -54,7 +57,7 @@ export default function ReviewWorkspaceRoute() {
   if (location.pathname !== canonicalPath) return <Navigate replace to={canonicalPath} />
 
   return (
-    <main aria-label={t("title")} className="fixed inset-0 z-50 flex min-h-0 flex-col bg-page text-text">
+    <main aria-label={t("title")} className="fixed inset-0 z-50 flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
         <div className="flex min-w-0 items-center gap-3">
           <strong>{t("title")}</strong>
@@ -70,7 +73,10 @@ export default function ReviewWorkspaceRoute() {
           <CloseIcon className="h-5 w-5" />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[17rem_minmax(0,1fr)_20rem] lg:overflow-hidden">
+      <div
+        className={WORKSPACE_SCROLL_CLASS}
+        data-testid="review-workspace-scroll-container"
+      >
         <JobRail active={active} jobs={jobs} prefix={prefix} />
         <JobReview job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
         <DecisionPanel
