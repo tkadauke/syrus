@@ -404,9 +404,9 @@
         "zombie_terminal_unit_orphaned_run",
         "orphaned_queue_job_reenqueues_elsewhere"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "The SIGTERM case is documented as 'will be re-enqueued by reaper', so every graceful deploy produces it. Invariant: queued -> has claim or owned by a live inline driver; driver exit must hand the token back."
+      "status": "done",
+      "done_by": "F24",
+      "notes": "Production: 103 re-enqueues in a week (~15/day, not deploy-clustered); every sampled one was a new Step's first Run created during an inline drive but not on the driver's next_step walk (graders, landing_fix, panel members), stalled 2–3 min. Fixed F24: held Runs are tracked and every one the driver does not run is handed back at each step boundary and on exit (incl. SIGTERM). InlineHandoff.after_all_owned / after_no_double."
     },
     {
       "id": "queued-run-orphaned-queue-job",

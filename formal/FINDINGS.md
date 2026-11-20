@@ -657,6 +657,47 @@ Step". It goes red with the guard disabled.
 
 ---
 
+## F24. Runs created during an inline drive waited for the reconciler — fixed
+
+**Property.** Every queued Run either has a queue job or is the one Run the
+current driver will run next, and never both
+(`InlineHandoff.after_all_owned`, `after_no_double`).
+
+**Evidence (production, read-only).** `queued_run_without_queue_claim` had 103
+re-enqueues in a week, about 15 a day, spread evenly and not clustered around
+deploys. Of the 20 I sampled:
+- every one was the first Run of a new Step: 10 graders, 7 `landing_fix`, 2
+  review-panel members, 1 `stack_force_push`;
+- each sat 2–3 minutes without a queue job, then ran normally after the
+  reconciler re-enqueued it.
+
+**Counterexample.** `before_loses` and `before_loses_on_shutdown`:
+- `Run#enqueue_run_job` skips the queue for any Run created while a RunJob
+  drives the same Workflow.
+- `RunJob#next_inline_run` picks at most one successor, found by walking
+  `next_step` pointers from the Step it ran.
+- So any other Run created in that window had no owner: parallel siblings,
+  panel members, and repair Steps off the pointer chain.
+- On SIGTERM the chosen successor was left "to be re-enqueued by the reaper".
+
+**Fix.** Runs held back for inline driving are recorded in a thread-local list
+(`Run::INLINE_HELD_RUN_IDS`). After every `next_inline_run`, and when the job
+exits (normally, on SIGTERM, or by raising), `RunJob#release_inline_held_runs!`
+re-enqueues every held Run except the one it will drive. A Run that is enqueued
+in the meantime leaves the list, so nothing is enqueued twice. An enclosing
+perform's list is captured before any early return and restored.
+
+**Specs.** `spec/jobs/run_job_inline_successor_spec.rb` (all 3 red before):
+- the off-chain Runs are enqueued;
+- the driven successor is not enqueued;
+- the successor is handed back on SIGTERM.
+
+**Review note.** This changes graceful-deploy behaviour. A worker yielding on
+SIGTERM now enqueues its successor immediately instead of waiting for the
+reaper. That fits "lose as little work as possible on restart".
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

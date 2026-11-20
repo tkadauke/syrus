@@ -4,6 +4,9 @@ class Run < ApplicationRecord
   # Matches StepDispatcher::START_BLOCKED_BACKOFF so the two paths that can
   # notice the same gap also recover on the same cadence.
   CAPABILITY_BLOCK_BACKOFF = 5.minutes
+  # Thread-local list of Runs created while a RunJob drives their Workflow
+  # inline, and therefore not enqueued (see #enqueue_run_job).
+  INLINE_HELD_RUN_IDS = :syrus_inline_held_run_ids
 
   include AASM
   include RecordsStateTransitions
@@ -413,8 +416,14 @@ class Run < ApplicationRecord
     # the first queued sibling inline.
     unless force
       current_workflow_id = Thread.current[:syrus_current_run]&.workflow_id
-      return if current_workflow_id && current_workflow_id == workflow_id && !distributed_parallel_run?
+      if current_workflow_id && current_workflow_id == workflow_id && !distributed_parallel_run?
+        # Recorded so the driving RunJob can hand back every Run it does not
+        # pick up itself (RunJob#release_inline_held_runs!).
+        (Thread.current[INLINE_HELD_RUN_IDS] ||= []) << id
+        return
+      end
     end
+    Thread.current[INLINE_HELD_RUN_IDS]&.delete(id)
 
     decision = RunQueueResolver.resolve(run: self, ignore_workflow_affinity: ignore_workflow_affinity)
     return block_for_missing_capable_worker!(decision) if decision.blocked?

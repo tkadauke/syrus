@@ -88,6 +88,10 @@ class RunJob < ApplicationJob
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
 
   def perform(run_id)
+    # Captured before any early return: the ensure below hands back only Runs
+    # this perform held, and restores an enclosing perform's list untouched.
+    prior_held_run_ids = Thread.current[::Run::INLINE_HELD_RUN_IDS]
+    Thread.current[::Run::INLINE_HELD_RUN_IDS] = []
     Thread.current[:syrus_current_queue_role] = queue_name.to_s
 
     if AppSetting.runs_paused?
@@ -120,9 +124,10 @@ class RunJob < ApplicationJob
       break if defer_for_macos_worker_drain?
       perform_step
       next_run = next_inline_run
+      release_inline_held_runs!(except: @shutdown_requested ? nil : next_run)
       break unless next_run
       if @shutdown_requested
-        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} will be re-enqueued by reaper")
+        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} handed back to the queue")
         break
       end
       @run = next_run
@@ -152,6 +157,8 @@ class RunJob < ApplicationJob
     end
   ensure
     Signal.trap("TERM", prior_trap) if prior_trap
+    release_inline_held_runs!(on_exit: true)
+    Thread.current[::Run::INLINE_HELD_RUN_IDS] = prior_held_run_ids
     Thread.current[:syrus_current_run] = nil
     Thread.current[:syrus_in_run_job] = nil
     Thread.current[:syrus_current_queue_role] = nil
@@ -965,13 +972,35 @@ class RunJob < ApplicationJob
     next_inline_run.present?
   end
 
+  # Runs created while this job drove the Workflow were not enqueued, on the
+  # promise that this job would run them. It runs at most one: `except`.
+  # Every other one goes back to the queue now, rather than sitting without a
+  # queue job until the reconciler notices (production: ~15 a day, each
+  # stalled about two minutes). The list is emptied either way, so the Run
+  # this job does drive is never enqueued a second time later.
+  def release_inline_held_runs!(except: nil, on_exit: false)
+    ids = Array(Thread.current[::Run::INLINE_HELD_RUN_IDS]).uniq
+    Thread.current[::Run::INLINE_HELD_RUN_IDS] = [] unless Thread.current[::Run::INLINE_HELD_RUN_IDS].nil?
+    ids.delete(except.id) if except
+    return if ids.empty?
+
+    ::Run.where(id: ids, state: "queued").find_each(&:reenqueue!)
+  rescue StandardError => e
+    raise unless on_exit
+
+    # Never mask the exception that ended the job; the reconciler still
+    # re-enqueues a queued Run without a queue claim.
+    Rails.logger.warn("[RunJob] could not hand back inline-held Runs #{ids.inspect}: #{e.class}: #{e.message}")
+  end
+
   def continue_inline_after_controlled_failure
     loop do
       break if @shutdown_requested
       next_run = next_inline_run
+      release_inline_held_runs!(except: @shutdown_requested ? nil : next_run)
       break unless next_run
       if @shutdown_requested
-        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} will be re-enqueued by reaper")
+        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} handed back to the queue")
         break
       end
 
