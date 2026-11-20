@@ -1588,7 +1588,7 @@
       ],
       "status": "partial",
       "done_by": "F7",
-      "notes": "F7 removed the no_capable_worker producer for landings; block! still does not defer members for other external reasons."
+      "notes": "F7 removed the no_capable_worker producer for landings; block! still does not defer members for other external reasons. Production check (one week, read-only): zero stranded_landing_job detections and 3 landing_job_without_active_runtime_work, all skipped because the Job had already left landing. Not observed; left as a modelled hypothesis, not worked further."
     },
     {
       "id": "landing-work-job-state",
@@ -1611,7 +1611,7 @@
       ],
       "status": "open",
       "done_by": null,
-      "notes": "Two definitions of 'active landing work' disagree (the reconciler excludes externally blocked units, RuntimeOwnership.active_landing_work? does not), so a deferred Job can be pushed back into landing: possible defer/re-land ping-pong."
+      "notes": "Two definitions of 'active landing work' disagree (the reconciler excludes externally blocked units, RuntimeOwnership.active_landing_work? does not), so a deferred Job could be pushed back into landing. Production check (one week, read-only): a single landing_work_job_state_drift repair and no defer/re-land alternation on any Job. Not observed; left open at low priority."
     },
     {
       "id": "landing-start-blocked",
@@ -2110,9 +2110,9 @@
         "workspace_missing_diagnostic",
         "merge_train_invalid_workspace_rebuilds"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Model storage loss as an environment action and prove recovery leaves no Run pinned to the lost storage key."
+      "status": "partial",
+      "done_by": "F26",
+      "notes": "Production: 1,275 executions all-time; 113 of the latest 150 skipped 'Workflow is no longer active' -- the classifier also flagged failed Workflows awaiting retry, which the repair never acts on. Fixed F26 (Agreement.ws_after_actionable). Still open: modelling storage loss as an environment action and proving recovery leaves no Run pinned to the lost storage key."
     },
     {
       "id": "workspace-prune-risk",

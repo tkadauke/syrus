@@ -376,5 +376,26 @@ theorem review_before_not_actionable : ¬ Actionable detectReviewBefore dispatch
 
 theorem review_after_actionable : Actionable detectReviewAfter dispatcherRepairs := fun _ h => h.2.2
 
+/-! ## Instance: missing workspaces
+
+`classify_workspace_availability` flagged a missing workspace on running
+Workflows and on failed ones awaiting retry; `recover_missing_workspace` only
+acts on queued or running ones, so every failed one was flagged critical and
+skipped on every pass (113 of the last 150 executions). -/
+
+inductive WsWf where
+  | running | failedRetryable
+  deriving DecidableEq, Repr
+
+def detectWsBefore (_ : WsWf) : Prop := True
+def detectWsAfter (w : WsWf) : Prop := w = .running
+def wsRepairs (w : WsWf) : Prop := w = .running
+
+theorem ws_before_not_actionable : ¬ Actionable detectWsBefore wsRepairs := by
+  intro h
+  exact WsWf.noConfusion (h .failedRetryable trivial)
+
+theorem ws_after_actionable : Actionable detectWsAfter wsRepairs := fun _ h => h
+
 end Agreement
 end SyrusModel

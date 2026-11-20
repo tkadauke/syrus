@@ -2996,14 +2996,18 @@ module WorkEngine
       end
     end
 
+    # Only a running Workflow: recover_missing_workspace acts on nothing else.
+    # A failed one awaiting retry used to be flagged too, and its repair was
+    # skipped on every pass; retrying it runs it again, and the running
+    # Workflow is then recovered here.
     def classify_workspace_availability
-      workflows.select { |workflow| workflow.running? || workflow.retry_available? }.filter_map do |workflow|
+      workflows.select(&:running?).filter_map do |workflow|
         next if workflow.job&.closed?
         next if WorkflowWorkspace.remote_owner_may_hold_workspace?(workflow)
 
         path = WorkflowWorkspace.path_for(workflow)
         next if File.directory?(path)
-        next unless workflow.live_descendants? || workflow.retry_available?
+        next unless workflow.live_descendants?
 
         issue(
           kind: :workspace_missing,

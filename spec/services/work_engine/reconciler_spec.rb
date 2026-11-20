@@ -6947,6 +6947,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  # Regression: a failed latest Workflow (retry_available?) with no workspace
+  # was flagged critical on every pass, but recover_missing_workspace only acts
+  # on a queued or running Workflow, so every repair was skipped ("Workflow is
+  # no longer active") -- 113 of the last 150. A retry of that Workflow runs
+  # again, and the running Workflow is then recovered through the usual path.
+  it "does not flag a failed Workflow's missing workspace the repair cannot act on" do
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago, worker_hostname: nil)
+    step.update_columns(state: "failed", finished_at: 5.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 5.minutes.ago)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(workflow.reload).to be_retry_available
+    expect(kind(result, :workspace_missing)).to be_nil
+  end
+
   it "classifies missing workspaces for active workflows" do
     workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: nil)
     step.update_columns(state: "running", started_at: 5.minutes.ago)

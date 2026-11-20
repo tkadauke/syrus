@@ -745,6 +745,33 @@ patch-id check if it keeps firing after deploy.
 
 ---
 
+## F26. Missing workspaces on failed Workflows were flagged critical forever — fixed
+
+**Property.** The reconciler reports a missing workspace only where
+`recover_missing_workspace` can act (`Agreement.ws_after_actionable`).
+
+**Evidence (production, read-only).** `workspace_missing` had 1,275 executions
+all-time. 113 of the latest 150 were skips: "Workflow is no longer active".
+
+**Counterexample.** `ws_before_not_actionable`: the classifier selected
+`running? || retry_available?`, which includes a failed latest Workflow that
+hasn't been cleaned up. The executor requires queued or running. A failed
+Workflow with a lost workspace was therefore critical on every pass, and nothing
+would ever act on it.
+
+**Why dropping it is safe.** `RetryFailedStepEnqueuer` gates only on
+`retry_available?`, not on the directory, so a retry still proceeds. The retried
+Workflow is running, and its missing workspace is then classified and recovered
+through the normal path.
+
+**Fix.** The classifier selects running Workflows only. Their behaviour is
+unchanged.
+
+**Spec.** `reconciler_spec.rb` "does not flag a failed Workflow's missing
+workspace the repair cannot act on" (red before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/
