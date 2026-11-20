@@ -74,7 +74,7 @@ module Steps
       out = authenticated_git("git_push_protection_ls_remote") do |url|
         git.run("ls-remote", url, "refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s, env: env)
       end
-      sha = out.split.first
+      sha = GitRunner.remote_ref_sha(out, "refs/heads/#{workspace.branch_name}")
       return nil if sha.blank?
 
       fetch_push_protection_tip(git, sha, env)

@@ -72,6 +72,17 @@ class GitRunner
   # Per-call env is merged with the instance env (per-call wins).
   # Useful for one-shot flags like GIT_TERMINAL_PROMPT=0 that you
   # only want on git operations that talk to a remote.
+  # The object a ref points at, read from `git ls-remote` output. #run
+  # returns stderr merged with stdout, so a credential helper or proxy
+  # warning ("fatal: ...", "warning: redirecting ...") can come first; only
+  # a "<sha>\t<ref>" line naming exactly the asked ref counts. Nil when absent.
+  def self.remote_ref_sha(output, ref)
+    output.to_s.lines.filter_map do |line|
+      sha, name = line.strip.split(/\s+/, 2)
+      sha.presence if name == ref.to_s
+    end.first
+  end
+
   def run(*args, chdir: nil, env: {}, timeout: DEFAULT_TIMEOUT, workflow: nil, stdin_data: nil)
     cmd = [ "git", *args.map(&:to_s) ]
     output = +""

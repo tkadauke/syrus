@@ -230,7 +230,7 @@ module Steps
 
     def remote_branch_sha(git, chdir, branch, push_url)
       output = git.run("ls-remote", "--heads", push_url, "refs/heads/#{branch}", chdir: chdir)
-      output.to_s.split(/\s+/).first.presence
+      GitRunner.remote_ref_sha(output, "refs/heads/#{branch}")
     rescue GitRunner::GitError => e
       log("merge_train: could not read the remote tip of #{branch} (#{e.message.to_s.lines.first.to_s.strip}); pushing without a lease")
       nil

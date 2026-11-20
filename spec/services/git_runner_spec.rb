@@ -1,6 +1,29 @@
 require "rails_helper"
 
 RSpec.describe GitRunner, :allow_host_execution do
+  describe ".remote_ref_sha" do
+    let(:sha) { "c" * 40 }
+
+    it "reads the sha of the asked ref" do
+      expect(described_class.remote_ref_sha("#{sha}\trefs/heads/main\n", "refs/heads/main")).to eq(sha)
+    end
+
+    # #run merges stderr into its output, so diagnostics can come first.
+    it "skips diagnostic lines that a merged stderr put ahead of the ref" do
+      output = "fatal: unable to read credential helper output\n#{sha}\trefs/heads/main\n"
+
+      expect(described_class.remote_ref_sha(output, "refs/heads/main")).to eq(sha)
+    end
+
+    it "is nil when only diagnostics came back" do
+      expect(described_class.remote_ref_sha("fatal: something went wrong\n", "refs/heads/main")).to be_nil
+    end
+
+    it "ignores lines for other refs" do
+      expect(described_class.remote_ref_sha("#{sha}\trefs/heads/other\n", "refs/heads/main")).to be_nil
+    end
+  end
+
   it "returns merged stdout/stderr on success" do
     output = described_class.new.run("--version")
     expect(output).to match(/git version/)

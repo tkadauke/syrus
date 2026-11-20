@@ -230,7 +230,7 @@ class WorkflowWorkspaceRecovery
       repository: workflow.job.repository, user: workflow.job.user, git: git,
       operation_type: "git_workspace_recovery_ls_remote"
     ) { |url| git.run("ls-remote", url, ref, chdir: workspace.path.dirname.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" }) }
-    output.to_s.lines.first.to_s.split(/\s+/).first.presence
+    GitRunner.remote_ref_sha(output, ref)
   rescue StandardError => e
     Rails.logger.info(
       "[WorkflowWorkspaceRecovery] could not resolve #{ref} for Workflow ##{workflow.id}: #{e.class}: #{e.message}"
