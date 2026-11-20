@@ -628,10 +628,13 @@ class MainHealthChangedService
         .sort_by { |entry| JSON.generate(entry) }
     else
       checks.select { |check| check.grader_health == "broken" }
-        .flat_map { |check| Array(check.grader_failed_names) }
-        .map(&:to_s)
-        .uniq
-        .sort
+        .map do |check|
+          {
+            "workflow_id" => check.workflow_id,
+            "failed_names" => Array(check.grader_failed_names).map(&:to_s).uniq.sort
+          }
+        end
+        .sort_by { |entry| JSON.generate(entry) }
     end
 
     Digest::SHA256.hexdigest(JSON.generate(evidence))
