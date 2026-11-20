@@ -74,6 +74,26 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     expect(job.closure_reason).to eq("pr_merged")
   end
 
+  # The gate passed, then several seconds of settling/mirroring/parity work
+  # followed before the irreversible merge call, and nothing looked again.
+  # Stop Landing (or a Job closure) cancelling the Run in that window still
+  # merged the PR. formal/SyrusModel/MergeFence.lean.
+  it "does not merge when the landing was stopped after the gate passed" do
+    job.approve!(via: "github_review")
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+    allow(client).to receive(:add_issue_comment)
+    handler = described_class.new(run)
+    allow(handler).to receive(:mirror_durable_approval_to_github!) do
+      run.update_columns(state: "cancelled", finished_at: Time.current)
+      workflow.update_columns(state: "cancelled", finished_at: Time.current)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::RunEndedExternally, /before merge/)
+    expect(client).not_to have_received(:merge_pull_request)
+  end
+
   it "refuses to merge a head SHA whose validation is inconclusive and names the reason", :real_landing_validation_gate do
     job.approve!(via: "github_review")
     job.start_landing!

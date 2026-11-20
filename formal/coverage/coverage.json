@@ -1656,9 +1656,9 @@
         "transient_landing_failure_defers",
         "externally_merged_pr_unblocks_dependent"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "ADR-0005; holds modulo GitHub's expected_sha semantics, which is the real fence."
+      "status": "done",
+      "done_by": "F12",
+      "notes": "Every merging step (auto_merge, merge_train_land, external_pr_merge, promotion_publish, hotfix_sync_publish) evaluated its gate, did seconds of further work, then called GitHub's merge API without looking again. Stop Landing or a Job closure cancelling the Run in that window still merged the PR. Fixed: ensure_run_still_active!(\"merge\") immediately before each merge request. MergeFence.lean: before_merges_after_cancel; after the fix the unsafe window shrinks from every gap after the gate to the single API request (after_merge_only_while_active, before_window_is_wider). The head-SHA fence on the merge call (expected_sha) is unchanged."
     },
     {
       "id": "merge-train-failed-member-landed",

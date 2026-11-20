@@ -162,6 +162,9 @@ module Steps
     end
 
     def merge_pull_request(client, expected_sha)
+      # The merge cannot be undone: stop if the landing was stopped or the Job
+      # closed since the gate passed (formal/SyrusModel/MergeFence.lean).
+      ensure_run_still_active!("merge")
       client.merge_pull_request(
         repository.slug,
         job.external_pr_number,

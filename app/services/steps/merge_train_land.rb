@@ -308,6 +308,10 @@ module Steps
     def merge_integration_pr(train, client, pr, expected_sha:)
       attempts = 0
       begin
+        # The merge cannot be undone: stop if the landing was stopped or the Job
+        # closed since the gate passed (formal/SyrusModel/MergeFence.lean).
+        # Inside the retry, so a retry after a sleep re-checks too.
+        ensure_run_still_active!("merge")
         client.merge_pull_request(
           repository.slug,
           pr.number,

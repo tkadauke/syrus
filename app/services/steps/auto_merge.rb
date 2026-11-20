@@ -217,6 +217,9 @@ module Steps
     end
 
     def merge_pull_request(client, gate)
+      # The merge cannot be undone: stop if the landing was stopped or the Job
+      # closed since the gate passed (formal/SyrusModel/MergeFence.lean).
+      ensure_run_still_active!("merge")
       PullRequestMerger.new(repository, client: client).merge(
         pr_number: job.pr_number,
         commit_title: "Merge #{repository.slug}##{job.pr_number} via Syrus",

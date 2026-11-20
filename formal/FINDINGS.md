@@ -353,6 +353,29 @@ test records the member's commit.
 
 ---
 
+## F12. A stopped landing could still merge — fixed
+
+**Property.** A merge request is only sent while the landing's Run is active;
+the unsafe window is the single API request (`MergeFence.after_merge_only_while_active`).
+
+**Counterexample.** `before_merges_after_cancel` / `before_window_is_wider`:
+`auto_merge` (and every other merging step) evaluated its gate, spent seconds on
+mergeability settling, approval mirroring and validation parity, then merged
+without looking again. Stop Landing or a Job closure cancelling the Run in that
+window did not stop the merge.
+
+**Fix.** `ensure_run_still_active!("merge")` immediately before each merge
+request in `auto_merge`, `merge_train_land`, `external_pr_merge`,
+`promotion_publish` and `hotfix_sync_publish`.
+
+**Spec.** `auto_merge_spec.rb` "does not merge when the landing was stopped
+after the gate passed" (red before).
+
+**Review note.** A merge train stopped this way can be left `landing` with its
+integration PR open; `stale_active_merge_train_without_runtime` repairs that.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

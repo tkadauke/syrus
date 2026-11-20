@@ -14,3 +14,4 @@ import SyrusModel.EpicTurn
 import SyrusModel.AutoApproval
 import SyrusModel.JobAttempt
 import SyrusModel.TrainEvidence
+import SyrusModel.MergeFence

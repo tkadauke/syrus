@@ -159,6 +159,9 @@ module Steps
 
     def merge_pull_request!(pr_number:, expected_sha:)
       client = GithubClient.for(repository: repository, user: job.user)
+      # The merge cannot be undone: stop if the landing was stopped or the Job
+      # closed since the gate passed (formal/SyrusModel/MergeFence.lean).
+      ensure_run_still_active!("merge")
       merge = client.merge_pull_request(
         repository.slug,
         pr_number,
