@@ -1167,7 +1167,8 @@ A conclusive no-change repair records separate CI and grader evidence
 fingerprints. Strict-policy polling suppresses an identical reasserted signal
 for the same commit, including when CI and grader results return at different
 times, but changed CI checks or grader failures on that commit remain eligible
-for a new repair immediately.
+for a new repair immediately. A later grader workflow is new evidence even
+when it reports the same failed grader names.
 
 The next `main_branch_repair` `implement` prompt includes `preflight_failures`
 and tells the agent to reproduce the exact failed command(s), run focused
