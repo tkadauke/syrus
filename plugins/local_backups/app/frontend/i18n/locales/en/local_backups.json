@@ -4,6 +4,8 @@
   "aria_main": "Local backup inventory",
   "heading": "Local Backups",
   "description": "Create, validate, pin, and safely retain sealed recovery bundles on local storage.",
+  "recovery_guidance": "Recovery preparation is non-mutating. Validate and preflight the exact bundle before entering maintenance mode; final restore execution requires a separate explicit confirmation.",
+  "bootstrap_guidance": "If this application or its database cannot boot, use bin/disaster-recovery to inspect, validate, copy, import, and preflight a mounted bundle or bounded streamed upload.",
   "create": "Create backup",
   "actions": "Actions",
   "validate": "Validate",

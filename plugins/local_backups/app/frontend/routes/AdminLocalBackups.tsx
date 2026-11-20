@@ -28,6 +28,10 @@ export function AdminLocalBackups() {
         <Page.Description>{t("description")}</Page.Description>
         <Button onClick={() => createLocalBackup().then(() => query.refetch())}>{t("create")}</Button>
       </Page.Header>
+      <Notice tone="warning">
+        <Text>{t("recovery_guidance")}</Text>
+        <Text tone="muted">{t("bootstrap_guidance")}</Text>
+      </Notice>
       {query.isPending ? <Notice>{t("loading")}</Notice> : null}
       {query.isError ? <Notice tone="danger">{t("load_error")}</Notice> : null}
       {query.data ? <Inventory payload={query.data} /> : null}

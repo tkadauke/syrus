@@ -34,6 +34,7 @@ RSpec.describe LocalBackups::Creator do
     backup = described_class.new(root: @root, capacity:).call
     artifact = @root.path.join(backup.artifact_relative_path)
     manifest = LocalBackups::Manifest.read(artifact.join("manifest.json")).attributes
+    expect(manifest.dig("encryption", "key_fingerprints")).to include("primary", "deterministic", "derivation_salt")
     entry = manifest.dig("active_storage", "blobs").sole
 
     expect(backup.state).to eq("completed")

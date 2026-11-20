@@ -66,4 +66,28 @@ identity and install `config/deploy/systemd/syrus-backups.tmpfiles` so
 `/var/lib/syrus/backups` is mode `0700`. Do not grant the web service write
 access; expose only authenticated, bounded download operations to it.
 
-Replication execution and restore remain separate product stages.
+## Disaster-recovery preparation
+
+`bin/disaster-recovery` uses only the Ruby standard library and can run when
+Rails, the web application, plugins, or the primary database cannot boot. It
+supports `list`, `inspect`, `validate`, `copy`, `import`, and `preflight`.
+Commands accept a sealed directory or tar stream. `import --stdin` enforces
+`SYRUS_RECOVERY_MAX_BYTES` and `SYRUS_RECOVERY_MAX_FILES` while extracting and
+rejects absolute paths, traversal, links, special files, checksum mismatches,
+and expanded-size attacks. `import --root PATH BUNDLE` also supports an
+operator-mounted artifact without requiring an inventory row.
+
+Preflight validates the exact artifact, destination space and health, declared
+application/database/plugin compatibility, encryption-key fingerprints, and
+reports derived indexes to rebuild plus the consequences of in-flight work.
+Set `SYRUS_INSTALLATION_ID` and `SYRUS_RECOVERY_TOKEN_SECRET`; the resulting
+stable token is cryptographically bound to that installation identity and the
+artifact checksum. Missing live database information is reported as unknown,
+not healthy. A changed artifact or installation therefore requires a new
+preflight token.
+
+These commands prepare recovery; they do not replace application data. Final
+restore execution remains unavailable until the separately confirmed,
+maintenance-mode execution stage is implemented. Keep workers and web writers
+stopped before any future destructive restore. Replication execution also
+remains a separate product stage.
