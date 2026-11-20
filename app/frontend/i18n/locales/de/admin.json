@@ -549,6 +549,7 @@
       "degraded": "Beeinträchtigt",
       "circuit_open": "Schutzschaltung offen",
       "cycle": "Abhängigkeitszyklus",
+      "non_conforming": "Nicht konform",
       "warning": "Warnung"
     },
     "host_surface_details": "Host-API-Befunde",

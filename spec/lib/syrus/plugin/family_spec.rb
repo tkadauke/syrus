@@ -21,7 +21,11 @@ RSpec.describe Syrus::Plugin::Family do
   it "records shape, required core, and capability contracts" do
     family = define_family
     expect(family.required_core).to eq(%i[key display_name])
-    expect(family.capabilities.fetch(:detect_prepare)).to have_attributes(composition: :collect, absent: [], tier: :stable, context: "PrepareContext")
+    expect(family.capabilities.fetch(:detect_prepare)).to have_attributes(
+      composition: :collect, absent: [], tier: :stable, context: "PrepareContext",
+      method_contract: have_attributes(required_positionals: 1, required_keywords: [], optional_keywords: [])
+    )
+    expect(family.core_method_contract(:key)).to have_attributes(required_positionals: 0)
   end
 
   it "rejects missing shapes, duplicate capabilities, and unsupported contract values" do
@@ -37,6 +41,12 @@ RSpec.describe Syrus::Plugin::Family do
         capability :x, composition: :collect, absent: [], tier: :stable, context: Object
       end
     end.to raise_error(ArgumentError, /Duplicate capability/)
+    expect do
+      described_class.define(:missing_context) do
+        shape :facet
+        capability :x, composition: :collect, absent: [], tier: :stable, context: nil
+      end
+    end.to raise_error(ArgumentError, /context contract is required/)
 
     define_family
     expect { define_family }.to raise_error(ArgumentError, /already defined/)

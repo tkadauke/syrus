@@ -21,6 +21,22 @@ module Syrus
   # `optionally_depends_on` never produces a bad state - it documents the
   # `defined?(X) && X.enabled?` guard pattern and feeds the admin UI.
   class PluginHealth
+    Finding = Data.define(
+      :source, :plugin, :family, :provider, :operation, :code, :message,
+      :exception_class, :backtrace, :count, :last_at
+    ) do
+      def self.conformance(plugin:, family:, provider:, code:, message:)
+        new(source: :conformance, plugin:, family:, provider:, operation: nil, code:, message:,
+          exception_class: nil, backtrace: [], count: 1, last_at: nil)
+      end
+
+      def self.runtime(plugin:, family:, provider:, operation:, exception:, count: 1, last_at: Time.current)
+        new(source: :runtime, plugin: plugin.to_s, family: family&.to_sym, provider: provider.to_s,
+          operation: operation.to_sym, code: :runtime_failure, message: exception.message.to_s,
+          exception_class: exception.class.name, backtrace: Array(exception.backtrace).first(12), count:, last_at:)
+      end
+    end
+
     Status = Data.define(:name, :state, :reasons) do
       def ok? = state == :ok
       def healthy? = %i[ok warning].include?(state)
