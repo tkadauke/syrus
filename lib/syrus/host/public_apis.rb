@@ -1,4 +1,5 @@
 require "syrus/host"
+require "syrus/host/chat_titles"
 %w[
   agent_provider callbacks permission_provider repository_content_provider
   cli_command_handler
@@ -62,12 +63,17 @@ module Syrus
         ChatSession: [ "Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised.", %w[find id title user repository] ]
       }.freeze
 
+      SERVICE_CONTRACTS = {
+        ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ]
+      }.freeze
+
       class << self
         def install!
           install_aliases!
           replace_contracts!
           register_contracts(ALIAS_CONTRACTS, qualify: true)
           register_contracts(DOMAIN_CONTRACTS)
+          register_contracts(SERVICE_CONTRACTS)
         end
 
         private
@@ -80,7 +86,7 @@ module Syrus
         end
 
         def replace_contracts!
-          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
+          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys + SERVICE_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
           Host.apis.reject! { |api| managed_names.include?(api.name) }
         end
 

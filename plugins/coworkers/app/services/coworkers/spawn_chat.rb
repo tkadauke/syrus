@@ -19,7 +19,7 @@ class Coworkers::SpawnChat
         skip_turn_trigger: false)
       chat.pin_chat_provider!(chat.chat_provider)
     end
-    ChatTitleJob.perform_later(chat.id, message.id) if @title.blank?
+    Syrus::Host::ChatTitles.enqueue(chat_id: chat.id, message_id: message.id) if @title.blank?
     ChatSessions::Creator.enqueue_turn(chat, message)
     chat
   end
