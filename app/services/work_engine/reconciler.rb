@@ -3385,11 +3385,18 @@ module WorkEngine
       end
     end
 
+    # A sequential chain can execute a later Step's Run inside an earlier
+    # Run's RunJob, so a workflow-mate's job counts as this Run's. Parallel
+    # distributed Runs (fan-out graders) are each enqueued on their own and
+    # never execute a sibling: counting a sibling's live claim hid a grader
+    # that had lost its RunJob for as long as any other grader kept running.
     def solid_queue_jobs_for_run(run)
       return [] unless solid_queue[:available]
 
-      workflow_run_ids = workflow_root_run_ids(run.workflow)
       direct, workflow = solid_queue[:jobs].partition { |job| job[:root_run_id] == run.id }
+      return direct if run.distributed_parallel_run?
+
+      workflow_run_ids = workflow_root_run_ids(run.workflow)
       (direct + workflow.select { |job| workflow_run_ids.include?(job[:root_run_id]) }).uniq { |job| job[:id] }
     end
 

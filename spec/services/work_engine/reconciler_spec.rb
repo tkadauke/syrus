@@ -1047,6 +1047,38 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(step.reload).to be_succeeded
   end
 
+  # Parallel grader Runs each get their own RunJob; none executes a sibling.
+  # Counting a sibling's live claim as this Run's queue job hid a grader that
+  # had lost its RunJob for as long as any other grader in the fan-out ran.
+  it "flags a parallel grader Run with no queue job even while a sibling grader holds a live claim" do
+    ensure_solid_queue_test_tables!
+    allow(Feature).to receive(:distributed_workflow_dag_enabled?).and_return(true)
+    workflow.update_columns(state: "running", started_at: 30.minutes.ago)
+    live_process = SolidQueue::Process.create!(
+      hostname: "compute-a", kind: "worker", last_heartbeat_at: Time.current,
+      metadata: { "queues" => %w[runs] }, name: "compute-a:1", pid: 456
+    )
+    grader_run = lambda do |position, name|
+      grader_step = workflow.steps.create!(
+        kind: "grader", position: step.position + position, state: "queued",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, details: { "name" => name }
+      )
+      grader_step.runs.create!(
+        job: job, user: job.user, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+        state: "queued", created_at: 30.minutes.ago, updated_at: 30.minutes.ago
+      )
+    end
+    running = grader_run.call(1, "rspec-ci")
+    running.update_columns(state: "running", started_at: 25.minutes.ago, last_heartbeat_at: Time.current)
+    solid_queue_run_job(running, claimed: true, process_id: live_process.id, created_at: 25.minutes.ago)
+    stranded = grader_run.call(2, "plugins-kotlin-rspec-ci")
+
+    result = reconcile(run_id: stranded.id)
+
+    expect(kind(result, :queued_run_without_queue_claim)).to be_present
+    expect(plan(result, :reenqueue_run)).to have_attributes(target_id: stranded.id)
+  end
+
   it "does not plan reenqueue_run for a queued Run while an auto-retry attempt is already pending for the workflow" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
