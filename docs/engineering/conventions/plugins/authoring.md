@@ -67,11 +67,18 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `slug_type`
 - `job_visibility_restriction`
 - `repository_filter`
+- `system_alert_provider`
 
 `repository_filter` providers receive an accessible Repository relation and
 the current user through `apply(scope:, user:)`. They may narrow
 general-purpose repository discovery surfaces without changing direct access
 or repository authorization.
+
+`system_alert_provider` providers return an array of `SystemAlerts::Alert`
+objects from `.system_alerts`. Core asks enabled, healthy providers only when
+building administrator and outbound alerts. Providers must keep messages
+redacted, use stable IDs and evidence-specific dismissal keys, and avoid
+expensive unbounded queries.
 
 ## Per-origin Job visibility
 

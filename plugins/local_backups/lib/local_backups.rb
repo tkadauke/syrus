@@ -11,6 +11,7 @@ module LocalBackups
     default_enabled false
     disableable true
     provides admin_page: "LocalBackups::AdminPages", callbacks: "LocalBackups::Callbacks",
+             system_alert_provider: "LocalBackups::Alerts",
              backup_artifact_source: "LocalBackups::ArtifactSource"
     tick_interval 1.day
     events "local_backups.backup.completed" => :async,
