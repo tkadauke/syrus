@@ -77,6 +77,7 @@ module Syrus
       review_gate
       backup_artifact_source
       backup_destination
+      system_alert_provider
     ].freeze
 
     # Kept with EXTENSION_POINTS so adding a capability also requires explaining
@@ -236,7 +237,8 @@ module Syrus
       repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration },
       review_gate:             -> { Syrus::Plugin::ReviewGate },
       backup_artifact_source:  -> { Syrus::Plugin::BackupArtifactSource },
-      backup_destination:      -> { Syrus::Plugin::BackupDestination }
+      backup_destination:      -> { Syrus::Plugin::BackupDestination },
+      system_alert_provider:   -> { Syrus::Plugin::SystemAlertProvider }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

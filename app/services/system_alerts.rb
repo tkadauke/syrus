@@ -49,7 +49,7 @@ module SystemAlerts
   private_class_method :alerts_for
 
   def self.admin_alerts
-    [ plugin_recovery_mode, plugin_fleet_divergence, data_root_disk_usage, *no_progress_main_branch_repairs, *stuck_main_branch_repairs ].compact
+    [ plugin_recovery_mode, plugin_fleet_divergence, data_root_disk_usage, *no_progress_main_branch_repairs, *stuck_main_branch_repairs, *plugin_admin_alerts ].compact
   end
   private_class_method :admin_alerts
 
@@ -87,6 +87,18 @@ module SystemAlerts
     nil
   end
   private_class_method :plugin_fleet_divergence
+
+  def self.plugin_admin_alerts
+    Syrus::PluginRegistry.providers_for(:system_alert_provider).flat_map do |provider|
+      PerformanceLogging.plugin_call(extension_point: :system_alert_provider, provider:, operation: :system_alerts) do
+        Array(provider.system_alerts)
+      end
+    rescue StandardError => e
+      Rails.logger.warn("System alert provider #{provider} failed: #{e.class}")
+      []
+    end
+  end
+  private_class_method :plugin_admin_alerts
 
   def self.sort_alerts(alerts)
     alerts
