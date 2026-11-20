@@ -16,6 +16,7 @@ module Syrus
       experimental: "Marks an instance-local experimental plugin.", home_queue: "Default Solid Queue queue.",
       tick_interval: "Optional control-plane tick interval.", prepare_priority: "Ordering priority for prepare contributions.",
       depends_on: "Required plugin names.", optionally_depends_on: "Optional plugin names.", conflicts_with: "Mutually exclusive plugin names.",
+      roles: "Process roles in which the plugin may load.",
       hosts: "Qualified extension points this plugin exposes to other plugins.", config_schema: "Operator setting declarations.",
       cli_commands: "Non-interactive server-backed CLI commands: path, summary, handler, arguments, and flags.",
       provides: "Map of extension-point names to implementing class names.", route: "Plugin-owned Rails route (verb, path, controller).",
