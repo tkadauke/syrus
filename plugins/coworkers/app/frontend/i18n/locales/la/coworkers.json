@@ -169,7 +169,11 @@
     "last_result": "Eventus ultimus: {{result}} · usque ad {{date}} scriptum",
     "never_run": "numquam actum",
     "system_run_time": "Hora consilii systematis",
-    "save_time": "Horam serva"
+    "save_time": "Horam serva",
+    "latest_result": "Eventus ultimus",
+    "view_all_runs": "Omnes cursus vide",
+    "no_job_needed": "Nullum Opus necessarium erat",
+    "outcomes": { "never_run": "Numquam actum", "queued": "In ordine", "running": "Agitur", "succeeded": "Perfectum", "failed": "Defecit", "blocked": "Impedita", "cancelled": "Revocatum", "journaled": "Scriptum", "skipped": "Praetermissum" }
   },
   "capabilities": {
     "sentences": {
@@ -207,19 +211,6 @@
     },
     "integrations": { "gmail": "Gmail", "calendar": "Calendarium" },
     "coming_later": "Postea adveniet"
-  },
-  "cutover": {
-    "title": "Relatio transitionis permissionum",
-    "description": "Haec tantum probatio est. Concessiones veteres testimonia actorum sunt neque regulae permissionum fiunt.",
-    "ready": "Parata",
-    "blocked": "Impedita",
-    "legacy_grants": "Concessiones veteres (ante)",
-    "recommended_defaults": "Praedefinita commendata (post)",
-    "lost_authority": "Potestas remota",
-    "requestable_replacements": "Substitutiones petibiles",
-    "descriptor_gaps": "Lacunae descriptorum",
-    "migration_errors": "Errores migrationem impedientes",
-    "none": "Nulla"
   },
   "review_target_editor": {
     "label": "Recensor collega",

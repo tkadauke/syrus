@@ -174,7 +174,11 @@
     "last_result": "Letztes Ergebnis: {{result}} · journalisiert bis {{date}}",
     "never_run": "noch nie ausgeführt",
     "system_run_time": "Ausführungszeit des Systemzeitplans",
-    "save_time": "Zeit speichern"
+    "save_time": "Zeit speichern",
+    "latest_result": "Letztes Ergebnis",
+    "view_all_runs": "Alle Läufe anzeigen",
+    "no_job_needed": "Kein Job war erforderlich",
+    "outcomes": { "never_run": "Noch nie ausgeführt", "queued": "Eingereiht", "running": "Läuft", "succeeded": "Erfolgreich", "failed": "Fehlgeschlagen", "blocked": "Blockiert", "cancelled": "Abgebrochen", "journaled": "Journalisiert", "skipped": "Übersprungen" }
   },
   "capabilities": {
     "sentences": {
@@ -212,19 +216,6 @@
     },
     "integrations": { "gmail": "Gmail", "calendar": "Kalender" },
     "coming_later": "Kommt später"
-  },
-  "cutover": {
-    "title": "Bericht zur Berechtigungsumstellung",
-    "description": "Nur ein Probelauf. Alte Freigaben sind Auditnachweise und werden nicht zu einheitlichen Berechtigungsregeln.",
-    "ready": "Bereit",
-    "blocked": "Blockiert",
-    "legacy_grants": "Alte Freigaben (vorher)",
-    "recommended_defaults": "Empfohlene Standardwerte (nachher)",
-    "lost_authority": "Entfernte Berechtigungen",
-    "requestable_replacements": "Anforderbare Alternativen",
-    "descriptor_gaps": "Deskriptorlücken",
-    "migration_errors": "Blockierende Migrationsfehler",
-    "none": "Keine"
   },
   "review_target_editor": {
     "label": "Coworker-Prüfer",

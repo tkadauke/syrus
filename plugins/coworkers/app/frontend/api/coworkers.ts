@@ -28,7 +28,6 @@ export type CoworkerDetail = CoworkerSummary & {
     constraints: { confirm_paths?: string[]; max_spawns_per_run?: number; max_spawns_per_day?: number }
     scope?: unknown
   }[]
-  permission_cutover_report: PermissionCutoverReport
   grant_catalog: {
     name: string
     label: string
@@ -95,15 +94,6 @@ export type UnsavedWorkspace = {
   attempt_count: number
   retry_exhausted: boolean
 }
-export type PermissionCutoverReport = {
-  ready: boolean
-  legacy_grants: { capability: string; approval_policy: string; effective_policy: "ask" | "allow"; scope: unknown; constraints: Record<string, unknown> }[]
-  recommended_defaults: { capability: string; operation: string; tools: string[]; roles: Record<string, "deny" | "ask" | "allow"> }[]
-  lost_authority: { legacy_capability: string; capability: string; operation: string; role: string; before: string; after: string }[]
-  requestable_replacements: { capability: string; operation: string; tools: string[]; roles: string[] }[]
-  descriptor_gaps: { legacy_capability: string; tools: string[]; reasons: string[] }[]
-  migration_errors: { code: string; message: string; tools: string[] }[]
-}
 export type CoworkerSchedule = {
   id: number
   name: string
@@ -121,7 +111,14 @@ export type CoworkerSchedule = {
   last_system_result: string | null
   last_system_result_reason: string | null
   journaling_overdue: boolean
-  system_result_history: Array<{ date: string; result: string; reason: string | null; recorded_at?: string }>
+  latest_result: {
+    occurred_at: string | null
+    target_date: string | null
+    outcome: string
+    reason: string | null
+    job: { id: number; slug: string; path: string } | null
+    job_needed: boolean | null
+  }
 }
 export type CoworkerActivityPayload = {
   spend: { week_usd: number; total_usd: number }
