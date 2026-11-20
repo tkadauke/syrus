@@ -31,6 +31,7 @@ module App
       merge_base_sha = history.merge_base_id
 
       if @job.branch_name.present? && branch_commits.empty? && !explicit_selection?
+        Rails.logger.warn("[JobSourceDiffPayload] serving stored review version for #{@job.slug}: branch history returned no commits")
         return stored_review_version_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha)
       end
 
@@ -60,7 +61,10 @@ module App
     rescue => e
       if @job.branch_name.present? && !explicit_selection?
         version = DiffReviewVersion.default_for_review(@job)
-        return stored_review_version_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha) if version
+        if version
+          Rails.logger.warn("[JobSourceDiffPayload] serving stored review version for #{@job.slug}: #{e.class}: #{e.message}")
+          return stored_review_version_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha)
+        end
       end
 
       base_payload(base_ref: nil, head_ref: nil)
@@ -193,7 +197,8 @@ module App
         diff_error: nil,
         version: version_json(version),
         review_annotations: review_annotations_json(version: version, base_sha: version.base_sha, head_sha: version.head_sha, files: Array(version.files_snapshot)),
-        coverage_annotations: coverage_annotations_json(version: version, files: Array(version.files_snapshot))
+        coverage_annotations: coverage_annotations_json(version: version, files: Array(version.files_snapshot)),
+        step_diff_fallback: !version.reviewable_all_changes?
       )
     end
 
@@ -225,7 +230,8 @@ module App
         head_sha: head_sha,
         merge_base_sha: merge_base_sha,
         default_ref: @repository.default_branch,
-        branch_commits: branch_commits.map { |commit| commit_json(commit) }
+        branch_commits: branch_commits.map { |commit| commit_json(commit) },
+        step_diff_fallback: false
       }
     end
 

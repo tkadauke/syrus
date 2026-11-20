@@ -625,6 +625,12 @@ and After side by side (stacked on narrow screens), while added or removed
 files show only the side that exists. Either side can temporarily expand to
 the full diff width without opening a modal.
 
+The Review tab defaults to **All changes**, the full PR diff from the Job's
+merge base to its current branch head. Individual implementation, feedback,
+and repair step ranges remain available in the version selector. If the full
+PR range cannot be loaded or recovered, Syrus labels the displayed fallback
+as a step diff instead of presenting it as the complete PR diff.
+
 The review tab also shows a PR-level review-note debt rollup for the
 selected diff version: total flagged ranges, open/unacknowledged notes,
 acknowledged notes, dismissed notes, and a zero-note state when the reviewer

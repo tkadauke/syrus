@@ -289,6 +289,7 @@ de:
           allow: "Erlaubt %{subject}, %{operation} auf %{resource} auszuführen, %{duration}."
           ask: "Fragt immer nach, bevor %{subject} %{operation} auf %{resource} ausführt."
           deny: "Verweigert %{subject} immer die Ausführung von %{operation} auf %{resource}."
+        any_resource: "jede Ressource"
         only_when: "Nur wenn %{constraints}."
         excludes:
           other_operations: "Schließt jede andere Operation und Fähigkeit aus."
@@ -301,7 +302,8 @@ de:
           job: "für diesen Job"
           permanent: "bis zum Widerruf"
         subjects:
-          agent: "Coworker %{id}"
+          agent: "%{id}"
+          agent_unnamed: "Coworker %{id}"
           interactive_chat: "interaktive Chats"
           coding_chat: "Coding-Chats"
           local_chat: "lokale Chats"

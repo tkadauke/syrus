@@ -531,6 +531,7 @@
     "large_file_hidden": "Diff huius documenti magnum est (~{{rowCount}} lineae redditae) atque initio celatur.",
     "load_file_diff": "Diff huius documenti onera",
     "full_diff_omitted": "Discrimen textus integrum ex responsione prima omissum est.",
+    "generated_full_diff_omitted": "Diff huius documenti generati omissum est, quia lineae insolite longae oneratu repraesentatuque sumptuosae sunt.",
     "load_full_diff": "Discrimen integrum onerare",
     "loading_full_diff": "Discrimen integrum oneratur…",
     "download_raw_diff": ".diff crudum deponere",

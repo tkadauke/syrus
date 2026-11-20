@@ -11,11 +11,9 @@ module App
       # owner_json helpers through the include ancestry.
 
       AgentSessionSummary = Data.define(:session_id, :provider, :transcript_pruned, :transcript_bytes, :transcript_lines)
-      MAX_STEPS_PER_WORKFLOW = Integer(ENV["SYRUS_JOB_DETAIL_MAX_STEPS_PER_WORKFLOW"], exception: false) || 250
       MAX_RUNS_PER_STEP = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_RUNS_PER_STEP"], exception: false) || 20, 1 ].max
       MAX_COMMAND_SPANS_PER_RUN = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_COMMAND_SPANS_PER_RUN"], exception: false) || 50, 1 ].max
       ACTIVE_RUN_STATES = %w[queued running].freeze
-      ACTIVE_STEP_STATES = %w[queued running].freeze
       GRADER_DETAIL_EXCLUDED_KEYS = %w[
         log_bytes
         log_path
@@ -57,7 +55,6 @@ module App
         ).call
         step_ids = selected.filter_map { |row| row[:id] || row["id"] }
         @visible_step_ids_by_workflow_id = { workflow.id => step_ids }
-        @step_counts_by_workflow_id_from_visible_query = { workflow.id => ordered.length }
         @workflow_detail = true
         serialized = workflow_json(workflow)
         serialized_steps = serialized.fetch(:steps).index_by { |step| step.fetch(:id) }
@@ -281,7 +278,6 @@ module App
 
         @workflow_json_by_id[workflow.id] = PerformanceLogging.phase("job_detail.workflow.serialize", job_id: @job.id, workflow_id: workflow.id) do
           steps = ordered_steps_for(workflow)
-          step_count = step_counts_by_workflow_id.fetch(workflow.id, steps.size)
           latest_step = steps.last
           {
             id: workflow.id,
@@ -305,9 +301,9 @@ module App
             dismissable: workflow.operator_dismissable?,
             blocked_reason_text: workflow.blocked_reason_text,
             failure_classification: workflow_failure_classification_json(workflow),
-            steps_total: step_count,
+            steps_total: steps.size,
             steps_displayed: steps.size,
-            steps_truncated: step_count > steps.size,
+            steps_truncated: false,
             steps: PerformanceLogging.phase("job_detail.workflow.steps", job_id: @job.id, workflow_id: workflow.id, step_count: steps.size) do
               steps.map { |step| @workflow_detail ? step_json(step, workflow: workflow, latest_step: latest_step) : step_summary_json(step, workflow: workflow, latest_step: latest_step) }
             end
@@ -437,13 +433,6 @@ module App
           ids.to_h do |workflow_id|
             [ workflow_id, grouped.fetch(workflow_id, []) ]
           end
-        end
-      end
-
-      def step_counts_by_workflow_id
-        @step_counts_by_workflow_id ||= begin
-          visible_step_ids_by_workflow_id
-          @step_counts_by_workflow_id_from_visible_query || {}
         end
       end
 
@@ -958,36 +947,15 @@ module App
       end
 
       def visible_step_ids_by_workflow_id
-        @visible_step_ids_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.step_ids.query", job_id: @job.id, workflow_count: serialized_workflows.size, step_limit: MAX_STEPS_PER_WORKFLOW) do
+        @visible_step_ids_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.step_ids.query", job_id: @job.id, workflow_count: serialized_workflows.size) do
           ids = serialized_workflows.map { |workflow| Integer(workflow.id) }
-          if ids.empty?
-            @step_counts_by_workflow_id_from_visible_query = {}
-            next {}
-          end
+          next {} if ids.empty?
 
           rows = ApplicationRecord.connection.select_all(<<~SQL.squish)
-            SELECT id, workflow_id, workflow_step_count
-            FROM (
-              SELECT
-                steps.id,
-                steps.workflow_id,
-                steps.state,
-                COUNT(*) OVER (PARTITION BY steps.workflow_id) AS workflow_step_count,
-                ROW_NUMBER() OVER (
-                  PARTITION BY steps.workflow_id
-                  ORDER BY steps.position DESC, steps.id DESC
-                ) AS syrus_step_rank
-              FROM steps
-              WHERE steps.workflow_id IN (#{ids.join(",")})
-            ) ranked_steps
-            WHERE ranked_steps.syrus_step_rank <= #{MAX_STEPS_PER_WORKFLOW}
-               OR ranked_steps.state IN (#{ACTIVE_STEP_STATES.map { |state| ApplicationRecord.connection.quote(state) }.join(",")})
+            SELECT id, workflow_id
+            FROM steps
+            WHERE steps.workflow_id IN (#{ids.join(",")})
           SQL
-
-          @step_counts_by_workflow_id_from_visible_query = rows.each_with_object({}) do |row, counts|
-            workflow_id = row.fetch("workflow_id").to_i
-            counts[workflow_id] ||= row.fetch("workflow_step_count").to_i
-          end
 
           rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, grouped|
             grouped[row.fetch("workflow_id").to_i] << row.fetch("id").to_i

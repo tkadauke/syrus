@@ -118,7 +118,7 @@ describe("AppChromeV2", () => {
     renderAppChrome(<LocationProbe />, { initialEntries: ["/app-shell/settings"], routeWrapper: true })
 
     const accountNav = screen.getByRole("navigation", { name: "Account" })
-    fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
+    fireEvent.click(within(accountNav).getByRole("button", { name: "Operator" }))
 
     const signOutButton = within(accountNav).getByRole("button", { name: "Sign out" })
     expect(signOutButton.closest("form")).toBeNull()
@@ -141,7 +141,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/session/new")
     })
     expect(screen.queryByRole("navigation", { name: "Account" })).toBeNull()
-    expect(screen.queryByRole("button", { name: "operator@example.com" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Operator" })).toBeNull()
   })
 
   it("renders the desktop sidebar with data-html2canvas-ignore on mobile viewports to exclude it from bug report screenshots", () => {
@@ -187,6 +187,19 @@ describe("AppChromeV2", () => {
     expect(notices.compareDocumentPosition(accountRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it("uses the display name for the expanded and collapsed account control", () => {
+    renderAppChrome()
+
+    const accountNav = screen.getByRole("navigation", { name: "Account" })
+    expect(within(accountNav).getByRole("button", { name: "Operator" })).toBeInTheDocument()
+    expect(within(accountNav).queryByText("operator@example.com")).toBeNull()
+
+    fireEvent.click(screen.getByRole("separator", { name: "Resize sidebar" }))
+
+    expect(within(accountNav).getByRole("button", { name: "Operator" })).toBeInTheDocument()
+    expect(within(accountNav).queryByRole("button", { name: "operator@example.com" })).toBeNull()
+  })
+
   it("shows exactly one profile link in the settings popup even when showTeamProfile is true", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { unmount } = render(
@@ -199,7 +212,7 @@ describe("AppChromeV2", () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Operator$/i }))
 
     const profileLinks = screen.getAllByRole("link", { name: /^Profile$/i })
     expect(profileLinks).toHaveLength(1)
@@ -212,7 +225,7 @@ describe("AppChromeV2", () => {
   it("highlights the persisted theme in the settings popup picker", () => {
     renderAppChrome(undefined, { bootstrap: bootstrapPayload({ current_user: { ...bootstrapPayload().current_user!, theme: "dark" } }) })
 
-    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Operator$/i }))
 
     expect(screen.getByRole("button", { name: "Dark" })).toHaveAttribute("aria-pressed", "true")
     expect(screen.getByRole("button", { name: "Light" })).toHaveAttribute("aria-pressed", "false")
@@ -230,7 +243,7 @@ describe("AppChromeV2", () => {
 
     renderAppChrome()
 
-    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Operator$/i }))
     fireEvent.click(screen.getByRole("button", { name: "Dark" }))
 
     await waitFor(() => {
@@ -258,7 +271,7 @@ describe("AppChromeV2", () => {
     try {
       renderAppChrome()
 
-      fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+      fireEvent.click(screen.getByRole("button", { name: /^Operator$/i }))
       fireEvent.click(screen.getByRole("button", { name: "System" }))
 
       await waitFor(() => {
@@ -290,7 +303,7 @@ describe("AppChromeV2", () => {
       })
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Operator$/i }))
 
     const trigger = await screen.findByRole("button", { name: "Color theme: Ocean" })
     expect(trigger).toHaveAttribute("aria-expanded", "false")
@@ -308,7 +321,7 @@ describe("AppChromeV2", () => {
       })
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Operator$/i }))
     expect(await screen.findByRole("button", { name: "Color theme: Ocean" })).toBeInTheDocument()
   })
 
@@ -326,7 +339,7 @@ describe("AppChromeV2", () => {
       })
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Operator$/i }))
     fireEvent.click(await screen.findByRole("button", { name: "Color theme: Ocean" }))
 
     await screen.findByRole("button", { name: "Ocean" })
@@ -351,7 +364,7 @@ describe("AppChromeV2", () => {
       })
     })
 
-    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Operator$/i }))
     fireEvent.click(await screen.findByRole("button", { name: "Color theme: Ocean" }))
     await screen.findByRole("button", { name: "Forest" })
     fireEvent.click(screen.getByRole("button", { name: "Forest" }))

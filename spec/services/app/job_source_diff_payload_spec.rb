@@ -532,6 +532,7 @@ RSpec.describe App::JobSourceDiffPayload do
     )
     stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "old-main-base")
     forbid_repository_changes!
+    expect(Rails.logger).to receive(:warn).with(/#{job.slug}.*branch history returned no commits/)
 
     payload = described_class.build(job: job, user: user)
 
@@ -542,6 +543,7 @@ RSpec.describe App::JobSourceDiffPayload do
       diff_error: nil
     )
     expect(payload.dig(:version, :id)).to eq(version.id)
+    expect(payload[:step_diff_fallback]).to be(true)
     expect(payload[:files]).to contain_exactly(
       path: "app/models/implemented.rb",
       status: "modified",
@@ -558,7 +560,7 @@ RSpec.describe App::JobSourceDiffPayload do
     step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
     run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded",
                       base_sha: "branch-base", head_sha: "implemented-head")
-    version = DiffReviewVersions::Creator.call(
+    step_version = DiffReviewVersions::Creator.call(
       job: job,
       workflow: workflow,
       run: run,
@@ -571,13 +573,32 @@ RSpec.describe App::JobSourceDiffPayload do
       ],
       reason: "initial"
     )
+    version = DiffReviewVersions::Creator.call(
+      job: job,
+      workflow: workflow,
+      run: run,
+      base_sha: "branch-base",
+      head_sha: "implemented-head",
+      base_ref: "main",
+      head_ref: "syrus/issue-42",
+      files: [
+        { path: "app/models/implemented.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+implemented" }
+      ],
+      label: "All changes",
+      reason: "source_diff",
+      metadata: { "range_kind" => "all_changes" },
+      source_key: "all_changes"
+    )
+    expect(version).not_to eq(step_version)
     stub_repository_content_failure(repo, RepositoryContent::Unavailable.new("GitHub unavailable"))
     forbid_repository_changes!
+    expect(Rails.logger).to receive(:warn).with(/#{job.slug}.*RepositoryContent::Unavailable.*GitHub unavailable/)
 
     payload = described_class.build(job: job, user: user)
 
     expect(payload[:diff_error]).to be_nil
     expect(payload.dig(:version, :id)).to eq(version.id)
+    expect(payload[:step_diff_fallback]).to be(false)
     expect(payload[:files]).to contain_exactly(
       path: "app/models/implemented.rb",
       status: "modified",

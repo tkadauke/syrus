@@ -1577,11 +1577,15 @@ export type JobSourceDiffPayload = {
     deletions: number
     patch?: string | null
     is_image?: boolean
+    generated?: boolean
+    generated_reason?: string | null
+    generated_source?: string | null
     patch_status?: "binary" | "oversized" | null
     patch_bytes?: number | null
   }>
   truncated: boolean
   diff_error: string | null
+  step_diff_fallback?: boolean
   version: DiffReviewVersion | null
   /** @deprecated Accepted by older fixtures/responses; versions are loaded from diff_review_versions. */
   versions?: DiffReviewVersion[]
