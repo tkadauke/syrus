@@ -1000,7 +1000,7 @@ the coworker's read access to that source chat.
 
 Coworker detail tabs load independently, so opening a coworker does not fetch
 remote profile content, chat rosters, permissions, schedules, and activity all
-at once. Activity initially shows the 50 newest runs and side chats and offers
+at once. Activity initially shows the 50 newest Jobs and side chats and offers
 **Load more** for older entries. Memory and workspace file listings are capped
 at 1,000 entries and clearly identify partial results.
 
@@ -2436,8 +2436,11 @@ Disabling the plugin removes its page, chat grouping, and other runtime contribu
 preserving stored records for later re-enablement.
 
 Coworker cards show current-week spend. Each coworker's Activity tab combines
-weekly and total chat and background-Run spend with Run status, tool-call
-counts, side-chat costs, and coworker-message traffic. These figures are
+weekly and total chat and background-Job spend with Job status, timing,
+tool-call counts, and cost. Workflow and Run attempts remain available as
+expandable technical detail. The history uses shared filters for state, date,
+schedule or trigger source, failures, and title or goal text. Side-chat costs
+and coworker-message traffic remain separate sections. These figures are
 informational and do not impose a budget or add coworker data to the instance
 Spending page.
 

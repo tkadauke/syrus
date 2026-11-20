@@ -58,7 +58,13 @@ default disagrees with the effective descriptor default. Run
 `bin/rails syrus:coworker_tool_defaults` to print every coworker tool grouped into
 allow, ask, and deny with the reason.
 
-## Background runs
+## Background jobs
+
+The Activity tab presents one entry per coworker Job, links its canonical Job
+reference and title to Job details, and summarizes the requested goal, outcome,
+timing, spend, and tool usage. Expand a Job's attempts to inspect its Workflows
+and Runs. Filters cover outcome, date, schedule or trigger source, failures,
+and title or goal text; filter state remains in the URL.
 
 When the optional Calendar plugin is enabled, Coworkers contributes planned
 occurrences for schedules attached to a coworker. These occurrences show the

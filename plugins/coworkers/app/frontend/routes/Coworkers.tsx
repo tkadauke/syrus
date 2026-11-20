@@ -1172,17 +1172,28 @@ function SystemScheduleTime({ coworkerId, schedule, onChanged }: { coworkerId: s
 
 function CoworkerActivity({ id }: { id: string }) {
   const { t } = useT("coworkers")
-  const query = useQuery({ queryKey: ["coworkers", id, "activity"], queryFn: () => fetchCoworkerActivity(id) })
-  const [olderRuns, setOlderRuns] = useState<Awaited<ReturnType<typeof fetchCoworkerActivity>>["runs"]>([])
+  const location = useLocation()
+  const prefix = usePrefix()
+  const activitySearch = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    params.delete("tab")
+    return params.toString()
+  }, [location.search])
+  const query = useQuery({ queryKey: ["coworkers", id, "activity", activitySearch], queryFn: () => fetchCoworkerActivity(id, activitySearch) })
+  const [olderJobs, setOlderJobs] = useState<Awaited<ReturnType<typeof fetchCoworkerActivity>>["jobs"]>([])
   const [olderChats, setOlderChats] = useState<Awaited<ReturnType<typeof fetchCoworkerActivity>>["side_chats"]>([])
-  const [nextCursors, setNextCursors] = useState<{ runs: string | null; side_chats: string | null }>({ runs: null, side_chats: null })
+  const [nextCursors, setNextCursors] = useState<{ jobs: string | null; side_chats: string | null }>({ jobs: null, side_chats: null })
   useEffect(() => {
-    if (query.data) setNextCursors(query.data.next_cursors)
+    if (query.data) {
+      setOlderJobs([])
+      setOlderChats([])
+      setNextCursors(query.data.next_cursors)
+    }
   }, [query.data])
   const loadMore = useMutation({
-    mutationFn: () => fetchCoworkerActivity(id, { runs: nextCursors.runs, sideChats: nextCursors.side_chats }),
+    mutationFn: () => fetchCoworkerActivity(id, activitySearch, { jobs: nextCursors.jobs, sideChats: nextCursors.side_chats }),
     onSuccess: (page) => {
-      setOlderRuns((current) => [...current, ...page.runs])
+      setOlderJobs((current) => [...current, ...page.jobs])
       setOlderChats((current) => [...current, ...page.side_chats])
       setNextCursors(page.next_cursors)
     }
@@ -1190,7 +1201,7 @@ function CoworkerActivity({ id }: { id: string }) {
   if (query.isPending) return <PanelMessage>{t("activity.loading")}</PanelMessage>
   if (query.isError || !query.data) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
   const activity = query.data
-  const runs = [...activity.runs, ...olderRuns]
+  const jobs = [...activity.jobs, ...olderJobs]
   const sideChats = [...activity.side_chats, ...olderChats]
   const traffic = activity.message_traffic
   return (
@@ -1210,20 +1221,54 @@ function CoworkerActivity({ id }: { id: string }) {
         </dl>
       </div>
       <div>
-        <h2 className="font-semibold">{t("activity.runs")}</h2>
-        {runs.length ? (
-          <ul className="mt-3 divide-y divide-border rounded border border-border">
-            {runs.map((run) => (
-              <li className="grid gap-2 p-3 text-sm sm:grid-cols-4" key={run.id}>
-                <span>{t("activity.run_label", { id: run.id })}</span>
-                <span>{t(`activity.status.${run.state}`, { defaultValue: run.state })}</span>
-                <span>{t("activity.tool_calls", { count: run.tool_calls_count })}</span>
-                <span className="sm:text-right">${run.cost_usd.toFixed(2)}</span>
+        <h2 className="font-semibold">{t("activity.jobs")}</h2>
+        <div className="mt-3 rounded border border-border bg-surface-subtle p-3">
+          <FilterBar
+            buildLink={activityFilterLink}
+            filter={activityFilterTree(location.search)}
+            filterSchema={activityFilterSchema(t)}
+            legacyFilterKeys={["query", "state", "source", "failures_only", "created_after", "created_before"]}
+            pathname={location.pathname}
+            search={location.search}
+          />
+        </div>
+        {jobs.length ? (
+          <ul className="mt-3 space-y-3">
+            {jobs.map((job) => (
+              <li className={`rounded border p-4 ${job.outcome_reason ? "border-danger" : "border-border"}`} key={job.id}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link className="font-semibold text-brand" to={withRoutePrefix(job.path, prefix)}>{job.slug} · {job.title}</Link>
+                    <p className="mt-1 text-sm text-text-secondary">{job.goal_summary}</p>
+                  </div>
+                  <span className="rounded-full bg-surface-subtle px-2 py-1 text-xs font-medium">{t(`activity.status.${job.state}`, { defaultValue: job.state })}</span>
+                </div>
+                <dl className="mt-3 grid gap-2 text-xs text-text-secondary sm:grid-cols-2 lg:grid-cols-3">
+                  <div><dt className="font-medium">{t("activity.source")}</dt><dd>{job.schedule_name || job.source || t("activity.unknown")}</dd></div>
+                  <div><dt className="font-medium">{t("activity.created")}</dt><dd><time dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time></dd></div>
+                  <div><dt className="font-medium">{t("activity.started")}</dt><dd>{job.started_at ? <time dateTime={job.started_at}>{new Date(job.started_at).toLocaleString()}</time> : "—"}</dd></div>
+                  <div><dt className="font-medium">{t("activity.completed")}</dt><dd>{job.finished_at ? <time dateTime={job.finished_at}>{new Date(job.finished_at).toLocaleString()}</time> : "—"}</dd></div>
+                  <div><dt className="font-medium">{t("activity.duration")}</dt><dd>{formatDuration(job.duration_seconds)}</dd></div>
+                  <div><dt className="font-medium">{t("activity.usage")}</dt><dd>{t("activity.tool_calls", { count: job.tool_calls_count })} · ${job.cost_usd.toFixed(2)}</dd></div>
+                </dl>
+                {job.outcome_reason ? <p className="mt-3 rounded bg-danger/10 p-2 text-sm text-danger">{job.outcome_reason} · <Link className="underline" to={withRoutePrefix(job.path, prefix)}>{t("activity.view_job")}</Link></p> : null}
+                {job.attempts.length ? (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm font-medium">{t("activity.attempts", { count: job.attempts.length })}</summary>
+                    <ul className="mt-2 space-y-2 border-l border-border pl-3">
+                      {job.attempts.map((attempt) => <li className="text-sm" key={attempt.id}>
+                        <Link className="text-brand" to={withRoutePrefix(attempt.path, prefix)}>{attempt.slug}</Link> · {attempt.state} · {formatDuration(attempt.duration_seconds)} · {t("activity.tool_calls", { count: attempt.tool_calls_count })} · ${attempt.cost_usd.toFixed(2)}
+                        {attempt.failure_reason ? <p className="text-danger">{attempt.failure_reason}</p> : null}
+                        {attempt.runs.length ? <ul className="ml-4 mt-1 list-disc">{attempt.runs.map((run) => <li key={run.id}><Link className="text-brand" to={withRoutePrefix(run.path, prefix)}>{run.slug}</Link> · {run.state} · {formatDuration(run.duration_seconds)} · ${run.cost_usd.toFixed(2)}</li>)}</ul> : null}
+                      </li>)}
+                    </ul>
+                  </details>
+                ) : null}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-sm text-text-secondary">{t("activity.no_runs")}</p>
+          <p className="mt-2 text-sm text-text-secondary">{t(activity.filtered ? "activity.no_matching_jobs" : "activity.no_jobs")}</p>
         )}
       </div>
       <div>
@@ -1243,7 +1288,7 @@ function CoworkerActivity({ id }: { id: string }) {
           <p className="mt-2 text-sm text-text-secondary">{t("activity.no_side_chats")}</p>
         )}
       </div>
-      {nextCursors.runs || nextCursors.side_chats ? (
+      {nextCursors.jobs || nextCursors.side_chats ? (
         <button className="rounded border border-border px-3 py-2 text-sm" disabled={loadMore.isPending} onClick={() => loadMore.mutate()} type="button">
           {t("activity.load_more")}
         </button>
@@ -1282,6 +1327,56 @@ function CoworkerActivity({ id }: { id: string }) {
       </div>
     </section>
   )
+}
+
+function formatDuration(seconds: number | null) {
+  if (seconds === null) return "—"
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  return minutes < 60 ? `${minutes}m ${seconds % 60}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
+function activityFilterTree(search: string): FilterTree {
+  const params = new URLSearchParams(search)
+  const children = [
+    params.get("query") && { field: "query", op: "contains", value: params.get("query")! },
+    params.get("state") && { field: "state", op: "is", value: params.get("state")! },
+    params.get("source") && { field: "source", op: "is", value: params.get("source")! },
+    params.get("failures_only") === "true" && { field: "failures_only", op: "is", value: "true" },
+    params.get("created_after") && { field: "created_after", op: "after", value: params.get("created_after")! },
+    params.get("created_before") && { field: "created_before", op: "before", value: params.get("created_before")! }
+  ].filter(Boolean) as NonNullable<FilterTree["and"]>
+  return { and: children }
+}
+
+function activityFilterSchema(t: ReturnType<typeof useT>["t"]) {
+  return [
+    { field: "query", label: t("activity.filter_text"), bucket: "text", operators: ["contains"], values: [], free_text_search: true },
+    { field: "state", label: t("activity.filter_state"), bucket: "select", operators: ["is"], values: ["backlog", "needs_triage", "triaging", "blocked_by_epic", "queued", "running", "implemented", "coding", "failed", "no_change_needed", "approved", "landing", "closed"].map((value) => ({ value, label: t(`activity.status.${value}`, { defaultValue: value }) })) },
+    { field: "source", label: t("activity.filter_source"), bucket: "text", operators: ["is"], values: [] },
+    { field: "failures_only", label: t("activity.failures_only"), bucket: "select", operators: ["is"], values: [{ value: "true", label: t("activity.failures_only") }] },
+    { field: "created_after", label: t("activity.created_after"), bucket: "date", operators: ["after"], values: [] },
+    { field: "created_before", label: t("activity.created_before"), bucket: "date", operators: ["before"], values: [] }
+  ]
+}
+
+const activityFilterLink: FilterLinkBuilder = (path, search, updates) => {
+  const params = new URLSearchParams(search)
+  const fields = ["query", "state", "source", "failures_only", "created_after", "created_before"]
+  if (typeof updates.q === "string" && updates.q) {
+    try {
+      const tree = JSON.parse(atob(updates.q.replace(/-/g, "+").replace(/_/g, "/"))) as { and?: Array<{ field?: string; value?: unknown }> }
+      fields.forEach((field) => {
+        const value = tree.and?.find((chip) => chip.field === field)?.value
+        typeof value === "string" && value.trim() ? params.set(field, value.trim()) : params.delete(field)
+      })
+    } catch {
+      fields.forEach((field) => params.delete(field))
+    }
+  } else if (updates.q == null) fields.forEach((field) => params.delete(field))
+  params.delete("jobs_cursor")
+  const query = params.toString()
+  return query ? `${path}?${query}` : path
 }
 
 function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {

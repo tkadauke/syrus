@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
+import type { CoworkerActivityPayload } from "../api/coworkers"
 
 const grantCatalog = [
   "chat.message_owner",
@@ -129,9 +130,10 @@ Object.assign(detailPayload, detailPayload.coworker)
 
 const activityPayload = {
   spend: { week_usd: 0.75, total_usd: 1.25 },
-  runs: [],
+  jobs: [],
   side_chats: [],
-  next_cursors: { runs: null, side_chats: null },
+  next_cursors: { jobs: null, side_chats: null },
+  filtered: false,
   message_traffic: detailPayload.coworker.message_traffic
 }
 
@@ -353,16 +355,16 @@ it("loads older activity through the returned cursors", async () => {
     if (path.endsWith("/chats")) {
       return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
     }
-    if (path.includes("runs_cursor=")) {
+    if (path.includes("jobs_cursor=")) {
       return jsonResponse({
         ...activityPayload,
-        runs: [{ id: 1, job_id: 1, state: "succeeded", started_at: null, finished_at: null, tool_calls_count: 0, cost_usd: 0 }]
+        jobs: [activityJob(1)]
       })
     }
     return jsonResponse({
       ...activityPayload,
-      runs: [{ id: 51, job_id: 51, state: "succeeded", started_at: null, finished_at: null, tool_calls_count: 0, cost_usd: 0 }],
-      next_cursors: { runs: "NTE", side_chats: null }
+      jobs: [activityJob(51)],
+      next_cursors: { jobs: "NTE", side_chats: null }
     })
   })
   vi.stubGlobal("fetch", fetchSpy)
@@ -371,9 +373,45 @@ it("loads older activity through the returned cursors", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
   fireEvent.click(await screen.findByRole("button", { name: "Load more" }))
 
-  expect(await screen.findByText("RUN-1")).toBeInTheDocument()
-  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("runs_cursor=NTE"))).toBe(true)
+  expect(await screen.findByText(/JOB-1/)).toBeInTheDocument()
+  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("jobs_cursor=NTE"))).toBe(true)
 })
+
+it("renders Job-centered activity with linked attempts and a bounded failure reason", async () => {
+  const job = activityJob(42)
+  job.state = "failed"
+  job.outcome_reason = "The source service was unavailable"
+  job.tool_calls_count = 3
+  job.cost_usd = 1.5
+  job.attempts = [{
+    id: 9, slug: "WF-9", path: "/jobs/42?tab=workflows#workflow-9", state: "failed",
+    started_at: "2026-10-29T10:00:00Z", finished_at: "2026-10-29T10:01:00Z", duration_seconds: 60,
+    failure_reason: "The source service was unavailable", tool_calls_count: 3, cost_usd: 1.5,
+    runs: [{ id: 11, slug: "RUN-11", path: "/jobs/42?tab=workflows#workflow-9", state: "failed", started_at: null, finished_at: null, duration_seconds: 60, tool_calls_count: 3, cost_usd: 1.5 }]
+  }]
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/activity") ? jsonResponse({ ...activityPayload, jobs: [job] }) : jsonResponse(detailPayload)))
+  renderRoute("/coworkers/7")
+
+  fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
+
+  const jobLinks = await screen.findAllByRole("link", { name: /JOB-42.*Prepare the report/ })
+  expect(jobLinks.some((link) => link.getAttribute("href") === "/jobs/42")).toBe(true)
+  expect(screen.getByText("Prepare the report.")).toBeInTheDocument()
+  expect(screen.getAllByText(/3 tool calls.*\$1.50/).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(/The source service was unavailable/).length).toBeGreaterThan(0)
+  fireEvent.click(screen.getByText("1 attempt"))
+  expect(screen.getByRole("link", { name: "WF-9" })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "RUN-11" })).toBeInTheDocument()
+})
+
+function activityJob(id: number): CoworkerActivityPayload["jobs"][number] {
+  return {
+    id, slug: `JOB-${id}`, title: "Prepare the report", goal_summary: "Prepare the report.", path: `/jobs/${id}`,
+    state: "succeeded", source: "coworker_run", schedule_name: null, created_at: "2026-10-29T10:00:00Z",
+    started_at: "2026-10-29T10:00:00Z", finished_at: "2026-10-29T10:01:00Z", duration_seconds: 60,
+    tool_calls_count: 0, cost_usd: 0, outcome_reason: null, attempts: []
+  }
+}
 
 it("keeps metadata in Edit, renders capabilities, and creates side chats", async () => {
   vi.stubGlobal(

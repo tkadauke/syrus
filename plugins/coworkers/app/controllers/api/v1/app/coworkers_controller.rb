@@ -259,7 +259,8 @@ module Api
           authorize coworker, :show?, policy_class: CoworkerPolicy
           render json: Coworkers::Activity.new(
             coworker: coworker, user: Current.user,
-            runs_cursor: params[:runs_cursor], side_chats_cursor: params[:side_chats_cursor]
+            jobs_cursor: params[:jobs_cursor], side_chats_cursor: params[:side_chats_cursor],
+            filters: params.permit(:state, :created_after, :created_before, :source, :failures_only, :query).to_h.symbolize_keys
           ).call.merge(message_traffic: message_traffic_json(coworker))
         rescue Coworkers::Activity::InvalidCursor => error
           render_error("invalid_cursor", error.message, status: :bad_request)

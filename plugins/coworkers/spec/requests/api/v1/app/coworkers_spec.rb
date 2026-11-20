@@ -509,7 +509,7 @@ RSpec.describe "API: coworkers", type: :request do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-cursor", workspace_repo: "https://github.com/acme/workspace.git")
     sign_in_as(owner)
 
-    get "/api/v1/app/coworkers/#{coworker.id}/activity", params: { runs_cursor: "broken" }
+    get "/api/v1/app/coworkers/#{coworker.id}/activity", params: { jobs_cursor: "broken" }
 
     expect(response).to have_http_status(:bad_request)
     expect(response.parsed_body.dig("error", "code")).to eq("invalid_cursor")
