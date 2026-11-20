@@ -50,6 +50,11 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
     allow(SyrusVersion).to receive(:hostname) { Thread.current[:syrus_test_worker_hostname] || "worker-main" }
     allow(WorkerStorageIdentity).to receive(:queue_key) { Thread.current[:syrus_test_worker_storage_key] || "storage-main" }
     allow(InstanceVersion).to receive(:worker_queue_live?).and_return(true)
+    # Grader fan-out admission falls back to this host's CPU- and
+    # memory-derived capacity when no worker heartbeat is live. A small host
+    # admits one grader and defers the other, so pin room for both: this
+    # example is about the two overlapping, not about admission.
+    allow(RunHostAdmissionCapacity).to receive(:host_compute_capacity).and_return(8)
   end
 
   it "runs materialized legacy grader projections with overlapping wall-clock windows across simulated workers" do

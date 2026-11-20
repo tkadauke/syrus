@@ -521,12 +521,14 @@ found. Unmodelled: Step insertion (review re-materialization, grader fan-out),
 
 ## Pre-existing failures to fix
 
-- `spec/jobs/run_job_parallel_grader_projection_spec.rb:55` (ci_only) fails
-  locally: after `grader_fanout` runs, the materialized grader Steps have no
-  Runs (`step.runs.sole` raises). Reproduced with every app file this work
-  touched restored to the pre-session main commit, so it predates these
-  changes. Not yet known whether it also fails in CI or only on this machine
-  (the spec drives real git over `file://` remotes).
+- **Fixed:** `spec/jobs/run_job_parallel_grader_projection_spec.rb:55`
+  (ci_only). Only one of the two grader Steps got a Run.
+  `GraderFanoutAdmission` falls back to this host's derived capacity when no
+  worker heartbeat is live, which came out at 1 on this machine. It admitted
+  alpha and deferred beta (`released_count: 1`). The spec predates admission
+  control, so this is a test bug, not an engine bug. It now pins
+  `RunHostAdmissionCapacity.host_compute_capacity`, as `step_dispatcher_spec`
+  already does. It passes in CI whenever the runner's capacity is ≥ 2.
 
 ## Leads not yet worked (from the catalog)
 
