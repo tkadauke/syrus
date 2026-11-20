@@ -339,7 +339,10 @@ module Steps
     def fail_for_infrastructure!(grader_steps, evidence: nil)
       names = grader_names(grader_steps)
       classifications = grader_steps.filter_map { |grader| infrastructure_failure_classification_for(grader) }.uniq
-      code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "worker_died"
+      # Grader outcome reasons ("timed_out") are not always the Problem's
+      # canonical code ("timeout"); resolve through the aliases rather than
+      # falling through to worker_died for a grader that simply timed out.
+      code = classifications.filter_map { |classification| Problem::Kind.resolve(classification)&.code }.first || "worker_died"
       evidence ||= record_infrastructure_evidence!(grader_steps)
       log("[grader_collect] required graders failed due to infrastructure: #{names.join(', ')}")
       mark_transient_only_failure!

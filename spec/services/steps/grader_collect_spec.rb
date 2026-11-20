@@ -1217,7 +1217,11 @@ RSpec.describe Steps::GraderCollect do
       }
     )
 
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed due to infrastructure: rspec")
+    # The outcome reason is "timed_out"; the Problem code is "timeout". The
+    # mismatch fell through to worker_died, mislabelling every grader timeout.
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed due to infrastructure: rspec") { |error|
+      expect(error.problem&.code).to eq("timeout")
+    }
 
     expect(step.reload.details).to include(
       Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true
