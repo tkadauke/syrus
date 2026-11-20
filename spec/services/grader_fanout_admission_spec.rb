@@ -73,6 +73,39 @@ RSpec.describe GraderFanoutAdmission, :ci_only do
     expect(pressured.steps).to be_empty
   end
 
+  # Regression: SolidQueue process metadata never carries capability
+  # diagnostics in production; workers publish them on InstanceVersion. Reading
+  # only the metadata fell back to the deciding pod's own capacity, throttling
+  # a fleet of grader hosts to one to four concurrent graders.
+  it "counts capacity that workers publish on their instance records, once per host" do
+    ensure_solid_queue_test_tables!
+    clear_solid_queue_test_tables!
+    %w[compute-a compute-b].each do |hostname|
+      InstanceVersion.create!(
+        hostname: hostname, role: "worker", version: "abc123",
+        started_at: 1.minute.ago, last_heartbeat_at: Time.current,
+        capability_diagnostics: {
+          "admission_capacity" => {
+            "host_compute_capacity" => 6, "grader_capacity_units" => 1, "agentic_reserved_units" => 2
+          }
+        }
+      )
+      2.times do |index|
+        SolidQueue::Process.create!(
+          hostname: hostname, kind: "Worker", name: "#{hostname}:#{index}", pid: 100 + index,
+          last_heartbeat_at: Time.current, created_at: Time.current,
+          metadata: { "queues" => "runs", "polling_interval" => 0.1, "pool_size" => 1 }
+        )
+      end
+    end
+    allow(RunHostAdmissionCapacity).to receive(:host_compute_capacity).and_return(2)
+
+    decision = described_class.call(workflow: workflow, steps: grader_steps(10))
+
+    expect(decision).to have_attributes(capacity: 8, available_slots: 8)
+    expect(decision.steps.size).to eq(8)
+  end
+
   it "defers every ready grader while existing runnable graders saturate capacity" do
     steps = grader_steps(4)
     steps.first(2).each do |grader|

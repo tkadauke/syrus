@@ -67,16 +67,23 @@ class GraderFanoutAdmission
     end
   end
 
+  # SolidQueue writes its own process metadata, which never carries Syrus's
+  # capability diagnostics; workers publish those on their InstanceVersion and
+  # health samples. Reading only the process metadata found no worker at all
+  # in production, so every decision fell back to the deciding pod's own
+  # capacity -- one to four grader slots for the whole fleet. Resolve the
+  # diagnostics the way RunQueueResolver does.
   def live_worker_capacities
     SolidQueue::Process.where.not(last_heartbeat_at: nil).filter_map do |process|
       next if process.last_heartbeat_at < InstanceVersion::HEARTBEAT_STALE_THRESHOLD.ago
 
-      diagnostics = process.metadata.to_h["capability_diagnostics"].to_h["admission_capacity"].to_h
+      hostname = process.metadata.to_h["hostname"].presence || process.hostname
+      diagnostics = capability_diagnostics_for(process, hostname).to_h["admission_capacity"].to_h
       capacity = diagnostics["host_compute_capacity"].to_i
       next unless capacity.positive?
 
       {
-        hostname: process.metadata.to_h["hostname"].presence || process.hostname,
+        hostname: hostname,
         capacity: capacity,
         grader_units: [ diagnostics["grader_capacity_units"].to_i, 1 ].max,
         reserved_units: diagnostics["agentic_reserved_units"].to_i.clamp(0, capacity - 1)
@@ -84,6 +91,17 @@ class GraderFanoutAdmission
     end.uniq { |worker| worker.fetch(:hostname) }
   rescue ActiveRecord::ActiveRecordError, NameError
     []
+  end
+
+  def capability_diagnostics_for(process, hostname)
+    process.metadata.to_h["capability_diagnostics"].presence ||
+      worker_instances_by_hostname[hostname]&.capability_diagnostics.presence ||
+      latest_health_samples[hostname]&.capability_diagnostics.presence ||
+      {}
+  end
+
+  def worker_instances_by_hostname
+    @worker_instances_by_hostname ||= InstanceVersion.fresh.where(role: "worker").index_by(&:hostname)
   end
 
   def local_fallback_capacity
