@@ -125,10 +125,29 @@ describe("headerActions Reset Job", () => {
     expect(action?.input).toMatchObject({ method: "post", path: "/api/v1/app/jobs/7/reset" })
     const confirm = (action?.input as { confirm: string }).confirm
     expect(confirm).toContain("confirm_reset_job")
-    expect(confirm).toContain('reset_job_pr:{"number":12}')
-    expect(confirm).toContain('reset_job_branch:{"branch":"syrus/job-7"}')
-    expect(confirm).toContain('reset_job_checkpoints:{"count":2}')
-    expect(confirm).toContain('reset_job_workflows:{"count":1}')
+    expect(confirm).toContain('• reset_job_pr:{"number":12}')
+    expect(confirm).toContain('• reset_job_branch:{"branch":"syrus/job-7"}')
+    expect(confirm).toContain('• reset_job_checkpoints:{"count":2}')
+    expect(confirm).toContain('• reset_job_workflows:{"count":1}')
+    expect(confirm).toContain("confirm_reset_job_kept")
+  })
+
+  it("omits effects that are absent from the reset preview", () => {
+    const action = headerActions(
+      base({
+        reset_job_action: {
+          path: "/api/v1/app/jobs/7/reset",
+          destroys: { branch: "syrus/job-7", active_workflows: [] }
+        }
+      }),
+      t
+    ).find((entry) => entry.key === "reset_job")
+
+    const confirm = (action?.input as { confirm: string }).confirm
+    expect(confirm).toContain('• reset_job_branch:{"branch":"syrus/job-7"}')
+    expect(confirm).not.toContain("reset_job_pr")
+    expect(confirm).not.toContain("reset_job_checkpoints")
+    expect(confirm).not.toContain("reset_job_workflows")
   })
 
   it("hides Reset Job when the payload does not expose it", () => {
@@ -190,11 +209,11 @@ describe("HeaderActions Reset Job interaction", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Reset Job" }))
 
     const dialog = await screen.findByRole("dialog")
-    expect(dialog).toHaveTextContent("The Job id, Epic membership, dependencies and history are kept.")
-    expect(dialog).toHaveTextContent("PR #12")
-    expect(dialog).toHaveTextContent("branch syrus/job-7")
-    expect(dialog).toHaveTextContent("2 checkpoints")
-    expect(dialog).toHaveTextContent("1 active workflow")
+    expect(dialog).toHaveTextContent("The Job will restart from scratch on the current base.")
+    expect(dialog).toHaveTextContent("• Close PR #12")
+    expect(dialog).toHaveTextContent("• Delete branch syrus/job-7")
+    expect(dialog).toHaveTextContent("• Delete 2 checkpoints")
+    expect(dialog).toHaveTextContent("• Cancel 1 active workflow")
     expect(post).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
