@@ -624,11 +624,9 @@ export function headerActions(payload: JobDetailPayload, t: ReturnType<typeof us
       input: {
         method: "post",
         path: actions.reset_job_action.path,
-        confirm: [
-          t("confirm_reset_job"),
-          discards.length ? discards.map((discard) => `• ${discard}`).join("\n") : null,
-          t("confirm_reset_job_kept")
-        ].filter(Boolean).join("\n\n")
+        confirm: [t("confirm_reset_job"), discards.length ? discards.map((discard) => `• ${discard}`).join("\n") : null, t("confirm_reset_job_kept")]
+          .filter(Boolean)
+          .join("\n\n")
       },
       tone: "secondary"
     })
