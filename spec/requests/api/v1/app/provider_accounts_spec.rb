@@ -25,6 +25,30 @@ RSpec.describe "API: provider accounts", type: :request do
     expect(user.provider_accounts.in_position_order.map { |account| account.credential(:claude_oauth_token) }).to eq(4.times.map { |index| "secret-#{index}" })
   end
 
+  it "loads removal state with a bounded number of reference queries" do
+    4.times do |position|
+      user.provider_accounts.create!(
+        provider_key: "claude",
+        authentication_kind: "claude_oauth_token",
+        credential_payload: { "claude_oauth_token" => "secret-#{position}" },
+        position: position
+      )
+    end
+    allow(::App::ProviderAvailability).to receive(:for_user).and_return(nil)
+    statements = []
+    subscriber = lambda do |*, payload|
+      statements << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached]
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      get "/api/v1/app/provider_accounts"
+    end
+
+    reference_queries = statements.select { |sql| sql.match?(/(?:FROM|JOIN) \"(?:workflows|provider_sessions)\"/) }
+    expect(response).to have_http_status(:ok)
+    expect(reference_queries.size).to eq(3)
+  end
+
   it "normalizes blank labels and rejects duplicate labels within a provider" do
     account = user.provider_accounts.create!(provider_key: "claude", authentication_kind: "oauth_token", credential_payload: { "claude_oauth_token" => "one" }, label: "Work", position: 0)
 
