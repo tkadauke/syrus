@@ -6,7 +6,7 @@ module Coworkers
     end
 
     def call
-      jobs = latest_jobs.index_by(&:scheduled_task_id)
+      jobs = relevant_jobs
       tasks.index_with { |task| summary(task, jobs[task.id]) }
     end
 
@@ -14,10 +14,43 @@ module Coworkers
 
     attr_reader :tasks, :user
 
-    def latest_jobs
-      scope = Job.visible_to(user, scope: Job.where(scheduled_task_id: tasks.map(&:id)))
-      ids = scope.group(:scheduled_task_id).maximum(:id).values
-      Job.where(id: ids).includes(workflows: :workflow_artifact_values).to_a
+    def relevant_jobs
+      targets = system_targets
+      ordinary_task_ids = tasks.reject { |task| targets.key?(task.id) }.map(&:id)
+      ids = visible_jobs.where(scheduled_task_id: ordinary_task_ids).group(:scheduled_task_id).maximum(:id).values
+      candidates = jobs_for_targets(targets)
+      jobs = Job.where(id: ids | candidates.map(&:id)).includes(workflows: :workflow_artifact_values).to_a
+
+      jobs.select { |job| ordinary_task_ids.include?(job.scheduled_task_id) }
+        .index_by(&:scheduled_task_id)
+        .merge(matching_system_jobs(jobs, targets))
+    end
+
+    def visible_jobs
+      Job.visible_to(user, scope: Job.where(scheduled_task_id: tasks.map(&:id)))
+    end
+
+    def system_targets
+      tasks.filter_map do |task|
+        history = Array(task.system_result_history).last
+        [ task.id, history.fetch("date") ] if task.system_key.present? && history
+      end.to_h
+    end
+
+    def jobs_for_targets(targets)
+      return Job.none if targets.empty?
+
+      visible_jobs.where(scheduled_task_id: targets.keys).joins(workflows: :workflow_artifact_values)
+        .where(workflow_artifact_values: { key: "journaling_target_on", value: targets.values })
+        .distinct
+    end
+
+    def matching_system_jobs(jobs, targets)
+      matches = jobs.filter_map do |job|
+        target = targets[job.scheduled_task_id]
+        job if target && job.workflows.any? { |workflow| workflow.artifact("journaling_target_on") == target }
+      end
+      matches.group_by(&:scheduled_task_id).transform_values { |group| group.max_by(&:id) }
     end
 
     def summary(task, job)
@@ -30,11 +63,10 @@ module Coworkers
 
     def system_summary(history, job)
       target_date = history.fetch("date")
-      matching_job = job if job&.workflows&.any? { |workflow| workflow.artifact("journaling_target_on") == target_date }
       {
         occurred_at: history["recorded_at"], target_date: target_date,
         outcome: history.fetch("result"), reason: history["reason"],
-        job: matching_job && job_json(matching_job), job_needed: matching_job.present?
+        job: job && job_json(job), job_needed: job.present?
       }
     end
 
