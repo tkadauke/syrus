@@ -677,6 +677,11 @@ la:
       availability_rechecked: "Disponibilitas %{provider} iterum examinata est."
       availability_override_enabled: "Exceptio disponibilitatis praebitoris %{provider} habilitata est."
       unknown_provider: "Praebitor agentis ignotus est."
+    provider_accounts:
+      created: "Ratio praebitoris coniuncta est."
+      updated: "Ratio praebitoris renovata est."
+      removed: "Ratio praebitoris remota est."
+      in_use: "Haec ratio ab opere activo vel sessione resumenda adhibetur et removeri non potest. Eam inhabile fac ut novae attributiones sistantur."
 
     filters:
       unsupported_operator: "Operator campi %{field} non sustinetur."

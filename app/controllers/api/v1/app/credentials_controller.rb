@@ -281,7 +281,24 @@ module Api
         def credential_state_payload(user)
           {
             user: user_json(user),
-            credential_status: credential_status_json(user)
+            credential_status: credential_status_json(user),
+            provider_accounts: user.provider_accounts.in_position_order.map do |account|
+              availability = ::App::ProviderAvailability.for_user(user, account.provider_key, provider_account: account)
+              {
+                id: account.public_id,
+                provider_key: account.provider_key,
+                label: account.label,
+                display_label: account.display_label,
+                authentication_kind: account.authentication_kind,
+                enabled: account.enabled,
+                position: account.position,
+                weight: account.weight&.to_f,
+                proactive_pause_threshold: account.proactive_pause_threshold&.to_f,
+                effective_proactive_pause_threshold: account.effective_proactive_pause_threshold,
+                removable: !account.actively_referenced?,
+                availability: availability
+              }
+            end
           }
         end
 
@@ -385,6 +402,9 @@ module Api
             agent_providers: User.agent_providers,
             agent_provider_labels: User.agent_providers.to_h do |provider|
               [ provider, ::App::Presentation.agent_provider_label(provider) ]
+            end,
+            provider_account_credential_attributes: User.agent_providers.to_h do |provider|
+              [ provider, AgentProviders.for(provider).credential_attributes.map(&:to_s) ]
             end,
             chat_providers: User.chat_providers.select { |provider| user.chat_provider_configured?(provider) },
             chat_provider_labels: User.chat_providers.to_h do |provider|
