@@ -296,15 +296,43 @@ module Steps
       state.to_s == "open"
     end
 
+    # GitHub answers a merge with 405 "Base branch was modified. Review and try
+    # the merge again" while it is still recomputing mergeability -- for
+    # example right after the integration branch was pushed -- even when the
+    # base has not moved. Treating that as a conflict closed a fully graded
+    # train's integration PR and threw away four rounds of landing fixes.
+    BASE_MODIFIED_RETRY_DELAYS = [ 2, 5, 10 ].freeze
+    class_attribute :merge_retry_sleeper, default: ->(seconds) { sleep(seconds) }
+
     def merge_integration_pr(train, client, pr, expected_sha:)
-      client.merge_pull_request(
-        repository.slug,
-        pr.number,
-        commit_title: "Merge #{train.label} via Syrus merge-train",
-        merge_method: "merge",
-        sha: expected_sha
-      )
-    rescue Octokit::MethodNotAllowed => e
+      attempts = 0
+      begin
+        client.merge_pull_request(
+          repository.slug,
+          pr.number,
+          commit_title: "Merge #{train.label} via Syrus merge-train",
+          merge_method: "merge",
+          sha: expected_sha
+        )
+      rescue Octokit::MethodNotAllowed => e
+        if transient_base_modified?(e) && attempts < BASE_MODIFIED_RETRY_DELAYS.size &&
+            fetch_current_base_sha(train, client) == workflow.artifact(BASE_SHA_ARTIFACT).to_s.presence
+          delay = BASE_MODIFIED_RETRY_DELAYS[attempts]
+          attempts += 1
+          log("merge_train: GitHub reported the base as modified while it is unchanged; retrying the merge in #{delay}s (#{attempts}/#{BASE_MODIFIED_RETRY_DELAYS.size})")
+          self.class.merge_retry_sleeper.call(delay)
+          retry
+        end
+
+        handle_refused_integration_merge(train, client, pr, e)
+      end
+    end
+
+    def transient_base_modified?(error)
+      error.message.to_s.match?(/base branch was modified/i)
+    end
+
+    def handle_refused_integration_merge(train, client, pr, e)
       built_base_sha = workflow.artifact(BASE_SHA_ARTIFACT).to_s.presence
       current_base_sha = fetch_current_base_sha(train, client)
 

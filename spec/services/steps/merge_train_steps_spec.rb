@@ -1982,6 +1982,48 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(a.reload).not_to be_closed
     end
 
+    # Regression: GitHub answered a fully graded train's merge with 405 "Base
+    # branch was modified" while the base was unchanged. Syrus called it a
+    # conflict, closed the integration PR and discarded four rounds of fixes.
+    it "retries a merge GitHub refuses as base-modified while the base is unchanged" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_land", train, a)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      delays = []
+      allow(described_class).to receive(:merge_retry_sleeper).and_return(->(seconds) { delays << seconds })
+      calls = 0
+      allow(client).to receive(:merge_pull_request) do
+        calls += 1
+        raise octokit_error(Octokit::MethodNotAllowed, status: 405, message: "Base branch was modified. Review and try the merge again.") if calls == 1
+
+        OpenStruct.new(merged: true)
+      end
+
+      handler.call
+
+      expect(calls).to eq(2)
+      expect(delays).to eq([ 2 ])
+      expect(client).not_to have_received(:add_issue_comment).with("acme/widgets", 777, include("could not be merged cleanly"))
+      expect(client).not_to have_received(:close_pull_request).with("acme/widgets", 777)
+    end
+
+    it "fails as before once GitHub keeps reporting the base as modified" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_land", train, a)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(described_class).to receive(:merge_retry_sleeper).and_return(->(_seconds) {})
+      allow(client).to receive(:merge_pull_request)
+        .and_raise(octokit_error(Octokit::MethodNotAllowed, status: 405, message: "Base branch was modified. Review and try the merge again."))
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /integration PR has merge conflicts/)
+      expect(client).to have_received(:merge_pull_request).exactly(4).times
+      expect(client).to have_received(:close_pull_request).with("acme/widgets", 777)
+    end
+
     it "closes the integration PR and raises BaseMoved when GitHub refuses after the base moved" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
