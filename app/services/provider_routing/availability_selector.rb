@@ -210,7 +210,7 @@ module ProviderRouting
     def candidates
       @candidates ||= if routing_resolution.held?
         []
-      elsif original_candidate && !ProviderRouting::Resolver.rule_configured?(
+      elsif original_candidate && original_candidate.provider == job.workflow_agent_provider && !ProviderRouting::Resolver.rule_configured?(
         job: job,
         task_key: task_key,
         trigger: trigger,
@@ -250,6 +250,8 @@ module ProviderRouting
       end
       accounts = accounts.to_a
       if accounts.empty?
+        return [ false, nil, credential_unavailability(candidate.provider) ] if candidate.account_id.present?
+
         unavailable = credential_unavailability(candidate.provider)
         return [ false, nil, unavailable ] if unavailable
 

@@ -186,11 +186,24 @@ class StepDispatcher
     run_provider_candidate = run_provider_candidate_for(first, workflow)
     return if run_provider_candidate.nil?
 
-    provider_pause = ProviderAvailabilityPause.call(
-      workflow: workflow,
-      task_key: provider_task_key_for(first, workflow),
-      candidate: run_provider_candidate
-    )
+    provider_pause = if routed_failover_already_admitted?(workflow, run_provider_candidate)
+      ProviderAvailabilityPause::Decision.new(
+        pause: false,
+        reason: nil,
+        provider: run_provider_candidate.provider,
+        threshold_percent: nil,
+        remaining_percent: nil,
+        retry_at: nil,
+        availability: nil,
+        failover: nil
+      )
+    else
+      ProviderAvailabilityPause.call(
+        workflow: workflow,
+        task_key: provider_task_key_for(first, workflow),
+        candidate: run_provider_candidate
+      )
+    end
     apply_provider_failover!(workflow, provider_pause) if provider_pause.failover? && !step_specific_provider_task_key?(first, workflow)
     if provider_pause.pause?
       backoff = provider_pause.retry_at ? provider_pause.retry_at - Time.current : START_BLOCKED_BACKOFF
@@ -255,6 +268,11 @@ class StepDispatcher
     workflow.job.log_pending_dependency_warnings!
     log_prepare_skip(run, workflow)
     run
+  end
+
+  def self.routed_failover_already_admitted?(workflow, candidate)
+    decision = workflow.artifact("provider_failover_decision").to_h
+    decision["selected_provider"] == candidate.provider && decision["exhausted"] != true
   end
 
   def self.provider_routing_held?(workflow)
