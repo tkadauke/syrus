@@ -87,7 +87,6 @@ module Syrus
         Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [], dynamic: [],
           minimum_syrus_version: nil, content_hash: nil, error: "#{error.class}: #{error.message}")
       end
-
     end
 
     def self.load!(plugin_roots: Syrus::PluginRoots.default)
