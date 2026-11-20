@@ -853,7 +853,7 @@
       ],
       "status": "open",
       "done_by": null,
-      "notes": "5 of the 8 applied repairs were lost loop continuations. fail_from should be part of the Step-fail action."
+      "notes": "Investigating (FINDINGS Lead L1). Production: a retry Workflow whose grader loop stopped on no_progress was revived and re-failed about hourly for 8 hours by worker_died Runs on a superseded iteration's grader_collect, with the reconciler's continue-loop repair in each cycle (9 'applied' continuations on one Step). Also: 71 classifier skips; orphaned_failed_step does not treat a loop iteration superseded by a later passing one as superseded; 31 repair crashes (NoMethodError step_agent_diff, one 30-min window on 11-14, not recurring)."
     },
     {
       "id": "running-workflow-nothing-left",

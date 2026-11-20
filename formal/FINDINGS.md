@@ -678,6 +678,48 @@ found. Unmodelled: Step insertion (review re-materialization, grader fan-out),
   `RunHostAdmissionCapacity.host_compute_capacity`, as `step_dispatcher_spec`
   already does. It passes in CI whenever the runner's capacity is ≥ 2.
 
+## Lead L1 (in progress): an hourly revive/refail cycle on a deliberately stopped grader loop
+
+Production, read-only. This is the `running_workflow_with_failed_step` item.
+
+**Timeline (2026-11-16, Eastern).**
+- 09:39:32: a retry Workflow's `grader_collect` (iteration 3) decided
+  `grader_loop_no_progress`, and the Workflow went running → failed. That is a
+  deliberate stop by the domain.
+- 10:05 to 17:15, about once an hour: a `grader_collect` Run failed
+  `worker_died`, beginning with four Runs in 12 s at 10:05 on the iteration-1
+  collect Step, which had long been superseded.
+  1. The failure recorded `grader_loop_repair_enqueued` and the Workflow was
+     reopened.
+  2. About a minute later the reconciler's `continue_loop_iteration_from_failed_step`
+     ran `fail_from`.
+  3. `fail_from` decided `no_progress` again, and the Workflow went back to
+     failed.
+
+  That is nine "applied" continuations for one Step.
+- 17:56: the next iteration's `format` finally started, and the Workflow
+  succeeded at 18:18.
+
+**Open questions.**
+- Why do Runs on an old iteration's collect Step keep existing and die as
+  `worker_died` about an hour later? The interval suggests the stale-heartbeat
+  reaper.
+- Should an in-place retry (or anything else) reopen a Workflow whose grader
+  loop stopped on `no_progress`?
+- What started the 17:56 iteration?
+
+**Classifier side.** 71 `running_workflow_with_failed_step` skips ("Workflow
+still has running descendants") across 47 Workflows. One sampled case was the
+classifier catching the gap between two later chain Steps, after the failed
+loop iteration had already been superseded by a passing one. `orphaned_failed_step`
+only treats retry-until-barrier and manual-restart failures as superseded, not
+a loop iteration followed by a later passing one.
+
+**Not explained.** 31 repairs failed during 30 minutes on 2026-11-14 with
+`NoMethodError: undefined method 'step_agent_diff' for an instance of Run`. The
+method has existed since 2026-11-10 and the error has not recurred. Version skew
+during a deploy is likely but unconfirmed.
+
 ## Leads not yet worked (from the catalog)
 
 - `approved`/`implemented` Job without a PR: approve guard is `true`, and
