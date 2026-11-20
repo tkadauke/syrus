@@ -729,7 +729,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RepositoryContent::Divergence`
 - `RepositoryContent::Entry`
 - `RepositoryContent::Error`
-- `RepositoryContent::Glob`
 - `RepositoryContent::NotFound`
 - `RepositoryContent::Ref`
 - `RepositoryContent::Revision`
