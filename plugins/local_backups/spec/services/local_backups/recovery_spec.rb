@@ -53,6 +53,39 @@ RSpec.describe LocalBackups::Recovery do
     end
   end
 
+  it "rejects archive entry-count attacks before exhausting filesystem inodes" do
+    Dir.mktmpdir do |directory|
+      archive = Pathname.new(directory).join("entries.tar")
+      File.open(archive, "wb") do |io|
+        Gem::Package::TarWriter.new(io) do |tar|
+          3.times { |index| tar.add_file_simple("empty-#{index}", 0o600, 0) {} }
+        end
+      end
+
+      expect { described_class::Artifact.new(archive, max_entries: 2).validate }
+        .to raise_error(described_class::LimitExceeded, /more than 2 entries/)
+    end
+  end
+
+  it "applies entry-count limits to directory artifacts" do
+    Dir.mktmpdir do |directory|
+      artifact = build_artifact(directory)
+
+      expect { described_class::Artifact.new(artifact, max_entries: 2).validate }
+        .to raise_error(described_class::LimitExceeded, /more than 2 entries/)
+    end
+  end
+
+  it "rejects excessively deep artifact paths" do
+    Dir.mktmpdir do |directory|
+      artifact = build_artifact(directory)
+      artifact.join(*(1..65).map { |index| "level-#{index}" }).mkpath
+
+      expect { described_class::Artifact.new(artifact).validate }
+        .to raise_error(described_class::LimitExceeded, /exceeds 64 components/)
+    end
+  end
+
   it "reports incompatibility and key mismatch while tolerating an unavailable database" do
     Dir.mktmpdir do |directory|
       artifact = build_artifact(directory, manifest: {

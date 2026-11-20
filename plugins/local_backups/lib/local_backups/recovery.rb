@@ -11,6 +11,9 @@ require "zlib"
 module LocalBackups
   module Recovery
     DEFAULT_MAX_BYTES = 20 * 1024 * 1024 * 1024
+    DEFAULT_MAX_ENTRIES = 100_000
+    MAX_PATH_BYTES = 4_096
+    MAX_PATH_DEPTH = 64
     COPY_CHUNK = 1024 * 1024
 
     class Error < StandardError; end
@@ -20,11 +23,12 @@ module LocalBackups
     Result = Struct.new(:artifact, :manifest, :artifact_checksum, :logical_bytes, keyword_init: true)
 
     class Artifact
-      attr_reader :source, :max_bytes
+      attr_reader :source, :max_bytes, :max_entries
 
-      def initialize(source, max_bytes: DEFAULT_MAX_BYTES)
+      def initialize(source, max_bytes: DEFAULT_MAX_BYTES, max_entries: DEFAULT_MAX_ENTRIES)
         @source = Pathname.new(source).expand_path
         @max_bytes = Integer(max_bytes)
+        @max_entries = Integer(max_entries)
       end
 
       def with_directory
@@ -81,8 +85,11 @@ module LocalBackups
       def extract_archive(destination)
         io = archive_io
         count = 0
+        entries = 0
         Gem::Package::TarReader.new(io) do |tar|
           tar.each do |entry|
+            entries += 1
+            raise LimitExceeded, "archive contains more than #{max_entries} entries" if entries > max_entries
             relative = safe_relative(entry.full_name)
             target = destination.join(relative)
             if entry.directory?
@@ -126,14 +133,25 @@ module LocalBackups
       end
 
       def safe_relative(value)
+        raise LimitExceeded, "artifact path exceeds #{MAX_PATH_BYTES} bytes" if value.bytesize > MAX_PATH_BYTES
         path = Pathname.new(value).cleanpath
+        raise LimitExceeded, "artifact path exceeds #{MAX_PATH_DEPTH} components" if path.each_filename.count > MAX_PATH_DEPTH
         first = path.each_filename.first
         raise InvalidArtifact, "path escapes artifact: #{value}" if path.absolute? || first == ".." || value.include?("\\")
         path
       end
 
       def reject_symlinks!(root)
-        root.find { |path| raise InvalidArtifact, "artifact contains a symlink: #{path.relative_path_from(root)}" if path.symlink? }
+        entries = 0
+        root.find do |path|
+          next if path == root
+
+          entries += 1
+          raise LimitExceeded, "artifact contains more than #{max_entries} entries" if entries > max_entries
+          relative = path.relative_path_from(root)
+          safe_relative(relative.to_s)
+          raise InvalidArtifact, "artifact contains a symlink: #{relative}" if path.symlink?
+        end
       end
 
       def read_json(path)
