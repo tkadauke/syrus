@@ -1238,29 +1238,80 @@ function CoworkerActivity({ id }: { id: string }) {
               <li className={`rounded border p-4 ${job.outcome_reason ? "border-danger" : "border-border"}`} key={job.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link className="font-semibold text-brand" to={withRoutePrefix(job.path, prefix)}>{job.slug} · {job.title}</Link>
+                    <Link className="font-semibold text-brand" to={withRoutePrefix(job.path, prefix)}>
+                      {job.slug} · {job.title}
+                    </Link>
                     <p className="mt-1 text-sm text-text-secondary">{job.goal_summary}</p>
                   </div>
-                  <span className="rounded-full bg-surface-subtle px-2 py-1 text-xs font-medium">{t(`activity.status.${job.state}`, { defaultValue: job.state })}</span>
+                  <span className="rounded-full bg-surface-subtle px-2 py-1 text-xs font-medium">
+                    {t(`activity.status.${job.state}`, { defaultValue: job.state })}
+                  </span>
                 </div>
                 <dl className="mt-3 grid gap-2 text-xs text-text-secondary sm:grid-cols-2 lg:grid-cols-3">
-                  <div><dt className="font-medium">{t("activity.source")}</dt><dd>{job.schedule_name || job.source || t("activity.unknown")}</dd></div>
-                  <div><dt className="font-medium">{t("activity.created")}</dt><dd><time dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time></dd></div>
-                  <div><dt className="font-medium">{t("activity.started")}</dt><dd>{job.started_at ? <time dateTime={job.started_at}>{new Date(job.started_at).toLocaleString()}</time> : "—"}</dd></div>
-                  <div><dt className="font-medium">{t("activity.completed")}</dt><dd>{job.finished_at ? <time dateTime={job.finished_at}>{new Date(job.finished_at).toLocaleString()}</time> : "—"}</dd></div>
-                  <div><dt className="font-medium">{t("activity.duration")}</dt><dd>{formatDuration(job.duration_seconds)}</dd></div>
-                  <div><dt className="font-medium">{t("activity.usage")}</dt><dd>{t("activity.tool_calls", { count: job.tool_calls_count })} · ${job.cost_usd.toFixed(2)}</dd></div>
+                  <div>
+                    <dt className="font-medium">{t("activity.source")}</dt>
+                    <dd>{job.schedule_name || job.source || t("activity.unknown")}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.created")}</dt>
+                    <dd>
+                      <time dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.started")}</dt>
+                    <dd>{job.started_at ? <time dateTime={job.started_at}>{new Date(job.started_at).toLocaleString()}</time> : "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.completed")}</dt>
+                    <dd>{job.finished_at ? <time dateTime={job.finished_at}>{new Date(job.finished_at).toLocaleString()}</time> : "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.duration")}</dt>
+                    <dd>{formatDuration(job.duration_seconds)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.usage")}</dt>
+                    <dd>
+                      {t("activity.tool_calls", { count: job.tool_calls_count })} · ${job.cost_usd.toFixed(2)}
+                    </dd>
+                  </div>
                 </dl>
-                {job.outcome_reason ? <p className="mt-3 rounded bg-danger/10 p-2 text-sm text-danger">{job.outcome_reason} · <Link className="underline" to={withRoutePrefix(job.path, prefix)}>{t("activity.view_job")}</Link></p> : null}
+                {job.outcome_reason ? (
+                  <p className="mt-3 rounded bg-danger/10 p-2 text-sm text-danger">
+                    {job.outcome_reason} ·{" "}
+                    <Link className="underline" to={withRoutePrefix(job.path, prefix)}>
+                      {t("activity.view_job")}
+                    </Link>
+                  </p>
+                ) : null}
                 {job.attempts.length ? (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium">{t("activity.attempts", { count: job.attempts.length })}</summary>
                     <ul className="mt-2 space-y-2 border-l border-border pl-3">
-                      {job.attempts.map((attempt) => <li className="text-sm" key={attempt.id}>
-                        <Link className="text-brand" to={withRoutePrefix(attempt.path, prefix)}>{attempt.slug}</Link> · {attempt.state} · {formatDuration(attempt.duration_seconds)} · {t("activity.tool_calls", { count: attempt.tool_calls_count })} · ${attempt.cost_usd.toFixed(2)}
-                        {attempt.failure_reason ? <p className="text-danger">{attempt.failure_reason}</p> : null}
-                        {attempt.runs.length ? <ul className="ml-4 mt-1 list-disc">{attempt.runs.map((run) => <li key={run.id}><Link className="text-brand" to={withRoutePrefix(run.path, prefix)}>{run.slug}</Link> · {run.state} · {formatDuration(run.duration_seconds)} · {t("activity.tool_calls", { count: run.tool_calls_count })} · ${run.cost_usd.toFixed(2)}</li>)}</ul> : null}
-                      </li>)}
+                      {job.attempts.map((attempt) => (
+                        <li className="text-sm" key={attempt.id}>
+                          <Link className="text-brand" to={withRoutePrefix(attempt.path, prefix)}>
+                            {attempt.slug}
+                          </Link>{" "}
+                          · {attempt.state} · {formatDuration(attempt.duration_seconds)} · {t("activity.tool_calls", { count: attempt.tool_calls_count })} · $
+                          {attempt.cost_usd.toFixed(2)}
+                          {attempt.failure_reason ? <p className="text-danger">{attempt.failure_reason}</p> : null}
+                          {attempt.runs.length ? (
+                            <ul className="ml-4 mt-1 list-disc">
+                              {attempt.runs.map((run) => (
+                                <li key={run.id}>
+                                  <Link className="text-brand" to={withRoutePrefix(run.path, prefix)}>
+                                    {run.slug}
+                                  </Link>{" "}
+                                  · {run.state} · {formatDuration(run.duration_seconds)} · {t("activity.tool_calls", { count: run.tool_calls_count })} · $
+                                  {run.cost_usd.toFixed(2)}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </li>
+                      ))}
                     </ul>
                   </details>
                 ) : null}
@@ -1352,9 +1403,35 @@ function activityFilterTree(search: string): FilterTree {
 function activityFilterSchema(t: ReturnType<typeof useT>["t"]) {
   return [
     { field: "query", label: t("activity.filter_text"), bucket: "text", operators: ["contains"], values: [], free_text_search: true },
-    { field: "state", label: t("activity.filter_state"), bucket: "select", operators: ["is"], values: ["backlog", "needs_triage", "triaging", "blocked_by_epic", "queued", "running", "implemented", "coding", "failed", "no_change_needed", "approved", "landing", "closed"].map((value) => ({ value, label: t(`activity.status.${value}`, { defaultValue: value }) })) },
+    {
+      field: "state",
+      label: t("activity.filter_state"),
+      bucket: "select",
+      operators: ["is"],
+      values: [
+        "backlog",
+        "needs_triage",
+        "triaging",
+        "blocked_by_epic",
+        "queued",
+        "running",
+        "implemented",
+        "coding",
+        "failed",
+        "no_change_needed",
+        "approved",
+        "landing",
+        "closed"
+      ].map((value) => ({ value, label: t(`activity.status.${value}`, { defaultValue: value }) }))
+    },
     { field: "source", label: t("activity.filter_source"), bucket: "text", operators: ["is"], values: [] },
-    { field: "failures_only", label: t("activity.failures_only"), bucket: "select", operators: ["is"], values: [{ value: "true", label: t("activity.failures_only") }] },
+    {
+      field: "failures_only",
+      label: t("activity.failures_only"),
+      bucket: "select",
+      operators: ["is"],
+      values: [{ value: "true", label: t("activity.failures_only") }]
+    },
     { field: "created_after", label: t("activity.created_after"), bucket: "date", operators: ["after"], values: [] },
     { field: "created_before", label: t("activity.created_before"), bucket: "date", operators: ["before"], values: [] }
   ]
