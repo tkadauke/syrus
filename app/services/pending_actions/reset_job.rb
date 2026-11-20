@@ -18,7 +18,12 @@ module PendingActions
 
     def presentation_label = "Reset #{presentation_job_slug}"
     def presentation_detail
-      summary = ResetJobs::Operation.destruction_summary(repair_action_job_or_nil)
+      return reason.presence unless payload["job_id"].present?
+
+      job = repair_action_job_or_nil
+      return reason.presence unless job
+
+      summary = ResetJobs::Operation.destruction_summary(job)
       [ reason, ("PR ##{summary[:open_pr_number]}" if summary[:open_pr_number]), summary[:branch],
         ("#{summary[:checkpoints]} checkpoints" if summary[:checkpoints].to_i.positive?),
         ("Active Workflows: #{summary[:active_workflows].join(', ')}" if summary[:active_workflows].any?) ].compact.join("\n")

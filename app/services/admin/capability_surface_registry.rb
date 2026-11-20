@@ -160,6 +160,7 @@ module Admin
       reconcile_job_state
       reenqueue_work
       repair_queue_affinity
+      reset_job
       reopen_epic_and_attach_job
       reopen_job
       repair_provider_circuit_evidence
