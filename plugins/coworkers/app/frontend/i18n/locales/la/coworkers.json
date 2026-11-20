@@ -173,7 +173,17 @@
     "latest_result": "Eventus ultimus",
     "view_all_runs": "Omnes cursus vide",
     "no_job_needed": "Nullum Opus necessarium erat",
-    "outcomes": { "never_run": "Numquam actum", "queued": "In ordine", "running": "Agitur", "succeeded": "Perfectum", "failed": "Defecit", "blocked": "Impedita", "cancelled": "Revocatum", "journaled": "Scriptum", "skipped": "Praetermissum" }
+    "outcomes": {
+      "never_run": "Numquam actum",
+      "queued": "In ordine",
+      "running": "Agitur",
+      "succeeded": "Perfectum",
+      "failed": "Defecit",
+      "blocked": "Impedita",
+      "cancelled": "Revocatum",
+      "journaled": "Scriptum",
+      "skipped": "Praetermissum"
+    }
   },
   "capabilities": {
     "sentences": {
