@@ -489,9 +489,7 @@ function CoworkerPage({ id }: { id: string }) {
         </div>
       </Page.Header>
       <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"]} />
-      {tab === "chat" ? (
-        <CoworkerConversationIndex id={id} create={sideChat} legacyChats={coworker.chats} prefix={prefix} />
-      ) : null}
+      {tab === "chat" ? <CoworkerConversationIndex id={id} create={sideChat} legacyChats={coworker.chats} prefix={prefix} /> : null}
       {tab === "profile" ? (
         <section className="space-y-4 rounded border border-border bg-surface p-5">
           <dl>
@@ -579,7 +577,11 @@ function CoworkerConversationIndex({
           <h2 className="font-semibold">{t("conversations.heading")}</h2>
           <p className="text-sm text-text-secondary">{t("conversations.description")}</p>
         </div>
-        <button className="shrink-0 rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60" disabled={create.isPending} onClick={() => create.mutate()}>
+        <button
+          className="shrink-0 rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60"
+          disabled={create.isPending}
+          onClick={() => create.mutate()}
+        >
           {create.isPending ? t("detail.creating_side_chat") : t("detail.new_side_chat")}
         </button>
       </div>
@@ -612,13 +614,23 @@ function CoworkerConversationIndex({
         </div>
         {sideChats.length ? (
           <ul className="divide-y divide-border rounded border border-border bg-surface">
-            {sideChats.map((chat) => <li key={chat.id}><ConversationRow chat={chat} coworkerId={id} prefix={prefix} /></li>)}
+            {sideChats.map((chat) => (
+              <li key={chat.id}>
+                <ConversationRow chat={chat} coworkerId={id} prefix={prefix} />
+              </li>
+            ))}
           </ul>
         ) : (
-          <PanelMessage>{payload.result_count === 0 && !hasConversationFilters(payload.filter) ? t("activity.no_side_chats") : t("conversations.no_matches")}</PanelMessage>
+          <PanelMessage>
+            {payload.result_count === 0 && !hasConversationFilters(payload.filter) ? t("activity.no_side_chats") : t("conversations.no_matches")}
+          </PanelMessage>
         )}
         {cursor ? (
-          <button className="rounded border border-border px-3 py-2 text-sm disabled:opacity-60" disabled={loadMore.isPending} onClick={() => loadMore.mutate()}>
+          <button
+            className="rounded border border-border px-3 py-2 text-sm disabled:opacity-60"
+            disabled={loadMore.isPending}
+            onClick={() => loadMore.mutate()}
+          >
             {loadMore.isPending ? t("conversations.loading_more") : t("activity.load_more")}
           </button>
         ) : null}
@@ -630,15 +642,29 @@ function CoworkerConversationIndex({
 
 function legacyConversationPayload(chats: CoworkerDetail["chats"]): Awaited<ReturnType<typeof fetchCoworkerConversationIndex>> {
   const row = (chat: CoworkerDetail["chats"][number]): CoworkerConversation => ({
-    id: chat.id, title: chat.title, path: chat.path, main: chat.role === "main", preview: null,
-    last_activity_at: "", created_at: "", archived: false,
-    unread: false, active_work: false, title_match: false, match_count: 0, match: null
+    id: chat.id,
+    title: chat.title,
+    path: chat.path,
+    main: chat.role === "main",
+    preview: null,
+    last_activity_at: "",
+    created_at: "",
+    archived: false,
+    unread: false,
+    active_work: false,
+    title_match: false,
+    match_count: 0,
+    match: null
   })
   return {
     main_chat: chats.find((chat) => chat.role === "main") ? row(chats.find((chat) => chat.role === "main")!) : null,
-    side_chats: chats.filter((chat) => chat.role === "side").map(row), result_count: chats.filter((chat) => chat.role === "side").length,
+    side_chats: chats.filter((chat) => chat.role === "side").map(row),
+    result_count: chats.filter((chat) => chat.role === "side").length,
     result_count_exact: true,
-    next_cursor: null, filter: { and: [] }, filter_schema: [], sort: "last_activity"
+    next_cursor: null,
+    filter: { and: [] },
+    filter_schema: [],
+    sort: "last_activity"
   }
 }
 
@@ -673,17 +699,40 @@ function ConversationRow({ chat, coworkerId, prefix }: { chat: CoworkerConversat
           {chat.archived ? <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs">{t("conversations.archived")}</span> : null}
           {chat.match_count > 0 ? <span className="text-xs text-text-secondary">{t("conversations.matches", { count: chat.match_count })}</span> : null}
         </div>
-        {chat.match ? <p className="mt-1 line-clamp-2 text-sm text-text-secondary" dangerouslySetInnerHTML={{ __html: safeMatchSnippet(chat.match.snippet) }} /> :
-          chat.preview ? <p className="mt-1 line-clamp-2 text-sm text-text-secondary">{chat.preview}</p> : null}
+        {chat.match ? (
+          <p className="mt-1 line-clamp-2 text-sm text-text-secondary" dangerouslySetInnerHTML={{ __html: safeMatchSnippet(chat.match.snippet) }} />
+        ) : chat.preview ? (
+          <p className="mt-1 line-clamp-2 text-sm text-text-secondary">{chat.preview}</p>
+        ) : null}
         {chat.last_activity_at ? <RelativeTimestamp value={chat.last_activity_at} /> : null}
       </Link>
       {!chat.main ? (
         <details className="relative shrink-0">
-          <summary aria-label={t("conversations.actions", { title: chat.title })} className="cursor-pointer list-none rounded px-2 py-1 text-text-secondary">•••</summary>
+          <summary aria-label={t("conversations.actions", { title: chat.title })} className="cursor-pointer list-none rounded px-2 py-1 text-text-secondary">
+            •••
+          </summary>
           <div className="absolute right-0 z-10 mt-1 min-w-32 rounded border border-border bg-surface p-1 shadow-lg">
-            <button className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted" disabled={action.isPending} onClick={() => action.mutate("rename")}>{t("conversations.rename")}</button>
-            <button className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted" disabled={action.isPending} onClick={() => action.mutate("archive")}>{t(chat.archived ? "conversations.restore" : "conversations.archive")}</button>
-            <button className="block w-full rounded px-3 py-2 text-left text-sm text-danger-text hover:bg-surface-muted" disabled={action.isPending} onClick={() => action.mutate("delete")}>{t("conversations.delete")}</button>
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("rename")}
+            >
+              {t("conversations.rename")}
+            </button>
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("archive")}
+            >
+              {t(chat.archived ? "conversations.restore" : "conversations.archive")}
+            </button>
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm text-danger-text hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("delete")}
+            >
+              {t("conversations.delete")}
+            </button>
           </div>
         </details>
       ) : null}

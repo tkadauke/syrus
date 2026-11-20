@@ -402,15 +402,41 @@ it("renders the pinned conversation index and keeps sorting in the URL", async (
     if (path.includes("conversation_index")) {
       return jsonResponse({
         main_chat: {
-          id: 12, title: "Maya", path: "/chats/12", main: true, preview: "Main thread", last_activity_at: "2026-11-18T10:00:00Z",
-          created_at: "2026-11-01T10:00:00Z", archived: false, unread: false, active_work: false, title_match: false, match_count: 0, match: null
+          id: 12,
+          title: "Maya",
+          path: "/chats/12",
+          main: true,
+          preview: "Main thread",
+          last_activity_at: "2026-11-18T10:00:00Z",
+          created_at: "2026-11-01T10:00:00Z",
+          archived: false,
+          unread: false,
+          active_work: false,
+          title_match: false,
+          match_count: 0,
+          match: null
         },
-        side_chats: [{
-          id: 44, title: "Release research", path: "/chats/44", main: false, preview: "Compare the release notes", last_activity_at: "2026-11-18T11:00:00Z",
-          created_at: "2026-11-17T10:00:00Z", archived: false, unread: true, active_work: true, title_match: false, match_count: 2,
-          match: { message_id: 91, snippet: "Compare the <mark>release</mark> notes" }
-        }],
-        result_count: 1, result_count_exact: false, next_cursor: null, filter: { and: [] },
+        side_chats: [
+          {
+            id: 44,
+            title: "Release research",
+            path: "/chats/44",
+            main: false,
+            preview: "Compare the release notes",
+            last_activity_at: "2026-11-18T11:00:00Z",
+            created_at: "2026-11-17T10:00:00Z",
+            archived: false,
+            unread: true,
+            active_work: true,
+            title_match: false,
+            match_count: 2,
+            match: { message_id: 91, snippet: "Compare the <mark>release</mark> notes" }
+          }
+        ],
+        result_count: 1,
+        result_count_exact: false,
+        next_cursor: null,
+        filter: { and: [] },
         filter_schema: [{ field: "search", label: "Search", bucket: "text", operators: ["contains"], values: [], free_text_search: true }],
         sort: path.includes("sort=title") ? "title" : "last_activity"
       })
