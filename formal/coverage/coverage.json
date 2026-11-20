@@ -781,9 +781,9 @@
         "terminal_cleanup_cancelled_retry_recovers",
         "repeated_pr_open_failure_retry_recovers"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Mostly produced by design: every Workflow#fail! with a queued tail. Retry already revives cancelled tails (retry_failed_step_enqueuer.rb:529), so fail! could cancel the tail and make 'terminal -> no active descendants' provable. Prod also had 1 failed repair."
+      "status": "partial",
+      "done_by": "F21",
+      "notes": "Production (7 days): ~127 applied repairs, nearly all on Workflows that were failed at repair time (the event shows today's state, so 'succeeded' ones were failed then and retried later). Fixed F21: the repair checked 'terminal' and then cancelled without a lock, so a Retry-from-failed-step reopening the Workflow in between had its fresh Runs cancelled (seen in production: 4 retry Runs survived only because they were already running). It now decides under the Job lock the retry holds (LockedCleanup.unlocked_damages / locked_safe). The by-design part — Workflow#fail! keeps the queued tail and the reconciler cancels it a minute later — is a design question: NY4."
     },
     {
       "id": "terminal-workflow-live-processes",
@@ -2354,6 +2354,18 @@
         "C. Accept the risk: rely on the heartbeat threshold and the merge call's expected_sha fence."
       ],
       "recommendation": "A. It reuses the checkpoints that already exist and turns a stalled executor's next side effect into a clean RunEndedExternally stop. Needs a migration (one integer column), hence the question."
+    },
+    {
+      "id": "NY4",
+      "item": "terminal-workflow-active-descendants",
+      "title": "What should happen to a failed Workflow's queued tail?",
+      "context": "Workflow#fail! deliberately keeps the downstream queued Steps (cancelling only orphan Runs) so 'Retry from failed step' can continue through them. The reconciler treats exactly that as abnormal and cancels the tail about a minute later (~127 repairs/week). Retry only revives cancelled Steps with no Runs, but fail! has already cancelled the queued Runs on parallel grader Steps, so a tail the reconciler cancelled is partly unrevivable. The two intents contradict each other; production recovered, with churn, through other retry paths.",
+      "options": [
+        "A. A failed Workflow keeps its queued tail: the reconciler stops cancelling queued Steps of failed Workflows (it still cancels active Runs, which fail! already does). Invariant: terminal ⇒ no active Runs; failed ⇒ only dormant queued Steps.",
+        "B. fail! cancels the tail itself, and Retry revives every cancelled downstream Step (including those with cancelled Runs). Invariant: terminal ⇒ no active descendants.",
+        "C. Keep both as they are."
+      ],
+      "recommendation": "A. It matches the documented intent of fail!, needs no change to Retry, removes ~127 repairs a week, and still gives a provable invariant (no live Runs under a terminal Workflow). B is cleaner on paper but makes Retry responsible for reconstructing state it currently simply keeps."
     }
   ]
 }

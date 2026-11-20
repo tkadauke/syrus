@@ -1422,12 +1422,25 @@ module WorkEngine
         def perform
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
-          return skipped("Workflow is #{workflow.state}, not terminal") unless workflow.terminal?
-          return skipped("Workflow has no active descendants") unless workflow.terminal_cleanup_active_descendants?
 
-          with_transition_reason do
-            workflow.cancel_active_descendants!(reason: plan.action)
+          # Decide under the Job lock: Retry-from-failed-step reopens the
+          # Workflow while holding it, and a reopen between the terminal
+          # check and the cancel had the retry's fresh Runs cancelled.
+          refusal = nil
+          workflow.job.with_lock do
+            workflow.reload
+            refusal = if !workflow.terminal?
+              "Workflow is #{workflow.state}, not terminal"
+            elsif !workflow.terminal_cleanup_active_descendants?
+              "Workflow has no active descendants"
+            end
+            next if refusal
+
+            with_transition_reason do
+              workflow.cancel_active_descendants!(reason: plan.action)
+            end
           end
+          return skipped(refusal) if refusal
 
           workflow.reload
           remaining_steps = workflow.persisted_active_step_ids

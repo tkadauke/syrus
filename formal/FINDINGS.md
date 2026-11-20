@@ -601,6 +601,36 @@ skips those follow-ups). The guard keeps the plan honest if that changes.
 
 ---
 
+## F21. Terminal cleanup cancelled a retry's fresh work — fixed
+
+**Property.** The reconciler cancels a Workflow's descendants only while the
+Workflow is still terminal, decided under the lock that reopening holds
+(`LockedCleanup.locked_safe`).
+
+**Evidence (production, read-only).** At 00:36:34–37 Eastern on 2026-11-19, the
+repair cancelled the grader tail of a failed `initial` Workflow. At 00:36:42 a
+Retry-from-failed-step re-dispatched graders on the same Workflow. The repair
+then reported "active descendants remain" for four of the retry's Runs, which
+had already started and survived. The Workflow later succeeded after more churn.
+
+**Counterexample.** `LockedCleanup.unlocked_damages`:
+`CancelTerminalWorkflowActiveDescendants` checked `terminal?` and then called
+`cancel_active_descendants!` without a lock. `RetryFailedStepEnqueuer` reopens
+the Workflow inside `workflow.job.with_lock`.
+
+**Fix.** The repair re-reads the Workflow under the same Job lock, checks it,
+and cancels inside that lock. The lock order (Job first) matches the retry.
+
+**Spec.** `repair_executor_spec.rb` "re-reads the Workflow under the Job lock
+and leaves a just-reopened one alone" (red before). The spec simulates a retry
+that committed while we waited for the lock.
+
+**Review note.** Most of this issue's ~127 weekly repairs aren't races. They are
+`Workflow#fail!` keeping its queued tail on purpose, followed by the reconciler
+cancelling it. Those two intents contradict each other, which is NY4.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

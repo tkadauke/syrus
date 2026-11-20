@@ -74,6 +74,30 @@ RSpec.describe WorkEngine::RepairExecutor do
     end
   end
 
+  describe "cancel_terminal_workflow_active_descendants" do
+    # Production: the repair checked "terminal" and then cancelled, while a
+    # Retry-from-failed-step (which reopens the Workflow under the Job lock)
+    # revived the same Workflow in between -- the retry's fresh grader Runs
+    # were cancelled. The repair must decide under the same lock.
+    it "re-reads the Workflow under the Job lock and leaves a just-reopened one alone" do
+      workflow.update_columns(state: "failed", finished_at: 1.minute.ago)
+      tail = workflow.steps.create!(kind: "grader", position: 99, state: "queued")
+      original = Job.instance_method(:with_lock)
+      allow_any_instance_of(Job).to receive(:with_lock) do |locked_job, *args, &block|
+        # The retry held the lock and committed its reopen just before us.
+        workflow.update_columns(state: "running", finished_at: nil)
+        original.bind(locked_job).call(*args, &block)
+      end
+
+      execution = described_class.call(
+        result: RepairResult.new([ repair_plan(action: "cancel_terminal_workflow_active_descendants", target: workflow) ])
+      ).sole
+
+      expect(execution.status).to eq("skipped")
+      expect(tail.reload).to be_queued
+    end
+  end
+
   describe "reconcile_step_from_terminal_run" do
     # A plan made before the failed Run scheduled its in-place retry must not
     # finish the Step that is now waiting for that retry.
