@@ -75,9 +75,8 @@ class Coworkers::ConversationIndex
         relation = relation.where(id: message_ids | title_ids)
         search_query = query
       when "status"
-        participant_scope = ChatParticipant.where(user_id: user.id)
-        participant_scope = value == "archived" ? participant_scope.where.not(hidden_at: nil) : participant_scope.where(hidden_at: nil)
-        relation = relation.where(id: participant_scope.select(:chat_session_id))
+        relation = relation.joins(:chat_participants).where(chat_participants: { user_id: user.id })
+        relation = value == "archived" ? relation.where.not(chat_participants: { hidden_at: nil }) : relation.where(chat_participants: { hidden_at: nil })
       when "unread"
         relation = relation.joins(:chat_participants)
           .where(chat_participants: { user_id: user.id })
