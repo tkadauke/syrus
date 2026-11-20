@@ -32,10 +32,11 @@ RSpec.describe Steps::Format do
   end
 
   before do
-    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "main")
     allow(handler).to receive(:workspace).and_return(fake_ws)
     allow(handler).to receive(:commit_agent_changes)
     allow(handler).to receive(:changed_files).and_return(%w[app/models/thing.rb])
+    allow(handler).to receive(:revert_out_of_scope_changes)
   end
 
   after { Syrus::PluginRegistry.reset! }
@@ -69,6 +70,25 @@ RSpec.describe Steps::Format do
     provider.define_singleton_method(:autofix_command) { |workspace_path:, changed_files:| command }
     Syrus::PluginRegistry.register(:autofix_command, provider)
     provider
+  end
+
+  def initialize_git_workspace(files)
+    git("init", "-q", "-b", "main", @ws_path.to_s)
+    git("-C", @ws_path.to_s, "config", "user.email", "test@example.com")
+    git("-C", @ws_path.to_s, "config", "user.name", "Test")
+    files.each do |path, contents|
+      @ws_path.join(path).tap { |file| file.dirname.mkpath }.write(contents)
+    end
+    git("-C", @ws_path.to_s, "add", ".")
+    git("-C", @ws_path.to_s, "commit", "-q", "-m", "initial")
+    git("-C", @ws_path.to_s, "switch", "-q", "-c", "work")
+    allow(handler).to receive(:revert_out_of_scope_changes).and_call_original
+  end
+
+  def git(*args)
+    return if system("git", *args, out: File::NULL, err: File::NULL)
+
+    raise "git #{args.join(' ')} failed"
   end
 
   describe "no changed files" do
@@ -207,6 +227,124 @@ RSpec.describe Steps::Format do
   end
 
   describe "explicit .syrus.yml formatters:" do
+    it "restores tracked formatter changes outside the Job diff before committing" do
+      initialize_git_workspace(
+        "app/models/in_diff.rb" => "before\n",
+        "app/models/untouched.rb" => "before\n"
+      )
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: printf 'formatted\\n' > app/models/in_diff.rb; printf 'formatted\\n' > app/models/untouched.rb
+            files: "**/*.rb"
+      YAML
+      allow(handler).to receive(:changed_files).and_return([ "app/models/in_diff.rb" ])
+
+      handler.call
+
+      expect(@ws_path.join("app/models/in_diff.rb").read).to eq("formatted\n")
+      expect(@ws_path.join("app/models/untouched.rb").read).to eq("before\n")
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+        "[format] reverted 1 formatter change(s) outside this Job's diff: app/models/untouched.rb"
+      )
+    end
+
+    it "restores an out-of-scope tracked file replaced with a symlink" do
+      initialize_git_workspace(
+        "app/models/in_diff.rb" => "before\n",
+        "app/models/untouched.rb" => "original\n"
+      )
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: >-
+              printf 'formatted\\n' > app/models/in_diff.rb;
+              ln -sf in_diff.rb app/models/untouched.rb
+            files: "**/*.rb"
+      YAML
+      allow(handler).to receive(:changed_files).and_return([ "app/models/in_diff.rb" ])
+
+      handler.call
+
+      expect(@ws_path.join("app/models/in_diff.rb").read).to eq("formatted\n")
+      expect(@ws_path.join("app/models/untouched.rb")).not_to be_symlink
+      expect(@ws_path.join("app/models/untouched.rb").read).to eq("original\n")
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+        "[format] reverted 1 formatter change(s) outside this Job's diff: app/models/untouched.rb"
+      )
+    end
+
+    it "does not log a revert when formatters modify only files in the Job diff" do
+      initialize_git_workspace("app/models/in_diff.rb" => "before\n")
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: printf 'formatted\\n' > app/models/in_diff.rb
+            files: "**/*.rb"
+      YAML
+      allow(handler).to receive(:changed_files).and_return([ "app/models/in_diff.rb" ])
+
+      handler.call
+
+      expect(@ws_path.join("app/models/in_diff.rb").read).to eq("formatted\n")
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).not_to include("formatter change(s) outside")
+    end
+
+    it "keeps renamed files in scope and does not resurrect deleted files" do
+      initialize_git_workspace(
+        "app/models/old_name.rb" => "before\n",
+        "app/models/deleted.rb" => "delete me\n"
+      )
+      git("-C", @ws_path.to_s, "mv", "app/models/old_name.rb", "app/models/new_name.rb")
+      git("-C", @ws_path.to_s, "rm", "app/models/deleted.rb")
+      git("-C", @ws_path.to_s, "commit", "-q", "-m", "rename and delete")
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: >-
+              printf 'formatted\\n' > app/models/new_name.rb;
+              printf 'resurrected\\n' > app/models/old_name.rb;
+              printf 'resurrected\\n' > app/models/deleted.rb;
+              printf 'created\\n' > app/models/formatter_output.rb
+            files: "**/*.rb"
+      YAML
+      allow(handler).to receive(:changed_files).and_return(
+        %w[app/models/new_name.rb app/models/deleted.rb]
+      )
+
+      handler.call
+
+      expect(@ws_path.join("app/models/new_name.rb").read).to eq("formatted\n")
+      expect(@ws_path.join("app/models/old_name.rb")).not_to exist
+      expect(@ws_path.join("app/models/deleted.rb")).not_to exist
+      expect(@ws_path.join("app/models/formatter_output.rb").read).to eq("created\n")
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+        "[format] reverted 2 formatter change(s) outside this Job's diff: " \
+          "app/models/deleted.rb, app/models/old_name.rb"
+      )
+    end
+
+    it "soft-fails when restoring out-of-scope changes fails" do
+      initialize_git_workspace(
+        "app/models/in_diff.rb" => "before\n",
+        "app/models/untouched.rb" => "before\n"
+      )
+      write_syrus_yml(<<~YAML)
+        formatters:
+          - command: printf 'formatted\\n' > app/models/in_diff.rb; printf 'formatted\\n' > app/models/untouched.rb
+            files: "**/*.rb"
+      YAML
+      allow(handler).to receive(:changed_files).and_return([ "app/models/in_diff.rb" ])
+      allow_any_instance_of(GitRunner).to receive(:run).and_wrap_original do |original, *args, **kwargs|
+        if args.first == "restore"
+          raise GitRunner::GitError.new(args, 1, "restore failed")
+        end
+
+        original.call(*args, **kwargs)
+      end
+
+      expect { handler.call }.not_to raise_error
+      expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
+        "[format] WARNING (non-fatal): could not revert formatter changes outside this Job's diff"
+      )
+    end
+
     it "runs a formatter for a file directly inside a double-star pattern's directory" do
       write_syrus_yml(<<~YAML)
         formatters:
