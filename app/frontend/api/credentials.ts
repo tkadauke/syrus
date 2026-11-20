@@ -208,7 +208,11 @@ export function createProviderAccount(input: { provider_key: string; label?: str
   return postJson<{ provider_account: ProviderAccount; message: string }>("/api/v1/app/provider_accounts", input)
 }
 
-export function updateProviderAccount(id: string, input: Partial<Pick<ProviderAccount, "label" | "enabled" | "weight" | "proactive_pause_threshold">>) {
+export type ProviderAccountUpdate = Partial<Pick<ProviderAccount, "label" | "enabled" | "weight" | "proactive_pause_threshold" | "authentication_kind">> & {
+  credentials?: Record<string, string>
+}
+
+export function updateProviderAccount(id: string, input: ProviderAccountUpdate) {
   return patchJson<{ provider_account: ProviderAccount; message: string }>(`/api/v1/app/provider_accounts/${id}`, input)
 }
 
@@ -309,25 +313,30 @@ export type CodexOauthStart = { authorize_url: string; listener_started: boolean
 
 // Begin the Claude subscription OAuth flow; returns the authorize URL the
 // modal opens. The provider shows a code to paste back.
-export function startClaudeOauth() {
-  return postJson<ClaudeOauthStart>("/api/v1/app/credentials/claude_oauth_start")
+export type ProviderAccountOauthTarget = { provider_account?: boolean; provider_account_id?: string; label?: string }
+export type ProviderAccountOauthPayload = CredentialTestPayload & { provider_account?: ProviderAccount }
+
+export function startClaudeOauth(target: ProviderAccountOauthTarget = {}) {
+  return postJson<ClaudeOauthStart>("/api/v1/app/credentials/claude_oauth_start", target)
 }
 
 // Finish the Claude OAuth flow by exchanging the pasted code (raw or the
 // `code#state` form). Saves + tests the token; returns the test result.
-export function exchangeClaudeOauth(code: string) {
-  return postJson<CredentialTestPayload>("/api/v1/app/credentials/claude_oauth_exchange", {
-    code
+export function exchangeClaudeOauth(code: string, target: ProviderAccountOauthTarget = {}) {
+  return postJson<ProviderAccountOauthPayload>("/api/v1/app/credentials/claude_oauth_exchange", {
+    code,
+    ...target
   })
 }
 
-export function startCodexOauth() {
-  return postJson<CodexOauthStart>("/api/v1/app/credentials/codex_oauth_start")
+export function startCodexOauth(target: ProviderAccountOauthTarget = {}) {
+  return postJson<CodexOauthStart>("/api/v1/app/credentials/codex_oauth_start", target)
 }
 
-export function exchangeCodexOauth(code: string) {
-  return postJson<CredentialTestPayload>("/api/v1/app/credentials/codex_oauth_exchange", {
-    code
+export function exchangeCodexOauth(code: string, target: ProviderAccountOauthTarget = {}) {
+  return postJson<ProviderAccountOauthPayload>("/api/v1/app/credentials/codex_oauth_exchange", {
+    code,
+    ...target
   })
 }
 

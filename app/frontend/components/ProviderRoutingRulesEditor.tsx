@@ -996,6 +996,7 @@ function ConditionsSection({
 
 function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOptions {
   return {
+    provider_accounts: options?.provider_accounts || [],
     agent_providers: options?.agent_providers || EMPTY_OPTIONS.agent_providers,
     effort_levels: options?.effort_levels || EMPTY_OPTIONS.effort_levels,
     reviewer_targets: options?.reviewer_targets || [],

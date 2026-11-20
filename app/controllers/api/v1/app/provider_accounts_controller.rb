@@ -2,10 +2,11 @@ module Api
   module V1
     module App
       class ProviderAccountsController < BaseController
+        include ProviderAccountSerialization
         before_action :set_account, only: %i[update destroy test]
 
         def index
-          render json: { provider_accounts: Current.user.provider_accounts.in_position_order.map { |account| account_json(account) } }
+          render json: { provider_accounts: Current.user.provider_accounts.in_position_order.map { |account| provider_account_json(account) } }
         end
 
         def create
@@ -18,20 +19,24 @@ module Api
           account.authentication_kind = params[:authentication_kind].presence || inferred_authentication_kind(provider)
           account.credential_payload = credential_payload(provider)
           if account.save
-            render json: { provider_account: account_json(account), message: I18n.t("api.provider_accounts.created") }, status: :created
+            render json: { provider_account: provider_account_json(account), message: I18n.t("api.provider_accounts.created") }, status: :created
           else
             render_validation(account)
           end
         end
 
         def update
-          attributes = params.permit(:label, :enabled, :weight, :proactive_pause_threshold).to_h
+          attributes = params.permit(:label, :enabled, :weight, :proactive_pause_threshold, :authentication_kind).to_h
           attributes["label"] = attributes["label"].presence if attributes.key?("label")
           attributes["weight"] = attributes["weight"].presence if attributes.key?("weight")
           attributes["proactive_pause_threshold"] = attributes["proactive_pause_threshold"].presence if attributes.key?("proactive_pause_threshold")
+          if params[:credentials].present?
+            provider = AgentProviders.for(@account.provider_key)
+            attributes["credential_payload"] = credential_payload(provider)
+          end
           if @account.update(attributes)
             ::App::ProviderAvailability.broadcast_changed(user: Current.user, provider: @account.provider_key, provider_account: @account)
-            render json: { provider_account: account_json(@account), message: I18n.t("api.provider_accounts.updated") }
+            render json: { provider_account: provider_account_json(@account), message: I18n.t("api.provider_accounts.updated") }
           else
             render_validation(@account)
           end
@@ -49,7 +54,7 @@ module Api
         def test
           result = AgentProviders.for(@account.provider_key).refresh_usage!(user: Current.user, provider_account: @account, force: true)
           availability = ::App::ProviderAvailability.for_user(Current.user, @account.provider_key, provider_account: @account, cached: false)
-          render json: { provider_account: account_json(@account, availability: availability), message: result.try(:message) || availability&.dig(:message) }
+          render json: { provider_account: provider_account_json(@account, availability: availability), message: result.try(:message) || availability&.dig(:message) }
         rescue AgentProviders::ConfigurationError => error
           render_error("provider_account_test_failed", error.message, status: :unprocessable_content)
         end
@@ -82,24 +87,6 @@ module Api
         def inferred_authentication_kind(provider)
           payload = credential_payload(provider)
           payload["codex_auth_mode"].presence || provider.credential_attributes.find { |name| name.to_s != "codex_auth_mode" }.to_s
-        end
-
-        def account_json(account, availability: nil)
-          availability ||= ::App::ProviderAvailability.for_user(Current.user, account.provider_key, provider_account: account)
-          {
-            id: account.public_id,
-            provider_key: account.provider_key,
-            label: account.label,
-            display_label: account.display_label,
-            authentication_kind: account.authentication_kind,
-            enabled: account.enabled,
-            position: account.position,
-            weight: account.weight&.to_f,
-            proactive_pause_threshold: account.proactive_pause_threshold&.to_f,
-            effective_proactive_pause_threshold: account.effective_proactive_pause_threshold,
-            removable: !account.actively_referenced?,
-            availability: availability
-          }
         end
 
         def render_validation(account)

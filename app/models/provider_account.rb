@@ -27,6 +27,8 @@ class ProviderAccount < ApplicationRecord
   end
 
   belongs_to :user
+  has_many :workflows
+  has_many :provider_sessions
 
   encrypts :credential_payload
   serialize :credential_payload, coder: JSON
@@ -64,11 +66,8 @@ class ProviderAccount < ApplicationRecord
 
   def actively_referenced?
     workflows.where(state: %w[queued running]).exists? ||
-      provider_sessions.for_runs.where(runs: { state: %w[queued running] }).exists?
+      provider_sessions.exists?
   end
-
-  has_many :workflows
-  has_many :provider_sessions
 
   def effective_proactive_pause_threshold
     return proactive_pause_threshold.to_f if proactive_pause_threshold.present?

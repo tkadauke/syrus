@@ -48,6 +48,36 @@ RSpec.describe "API: provider accounts", type: :request do
     expect(body.dig("provider_account", "effective_proactive_pause_threshold")).to eq(7.0)
   end
 
+  it "replaces one account credential without returning the secret" do
+    account = user.provider_accounts.create!(provider_key: "claude", authentication_kind: "claude_oauth_token", credential_payload: { "claude_oauth_token" => "old-secret" }, position: 0)
+
+    patch "/api/v1/app/provider_accounts/#{account.public_id}", params: {
+      authentication_kind: "claude_oauth_token",
+      credentials: { claude_oauth_token: "new-secret", ignored: "not-stored" }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(account.reload.credential(:claude_oauth_token)).to eq("new-secret")
+    expect(account.credential(:ignored)).to be_nil
+    expect(response.body).not_to include("new-secret", "old-secret")
+  end
+
+  it "creates an account through the Claude subscription token flow" do
+    allow(AgentProviders::Claude).to receive(:refresh_usage!).and_return(nil)
+
+    post "/api/v1/app/credentials/claude_oauth_exchange", params: {
+      code: "sk-ant-oat01-account-token",
+      provider_account: true,
+      label: "Second subscription"
+    }
+
+    expect(response).to have_http_status(:ok)
+    account = user.provider_accounts.find_by!(provider_key: "claude", label: "Second subscription")
+    expect(account.credential(:claude_oauth_token)).to eq("sk-ant-oat01-account-token")
+    expect(body.dig("provider_account", "id")).to eq(account.public_id)
+    expect(response.body).not_to include("sk-ant-oat01-account-token")
+  end
+
   it "guards removal while an active Workflow references the account" do
     user.update!(claude_oauth_token: "one")
     account = user.default_provider_account("claude")
@@ -60,4 +90,16 @@ RSpec.describe "API: provider accounts", type: :request do
     expect(body.dig("error", "code")).to eq("provider_account_in_use")
     expect(account.reload).to be_present
   end
+
+  it "guards removal while a resumable chat session references the account" do
+    account = user.provider_accounts.create!(provider_key: "claude", authentication_kind: "claude_oauth_token", credential_payload: { "claude_oauth_token" => "one" }, position: 0)
+    chat = ChatSession.create!(user: user, chat_provider: "claude")
+    ProviderSession.create!(resumable: chat, provider: "claude", provider_account: account, session_id: "resumable-chat")
+
+    delete "/api/v1/app/provider_accounts/#{account.public_id}"
+
+    expect(response).to have_http_status(:conflict)
+    expect(body.dig("error", "code")).to eq("provider_account_in_use")
+  end
+
 end

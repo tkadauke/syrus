@@ -236,6 +236,21 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(screen.getByText("Claude Code 4")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "Advanced" })).toHaveLength(4)
     expect(screen.getAllByRole("button", { name: "Remove" })[0]).toBeDisabled()
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Advanced" })[0])
+    expect(screen.getByLabelText("Routing weight")).toHaveValue(1)
+    expect(screen.getByLabelText("Exhaustion threshold (%)")).toHaveValue(10)
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Rename" })[0])
+    expect(screen.getByLabelText("Account label")).toHaveValue("")
+  })
+
+  it("offers provider OAuth for the first account", async () => {
+    mockRoutes(makePayload())
+    renderAgentSettings()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Set up a subscription" }))
+    expect(screen.getByRole("button", { name: "Authorize with Claude Code" })).toBeInTheDocument()
   })
 
   it("renders one card per provider from the payload, without a global Save", async () => {
