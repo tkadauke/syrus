@@ -1,9 +1,20 @@
 import "@testing-library/jest-dom/vitest"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import ReviewWorkspaceRoute from "./ReviewWorkspace"
+
+const jobApi = vi.hoisted(() => ({
+  fetchJobDetail: vi.fn(async () => ({ job: { id: 42 }, actions: {}, paths: {} })),
+  fetchJobTab: vi.fn(async () => ({ visual_evidence: { screenshots: [] } })),
+  postJobCommand: vi.fn(async () => ({})),
+  submitJobFeedback: vi.fn(async () => undefined)
+}))
+
+vi.mock("@app/api/jobs", () => jobApi)
+vi.mock("@app/lib/entityStore", () => ({ normalizeJobDetailPayload: (payload: unknown) => payload }))
+vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({ ReviewWorkspace: () => <div>Canonical review evidence</div> }))
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -47,7 +58,7 @@ describe("ReviewWorkspaceRoute", () => {
     renderRoute("/review/JOB-999")
 
     expect(await screen.findByRole("heading", { name: "Review me" })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole("link", { name: "Open active review" })).toHaveAttribute("href", "/jobs/JOB-42?tab=review"))
+    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("href", "/review/JOB-42"))
   })
 
   it("renders the caught-up state for an empty stack", async () => {
@@ -57,4 +68,64 @@ describe("ReviewWorkspaceRoute", () => {
     renderRoute()
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
   })
+
+  it("uses canonical evidence and progresses after approval", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+
+    expect(await screen.findByText("Canonical review evidence")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Approve for landing (A)" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
+    await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/api/v1/app/jobs/42/approve"))
+  })
+
+  it("focuses the discoverable exit and supports keyboard Job navigation", async () => {
+    const second = { ...job(), id: 43, slug: "JOB-43", title: "Review next" }
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 2, jobs: [job(), second] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Exit review workspace" })).toHaveFocus())
+    fireEvent.keyDown(window, { key: "j" })
+    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
+  })
+
+  it("submits feedback through the canonical chat-feedback endpoint and progresses the stack", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+
+    await screen.findByText("Canonical review evidence")
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback (F)" }))
+    fireEvent.change(await screen.findByLabelText("What should change?"), { target: { value: "Please tighten this." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }))
+    await waitFor(() => expect(jobApi.submitJobFeedback).toHaveBeenCalledWith(42, "Please tighten this."))
+    expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
+  })
+
+  it("defers an item only for the current workspace session", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    fireEvent.click(await screen.findByRole("button", { name: "Defer for this session" }))
+    expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
+  })
 })
+
+function job() {
+  return {
+    id: 42,
+    slug: "JOB-42",
+    title: "Review me",
+    priority: "high",
+    ready_at: "2026-11-19T00:00:00Z",
+    dependency_blocked: false,
+    repository: { id: 1, slug: "acme/widgets" },
+    pr_number: 7
+  }
+}

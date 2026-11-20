@@ -10,5 +10,20 @@
   "open_review": "Aktive Review öffnen",
   "all_caught_up": "Alles erledigt",
   "empty": "Es gibt gerade keine Jobs, die du genehmigen kannst.",
-  "load_error": "Der Review-Arbeitsbereich konnte nicht geladen werden."
+  "load_error": "Der Review-Arbeitsbereich konnte nicht geladen werden.",
+  "loading_job": "Aktuelle Review-Belege werden geladen...",
+  "job_load_error": "Die aktuellen Review-Belege dieses Jobs konnten nicht geladen werden.",
+  "exit": "Review-Arbeitsbereich verlassen",
+  "evidence": "Review-Belege",
+  "decision_context": "Entscheidungskontext",
+  "decision_hint": "Wenn du handelst, wird die Freigabeberechtigung erneut am aktuellen PR-Stand geprüft.",
+  "approve": "Zur Landung freigeben",
+  "approve_shortcut": "Zur Landung freigeben (A)",
+  "approve_confirm": "{{slug}} zur Landung freigeben?",
+  "feedback_shortcut": "Feedback geben (F)",
+  "feedback_label": "Was soll geändert werden?",
+  "send_feedback": "Feedback senden",
+  "defer": "Für diese Sitzung zurückstellen",
+  "mutation_error": "Die Entscheidung konnte nicht angewendet werden. Aktualisiere die Belege und versuche es erneut.",
+  "shortcuts": "J / K wechseln · ← / → Belege · A freigeben · F Feedback · Esc beenden"
 }

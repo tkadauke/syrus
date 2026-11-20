@@ -10,5 +10,20 @@
   "open_review": "Open active review",
   "all_caught_up": "All caught up",
   "empty": "There are no Jobs you can approve right now.",
-  "load_error": "Unable to load the review workspace."
+  "load_error": "Unable to load the review workspace.",
+  "loading_job": "Loading current review evidence...",
+  "job_load_error": "Unable to load this Job's current review evidence.",
+  "exit": "Exit review workspace",
+  "evidence": "Review evidence",
+  "decision_context": "Decision context",
+  "decision_hint": "Approval eligibility is checked again against the current PR head when you act.",
+  "approve": "Approve for landing",
+  "approve_shortcut": "Approve for landing (A)",
+  "approve_confirm": "Approve {{slug}} for landing?",
+  "feedback_shortcut": "Give feedback (F)",
+  "feedback_label": "What should change?",
+  "send_feedback": "Send feedback",
+  "defer": "Defer for this session",
+  "mutation_error": "The decision could not be applied. Refresh the evidence and try again.",
+  "shortcuts": "J / K move · ← / → evidence · A approve · F feedback · Esc exit"
 }
