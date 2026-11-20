@@ -46,6 +46,35 @@ RSpec.describe Workflows::ImmutableReviewHeadBarrier do
     expect(described_class.satisfied_for?(tail)).to be(false)
   end
 
+  # Regression: every barrier lookup loaded all of a workflow's steps -- full
+  # rows, JSON details included -- once per required review on every
+  # readiness check. With hundreds of steps and large grader fan-out rows a
+  # reconciler pass stopped finishing. Review lookups must stay in SQL.
+  it "never loads non-review steps to decide whether a step may run" do
+    implement = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "succeeded")
+    implement.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "head-b")
+    collect(kind: "adversarial_review", position: 1, sha: "head-b")
+    collect(kind: "security_review", position: 2, sha: "head-b")
+    fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 3, state: "succeeded",
+      details: { "grader_target_selections" => Array.new(50) { |index| { "name" => "grader-#{index}" } } })
+    graders = 3.times.map { |index| Step.create!(workflow: workflow, kind: "grader", position: 4 + index) }
+
+    statements = []
+    callback = lambda do |*, payload|
+      sql = payload[:sql].to_s
+      statements << sql if sql.match?(/FROM [`"]?steps[`"]?/i) && sql.match?(/\ASELECT [`"]?steps[`"]?\.\*/i)
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      graders.each { |grader| described_class.satisfied_for?(grader.reload) }
+    end
+
+    workflow_wide = statements.select { |sql| sql.match?(/[`"]?steps[`"]?\.[`"]?workflow_id[`"]?\s*=/i) }
+    expect(workflow_wide).not_to be_empty
+    unscoped = workflow_wide.reject { |sql| sql.match?(/[`"]?steps[`"]?\.[`"]?kind[`"]?/i) }
+    expect(unscoped).to be_empty, "barrier loaded every step of the workflow:\n#{unscoped.uniq.join("\n")}"
+    expect(fanout).to be_persisted
+  end
+
   it "joins every required collect barrier on the same approved HEAD" do
     collect(kind: "adversarial_review", position: 1, sha: "head-b")
     collect(kind: "security_review", position: 2, sha: "head-b")
