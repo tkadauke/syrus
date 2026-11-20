@@ -13,6 +13,8 @@ RSpec.describe Mcp::CoworkerToolCatalog do
         [ { name: "read_example", description: "Read examples", coworker_safe: true,
             capability: "example.records" } ]
       end
+
+      def self.coworker_discovery_state(_chat_session) = :available
     end
   end
   let(:manifest) do
@@ -58,6 +60,44 @@ RSpec.describe Mcp::CoworkerToolCatalog do
       [ "read_example", :essential ], [ "archive_example", :deferred ]
     )
     expect(provider).to have_received(:tool_definitions).exactly(3).times
+  end
+
+  it "resolves provider availability once per catalog build and again for the next build" do
+    enabled_manifest = Syrus::Plugin::Manifest.new(
+      name: "example", version: "1", provides: { chat_mcp_tool_set: [ provider ] }, metadata: {}, enabled: true
+    )
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return([ enabled_manifest ])
+    allow(provider).to receive(:coworker_discovery_state).and_return(:resource_unconfigured, :available)
+    allow(provider).to receive(:tool_definitions).and_return(
+      [
+        { name: "read_example", coworker_safe: true, capability: "example.records" },
+        { name: "list_examples", coworker_safe: true, capability: "example.records" }
+      ]
+    )
+
+    first = described_class.all.select { |candidate| candidate.provider == provider }
+    second = described_class.all.select { |candidate| candidate.provider == provider }
+
+    expect(first.map(&:availability_state).uniq).to eq([ :resource_unconfigured ])
+    expect(second.map(&:availability_state).uniq).to eq([ :available ])
+    expect(provider).to have_received(:coworker_discovery_state).twice
+  end
+
+  it "observes plugin lifecycle changes on the next catalog build" do
+    disabled_manifest = manifest
+    enabled_manifest = Syrus::Plugin::Manifest.new(
+      name: "example", version: "1", provides: { chat_mcp_tool_set: [ provider ] }, metadata: {}, enabled: true
+    )
+    allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return(
+      [ disabled_manifest ], [ enabled_manifest ], [ enabled_manifest ], [], [ enabled_manifest ]
+    )
+    allow(health).to receive(:healthy?).and_return(true, false, true)
+
+    states = 5.times.map do
+      described_class.all.find { |candidate| candidate.provider == provider }&.availability_state
+    end
+
+    expect(states).to eq([ :plugin_disabled, :available, :unavailable, nil, :available ])
   end
 
   it "still resolves explicitly ungated plugin tools" do
