@@ -1,6 +1,7 @@
 de:
   api:
     coworkers:
+      no_goal_summary: "Keine Zielzusammenfassung verfügbar"
       approval_inactive: "Diese Genehmigung ist nicht mehr ausstehend."
       memory_unavailable: "Der Speicher des Coworkers ist gerade nicht erreichbar."
       review_memory_persistence_failed: "Der Coworker-Speicher konnte nicht dauerhaft gespeichert werden."
