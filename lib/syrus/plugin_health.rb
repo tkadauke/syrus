@@ -75,7 +75,7 @@ module Syrus
 
     def registrations_healthy?(name)
       status = statuses[name]
-      status.nil? || status.state == :non_conforming || status.healthy?
+      healthy?(name) || status&.state == :non_conforming
     end
 
     def unhealthy
