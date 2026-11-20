@@ -2,8 +2,9 @@
 
 Local Backups is a disabled-by-default plugin that creates sealed recovery
 bundles beneath `SYRUS_BACKUP_ROOT` and presents a read-only inventory at
-**Admin → Local Backups**. Creation currently supports an authoritative SQLite
-database and Disk Active Storage. Scheduling, retention, download, and restore
+**Admin → Local Backups**. Creation supports an authoritative SQLite or MySQL
+database and streams objects through Active Storage, including S3-compatible
+services. Scheduling, retention, download, and restore
 are separate product stages.
 
 `SYRUS_BACKUP_ROOT` must name an existing absolute directory. The directory
@@ -18,11 +19,16 @@ fields in a compatible v1 manifest are accepted. Manifests record SHA-256
 checksum metadata and only one-way encryption-key fingerprints, never keys or
 other secrets.
 
-Creation takes an installation-wide lease, snapshots SQLite with its online
-`VACUUM INTO` operation, and records holds for every Active Storage object
+Creation takes an installation-wide lease. SQLite uses its online `VACUUM INTO`
+operation. MySQL uses a compressed `mysqldump --single-transaction` logical
+snapshot, records server and client versions, and refuses non-InnoDB tables.
+The snapshot subprocess receives credentials only through its sanitized
+environment. Creation records holds for every Active Storage object
 selected from that snapshot. A held blob cannot be purged until the attempt
-finishes. Blob bytes are streamed from Disk storage, checked against their
-recorded size and checksum, and checksummed with SHA-256 for the bundle.
+finishes. Object export uses bounded concurrency set by
+`SYRUS_BACKUP_OBJECT_CONCURRENCY` (default 4), streams rather than buffering
+whole objects, checks recorded size and checksum, and calculates an independent
+SHA-256 bundle checksum.
 Missing, truncated, or corrupt objects fail the attempt without replacing any
 previous artifact.
 
@@ -46,4 +52,18 @@ for insufficient capacity, retention gets one opportunity to reclaim eligible
 artifacts. Administrators can create, validate, pin, unpin, download, and delete
 eligible artifacts from the inventory page. Downloads are audited and support
 HTTP byte ranges without loading the archive into Rails memory.
+
+On Kubernetes, provision a dedicated backup PVC. The k3s default is one
+backup-owner worker with a `ReadWriteOnce` claim and a `Recreate` rollout; web
+pods must not receive write access. Clusters with proven shared-volume support
+may use the optional `ReadWriteMany` template. Configure claim capacity and
+storage class through the Helm deployment, mount it at `SYRUS_BACKUP_ROOT`, and
+set the absolute/percentage reserves so construction stops before PVC
+exhaustion. Example topologies live under `config/deploy/kubernetes/`.
+
+For bare-metal systemd installations, use a separate `syrus-backup` service
+identity and install `config/deploy/systemd/syrus-backups.tmpfiles` so
+`/var/lib/syrus/backups` is mode `0700`. Do not grant the web service write
+access; expose only authenticated, bounded download operations to it.
+
 Replication execution and restore remain separate product stages.
