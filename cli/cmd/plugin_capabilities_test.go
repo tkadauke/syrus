@@ -16,7 +16,7 @@ func TestPluginCapabilitiesListsManifestDeclarations(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer secret-token" {
 			t.Fatalf("authorization = %q", r.Header.Get("Authorization"))
 		}
-		_, _ = w.Write([]byte(`{"plugins":[{"name":"kotlin","capabilities":[{"family":"ecosystem","capability":"detect_prepare","provider":"Kotlin::Ecosystem","key":"kotlin","tier":"stable","priority":10}]}]}`))
+		_, _ = w.Write([]byte(`{"plugins":[{"name":"kotlin","health":{"state":"non_conforming","reasons":["wrong signature"]},"capabilities":[{"family":"ecosystem","capability":"detect_prepare","provider":"Kotlin::Ecosystem","key":"kotlin","tier":"stable","priority":10}]}]}`))
 	}))
 	defer server.Close()
 	writePluginTestCredentials(t, server.URL)
@@ -28,7 +28,7 @@ func TestPluginCapabilitiesListsManifestDeclarations(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []string{"PLUGIN", "FAMILY", "CAPABILITY", "kotlin", "ecosystem", "detect_prepare", "Kotlin::Ecosystem", "stable"} {
+	for _, value := range []string{"PLUGIN", "FAMILY", "IMPLEMENTS", "kotlin", "ecosystem", "detect_prepare", "Kotlin::Ecosystem implements", "wrong signature"} {
 		if !strings.Contains(output.String(), value) {
 			t.Fatalf("output missing %q:\n%s", value, output.String())
 		}

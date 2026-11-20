@@ -26,15 +26,16 @@ module Syrus
       def healthy? = %i[ok warning].include?(state)
     end
 
-    UNHEALTHY_STATES = %i[degraded cycle incompatible failed duplicate_name skipped_dependency skipped_role quarantined].freeze
+    UNHEALTHY_STATES = %i[degraded cycle incompatible failed duplicate_name skipped_dependency skipped_role quarantined non_conforming].freeze
 
     # `enabled_names` is the set of plugin names currently enabled. Manifests
     # that are installed but disabled still count as "present" for cycle
     # detection, and as "missing" for a hard dependency.
-    def initialize(manifests, enabled_names:)
+    def initialize(manifests, enabled_names:, conformance: nil)
       @manifests = manifests
       @by_name = manifests.index_by(&:name)
       @enabled_names = enabled_names.to_set
+      @conformance = conformance
     end
 
     def statuses
@@ -46,6 +47,11 @@ module Syrus
     def healthy?(name)
       status = statuses[name]
       status.nil? || status.healthy?
+    end
+
+    def registrations_healthy?(name)
+      status = statuses[name]
+      status.nil? || status.state == :non_conforming || status.healthy?
     end
 
     def unhealthy
@@ -178,6 +184,12 @@ module Syrus
 
         state = :degraded if state == :ok
         reasons << "conflicts with #{other}, which is enabled"
+      end
+
+      conformance_findings = @conformance&.findings&.select { |finding| finding.plugin == manifest.name } || []
+      if conformance_findings.any?
+        state = :non_conforming if state == :ok
+        reasons.concat(conformance_findings.map(&:message))
       end
 
       Status.new(name: manifest.name, state: state, reasons: reasons)

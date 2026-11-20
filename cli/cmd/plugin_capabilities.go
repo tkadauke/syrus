@@ -23,6 +23,7 @@ type pluginCapability struct {
 
 type pluginCapabilityRow struct {
 	Plugin string
+	Health []string
 	pluginCapability
 }
 
@@ -41,15 +42,26 @@ func newPluginCapabilitiesCommand() *cobra.Command {
 				return err
 			}
 			writer := tabwriter.NewWriter(command.OutOrStdout(), 0, 4, 2, ' ', 0)
-			_, _ = fmt.Fprintln(writer, "PLUGIN\tFAMILY\tCAPABILITY\tPROVIDER\tKEY\tTIER\tPRIORITY")
+			_, _ = fmt.Fprintln(writer, "PLUGIN\tFAMILY\tPROVIDER IMPLEMENTS\tHEALTH")
+			type declaration struct{ plugin, family, provider string }
+			grouped := map[declaration][]string{}
+			order := []declaration{}
+			health := map[string][]string{}
 			for _, row := range capabilities {
-				capability := row.pluginCapability
-				key := capability.Key
-				if key == "" {
-					key = "-"
+				key := declaration{row.Plugin, row.Family, row.Provider}
+				if _, exists := grouped[key]; !exists {
+					order = append(order, key)
 				}
-				_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\t%s\t%d\n", row.Plugin, capability.Family,
-					capability.Capability, capability.Provider, key, capability.Tier, capability.Priority)
+				grouped[key] = append(grouped[key], row.Capability)
+				health[row.Plugin] = row.Health
+			}
+			for _, key := range order {
+				status := "ok"
+				if len(health[key.plugin]) > 0 {
+					status = strings.Join(health[key.plugin], "; ")
+				}
+				_, _ = fmt.Fprintf(writer, "%s\t%s\t%s implements: %s\t%s\n", key.plugin, key.family,
+					key.provider, strings.Join(grouped[key], ", "), status)
 			}
 			return writer.Flush()
 		},
@@ -75,6 +87,9 @@ func fetchPluginCapabilities(command *cobra.Command, credentials config.Credenti
 		Plugins []struct {
 			Name         string             `json:"name"`
 			Capabilities []pluginCapability `json:"capabilities"`
+			Health       struct {
+				Reasons []string `json:"reasons"`
+			} `json:"health"`
 		} `json:"plugins"`
 	}
 	if err := json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(&payload); err != nil {
@@ -83,7 +98,7 @@ func fetchPluginCapabilities(command *cobra.Command, credentials config.Credenti
 	var result []pluginCapabilityRow
 	for _, plugin := range payload.Plugins {
 		for _, capability := range plugin.Capabilities {
-			result = append(result, pluginCapabilityRow{Plugin: plugin.Name, pluginCapability: capability})
+			result = append(result, pluginCapabilityRow{Plugin: plugin.Name, Health: plugin.Health.Reasons, pluginCapability: capability})
 		}
 	}
 	return result, nil
