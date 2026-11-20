@@ -103,7 +103,7 @@ class ChatMediaLibrary
   end
 
   def inline_image_attachments
-    chat_session.active_messages.where(role: "user").order(:created_at, :id).flat_map do |message|
+    chat_session.active_messages.where(role: %w[user assistant]).order(:created_at, :id).flat_map do |message|
       image_attachments_in(message).map { |attachment, index| [ message, attachment, index ] }
     end
   end

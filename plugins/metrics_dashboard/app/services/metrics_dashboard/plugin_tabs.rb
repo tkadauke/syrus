@@ -35,8 +35,9 @@ module MetricsDashboard
       {
         id: tab.fetch(:id).to_s,
         label: tab.fetch(:label).to_s,
-        panels: Array(tab[:panels]).map { |panel| panel.to_h.symbolize_keys }
-      }
+        panels: Array(tab[:panels]).map { |panel| panel.to_h.symbolize_keys },
+        summary: tab[:summary]
+      }.compact
     end
   end
 end

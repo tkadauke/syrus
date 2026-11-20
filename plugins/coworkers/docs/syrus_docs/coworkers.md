@@ -488,7 +488,10 @@ pinned first as the built-in engineer; custom coworkers show their configured
 color and avatar. The creation form collects the workspace remote, appearance,
 model, grants, and optional About text. Uploaded avatars are size-limited and
 resized before Active Storage saves them. Coworker chats are grouped separately
-in the chat sidebar, and assistant messages use the coworker's avatar and color.
+in the chat sidebar. Each coworker's main chat acts as a collapsed folder for
+its side chats; expanding it shows the configured number of chats at first,
+with controls to show more or fewer. Assistant messages use the coworker's
+avatar and color.
 Coworker chats carry a named badge in global search, chat search, and the
 agent-facing chat search tool. The shared chat filter offers each of the
 current user's coworkers plus Syrus, where Syrus means a chat without a
@@ -647,3 +650,21 @@ history is returned in pages of at most 50 runs and 50 side chats; **Load
 more** follows opaque cursors. Memory and workspace browsers return at most
 1,000 files, identify partial results, and cap individual file reads at 256
 KiB.
+
+## Health and spend metrics
+
+When the Coworkers plugin is enabled, `/metrics` publishes handle-scoped
+Prometheus series for journaling state, last-result age and failures; unsaved
+workspace age and retry attempts; workspace push failures; and cumulative chat
+and background-run spend. These series never contain chat, message, Job,
+Workflow, or Run identifiers or content. Sampling runs on the shared metrics
+tick and scrapes only render its cached snapshot.
+
+The Metrics Dashboard includes a **Coworkers** tab grouping journaling age and
+state, unsaved-workspace age, and spend rates by coworker handle. The shipped
+Prometheus rules warn after 36 hours without a journaling result (excluding an
+owner-paused schedule), page after 72 hours or three repeated failures, warn
+after one hour of unsaved workspace state, and page after six hours. They also
+detect sustained push failures and daily spend above the rule file's anomaly
+multiple or absolute cap. Operators can tune these literal thresholds in
+`config/prometheus/syrus-alert-rules.yml`.

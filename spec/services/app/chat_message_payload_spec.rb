@@ -201,6 +201,28 @@ RSpec.describe App::ChatMessagePayload do
     retired_payload = described_class.messages([ message.reload ], repository: repository).sole
     expect(retired_payload.fetch(:pending_action)).to be_nil
     expect(retired_payload.fetch(:pending_action_retired)).to be(true)
+    expect(retired_payload.fetch(:pending_action_retirement_hides_message)).to be(true)
+  end
+
+  it "preserves ordinary transcript rows when their attached pending action retires" do
+    %w[user assistant system].each do |role|
+      action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job_record(repository: repository).id })
+      attributes = { role: role, content: { "text" => "Meaningful #{role} text" }, pending_action: action }
+      attributes[:sender_user] = user if role == "user"
+      attributes[:skip_turn_trigger] = true if role == "user"
+      message = chat.messages.create!(**attributes)
+      action.update!(state: "confirmed", confirmed_at: Time.current)
+
+      payload = described_class.messages([ message.reload ], repository: repository).sole
+
+      expect(payload).to include(
+        role: role,
+        text: "Meaningful #{role} text",
+        pending_action: nil,
+        pending_action_retired: true,
+        pending_action_retirement_hides_message: false
+      )
+    end
   end
 
   it "retires an anchored partial-result group after its failure details are durable" do

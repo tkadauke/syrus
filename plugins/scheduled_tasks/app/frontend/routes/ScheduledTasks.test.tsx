@@ -6,6 +6,7 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import * as useConfirmModule from "@app/hooks/useConfirm"
 import i18n from "@app/i18n"
+import { TimeZoneProvider } from "@app/contexts/TimeZoneContext"
 
 function taskDetail(overrides: { recent_jobs?: unknown[]; task?: Record<string, unknown> } = {}) {
   return {
@@ -54,6 +55,7 @@ function scheduledTaskRow(overrides: Record<string, unknown> = {}) {
     repository_slug: "acme/widgets",
     repository_path: "/repositories/1",
     schedule_label: "0 9 * * 1",
+    next_fire_at: null,
     last_fired_at: null,
     system_key: null,
     scheduled_task_path: "/scheduled_tasks/7",
@@ -87,11 +89,13 @@ function renderIndexRoute(
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/app-shell/scheduled_tasks"]}>
-        <Routes>
-          <Route element={<ScheduledTasksIndex />} path="/app-shell/scheduled_tasks" />
-        </Routes>
-      </MemoryRouter>
+      <TimeZoneProvider value={{ user: "America/New_York", server: "UTC" }}>
+        <MemoryRouter initialEntries={["/app-shell/scheduled_tasks"]}>
+          <Routes>
+            <Route element={<ScheduledTasksIndex />} path="/app-shell/scheduled_tasks" />
+          </Routes>
+        </MemoryRouter>
+      </TimeZoneProvider>
     </QueryClientProvider>
   )
 }
@@ -124,6 +128,51 @@ describe("ScheduledTasksIndex", () => {
     fireEvent.click(within(activePanel).getByRole("button", { name: "Columns" }))
     expect(within(activePanel).getByLabelText("Repository")).toBeChecked()
     expect(within(activePanel).getByRole("button", { name: "Move Repository down" })).toBeInTheDocument()
+  })
+
+  it("shows the cadence and relative next run in the viewer time zone", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(new Date("2030-01-15T10:00:00Z").getTime())
+    renderIndexRoute({
+      active_tasks: [scheduledTaskRow({ schedule_label: "Every Monday at 9:00 AM Europe/Berlin", next_fire_at: "2030-01-15T12:00:00Z" })],
+      fired_one_shots: [],
+      archived_tasks: [],
+      options: taskDetail().options
+    })
+
+    const cadence = await screen.findByText("Every Monday at 9:00 AM Europe/Berlin")
+    const scheduleCell = cadence.closest("td") as HTMLElement
+    expect(scheduleCell).toHaveClass("min-w-72")
+    expect(cadence).toHaveClass("whitespace-nowrap")
+    expect(scheduleCell).toHaveTextContent("Next run: in 2 hours")
+    const nextRun = within(scheduleCell).getByText("in 2 hours")
+    expect(nextRun.parentElement).toHaveClass("whitespace-nowrap")
+    expect(nextRun).toHaveAttribute("title", expect.stringMatching(/Jan 15, 2030.*7:00 AM EST/))
+  })
+
+  it("shows an intentional fallback without changing cadence sorting", async () => {
+    renderIndexRoute({
+      active_tasks: [
+        scheduledTaskRow({ id: 1, name: "Later cadence", schedule_label: "Weekly", next_fire_at: null }),
+        scheduledTaskRow({ id: 2, name: "Earlier cadence", schedule_label: "Daily", next_fire_at: null })
+      ],
+      fired_one_shots: [],
+      archived_tasks: [],
+      options: taskDetail().options
+    })
+
+    const activePanel = (await screen.findByText("Active")).closest("section") as HTMLElement
+    const fallbacks = within(activePanel).getAllByText("No upcoming run")
+    expect(fallbacks).toHaveLength(2)
+    fallbacks.forEach((fallback) => expect(fallback).toHaveClass("whitespace-nowrap"))
+
+    fireEvent.click(within(activePanel).getByRole("button", { name: "Schedule" }))
+    await waitFor(() => {
+      const rows = within(activePanel).getAllByRole("row")
+      expect(rows[1]).toHaveTextContent("Earlier cadence")
+      expect(rows[1]).toHaveTextContent("Daily")
+      expect(rows[2]).toHaveTextContent("Later cadence")
+      expect(rows[2]).toHaveTextContent("Weekly")
+    })
   })
 })
 

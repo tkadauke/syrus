@@ -133,6 +133,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `Syrus::Host::BackgroundJob` (since 0.1.16) — Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised. Only the listed members are supported. Supported members: `operational_log_context`, `queue_as`.
 - `Syrus::Host::Callbacks` (since 0.1.16) — Defines plugin lifecycle callbacks; callback scheduling and storage are not promised. Only the listed members are supported. Supported members: `effect`, `on_boot`, `on_disable`, `on_enable`, `on_metrics_scrape`, `on_shutdown`, `on_tick`.
 - `Syrus::Host::ChatSession` (since 0.1.16) — Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised. Supported members: `find`, `id`, `repository`, `title`, `user`.
+- `Syrus::Host::ChatTitles` (since 0.1.16) — Queues automatic title generation for a chat; job implementation and queue details are not promised. Supported members: `enqueue`.
 - `Syrus::Host::CliCommandHandler` (since 0.1.16) — Bases server-backed plugin CLI handlers; transport internals are not promised. Only the listed members are supported. Supported members: `call`, `json`, `raw_text`, `table`, `text`.
 - `Syrus::Host::Current` (since 0.1.16) — Exposes the request-local authenticated user; assignment and other current attributes are not promised. Only the listed members are supported. Supported members: `api_user`, `user`.
 - `Syrus::Host::InvocationResult` (since 0.1.16) — Carries an agent or chat invocation result; invocation-engine internals are not promised. Only the listed members are supported. Supported members: `cost_usd`, `exit_status`, `final_text`, `input_tokens`, `is_error`, `new`, `outcome`, `output_tokens`, `session_id`, `success?`, `timed_out`, `transcript_jsonl`, `transcript_path`, `turns`.
@@ -167,4 +168,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 28407 bytes (UTF-8, including this line).
+Size: 28585 bytes (UTF-8, including this line).

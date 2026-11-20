@@ -501,6 +501,7 @@ export type ChatMessageItem = {
   proposal?: ChatProposal | null
   pending_action?: ChatPendingActionInline | null
   pending_action_retired?: boolean
+  pending_action_retirement_hides_message?: boolean
   sender_user?: { id: number; name: string } | null
   sidechain?: boolean
   parent_tool_use_id?: string | null
@@ -1394,6 +1395,12 @@ export function fetchMoreChatsForGroup(
 
 export function createChatFromAction(path: string) {
   return postJson<{ chat_path: string }>(path)
+}
+
+export type CoworkerChatLink = { id: number; role: "main" | "side" | "mention"; title: string | null; path: string }
+
+export function fetchCoworkerChatsFromAction(path: string) {
+  return getJson<{ chats: CoworkerChatLink[] }>(path)
 }
 
 function withChatNavAppearances<

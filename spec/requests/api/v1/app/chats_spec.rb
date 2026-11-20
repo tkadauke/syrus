@@ -7340,6 +7340,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     message = parse_body.fetch("messages").find { |m| m["id"] == anchor.id }
     expect(message["pending_action"]).to be_nil
     expect(message["pending_action_retired"]).to be(true)
+    expect(message["pending_action_retirement_hides_message"]).to be(false)
+    expect(message["text"]).to eq("needs permission")
   end
 
   it "retires terminal pending actions after their durable outcome exists, including after reload" do

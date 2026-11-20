@@ -955,7 +955,10 @@ New tasks can be created from a repository's Schedules tab, or from the
 top-level Schedules page's "New scheduled task" button. The top-level entry
 point isn't scoped to a repository, so it asks the operator to pick one
 first; after that, the rest of the form is identical to the repository-scoped
-flow.
+flow. On the top-level Schedules page, each task's schedule shows its cadence
+in the task's stored time zone and the next run as a relative time. Hover over
+the relative time to see the absolute date and time in your configured time
+zone. Paused, fired, and otherwise unscheduled tasks show **No upcoming run**.
 
 ## Chats
 
@@ -2384,8 +2387,10 @@ thread, and the other chat must be an ordinary, non-coworker chat belonging to
 that owner. Replies retain the
 bridge's hop limit and automatic closure. The coworker must call the reply tool;
 plain text written only in its own chat is not relayed to the owner chat.
-Coworker conversations are kept
-in a separate chat-list group and carry the coworker's avatar and color. Search
+Coworker conversations are kept in a separate chat-list group. Each coworker's
+main chat acts as a collapsed folder for its side chats; expanding it initially
+shows the configured number of chats, with controls to show more or fewer.
+Conversations carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
 Syrus option. Messages between coworkers show the other coworker's name,
 avatar, and accent color in both the sender's and receiver's chats. A chat owner
