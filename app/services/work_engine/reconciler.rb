@@ -1367,6 +1367,11 @@ module WorkEngine
       work_intents.select(&:waiting?).filter_map do |intent|
         active_unit_ids = active_work_unit_ids_for_intent(intent)
         next if active_unit_ids.empty?
+        # A wait whose gates still fail is justified even with an active unit:
+        # JobWakeup parks a dependent Job's intent on its dependency while the
+        # queued Workflow's unit exists. Clearing it would only be undone by the
+        # next wakeup, forever. Only a stale wait is abnormal.
+        next unless intent_gates_pass?(intent)
 
         issue(
           kind: :waiting_work_intent_with_active_unit,

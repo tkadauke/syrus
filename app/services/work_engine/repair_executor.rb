@@ -1511,9 +1511,18 @@ module WorkEngine
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
             .pluck(:id)
           return skipped("#{work_intent_label(intent)} no longer has active WorkUnits") if active_unit_ids.empty?
+          return skipped("#{work_intent_label(intent)} still waits on a failing gate") unless intent_gates_pass?(intent)
 
           intent.request!
           success("cleared stale wait on #{work_intent_label(intent)}; active WorkUnits: #{work_unit_id_list_label(active_unit_ids)}")
+        end
+
+        private
+
+        def intent_gates_pass?(intent)
+          intent.definition.intent_gates.all? { |gate| gate.call(intent).pass? }
+        rescue WorkDefinitions::UnknownKind
+          false
         end
       end
 

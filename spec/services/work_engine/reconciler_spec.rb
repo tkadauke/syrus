@@ -2203,6 +2203,29 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil, wait_details: {})
   end
 
+  # JobWakeup deliberately parks a dependent Job's intent as waiting on its
+  # dependency while the queued Workflow's WorkUnit already exists. Clearing
+  # that justified wait made the reconciler and JobWakeup undo each other on
+  # every periodic pass. formal/SyrusModel/Agreement.lean proves the fixed
+  # classifier agrees with JobWakeup and converges.
+  it "leaves a justified dependency wait alone when the intent already has an active WorkUnit" do
+    blocker = Factories.job_record(user: job.user, repository: job.repository, state: "queued")
+    dependent = Factories.job_record(user: job.user, repository: job.repository, state: "queued")
+    JobDependency.create!(job: dependent, depends_on_job: blocker, source: "manual")
+    dependent_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: dependent)
+    intent = dependent_workflow.work_unit.work_intent
+    WorkIntents::JobWakeup.call(dependent)
+    expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
+    expect(dependent_workflow.work_unit.reload).to be_active
+
+    result = reconcile_and_execute
+
+    expect(result.issues.map(&:kind)).not_to include("waiting_work_intent_with_active_unit")
+    expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
+
+    expect { WorkIntents::JobWakeup.call(dependent) }.not_to change { intent.reload.attributes.except("updated_at") }
+  end
+
   it "relaunches provider-blocked WorkUnits when the Job now resolves to another provider" do
     job.update!(agent_provider: "claude", job_provider_setting: "codex", state: "running")
     workflow.update!(agent_provider: "claude", state: "running", started_at: 5.minutes.ago)
