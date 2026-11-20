@@ -563,7 +563,12 @@ describe("RecentChatsSidebar settings", () => {
 
       const menu = screen.getByTestId("recent-chats-settings-menu")
       expect(menu).toHaveClass("fixed", "inset-0", "h-dvh", "w-screen")
-      fireEvent.click(screen.getByRole("button", { name: "Close recent chats settings" }))
+      const safeArea = screen.getByTestId("recent-chats-settings-safe-area")
+      const closeButton = screen.getByRole("button", { name: "Close recent chats settings" })
+      expect(menu.firstElementChild).toBe(safeArea)
+      expect(safeArea).toHaveClass("h-[env(safe-area-inset-top)]", "shrink-0", "bg-gray-950")
+      expect(safeArea.nextElementSibling).toContainElement(closeButton)
+      fireEvent.click(closeButton)
       expect(screen.queryByTestId("recent-chats-settings-menu")).not.toBeInTheDocument()
     } finally {
       restoreMatchMedia()
