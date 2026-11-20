@@ -741,12 +741,15 @@ module Steps
     # data that already lives in Run#agent_diff. Mirror the same
     # capture-only pattern head_sha uses below.
     def diff_against_default
-      GitRunner.new.run("-c", "core.quotePath=false", "diff", "#{default_branch_ref}...HEAD",
-                       chdir: workspace.path.to_s)
+      diff_against_ref(default_branch_ref)
     end
 
     def diff_against_sha(sha)
       GitRunner.new.run("-c", "core.quotePath=false", "diff", "#{sha}...HEAD", chdir: workspace.path.to_s)
+    end
+
+    def diff_against_ref(ref)
+      GitRunner.new.run("-c", "core.quotePath=false", "diff", "#{ref}...HEAD", chdir: workspace.path.to_s)
     end
 
     def default_branch_ref
@@ -913,11 +916,12 @@ module Steps
     end
 
     def persist_all_changes_diff_review_version!(head_sha:)
-      full_diff = diff_against_default
+      base_ref = WorkflowWorkspace.base_ref_for(job, workflow: workflow)
+      full_diff = diff_against_ref(base_ref)
       files = DiffReviewVersions::UnifiedDiffFiles.parse(full_diff)
       return if files.empty?
 
-      base_sha = GitRunner.new.run("merge-base", default_branch_ref, "HEAD", chdir: workspace.path.to_s).strip
+      base_sha = GitRunner.new.run("merge-base", base_ref, "HEAD", chdir: workspace.path.to_s).strip
       DiffReviewVersions::Creator.call(
         job: job,
         workflow: workflow,

@@ -792,8 +792,7 @@ RSpec.describe Steps::Base, :ci_only do
 
     before do
       allow(handler).to receive(:workspace).and_return(fake_ws)
-      allow(handler).to receive(:diff_against_default).and_return(full_diff)
-      allow(handler).to receive(:default_branch_ref).and_return("origin/main")
+      allow(handler).to receive(:diff_against_ref).with("origin/main").and_return(full_diff)
       allow_any_instance_of(GitRunner).to receive(:run)
         .with("merge-base", "origin/main", "HEAD", chdir: Rails.root.to_s)
         .and_return("merge-base-sha\n")
