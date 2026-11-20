@@ -7,14 +7,29 @@ import ReviewWorkspaceRoute from "./ReviewWorkspace"
 
 const jobApi = vi.hoisted(() => ({
   fetchJobDetail: vi.fn(async () => ({ job: { id: 42, summary_state: "implemented" }, actions: { can_approve: true }, paths: { app_approve_path: "/canonical/jobs/42/approve" } })),
-  fetchJobTab: vi.fn(async () => ({ visual_evidence: { screenshots: [] } })),
+  fetchJobTab: vi.fn(async (_id: string, tab: string) =>
+    tab === "review"
+      ? {
+          typed_artifacts: [{ type: "security_review", title: "Security review approved", renderer_type: "data_table" }],
+          visual_evidence: { screenshots: [] }
+        }
+      : {}
+  ),
   postJobCommand: vi.fn(async () => ({})),
   submitJobFeedback: vi.fn(async () => undefined)
 }))
 
 vi.mock("@app/api/jobs", () => jobApi)
 vi.mock("@app/lib/entityStore", () => ({ normalizeJobDetailPayload: (payload: unknown) => payload }))
-vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({ ReviewWorkspace: ({ visualEvidenceNavigation }: { visualEvidenceNavigation?: { direction: number } }) => <div>Canonical review evidence{visualEvidenceNavigation ? <span>Evidence direction {visualEvidenceNavigation.direction}</span> : null}</div> }))
+vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({
+  ReviewWorkspace: ({ showConversation, visualEvidenceNavigation }: { showConversation?: boolean; visualEvidenceNavigation?: { direction: number } }) => (
+    <div>
+      Canonical review evidence
+      <span>Conversation {showConversation === false ? "hidden" : "shown"}</span>
+      {visualEvidenceNavigation ? <span>Evidence direction {visualEvidenceNavigation.direction}</span> : null}
+    </div>
+  )
+}))
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -76,6 +91,8 @@ describe("ReviewWorkspaceRoute", () => {
     renderRoute("/review/JOB-42")
 
     expect(await screen.findByText("Canonical review evidence")).toBeInTheDocument()
+    expect(screen.getByText("Conversation hidden")).toBeInTheDocument()
+    expect(screen.getByText("Security review approved")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing (A)" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
     await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/canonical/jobs/42/approve"))
