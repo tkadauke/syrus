@@ -1,7 +1,7 @@
 module ReviewWorkspace
   class Payload
-    def self.call(user:)
-      jobs = EligibleJobs.call(user:)
+    def self.call(user:, scope: Job.all)
+      jobs = EligibleJobs.call(user:, scope:)
       { count: jobs.length, jobs: jobs.map { |job| serialize(job) } }
     end
 
