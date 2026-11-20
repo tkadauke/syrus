@@ -37,6 +37,7 @@ module Steps
       grader_cancelled
       silent_timed_out
       timed_out
+      timeout
       worker_died
       worker_died_under_resource_pressure
     ].freeze
