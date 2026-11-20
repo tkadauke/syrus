@@ -98,7 +98,9 @@ module SystemAlerts
   def self.provider_availability_for_alerts(user)
     return {} unless user
 
-    App::ProviderAvailability.all_for_user(user)
+    availability = App::ProviderAvailability.all_for_user(user)
+    App::ProviderAvailability.for_user(user, "codex")
+    availability
   end
   private_class_method :provider_availability_for_alerts
 
