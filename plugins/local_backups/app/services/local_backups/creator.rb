@@ -6,7 +6,7 @@ module LocalBackups
   class Creator
     class UnsupportedDatabase < StandardError; end
 
-    def initialize(root: StorageRoot.new, snapshotter: SqliteSnapshot.new, exporter: DiskBlobExporter.new,
+    def initialize(root: StorageRoot.new, snapshotter: DatabaseSnapshot.for, exporter: DiskBlobExporter.new,
       capacity: nil, clock: -> { Time.current }, phase_hook: ->(_phase) { })
       @root = root
       @snapshotter = snapshotter
@@ -23,23 +23,21 @@ module LocalBackups
     private
 
     def create_under_lease(reason:)
-      raise UnsupportedDatabase, "local backup creation currently supports SQLite only" unless sqlite?
-
       estimate_and_admit!
       uuid = SecureRandom.uuid
       partial_name = ".backup-#{uuid}.partial"
       partial = @root.path.join(partial_name)
       backup = Backup.create!(
         uuid:, state: "snapshotting", reason:, artifact_relative_path: partial_name,
-        manifest_version: Manifest::VERSION, database_adapter: "sqlite3", started_at: @clock.call
+        manifest_version: Manifest::VERSION, database_adapter: @snapshotter.adapter, started_at: @clock.call
       )
       partial.mkdir(0o700)
       @phase_hook.call(:partial_created)
 
       database_dir = partial.join("database").tap(&:mkpath)
-      snapshot = @snapshotter.create(database_dir.join("primary.sqlite3"))
+      snapshot = @snapshotter.create(database_dir.join(@snapshotter.destination_filename))
       @phase_hook.call(:database_snapshotted)
-      selection = select_blobs(snapshot.path)
+      selection = @snapshotter.select_blobs(snapshot)
       ObjectHold.insert_all!(selection.map { |blob| hold_attributes(backup, blob) }) if selection.any?
       backup.update!(state: "exporting_objects")
       @phase_hook.call(:objects_held)
@@ -79,22 +77,12 @@ module LocalBackups
     end
 
     def estimate_and_admit!
-      connection = ActiveRecord::Base.connection
-      database_bytes = connection.select_value("PRAGMA page_count").to_i * connection.select_value("PRAGMA page_size").to_i
+      database_bytes = @snapshotter.estimate_bytes
       blob_bytes = ActiveStorage::Blob.sum(:byte_size)
       @capacity.admit!(database_bytes:, blob_bytes:)
     rescue CapacityAdmission::InsufficientSpace => error
       Retention.new(root: @root).reclaim!(bytes: error.required_bytes - error.available_bytes)
       @capacity.admit!(database_bytes:, blob_bytes:)
-    end
-
-    def select_blobs(snapshot_path)
-      database = SQLite3::Database.new(snapshot_path.to_s, readonly: true)
-      database.results_as_hash = true
-      database.execute("SELECT id, key, byte_size, content_type, checksum FROM active_storage_blobs ORDER BY id")
-        .map { |row| row.slice("id", "key", "byte_size", "content_type", "checksum") }
-    ensure
-      database&.close
     end
 
     def hold_attributes(backup, blob)
@@ -104,7 +92,8 @@ module LocalBackups
 
     def write_checksums(partial, snapshot:, entries:, validation_path:, readme_path:)
       path = partial.join("checksums.sha256")
-      lines = [[Digest::SHA256.file(snapshot.path).hexdigest, "database/primary.sqlite3"]] +
+      database_relative_path = snapshot.path.relative_path_from(partial).to_s
+      lines = [[Digest::SHA256.file(snapshot.path).hexdigest, database_relative_path]] +
         entries.map { |entry| [entry.bundle_checksum, entry.relative_path] } +
         [[Digest::SHA256.file(validation_path).hexdigest, "validation.json"],
          [Digest::SHA256.file(readme_path).hexdigest, "README.txt"]]
@@ -142,9 +131,8 @@ module LocalBackups
         completed_at: completed_at.iso8601(6), validated_at: completed_at.iso8601(6), reason: backup.reason,
         source_application_version: SyrusVersion.description, source_revision: SyrusVersion.current,
         artifact: { format: "directory", checksum_path: "checksums.sha256" }, checksum: artifact_checksum,
-        database: { adapter: "sqlite3", path: "database/primary.sqlite3", sqlite_version: snapshot.sqlite_version,
-          schema_version: snapshot.schema_version, page_count: snapshot.page_count, bytes: snapshot.bytes, integrity: snapshot.integrity },
-        active_storage: { service: "Disk", blob_count: entries.length, logical_bytes: entries.sum(&:byte_size),
+        database: @snapshotter.manifest(snapshot),
+        active_storage: { service: ActiveStorage::Blob.service.class.name.demodulize.delete_suffix("Service"), blob_count: entries.length, logical_bytes: entries.sum(&:byte_size),
           blobs: entries.map(&:to_h) }, validation: { result: "valid", path: "validation.json" }
       }
     end
@@ -168,10 +156,6 @@ module LocalBackups
 
     def tree_bytes(root)
       root.find.sum { |path| path.file? ? path.size : 0 }
-    end
-
-    def sqlite?
-      ActiveRecord::Base.connection.adapter_name.downcase.include?("sqlite")
     end
   end
 end

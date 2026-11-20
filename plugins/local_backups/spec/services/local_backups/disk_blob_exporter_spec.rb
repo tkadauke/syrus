@@ -45,4 +45,26 @@ RSpec.describe LocalBackups::DiskBlobExporter do
     expect { described_class.new(service:).export(selection, @destination) }
       .to raise_error(described_class::InvalidBlob, /failed source checksum validation/)
   end
+
+  it "streams through a non-Disk service with bounded concurrency" do
+    active = 0
+    maximum = 0
+    lock = Mutex.new
+    remote = Object.new
+    def remote.download(*) = nil
+    allow(remote).to receive(:download) do |_object_key, &block|
+      lock.synchronize { active += 1; maximum = [maximum, active].max }
+      sleep 0.01
+      block.call(content)
+    ensure
+      lock.synchronize { active -= 1 }
+    end
+    objects = 6.times.map { |index| selection.first.merge("id" => index, "key" => "#{index}x#{key}") }
+
+    entries = described_class.new(service: remote, concurrency: 2).export(objects, @destination)
+
+    expect(entries.map(&:id)).to eq((0...6).to_a)
+    expect(maximum).to be_between(1, 2)
+    expect(entries).to all(have_attributes(bundle_checksum: Digest::SHA256.hexdigest(content)))
+  end
 end
