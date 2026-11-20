@@ -98,6 +98,22 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     expect(workflow.work_unit.reload).to be_running
   end
 
+  it "idempotently creates one Run when the same deferred phase is resumed twice" do
+    job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")
+    first_step = workflow.first_step
+    first_step.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    workflow.update_columns(state: "running", started_at: 2.minutes.ago)
+    next_step = first_step.next_step
+
+    first_result = described_class.call(workflow.id, next_step.id)
+    second_result = described_class.call(workflow.id, next_step.id)
+
+    expect(first_result).to be_started
+    expect(second_result.status).to eq("run_exists")
+    expect(next_step.runs.reload.count).to eq(1)
+  end
+
   it "reactivates a terminal WorkUnit when its Workflow is still running" do
     job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")

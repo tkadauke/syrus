@@ -862,8 +862,7 @@ module WorkEngine
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
 
-          previous = step.previous_step
-          return skipped("Previous Step is not succeeded") unless previous&.succeeded?
+          return skipped("Upstream handoff is not ready") unless StepDispatcher.deferred_phase_handoff_ready?(step)
 
           run = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id).run
           run ? success("resumed #{step_label(step)} with #{run_label(run)}") : skipped("queued Step remained deferred")

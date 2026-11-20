@@ -1146,6 +1146,15 @@ class StepDispatcher
     previous = step.previous_step
     if step.id == workflow.first_step&.id
       start_workflow(workflow)
+    elsif distributed_parallel_grader_candidate?(workflow, step)
+      # Re-enter the ready-set dispatcher so a timed capacity recheck cannot
+      # bypass GraderFanoutAdmission by creating this one Run directly.
+      dependency = step.depends_on_steps.max_by { |candidate| [ candidate.position, candidate.id ] }
+      new(
+        workflow,
+        advancing_from: dependency || step.previous_step,
+        check_phase_admission: check_phase_admission
+      ).send(:enqueue_next_runnable_steps!)
     elsif step_id && new(workflow).send(:ready?, step)
       create_run_and_enqueue(step, workflow, check_phase_admission: check_phase_admission)
     elsif distributed_deferred_resume_ready?(workflow, step)
@@ -1169,8 +1178,23 @@ class StepDispatcher
     new(workflow).send(:ready?, step)
   end
 
+  def self.distributed_parallel_grader_candidate?(workflow, step)
+    step.kind.in?(%w[grader preflight_grader]) &&
+      step.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
+      Feature.distributed_workflow_dag_enabled?(workflow.job.repository)
+  end
+
   def self.completed_predecessor?(step)
     step&.succeeded? || step&.skipped?
+  end
+
+  def self.deferred_phase_handoff_ready?(step)
+    return false unless step&.queued?
+    return true if completed_predecessor?(step.previous_step)
+    return false unless step.kind.in?(%w[grader_collect preflight_grader_collect])
+    return false if step.depends_on_step_ids.empty?
+
+    step.dependencies_settled?
   end
 
   def self.retry_until_continuation_after_failed_check?(workflow, step, previous)
@@ -1269,9 +1293,15 @@ class StepDispatcher
       return if runnable_steps.any? { |step| manually_paused_before_next_step?(step) }
       return if runnable_steps.any? { |step| landing_queue_paused_before_next_step?(step) }
 
-      created_runs = runnable_steps.filter_map do |step|
-        create_run_or_defer_on_lock_conflict(step)
+      created_runs = if runnable_steps.all? { |step| parallel_grader_step?(step) }
+        create_admitted_parallel_grader_runs(runnable_steps)
+      else
+        runnable_steps.filter_map do |step|
+          create_run_or_defer_on_lock_conflict(step)
+        end
       end
+      return if created_runs.empty?
+
       dispatch_parallel_inline_runs!(created_runs)
       created_runs.first
     elsif downstream_work_pending?
@@ -2225,6 +2255,51 @@ class StepDispatcher
     return unless Thread.current[:syrus_current_run]&.workflow_id == @workflow.id
 
     created_runs.drop(1).reject(&:distributed_parallel_run?).each(&:reenqueue!)
+  end
+
+  def create_admitted_parallel_grader_runs(runnable_steps)
+    GraderFanoutAdmission.synchronize(workflow: @workflow, steps: runnable_steps) do |decision|
+      record_grader_fanout_admission!(decision, runnable_steps.size)
+      if decision.steps.size < runnable_steps.size
+        WorkflowPhaseAdmissionJob.enqueue_once(
+          @workflow.id,
+          wait: GraderFanoutAdmission::RECHECK_DELAY,
+          priority: @workflow.solid_queue_priority
+        )
+      end
+      decision.steps.filter_map do |step|
+        create_run_or_defer_on_lock_conflict(step)
+      end
+    end
+  end
+
+  def parallel_grader_step?(step)
+    step.kind.in?(%w[grader preflight_grader]) && parallel_runnable_step?(step)
+  end
+
+  def record_grader_fanout_admission!(decision, ready_count)
+    previous = @workflow.artifact("grader_fanout_admission").to_h
+    deferred = decision.steps.size < ready_count
+    deferred_at = if deferred && decision.steps.any?
+      Time.current.iso8601
+    elsif deferred
+      previous["deferred_at"] || Time.current.iso8601
+    end
+    entry = {
+      "reason" => decision.reason,
+      "ready_count" => ready_count,
+      "released_count" => decision.steps.size,
+      "available_slots" => decision.available_slots,
+      "capacity" => decision.capacity,
+      "active_runs" => decision.active_runs,
+      "decided_at" => Time.current.iso8601,
+      "deferred_at" => deferred_at
+    }.compact
+    current = @workflow.artifacts.to_h
+    @workflow.update!(artifacts: current.merge(
+      "grader_fanout_admission" => entry,
+      "grader_fanout_admission_history" => (Array(current["grader_fanout_admission_history"]) + [ entry ]).last(50)
+    ))
   end
 
   # Empty edges mean "just my predecessor", so a Step materialized before A5 --

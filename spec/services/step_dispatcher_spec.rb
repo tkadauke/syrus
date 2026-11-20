@@ -1348,6 +1348,27 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(2)
     end
 
+    it "creates exactly one collector Run when the final successful grader handoff repeats" do
+      enable_distributed_workflow_dag!(job.repository)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", state: "succeeded", depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", state: "succeeded", depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+
+      expect {
+        described_class.advance_from(s3)
+        described_class.advance_from(s3)
+      }.to change { collect.runs.count }.by(1)
+    end
+
     it "queues mixed-capability immutable grader siblings independently and keeps collect blocked until both finish" do
       clear_live_worker_queues!
       enable_distributed_workflow_dag!(job.repository)
