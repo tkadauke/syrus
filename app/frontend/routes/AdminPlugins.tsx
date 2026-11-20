@@ -746,11 +746,15 @@ function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtension
 
 function CapabilitiesTable({ capabilities }: { capabilities: AdminPluginCapability[] }) {
   const { t } = useT("admin")
-  const declarations = Array.from(capabilities.reduce((groups, capability) => {
-    const key = `${capability.family}\0${capability.provider}`
-    groups.set(key, [...(groups.get(key) || []), capability])
-    return groups
-  }, new Map<string, AdminPluginCapability[]>()).values())
+  const declarations = Array.from(
+    capabilities
+      .reduce((groups, capability) => {
+        const key = `${capability.family}\0${capability.provider}`
+        groups.set(key, [...(groups.get(key) || []), capability])
+        return groups
+      }, new Map<string, AdminPluginCapability[]>())
+      .values()
+  )
   return (
     <div className="space-y-3">
       {declarations.map((group) => (
@@ -763,30 +767,30 @@ function CapabilitiesTable({ capabilities }: { capabilities: AdminPluginCapabili
         </p>
       ))}
       <DataTable.Root>
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell>{t("plugins.col_family")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_capability")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_provider")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_key")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_tier")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_priority")}</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
-        {capabilities.map((capability) => (
-          <DataTable.Row key={`${capability.family}-${capability.capability}-${capability.provider}`}>
-            <DataTable.Cell className="font-mono text-xs">{capability.family}</DataTable.Cell>
-            <DataTable.Cell className="font-mono text-xs">{capability.capability}</DataTable.Cell>
-            <DataTable.Cell className="font-mono text-xs">{capability.provider}</DataTable.Cell>
-            <DataTable.Cell className="font-mono text-xs">{capability.key || "-"}</DataTable.Cell>
-            <DataTable.Cell>
-              <StatusBadge status={capability.tier === "provisional" ? "experimental" : "registered"} label={capability.tier} />
-            </DataTable.Cell>
-            <DataTable.Cell className="font-mono text-xs">{capability.priority}</DataTable.Cell>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("plugins.col_family")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_capability")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_provider")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_key")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_tier")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_priority")}</DataTable.HeadCell>
           </DataTable.Row>
-        ))}
-      </DataTable.Body>
+        </DataTable.Header>
+        <DataTable.Body>
+          {capabilities.map((capability) => (
+            <DataTable.Row key={`${capability.family}-${capability.capability}-${capability.provider}`}>
+              <DataTable.Cell className="font-mono text-xs">{capability.family}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs">{capability.capability}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs">{capability.provider}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs">{capability.key || "-"}</DataTable.Cell>
+              <DataTable.Cell>
+                <StatusBadge status={capability.tier === "provisional" ? "experimental" : "registered"} label={capability.tier} />
+              </DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs">{capability.priority}</DataTable.Cell>
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
       </DataTable.Root>
     </div>
   )
