@@ -257,6 +257,29 @@ during fanout), which is a larger change. Worth an explicit follow-up.
 
 ---
 
+## F8. Linear Epic children could implement in parallel — fixed
+
+**Property.** At most one child of a linear Epic has a running implementation
+Workflow (`EpicTurn.fixed_preserves_one_running`, every Epic up to 4 children).
+
+**Counterexamples.**
+- `retry_bypass`: the turn rule ran only in `start_workflow`. A failed child
+  does not hold the turn, so the next sibling may start; `RetryFailedStepEnqueuer`
+  then reopened the failed Workflow and created its Run directly.
+- `two_query_race`: `epic_sibling_blocking?` asked "is a sibling running?" and
+  "who is the oldest queued?" in two queries; a sibling whose RunJob flipped it
+  to running in between was in neither answer.
+
+**Fix.** The rule reads one snapshot of the Epic's queued/running
+implementation Workflows. Step retries refuse (as an `active_work_lock`, so
+auto-retry reschedules) while a sibling implements.
+
+**Specs.** `step_dispatcher_spec.rb` "keeps the turn when the winning sibling
+starts running between the turn's reads" and "does not retry a failed child's
+step while a sibling is implementing" (both red before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/

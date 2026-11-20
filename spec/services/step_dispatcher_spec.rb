@@ -4622,6 +4622,56 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     expect(second_workflow.reload.artifact("start_blocked_reason")).to be_nil
   end
 
+  # The turn used to be read in two queries ("is a sibling running?", then
+  # "who is the oldest queued?"). A sibling whose RunJob flipped it to running
+  # in between was in neither answer, so both children implemented at once.
+  # formal/SyrusModel/EpicTurn.lean (two_query_race).
+  it "keeps the turn when the winning sibling starts running between the turn's reads" do
+    first_job = epic_job(issue_number: 211)
+    second_job = epic_job(issue_number: 212)
+    first_workflow, = build_workflow(job: first_job, trigger_kind: "initial")
+    second_workflow, = build_workflow(job: second_job, trigger_kind: "initial")
+    flipped = false
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      binds = Array(payload[:type_casted_binds].respond_to?(:call) ? payload[:type_casted_binds].call : payload[:type_casted_binds])
+      mentions_running = payload[:sql].include?("running") || binds.include?("running")
+      next if flipped || !payload[:sql].match?(/FROM [`"]?workflows[`"]?/i) || !mentions_running
+
+      flipped = true
+      first_workflow.update_columns(state: "running", started_at: Time.current)
+    end
+
+    begin
+      expect { described_class.start_workflow(second_workflow) }.not_to change { Run.count }
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+    expect(flipped).to be(true)
+    expect(second_workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
+  end
+
+  # A failed sibling does not hold the turn, so the next child may start; the
+  # step retry used to reopen the failed Workflow and create its Run without
+  # consulting the turn at all. formal/SyrusModel/EpicTurn.lean (retry_bypass).
+  it "does not retry a failed child's step while a sibling is implementing" do
+    failed_job = epic_job(issue_number: 213, state: "failed")
+    running_job = epic_job(issue_number: 214, state: "running")
+    failed_workflow, failed_step = build_workflow(job: failed_job, trigger_kind: "initial")
+    running_workflow, = build_workflow(job: running_job, trigger_kind: "initial")
+    failed_step.update_columns(state: "failed", finished_at: Time.current)
+    failed_step.runs.create!(job: failed_job, trigger_kind: "initial", agent_provider: failed_workflow.agent_provider, state: "failed")
+    failed_workflow.update_columns(state: "failed", finished_at: Time.current)
+    running_workflow.update_columns(state: "running", started_at: 1.minute.ago)
+    allow_any_instance_of(Workflow).to receive(:retry_available?).and_return(true)
+
+    result = nil
+    expect { result = RetryFailedStepEnqueuer.call(workflow: failed_workflow) }.not_to change { Run.count }
+
+    expect(result).not_to be_success
+    expect(result).to be_active_work_lock
+    expect(failed_workflow.reload).to be_failed
+  end
+
   it "blocks an older queued workflow when a newer sibling is already running" do
     queued_job = epic_job(issue_number: 204)
     running_job = epic_job(issue_number: 205, state: "running")

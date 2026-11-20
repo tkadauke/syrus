@@ -1841,9 +1841,9 @@
         "same_epic_approved_chain_runs_to_next_approval",
         "same_epic_approved_parent_unblocks_child"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "The operator calls this mandatory and epic_dependency_policy is inert. Pure check-then-act over a concurrently mutated set; no concrete double start constructed yet."
+      "status": "done",
+      "done_by": "F8",
+      "notes": "Two violations, both fixed. (1) Bypass: a step retry reopened a failed child's implementation Workflow and created its Run without the turn check, while a sibling (which a failed child does not block) was already implementing. (2) Race: the turn was read in two queries, so a sibling whose RunJob flipped it to running in between was in neither answer. EpicTurn.lean has both counterexamples and proves the fixed rules keep at most one child running for every Epic of up to 4 children."
     },
     {
       "id": "dependencies-respected",

@@ -10,3 +10,4 @@ import SyrusModel.JobClosure
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet
+import SyrusModel.EpicTurn

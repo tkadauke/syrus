@@ -362,25 +362,41 @@ class StepDispatcher
     UrgentWorkGate.progressing(blocking_jobs.to_a).any?
   end
 
+  # A linear Epic's implementation turn. Read from one snapshot: reading
+  # "running" and "queued" in separate queries let a sibling whose RunJob
+  # started in between fall out of both answers, and both children
+  # implemented at once (formal/SyrusModel/EpicTurn.lean, two_query_race).
   def self.epic_sibling_blocking?(workflow)
-    epic = workflow.job.epic
-    return false unless epic&.resolved_epic_dependency_policy == "linear"
-    return false unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(workflow.trigger_kind)
+    active = epic_implementation_workflows(workflow)
+    return false unless active
 
-    implementation_workflows = Workflow
-      .where(job_id: epic.jobs.select(:id))
-      .where(trigger_kind: WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS)
+    return true if active.any? { |candidate| candidate.running? && candidate.job_id != workflow.job_id }
+    return false if active.any? { |candidate| candidate.running? && candidate.job_id == workflow.job_id }
 
-    return true if implementation_workflows.running.where.not(job_id: workflow.job_id).exists?
-    return false if implementation_workflows.running.where(job_id: workflow.job_id).exists?
-
-    queued = implementation_workflows
-      .where(state: "queued")
-      .order(:created_at, :id)
-      .to_a
+    queued = active.select(&:queued?).sort_by { |candidate| [ candidate.created_at, candidate.id ] }
     winner = epic_sibling_turn_winner(queued)
 
     winner.present? && winner.job_id != workflow.job_id
+  end
+
+  # A sibling implementation Workflow already running in this Workflow's
+  # linear Epic, if any. Paths that restart implementation without going
+  # through start_workflow (step retries) must not run alongside it.
+  def self.epic_sibling_implementation_running(workflow)
+    epic_implementation_workflows(workflow)&.find { |candidate| candidate.running? && candidate.job_id != workflow.job_id }
+  end
+
+  def self.epic_implementation_workflows(workflow)
+    epic = workflow.job.epic
+    return nil unless epic&.resolved_epic_dependency_policy == "linear"
+    return nil unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(workflow.trigger_kind)
+
+    Workflow
+      .where(job_id: epic.jobs.select(:id))
+      .where(trigger_kind: WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS)
+      .where(state: %w[queued running])
+      .select(:id, :job_id, :state, :created_at)
+      .to_a
   end
 
   # The oldest queued implementation workflow takes the Epic's turn -- unless

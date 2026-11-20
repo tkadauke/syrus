@@ -185,6 +185,13 @@ class RetryFailedStepEnqueuer
     if (lock_error = active_work_lock_error)
       return failure(lock_error)
     end
+    # A linear Epic implements one child at a time. A failed child does not
+    # hold the turn, so a sibling may be running; reopening this Workflow now
+    # would run both at once. Reported as an active-work lock so auto-retry
+    # reschedules instead of giving up.
+    if (sibling = StepDispatcher.epic_sibling_implementation_running(workflow))
+      return failure("#{ACTIVE_WORK_LOCK_ERROR}: Epic sibling Workflow ##{sibling.id} is implementing")
+    end
 
     consume_step_remediation_override!(failed_step)
     reopen_workflow_for_retry!
