@@ -20,6 +20,12 @@ RSpec.describe Steps::PreflightGraderCollect do
   around do |example|
     Dir.mktmpdir("syrus-preflight-collect") do |dir|
       @ws_path = Pathname.new(dir)
+      system("git", "init", "-q", @ws_path.to_s, exception: true)
+      system("git", "-C", @ws_path.to_s, "config", "user.email", "test@example.com", exception: true)
+      system("git", "-C", @ws_path.to_s, "config", "user.name", "Test", exception: true)
+      @ws_path.join("source.rb").write("original\n")
+      system("git", "-C", @ws_path.to_s, "add", "source.rb", exception: true)
+      system("git", "-C", @ws_path.to_s, "commit", "-qm", "initial", exception: true)
       example.run
     end
   end
@@ -98,6 +104,25 @@ RSpec.describe Steps::PreflightGraderCollect do
 
     it "does not raise StepFailed" do
       expect { handler.call }.not_to raise_error
+    end
+
+    it "continues to implementation when a zero-exit grader formatted tracked source" do
+      @ws_path.join("source.rb").write("formatted\n")
+
+      handler.call
+
+      expect(workflow.reload.artifact("preflight_passed")).to be_nil
+      expect(workflow.artifact("preflight_source_changes")).to eq([ "source.rb" ])
+      expect(workflow.steps.find_by!(kind: "implement")).to be_queued
+      expect(@ws_path.join("source.rb").read).to eq("formatted\n")
+    end
+
+    it "ignores untracked generated output when deciding whether source changed" do
+      @ws_path.join("coverage.json").write("{}")
+
+      handler.call
+
+      expect(workflow.reload.artifact("preflight_passed")).to be true
     end
 
     it "logs a message indicating preflight passed" do
