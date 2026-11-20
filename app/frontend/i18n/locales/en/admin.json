@@ -715,6 +715,7 @@
       "degraded": "Degraded",
       "circuit_open": "Circuit open",
       "cycle": "Dependency cycle",
+      "non_conforming": "Non-conforming",
       "warning": "Warning"
     },
     "host_surface_details": "Host API findings",

@@ -94,7 +94,9 @@ The currently registered contribution kinds are:
   core methods and claimed capability signatures. Non-conformance withholds
   only declarations for the affected family; other registrations remain
   available. The check is timed under `plugin_registry.capability_conformance`.
-  Disabled providers are not loaded.
+  Disabled providers are not loaded. Boot conformance and later runtime
+  capability failures use `PluginHealth::Finding`, distinguished by `source`,
+  so health presentation and diagnostics consume one record contract.
 - **A disabled plugin is not eager loaded.** Its `app/` dirs stay on the
   autoload path, so Zeitwerk resolves constants on demand and enabling needs no
   restart, but its code is skipped at eager load (`Syrus::PluginEagerLoad`,

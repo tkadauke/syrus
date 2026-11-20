@@ -668,7 +668,7 @@ module Syrus
           conformance = Syrus::Plugin::Conformance.new(manifests)
           conformance.findings
           @mutex.synchronize do
-            @conformance_cache = { key => conformance }
+            @conformance_cache[key] = conformance
           end
           conformance
         end
