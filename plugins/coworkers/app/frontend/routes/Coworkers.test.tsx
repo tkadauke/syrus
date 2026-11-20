@@ -107,7 +107,14 @@ const detailPayload = {
         next_fire_at: null,
         last_fired_at: "2026-10-29T09:00:00Z",
         after_run: "quiet",
-        latest_result: { occurred_at: "2026-10-29T09:00:00Z", target_date: null, outcome: "succeeded", reason: null, job: { id: 42, slug: "JOB-42", path: "/jobs/42" }, job_needed: true }
+        latest_result: {
+          occurred_at: "2026-10-29T09:00:00Z",
+          target_date: null,
+          outcome: "succeeded",
+          reason: null,
+          job: { id: 42, slug: "JOB-42", path: "/jobs/42" },
+          job_needed: true
+        }
       }
     ],
     message_traffic: {
@@ -187,7 +194,14 @@ it("shows overdue journaling with the durable failure reason", async () => {
     last_system_result: "failed",
     last_system_result_reason: "RuntimeError: workspace locked",
     journaling_overdue: true,
-    latest_result: { occurred_at: "2026-11-06T00:30:00Z", target_date: "2026-11-05", outcome: "failed", reason: "RuntimeError: workspace locked", job: { id: 43, slug: "JOB-43", path: "/jobs/43" }, job_needed: true }
+    latest_result: {
+      occurred_at: "2026-11-06T00:30:00Z",
+      target_date: "2026-11-05",
+      outcome: "failed",
+      reason: "RuntimeError: workspace locked",
+      job: { id: 43, slug: "JOB-43", path: "/jobs/43" },
+      job_needed: true
+    }
   } as never)
   vi.stubGlobal(
     "fetch",

@@ -1147,7 +1147,9 @@ function LatestScheduleResult({ result }: { result: CoworkerSchedule["latest_res
       {result.job ? (
         <>
           {" · "}
-          <Link className="underline" to={result.job.path}>{result.job.slug}</Link>
+          <Link className="underline" to={result.job.path}>
+            {result.job.slug}
+          </Link>
         </>
       ) : null}
       {result.job_needed === false ? <span> · {t("schedule.no_job_needed")}</span> : null}
