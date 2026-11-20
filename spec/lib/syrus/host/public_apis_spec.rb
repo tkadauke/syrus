@@ -12,16 +12,34 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(29)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(29)
+    expect(Syrus::Host.apis.size).to eq(33)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(33)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
+    expect(Syrus::Host::BackupArtifactSource).to equal(Syrus::Plugin::BackupArtifactSource)
+    expect(Syrus::Host::SystemAlertProvider).to equal(Syrus::Plugin::SystemAlertProvider)
   end
 
   it "queues chat title generation without exposing the job to plugins" do
     expect {
       Syrus::Host::ChatTitles.enqueue(chat_id: 12, message_id: 34)
     }.to have_enqueued_job(ChatTitleJob).with(12, 34)
+  end
+
+  it "reads disk usage without exposing the core service" do
+    snapshot = instance_double(DataRootDiskUsage::Snapshot)
+    allow(DataRootDiskUsage).to receive(:read).with("/srv/backups").and_return(snapshot)
+
+    expect(Syrus::Host::DiskUsage.read("/srv/backups")).to equal(snapshot)
+  end
+
+  it "builds system alerts without exposing the core value class" do
+    alert = Syrus::Host::SystemAlert.build(
+      id: "plugin:warning", severity: :warn, title: "Warning", message: "Details", action_steps: [ "Inspect it." ]
+    )
+
+    expect(alert).to be_a(SystemAlerts::Alert)
+    expect(alert.id).to eq("plugin:warning")
   end
 
   it "requires admin page providers to implement their declared metadata" do

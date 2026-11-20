@@ -1,5 +1,5 @@
 module LocalBackups
-  class DeleteJob < ApplicationJob
+  class DeleteJob < Syrus::Host::BackgroundJob
     queue_as :cleanup
 
     def perform(backup_id)

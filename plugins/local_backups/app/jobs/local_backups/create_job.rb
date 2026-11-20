@@ -1,5 +1,5 @@
 module LocalBackups
-  class CreateJob < ApplicationJob
+  class CreateJob < Syrus::Host::BackgroundJob
     queue_as :low_priority_maintenance
     limits_concurrency to: 1, key: ->(*) { "local-backups:create" }, duration: 2.hours, on_conflict: :discard
 

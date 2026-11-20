@@ -1,6 +1,6 @@
 module LocalBackups
   class ArtifactSource
-    include Syrus::Plugin::BackupArtifactSource
+    include Syrus::Host::BackupArtifactSource
 
     class UnsupportedOperation < StandardError; end
 

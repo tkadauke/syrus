@@ -157,7 +157,10 @@ module Syrus
       review_presentation_contributor: "Adds plugin-owned sections or metadata to the presentation of review results.",
       problem_provider: "Detects and describes a plugin-owned class of actionable repository or workflow problems.",
       repository_configuration: "Declares and validates plugin-owned repository configuration read from the supported configuration file.",
-      review_gate: "Evaluates plugin-owned evidence to decide whether downstream work may pass a named review gate."
+      review_gate: "Evaluates plugin-owned evidence to decide whether downstream work may pass a named review gate.",
+      backup_artifact_source: "Provides sealed backup artifacts for validation, pinning, streaming, and replication tracking.",
+      backup_destination: "Replicates sealed backup artifacts to a plugin-owned offsite destination and reports their remote state.",
+      system_alert_provider: "Contributes redacted operational alerts for administrators and configured outbound delivery."
     }.freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
