@@ -63,8 +63,9 @@ class Coworkers::WorkspaceBrowser
   end
 
   def search(revision, entries, filters)
-    query = filters[:search].to_s.strip.downcase
+    query = filters[:search].to_s.strip
     filtered = entries.select { |entry| metadata_match?(entry, filters) }
+    candidate_count = filtered.size
     needs_contents = query.present? || filters[:content_kind].present?
     needs_history = filters[:modified_after].present? || filters[:modified_before].present? || filters[:sort] == "modified"
     searchable = filtered.first(MAX_SEARCH_FILES)
@@ -77,7 +78,8 @@ class Coworkers::WorkspaceBrowser
     modified = batch[:last_modified]
     filtered.select! { |entry| modified_match?(modified[entry.path], filters) }
     incomplete = batch[:history_incomplete] ? [ "history_limit" ] : []
-    incomplete << "search_limit" if (needs_contents || needs_history) && filtered.size > MAX_SEARCH_FILES
+    incomplete << "search_limit" if (needs_contents || needs_history) && candidate_count > MAX_SEARCH_FILES
+    incomplete << "content_limit" if needs_contents && batch[:blobs].values.any?(&:truncated)
     if needs_contents
       filtered = filtered.first(MAX_SEARCH_FILES).filter_map { |entry| search_result(entry, batch[:blobs][entry.path], query, modified[entry.path], filters[:content_kind]) }
     else
@@ -113,19 +115,21 @@ class Coworkers::WorkspaceBrowser
   def search_result(entry, blob, query, modified_at, content_kind)
     return unless blob
 
-    filename_match = query.blank? || entry.path.downcase.include?(query)
+    filename_match = query.blank? || entry.path.downcase.include?(query.downcase)
     binary = blob.bytes.include?("\0")
     return if content_kind == "binary" && !binary
     return if content_kind == "text" && binary
     return if binary && !filename_match
-    index = binary || query.blank? ? nil : blob.text.downcase.index(query)
-    return unless filename_match || index
+    match = Regexp.new(Regexp.escape(query), Regexp::IGNORECASE).match(blob.text) unless binary || query.blank?
+    index = match&.begin(0)
+    return unless filename_match || match
 
     start = [ (index || 0) - (SNIPPET_CHARACTERS / 2), 0 ].max
     snippet = binary ? nil : blob.text.slice(start, SNIPPET_CHARACTERS)
     highlight_start = index && utf16_length(snippet.slice(0, index - start))
+    match_text = match && blob.text.slice(match.begin(0)...match.end(0))
     entry_json(entry).merge(binary:, truncated: blob.truncated, last_modified_at: modified_at&.iso8601,
-      snippet:, highlights: index ? [ { start: highlight_start, length: utf16_length(query) } ] : [])
+      snippet:, highlights: index ? [ { start: highlight_start, length: utf16_length(match_text) } ] : [])
   rescue RepositoryContent::NotFound
     nil
   end
