@@ -23,7 +23,7 @@ describe("PermissionInboxDrawer", () => {
   })
   afterEach(() => vi.useRealTimers())
 
-  it("renders the open drawer in a body portal above the app chrome", async () => {
+  it("renders the open drawer above the app chrome with controls below a dark safe-area strip", async () => {
     vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
       requests: [],
       summary: { pending_count: 0, blocked_agent_count: 0 },
@@ -41,7 +41,15 @@ describe("PermissionInboxDrawer", () => {
     const drawer = await screen.findByRole("complementary")
     expect(drawer.parentElement).toBe(document.body)
     expect(container.contains(drawer)).toBe(false)
-    expect(drawer.className).toContain("z-50")
+    expect(drawer).toHaveClass("z-50", "flex", "bg-gray-950")
+
+    const safeArea = screen.getByTestId("permission-inbox-safe-area")
+    const content = screen.getByTestId("permission-inbox-content")
+    expect(drawer.firstElementChild).toBe(safeArea)
+    expect(safeArea).toHaveClass("h-[env(safe-area-inset-top)]", "shrink-0")
+    expect(safeArea.nextElementSibling).toBe(content)
+    expect(content).toContainElement(screen.getByRole("button", { name: "Close" }))
+    expect(content).toHaveClass("overflow-y-auto", "bg-surface", "p-4")
   })
 
   it("shows plain-English context on compact request cards", async () => {
