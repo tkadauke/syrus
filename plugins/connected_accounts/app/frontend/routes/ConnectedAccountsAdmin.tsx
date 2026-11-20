@@ -28,7 +28,7 @@ export default function ConnectedAccountsAdmin() {
     <Text>{t("settings.description")}</Text>
     {save.isSuccess && <Notice tone="success">{t("settings.saved")}</Notice>}
     {save.isError && <Notice tone="danger">{save.error.message || t("settings.save_failed")}</Notice>}
-    {fields.map(field => <label key={field} className="block space-y-1"><span>{t(`settings.${field}`)}</span><Input type={field === "client_secret" ? "password" : "text"} value={draft[field] ?? String(query.data?.[field] || "")} onChange={event => setDraft({ ...draft, [field]: event.target.value })} /></label>)}
+    {fields.map(field => <label key={field} className="block space-y-1"><span>{t(`settings.${field}`)}</span><Input type={field === "client_secret" ? "password" : "text"} value={draft[field] ?? String(query.data?.[field] || "")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} /></label>)}
     <Button type="submit" disabled={save.isPending}>{t("settings.save")}</Button>
   </form></Page.Root>
 }
