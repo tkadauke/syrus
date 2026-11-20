@@ -1,0 +1,14 @@
+{
+  "nav_review": "Recensio",
+  "title": "Recensio",
+  "position": "{{current}} ex {{count}} nunc parata",
+  "ready_now": "Nunc parata",
+  "ready": "Paratum",
+  "priority": "Prioritas {{priority}}",
+  "dependency_blocked": "Dependentia impeditum",
+  "action_hint": "Aperi testimonia recensionis Job praesentia ut decernas. Potestas tua cum agis iterum probatur.",
+  "open_review": "Recensionem praesentem aperi",
+  "all_caught_up": "Omnia perfecta",
+  "empty": "Nulla Jobs nunc a te approbari possunt.",
+  "load_error": "Spatium recensionis onerari non potuit."
+}
