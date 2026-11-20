@@ -66,6 +66,13 @@ class AutoApprovalRule
   end
 
   def approve_after_grader_success!(mode:, source:, grader_step:)
+    # The initial Workflow grades before pr_open. Approving then left a Job
+    # approved with no PR whenever pr_open later failed; the Workflow's
+    # success (after pr_open) re-evaluates the rule instead.
+    unless @job.pr_number.present? || @job.external_pr_number.present?
+      return Result.new(approved: false, reason: "pull_request_missing", mode: mode, source: source)
+    end
+
     @job.with_lock do
       @job.reload
       @job.mark_implemented! if @job.may_mark_implemented?

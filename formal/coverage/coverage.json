@@ -1183,9 +1183,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "open",
-      "done_by": null,
-      "notes": "Likely real bug with auto-approval on: the Job goes implemented -> approved with no PR while the initial workflow is still running, and a failing pr_open leaves it there. Cheap, high-value state invariant; no fixture."
+      "status": "done",
+      "done_by": "F9",
+      "notes": "Auto-approval ran on grader_collect success, and the initial Workflow grades before pr_open, so the Job was marked implemented and approved with no PR. When pr_open then failed, Workflow failure propagation skipped the approved Job: approved, no PR, no work, blocked in the landing queue as missing_pull_request forever. Fixed: the rule declines without a PR and is re-evaluated when the Workflow succeeds. AutoApproval.lean: old_strands counterexample; new_approved_has_pr over all operation sequences up to 6; new_still_approves. The plain approve guard (no PR check) is unchanged — operators approve from the PR page."
     },
     {
       "id": "stalled-intake",

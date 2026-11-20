@@ -53,6 +53,7 @@ module Workflows
         job.mark_implemented!
         job.save!
       end
+      apply_deferred_auto_approval!
     end
 
     # When a workflow fails, drive ordinary Jobs into :failed. Trigger kinds
@@ -173,6 +174,21 @@ module Workflows
     private
 
     attr_reader :workflow
+
+    # Auto-approval declines while a Job has no PR, and the initial Workflow
+    # grades before opening one. Re-evaluate the rule from the Workflow's
+    # passing grader Step once the Workflow (and so pr_open) has succeeded.
+    def apply_deferred_auto_approval!
+      return unless job.implemented?
+      return unless job.pr_number.present? || job.external_pr_number.present?
+
+      grader_step = workflow.steps.where(state: "succeeded").reorder(position: :desc, id: :desc).detect do |step|
+        Step::Kind.fetch(step.kind).triggers_auto_approval
+      rescue ArgumentError
+        false
+      end
+      AutoApprovalRule.for(job).apply_after_grader_success!(grader_step) if grader_step
+    end
 
     def job
       workflow.job

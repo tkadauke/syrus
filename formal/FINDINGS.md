@@ -280,6 +280,34 @@ step while a sibling is implementing" (both red before).
 
 ---
 
+## F9. Auto-approval approved Jobs before they had a PR — fixed
+
+**Property.** An approved Job has a pull request
+(`AutoApproval.new_approved_has_pr`, all operation sequences up to 6), and a
+Job whose graders passed is still approved once its PR exists
+(`new_still_approves`).
+
+**Counterexample.** `old_strands`: `grader_collect` succeeds (the initial
+Workflow grades before `pr_open`) → the rule marks the Job implemented and
+approves it → `pr_open` fails → `JobLifecyclePropagation#fail!` skips the
+approved Job. Approved, no PR, nothing working on it; the landing queue holds it
+as `missing_pull_request` indefinitely (`approved_job_missing_pr` in the
+reconciler).
+
+**Fix.** `AutoApprovalRule#approve_after_grader_success!` declines with
+`pull_request_missing` when the Job has no PR; `JobLifecyclePropagation#succeed!`
+re-evaluates the rule from the Workflow's passing grader Step after marking the
+Job implemented.
+
+**Specs.** `auto_approval_rule_spec.rb` "does not approve a Job that has no
+pull request yet" (red before) and "approves when the initial Workflow succeeds
+after opening the pull request".
+
+**Review note.** Auto-approved Jobs now become approved when the initial
+Workflow finishes, not at the moment graders pass.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/
