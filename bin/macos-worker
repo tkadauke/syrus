@@ -59,14 +59,19 @@ export SYRUS_ROLE="worker"
 export SOLID_QUEUE_CONFIG="config/queue.compute.yml"
 export SOLID_QUEUE_SKIP_RECURRING="1"
 
-if [[ -z "${GIT_SHA:-}" ]]; then
-  if [[ -f "$ROOT/GIT_SHA" ]]; then
-    GIT_SHA="$(head -n 1 "$ROOT/GIT_SHA")"
-  else
-    GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+# The installed release knows its own revision. A GIT_SHA left in the env
+# file from an earlier install would otherwise outlive every update and make
+# the worker report the wrong app revision, so the release file wins.
+if [[ -f "$ROOT/GIT_SHA" ]]; then
+  RELEASE_SHA="$(head -n 1 "$ROOT/GIT_SHA")"
+  if [[ -n "${GIT_SHA:-}" && "$GIT_SHA" != "$RELEASE_SHA" ]]; then
+    echo "macos-worker: ignoring GIT_SHA=$GIT_SHA from the environment; the installed release is $RELEASE_SHA" >&2
   fi
-  export GIT_SHA="${GIT_SHA:-dev}"
+  GIT_SHA="$RELEASE_SHA"
+elif [[ -z "${GIT_SHA:-}" ]]; then
+  GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
 fi
+export GIT_SHA="${GIT_SHA:-dev}"
 
 require_env() {
   local name="$1"
