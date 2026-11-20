@@ -12,19 +12,6 @@
     "acknowledge": "Agnosce",
     "states": { "provisioning": "Instituitur", "cleanup_pending": "Purgatio pendet", "cleaned": "Purgatum", "manual_attention": "Cura manualis requiritur" }
   },
-  "memory": {
-    "search": "Scrutare fasciculos memoriae",
-    "files": "Fasciculi memoriae",
-    "loading": "Memoria oneratur…",
-    "unavailable": "Memoria huius collegae nunc attingi non potest.",
-    "empty": "Hic collega memoriam nondum habet.",
-    "no_results": "Nullus fasciculus memoriae huic quaestioni respondet.",
-    "search_incomplete": "Pars memoriae scrutari non potuit. Hi eventus imperfecti esse possunt.",
-    "partial": "Haec arbor memoriae magna vel imperfecta est. Soli fasciculi praesto ostenduntur.",
-    "owner_memories": "Memorias tuas Syri aperire",
-    "truncated": "Hic magnus fasciculus ex parte ostenditur.",
-    "categories": { "daily": "Diaria", "people": "Personae", "repos": "Repositoria", "banks": "Thesauri" }
-  },
   "workspace": {
     "search": "Quaere fasciculos et textum",
     "extension": "Extensio",
@@ -39,6 +26,13 @@
     "content_kind": "Genus contenti",
     "text": "Textus",
     "binary_kind": "Binarium",
+    "sort": "Ordo",
+    "sort_path": "Semita",
+    "sort_size": "Magnitudo",
+    "sort_modified": "Postremo mutatum",
+    "showing": "{{first}}–{{last}} ex {{total}} ostenduntur",
+    "previous": "Prior",
+    "next": "Proximus",
     "all": "Omnes fasciculi",
     "memory": "Memoria",
     "breadcrumbs": "Via fasciculi selecti",
@@ -299,7 +293,6 @@
     "delete_confirm": "{{title}} delere?"
   },
   "detail": {
-    "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",
     "creating_side_chat": "Colloquium creatur…",
     "edit": "Emenda",
@@ -309,7 +302,6 @@
     "on_roster": "additus",
     "main_chat": "Colloquium principale",
     "account_default": "Praedefinitum rationis",
-    "soul_unavailable": "SOUL.md praesto non est.",
     "engineer_capabilities": "Facultates machinatoriae fixae",
     "existing_link": "Hanc facultatem ex pagina Syrus iam exstante aperi."
   },

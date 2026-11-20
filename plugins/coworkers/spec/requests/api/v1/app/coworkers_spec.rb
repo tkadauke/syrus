@@ -494,6 +494,17 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response.parsed_body).not_to have_key("permission_cutover_report")
   end
 
+  it "removes the superseded profile and memory presentation endpoints" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "workspace-only", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/profile"
+    expect(response).to have_http_status(:not_found)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/memory"
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "returns bad request for a malformed activity cursor" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-cursor", workspace_repo: "https://github.com/acme/workspace.git")
     sign_in_as(owner)
@@ -763,94 +774,6 @@ RSpec.describe "API: coworkers", type: :request do
     expect(approval.reload).to be_pending
   end
 
-  it "browses and searches the owner's coworker memory from the cached repository content surface" do
-    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
-    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
-    stub_repository_content(repository, ref: "coworkers/maya", files: {
-      "memory/daily/2026-10-28.md" => "Yesterday's notes",
-      "memory/daily/2026-10-29.md" => "Decided to ship the browser",
-      "memory/people/thomas.md" => "Thomas likes evidence",
-      "memory/repos/acme__app.md" => "Release checklist",
-      "memory/banks/opinions.md" => "Search should be simple",
-      "SOUL.md" => "not memory"
-    })
-    sign_in_as(owner)
-
-    get "/api/v1/app/coworkers/#{coworker.id}/memory"
-
-    expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.fetch("files").pluck("path")).to eq([
-      "memory/daily/2026-10-29.md", "memory/daily/2026-10-28.md", "memory/people/thomas.md",
-      "memory/repos/acme__app.md", "memory/banks/opinions.md"
-    ])
-
-    get "/api/v1/app/coworkers/#{coworker.id}/memory", params: { search: "evidence" }
-    expect(response.parsed_body.fetch("files")).to contain_exactly(include("path" => "memory/people/thomas.md", "content" => "Thomas likes evidence"))
-  end
-
-  it "distinguishes empty memory from an unreachable remote" do
-    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
-    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
-    stub_repository_content(repository, ref: "coworkers/maya", files: { "SOUL.md" => "role: Researcher" })
-    sign_in_as(owner)
-
-    get "/api/v1/app/coworkers/#{coworker.id}/memory"
-    expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.fetch("files")).to be_empty
-
-    stub_repository_content_failure(repository, RepositoryContent::Unavailable.new("offline"))
-    get "/api/v1/app/coworkers/#{coworker.id}/memory"
-    expect(response).to have_http_status(:service_unavailable)
-    expect(response.parsed_body.dig("error", "code")).to eq("remote_unavailable")
-  end
-
-  it "marks searches incomplete when file contents or the provider tree are truncated" do
-    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
-    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
-    content = ("a" * Coworkers::MemoryBrowser::MAX_FILE_BYTES) + "tail-only-needle"
-    stub_repository_content(
-      repository,
-      ref: "coworkers/maya",
-      files: { "memory/banks/long.md" => content },
-      truncated_tree: true
-    )
-    sign_in_as(owner)
-
-    get "/api/v1/app/coworkers/#{coworker.id}/memory", params: { search: "tail-only-needle" }
-
-    expect(response).to have_http_status(:ok)
-    expect(response.parsed_body).to include(
-      "files" => [], "truncated" => true, "partial" => true, "search_incomplete" => true
-    )
-  end
-
-  it "returns a deliberate partial result when the memory tree exceeds the file bound" do
-    stub_const("Coworkers::MemoryBrowser::MAX_FILES", 1)
-    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
-    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
-    stub_repository_content(repository, ref: "coworkers/maya", files: {
-      "memory/daily/2026-10-29.md" => "Today",
-      "memory/people/thomas.md" => "Thomas"
-    })
-    sign_in_as(owner)
-
-    get "/api/v1/app/coworkers/#{coworker.id}/memory"
-
-    expect(response).to have_http_status(:ok)
-    expect(response.parsed_body).to include("partial" => true, "search_incomplete" => false)
-    expect(response.parsed_body.fetch("files").size).to eq(1)
-  end
-
-  it "does not expose another owner's memory browser" do
-    other = Factories.user(email_address: "memory-owner@example.com")
-    coworker = Coworkers::Coworker.create!(owner_user: other, name: "Hidden", handle: "hidden-memory", workspace_repo: "https://github.com/acme/private.git")
-    sign_in_as(owner)
-
-    get "/api/v1/app/coworkers/#{coworker.id}/memory"
-
-    expect(response).to have_http_status(:not_found)
-  end
-
   it "browses the home branch through repository content and flags partial files" do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-workspace", workspace_repo: repository.remote_url)
@@ -906,6 +829,48 @@ RSpec.describe "API: coworkers", type: :request do
       .not_to eq(first_page.fetch("results").pluck("path"))
   end
 
+  it "filters and sorts by bounded last-modified history including root files" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "dated-workspace", workspace_repo: repository.remote_url)
+    root = stub_repository_content(repository, ref: "root-revision", files: { "root.md" => "root" })
+    head = stub_repository_content(repository, ref: "head-revision", files: { "root.md" => "root", "recent.md" => "recent" })
+    stub_repository_content(repository, ref: "coworkers/dated-workspace", files: { "root.md" => "root", "recent.md" => "recent" })
+    root_date = Time.zone.parse("2026-01-01T12:00:00Z")
+    head_date = Time.zone.parse("2026-02-01T12:00:00Z")
+    stub_repository_commits(repository, ref: "coworkers/dated-workspace", commits: [
+      { sha: head.id, message: "recent", date: head_date },
+      { sha: root.id, message: "root", date: root_date }
+    ])
+    stub_repository_diff(repository, base: "root-revision", head: "head-revision", files: [ { path: "recent.md", status: "added" } ])
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: {
+      modified_after: "2025-12-31", modified_before: "2026-02-02", sort: "modified"
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("results").pluck("path")).to eq([ "recent.md", "root.md" ])
+    expect(response.parsed_body.fetch("results").pluck("last_modified_at")).to eq([ head_date.iso8601, root_date.iso8601 ])
+    expect(response.parsed_body.fetch("incomplete_reasons")).to be_empty
+  end
+
+  it "batches bounded workspace content search through the repository reader" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "bounded-search", workspace_repo: repository.remote_url)
+    stub_repository_content(repository, ref: "coworkers/bounded-search", files: {
+      "one.md" => "needle one", "two.md" => "needle two"
+    })
+    sign_in_as(owner)
+
+    expect_any_instance_of(RepositoryContent::Reader).to receive(:files)
+      .once.with(instance_of(RepositoryContent::Revision), glob: match_array(%w[one.md two.md]), max_files: 250, max_bytes: 256.kilobytes)
+      .and_call_original
+
+    get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { search: "needle" }
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("results").size).to eq(2)
+  end
+
   it "rejects invalid workspace cursors" do
     repository = Factories.repository(user: owner, owner: "acme", name: "workspace")
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "cursor-search", workspace_repo: repository.remote_url)
@@ -915,7 +880,6 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/coworkers/#{coworker.id}/workspace", params: { cursor: "not-a-cursor" }
     expect(response).to have_http_status(:bad_request)
     expect(response.parsed_body.dig("error", "code")).to eq("invalid_cursor")
-
   end
 
   it "distinguishes an unreachable workspace and a missing home branch" do
