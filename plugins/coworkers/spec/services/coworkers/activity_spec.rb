@@ -59,9 +59,9 @@ RSpec.describe Coworkers::Activity do
   end
 
   it "keeps the query count bounded across Jobs, Workflows, Runs, and JobLogs" do
-    coworker_run(cost: 0.25, finished_at: 1.day.ago)
+    coworker_run_with_step(cost: 0.25, finished_at: 1.day.ago)
     one_job_queries = sql_queries { described_class.new(coworker: coworker, user: owner).call }.size
-    2.times { coworker_run(cost: 0.25, finished_at: 1.day.ago) }
+    2.times { coworker_run_with_step(cost: 0.25, finished_at: 1.day.ago) }
 
     three_job_queries = sql_queries { described_class.new(coworker: coworker, user: owner).call }.size
 
@@ -169,5 +169,13 @@ RSpec.describe Coworkers::Activity do
       job: job, user: owner, trigger_kind: "coworker_run", agent_provider: "codex",
       state: "succeeded", cost_usd: cost, finished_at: finished_at
     )
+  end
+
+  def coworker_run_with_step(cost:, finished_at:)
+    run = coworker_run(cost:, finished_at:)
+    workflow = Workflow.create!(job: run.job, user: owner, trigger_kind: "coworker_run")
+    step = Step.create!(workflow:, kind: "coworker_run", position: 0)
+    run.update!(step:)
+    run
   end
 end
