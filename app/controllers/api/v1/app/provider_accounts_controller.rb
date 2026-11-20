@@ -67,7 +67,7 @@ module Api
 
         def provider_class(key)
           provider = AgentProviders.for(key.to_s)
-          return provider if provider.provider_key.in?(User.agent_providers)
+          provider if provider.provider_key.in?(User.agent_providers)
         rescue AgentProviders::ConfigurationError
           render_error("unknown_provider", I18n.t("api.credentials.unknown_provider"), status: :unprocessable_content)
           nil

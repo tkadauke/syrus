@@ -101,5 +101,4 @@ RSpec.describe "API: provider accounts", type: :request do
     expect(response).to have_http_status(:conflict)
     expect(body.dig("error", "code")).to eq("provider_account_in_use")
   end
-
 end
