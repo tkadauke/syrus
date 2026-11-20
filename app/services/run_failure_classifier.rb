@@ -121,6 +121,8 @@ class RunFailureClassifier
       result("stdin_race_failed", 0.90, true, "The agent process started before its stdin prompt was delivered; retrying should rerun the invocation with the same prompt.")
     when test_checkout_contention?
       result("database_lock", 0.85, true, "The run failed because another test run was already active in the same checkout; retry when the checkout is free.")
+    when mcp_invocation_ended?
+      result("run_invocation_ended", 0.95, false, "The agent's MCP calls were rejected because its Run had already ended; that earlier outcome, not credentials, is what stopped the run.")
     when provider_auth_expired?
       result("provider_auth_expired", 0.95, false, "The provider authentication token expired and needs operator reauthorization.")
     when provider_model_unsupported?
@@ -326,6 +328,13 @@ class RunFailureClassifier
   def test_checkout_contention?
     %w[grader preflight_grader].include?(run.step&.kind.to_s) &&
       text_match?(/Another bin\/rspec-fast run is already active in this checkout/i)
+  end
+
+  # Syrus's own MCP server refusing a call because the Run it was issued for
+  # has ended. It reads "Unauthorized", but it means the agent outlived its
+  # Run, not that any provider credential is wrong.
+  def mcp_invocation_ended?
+    text_match?(/invocation token run \d+ ended at/i)
   end
 
   def provider_auth_expired?
