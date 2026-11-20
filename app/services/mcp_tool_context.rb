@@ -198,7 +198,9 @@ class McpToolContext
 
   private_class_method def self.run_context_attributes(run, role)
     Syrus::PluginRegistry.providers_for(:mcp_run_context_contributor).each_with_object({}) do |provider, attributes|
-      contributed = provider.context_attributes(run: run, role: role).to_h.symbolize_keys
+      contributed = Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :mcp_run_context_contributor, provider:, operation: :context_attributes, on_decline: {}
+      ) { provider.context_attributes(run: run, role: role) }).to_h.symbolize_keys
       duplicate = attributes.keys & contributed.keys
       raise ArgumentError, "duplicate MCP run context attributes: #{duplicate.join(', ')}" if duplicate.any?
 

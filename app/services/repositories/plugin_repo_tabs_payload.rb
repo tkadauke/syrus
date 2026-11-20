@@ -29,9 +29,11 @@ module Repositories
     end
 
     def self.tabs_from_provider(provider, repository:, user:)
-      PerformanceLogging.plugin_call(extension_point: :repo_page_tab, provider: provider, operation: :repo_page_tabs) do
+      Syrus::PluginInvocation.value(Syrus::PluginInvocation.call(
+        extension_point: :repo_page_tab, provider:, operation: :repo_page_tabs, on_decline: []
+      ) do
         Array(provider.repo_page_tabs(repository: repository, user: user)).map { |tab| tab_payload(tab) }
-      end
+      end)
     end
 
     def self.tab_payload(tab)

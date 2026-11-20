@@ -238,6 +238,9 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
               ))}
             </ul>
           ) : null}
+          <RuntimeCircuits plugin={plugin} />
+          <RuntimeFailures plugin={plugin} />
+          <PluginJobHealth plugin={plugin} />
           {description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{description}</p> : null}
           {longDescription ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -459,6 +462,9 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
                 ))}
               </ul>
             ) : null}
+            <RuntimeCircuits plugin={plugin} />
+            <RuntimeFailures plugin={plugin} />
+            <PluginJobHealth plugin={plugin} />
             {description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{description}</p> : null}
             {longDescription ? (
               <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p>
@@ -622,6 +628,47 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
   )
 }
 
+function RuntimeCircuits({ plugin }: { plugin: AdminPlugin }) {
+  const { t, i18n } = useT("admin")
+  return plugin.health?.circuits?.map((circuit) => (
+    <p className="mt-2 text-sm text-amber-700 dark:text-amber-300" key={circuit.extension_point}>
+      {t("plugins.circuit_open_detail", {
+        extensionPoint: circuit.extension_point,
+        count: circuit.failure_count,
+        retryAt: new Date(circuit.retry_at).toLocaleString(i18n.language)
+      })}
+    </p>
+  ))
+}
+
+function RuntimeFailures({ plugin }: { plugin: AdminPlugin }) {
+  const { t, i18n } = useT("admin")
+  return plugin.health?.failures?.map((failure) => (
+    <p className="mt-2 text-sm text-amber-700 dark:text-amber-300" key={`${failure.extension_point}-${failure.operation}-${failure.exception_class}`}>
+      {t("plugins.runtime_failure_detail", {
+        extensionPoint: failure.extension_point,
+        operation: failure.operation,
+        exceptionClass: failure.exception_class,
+        message: failure.message,
+        count: failure.count,
+        lastAt: new Date(failure.last_at).toLocaleString(i18n.language)
+      })}
+    </p>
+  ))
+}
+
+function PluginJobHealth({ plugin }: { plugin: AdminPlugin }) {
+  const { t } = useT("admin")
+  const jobs = plugin.health?.jobs
+  if (!jobs) return null
+
+  return (
+    <p className="mt-2 text-sm text-text-secondary">
+      {t("plugins.job_health", { queue: jobs.queue, depth: jobs.depth, failed: jobs.failed_count, discarded: jobs.discarded_count })}
+    </p>
+  )
+}
+
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="min-w-0 space-y-3">
@@ -729,5 +776,5 @@ function localizedPluginMetadata(
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
+  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-text-secondary"}`}>{children}</div>
 }

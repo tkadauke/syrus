@@ -5,10 +5,10 @@
 # identity indexing was the one path that did, synchronously, from
 # TestInsights::Ingester inside a grader step on the `runs` queue -- so on a split
 # deployment it either wrote to the wrong node's database or failed and got
-# swallowed as an enrichment warning. Routing it through `indexing` like every
-# other index write puts it back on the node that owns the file.
-class IndexTestIdentitiesJob < ApplicationJob
-  queue_as :indexing
+# swallowed as an enrichment warning. Routing it through the plugin queue keeps
+# it off compute workers, which do not consume plugin queues.
+class IndexTestIdentitiesJob < PluginJob
+  plugin :test_insights
 
   def perform(test_identity_ids)
     ids = Array(test_identity_ids).compact

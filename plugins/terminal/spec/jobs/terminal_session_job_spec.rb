@@ -16,10 +16,10 @@ RSpec.describe TerminalSessionJob, type: :job do
     )
   end
 
-  it "enqueues on the chat queue" do
+  it "enqueues on the terminal plugin queue" do
     expect {
       described_class.perform_later(123)
-    }.to have_enqueued_job(described_class).with(123).on_queue("chat")
+    }.to have_enqueued_job(described_class).with(123).on_queue("plugin_terminal")
   end
 
   it "starts a bash terminal relay for a running session" do

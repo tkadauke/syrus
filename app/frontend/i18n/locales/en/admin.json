@@ -701,6 +701,9 @@
     "version": "Version",
     "source": "Source",
     "health": "Health",
+    "job_health": "Queue {{queue}}: {{depth}} queued, {{failed}} failed, {{discarded}} discarded after retries.",
+    "circuit_open_detail": "{{extensionPoint}} circuit opened after {{count}} failures; next trial after {{retryAt}}.",
+    "runtime_failure_detail": "{{extensionPoint}}.{{operation}} failed {{count}} time(s): {{exceptionClass}}: {{message}} (last at {{lastAt}}).",
     "health_states": {
       "ok": "Healthy",
       "failed": "Failed to load",
@@ -709,6 +712,7 @@
       "skipped_dependency": "Skipped — dependency failed",
       "skipped_role": "Skipped — process role not selected",
       "degraded": "Degraded",
+      "circuit_open": "Circuit open",
       "cycle": "Dependency cycle"
     },
     "disableable": "Disableable",
@@ -1110,6 +1114,8 @@
     "reaper_error": "Unable to run stale-run reaper.",
     "all_queue": "All queue",
     "queues": "Queues",
+    "plugin_queues": "Plugin queues",
+    "plugin_queue_summary": "{{plugin}}: {{depth}} queued, {{failed}} failed",
     "tab_active": "Active",
     "tab_pending": "Pending",
     "tab_failed": "Failed",

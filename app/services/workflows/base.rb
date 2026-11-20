@@ -192,9 +192,10 @@ module Workflows
     def self.plugin_workflow_artifacts(job)
       Syrus::PluginRegistry.providers_for(:workflow_artifact_contributor).each_with_object({}) do |provider, artifacts|
         contributor = provider.is_a?(String) ? provider.constantize : provider
-        artifacts.merge!(contributor.for_job(job).to_h)
-      rescue StandardError => e
-        Rails.logger.warn("[Workflows::Base] workflow artifact contributor #{provider} failed: #{e.class}: #{e.message}")
+        result = Syrus::PluginInvocation.call(
+          extension_point: :workflow_artifact_contributor, provider: contributor, operation: :for_job, on_decline: {}
+        ) { contributor.for_job(job) }
+        artifacts.merge!(Syrus::PluginInvocation.value(result).to_h)
       end
     end
 
@@ -370,10 +371,10 @@ module Workflows
 
     def self.post_implementation_review_requested?(job, trigger_kind:)
       Syrus::PluginRegistry.providers_for(:post_implementation_review_provider).any? do |provider|
-        provider.review_needed?(job: job, trigger_kind: trigger_kind.to_s)
-      rescue StandardError => e
-        Rails.logger.warn("[Workflows::Base] #{provider}.review_needed? failed: #{e.class}: #{e.message}")
-        false
+        result = Syrus::PluginInvocation.call(
+          extension_point: :post_implementation_review_provider, provider:, operation: :review_needed?, on_decline: false
+        ) { provider.review_needed?(job: job, trigger_kind: trigger_kind.to_s) }
+        Syrus::PluginInvocation.value(result)
       end
     end
 

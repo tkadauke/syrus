@@ -33,6 +33,8 @@ module PluginRouteDispatch
   end
 
   def dispatch_plugin_route!(route)
+    PluginRouteHealth.record_request(route.plugin_name)
+
     controller_path, action_name = route.controller.split("#", 2)
     raise ActionController::RoutingError, "Invalid plugin route target" if controller_path.blank? || action_name.blank?
 
@@ -51,5 +53,23 @@ module PluginRouteDispatch
 
     request.env[DISPATCHED_ROUTE_ENV_KEY] = true
     controller_class.dispatch(action_name, request, response)
+  rescue StandardError, NotImplementedError => error
+    raise unless Rails.env.production?
+
+    PluginRouteHealth.record_error(route.plugin_name, error)
+    render_plugin_route_error(route.plugin_name)
+  end
+
+  def render_plugin_route_error(plugin_name)
+    message = I18n.t("api.plugins.route_failed", plugin: plugin_name)
+    if request.format.json? || request.path.start_with?("/api/")
+      response.content_type = "application/json"
+      render json: {
+        error: { code: "plugin_route_failed", message: message, plugin: plugin_name }
+      }, status: :internal_server_error
+    else
+      body = "<h1>#{ERB::Util.html_escape(message)}</h1>".html_safe
+      render html: body, status: :internal_server_error
+    end
   end
 end

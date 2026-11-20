@@ -88,9 +88,12 @@ module GraderCommandSpans
     # contributed labels take precedence over CORE_LABELS in the same
     # relative order existing callers already depend on.
     def plugin_span_labels
-      @plugin_span_labels ||= Syrus::PluginRegistry.providers_for(:prepare_detector).flat_map { |detector| Array(detector.span_labels) }
-    rescue StandardError
-      []
+      @plugin_span_labels ||= Syrus::PluginRegistry.providers_for(:prepare_detector).flat_map do |detector|
+        result = Syrus::PluginInvocation.call(
+          extension_point: :prepare_detector, provider: detector, operation: :span_labels, on_decline: []
+        ) { detector.span_labels }
+        Array(Syrus::PluginInvocation.value(result))
+      end
     end
 
     def split_top_level

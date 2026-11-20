@@ -258,6 +258,36 @@ Bundled plugins remain
 strict in development and test so defects are immediately visible; production
 isolates and reports their failures in the same way as external plugins.
 
+Plugin-owned routes follow the same environment rule. In development and test,
+an unhandled controller exception propagates so the defect remains visible. In
+production, Syrus contains the exception to that plugin, returns a structured
+error naming it, and records the failure under **Admin → Plugins**. Plugin
+health also shows each plugin's request count and the time of its latest route
+error. Timestamp writes are rate-limited so a hot failing route does not create
+unbounded health traffic. Each process retains at most 100 distinct recent
+failure signatures per plugin, bounding both runtime memory and the Admin
+health payload; a healthy plugin continues serving requests normally.
+
+Runtime provider failures are isolated from core work and recorded under
+**Admin → Plugins**. Repeated failures open a process-local circuit for that
+plugin capability; calls decline without invoking the provider until one trial
+is allowed after the cool-down. A successful trial closes the circuit, while a
+failed trial opens it again. Because circuit state is process-local, different
+web and worker processes can show different runtime histories.
+
+Operators can tune the breaker for every process at startup:
+
+| Environment variable | Default | Meaning |
+| --- | --- | --- |
+| `SYRUS_PLUGIN_CIRCUIT_FAILURE_THRESHOLD` | `5` | Failures within the window that open a circuit. |
+| `SYRUS_PLUGIN_CIRCUIT_WINDOW_SECONDS` | `60` | Sliding failure window in seconds. |
+| `SYRUS_PLUGIN_CIRCUIT_COOLDOWN_SECONDS` | `30` | Delay before one trial call may run. |
+
+Provider timeouts are opt-in at individual call sites rather than controlled by
+a global setting. In-process isolation contains ordinary provider bugs; it
+cannot contain malicious code, native-code hangs, memory growth, monkey
+patches, or process termination.
+
 Enablement can cascade through hard dependencies. Disabling a dependency can
 cascade through its enabled dependents, but the admin must confirm the complete
 set first. Disablement is rejected with a `plugin_in_use` HTTP 409 response when
@@ -430,3 +460,18 @@ instance. The standard distribution includes:
   `draw_image`, `move_element`, `delete_element`, `update_scene`, `save_canvas`,
   `clear_canvas`, and `load_canvas`.
 - `worker_timeline` — default-disabled worker and workflow timeline views.
+
+## Background jobs
+
+Plugin-owned Active Jobs subclass `PluginJob` and declare their owner with
+`plugin :plugin_name`. They run on `plugin_<name>` by default, including jobs
+from external plugins. Core jobs keep their existing queues.
+
+The default cap is two concurrent jobs across a plugin's job classes. Raise it
+with `plugin :plugin_name, concurrency: 5`, or use `queue_as` when one job has a
+specific worker-placement requirement. Concurrency slots use a renewable
+15-minute lease so long-running jobs remain capped while abandoned slots can
+recover; plugins with an unusual recovery window can pass
+`concurrency_duration: 30.minutes`. Ordinary failures retry five times with
+polynomial backoff, then the job is discarded and recorded in plugin health.
+The admin Queue and Plugins pages show plugin queue depth and failures.

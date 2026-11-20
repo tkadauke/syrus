@@ -130,7 +130,10 @@ module Workflows
 
       def definitions
         raw = BUILT_INS + Syrus::PluginRegistry.providers_for(:review_gate).flat_map do |provider|
-          Array(provider.review_gates)
+          result = Syrus::PluginInvocation.call(
+            extension_point: :review_gate, provider:, operation: :review_gates, on_decline: []
+          ) { provider.review_gates }
+          Array(Syrus::PluginInvocation.value(result))
         end
         raw.map { |attributes| build(attributes) }.tap { |items| validate_unique!(items) }
       end

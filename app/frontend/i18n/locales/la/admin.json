@@ -535,6 +535,9 @@
     "version": "Versio",
     "source": "Fons",
     "health": "Status",
+    "job_health": "Ordo {{queue}}: {{depth}} exspectant, {{failed}} defecerunt, {{discarded}} post repetitiones abiecta.",
+    "circuit_open_detail": "Circuitus {{extensionPoint}} post {{count}} errores apertus est; proximum experimentum post {{retryAt}}.",
+    "runtime_failure_detail": "{{extensionPoint}}.{{operation}} {{count}} vicibus defecit: {{exceptionClass}}: {{message}} (novissime {{lastAt}}).",
     "health_states": {
       "ok": "Sanum",
       "failed": "In onerando defecit",
@@ -543,6 +546,7 @@
       "skipped_dependency": "Praetermissum — dependentia defecit",
       "skipped_role": "Praetermissum — munus processus non electum",
       "degraded": "Debilitatum",
+      "circuit_open": "Circuitus apertus",
       "cycle": "Circuitus dependentiarum"
     },
     "disableable": "Deactivabile",
@@ -953,6 +957,8 @@
     "reaper_error": "Reapitor cursuum obsoletorum exsequi non potuit.",
     "all_queue": "Totum agmen",
     "queues": "Agmina",
+    "plugin_queues": "Agmina pluginorum",
+    "plugin_queue_summary": "{{plugin}}: {{depth}} exspectant, {{failed}} defecerunt",
     "tab_active": "Activa",
     "tab_pending": "Pendentia",
     "tab_failed": "Defecta",

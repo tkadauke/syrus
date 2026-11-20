@@ -753,9 +753,13 @@ class SyrusYml
 
     provider_config = raw.deep_stringify_keys
     provider_config["_syrus_project_path"] = @project_path if @project_path
-    Array(provider.grade_steps(config: provider_config, default_failures: default_failures))
-  rescue ArgumentError => e
-    raise ParseError, "#{label}.type #{type.inspect}: #{e.message}"
+    result = Syrus::PluginInvocation.call(
+      extension_point: :grader_type, provider:, operation: :grade_steps, on_decline: []
+    ) { provider.grade_steps(config: provider_config, default_failures: default_failures) }
+    if result.is_a?(Syrus::PluginInvocation::Failed) && result.exception_class == "ArgumentError"
+      raise ParseError, "#{label}.type #{type.inspect}: #{result.message}"
+    end
+    Array(Syrus::PluginInvocation.value(result))
   end
 
   def validate_grade_step!(step, label, seen)

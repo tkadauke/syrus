@@ -18,12 +18,17 @@ module Permissions
       Syrus::PluginRegistry.providers_for(:permission_provider).flat_map do |provider|
         next [] unless provider.respond_to?(:permission_authorization_adapters)
 
-        provider.permission_authorization_adapters.to_a
-      rescue StandardError => error
-        Rails.logger.warn(
-          "[Permissions::AuthorizationAdapters] provider inventory unavailable: #{error.class}: #{error.message}"
-        )
-        []
+        result = Syrus::PluginInvocation.call(
+          extension_point: :permission_provider, provider:, operation: :permission_authorization_adapters,
+          on_decline: []
+        ) { provider.permission_authorization_adapters.to_a }
+        if result.is_a?(Syrus::PluginInvocation::Failed)
+          Rails.logger.warn(
+            "[Permissions::AuthorizationAdapters] provider inventory unavailable: " \
+            "#{result.exception_class}: #{result.message}"
+          )
+        end
+        Syrus::PluginInvocation.value(result)
       end
     end
     private_class_method :adapters

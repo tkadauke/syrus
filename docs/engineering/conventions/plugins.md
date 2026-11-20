@@ -2,6 +2,24 @@
 
 Use these rules for plugin lifecycle, registration, boundaries, suggestions, and plugin-owned test coverage.
 
+## Runtime invocation boundary
+
+Core calls provider operations through `Syrus::PluginInvocation.call`, retaining
+the `PerformanceLogging.plugin_call` timing seam while containing ordinary
+provider failures. Return `Syrus::PluginInvocation.decline(value)` for an
+expected refusal; expected declines are not health failures. Choose a neutral
+decline value that preserves the extension point's composition contract: an
+empty array for contributions, `nil` for an optional single answer, or `false`
+for a predicate. Unexpected failures return a typed `Failed` result containing
+that value, so callers can distinguish failure from an expected `Declined`.
+
+Timeouts are opt-in and must have an explicit call-site budget. Ruby's
+in-process `Timeout` can interrupt provider code at any point, including while
+it mutates shared state or holds a lock, so only use it when the provider
+operation and its dependencies are interruption-safe. This boundary contains
+ordinary bugs, not malicious code, native-code hangs, memory growth, monkey
+patches, or process termination.
+
 The complete extension-point interfaces, examples, frontend integration rules,
 icon pipeline, lifecycle hooks, and boundary tooling live in the
 [plugin-authoring reference](plugins/authoring.md). To build a plugin outside

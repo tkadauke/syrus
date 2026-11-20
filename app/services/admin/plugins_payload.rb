@@ -137,7 +137,7 @@ module Admin
           optionally_depends_on: Array(manifest.optionally_depends_on),
           conflicts_with: Array(manifest.conflicts_with),
           dependents: dependency_graph.dependents_for(manifest.name),
-          health: health_payload(manifest),
+          health: health_payload(manifest, record),
           quarantine_clearable: clearable_quarantine_names.include?(manifest.name),
           recommendation: recommendation_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
@@ -225,15 +225,46 @@ module Admin
     # Surfacing the state and the specific unmet dependency is what lets an
     # operator fix a degraded instance instead of guessing why a plugin's
     # behavior vanished.
-    def health_payload(manifest)
+    def health_payload(manifest, record)
       if (reason = quarantines[manifest.name])
         return { state: "quarantined", reasons: [ reason ] }
       end
 
       status = plugin_health.status(manifest.name)
-      return { state: "ok", reasons: [] } if status.nil?
+      runtime = Syrus::PluginInvocation.runtime_health
+      failures = runtime.failures(plugin: manifest.name).map(&:to_h)
+      circuits = runtime.circuits(plugin: manifest.name).map(&:to_h)
+      state = if circuits.any?
+        "circuit_open"
+      elsif failures.any? && (status.nil? || status.ok?)
+        "degraded"
+      else
+        status&.state&.to_s || "ok"
+      end
+      payload = {
+        state: state,
+        reasons: status&.reasons || [],
+        request_count: record&.request_count.to_i,
+        last_error_at: record&.last_error_at&.iso8601
+      }
+      payload[:jobs] = plugin_job_health(manifest, record)
+      payload[:failures] = failures if failures.any?
+      payload[:circuits] = circuits if circuits.any?
+      payload
+    end
 
-      { state: status.state.to_s, reasons: status.reasons }
+    def plugin_job_health(manifest, record)
+      queue_name = "plugin_#{manifest.name}"
+      recorded = record&.config&.dig("job_health") || {}
+      plugin_job_counts.for(manifest.name, default_queue: queue_name).merge(
+        discarded_count: recorded["discarded_count"].to_i,
+        last_error: recorded["last_error"],
+        last_discarded_at: recorded["last_discarded_at"]
+      )
+    end
+
+    def plugin_job_counts
+      @plugin_job_counts ||= Admin::PluginJobHealth.new
     end
 
     def plugin_health
@@ -274,23 +305,23 @@ module Admin
     end
 
     def agent_provider_availability(provider)
-      available = provider.respond_to?(:available?) && PerformanceLogging.plugin_call(extension_point: :agent_provider, provider: provider, operation: :available) { provider.available? }
+      invocation = if provider.respond_to?(:available?)
+        Syrus::PluginInvocation.call(
+          extension_point: :agent_provider, provider:, operation: :available, on_decline: false
+        ) { provider.available? }
+      end
+      if invocation.is_a?(Syrus::PluginInvocation::Failed)
+        return { status: "error", label: "Availability check failed", detail: invocation.message }
+      end
+      available = invocation && Syrus::PluginInvocation.value(invocation)
       {
         status: available ? "available" : "unavailable",
         label: available ? "Available" : "Unavailable"
       }
-    rescue StandardError => e
-      {
-        status: "error",
-        label: "Availability check failed",
-        detail: e.message
-      }
     end
 
     def input_source_availability(provider)
-      configured_count = PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :configured_count) do
-        InputSource.where(type: provider.name).count
-      end
+      configured_count = InputSource.where(type: provider.name).count
       {
         status: configured_count.positive? ? "configured" : "not_configured",
         label: configured_count.positive? ? "Configured" : "Not configured",

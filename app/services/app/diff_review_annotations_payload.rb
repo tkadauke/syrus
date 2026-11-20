@@ -25,17 +25,16 @@ module App
 
     def payload
       providers.each_with_object(empty_payload) do |provider, result|
-        contribution = provider.review_annotations(
-          job: @job,
-          user: @user,
-          version: @version,
-          base_sha: @base_sha,
-          head_sha: @head_sha,
-          files: @files
-        )
+        invocation = Syrus::PluginInvocation.call(
+          extension_point: :diff_review_annotation_provider, provider:, operation: :review_annotations, on_decline: {}
+        ) do
+          provider.review_annotations(
+            job: @job, user: @user, version: @version, base_sha: @base_sha,
+            head_sha: @head_sha, files: @files
+          )
+        end
+        contribution = Syrus::PluginInvocation.value(invocation)
         merge_contribution!(result, contribution)
-      rescue StandardError => e
-        Rails.logger.warn("[DiffReviewAnnotationsPayload] #{provider}.review_annotations failed for #{@job.slug}: #{e.class}: #{e.message}")
       end
     end
 

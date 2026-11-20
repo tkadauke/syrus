@@ -51,17 +51,18 @@ class CiLogParser
   # code is not as trusted as the built-in parsers below it.
   def try_plugin_parsers(text)
     Syrus::PluginRegistry.providers_for(:ci_log_parser).each do |provider|
-      result = PerformanceLogging.plugin_call(extension_point: :ci_log_parser, provider: provider, operation: :call) do
+      result = Syrus::PluginInvocation.call(
+        extension_point: :ci_log_parser, provider:, operation: :call, on_decline: nil
+      ) do
         provider.call(text: text, step_name: @step_name.presence)
       end
+      result = Syrus::PluginInvocation.value(result)
       next unless result.is_a?(Hash)
 
       result = result.symbolize_keys
       next unless %i[parser error_summary error_block].all? { |key| result.key?(key) }
 
       return base_result(**result)
-    rescue StandardError => e
-      Rails.logger.warn("[CiLogParser] ci_log_parser plugin #{provider} failed: #{e.class}: #{e.message}")
     end
     nil
   end

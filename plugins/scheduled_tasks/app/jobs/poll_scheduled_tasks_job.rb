@@ -1,7 +1,6 @@
-class PollScheduledTasksJob < ApplicationJob
+class PollScheduledTasksJob < PluginJob
+  plugin :scheduled_tasks
   include SkipIfPending
-
-  queue_as :control_plane
 
   # Recurring scheduler for ScheduledTask. Runs every minute, scans
   # alive+active tasks, hands the ones whose next scheduled time has

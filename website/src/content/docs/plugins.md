@@ -58,6 +58,30 @@ shows dependency problems, compatibility, and retained load failures. An
 incompatible or failed plugin contributes no routes or providers and does not
 stop healthy plugins or core from loading.
 
+Syrus also isolates ordinary failures from plugin providers at runtime. The
+admin page shows recent failures and open circuits. After repeated failures in
+a sliding window, a process-local circuit declines calls until its cool-down
+expires; one successful trial closes it, while another failure reopens it.
+Circuit histories can differ between web and worker processes because they are
+kept in memory.
+
+Plugin-owned routes use the same production-isolation policy. An unhandled
+route exception returns a structured error that names the plugin, records the
+latest error under **Admin → Plugins**, and does not prevent a healthy sibling
+plugin from serving requests. The health view also shows each plugin's request
+count and latest route-error time. Each process retains at most 100 distinct
+recent failure signatures per plugin, bounding both runtime memory and the Admin
+health payload. Development and test keep raising these exceptions through
+Syrus's normal error handling so plugin defects stay visible.
+
+The runtime breaker defaults to five failures within 60 seconds and a 30-second
+cool-down. Set `SYRUS_PLUGIN_CIRCUIT_FAILURE_THRESHOLD`,
+`SYRUS_PLUGIN_CIRCUIT_WINDOW_SECONDS`, and
+`SYRUS_PLUGIN_CIRCUIT_COOLDOWN_SECONDS` on every Syrus process to tune those
+values. Provider timeouts remain opt-in per operation. This in-process boundary
+contains ordinary bugs, not malicious code, native-code hangs, memory growth,
+monkey patches, or process termination.
+
 To uninstall, disable the plugin and resolve any usage blockers, stop every
 container, move its directory out of the shared root, and restart all
 containers. Keep its data for rollback; destructive purge is a separate,
@@ -481,3 +505,18 @@ the real backend and reports a normalized observation of its transport. This
 lets the same assertions cover local processes, containers, and private
 execution systems without exposing backend internals. The operator guide
 contains the adapter API and invocation example.
+
+## Background jobs
+
+Subclass `PluginJob` and declare `plugin :your_plugin` for plugin-owned
+background work. Jobs use `plugin_your_plugin` by default, including jobs from
+external plugins, and share a default concurrency cap of two. Pass
+`concurrency: 5` to raise that cap, or use `queue_as` when a job genuinely
+requires a specialized worker queue. The cap uses a renewable 15-minute lease,
+so long-running jobs remain limited while abandoned slots recover. Plugins with
+an unusual recovery window can pass `concurrency_duration: 30.minutes`.
+
+Ordinary failures retry five times with polynomial backoff. After the final
+attempt, Syrus discards the job and records the error in plugin health. Queue
+depth, failed executions, and discarded-job counts are visible on the admin
+Queue and Plugins pages.
