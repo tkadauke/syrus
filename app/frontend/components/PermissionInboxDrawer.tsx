@@ -12,6 +12,8 @@ const CONTROL_CLASS = "relative inline-flex h-9 w-9 items-center justify-center 
 const HALO_CLASS =
   "pointer-events-none absolute inset-0 rounded-full bg-warning/30 motion-safe:animate-approval-waiting-halo motion-reduce:ring-2 motion-reduce:ring-warning-border"
 const BADGE_CLASS = "absolute -right-1 -top-1 min-w-5 rounded-full bg-warning px-1.5 py-0.5 text-center text-2xs font-semibold leading-none text-surface"
+// iOS black-translucent status glyphs require an invariant dark backing in every theme.
+const STATUS_BAR_BACKING_CLASS = "bg-gray-950"
 const NEWLY_BLOCKED_PING_MS = 1_000
 
 export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?: () => void; prefix?: string }) {
@@ -77,7 +79,7 @@ export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?
         ? createPortal(
             <aside
               aria-label={t("approval_inbox.drawer_title")}
-              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-border bg-gray-950 shadow-xl"
+              className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-border shadow-xl ${STATUS_BAR_BACKING_CLASS}`}
               data-testid="permission-inbox-drawer"
             >
               <div aria-hidden="true" className="h-[env(safe-area-inset-top)] shrink-0" data-testid="permission-inbox-safe-area" />
