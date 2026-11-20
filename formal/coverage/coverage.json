@@ -1,0 +1,2321 @@
+{
+  "generated_from_commit": "14b5eb2155",
+  "line_numbers_note": "Producer file:line references come from the catalog pass at eca9ba0db5 and are approximate (~) where later commits (F1-F7) moved code; classifier names are verified at the generated commit.",
+  "areas": [
+    {
+      "id": "ownership",
+      "title": "Ownership",
+      "summary": "WorkIntent / WorkUnit / WorkUnitLock agreement: who owns a piece of work and which locks it holds."
+    },
+    {
+      "id": "runs-queue",
+      "title": "Runs and the queue",
+      "summary": "Every queued Run has a live SolidQueue claim and every running Run a live worker."
+    },
+    {
+      "id": "steps-workflows",
+      "title": "Steps and Workflows",
+      "summary": "Step, Run and Workflow states agree: loops advance, terminal Workflows have no live descendants."
+    },
+    {
+      "id": "job-state",
+      "title": "Job state",
+      "summary": "A Job's state matches the work actually running on it, including closed Jobs and intake."
+    },
+    {
+      "id": "review-barrier",
+      "title": "Review barrier",
+      "summary": "Required reviews are evidence about one exact HEAD; nothing downstream runs on stale evidence."
+    },
+    {
+      "id": "retries",
+      "title": "Retries and recovery",
+      "summary": "Retry, resume, auto-retry, circuits and failure classification are bounded and never fight each other."
+    },
+    {
+      "id": "landing",
+      "title": "Landing",
+      "summary": "The repository landing slot, auto-merge and the landing queue."
+    },
+    {
+      "id": "merge-trains",
+      "title": "Merge trains",
+      "summary": "Merge trains are owned while active and only mark members merged with evidence."
+    },
+    {
+      "id": "epics",
+      "title": "Epics",
+      "summary": "Epic serialization, Epic-wide workflows and cross-Job / cross-Epic dependencies."
+    },
+    {
+      "id": "start-blocks",
+      "title": "Start blocks",
+      "summary": "Admission, capability placement, provider availability, rate limits and resource gates always clear or recheck."
+    },
+    {
+      "id": "workspaces",
+      "title": "Workspaces",
+      "summary": "Workflow workspaces: loss, reconstruction, pruning and cleanup."
+    },
+    {
+      "id": "concurrency",
+      "title": "Concurrency",
+      "summary": "Cross-cutting races: lost updates, lock acquisition, check-then-act, lock order, executor fencing."
+    },
+    {
+      "id": "infrastructure-jobs",
+      "title": "Infrastructure Jobs",
+      "summary": "Main grader, deploy and main-branch repair Jobs as the reconciler covers them."
+    },
+    {
+      "id": "reconciler",
+      "title": "Reconciler agreement",
+      "summary": "The reconciler only flags states it can repair, never undoes deliberate domain states, and converges."
+    }
+  ],
+  "items": [
+    {
+      "id": "waiting-intent-with-active-unit",
+      "area": "ownership",
+      "title": "A waiting WorkIntent whose gates now pass still has an active WorkUnit",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "waiting_work_intent_with_active_unit"
+      ],
+      "classifiers": [
+        "classify_waiting_work_intents_with_active_units"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "WorkIntents::JobWakeup parks a dependent intent while the Launcher's unit exists (deliberate); only a stale wait is abnormal",
+      "prod_applied": 2801,
+      "prod_skipped": 1,
+      "simulator": [
+        "waiting_intent_with_active_unit"
+      ],
+      "status": "done",
+      "done_by": "F1",
+      "notes": "Was 70% of all production repairs: the reconciler and JobWakeup oscillated forever on justified dependency waits. Fixed by skipping waits whose gates still fail; Agreement.after_converges proves convergence."
+    },
+    {
+      "id": "waiting-intent-ready-for-recheck",
+      "area": "ownership",
+      "title": "A waiting WorkIntent's gates pass but nothing rechecks it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "waiting_work_intent_ready_for_recheck"
+      ],
+      "classifiers": [
+        "classify_waiting_work_intents_ready_for_recheck"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "missed wakeup after a gate input changes (dependency, provider, admission); WorkIntents::JobWakeup callers not enumerated",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "requested_intent_without_active_unit"
+      ],
+      "status": "partial",
+      "done_by": "F1",
+      "notes": "Sibling of F1 for intents without an active unit; the F1 model (Agreement.after_clears_stale) covers clearing a stale wait, but which events must wake the intent is not modelled."
+    },
+    {
+      "id": "requested-intent-without-unit",
+      "area": "ownership",
+      "title": "A requested WorkIntent that is ready has no WorkUnit working on it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "requested_work_intent_without_active_unit",
+        "dispatcher_owned_work_intent_without_active_unit"
+      ],
+      "classifiers": [
+        "classify_requested_work_intents_without_active_units",
+        "classify_dispatcher_owned_work_intents_without_active_units"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "unit terminated without TerminalUnitSync moving the intent, or a launch path that requested the intent but never instantiated (WorkUnits::Launcher)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "requested_intent_without_active_unit",
+        "stale_initial_intent_after_successful_retry"
+      ],
+      "status": "open",
+      "done_by": "O2",
+      "notes": "Both classifiers return [] unless the Reconciler is invoked with work_intent_id, and no production caller passes one, so this state is never detected in production. Modelled as requestedWithoutActiveUnit in Reconciler.lean."
+    },
+    {
+      "id": "active-unit-without-workflow",
+      "area": "ownership",
+      "title": "An active WorkUnit has no Workflow, so it cannot run but may hold locks",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "active_work_unit_without_workflow"
+      ],
+      "classifiers": [
+        "classify_active_work_units_without_workflows"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "WorkUnits::Launcher creates the unit and attaches the workflow in separate steps; a failure between them, or a WorkflowCancellation that nils the workflow",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "active_work_unit_without_workflow"
+      ],
+      "status": "partial",
+      "done_by": "model round 1 (Reconciler.lean activeWithoutWorkflow)",
+      "notes": "The repair (cancelWithoutWorkflow) is proved invariant-preserving; prevention (launch atomically attaches a workflow) is not proved."
+    },
+    {
+      "id": "unit-intent-outcome-agreement",
+      "area": "ownership",
+      "title": "A finished WorkUnit leaves its WorkIntent open (succeeded unit / unsatisfied intent, failed unit / unfailed intent, superseded unit / uncancelled intent)",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "succeeded_work_unit_unsatisfied_intent",
+        "failed_work_unit_unfailed_intent",
+        "superseded_work_unit_uncancelled_intent"
+      ],
+      "classifiers": [
+        "classify_succeeded_work_units_with_unsatisfied_intents",
+        "classify_failed_work_units_with_unfailed_intents",
+        "classify_superseded_work_units_with_uncancelled_intents"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "WorkUnit#mark_terminal! / preempt! commit before WorkIntents::TerminalUnitSync runs (after-commit hook lost or raising)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "succeeded_unit_unsatisfied_intent",
+        "failed_unit_unfailed_intent",
+        "superseded_unit_uncancelled_intent"
+      ],
+      "status": "partial",
+      "done_by": "model round 1 (Reconciler.lean, Proofs.lean)",
+      "notes": "Repairs satisfyFromSucceeded / failFromFailed / cancelFromSuperseded are proved to preserve Inv; making the intent sync part of the terminal transition would make the states unreachable."
+    },
+    {
+      "id": "mixed-unit-outcomes",
+      "area": "ownership",
+      "title": "When one intent has both a succeeded and a failed unit, success wins regardless of which is newer",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "WorkIntents::TerminalUnitSync outcome selection",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "failed_unit_unfailed_intent",
+        "succeeded_unit_unsatisfied_intent"
+      ],
+      "status": "open",
+      "done_by": "O3",
+      "notes": "Low priority: an older success can satisfy an intent whose latest attempt failed."
+    },
+    {
+      "id": "terminal-unit-holds-locks",
+      "area": "ownership",
+      "title": "A finished WorkUnit still holds locks, blocking all future work on that key",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "terminal_work_unit_active_locks"
+      ],
+      "classifiers": [
+        "classify_terminal_work_units_with_active_locks"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "legacy rows; mark_terminal!/preempt! release in the same transaction today; update_columns resurrection paths (history #8)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "terminal_work_unit_active_lock"
+      ],
+      "status": "partial",
+      "done_by": "model round 1 (Proofs.lean inv_no_terminal_locks)",
+      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered."
+    },
+    {
+      "id": "active-unit-terminal-workflow-locks",
+      "area": "ownership",
+      "title": "An active WorkUnit attached to a finished Workflow still holds locks",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "active_work_unit_terminal_workflow_locks"
+      ],
+      "classifiers": [
+        "classify_active_work_units_with_terminal_workflow_locks"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Workflow reached terminal without WorkUnits::WorkflowLifecycle / TerminalWorkflowSync marking the unit terminal (after-commit hook lost)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "zombie_terminal_unit_orphaned_run",
+        "failed_unit_running_workflow_queued_tail"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Operator-only repair (retire_terminal_work_unit). Unit and Workflow terminal state should move together; not modelled (the Lean model has only workflowTerminal flags)."
+    },
+    {
+      "id": "terminal-parent-active-children",
+      "area": "ownership",
+      "title": "A finished parent WorkUnit still has active child WorkUnits",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "terminal_work_unit_active_children"
+      ],
+      "classifiers": [
+        "classify_active_child_work_units_with_terminal_parents"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "parent mark_terminal!/preempt! does not cascade to children (merge-train / bundle child units)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "closed_job_active_work_unit"
+      ],
+      "status": "partial",
+      "done_by": "model round 1 (Reconciler.lean activeChildOfTerminal)",
+      "notes": "Repair cancelChild is modelled; the terminal transition itself does not cascade in the model or the code."
+    },
+    {
+      "id": "one-unit-per-workflow",
+      "area": "ownership",
+      "title": "Each Workflow is owned by exactly one WorkUnit",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "no unique index on work_units.workflow_id; same_runtime_lock_owner? deliberately treats two units on one workflow as one owner (work_unit.rb:304)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "active_work_unit_without_workflow"
+      ],
+      "status": "open",
+      "done_by": "O1",
+      "notes": "LockSafety.steps_lock_safe assumes it; Counterexamples.shared shows lock escape without it."
+    },
+    {
+      "id": "finished-units-reentrant",
+      "area": "ownership",
+      "title": "Finished WorkUnits can become active again (same-attempt retries reuse the unit)",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "n/a",
+      "safety_or_liveness": "safety",
+      "producer": "AutoRetryBackoff#record!, DeferredPhaseResume#reactivate_terminal_unit_for_active_workflow!",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "auto_retry_skip_clears_same_attempt_backoff"
+      ],
+      "status": "by-design",
+      "done_by": "D1",
+      "notes": "Deliberate; the model allows re-entry and proves lock safety anyway."
+    },
+    {
+      "id": "auto-retry-backoff-partial-locks",
+      "area": "ownership",
+      "title": "AutoRetryBackoff blocks a failed unit and accepts a partial lock set",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "n/a",
+      "safety_or_liveness": "safety",
+      "producer": "app/services/auto_retry_backoff.rb:12-77 (ensure_locks! returns true if any lock is active)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "auto_retry_budget_exhausts"
+      ],
+      "status": "by-design",
+      "done_by": "D2",
+      "notes": "Every resume path re-runs ensure_active_locks!, so the partial set is completed before the unit runs."
+    },
+    {
+      "id": "unit-lock-mutual-exclusion",
+      "area": "ownership",
+      "title": "At most one running unit holds any lock key, and a running unit holds every key it needs",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "WorkUnits::Launcher#create_lock!, WorkUnit#ensure_active_locks!, AutoRetryBackoff#ensure_locks!",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "landing_queue_serializes_contention",
+        "terminal_work_unit_active_lock"
+      ],
+      "status": "partial",
+      "done_by": "model round 1 (LockSafety.lean)",
+      "notes": "Proved under UniqueRuntime (O1) and the unique-index abstraction; the nil-owner rescue hole (concurrency/lock-acquisition-nil-owner) is outside the model."
+    },
+    {
+      "id": "job-mutex-dedup",
+      "area": "ownership",
+      "title": "At most one active first-class WorkUnit per (scope, kind), and at most one holding job:<id>",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "idx_work_units_active_dedup_key_unique has a hole when scope_id is nil (work_unit.rb:348-355); materialize_behind_active_lock? kinds acquire the job lock only at start",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "dependent_active_initial_dedup_collision"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "DB-enforced except the nil-scope hole and lockless materialization; see superseded-active-runtime-work for the visible violation."
+    },
+    {
+      "id": "queued-run-without-claim",
+      "area": "runs-queue",
+      "title": "A queued Run has no SolidQueue job at all",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_run_without_queue_claim"
+      ],
+      "classifiers": [
+        "classify_queued_runs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "inline-drive successor never enqueued when RunJob exits on SIGTERM / drain / exception (run.rb:397-400, run_job.rb:120-156); crash between Run after_create_commit and perform_later (run.rb:183)",
+      "prod_applied": 9,
+      "prod_skipped": 0,
+      "simulator": [
+        "zombie_terminal_unit_orphaned_run",
+        "orphaned_queue_job_reenqueues_elsewhere"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "The SIGTERM case is documented as 'will be re-enqueued by reaper', so every graceful deploy produces it. Invariant: queued -> has claim or owned by a live inline driver; driver exit must hand the token back."
+    },
+    {
+      "id": "queued-run-orphaned-queue-job",
+      "area": "runs-queue",
+      "title": "A queued Run's SolidQueue job has no execution row, so nothing will ever pick it up",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_run_with_orphaned_queue_job"
+      ],
+      "classifiers": [
+        "classify_queued_runs"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "true orphans from Syrus's non-transactional deletes (solid_queue_cleanup_job.rb, solid_queue_run_job_pruner.rb:25-28); before F3, also every job waiting on the per-Job concurrency semaphore",
+      "prod_applied": 78,
+      "prod_skipped": 0,
+      "simulator": [
+        "orphaned_queue_job_reenqueues_elsewhere"
+      ],
+      "status": "done",
+      "done_by": "F3",
+      "notes": "Was the most frequent applied Run repair (78 in ~9h), mostly misclassified blocked executions; QueueExecution.after_exact proves orphaned iff no execution row. The remaining true-orphan producer (non-atomic pruner deletes) is still open."
+    },
+    {
+      "id": "queued-run-dead-resume-queue",
+      "area": "runs-queue",
+      "title": "A queued Run sits on a resume/worker queue that no live worker consumes",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_run_on_dead_resume_queue"
+      ],
+      "classifiers": [
+        "classify_queued_runs"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "worker or storage that owned the affinity queue died (InstanceVersion.worker_queue_live? false)",
+      "prod_applied": 33,
+      "prod_skipped": 0,
+      "simulator": [
+        "dead_resume_queue_reenqueues_elsewhere"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "External fault; model as a worker-death event removing a queue's consumer and prove recovery re-enqueues off the dead queue."
+    },
+    {
+      "id": "queued-run-failed-execution",
+      "area": "runs-queue",
+      "title": "A queued Run's RunJob crashed before the Run started, leaving the Run queued forever",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_run_solid_queue_failed_execution"
+      ],
+      "classifiers": [
+        "classify_queued_runs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "both",
+      "producer": "exceptions in RunJob pre-start gates (defer_for_agent_concurrency?, defer_for_actor_share?, defer_for_macos_worker_drain?, run_job.rb:99-151) escape without failing the Run",
+      "prod_applied": 3,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "open",
+      "done_by": null,
+      "notes": "Invariant: a raise from RunJob for run r leaves r failed or a fresh claim exists. No fixture covers it."
+    },
+    {
+      "id": "queued-grader-collect-cached-failure",
+      "area": "runs-queue",
+      "title": "A lost-queue grader_collect Run whose failure is already cached is replayed instead of failed",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_grader_collect_cached_failure"
+      ],
+      "classifiers": [
+        "classify_queued_runs (grader_collect_cached_failure_issue)"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "same as dead resume queue / failed execution, for a grader_collect Step with GraderConclusionCache.failed_for_workflow?",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "infrastructure_grader_failure_does_not_poison_cache"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "An optimisation over a lost queue token; not needed for safety. The infrastructure-grader fixture guards that only real failures are cached."
+    },
+    {
+      "id": "queued-run-placement-livelock",
+      "area": "runs-queue",
+      "title": "A Run pinned to one host keeps deferring or re-enqueueing itself and never starts",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_run_host_admission_deferral_budget_exhausted",
+        "queued_run_in_healthy_reenqueue_loop"
+      ],
+      "classifiers": [
+        "classify_queued_runs"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "RunJob host-admission deferral and affinity re-enqueue loop for a workflow with worker_storage_key",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "pinned_host_admission_deferral_budget_reenqueues_elsewhere",
+        "healthy_reenqueue_loop_clears_affinity"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "A placement livelock bounded by a 40-deferral budget and a staleness window; a fairness/termination-measure argument, not a safety invariant."
+    },
+    {
+      "id": "queued-run-wedged-or-stale-claim",
+      "area": "runs-queue",
+      "title": "A queued Run's queue claim never progresses (wedged worker or stale process heartbeat)",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_run_with_wedged_queue_claim",
+        "queued_run_stale_queue_claim"
+      ],
+      "classifiers": [
+        "classify_queued_runs"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "worker alive but stuck before run.start!, or a claim whose SolidQueue process heartbeat is stale",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "wedged_queue_claim_reenqueues_elsewhere"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "External fault; the stale-claim variant only waits for SolidQueue's own process pruning."
+    },
+    {
+      "id": "running-run-without-worker",
+      "area": "runs-queue",
+      "title": "A running Run has no live worker behind it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "running_run_without_live_worker_evidence"
+      ],
+      "classifiers": [
+        "classify_running_runs"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "worker/pod death, OOM; non-agentic claim without a process",
+      "prod_applied": 2,
+      "prod_skipped": 4,
+      "simulator": [
+        "worker_died_retries_once",
+        "non_agentic_claim_without_process_retries",
+        "parallel_grader_worker_loss_retries",
+        "visual_diff_worker_loss_does_not_fail_job",
+        "grader_fanout_worker_loss_stays_in_loop"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Not preventable; prove recovery leaves the Run terminal and the Step reopened or failed within the retry budget."
+    },
+    {
+      "id": "runs-paused",
+      "area": "runs-queue",
+      "title": "Queued Runs sit on a paused queue",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "runs_paused"
+      ],
+      "classifiers": [
+        "classify_paused_queues"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "operator paused a SolidQueue queue",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "paused_queue_allows_active_merge_train_continuation"
+      ],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "Operator-intended; the fixture guards that a pause does not orphan an active merge train."
+    },
+    {
+      "id": "worker-loss-bounded-recovery",
+      "area": "runs-queue",
+      "title": "Worker or storage loss never fails a Job by itself; recovery is bounded and never runs mutable steps off the owning storage",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "c",
+      "safety_or_liveness": "both",
+      "producer": "RunJob#handle_running_reentry, WorkflowWorkspaceRecovery, RetryFailedStepEnqueuer, distributed grader reroute",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "parallel_grader_landing_fix_reroutes_to_pinned_workspace",
+        "distributed_grader_admission_reroute_collects",
+        "visual_diff_worker_loss_does_not_fail_job",
+        "grader_fanout_worker_loss_stays_in_loop"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Fault model: prove a recovery bound and that mutable steps stay pinned to the workspace's storage key."
+    },
+    {
+      "id": "active-run-on-terminal-step",
+      "area": "steps-workflows",
+      "title": "A Run is still queued or running although its Step already finished",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "active_run_on_terminal_step"
+      ],
+      "classifiers": [
+        "classify_active_runs_on_terminal_steps"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Steps::LifecyclePropagation#cancel_downstream_queued_steps! cancels queued Steps without touching their queued Runs (steps/lifecycle_propagation.rb:58-75); RunJob skip_with_reason! paths",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "active_run_on_terminal_step"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Mostly self-heals because RunJob skips such Runs on dequeue. Invariant: step terminal -> all its Runs terminal; every Step terminal event must cancel or skip its own Runs."
+    },
+    {
+      "id": "active-step-with-terminal-runs",
+      "area": "steps-workflows",
+      "title": "A Step is still queued or running although all its Runs finished",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "running_step_with_terminal_runs"
+      ],
+      "classifiers": [
+        "classify_active_steps_with_terminal_runs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "RunJob#record_successful_step! commits run.succeed! and step.succeed! separately (run_job.rb:607-619); Workflow#fail! cancel_orphan_active_runs! via update_columns (workflow.rb:482-488); ImmutableReviewHeadBarrier.cancel_run_without_cascade! (immutable_review_head_barrier.rb:113-120); operator/infra retry whose new Run was deferred",
+      "prod_applied": 12,
+      "prod_skipped": 19,
+      "simulator": [
+        "running_step_with_terminal_run"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "No grace period: an operator retry of a non-retryable failure whose Run was deferred is re-failed, and reconciling a barrier-cancelled Step cascades the tail (may defeat the barrier's no-cascade intent). Skips (19) are StateSynchronizer refusing queued->succeeded."
+    },
+    {
+      "id": "in-place-retry-reconciled-away",
+      "area": "retries",
+      "title": "A Step waiting on an in-place git_transport_transient retry is reconciled to failed during its backoff",
+      "kind": "property",
+      "issue_kinds": [
+        "running_step_with_terminal_runs"
+      ],
+      "classifiers": [
+        "classify_active_steps_with_terminal_runs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "both",
+      "producer": "Runs::LifecyclePropagation#scheduled_in_place_step_retry? for IN_PLACE_STEP_CLASSIFICATIONS (runs/lifecycle_propagation.rb:85-133); reconciler exempts only worker_died (pending_worker_died_step_retry?, reconciler.rb ~3596)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "worker_died_retries_once"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Probable outright bug: backoff is at least 5 minutes, so the reconciler fails the Step and cascades before AutoRetryJob fires. Step#awaiting_run? already uses the broader 'any pending attempt' rule."
+    },
+    {
+      "id": "review-loop-needs-work-no-repair",
+      "area": "steps-workflows",
+      "title": "A review said 'needs work' but no repair iteration was created",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "succeeded_review_loop_needs_work_without_repair"
+      ],
+      "classifiers": [
+        "classify_succeeded_review_steps_without_required_repair"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "Step#advance_next_step! after_update_commit lost; StepDispatcher#handle_successful_review_loop_iteration deferring on phase admission or lock conflict (step_dispatcher.rb ~1478)",
+      "prod_applied": 0,
+      "prod_skipped": 14,
+      "simulator": [
+        "review_loop_repair_step_without_run"
+      ],
+      "status": "open",
+      "done_by": "F4",
+      "notes": "All 14 production firings were skipped ('review loop repair remained deferred'): the classifier cannot tell an intended deferral from a lost one, the same agreement shape as F4."
+    },
+    {
+      "id": "queued-step-without-run",
+      "area": "steps-workflows",
+      "title": "A queued Step whose predecessor finished never got a Run",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_step_without_run"
+      ],
+      "classifiers": [
+        "classify_queued_steps_without_runs"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "Step#advance_next_step! after_update_commit lost; StepDispatcher#create_run_and_enqueue nil returns without a recheck: run_provider_candidate.nil? and !ImmutableReviewHeadBarrier.satisfied_for? (step_dispatcher.rb ~633-656); enqueue_next_runnable_steps! manual/landing pause (~1293)",
+      "prod_applied": 4,
+      "prod_skipped": 534,
+      "simulator": [
+        "queued_step_without_run",
+        "review_loop_repair_step_without_run",
+        "failed_unit_running_workflow_queued_tail"
+      ],
+      "status": "open",
+      "done_by": "F4",
+      "notes": "534 skipped vs 4 applied in ~9h (522 on one Workflow): the classifier fires on legitimately deferred phases and DeferredPhaseResume declines, a classifier/executor disagreement loop."
+    },
+    {
+      "id": "cancelled-barrier-blocks-tail",
+      "area": "steps-workflows",
+      "title": "A retry-until barrier was cancelled before it ran, leaving its dependent tail queued forever",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "cancelled_retry_until_barrier_blocking_tail"
+      ],
+      "classifiers": [
+        "classify_queued_steps_without_runs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "cancellations under Step.suppress_cancel_cascade on a later-reopened workflow (Workflow#cancel_active_descendants!), loop-exit paths exit_review_loop!/cancel_and_skip_to_next! (step_dispatcher.rb ~1533-1558); exact path not pinned",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "cancelled_retry_until_barrier_blocks_tail",
+        "terminal_cleanup_cancelled_retry_recovers"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Invariant: queued step with a dependency cancelled-without-runs is itself cancelled; suppressed cascades are the hazard."
+    },
+    {
+      "id": "terminal-workflow-active-descendants",
+      "area": "steps-workflows",
+      "title": "A finished Workflow still has queued or running Steps or Runs",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "cleanup_blocked_by_active_descendants"
+      ],
+      "classifiers": [
+        "classify_terminal_workflows_with_active_descendants"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Workflows::LifecyclePropagation#failed! deliberately keeps the queued tail (lifecycle_propagation.rb:34-41, workflow.rb:341-349); StepDispatcher#hard_fail_workflow!; RunCompletionReconciler#force_state! via update_columns (run_completion_reconciler.rb:395-405); Workflow#cancel! partial failure",
+      "prod_applied": 10,
+      "prod_skipped": 0,
+      "simulator": [
+        "terminal_workflow_active_descendants",
+        "terminal_cleanup_cancelled_retry_recovers",
+        "repeated_pr_open_failure_retry_recovers"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Mostly produced by design: every Workflow#fail! with a queued tail. Retry already revives cancelled tails (retry_failed_step_enqueuer.rb:529), so fail! could cancel the tail and make 'terminal -> no active descendants' provable. Prod also had 1 failed repair."
+    },
+    {
+      "id": "terminal-workflow-live-processes",
+      "area": "steps-workflows",
+      "title": "A finished Workflow still has a running OS process or a step that only looks running",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "cleanup_blocked_by_active_descendants"
+      ],
+      "classifiers": [
+        "classify_cleanup_blockers"
+      ],
+      "class": "c",
+      "safety_or_liveness": "safety",
+      "producer": "orphaned SpawnedProcess / heartbeat whose worker died; projection-only running steps (workflow.rb:283-298)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "active_run_on_terminal_step"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Operator-only variant of the same issue kind, reachable only when no persisted Step or Run is active; the external part is SpawnedProcess liveness."
+    },
+    {
+      "id": "queued-workflow-with-failed-step",
+      "area": "steps-workflows",
+      "title": "A Workflow that never started already has a failed Step",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_workflow_with_failed_step"
+      ],
+      "classifiers": [
+        "classify_workflows"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "RunJob fails Steps in pre-start gates while the workflow is still queued (run_job.rb:420-428, 573-582) and the fail_from / hard_fail_workflow! cascade is lost or takes a non-failing branch",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "queued_workflow_with_failed_step"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Invariant: an unsuperseded failed step with no live work implies the Workflow is terminal or a loop continuation is pending."
+    },
+    {
+      "id": "running-workflow-with-failed-step",
+      "area": "steps-workflows",
+      "title": "A running Workflow has a failed Step but neither fails nor starts the next loop iteration",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "running_workflow_with_failed_step"
+      ],
+      "classifiers": [
+        "classify_workflows"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "Step#fail_workflow! after_update_commit -> StepDispatcher.fail_from lost or raised; handle_loop_iteration / enqueue_next_loop_iteration! deferring without materializing",
+      "prod_applied": 8,
+      "prod_skipped": 5,
+      "simulator": [
+        "running_workflow_with_failed_step",
+        "manual_grade_loop_restart_ignores_superseded_failures"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "5 of the 8 applied repairs were lost loop continuations. fail_from should be part of the Step-fail action."
+    },
+    {
+      "id": "running-workflow-nothing-left",
+      "area": "steps-workflows",
+      "title": "A running Workflow has nothing left to run but never finishes",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "running_workflow_without_active_descendants"
+      ],
+      "classifiers": [
+        "classify_workflows"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "lost advance_from / finish_workflow! after the last Step's commit; suppressed-cascade cancels in ImmutableReviewHeadBarrier.invalidate_stale_evidence! (immutable_review_head_barrier.rb:99-105); StepDispatcher#finish_workflow! uses persisted downstream_work_pending? (step_dispatcher.rb ~2424-2460)",
+      "prod_applied": 1,
+      "prod_skipped": 8,
+      "simulator": [
+        "manual_grade_loop_restart_ignores_superseded_failures"
+      ],
+      "status": "open",
+      "done_by": "F4",
+      "notes": "8 skipped vs 1 applied: the reconciler's projected 'active' and the dispatcher's persisted 'active' disagree, so the repair is refused every pass. Looks like an outright agreement bug."
+    },
+    {
+      "id": "two-definitions-of-active-step",
+      "area": "steps-workflows",
+      "title": "The reconciler and the dispatcher agree on whether a Step is still active",
+      "kind": "property",
+      "issue_kinds": [
+        "running_workflow_without_active_descendants",
+        "running_step_with_terminal_runs"
+      ],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "persisted steps.state (Workflow#persisted_active_steps, StepDispatcher#downstream_work_pending?) vs Steps::StateProjection#visible_state vs Step#awaiting_run? (step.rb:381-386)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "open",
+      "done_by": null,
+      "notes": "Three definitions of 'active Step'. A single predicate should be the proof target; the disagreement drives the skip loops above."
+    },
+    {
+      "id": "one-active-run-per-step",
+      "area": "steps-workflows",
+      "title": "Each Step attempt has at most one active Run, and each success advances its successors exactly once",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "StepDispatcher#create_run_and_enqueue checks under workflow->step locks; RetryFailedStepEnqueuer#create_run_for! bypasses the funnel (retry_failed_step_enqueuer.rb:282)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "parallel_grader_collect_waits_for_active_sibling"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Low visible gap: the retry path relies on the Step being terminal; an active-Run check under the step lock would make it airtight."
+    },
+    {
+      "id": "serial-barrier-ready-set",
+      "area": "steps-workflows",
+      "title": "In a distributed ready set at most one serial (mutable-workspace) Step is active, and serial Steps run in position order",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "StepDispatcher distributed ready set (step_dispatcher.rb ~2209); insertion sites enqueue_next_loop_iteration! and materialize_branch_steps! shift positions with update_all and must use wire_inserted_step_dependencies!",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "parallel_grader_collect_waits_for_active_sibling",
+        "parallel_grader_retry_cleared_barrier_allows_tail"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Code looks right; clean DAG-scheduler theorem whose risk is an insertion site that bypasses the dependency-rewiring helper."
+    },
+    {
+      "id": "terminal-states-absorbing",
+      "area": "concurrency",
+      "title": "Finished Runs, Steps, Workflows and WorkUnits only reopen through sanctioned paths that restore their invariants",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "update_columns resurrection: DeferredPhaseResume#revive_cancelled_tail_after! (deferred_phase_resume.rb:61), #reactivate_terminal_unit_for_active_workflow! (54, no LockConflict rescue), RunCompletionReconciler#revive_terminal_cleanup_step! / force_success_after_terminal_race!, WorkflowWorkspaceRecovery#requeue!, RetryFailedStepEnqueuer (433-440), repair_executor.rb ~552/907; WorkUnit#mark_running!/block!/unblock! have no terminal guard",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "terminal_cleanup_cancelled_retry_recovers",
+        "zombie_terminal_unit_orphaned_run"
+      ],
+      "status": "open",
+      "done_by": "D1",
+      "notes": "Theorem: terminal -> non-terminal only via a Reopen event that re-establishes lock and intent invariants. D1 makes unit re-entry intentional, but the other edges are unchecked."
+    },
+    {
+      "id": "job-state-matches-latest-workflow",
+      "area": "job-state",
+      "title": "A Job's state disagrees with what its latest Workflow did",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "unambiguous_job_state_drift"
+      ],
+      "classifiers": [
+        "classify_unambiguous_job_state_drift"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "silent early returns in Workflows::JobLifecyclePropagation (fail! on newer_active_workflow?, start! for implemented+non_approval_blocking); propagate_start_to_job! skipped when syncing_from_terminal_work_unit; RetryWorkflowEnqueuer#restore_non_failed_retry_state! writes job.state via update_columns (retry_workflow_enqueuer.rb:211)",
+      "prod_applied": 14,
+      "prod_skipped": 5,
+      "simulator": [
+        "queued_job_with_published_pr_converges"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Recurs in production (14 applied). Property: Job.state = f(latest workflow); each silent return in JobLifecyclePropagation is a proof obligation."
+    },
+    {
+      "id": "job-state-vs-active-workflow-kind",
+      "area": "job-state",
+      "title": "A Job in a non-running state (implemented, failed, triaging, backlog) still has an active Workflow",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "job_workflow_state_drift",
+        "failed_job_active_repair_work"
+      ],
+      "classifiers": [
+        "classify_job_workflow_drift",
+        "classify_failed_jobs_with_active_repair_work"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Job transitions made while a workflow is active (Job#unapprove, fail_landing, mark_failed by an older workflow) do not cancel or adopt it; JobLifecyclePropagation#start! silent guards",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "ci_failure_repair",
+        "pr_review_feedback_repair"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Needs a declared table of legal (job state, active workflow kind) pairs; failed_job_active_repair_work is the legal 'repair in flight on a failed Job' entry of that table (info only)."
+    },
+    {
+      "id": "job-running-without-work",
+      "area": "job-state",
+      "title": "A Job is running or landing but no Workflow is working on it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "job_without_active_runtime_work",
+        "landing_job_without_active_runtime_work"
+      ],
+      "classifiers": [
+        "classify_jobs_without_active_runtime_work"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "workflow terminated without the Job transition (JobLifecyclePropagation silent guards); landing workflow terminal without LandingFailureHandler/MergeTrainFailureHandler reverting the Job",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "stranded_landing_job_without_lock_returns_to_approved"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Invariant: job in {running, landing} -> an active first-class unit exists. Pair with job-state-matches-latest-workflow; this catches what Plan.for cannot decide."
+    },
+    {
+      "id": "stale-workflow-fails-job",
+      "area": "job-state",
+      "title": "A Workflow that is not the Job's current attempt marks the Job failed when it is cancelled",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Workflows::JobLifecyclePropagation#cancel! (~job_lifecycle_propagation.rb:116) has no active-sibling guard; cancels with start_cancelled_reason / start_blocked_reason / retry_cancelled_reason bypass superseded_cancellation?; newer_active_workflow? only checks newer workflows",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "stale_initial_intent_after_successful_retry"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "chat_feedback, rebase and stack_rebase materialize behind an active lock, so a queued second Workflow next to a running one is normal and its cancel can fail the running Job. Likely real bug."
+    },
+    {
+      "id": "superseded-active-runtime-work",
+      "area": "job-state",
+      "title": "A Job has two active first-class Workflows at once",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "superseded_active_runtime_work"
+      ],
+      "classifiers": [
+        "classify_superseded_active_runtime_work"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "WorkUnit.active_dedup_key includes the kind (work_unit.rb:348-355), so two first-class kinds on one Job rely on the job lock; materialize_behind_active_lock? kinds take it only at start",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "dependent_active_initial_dedup_collision"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Invariant: at most one active first-class unit per Job; the dedup key or a job lock must cover every first-class kind."
+    },
+    {
+      "id": "closed-job-active-workflow",
+      "area": "job-state",
+      "title": "A closed Job still has a Workflow working on it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "closed_job_active_runtime_work"
+      ],
+      "classifiers": [
+        "classify_closed_jobs_with_active_runtime_work"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "before F6: PollPullRequestJob#close_with, PullRequestMergeCloser, GracePeriodExpiryJob, PollExternalPrJob cancelled only job.runs.active before closing; steps closed their own Job mid-run",
+      "prod_applied": 3,
+      "prod_skipped": 7,
+      "simulator": [
+        "already_landed_stack_rebase"
+      ],
+      "status": "done",
+      "done_by": "F6",
+      "notes": "JobClosure.ClosedQuiet proved; closes are deferred to Workflow finish and external closers go through JobClosure.request!. Plain close_with_reason! callers outside Workflows (operator cancel, Epic archive, ingestion, plugin hooks) rely on the step-boundary and RunJob backstops. Prod had 1 failed repair before the fix."
+    },
+    {
+      "id": "closed-job-active-unit",
+      "area": "job-state",
+      "title": "A closed Job still has an active job-scoped WorkUnit without a Workflow",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "closed_job_active_work_unit"
+      ],
+      "classifiers": [
+        "classify_closed_jobs_with_active_work_units"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Job#finish_stale_work_units_after_close (job.rb ~1661) is after_update_commit and lost on crash; WorkUnits::Launcher racing the close creates a unit after the callback ran",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "closed_job_active_work_unit"
+      ],
+      "status": "partial",
+      "done_by": "F6",
+      "notes": "F6 models Workflows on closed Jobs, not bare units; launch must check job.open? under the same lock as the close."
+    },
+    {
+      "id": "closed-job-open-intent",
+      "area": "job-state",
+      "title": "A closed Job still has a requested or waiting WorkIntent",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "closed_job_requested_work_intent"
+      ],
+      "classifiers": [
+        "classify_closed_jobs_with_requested_work_intents"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Job#cancel_stale_work_intents_after_close (job.rb ~1674) skips intents with an active unit and only looks at scope_type job; pollers racing the close create intents",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "F6",
+      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends."
+    },
+    {
+      "id": "queued-job-after-cancelled-workflow",
+      "area": "job-state",
+      "title": "A queued Job's latest Workflow was cancelled and nothing replaced it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_job_after_cancelled_workflow",
+        "queued_job_after_cancelled_start_block"
+      ],
+      "classifiers": [
+        "classify_queued_jobs_cancelled_without_active_workflow",
+        "classify_queued_jobs_cancelled_with_active_start_block"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "non-deliberate cascade cancels (Steps::LifecyclePropagation#cancelled! -> cancel_workflow_if_idle!, steps/lifecycle_propagation.rb:37-43) and start-time cancels writing start_cancelled_reason",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "queued_job_with_published_pr_converges"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Invariant: job queued -> active owner or start-blocked with a recheck; the start-block variant is the allowed waiting state. The fixture guards against retrying when a PR is already published."
+    },
+    {
+      "id": "implemented-or-approved-without-pr",
+      "area": "job-state",
+      "title": "A Job is implemented or approved but has no pull request",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "approved_job_missing_pr",
+        "implemented_job_missing_pr"
+      ],
+      "classifiers": [
+        "classify_approved_jobs_missing_pr",
+        "classify_implemented_jobs_missing_pr"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Job approve guard strict_epic_dependencies_satisfied_for_approval? is literally true (job.rb ~1229) and mark_implemented has no PR guard (job.rb ~755); AutoApprovalRule#approve_after_grader_success! (auto_approval_rule.rb:68-81) fires on grader_collect success before summarize -> pr_open",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "open",
+      "done_by": null,
+      "notes": "Likely real bug with auto-approval on: the Job goes implemented -> approved with no PR while the initial workflow is still running, and a failing pr_open leaves it there. Cheap, high-value state invariant; no fixture."
+    },
+    {
+      "id": "stalled-intake",
+      "area": "job-state",
+      "title": "A Job stays in triaging because its classification job vanished",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "stalled_classifier_pending_job"
+      ],
+      "classifiers": [
+        "classify_stalled_classifier_pending_jobs"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "lost ClassifyIssueJob queue job",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "stalled_intake_reclassifies"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Lost-token fault; prove bounded retries via the attempt cap rather than prevention."
+    },
+    {
+      "id": "feedback-does-not-regress-job",
+      "area": "job-state",
+      "title": "Feedback and repair Workflows on an existing Job never regress its state",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PollAllPullRequestsJob follow-up workflows, ci_failure / respond / rebase kinds",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "ci_failure_repair",
+        "pr_review_feedback_repair",
+        "remote_moved_push_rebases",
+        "superseded_ci_repair_base_resolves"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Medium priority; overlaps job-state-matches-latest-workflow for follow-up kinds."
+    },
+    {
+      "id": "run-before-review-barrier",
+      "area": "review-barrier",
+      "title": "A Run is queued or running downstream of a required review that no longer approves the current HEAD",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_run_before_required_review_barrier",
+        "running_run_before_required_review_barrier"
+      ],
+      "classifiers": [
+        "classify_unsafe_review_barrier_runs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "a repair advances HEAD after the Run was created; ImmutableReviewHeadBarrier#refresh_required_reviews!/invalidate_stale_evidence! (immutable_review_head_barrier.rb:80-107) cancel only review candidates' Runs, not other queued parallel/DAG branches",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "required_review_barrier_recovers_unsafe_tail"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Invariant: run active -> barrier satisfied; HEAD-advancing actions must atomically cancel every active Run they invalidate. The running variant needs a concurrent HEAD mutation and is operator-only."
+    },
+    {
+      "id": "review-evidence-matches-head",
+      "area": "review-barrier",
+      "title": "Required-review evidence always refers to the HEAD that is actually pushed",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "ImmutableReviewHeadBarrier::MUTATION_KINDS = implement, respond only; format, generate, apply_suggestions, analyze_and_fix, landing_fix, coding_handoff_fix, agent_rebase, run_skill also move HEAD; reviewed_head_sha falls back to an older step when the latest Run has no head_sha; satisfied_for? is fail-open on a blank sha",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "serial_grader_retry_blocks_tail",
+        "parallel_grader_retry_blocks_tail",
+        "parallel_grader_retry_cleared_barrier_allows_tail",
+        "checkpoint_resume_rejects_dirty_grader_barrier",
+        "manual_grade_loop_restart_ignores_superseded_failures",
+        "parallel_grader_collect_waits_for_active_sibling",
+        "infrastructure_grader_failure_does_not_poison_cache",
+        "cancelled_retry_until_barrier_blocks_tail",
+        "parallel_merge_train_blocks_dirty_publication"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Three gaps against CLAUDE.md's 'fail closed' promise: an incomplete mutating-kind list, a silent fallback to older evidence, and blank-sha fail-open. Largest fixture cluster in the corpus."
+    },
+    {
+      "id": "retry-planned-for-active-workflow",
+      "area": "retries",
+      "title": "A retry is planned for a failed Run whose Workflow is still running, and every pass refuses it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "retryable_run_failure"
+      ],
+      "classifiers": [
+        "classify_retryable_failures"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "classify_retryable_failures flagged any failed Run controlling its Step; RetryFailedStepEnqueuer / ResumeWorkflowEnqueuer / merge-train rebuild all refuse an active Workflow",
+      "prod_applied": 3,
+      "prod_skipped": 199,
+      "simulator": [
+        "retryable_merge_train_build_rebuilds",
+        "terminal_bundle_train_final_fix_rebuilds",
+        "repeated_pr_open_failure_retry_recovers",
+        "codex_overload_initial_retries",
+        "terminal_cleanup_cancelled_retry_recovers"
+      ],
+      "status": "done",
+      "done_by": "F4",
+      "notes": "168 skipped rebuild_merge_train, 27 retry_failed_step and 4 retry_workflow skips in ~9h; fixed by skipping while the Workflow is queued or running (Agreement.retry_after_actionable)."
+    },
+    {
+      "id": "stale-auto-retry-workflow",
+      "area": "retries",
+      "title": "A queued auto-retry Workflow is still waiting although its source was superseded by a success",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "stale_auto_retry_workflow"
+      ],
+      "classifiers": [
+        "classify_stale_auto_retry_workflows"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Workflow#cancel_superseded_retry_workflows! (workflow.rb:624-653) only cancels kind 'retry' with a lower id, on Jobs with a PR and matching branch; AutoRetryJob materializing a retry after the success is never cancelled",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "stale_initial_intent_after_successful_retry",
+        "auto_retry_skip_clears_same_attempt_backoff"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "The executor comment records a production loop where the requested intent re-materialized retries. AutoRetryJob/launch should check supersession atomically."
+    },
+    {
+      "id": "auto-retry-bounded",
+      "area": "retries",
+      "title": "Auto-retry is bounded and its backoff never outlives the attempt",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "AutoRetryAttempt budget, AutoRetryBackoff#record!, runaway protection",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "auto_retry_budget_exhausts",
+        "auto_retry_skip_clears_same_attempt_backoff",
+        "codex_overload_initial_retries",
+        "terminal_cleanup_cancelled_retry_recovers",
+        "repeated_pr_open_failure_retry_recovers"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Termination measure (budget). AutoRetryBackoff#record! re-blocks a failed unit (D2), so the terminal state is not absorbing."
+    },
+    {
+      "id": "resumable-agent-session",
+      "area": "retries",
+      "title": "A worker-died agent Run can be resumed from its provider session, or needs a new attempt",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "resumable_agent_session_present",
+        "resumable_agent_session_missing"
+      ],
+      "classifiers": [
+        "classify_resumable_sessions"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "worker death during an agentic Run",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "worker_died_retries_once",
+        "visual_diff_worker_loss_does_not_fail_job"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Recovery opportunity after an external fault; only needs the classifier/executor agreement check."
+    },
+    {
+      "id": "repeated-failure-circuit",
+      "area": "retries",
+      "title": "The same exception keeps failing Runs on the same app revision",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "repeated_failure_circuit_open"
+      ],
+      "classifiers": [
+        "classify_repeated_failure_circuits"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "an application bug or persistent external fault",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "codex_overload_initial_retries"
+      ],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "A deliberate circuit breaker; it is the termination guard for automatic retries."
+    },
+    {
+      "id": "runaway-protection",
+      "area": "retries",
+      "title": "A Job is under runaway protection and will not retry automatically",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "runaway_protection_active"
+      ],
+      "classifiers": [
+        "classify_runaway_protected_jobs"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "job.runaway_protection set after too many attempts",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "auto_retry_budget_exhausts"
+      ],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "A deliberate brake, operator-cleared."
+    },
+    {
+      "id": "branch-diverged",
+      "area": "retries",
+      "title": "Someone pushed to the PR branch and the Workflow's push was rejected",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "branch_diverged_pr_open",
+        "stale_branch_diverged_workflow"
+      ],
+      "classifiers": [
+        "classify_branch_divergence"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "external push to the PR branch",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "remote_moved_push_rebases"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "External fault; recovery is retry_workflow for the latest attempt, discard_superseded_branch_output otherwise."
+    },
+    {
+      "id": "nonretryable-git-failure",
+      "area": "retries",
+      "title": "A Run failed on a git error that will not succeed on retry",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "nonretryable_semantic_git_failure"
+      ],
+      "classifiers": [
+        "classify_nonretryable_failures"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "semantic git failure classified non-retryable",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "merge_train_unverified_member_reconciles_after_land"
+      ],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "Operator-only; the fixtures assert it is not reported as a false positive."
+    },
+    {
+      "id": "landing-slot-exact",
+      "area": "landing",
+      "title": "A landing Workflow runs if and only if it holds the repository landing slot",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "before F7: StepDispatcher.capability_worker_deferred? -> WorkflowBlockProjection.record! -> WorkUnit#block!(no_capable_worker) released the landing lock mid-run",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "blocked_no_capable_worker_does_not_hold_landing_slot",
+        "landing_queue_serializes_contention",
+        "happy_path_single_job_lands"
+      ],
+      "status": "done",
+      "done_by": "F7",
+      "notes": "LandingSlot.SlotExact proved for launch, cannotPlace and finish; parkSurrendering_breaks shows the old behaviour. A true pre-launch capability check is still a follow-up."
+    },
+    {
+      "id": "landing-queue-order",
+      "area": "landing",
+      "title": "At most one landing per repository at a time, and approved Jobs land in queue order",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "landing:repository:<id> lock writers: Launcher#create_lock!, WorkUnit#ensure_active_locks!, AutoRetryBackoff#ensure_locks!",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "landing_queue_serializes_contention",
+        "happy_path_single_job_lands",
+        "transient_landing_failure_defers",
+        "stale_pr_check_base"
+      ],
+      "status": "partial",
+      "done_by": "F7",
+      "notes": "Mutual exclusion is covered by F7's SlotExact; queue order is not modelled."
+    },
+    {
+      "id": "externally-blocked-landing-slot",
+      "area": "landing",
+      "title": "A WorkUnit blocked on something only an operator can clear still holds the landing slot",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "externally_blocked_landing_slot"
+      ],
+      "classifiers": [
+        "classify_externally_blocked_landing_slot"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "legacy rows; AutoRetryBackoff#ensure_locks! (auto_retry_backoff.rb:58-77) re-creates landing:* locks then blocks with a non-external reason",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "blocked_no_capable_worker_does_not_hold_landing_slot",
+        "blocked_ci_repair_does_not_block_job_bundle"
+      ],
+      "status": "partial",
+      "done_by": "F7",
+      "notes": "no_capable_worker landings now fail and hold instead of blocking (F7); ci_repair_disabled and the AutoRetryBackoff re-lock remain unproved."
+    },
+    {
+      "id": "urgent-blocked-landing-slot",
+      "area": "landing",
+      "title": "A landing blocked behind an urgent Job before it started still holds the landing slot",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "urgent_blocked_landing_slot"
+      ],
+      "classifiers": [
+        "classify_urgent_blocked_landing_slot"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "unit blocked on urgent_job_active after its first Run (no release), whose workflow later returns to queued-before-first-run via retry; no concrete current producer found",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "urgent_landing_preempts_blocked_epic_train",
+        "stalled_urgent_job_does_not_starve_repository"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Generalise: a blocked unit that has not started holds no repository landing lock, for every block reason."
+    },
+    {
+      "id": "stranded-landing-job",
+      "area": "landing",
+      "title": "A Job stays in landing although every unit landing it is blocked externally",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "stranded_landing_job"
+      ],
+      "classifiers": [
+        "classify_stranded_landing_job"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "WorkUnit#block! releases the landing lock but leaves member Jobs in landing; Launcher.start! -> ensure_landing_job_state! lifts the Job before Scheduler.evaluate! (launcher.rb:96-101)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "stranded_landing_job_without_lock_returns_to_approved",
+        "blocked_no_capable_worker_does_not_hold_landing_slot"
+      ],
+      "status": "partial",
+      "done_by": "F7",
+      "notes": "F7 removed the no_capable_worker producer for landings; block! still does not defer members for other external reasons."
+    },
+    {
+      "id": "landing-work-job-state",
+      "area": "landing",
+      "title": "A Job being landed by an active landing unit is not in the landing state",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "landing_work_job_state_drift"
+      ],
+      "classifiers": [
+        "classify_landing_work_job_state_drift"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "WorkUnits::Launcher.start! -> ensure_landing_job_state! only lifts job-scoped first-class units (launcher.rb:96-99, 159-169); Workflows::AutoMerge.after_fail lifts after the fact; relaunch via relaunch_context_for_intent!",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "blocked_no_capable_worker_does_not_hold_landing_slot"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Two definitions of 'active landing work' disagree (the reconciler excludes externally blocked units, RuntimeOwnership.active_landing_work? does not), so a deferred Job can be pushed back into landing: possible defer/re-land ping-pong."
+    },
+    {
+      "id": "landing-start-blocked",
+      "area": "landing",
+      "title": "A landing Workflow is blocked before start (main repair, transient gate)",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "landing_start_blocked",
+        "approved_job_landing_start_blocked"
+      ],
+      "classifiers": [
+        "classify_workflows",
+        "classify_approved_jobs_with_landing_start_blockers"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "intentional landing start blocks; landing_failure_kind marker left after the gate cleared",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "transient_landing_failure_defers",
+        "stale_pr_check_base",
+        "main_branch_break_then_heal"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Liveness: the block is eventually rechecked and the marker is a cache of the gate. Low priority."
+    },
+    {
+      "id": "locked-landing-recheck",
+      "area": "landing",
+      "title": "A merge happens only if the Job is approved and its gates pass at the moment of the merge call",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "LandingQueueProcessor#land (landing_queue_processor.rb ~573) locks only the Job row; urgent, Epic sibling and dependency state are read unlocked; Steps::AutoMerge / AutoMergeGate.evaluate pass expected_sha",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "transient_landing_failure_defers",
+        "externally_merged_pr_unblocks_dependent"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "ADR-0005; holds modulo GitHub's expected_sha semantics, which is the real fence."
+    },
+    {
+      "id": "merge-train-failed-member-landed",
+      "area": "merge-trains",
+      "title": "A merge train succeeded but a member whose commit landed is marked failed",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "succeeded_merge_train_failed_member_reconciliation"
+      ],
+      "classifiers": [
+        "classify_succeeded_merge_trains_with_failed_members"
+      ],
+      "class": "a",
+      "safety_or_liveness": "both",
+      "producer": "Steps::MergeTrainLand#handle_unverified_member! / reconcile_members_after_landing! rescue (merge_train_land.rb:396-410, 568-571) then finish_landed_train!; inline evidence window starts at workflow.created_at, the repair's at train.created_at",
+      "prod_applied": 4,
+      "prod_skipped": 0,
+      "simulator": [
+        "succeeded_merge_train_failed_member_reconciliation",
+        "merge_train_unverified_member_reconciles_after_land"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Produced by design through two different evidence windows: a member built by an earlier attempt on the same train is rejected inline and accepted by the repair. One shared evidence predicate removes the state."
+    },
+    {
+      "id": "merge-train-merged-implies-evidence",
+      "area": "merge-trains",
+      "title": "A merge train never marks a member merged unless its work is reachable from the landed integration commit",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Steps::MergeTrainLand member reconciliation; never merge_train_land with a dirty grader barrier",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "merge_train_inherited_grader_failure_full_base_retry",
+        "merge_train_recovers_from_repeated_base_moves",
+        "parallel_merge_train_blocks_dirty_publication",
+        "happy_path_epic_merge_train_lands"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "The safety half of the evidence property; provable once there is one evidence predicate."
+    },
+    {
+      "id": "stale-active-merge-train",
+      "area": "merge-trains",
+      "title": "A merge train is still active but nothing owns it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "stale_active_merge_train_without_runtime"
+      ],
+      "classifiers": [
+        "classify_stale_active_merge_trains_without_runtime"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "train workflow terminal without MergeTrainFailureHandler.call completing; a preserved train (merge_train_failure_handler.rb:291-360) whose relaunch AutoRetryAttempt was lost past the 10-minute window",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "stale_active_merge_train_blocks_landing",
+        "stale_member_state_train_rebuilds_without_cooldown",
+        "merge_train_invalid_workspace_rebuilds",
+        "paused_queue_allows_active_merge_train_continuation"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Classifier counts blocked train workflows as owners but the executor re-check uses only queued/running (minor inconsistency). Needs atomic terminal hooks plus a fairness assumption for preserved relaunches."
+    },
+    {
+      "id": "stack-children-rebased-after-train",
+      "area": "merge-trains",
+      "title": "Stack children landed by the same train as their parent are rebased anyway",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Job#rebase_stack_children_after_successful_parent_close -> StackRebaseCoordinator.parent_merged",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "already_landed_stack_rebase",
+        "epic_merge_train_after_approval_events"
+      ],
+      "status": "done",
+      "done_by": "F5",
+      "notes": "Fixed with a direct guard; the general property (no Run starts for a closed Job) is F6."
+    },
+    {
+      "id": "epic-wide-workflow-conflict",
+      "area": "epics",
+      "title": "An Epic-wide Workflow runs alongside other Workflows in the same Epic",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "epic_workflow_conflict"
+      ],
+      "classifiers": [
+        "classify_epic_workflow_conflicts"
+      ],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "StepDispatcher.start_workflow -> EpicWorkflowLock.blocking_workflow_for (step_dispatcher.rb:66-84) only checks other Epic-wide workflows, not under an Epic lock",
+      "prod_applied": 6,
+      "prod_skipped": 0,
+      "simulator": [
+        "urgent_landing_preempts_blocked_epic_train",
+        "epic_merge_train_after_approval_events"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "An Epic-wide workflow starts while children run and the reconciler cancels the children afterwards (6 applied); two Epic-wide starts can race (check-then-act)."
+    },
+    {
+      "id": "epic-conflict-victim-not-relaunched",
+      "area": "epics",
+      "title": "A Job cancelled to make room for an Epic-wide Workflow is never restarted",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_job_after_epic_workflow_conflict"
+      ],
+      "classifiers": [
+        "classify_queued_jobs_cancelled_by_epic_workflow_conflict"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "no finish hook on the Epic-wide workflow re-launches the Jobs it preempted",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "open",
+      "done_by": null,
+      "notes": "Pair 'cancel(reason = epic lock)' with an obligation discharged when the Epic-wide unit ends; the reconciler is the only relauncher today."
+    },
+    {
+      "id": "epic-blocked-job-releasable",
+      "area": "epics",
+      "title": "A Job stays blocked by its Epic although the Epic now releases it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "releasable_epic_blocked_job"
+      ],
+      "classifiers": [
+        "classify_releasable_epic_blocked_jobs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "Epic#unblock_child_jobs! runs on some Epic/Job events (epic.rb:131, 396, 586; job.rb:1856-1866) but not on every input change of releases_jobs_for_execution?",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "epic_dependency_waits_for_upstream_epic",
+        "happy_path_two_epic_dependency_lands",
+        "happy_path_job_with_epic_dependency_lands",
+        "cross_epic_approved_parent_waits_for_merge"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Missed wakeup; better to make blocked_by_epic a derived predicate so it cannot drift."
+    },
+    {
+      "id": "epic-linear-children",
+      "area": "epics",
+      "title": "Children of a linear Epic never implement in parallel",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "StepDispatcher.epic_sibling_blocking? (step_dispatcher.rb ~347) is a read-only check in start_workflow with no epic:<id> lock for initial work; epic_sibling_turn_winner falls back to queued.first",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "linear_epic_siblings_implement_in_turn",
+        "epic_chain_waits_for_operator_approval",
+        "same_epic_approved_chain_runs_to_next_approval",
+        "same_epic_approved_parent_unblocks_child"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "The operator calls this mandatory and epic_dependency_policy is inert. Pure check-then-act over a concurrently mutated set; no concrete double start constructed yet."
+    },
+    {
+      "id": "dependencies-respected",
+      "area": "epics",
+      "title": "A Job never starts before its Job, Epic and cross-Epic dependencies are satisfied, and starts once they are",
+      "kind": "property",
+      "issue_kinds": [
+        "stale_dependency_start_block",
+        "dependency_stack_start_block"
+      ],
+      "classifiers": [
+        "classify_workflows",
+        "classify_start_blocks"
+      ],
+      "class": "a",
+      "safety_or_liveness": "both",
+      "producer": "dependency start blocks recorded with backoff; satisfying a dependency (Job#start_dependent_jobs_after_implementation, job.rb ~939) does not always wake every blocked dependent",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "job_dependency_success",
+        "happy_path_job_dependency_dag_lands",
+        "happy_path_epic_with_job_dependencies_lands",
+        "happy_path_epic_job_depends_on_external_job_lands",
+        "happy_path_job_with_epic_dependency_lands",
+        "externally_merged_pr_unblocks_dependent",
+        "dependent_active_initial_dedup_collision",
+        "single_initial_success"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Safety (no early start) is easy; liveness needs every dependency event to wake its dependents. stale_dependency_start_block is the missed-wakeup symptom."
+    },
+    {
+      "id": "queued-workflow-without-first-run",
+      "area": "start-blocks",
+      "title": "A queued Workflow never got its first Run",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "queued_workflow_without_first_run"
+      ],
+      "classifiers": [
+        "classify_workflows"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "StepDispatcher.start_workflow returns without a Run and without any block record or recheck for provider_routing_held? (step_dispatcher.rb:31-36), the coding-mode hold (58-63) and backlog (43-47)",
+      "prod_applied": 0,
+      "prod_skipped": 204,
+      "simulator": [
+        "queued_workflow_without_first_run",
+        "superseded_ci_repair_base_resolves"
+      ],
+      "status": "open",
+      "done_by": "F4",
+      "notes": "204 skipped, 0 applied in ~9h: the classifier fires on legitimately blocked workflows and the executor declines ('workflow start remained blocked'); the three recheck-less holds rely on the reconciler alone."
+    },
+    {
+      "id": "deferral-schedules-recheck",
+      "area": "start-blocks",
+      "title": "Every start block or phase deferral either clears or has a scheduled recheck",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "start_workflow urgent_blocking? branch (step_dispatcher.rb ~180-187) records a block with no WorkflowPhaseAdmissionJob; dependency_failed, stack and job_not_ready branches; start_blocked_backoff_active? early return; create_run_and_enqueue nil returns",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "stalled_urgent_job_does_not_starve_repository",
+        "parallel_grader_retry_cleared_barrier_allows_tail"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Liveness under fairness of background jobs; proving it pinpoints each branch that relies on the reconciler as its only wakeup."
+    },
+    {
+      "id": "resource-admission-start-block",
+      "area": "start-blocks",
+      "title": "A Workflow paused at a phase boundary is not resumed after its admission recheck time",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "resource_admission_start_block"
+      ],
+      "classifiers": [
+        "classify_start_blocks"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "lost or delayed WorkflowPhaseAdmissionJob from Launcher.schedule_blocked_recheck! (launcher.rb:140-150)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "parallel_merge_train_blocks_dirty_publication"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Same kind is also emitted (info) for a queued workflow intentionally waiting on admission; model the recheck job as a token whose loss is a fault."
+    },
+    {
+      "id": "intentional-start-blocks",
+      "area": "start-blocks",
+      "title": "A queued Workflow is intentionally waiting for its turn or for main to be healthy",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "serialized_start_block",
+        "main_health_start_block",
+        "main_branch_broken"
+      ],
+      "classifiers": [
+        "classify_start_blocks",
+        "classify_main_broken_workflows"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "Epic-turn serialization; main-health gate",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "linear_epic_siblings_implement_in_turn",
+        "main_branch_break_then_heal"
+      ],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "Info-only waiting states; only their eventual clearing is a (liveness) obligation."
+    },
+    {
+      "id": "gates-starvation-free",
+      "area": "start-blocks",
+      "title": "Urgent, landing-slot and Epic-turn gates never starve other work forever",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "UrgentWorkGate.progressing 30-minute window; EXTERNALLY_CLEARED_BLOCKED_REASONS allowlist; epic_sibling_turn_winner (step_dispatcher.rb ~374)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "stalled_urgent_job_does_not_starve_repository",
+        "urgent_landing_preempts_blocked_epic_train",
+        "blocked_ci_repair_does_not_block_job_bundle",
+        "obsolete_visual_diff_does_not_block_job_bundle",
+        "agent_insight_sweep_does_not_block_job_bundle"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats again, in tension with landing-slot-exact."
+    },
+    {
+      "id": "provider-pause-readmits",
+      "area": "start-blocks",
+      "title": "Provider unavailability only pauses admission, and recovery re-admits exactly the paused work",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "stale_provider_blocked_work_unit",
+        "rate_limit"
+      ],
+      "classifiers": [
+        "classify_stale_provider_blocked_work_units",
+        "classify_rate_limits"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "WorkUnits::StaleProviderRelauncher.stale? (unit blocked on a provider the Job no longer resolves to); open ProviderCircuitBreaker",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "provider_usage_pause_then_resume",
+        "provider_auth_pause_then_resume",
+        "provider_switch_relaunches_blocked_work",
+        "codex_overload_initial_retries"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Liveness under fairness; low priority."
+    },
+    {
+      "id": "resource-congestion",
+      "area": "start-blocks",
+      "title": "Agent capacity is saturated while Runs are queued",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "resource_congestion"
+      ],
+      "classifiers": [
+        "classify_resource_congestion"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "running agent Runs at the configured maximum, or a worker data-root alert",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "Observation only; the provable part is the capacity invariant running <= max."
+    },
+    {
+      "id": "stale-agent-blocked-workflow",
+      "area": "start-blocks",
+      "title": "A Workflow the agent said it cannot proceed with has been blocked for a long time",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "stale_agent_blocked_workflow"
+      ],
+      "classifiers": [
+        "classify_workflows"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "cannot_proceed artifact awaiting the operator",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "Operator wait; exclude from safety proofs."
+    },
+    {
+      "id": "checkpoint-backed-blocked",
+      "area": "retries",
+      "title": "A blocked Workflow on a failed Job has a verified checkpoint and could be retried from it",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "checkpoint_backed_blocked_workflow"
+      ],
+      "classifiers": [
+        "classify_checkpoint_backed_blocked_workflows"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "BaseRefreshRetryEligibility on a quiescent blocked workflow",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "checkpoint_backed_blocked_stack_recovery",
+        "checkpoint_resume_rejects_dirty_grader_barrier"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Recovery opportunity, not a bad state; the negative fixture guards against resuming past a dirty grader barrier."
+    },
+    {
+      "id": "workspace-missing",
+      "area": "workspaces",
+      "title": "A live Workflow's workspace directory is gone",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "workspace_missing"
+      ],
+      "classifiers": [
+        "classify_workspace_availability"
+      ],
+      "class": "c",
+      "safety_or_liveness": "liveness",
+      "producer": "disk or node loss",
+      "prod_applied": 6,
+      "prod_skipped": 1,
+      "simulator": [
+        "grader_fanout_workspace_loss_reconstructs",
+        "grader_fanout_workspace_loss_retries",
+        "workspace_missing_diagnostic",
+        "merge_train_invalid_workspace_rebuilds"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Model storage loss as an environment action and prove recovery leaves no Run pinned to the lost storage key."
+    },
+    {
+      "id": "workspace-prune-risk",
+      "area": "workspaces",
+      "title": "A failed Workflow's workspace is about to be pruned",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "workflow_workspace_prune_risk"
+      ],
+      "classifiers": [
+        "classify_workspace_prune_risks"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "retention timer on failed, uncleaned workflows",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "Time-based warning; workspace cleanup only on Workflow terminal (never in a Step ensure) is the related promise."
+    },
+    {
+      "id": "artifact-lost-update",
+      "area": "concurrency",
+      "title": "Saving Workflow artifacts never reverts a key another process wrote concurrently",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "WorkUnits::WorkflowCancellation#cancel! pre-lock snapshot merge (workflow_cancellation.rb:44-60); Workflow#persist_assigned_external_artifacts wrote every staged key",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F2",
+      "notes": "Artifacts.delta_preserves_concurrent proved; deletions of omitted keys are still whole-bag and not modelled."
+    },
+    {
+      "id": "lock-acquisition-nil-owner",
+      "area": "concurrency",
+      "title": "Lock acquisition never silently succeeds without a lock row",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Launcher#create_lock! rescue (launcher.rb ~379-388) and WorkUnit#ensure_active_locks! rescue (work_unit.rb ~293-301) return normally when active_unit_for_lock_key finds no active owner",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "dependent_active_initial_dedup_collision"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Inconsistent with the dedup path, which raises LockConflict. A lock row left on a non-active unit would make the key permanently lockless for newcomers."
+    },
+    {
+      "id": "single-live-executor",
+      "area": "concurrency",
+      "title": "At most one live worker executes a Run, or any serial Step of a Workflow, at a time",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "c",
+      "safety_or_liveness": "safety",
+      "producer": "RunJob#acquire_run_execution! row lock + time-based lease; handle_running_reentry declares a worker dead after Run::STALE_HEARTBEAT_THRESHOLD (30 min); WorkflowWorkspaceRecovery#requeue! via update_columns",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "worker_died_retries_once",
+        "parallel_grader_worker_loss_retries"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "No fencing token: a slow-but-alive worker can keep mutating and pushing after being declared dead. Known, accepted (write fence deferred); state as an assumption in the model."
+    },
+    {
+      "id": "lock-order-acyclic",
+      "area": "concurrency",
+      "title": "All code takes row locks in one global order, so lock cycles cannot deadlock",
+      "kind": "history",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "RunJob: Run -> Workflow/Step -> WorkUnit -> Job; RetryFailedStepEnqueuer#call: Job -> Step/Run; LandingQueueProcessor#land: Job -> WorkUnit",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "open",
+      "done_by": null,
+      "notes": "Run->Job vs Job->Run is a potential cycle; today safety comes from with_lifecycle_lock_retry and DB deadlock detection, not ordering."
+    },
+    {
+      "id": "launch-funnel",
+      "area": "concurrency",
+      "title": "Every Workflow is created through WorkUnits::Launcher and every RunJob only by Run#after_create_commit",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "enforced by spec/architecture/workflow_launch_funnel_spec.rb (ADR-0007)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "single_initial_success",
+        "happy_path_single_job_lands"
+      ],
+      "status": "partial",
+      "done_by": "O1",
+      "notes": "Architecture-spec enforced; the Lean statement 'every Workflow has a WorkUnit' needs N:1 allowance (O1)."
+    },
+    {
+      "id": "completed-infrastructure-job",
+      "area": "infrastructure-jobs",
+      "title": "An infrastructure or main-branch-repair Job finished its work but stays open",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "completed_infrastructure_job"
+      ],
+      "classifiers": [
+        "classify_completed_infrastructure_jobs"
+      ],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "workflow-terminal hook skipped or raised; main_branch_repair has no close-on-success hook (mark_implemented closes infra jobs, job.rb ~756)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "agent_insight_sweep_does_not_block_job_bundle"
+      ],
+      "status": "open",
+      "done_by": null,
+      "notes": "Invariant: infra Job with a terminal latest workflow is closed; F6's apply-on-finish closure path is the natural place to make it atomic."
+    },
+    {
+      "id": "stuck-main-branch-repair",
+      "area": "infrastructure-jobs",
+      "title": "The Job repairing a broken main branch is not progressing",
+      "kind": "issue_kind",
+      "issue_kinds": [
+        "stuck_main_branch_repair_job"
+      ],
+      "classifiers": [
+        "classify_stuck_main_branch_repair_jobs"
+      ],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "MainHealthChangedService#stuck_blocking_repair_job",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [
+        "main_branch_break_then_heal"
+      ],
+      "status": "by-design",
+      "done_by": null,
+      "notes": "A judgement call for the operator, not a structural predicate."
+    },
+    {
+      "id": "classifier-executor-agreement",
+      "area": "reconciler",
+      "title": "The reconciler only flags states one of its planned repairs can actually execute",
+      "kind": "property",
+      "issue_kinds": [
+        "queued_step_without_run",
+        "queued_workflow_without_first_run",
+        "succeeded_review_loop_needs_work_without_repair",
+        "running_workflow_without_active_descendants",
+        "retryable_run_failure",
+        "closed_job_active_runtime_work"
+      ],
+      "classifiers": [],
+      "class": "b",
+      "safety_or_liveness": "liveness",
+      "producer": "WorkEngine::Reconciler classifier predicates vs WorkEngine::RepairExecutor re-checks",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "F4",
+      "notes": "Agreement.Actionable proved only for retryable_run_failure. The skip counts on the listed kinds (534, 204, 14, 8, 7 in ~9h) are the remaining disagreement loops."
+    },
+    {
+      "id": "reconciler-respects-domain",
+      "area": "reconciler",
+      "title": "The reconciler never repairs a state the domain logic deliberately produces, so the two controllers converge",
+      "kind": "property",
+      "issue_kinds": [
+        "waiting_work_intent_with_active_unit"
+      ],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "WorkEngine::Reconciler vs domain controllers (JobWakeup, StepDispatcher, Workflow#fail! tail)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "F1",
+      "notes": "Agreement.Agrees/converges proved for waiting intents; the same check applies to cleanup_blocked_by_active_descendants (fail! keeps the tail on purpose) and active-step-with-terminal-runs (barrier no-cascade cancels)."
+    }
+  ]
+}
