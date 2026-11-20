@@ -158,9 +158,12 @@ describe("ProviderRoutingRulesEditor", () => {
     await waitFor(() => expect(accountSelect).toHaveValue("codex-account-1"))
     fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
 
-    expect(onUpdateRule).toHaveBeenCalledWith(rules[0], expect.objectContaining({
-      action: expect.objectContaining({ candidates: [expect.objectContaining({ account_id: "codex-account-1" })] })
-    }))
+    expect(onUpdateRule).toHaveBeenCalledWith(
+      rules[0],
+      expect.objectContaining({
+        action: expect.objectContaining({ candidates: [expect.objectContaining({ account_id: "codex-account-1" })] })
+      })
+    )
   })
 
   it("renders ordered first-match rules with read-only inherited rows", () => {
