@@ -36,5 +36,11 @@ hidden sibling partial directory, and made read-only.
 Local Backups also supplies the versioned backup artifact-source capability.
 Destination plugins consume opaque artifact identities and streams through
 that contract; they do not receive arbitrary local filesystem access.
-Scheduling, retention, download, replication execution, and restore are
-separate product stages and are not available from this inventory page.
+On Docker Compose, `SYRUS_BACKUP_HOST_PATH` selects a host-visible directory
+that is separate from the installer's upgrade safety archives. The worker
+mounts it read-write and web mounts it read-only. Daily scheduled creation is
+enabled with `SYRUS_BACKUP_SCHEDULE_ENABLED=1`; count and age retention use
+`SYRUS_BACKUP_KEEP_COUNT` and `SYRUS_BACKUP_KEEP_DAYS`. Pinned artifacts and
+the newest valid recovery point are never deleted. Administrators can create,
+validate, pin, unpin, and delete eligible artifacts from the inventory page.
+Replication execution and restore remain separate product stages.

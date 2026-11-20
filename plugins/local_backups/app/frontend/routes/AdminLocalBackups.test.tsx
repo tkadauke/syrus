@@ -8,7 +8,7 @@ import AdminLocalBackups from "./AdminLocalBackups"
 describe("AdminLocalBackups", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("renders the read-only sealed inventory", async () => {
+  it("renders sealed inventory controls", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({
         root: { configured: true, path: "/srv/backups" },
@@ -27,7 +27,9 @@ describe("AdminLocalBackups", () => {
             source_application_version: "1.2.3",
             artifact_checksum: "abc",
             checksum_algorithm: "sha256",
-            encryption_key_fingerprint: "sha256:def"
+            encryption_key_fingerprint: "sha256:def",
+            pinned: false,
+            state: "completed"
           }
         ]
       })
@@ -43,6 +45,8 @@ describe("AdminLocalBackups", () => {
 
     expect(await screen.findByText("/srv/backups")).toBeInTheDocument()
     expect(screen.getByText("sqlite3")).toBeInTheDocument()
-    expect(screen.queryByRole("button")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Create backup" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Validate" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Pin" })).toBeInTheDocument()
   })
 })

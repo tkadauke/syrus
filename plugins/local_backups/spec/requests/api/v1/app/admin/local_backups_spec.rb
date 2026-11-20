@@ -39,4 +39,10 @@ RSpec.describe "API: local backup inventory", type: :request do
     expect(JSON.parse(response.body).fetch("backups").sole).to include("uuid" => uuid)
     expect(response.body).not_to include("delete_url", "restore_url", "download_url")
   end
+
+  it "queues on-demand creation for an administrator" do
+    sign_in_as(admin)
+    expect { post "/api/v1/app/admin/local_backups" }.to have_enqueued_job(LocalBackups::CreateJob).with(reason: "manual")
+    expect(response).to have_http_status(:accepted)
+  end
 end

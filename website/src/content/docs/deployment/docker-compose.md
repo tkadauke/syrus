@@ -399,6 +399,14 @@ missing-row repairs remain separate signals.
 ## Persist and back up
 
 Application data lives in the `syrus-data` and `syrus-search` named volumes.
+Portable recovery bundles created by the Local Backups plugin live separately
+at `SYRUS_BACKUP_HOST_PATH` (default `./local-backups` beside the Compose
+file). Set this to an absolute host path before production use. The worker has
+write access; the web container receives the same directory read-only. The
+plugin can create, validate, pin, and retain bundles from **Admin → Local
+Backups**. These recovery bundles are separate from the installer's temporary
+pre-upgrade safety archives under `backups/`.
+
 Fresh installs bound the prepared-workspace cache and retained Coding Mode
 checkouts to 10 GB each so these volumes cannot grow without a local policy.
 Existing stored settings survive upgrades. Inspect the instance defaults and
