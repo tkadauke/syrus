@@ -233,6 +233,32 @@ RSpec.describe RunJob, :ci_only do
       expect(implement.runs.first.job_logs.pluck(:chunk).join).to include("released its provider while waiting for permission")
     end
 
+    # A workspace repair (or reaper, or operator stop) can end the Run while
+    # implement is still preparing. Launching the agent afterwards only failed
+    # against an already-closed invocation context and overwrote the real
+    # outcome with "agent reported error".
+    it "stops before launching the agent when the Run was ended externally during preparation" do
+      launched_kinds = []
+      RunJob.agent_runner = ->(**kwargs) {
+        launched_kinds << Thread.current[:syrus_current_run].step.kind
+        default_agent_runner(**kwargs)
+      }
+      allow_any_instance_of(Steps::Implement).to receive(:run_agent).and_wrap_original do |original, *args, **kwargs|
+        current = original.receiver.run
+        Run.where(id: current.id).update_all(state: "failed", finished_at: Time.current, agent_outcome: "workspace_recovery_failed")
+        original.call(*args, **kwargs)
+      end
+
+      job
+      drain_workflow!(job)
+
+      implement = job.workflows.first.steps.find_by!(kind: "implement")
+      run = implement.runs.first.reload
+      expect(launched_kinds).not_to include("implement")
+      expect(run).to have_attributes(state: "failed", agent_outcome: "workspace_recovery_failed")
+      expect(run.job_logs.pluck(:chunk).join).to include("stopped: run ##{run.id} is failed; stopping before launching the agent")
+    end
+
     it "runs implement → summarize → pr_open end-to-end, opens PR, and records commit metadata" do
       expect(PollRebaseJob).to receive(:set).with(hash_including(:wait)).and_return(double(perform_later: true))
 

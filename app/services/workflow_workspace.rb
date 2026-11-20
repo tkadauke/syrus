@@ -114,6 +114,37 @@ class WorkflowWorkspace
     data_root.join("agent_homes", "jobs", workflow.job_id.to_s, provider.to_s)
   end
 
+  # How long a remote owner may go unseen before this process concludes its
+  # workspace is gone. The live-queue check uses a two-minute heartbeat
+  # window, and a remote worker's heartbeats can gap past that while it is
+  # busy; a gap is "unknown, check later", not "missing".
+  REMOTE_OWNER_GONE_AFTER = Run::STALE_HEARTBEAT_THRESHOLD
+
+  # Whether the workspace was recorded on another worker's storage, so this
+  # process's own disk says nothing about it.
+  def self.remote_owned?(workflow)
+    storage_key = workflow.worker_storage_key.presence
+    return storage_key != WorkerStorageIdentity.queue_key if storage_key
+
+    host = workflow.worker_hostname.presence
+    host.present? && host != SyrusVersion.hostname
+  end
+
+  # True when the workspace lives on another worker that is live now or was
+  # seen recently enough that its absence here proves nothing. Only a remote
+  # owner silent past REMOTE_OWNER_GONE_AFTER (or a workspace this process
+  # owns) lets local-disk checks conclude it is missing.
+  def self.remote_owner_may_hold_workspace?(workflow, now: Time.current)
+    return false unless remote_owned?(workflow)
+    return true if remote_live_worker_workspace?(workflow)
+
+    cutoff = now - REMOTE_OWNER_GONE_AFTER
+    host = workflow.worker_hostname.presence
+    owner_seen = host.present? &&
+      InstanceVersion.where(hostname: host, role: "worker").where("last_heartbeat_at >= ?", cutoff).exists?
+    owner_seen || workflow.runs.active.where("last_heartbeat_at >= ?", cutoff).exists?
+  end
+
   def self.remote_live_worker_workspace?(workflow)
     storage_key = workflow.worker_storage_key.presence
     if storage_key.present?
@@ -196,7 +227,7 @@ class WorkflowWorkspace
   #   - the recorded storage root is not live (pod/node gone or old hostname
   #     without a live worker).
   def self.cleanable_here?(workflow)
-    !remote_live_worker_workspace?(workflow)
+    !remote_owner_may_hold_workspace?(workflow)
   end
 
   def self.cleanup_for(workflow, force_local: false, actor: "workflow_workspace", reason: "workflow cleanup")

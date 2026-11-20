@@ -274,6 +274,37 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(sh("git -C #{checkout.path} diff --name-only origin/main...HEAD").lines.map(&:strip)).to eq([ "feature.txt" ])
   end
 
+  # A checkout restored from a prepared layer kept the remote-tracking refs it
+  # was built with. A stacked Job's grader then found an origin/main from
+  # hours earlier next to its real base, and a repository script that
+  # preferred origin/main graded main's newer migrations as the branch's own.
+  it "keeps only the base and source refs, dropping a stale origin/main a stacked checkout inherited" do
+    sh("git --git-dir=#{bare_remote_dir} update-ref refs/heads/syrus/parent refs/heads/feature")
+    workflow.update!(artifacts: { RebaseTarget::BASE_BRANCH_ARTIFACT => "syrus/parent" })
+    snapshot.update!(source_ref: "refs/syrus/source-snapshots/runs/123", source_sha: feature_sha, tree_sha: feature_tree_sha)
+    checkout = described_class.new(step)
+    checkout.setup
+    # As a checkout restored from a layer built before main moved would hold.
+    sh("git -C #{checkout.path} update-ref refs/remotes/origin/main #{main_sha}")
+
+    checkout.send(:ensure_base_ref!)
+
+    refs = sh("git -C #{checkout.path} for-each-ref --format='%(refname)' refs/remotes").lines.map(&:strip)
+    expect(refs).to eq([ "refs/remotes/origin/syrus/parent" ])
+    expect(sh("git -C #{checkout.path} rev-parse refs/remotes/origin/syrus/parent").strip).to eq(feature_sha)
+  end
+
+  it "keeps origin/HEAD and the source branch for a branch snapshot" do
+    checkout = described_class.new(step)
+    checkout.setup
+    sh("git -C #{checkout.path} update-ref refs/remotes/origin/leftover #{main_sha}")
+
+    checkout.send(:ensure_base_ref!)
+
+    refs = sh("git -C #{checkout.path} for-each-ref --format='%(refname)' refs/remotes").lines.map(&:strip)
+    expect(refs).to contain_exactly("refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+  end
+
   it "resolves a deleted stacked base branch to the parent's landed commit" do
     parent = Factories.job_record(user: user, repository: repository, state: "closed", landed_sha: feature_sha)
     job.update!(parent_job: parent)

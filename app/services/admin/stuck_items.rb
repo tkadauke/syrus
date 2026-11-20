@@ -34,6 +34,7 @@ module Admin
       wait_for_queue_resume
       wait_for_resource_admission
       wait_for_start_block_to_clear
+      wait_for_turn
       retry_or_archive_before_workspace_prune
     ].freeze
 
@@ -171,6 +172,8 @@ module Admin
         "Resource admission delayed: #{issue.explanation}"
       when "main_health_start_block"
         "Main health blocked: #{issue.explanation}"
+      when "serialized_start_block"
+        "Waiting its turn: #{issue.explanation}"
       when "retryable_run_failure"
         "Failed step retryable: #{issue.explanation} #{repair_plan&.reason}"
       when "nonretryable_semantic_git_failure"

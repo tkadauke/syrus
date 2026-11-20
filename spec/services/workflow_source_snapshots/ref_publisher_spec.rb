@@ -62,6 +62,26 @@ RSpec.describe WorkflowSourceSnapshots::RefPublisher, :ci_only do
     expect(publish!).to eq(remote_ref)
   end
 
+  # GitRunner merges stderr into the output it returns. A credential helper
+  # or proxy complaining on stderr while ls-remote still succeeded put
+  # "fatal: ..." first, and the publisher read "fatal:" as the ref's SHA and
+  # failed the step for a ref that was simply not published yet.
+  it "ignores diagnostic lines when reading the published ref" do
+    allow(git).to receive(:run).with("ls-remote", anything, remote_ref, any_args)
+      .and_return("fatal: unable to read credential helper output\n")
+    expect(git).to receive(:run).with("push", anything, "#{source_sha}:#{remote_ref}", any_args).and_return("")
+
+    expect(publish!).to eq(remote_ref)
+  end
+
+  it "finds the matching ref line after diagnostic noise" do
+    allow(git).to receive(:run).with("ls-remote", anything, remote_ref, any_args)
+      .and_return("warning: redirecting to https://example.test/repo.git/\n#{source_sha}\t#{remote_ref}\n")
+    expect(git).not_to receive(:run).with("push", anything, anything, any_args)
+
+    expect(publish!).to eq(remote_ref)
+  end
+
   it "rejects an already-published ref that targets another SHA" do
     allow(git).to receive(:run).with("ls-remote", anything, remote_ref, any_args)
       .and_return("#{'b' * 40}\t#{remote_ref}\n")

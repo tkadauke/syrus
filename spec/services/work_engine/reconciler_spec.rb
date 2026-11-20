@@ -5674,6 +5674,77 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
+  describe "active WorkUnits on terminal workflows" do
+    before do
+      run.update_columns(state: "succeeded", finished_at: 1.hour.ago)
+      step.update_columns(state: "succeeded")
+    end
+
+    it "flags a unit that still holds locks after its workflow failed" do
+      workflow.update_columns(state: "failed", finished_at: 1.hour.ago)
+      attach_work_unit(workflow, state: "running")
+
+      result = reconcile(workflow_id: workflow.id)
+
+      expect(kind(result, :active_work_unit_terminal_workflow_locks)).to be_present
+    end
+
+    # The blocked unit holding the Job lock is the hold an agent-blocked
+    # workflow is meant to have; calling it stale asked operators to retire
+    # it, which would let other work start on a Job still waiting on them.
+    it "does not flag the Job lock an agent-blocked workflow deliberately keeps" do
+      workflow.update_columns(state: "blocked", finished_at: 1.hour.ago)
+      attach_work_unit(workflow, state: "blocked")
+
+      result = reconcile(workflow_id: workflow.id)
+
+      expect(kind(result, :active_work_unit_terminal_workflow_locks)).to be_nil
+    end
+
+    it "does not report the Job as running without runtime work while it waits on that block" do
+      job.update_columns(state: "running", updated_at: 2.hours.ago)
+      workflow.update_columns(state: "blocked", finished_at: 1.hour.ago)
+      attach_work_unit(workflow, state: "blocked")
+
+      result = reconcile(job_id: job.id)
+
+      expect(kind(result, :job_without_active_runtime_work)).to be_nil
+    end
+
+    it "still reports a running Job whose only workflow failed" do
+      job.update_columns(state: "running", updated_at: 2.hours.ago)
+      workflow.update_columns(state: "failed", finished_at: 1.hour.ago)
+
+      result = reconcile(job_id: job.id)
+
+      expect(kind(result, :job_without_active_runtime_work)).to be_present
+    end
+  end
+
+  it "reports an Epic child waiting for its sibling as waiting its turn, not as main health" do
+    run.destroy!
+    update_columns_with_artifacts(workflow, state: "queued",
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    attach_work_unit(
+      workflow,
+      blocked_reason: StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::EPIC_SIBLING_BLOCK_REASON }
+    )
+    allow(StepDispatcher).to receive(:epic_sibling_blocking?).and_return(true)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :main_health_start_block)).to be_nil
+    issue = kind(result, :serialized_start_block)
+    expect(issue).to have_attributes(severity: "info", safe_to_auto_repair: false, recommended_repair_action: "wait_for_turn")
+    expect(plan(result, :wait_for_turn).auto_executable).to eq(false)
+  end
+
   it "classifies main-health start blocks with the matching wait-only action" do
     run.destroy!
     job.repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, ci_health: "broken", landing_paused: true)
@@ -6604,11 +6675,13 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "recovers a missing workspace after its recorded storage owner disappears" do
     workflow.update_columns(
-      state: "running", started_at: 5.minutes.ago,
+      state: "running", started_at: 2.hours.ago,
       worker_hostname: "retired-worker", worker_storage_key: "retired-storage"
     )
-    step.update_columns(state: "running", started_at: 5.minutes.ago)
-    run.update_columns(state: "running", started_at: 5.minutes.ago, last_heartbeat_at: 5.minutes.ago)
+    step.update_columns(state: "running", started_at: 2.hours.ago)
+    # Silent past the gone-after window: a recent heartbeat would mean the
+    # owner was alive moments ago, which is no evidence the workspace is gone.
+    run.update_columns(state: "running", started_at: 2.hours.ago, last_heartbeat_at: 45.minutes.ago)
     allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-retired-storage").and_return(false)
     allow(File).to receive(:directory?).and_call_original
     allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
@@ -6620,6 +6693,29 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       recommended_repair_action: "recover_missing_workspace"
     )
     expect(plan(result, :recover_missing_workspace)).to have_attributes(auto_executable: true)
+  end
+
+  # A remote worker (the native macOS worker, for one) can miss the
+  # two-minute queue-liveness window while busy. The workspace is on its disk,
+  # not this one, so a gap must read as "check later": recovering it failed a
+  # Run the owner was still preparing, and the owner then launched its agent
+  # against an invocation that had already ended.
+  it "does not report a remote owner's workspace missing during a heartbeat gap" do
+    InstanceVersion.create!(hostname: "mac-worker", role: "worker", version: "x",
+                            started_at: 1.hour.ago, last_heartbeat_at: 4.minutes.ago)
+    allow(WorkerStorageIdentity).to receive(:queue_key).and_return("storage-linux")
+    allow(InstanceVersion).to receive(:worker_queue_live?).and_call_original
+    allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-storage-mac").and_return(false)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago, worker_hostname: "mac-worker", worker_storage_key: "storage-mac")
+    step.update_columns(state: "running", started_at: 10.minutes.ago)
+    run.update_columns(state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 4.minutes.ago)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :workspace_missing)).to be_nil
+    expect(plan(result, :recover_missing_workspace)).to be_nil
   end
 
   it "classifies resumable agent sessions present and missing" do

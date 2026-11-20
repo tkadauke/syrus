@@ -237,6 +237,40 @@ RSpec.describe "bin/check-migrations", :ci_only do
     expect(stdout).to include("[check-migrations] ok (0 changed files")
   end
 
+  # A grader checkout can carry a stale origin/main alongside the Job's real
+  # base. Diffing against it turned migrations that landed on main after it
+  # into "this branch's changes", so a Job failed migration-lint on every
+  # retry for an upstream file no repair could touch.
+  it "lints against the grader's SYRUS_BASE_REF rather than a stale origin/main" do
+    git!("init", "-q", "-b", "main")
+    git!("config", "user.email", "test@example.com")
+    git!("config", "user.name", "Test")
+    git!("config", "commit.gpgsign", "false")
+    File.write(File.join(@dir, "README.md"), "base\n")
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "old main")
+    git!("update-ref", "refs/remotes/origin/main", git_output("rev-parse", "HEAD"))
+    write_migration("db/migrate/20261119131053_upstream_bad_fk.rb", <<~RUBY)
+      class UpstreamBadFk < ActiveRecord::Migration[8.0]
+        def change
+          add_foreign_key :widgets, :repositories
+        end
+      end
+    RUBY
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "upstream migration the Job is stacked on")
+    git!("update-ref", "refs/remotes/origin/syrus/parent", git_output("rev-parse", "HEAD"))
+    File.write(File.join(@dir, "README.md"), "feature\n")
+    git!("add", "-A")
+    git!("commit", "-q", "-m", "feature")
+    git!("checkout", "-q", "--detach", "HEAD")
+
+    stdout, stderr, status = run_check(env: { "SYRUS_BASE_REF" => "origin/syrus/parent" })
+
+    expect(status).to be_success, stderr
+    expect(stdout).to include("[check-migrations] ok (0 changed files")
+  end
+
   it "fails safely instead of scanning every migration when no diff base exists" do
     git!("init", "-q", "-b", "main")
     git!("config", "user.email", "test@example.com")

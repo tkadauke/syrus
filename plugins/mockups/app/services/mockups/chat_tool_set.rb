@@ -27,7 +27,7 @@ module Mockups
     ].freeze
 
     def self.available_for?(chat_session, tier:)
-      !chat_session.coding? && !chat_session.local? && %i[essential deferred].include?(tier.to_sym)
+      chat_session.present? && !chat_session.coding? && !chat_session.local? && %i[essential deferred].include?(tier.to_sym)
     end
 
     def self.tool_definitions(tier:)

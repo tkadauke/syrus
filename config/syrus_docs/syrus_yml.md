@@ -638,6 +638,30 @@ grade:
       prepare_command: bundle exec rake parallel:prepare
 ```
 
+Set `parallel_rspec.shards` to split the CI grader across workers. With
+`shards: 4`, the CI grader becomes four graders, `rspec-ci-1-of-4` through
+`rspec-ci-4-of-4`. Each one runs a disjoint slice of the spec files, so the
+slices run on different workers at the same time instead of the whole suite
+running on one. Each shard still uses `parallel_rspec` across its own worker's
+CPUs. Syrus splits the files by file size, so every shard computes the same
+split from the checkout alone. The `serial_paths` pass runs once, in the last
+shard. Each shard is a required grader in its own right; any one failing fails
+the CI suite, and each shard supersedes the plain RSpec grader in landing the
+same way the unsharded CI grader does.
+
+Sharding needs the combined CI pass: `serial_paths`, CI tags, and `exec_args`
+must be set, and Syrus rejects `shards` on any other CI shape. Shards run
+without coverage, because coverage cannot be merged across workers.
+
+```yaml
+    parallel_rspec:
+      rspec_modes: [full, focused, ci]
+      exec_args: bin/rspec-worker
+      serial_paths:
+        - spec/migrations/
+      shards: 4
+```
+
 `parallel_rspec.group_by` passes `--group-by` through to `parallel_rspec`.
 Use `runtime` when large suites have uneven spec-file costs. Syrus asks enabled
 grader input materializers to write a `parallel_tests` runtime log into the

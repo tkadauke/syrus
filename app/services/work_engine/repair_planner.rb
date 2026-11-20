@@ -1445,6 +1445,15 @@ module WorkEngine
         end
       end
 
+      class SerializedStartBlock < Base
+        def plan
+          waiting_plan(
+            "wait_for_turn",
+            "The workflow is waiting its turn behind serialized work (an Epic sibling, an Epic-wide workflow or an urgent Job); starting it would break that ordering."
+          )
+        end
+      end
+
       class MainHealthStartBlock < Base
         def plan
           waiting_plan(

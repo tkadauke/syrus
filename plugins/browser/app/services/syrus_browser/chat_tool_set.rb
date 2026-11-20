@@ -19,7 +19,7 @@ module SyrusBrowser
     def self.coworker_excluded? = true
 
     def self.available_for?(chat_session, tier:)
-      chat_session.coding? && %i[essential deferred].include?(tier.to_sym)
+      chat_session.present? && chat_session.coding? && %i[essential deferred].include?(tier.to_sym)
     end
 
     def self.tool_definitions(tier:)

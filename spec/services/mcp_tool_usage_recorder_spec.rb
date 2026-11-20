@@ -69,6 +69,19 @@ RSpec.describe McpToolUsageRecorder do
       end
     end
 
+    # The admin usage page asks for chat tools with no chat selected. Every
+    # bundled plugin must answer that without raising: each raise counted
+    # against the plugin's circuit breaker, so a few page loads hid that
+    # plugin's chat tools from every chat in the process for the cooldown.
+    it "lets every bundled plugin answer an unscoped chat listing without failing" do
+      Syrus::PluginInvocation.runtime_health.reset!
+
+      3.times { described_class.advertised_tools(surface: "chat") }
+
+      expect(Syrus::PluginInvocation.runtime_health.failures.map { |failure| [ failure.plugin, failure.exception_class ] }).to be_empty
+      expect(Syrus::PluginInvocation.runtime_health.circuits).to be_empty
+    end
+
     it "derives advertised tools from core and available plugin registries" do
       Syrus::PluginRegistry.register(
         name: "available_card_gap_plugin",

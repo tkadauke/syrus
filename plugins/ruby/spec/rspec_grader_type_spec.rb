@@ -97,6 +97,108 @@ RSpec.describe Ruby::RspecGraderType do
     end
   end
 
+  # The CI suite was the critical path of nearly every grading pass, an hour
+  # on one worker while the rest of the fan-out had finished. Shards split it
+  # into disjoint slices that run on different workers at once.
+  describe "CI grader shards" do
+    def sharded_steps(shards: 3, serial_paths: [ "spec/migrations/" ])
+      described_class.grade_steps(
+        config: {
+          "tags" => { "ci" => { "include" => [ "ci_only" ] } },
+          "parallel_rspec" => {
+            "enabled" => true, "rspec_modes" => [ "ci" ], "exec_args" => "bin/rspec-worker",
+            "serial_paths" => serial_paths, "shards" => shards
+          }
+        },
+        default_failures: "strict"
+      ).select { |step| step.name.start_with?("rspec-ci") }
+    end
+
+    def write_specs(dir, files)
+      files.each do |path, bytes|
+        FileUtils.mkdir_p(File.join(dir, File.dirname(path)))
+        File.write(File.join(dir, path), "#" * bytes)
+      end
+    end
+
+    let(:spec_tree) do
+      {
+        "spec/models/a_spec.rb" => 900, "spec/models/b_spec.rb" => 700, "spec/services/c_spec.rb" => 650,
+        "spec/services/d_spec.rb" => 300, "spec/jobs/e_spec.rb" => 280, "spec/jobs/f_spec.rb" => 120,
+        "spec/requests/g_spec.rb" => 90, "spec/migrations/serial_spec.rb" => 5000, "spec/support/helper.rb" => 400
+      }
+    end
+
+    def files_run_by(step)
+      _out, err, status, parallel_args = run_generated_rspec_command(step.run, parallel_status: 0) { |dir| write_specs(dir, spec_tree) }
+      expect(status).to be_success, err
+      parallel_args.split.select { |arg| arg.end_with?("_spec.rb") }
+    end
+
+    it "expands the CI grader into named shards that each supersede the plain suite" do
+      steps = sharded_steps
+
+      expect(steps.map(&:name)).to eq(%w[rspec-ci-1-of-3 rspec-ci-2-of-3 rspec-ci-3-of-3])
+      expect(steps.map { |step| step.metadata["supersedes"] }).to all(eq("rspec"))
+      expect(steps.map { |step| step.metadata["shard"] }).to eq([ 1, 2, 3 ].map { |index| { "index" => index, "count" => 3 } })
+      expect(steps.map(&:phases)).to all(eq(%w[ci]))
+    end
+
+    it "runs every non-serial spec file in exactly one shard" do
+      slices = sharded_steps.map { |step| files_run_by(step) }
+
+      expect(slices.flatten).to match_array(spec_tree.keys.select { |path| path.end_with?("_spec.rb") } - [ "spec/migrations/serial_spec.rb" ])
+      expect(slices.flatten.uniq.size).to eq(slices.flatten.size)
+      expect(slices).to all(be_present)
+    end
+
+    it "balances shards by file size" do
+      sizes = sharded_steps.map { |step| files_run_by(step).sum { |path| spec_tree.fetch(path) } }
+
+      expect(sizes.max - sizes.min).to be <= spec_tree.fetch("spec/models/b_spec.rb")
+    end
+
+    it "runs the serial paths once, in the last shard" do
+      first, *, last = sharded_steps
+
+      expect(first.run).not_to match(%r{bundle exec rspec [^;]* spec/migrations/})
+      expect(last.run).to match(%r{RUN_CI_ONLY_SPECS=true bundle exec rspec [^;]* spec/migrations/})
+    end
+
+    it "passes an empty shard without running the whole default suite" do
+      step = sharded_steps(shards: 12).last
+
+      _out, _err, status, parallel_args = run_generated_rspec_command(step.run, parallel_status: 1) { |dir| write_specs(dir, spec_tree) }
+
+      expect(status).to be_success
+      expect(parallel_args).to be_empty
+    end
+
+    it "fails the shard when its file list cannot be computed rather than passing vacuously" do
+      step = sharded_steps.first
+      Dir.mktmpdir("rspec-shard-fail") do |dir|
+        bin = File.join(dir, "bin")
+        FileUtils.mkdir_p(bin)
+        File.write(File.join(bin, "ruby"), "#!/usr/bin/env bash\nexit 3\n")
+        File.write(File.join(bin, "bundle"), "#!/usr/bin/env bash\nexit 0\n")
+        File.write(File.join(bin, "parallel_rspec"), "#!/usr/bin/env bash\nexit 0\n")
+        FileUtils.chmod("+x", Dir[File.join(bin, "*")])
+
+        _out, _err, status = Open3.capture3({ "PATH" => "#{bin}:#{ENV.fetch('PATH')}" }, "bash", "-c", step.run, chdir: dir)
+
+        expect(status).not_to be_success
+      end
+    end
+
+    it "keeps a single CI grader without shards" do
+      expect(sharded_steps(shards: 1).map(&:name)).to eq(%w[rspec-ci])
+    end
+
+    it "rejects shards on a CI shape that cannot be split" do
+      expect { sharded_steps(serial_paths: []) }.to raise_error(ArgumentError, /parallel_rspec.shards/)
+    end
+  end
+
   it "registers the rspec type name" do
     expect(described_class.type_name).to eq("rspec")
   end

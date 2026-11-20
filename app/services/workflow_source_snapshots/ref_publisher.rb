@@ -77,7 +77,7 @@ module WorkflowSourceSnapshots
       output = authenticated_git("git_workflow_source_snapshot_ls_remote") do |url|
         git.run("ls-remote", url, remote_ref, chdir: workspace.path.to_s, env: env)
       end
-      output.to_s.lines.first.to_s.split(/\s+/).first.presence
+      GitRunner.remote_ref_sha(output, remote_ref)
     end
 
     def authenticated_git(operation_type, &block)

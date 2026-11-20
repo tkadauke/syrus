@@ -120,7 +120,7 @@ class RunCheckpointPublisher
     output = authenticated_git("git_checkpoint_ls_remote") do |url|
       git.run("ls-remote", url, ref, chdir: workspace.path.to_s, env: env)
     end
-    output.to_s.lines.first.to_s.split(/\s+/).first.presence
+    GitRunner.remote_ref_sha(output, ref)
   end
 
   def authenticated_git(operation_type, &block)

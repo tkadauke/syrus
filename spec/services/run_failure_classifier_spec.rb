@@ -1294,6 +1294,20 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.retryable).to eq(false)
   end
 
+  # The agent was launched after its Run had already been ended elsewhere;
+  # Syrus's MCP server then refused its calls with an "Unauthorized" that has
+  # nothing to do with provider credentials.
+  it "classifies an MCP rejection for an already-ended run as run_invocation_ended, not an auth problem" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "agent reported error: Mcp error: -32001: Unauthorized: invocation context Expired: invocation token run 4242 ended at 2026-11-19 17:02:11 UTC"
+    )
+
+    expect(classification.classification).to eq("run_invocation_ended")
+    expect(classification.retryable).to eq(false)
+  end
+
   it "classifies unresolved merge-train rebase conflicts separately from generic git corruption" do
     run.update!(state: "failed")
     diagnostic("Steps::Base::StepFailed", "merge_train: rebase for syrus/issue-3 was not completed")

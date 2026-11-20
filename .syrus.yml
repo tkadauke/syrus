@@ -623,6 +623,10 @@ grade:
       unknown_runtime: 0.1
       exec_args: bin/rspec-worker
       prepare_command: bundle exec rake parallel:prepare
+      # The CI suite was the last grader to finish in nearly every grading
+      # pass (median an hour, up to two) on one worker while the rest of the
+      # fan-out had finished. Four shards run it on four workers at once.
+      shards: 4
       # The CI grader runs CI-only examples in the parallel pass (each worker
       # has its own database); only these stay in a serial pass of their own:
       # migration specs that change the schema in-process, subprocess-heavy

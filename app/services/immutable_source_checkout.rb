@@ -270,6 +270,35 @@ class ImmutableSourceCheckout
   end
 
   def ensure_base_ref!
+    fetch_base_ref!
+    prune_stale_remote_refs!
+  end
+
+  # A checkout restored from a prepare cache or a prepared archive carries
+  # whatever remote-tracking refs existed when that layer was built, and only
+  # the base ref is refreshed here. A grader that picks its own diff base
+  # from the checkout's refs (the repository's own scripts, from any branch
+  # age) would find a stale origin/main hours behind and grade migrations
+  # that landed on main since as this branch's own changes. Keep exactly the
+  # refs this checkout vouches for: the base, the source branch, and
+  # origin/HEAD when it points at one of them.
+  def prune_stale_remote_refs!
+    keep = [ remote_tracking_ref(*remote_tracking_ref_parts(base_ref)) ]
+    source_branch_name = source_branch(source_snapshot)
+    keep << remote_tracking_ref("origin", source_branch_name) if source_branch_name.present?
+    refs = @git.run("for-each-ref", "--format=%(refname) %(symref)", "refs/remotes", chdir: path.to_s).lines.map(&:split)
+    refs.each do |name, symref_target|
+      next if keep.include?(name)
+      next if symref_target.present? && keep.include?(symref_target)
+
+      @git.run("update-ref", "--no-deref", "-d", name, chdir: path.to_s)
+      log("[immutable_source_checkout] removed stale remote-tracking ref #{name}")
+    end
+  rescue GitRunner::GitError => e
+    raise_infrastructure!("immutable source checkout could not prune stale remote refs: #{e.message}")
+  end
+
+  def fetch_base_ref!
     remote, branch = remote_tracking_ref_parts(base_ref)
     repository = remote_repository(remote)
     return if git_ref_exists?(base_ref) && !WorkspaceGitTransports.for(repository, user: @job.user)

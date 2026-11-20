@@ -1270,7 +1270,7 @@ class StepDispatcher
       return if runnable_steps.any? { |step| landing_queue_paused_before_next_step?(step) }
 
       created_runs = runnable_steps.filter_map do |step|
-        self.class.create_run_and_enqueue(step, @workflow, check_phase_admission: @check_phase_admission)
+        create_run_or_defer_on_lock_conflict(step)
       end
       dispatch_parallel_inline_runs!(created_runs)
       created_runs.first
@@ -1279,6 +1279,29 @@ class StepDispatcher
     else
       finish_workflow!
     end
+  end
+
+  DISPATCH_LOCK_CONFLICTS = [ ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked ].freeze
+  DISPATCH_LOCK_RETRY_DELAY = 5.seconds
+
+  # Advancing usually runs inside a finishing Run's failure or success
+  # propagation. When several graders of one fan-out finish together they
+  # all queue on the workflow row to dispatch the next step, and the slowest
+  # can wait past the database's lock timeout. Raising here turned a grader
+  # that had already recorded its real result into a "Lock wait timeout"
+  # failure -- the collect step then read an infrastructure timeout instead
+  # of the actual test failure -- and left the next step without a Run. A
+  # lock conflict only means "not now": hand the step to the phase-admission
+  # job, which retries the dispatch with backoff.
+  def create_run_or_defer_on_lock_conflict(step)
+    self.class.create_run_and_enqueue(step, @workflow, check_phase_admission: @check_phase_admission)
+  rescue *DISPATCH_LOCK_CONFLICTS => e
+    Rails.logger.warn(
+      "[StepDispatcher] #{e.class} dispatching Step ##{step.id} (#{step.kind}) for Workflow ##{@workflow.id}; " \
+      "retrying through phase admission in #{DISPATCH_LOCK_RETRY_DELAY.inspect}"
+    )
+    WorkflowPhaseAdmissionJob.enqueue_once(@workflow.id, step.id, wait: DISPATCH_LOCK_RETRY_DELAY, force: true)
+    nil
   end
 
   def skip_current_retry_until_check_steps!(step:, artifact_key:, reason:)
