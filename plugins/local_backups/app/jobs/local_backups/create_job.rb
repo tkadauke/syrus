@@ -6,9 +6,9 @@ module LocalBackups
     def perform(reason: "scheduled")
       backup = Creator.new.call(reason:)
       Retention.new.call
-      Rails.logger.info({ event: "local_backups.backup.completed", backup_uuid: backup.uuid, stored_bytes: backup.stored_bytes }.to_json)
+      OperationalEvents.emit("completed", backup_uuid: backup.uuid, stored_bytes: backup.stored_bytes)
     rescue StandardError => e
-      Rails.logger.error({ event: "local_backups.backup.failed", error_class: e.class.name }.to_json)
+      OperationalEvents.emit("failed", error_class: e.class.name)
       raise
     end
   end

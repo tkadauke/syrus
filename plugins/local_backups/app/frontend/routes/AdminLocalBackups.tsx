@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Button, DataTable, Notice, Page, Section, Text } from "@app/components/ui"
+import { Button, buttonClasses, DataTable, Notice, Page, Section, Text } from "@app/components/ui"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { formatBytes } from "@app/lib/format"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
-import { createLocalBackup, deleteLocalBackup, fetchAdminLocalBackups, pinLocalBackup, unpinLocalBackup, validateLocalBackup } from "../api/adminLocalBackups"
+import { createLocalBackup, deleteLocalBackup, fetchAdminLocalBackups, localBackupDownloadUrl, pinLocalBackup, unpinLocalBackup, validateLocalBackup } from "../api/adminLocalBackups"
 
 export function AdminLocalBackups() {
   const { t } = useT("local_backups")
@@ -90,6 +90,7 @@ function Inventory({ payload }: { payload: Awaited<ReturnType<typeof fetchAdminL
                       <Button size="sm" onClick={() => mutation.mutate({ action: "validate", id: backup.uuid })}>{t("validate")}</Button>
                       <Button size="sm" onClick={() => mutation.mutate({ action: backup.pinned ? "unpin" : "pin", id: backup.uuid })}>{t(backup.pinned ? "unpin" : "pin")}</Button>
                       <Button size="sm" onClick={() => window.confirm(t("delete_confirm")) && mutation.mutate({ action: "delete", id: backup.uuid })}>{t("delete")}</Button>
+                      <a className={buttonClasses("secondary", "sm")} href={localBackupDownloadUrl(backup.uuid)}>{t("download")}</a>
                     </div>
                   </DataTable.Cell>
                 </DataTable.Row>

@@ -41,6 +41,9 @@ that is separate from the installer's upgrade safety archives. The worker
 mounts it read-write and web mounts it read-only. Daily scheduled creation is
 enabled with `SYRUS_BACKUP_SCHEDULE_ENABLED=1`; count and age retention use
 `SYRUS_BACKUP_KEEP_COUNT` and `SYRUS_BACKUP_KEEP_DAYS`. Pinned artifacts and
-the newest valid recovery point are never deleted. Administrators can create,
-validate, pin, unpin, and delete eligible artifacts from the inventory page.
+the newest valid recovery point are never deleted. Before rejecting a creation
+for insufficient capacity, retention gets one opportunity to reclaim eligible
+artifacts. Administrators can create, validate, pin, unpin, download, and delete
+eligible artifacts from the inventory page. Downloads are audited and support
+HTTP byte ranges without loading the archive into Rails memory.
 Replication execution and restore remain separate product stages.
