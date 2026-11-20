@@ -6,3 +6,4 @@ import SyrusModel.Counterexamples
 import SyrusModel.Agreement
 import SyrusModel.Artifacts
 import SyrusModel.QueueExecution
+import SyrusModel.JobClosure
