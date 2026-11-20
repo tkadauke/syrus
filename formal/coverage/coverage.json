@@ -661,9 +661,9 @@
       "simulator": [
         "running_step_with_terminal_run"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "No grace period: an operator retry of a non-retryable failure whose Run was deferred is re-failed, and reconciling a barrier-cancelled Step cascades the tail (may defeat the barrier's no-cascade intent). Skips (19) are StateSynchronizer refusing queued->succeeded."
+      "status": "partial",
+      "done_by": "F18",
+      "notes": "Production (~2 days, 324 executions): ~50 applied repairs were F18 (in-place git_transport_transient retries thrown away) — fixed. The 92 'Step is succeeded, not active' skips are the classifier catching RunJob#record_successful_step! between run.succeed! and step.succeed! (separate commits in one with_lifecycle_lock_retry block); harmless but noisy — next: commit both in one transaction so the state is unreachable. Barrier no-cascade cancellations still open."
     },
     {
       "id": "in-place-retry-reconciled-away",
@@ -684,9 +684,9 @@
       "simulator": [
         "worker_died_retries_once"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Probable outright bug: backoff is at least 5 minutes, so the reconciler fails the Step and cascades before AutoRetryJob fires. Step#awaiting_run? already uses the broader 'any pending attempt' rule."
+      "status": "done",
+      "done_by": "F18",
+      "notes": "Confirmed in production: a merge train's grader burst failed with git_transport_transient, each Run scheduled an in-place step retry (5 min backoff) and left its Step running; the reconciler failed 12 of those Steps within a minute (another train had 33 such failures), because only worker_died retries were exempt. Fixed: AutoRetryAttempt.pending_in_place_step_retry_for? covers every IN_PLACE_STEP_CLASSIFICATIONS entry; the classifier and the reconcile_step_from_terminal_run executor both use it. Agreement.lean: terminal_before_not_actionable / terminal_after_actionable / terminal_after_complete."
     },
     {
       "id": "review-loop-needs-work-no-repair",

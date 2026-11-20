@@ -4674,6 +4674,44 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to failed from #{run.slug}")
   end
 
+  # Regression: a burst of grader Runs on a merge train failed with
+  # git_transport_transient. Each scheduled an in-place step retry (5 minute
+  # backoff) and left its Step running to wait for it; the reconciler failed
+  # every one of those Steps within a minute because only worker_died retries
+  # were exempt, throwing the retries away.
+  it "leaves a running Step alone while an in-place git_transport_transient retry is pending" do
+    next_step = Step.create!(workflow: workflow, kind: "grader", position: 1)
+    step.update!(kind: "grader", next_step: next_step)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    step.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+    next_step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    run.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "git_transport_transient",
+      retryable: true,
+      confidence: 0.95,
+      reason: "early EOF",
+      classified_at: 1.minute.ago
+    )
+    AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      agent_provider: "claude",
+      failure_classification: "git_transport_transient",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 4.minutes.from_now
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_step_with_terminal_runs)).to be_nil
+    expect(step.reload).to be_running
+    expect(next_step.reload.runs).to be_empty
+  end
+
   it "retries a queued Step whose Run failed retryably before the Step could start" do
     next_step = Step.create!(workflow: workflow, kind: "agent_rebase", position: 1)
     step.update!(kind: "auto_rebase", next_step: next_step)

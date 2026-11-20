@@ -74,6 +74,32 @@ RSpec.describe WorkEngine::RepairExecutor do
     end
   end
 
+  describe "reconcile_step_from_terminal_run" do
+    # A plan made before the failed Run scheduled its in-place retry must not
+    # finish the Step that is now waiting for that retry.
+    it "skips a Step waiting for a pending in-place retry" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      step = workflow.steps.create!(kind: "grader", position: 99, state: "running", started_at: 5.minutes.ago)
+      run = step.runs.create!(
+        job: job, trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider, state: "failed", finished_at: 1.minute.ago
+      )
+      AutoRetryAttempt.create!(
+        job: job, workflow: workflow, run: run, agent_provider: "claude",
+        failure_classification: "git_transport_transient", retry_kind: "failed_step",
+        attempt_number: 1, scheduled_at: 4.minutes.from_now
+      )
+
+      execution = described_class.call(
+        result: RepairResult.new([ repair_plan(action: "reconcile_step_from_terminal_run", target: step) ])
+      ).sole
+
+      expect(execution.status).to eq("skipped")
+      expect(execution.message).to eq("Step is waiting for an in-place retry")
+      expect(step.reload).to be_running
+    end
+  end
+
   describe "recover_missing_workspace" do
     it "keeps a successfully reconstructed workflow active" do
       workflow.update_columns(

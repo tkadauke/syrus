@@ -207,5 +207,57 @@ theorem stack_before_not_actionable : ¬ Actionable staleBefore dispatcherStarts
 
 theorem stack_after_actionable : Actionable staleAfter dispatcherStarts := fun _ h => h
 
+/-! ## Instance: a Step waiting for an in-place retry
+
+When a failed Run qualifies for an in-place step retry
+(`AutoRetryAttempt::IN_PLACE_STEP_CLASSIFICATIONS`: `worker_died`,
+`git_transport_transient`), `Runs::LifecyclePropagation` schedules the retry and
+deliberately leaves the Step running. `classify_active_steps_with_terminal_runs`
+exempted only `worker_died`, so a `git_transport_transient` retry (5 minute
+backoff) was thrown away by the next pass, which failed the Step from its
+failed Run. Production: one merge train lost 12 grader retries this way in a
+minute. -/
+
+inductive Cls where
+  | workerDied | gitTransient | other
+  deriving DecidableEq, Repr
+
+def inPlace : Cls → Bool
+  | .workerDied | .gitTransient => true
+  | .other => false
+
+structure WaitingStep where
+  /-- Step is running and every Run is terminal. -/
+  allRunsTerminal : Bool
+  /-- A pending in-place retry of this class exists, if any. -/
+  pendingRetry : Option Cls
+  deriving DecidableEq, Repr
+
+/-- What the domain intends: the Step is still owned by a scheduled retry. -/
+def awaitingRetry (s : WaitingStep) : Bool :=
+  match s.pendingRetry with
+  | some c => inPlace c
+  | none => false
+
+def detectTerminalBefore (s : WaitingStep) : Prop :=
+  s.allRunsTerminal = true ∧ s.pendingRetry ≠ some .workerDied
+def detectTerminalAfter (s : WaitingStep) : Prop :=
+  s.allRunsTerminal = true ∧ awaitingRetry s = false
+
+/-- The reconciler may only finish a Step the domain is not waiting on. -/
+def respectsRetry (s : WaitingStep) : Prop := awaitingRetry s = false
+
+theorem terminal_before_not_actionable : ¬ Actionable detectTerminalBefore respectsRetry := by
+  intro h
+  have := h ⟨true, some .gitTransient⟩ ⟨rfl, by decide⟩
+  exact Bool.noConfusion this
+
+theorem terminal_after_actionable : Actionable detectTerminalAfter respectsRetry := fun _ h => h.2
+
+/-- Nothing else is lost: with no pending in-place retry both classifiers agree. -/
+theorem terminal_after_complete (s : WaitingStep) (h : s.pendingRetry = none) :
+    detectTerminalBefore s ↔ detectTerminalAfter s := by
+  simp [detectTerminalBefore, detectTerminalAfter, awaitingRetry, h]
+
 end Agreement
 end SyrusModel

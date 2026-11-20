@@ -1265,6 +1265,7 @@ module WorkEngine
           return skipped("Step no longer exists") unless step
           return skipped("Step is #{step.state}, not active") unless step.running? || step.queued?
           return skipped("Workflow is not running") unless step.workflow&.running?
+          return skipped("Step is waiting for an in-place retry") if AutoRetryAttempt.pending_in_place_step_retry_for?(step)
 
           step_runs = step.runs.to_a
           return skipped("Step has no Runs") if step_runs.empty?

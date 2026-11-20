@@ -483,6 +483,44 @@ check the rate after deploy.
 
 ---
 
+## F18. The reconciler threw away in-place retries of transient git failures — fixed
+
+**Property.** The reconciler never finishes a Step that the domain is
+deliberately holding open for a scheduled in-place retry
+(`Agreement.terminal_after_actionable`).
+
+**Evidence (production, read-only).** On a merge train, 12 grader Runs failed
+with `git_transport_transient` within about a minute (04:13–04:14 Eastern).
+Each failure created a `failed_step` `AutoRetryAttempt` with a 5-minute backoff
+and left its Step running. The 04:14 and 04:15 reconciler passes then reconciled
+all 12 Steps to failed. A second train had 33 `git_transport_transient` grader
+failures and 34 applied repairs over several hours. Some of those repairs
+followed non-in-place failures, which were reconciled correctly. That train
+failed, but it also had genuine grader failures, so the lost retries are not
+proven to be the cause. Most of the ~50 applied repairs out of 324
+`running_step_with_terminal_runs` executions in two days were this case.
+
+**Counterexample.** `terminal_before_not_actionable`:
+`classify_active_steps_with_terminal_runs` exempted only `worker_died` retries,
+but `IN_PLACE_STEP_CLASSIFICATIONS` also contains `git_transport_transient`.
+
+**Fix.** `AutoRetryAttempt.pending_in_place_step_retry_for?` covers every
+in-place classification. The classifier, `step_needs_terminal_run_reconciliation?`
+and the `reconcile_step_from_terminal_run` executor all use it. The executor
+check covers a plan made before the retry was scheduled.
+
+**Specs.**
+- `reconciler_spec.rb` "leaves a running Step alone while an in-place
+  git_transport_transient retry is pending" (red before).
+- `repair_executor_spec.rb` "skips a Step waiting for a pending in-place retry".
+
+**Review note.** The other 92 executions were skips ("Step is succeeded, not
+active"). The classifier catches `RunJob#record_successful_step!` between
+`run.succeed!` and `step.succeed!`. That window is harmless but noisy, and it's
+the next target: make it unreachable.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/
