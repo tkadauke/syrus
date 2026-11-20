@@ -933,9 +933,9 @@
         "parallel_grader_collect_waits_for_active_sibling",
         "parallel_grader_retry_cleared_barrier_allows_tail"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Code looks right; clean DAG-scheduler theorem whose risk is an insertion site that bypasses the dependency-rewiring helper."
+      "status": "partial",
+      "done_by": "ReadySet.lean",
+      "notes": "Proved by exhaustive check (all Workflows up to 5 Steps, all readiness assignments, all legal cursors): starting what distributed_ready_set picks never starts a Step after an unfinished serial Step, so at most one serial Step runs. The position-filtered cursor is load-bearing (cursor_needed); every advance_from caller passes a just-finished Step, and resume_deferred_phase's direct-create branches target the Step the scan already chose. Not modelled: Step insertion during review re-materialization and grader fan-out, skippable_queued_step?, retry reopening."
     },
     {
       "id": "terminal-states-absorbing",
@@ -1252,9 +1252,9 @@
       "simulator": [
         "required_review_barrier_recovers_unsafe_tail"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: run active -> barrier satisfied; HEAD-advancing actions must atomically cancel every active Run they invalidate. The running variant needs a concurrent HEAD mutation and is operator-only."
+      "status": "partial",
+      "done_by": "ReadySet.lean",
+      "notes": "Run creation (under the Workflow lock) and Run start (RunJob) both check the barrier, so a queued Run made stale by a HEAD change is cancelled when it would start. A *running* stale Run needs HEAD to move while it runs; ReadySet.lean shows that cannot happen: only parallel immutable-checkout Steps (graders) run alongside a serial Step, and every HEAD-moving Step is serial. Remaining assumptions: dynamically inserted Steps keep relative order, and retry paths that reopen Steps are not modelled."
     },
     {
       "id": "review-evidence-matches-head",

@@ -271,6 +271,20 @@ question NY1 on the coverage page.
 
 ---
 
+## M2. The serial barrier in the distributed ready set — proved (bounded)
+
+`ReadySet.lean` mirrors `StepDispatcher#distributed_ready_set`. Exhaustive
+check over every Workflow of up to 5 Steps: starting what the scan picks never
+starts a Step after an unfinished serial Step (`readySet_preserves_barrier`), so
+at most one serial Step runs (`barrier_one_serial`). The cursor
+(`position > from_step.position`) is load-bearing (`cursor_needed`); every
+caller advances from a just-finished Step. Consequence for the review barrier:
+a Run can only become stale while queued, where `RunJob` cancels it. No bug
+found. Unmodelled: Step insertion (review re-materialization, grader fan-out),
+`skippable_queued_step?`, retry reopening.
+
+---
+
 ## Open questions for review
 
 - **Q1 — resolved as F7** (fail and hold instead of parking).
