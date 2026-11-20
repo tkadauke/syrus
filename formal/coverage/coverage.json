@@ -913,9 +913,9 @@
       "simulator": [
         "parallel_grader_collect_waits_for_active_sibling"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Low visible gap: the retry path relies on the Step being terminal; an active-Run check under the step lock would make it airtight."
+      "status": "done",
+      "done_by": "F15",
+      "notes": "No database constraint; two creators. StepDispatcher.create_run_and_enqueue holds the Step lock and refuses a Step with an active Run. RetryFailedStepEnqueuer#create_run_for! did neither, so retrying a Step marked failed while its Run was still live added a second active Run (and could race the dispatcher on the reopened Step). Fixed: refuse while the Step has an active Run; create under the Step lock and reuse a Run the dispatcher already started. StepRuns.lean: old_two_active; new_at_most_one over every interleaving up to 6 operations. 'Each success advances successors exactly once' (the item's second half) is not modelled yet."
     },
     {
       "id": "serial-barrier-ready-set",

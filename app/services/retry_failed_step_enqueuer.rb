@@ -192,6 +192,11 @@ class RetryFailedStepEnqueuer
     if (sibling = StepDispatcher.epic_sibling_implementation_running(workflow))
       return failure("#{ACTIVE_WORK_LOCK_ERROR}: Epic sibling Workflow ##{sibling.id} is implementing")
     end
+    # One active Run per Step. A Step can be failed while its Run is still
+    # live; retrying it would run the Step twice at once.
+    if failed_step.runs.active.exists?
+      return failure("Step ##{failed_step.id} still has an active Run; wait for it to finish before retrying.")
+    end
 
     consume_step_remediation_override!(failed_step)
     reopen_workflow_for_retry!
@@ -286,7 +291,19 @@ class RetryFailedStepEnqueuer
     nil
   end
 
+  # Takes the Step's row lock, the same one StepDispatcher.create_run_and_enqueue
+  # holds: if the dispatcher already started a Run on the reopened Step, reuse
+  # it instead of adding a second active Run.
   def create_run_for!(step)
+    step.with_lock do
+      existing = step.runs.active.order(:id).first
+      return existing if existing
+
+      build_run_for!(step)
+    end
+  end
+
+  def build_run_for!(step)
     selected_provider = agent_provider || workflow.agent_provider
     same_provider = selected_provider == workflow.agent_provider
     step.runs.create!(

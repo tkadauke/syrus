@@ -415,6 +415,24 @@ queued behind its Job lock" (red before).
 
 ---
 
+## F15. A step retry could give a Step a second active Run — fixed
+
+**Property.** A Step has at most one active Run
+(`StepRuns.new_at_most_one`, every interleaving of up to 6 operations).
+
+**Counterexample.** `old_two_active`: a Step is marked failed while its Run is
+still live; `RetryFailedStepEnqueuer` reopens it and creates another Run. The
+dispatcher's creator holds the Step lock and checks for an active Run; the retry
+creator did neither (no database constraint backs the rule).
+
+**Fix.** The retry refuses while the Step has an active Run, and creates its Run
+under the Step's row lock, reusing one the dispatcher already started.
+
+**Spec.** `retry_failed_step_enqueuer_spec.rb` "does not add a second active Run
+to a failed Step whose Run is still live" (red before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/
