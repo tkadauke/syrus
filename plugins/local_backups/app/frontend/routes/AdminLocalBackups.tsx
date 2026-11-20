@@ -1,10 +1,10 @@
-import { useQuery } from "@tanstack/react-query"
-import { DataTable, Notice, Page, Section, Text } from "@app/components/ui"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Button, DataTable, Notice, Page, Section, Text } from "@app/components/ui"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { formatBytes } from "@app/lib/format"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
-import { fetchAdminLocalBackups } from "../api/adminLocalBackups"
+import { createLocalBackup, deleteLocalBackup, fetchAdminLocalBackups, pinLocalBackup, unpinLocalBackup, validateLocalBackup } from "../api/adminLocalBackups"
 
 export function AdminLocalBackups() {
   const { t } = useT("local_backups")
@@ -18,6 +18,7 @@ export function AdminLocalBackups() {
           <Page.Title>{t("heading")}</Page.Title>
         </Page.HeadingGroup>
         <Page.Description>{t("description")}</Page.Description>
+        <Button onClick={() => createLocalBackup().then(() => query.refetch())}>{t("create")}</Button>
       </Page.Header>
       {query.isPending ? <Notice>{t("loading")}</Notice> : null}
       {query.isError ? <Notice tone="danger">{t("load_error")}</Notice> : null}
@@ -30,6 +31,16 @@ export default AdminLocalBackups
 
 function Inventory({ payload }: { payload: Awaited<ReturnType<typeof fetchAdminLocalBackups>> }) {
   const { t } = useT("local_backups")
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: ({ action, id }: { action: "validate" | "pin" | "unpin" | "delete"; id: string }) => {
+      if (action === "validate") return validateLocalBackup(id)
+      if (action === "pin") return pinLocalBackup(id)
+      if (action === "unpin") return unpinLocalBackup(id)
+      return deleteLocalBackup(id)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "local_backups"] })
+  })
   return (
     <>
       {!payload.root.configured ? (
@@ -60,6 +71,7 @@ function Inventory({ payload }: { payload: Awaited<ReturnType<typeof fetchAdminL
                 <DataTable.HeadCell>{t("blobs")}</DataTable.HeadCell>
                 <DataTable.HeadCell>{t("size")}</DataTable.HeadCell>
                 <DataTable.HeadCell>{t("validation")}</DataTable.HeadCell>
+                <DataTable.HeadCell>{t("actions")}</DataTable.HeadCell>
               </DataTable.Row>
             </DataTable.Header>
             <DataTable.Body>
@@ -73,6 +85,13 @@ function Inventory({ payload }: { payload: Awaited<ReturnType<typeof fetchAdminL
                   <DataTable.Cell>{backup.blob_count.toLocaleString()}</DataTable.Cell>
                   <DataTable.Cell>{formatBytes(backup.stored_bytes)}</DataTable.Cell>
                   <DataTable.Cell>{backup.verification_state || "—"}</DataTable.Cell>
+                  <DataTable.Cell>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => mutation.mutate({ action: "validate", id: backup.uuid })}>{t("validate")}</Button>
+                      <Button size="sm" onClick={() => mutation.mutate({ action: backup.pinned ? "unpin" : "pin", id: backup.uuid })}>{t(backup.pinned ? "unpin" : "pin")}</Button>
+                      <Button size="sm" onClick={() => window.confirm(t("delete_confirm")) && mutation.mutate({ action: "delete", id: backup.uuid })}>{t("delete")}</Button>
+                    </div>
+                  </DataTable.Cell>
                 </DataTable.Row>
               ))}
             </DataTable.Body>
