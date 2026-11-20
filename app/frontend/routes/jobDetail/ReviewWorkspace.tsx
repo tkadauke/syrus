@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "react"
 import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "../../components/Button"
 import { DocumentPreviewModal } from "../../components/DocumentPreviewModal"
 import { GearIcon } from "../../components/GearIcon"
@@ -110,12 +111,14 @@ export async function fetchProfiledSourceDiff(jobId: string, search = "") {
 }
 
 export function ReviewWorkspace({
+  conversationPortalTarget = null,
   diffLineMetricProviders,
   payload,
   showConversation = true,
   showEmptyVisualEvidence = false,
   visualEvidenceNavigation
 }: {
+  conversationPortalTarget?: Element | null
   diffLineMetricProviders?: DiffLineMetricProvider[]
   payload: JobDetailPayload
   showConversation?: boolean
@@ -604,6 +607,7 @@ export function ReviewWorkspace({
             {feedback.panel}
           </div>
         ) : null}
+        {!showConversation && conversationPortalTarget ? createPortal(feedback.panel, conversationPortalTarget) : null}
         {settingsOpen ? (
           <ReviewDiffSettingsModal
             initialSettings={{ ...reviewSettings, metric_gutter: activeMetricGutterId }}
@@ -641,12 +645,18 @@ export function VisualEvidenceGallery({
   const evidence = gallery || { captured_count: 0, submitted_count: 0, screenshots: [] }
   const submitted = evidence.screenshots.filter((screenshot) => screenshot.status === "submitted")
   const screenshots = showAll ? evidence.screenshots : submitted
+  const movePreview = (direction: -1 | 1) => {
+    if (screenshots.length === 0) return
+    setPreviewIndex((current) => {
+      const startingIndex = current == null ? (direction === 1 ? -1 : 0) : current
+      return (startingIndex + direction + screenshots.length) % screenshots.length
+    })
+  }
   useEffect(() => {
     if (!navigation || screenshots.length === 0) return
-    setPreviewIndex((current) => {
-      const startingIndex = current == null ? (navigation.direction === 1 ? -1 : 0) : current
-      return (startingIndex + navigation.direction + screenshots.length) % screenshots.length
-    })
+    movePreview(navigation.direction)
+    // The navigation sequence is the external command signal; screenshot
+    // count supplies the wrap boundary.
   }, [navigation, screenshots.length])
   const preview = previewIndex == null ? null : screenshots[previewIndex]
 
@@ -680,6 +690,16 @@ export function VisualEvidenceGallery({
           </Button>
         ) : null}
       </div>
+      {screenshots.length > 0 ? (
+        <div aria-label={t("visual_evidence_navigation")} className="mt-3 flex gap-2">
+          <Button onClick={() => movePreview(-1)} size="sm" variant="secondary">
+            {t("visual_evidence_previous")}
+          </Button>
+          <Button onClick={() => movePreview(1)} size="sm" variant="secondary">
+            {t("visual_evidence_next")}
+          </Button>
+        </div>
+      ) : null}
       {submitted.length === 0 && !showAll ? (
         evidence.captured_count > 0 ? (
           <p className="mt-3 text-sm text-text-muted">

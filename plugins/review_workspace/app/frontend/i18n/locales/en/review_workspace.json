@@ -21,7 +21,6 @@
   "checks_ready": "Approval checks are ready.",
   "checks_blocked": "Approval is not currently available.",
   "findings": "Risk and review findings",
-  "no_findings": "No review findings were submitted.",
   "approve": "Approve for landing",
   "approve_shortcut": "Approve for landing (A)",
   "approve_confirm": "Approve {{slug}} for landing?",

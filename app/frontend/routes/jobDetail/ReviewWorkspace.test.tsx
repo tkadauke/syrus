@@ -81,6 +81,7 @@ afterEach(() => {
 function renderWorkspace(
   payload = jobPayload(),
   options: {
+    conversationPortalTarget?: Element | null
     diffLineMetricProviders?: DiffLineMetricProvider[]
     showConversation?: boolean
     showEmptyVisualEvidence?: boolean
@@ -93,6 +94,7 @@ function renderWorkspace(
       <ShortcutsProvider>
         <QueryClientProvider client={client}>
           <ReviewWorkspace
+            conversationPortalTarget={options.conversationPortalTarget}
             diffLineMetricProviders={options.diffLineMetricProviders}
             payload={payload}
             showConversation={options.showConversation}
@@ -117,6 +119,30 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByTestId("review-comments-panel")).not.toBeInTheDocument()
     expect(screen.queryByText("Review conversation")).not.toBeInTheDocument()
     expect(screen.getByTestId("review-diff-natural-scroll-panel")).toBeInTheDocument()
+  })
+
+  it("can place the canonical review conversation in an external decision panel", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({
+        review_annotations: {
+          actions: [],
+          annotations: {},
+          counts: [{ id: "plugin.risk", label: "Plugin risks", value: 1 }],
+          panels: [{ id: "plugin-risk", title: "Plugin-contributed risk", body: "Canonical finding details" }],
+          ranges: {}
+        }
+      })
+    )
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+    const target = document.createElement("div")
+    document.body.append(target)
+
+    renderWorkspace(jobPayload(), { conversationPortalTarget: target, showConversation: false })
+
+    expect(await within(target).findByText("Review conversation")).toBeInTheDocument()
+    expect(within(target).getByText("Plugin-contributed risk")).toBeInTheDocument()
+    expect(screen.queryByTestId("review-comments-panel")).not.toBeInTheDocument()
+    target.remove()
   })
 
   it("creates anchored comments from continuous diff lines, composed inline in the diff rather than the sidebar", async () => {
@@ -1340,25 +1366,37 @@ describe("ReviewWorkspace", () => {
   it("opens canonical visual evidence in response to external navigation", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
-    const screenshot = {
-      id: "capture",
+    const screenshot = (id: string, title: string) => ({
+      id,
       workflow_id: 9,
       run_id: 5,
       sequence: 1,
       status: "submitted" as const,
       captured_at: "2026-01-01T00:00:00Z",
-      page: { path: "/capture", title: "Keyboard capture" },
+      page: { path: `/${id}`, title },
       viewport: { width: 1440, height: 900 },
       submission_failed: false,
-      image_url: "/capture.png"
-    }
+      image_url: `/${id}.png`
+    })
 
     renderWorkspace(
-      { ...jobPayload(), typed_artifacts: [], visual_evidence: { captured_count: 1, submitted_count: 1, screenshots: [screenshot] } },
+      {
+        ...jobPayload(),
+        typed_artifacts: [],
+        visual_evidence: {
+          captured_count: 2,
+          submitted_count: 2,
+          screenshots: [screenshot("first", "First capture"), screenshot("second", "Second capture")]
+        }
+      },
       { visualEvidenceNavigation: { direction: 1, sequence: 1 } }
     )
 
-    expect(await screen.findByRole("dialog", { name: "Preview of Keyboard capture" })).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: "Preview of First capture" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Next evidence" }))
+    expect(await screen.findByRole("dialog", { name: "Preview of Second capture" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Previous evidence" }))
+    expect(await screen.findByRole("dialog", { name: "Preview of First capture" })).toBeInTheDocument()
   })
 
   it("shows before/after comparisons in Visual evidence instead of Review artifacts", async () => {

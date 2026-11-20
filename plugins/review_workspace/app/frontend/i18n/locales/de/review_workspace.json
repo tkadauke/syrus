@@ -21,7 +21,6 @@
   "checks_ready": "Die Freigabeprüfungen sind bereit.",
   "checks_blocked": "Die Freigabe ist derzeit nicht verfügbar.",
   "findings": "Risiken und Review-Befunde",
-  "no_findings": "Es wurden keine Review-Befunde eingereicht.",
   "approve": "Zur Landung freigeben",
   "approve_shortcut": "Zur Landung freigeben (A)",
   "approve_confirm": "{{slug}} zur Landung freigeben?",
