@@ -6919,6 +6919,29 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :retry_workflow)).to be_nil
   end
 
+  # Every retry action this issue can plan refuses a Workflow that is still
+  # queued or running (step retry and rebuild need it failed; resume refuses
+  # active runtime work; whole-Workflow retry needs it finished). Flagging a
+  # failed grader inside a running merge-train grade loop only produced a
+  # refused repair on every pass until the loop finished.
+  it "does not plan a retry for a failed Run while its Workflow is still running" do
+    run.update_columns(state: "failed", finished_at: Time.current)
+    step.update_columns(state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "grader_failure",
+      retryable: true,
+      confidence: 0.9,
+      reason: "grader failed inside a running grade loop",
+      classified_at: Time.current
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+  end
+
   it "plans retryable rate-limit failures for the reset time instead of immediate retry" do
     reset_at = 12.minutes.from_now
     job.user.update!(gh_rate_limit_reset_at: reset_at)

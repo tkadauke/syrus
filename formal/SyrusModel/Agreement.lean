@@ -109,5 +109,54 @@ theorem after_clears_stale (i : Intent) (hw : i.state = .waiting) (ha : i.active
 theorem after_keeps_justified (i : Intent) (hg : i.gatesPass = false) : reconAfter i = i := by
   simp [reconAfter, hg]
 
+
+/-! ## Classifier ⇒ executor agreement
+
+A classifier that fires on states where every repair it can plan is refused
+produces a skipped repair on every pass, forever. `Actionable detect guard`
+says: whenever the classifier fires, the executor's guard holds.
+
+Instance: `classify_retryable_failures` fired on a failed Run regardless of its
+Workflow's state, but every repair it plans (`retry_failed_step`,
+`rebuild_merge_train`, `resume_failed_step`, `retry_workflow`) refuses a queued
+or running Workflow. Production: a merge train's grade loop had failed graders
+and the reconciler planned a refused retry on every pass for 5.5 hours.
+-/
+
+def Actionable {α : Type} (detect guard : α → Prop) : Prop := ∀ w, detect w → guard w
+
+inductive WfState where
+  | queued | running | succeeded | failed | cancelled
+  deriving DecidableEq, Repr
+
+structure FailedRun where
+  workflow : WfState
+  retryable : Bool
+  deriving DecidableEq, Repr
+
+def detectRetryBefore (r : FailedRun) : Prop := r.retryable = true
+def detectRetryAfter (r : FailedRun) : Prop :=
+  r.retryable = true ∧ r.workflow ≠ .queued ∧ r.workflow ≠ .running
+
+/-- Conjunction of what the four plannable repairs require of the Workflow:
+    none accepts an active one. -/
+def retryGuard (r : FailedRun) : Prop := r.workflow ≠ .queued ∧ r.workflow ≠ .running
+
+theorem retry_before_not_actionable : ¬ Actionable detectRetryBefore retryGuard := by
+  intro h
+  have := h ⟨.running, true⟩ rfl
+  exact this.2 rfl
+
+theorem retry_after_actionable : Actionable detectRetryAfter retryGuard :=
+  fun _ h => ⟨h.2.1, h.2.2⟩
+
+/-- Nothing that the old classifier caught on a finished Workflow is lost. -/
+theorem retry_after_complete_on_finished (r : FailedRun)
+    (hf : r.workflow ≠ .queued ∧ r.workflow ≠ .running) :
+    detectRetryBefore r ↔ detectRetryAfter r := by
+  constructor
+  · intro h; exact ⟨h, hf⟩
+  · intro h; exact h.1
+
 end Agreement
 end SyrusModel

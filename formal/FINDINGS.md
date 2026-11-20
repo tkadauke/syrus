@@ -109,6 +109,36 @@ deploy; the real 12.5-hour orphan from the original incident is still caught.
 
 ---
 
+## F4. Retry planned for failed Runs of still-running Workflows — fixed
+
+**Property.** A classifier fires only where some repair it plans can execute
+(`Agreement.Actionable`).
+
+**Counterexample.** `retry_before_not_actionable`. `classify_retryable_failures`
+flagged any failed Run controlling its Step; every repair the planner can pick
+for it refuses an active Workflow (`RetryFailedStepEnqueuer` needs
+`workflow.failed?`; `ResumeWorkflowEnqueuer` refuses active runtime work;
+whole-Workflow retry needs a finished Workflow and no active work).
+
+**Evidence.** 168 skipped `rebuild_merge_train` in ~9h on two merge trains, all
+"Workflow is not in a failed state." One ran its grade loop for 5.5h with three
+failed graders and then *succeeded*; the reconciler planned a refused rebuild on
+every pass in between.
+
+**Fix.** Skip the classifier while the Run's Workflow is queued or running.
+Behavior once the Workflow is finished is unchanged
+(`retry_after_complete_on_finished`).
+
+**Spec.** `reconciler_spec.rb` "does not plan a retry for a failed Run while its
+Workflow is still running" (red before).
+
+**Related, not yet worked.** The same agreement check should be applied
+systematically: 522 skipped `resume_queued_step` ("queued Step remained
+deferred", one Workflow) and 204 skipped `start_workflow` ("workflow start
+remained blocked") look like the same shape but may be intended "nudge" repairs.
+
+---
+
 ## Open questions for review
 
 - **Q1. A landing parked mid-run gives up the landing slot.** `block!` with

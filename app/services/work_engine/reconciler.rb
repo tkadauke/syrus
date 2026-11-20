@@ -2997,6 +2997,10 @@ module WorkEngine
     def classify_retryable_failures
       runs.select(&:failed?).filter_map do |run|
         next if run.job&.closed?
+        # Every retry this issue can plan refuses an active Workflow, so while
+        # the Workflow is still queued or running (e.g. a grade loop handling
+        # its own failed graders) the plan could only ever be skipped.
+        next if run.workflow&.queued? || run.workflow&.running?
         next unless latest_workflow_run?(run) || repair_failure_still_needs_validation?(run)
         next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
