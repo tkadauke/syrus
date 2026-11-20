@@ -3322,6 +3322,11 @@ module WorkEngine
         scheduled_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_scheduled", count: solid_queue_job_ids.size) do
           solid_queue_job_ids.empty? ? {} : SolidQueue::ScheduledExecution.where(job_id: solid_queue_job_ids).select(:job_id, :scheduled_at).index_by(&:job_id)
         end
+        # RunJob is concurrency-limited per Job: a second Run's job waits here
+        # until the semaphore frees, and SolidQueue's dispatcher promotes it.
+        blocked_job_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_blocked", count: solid_queue_job_ids.size) do
+          solid_queue_job_ids.empty? ? Set.new : SolidQueue::BlockedExecution.where(job_id: solid_queue_job_ids).pluck(:job_id).to_set
+        end
         running_root_run_ids = runs.select(&:running?).map(&:id).to_set
         parsed = PerformanceLogging.phase("work_engine.reconciler.solid_queue_parse") do
           jobs.filter_map do |job|
@@ -3344,6 +3349,7 @@ module WorkEngine
               process_id: claim&.process_id,
               scheduled: scheduled.present?,
               scheduled_at: scheduled&.scheduled_at,
+              blocked: blocked_job_ids.include?(job.id),
               failed: failed_job_ids.include?(job.id),
               error: nil
             }
@@ -3448,6 +3454,7 @@ module WorkEngine
     def queue_job_can_progress?(sq)
       return false if sq[:failed]
       return true if sq[:scheduled] && !dead_worker_queue?(sq[:queue_name])
+      return true if sq[:blocked] && !dead_worker_queue?(sq[:queue_name])
       return true if sq[:ready] && !sq[:claimed] && !dead_worker_queue?(sq[:queue_name])
       return false if wedged_queue_claim?(sq)
       return true if sq[:claimed] && solid_queue_process_live?(sq[:process_id])
@@ -3460,13 +3467,13 @@ module WorkEngine
     end
 
     # An unfinished SolidQueue job carrying no execution row at all -- not
-    # ready, not claimed, not scheduled, not failed -- is invisible to every
+    # ready, not claimed, not scheduled, not blocked, not failed -- is invisible to every
     # worker. Nothing will claim it and nothing will mark it failed, so unlike
     # a stalled claim it is not slow, it is unreachable, and the Run behind it
     # waits forever. Seen in production on two Runs whose jobs had lost their
     # ready rows, one of them queued for twelve and a half hours.
     def orphaned_queue_job?(sq)
-      !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:failed]
+      !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]
     end
 
     def host_admission_deferral_budget_exhausted?(run)

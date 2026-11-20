@@ -803,6 +803,28 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   # failed, so it is unreachable rather than slow -- one had been queued for
   # twelve and a half hours. Every other queued-Run branch looks for a ready
   # row, a failed row, or a claim, so none of them matched it.
+  # RunJob is concurrency-limited per Job, so a second Run of the same Job
+  # waits as a SolidQueue blocked execution until the semaphore frees. That is
+  # a sixth execution state, not "no execution row": treating it as orphaned
+  # deleted and re-enqueued a job that was simply waiting its turn.
+  it "does not treat a RunJob blocked on its concurrency semaphore as orphaned" do
+    run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
+    workflow.update_columns(state: "running", started_at: 3.hours.ago)
+    queue_job = solid_queue_run_job(run, created_at: 3.hours.ago)
+    SolidQueue::ReadyExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ClaimedExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ScheduledExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::FailedExecution.where(job_id: queue_job.id).delete_all
+    # Execution rows copy their concurrency key from the job, as in production.
+    queue_job.update_columns(concurrency_key: "RunJob/job-#{run.job_id}")
+    SolidQueue::BlockedExecution.create!(job: queue_job.reload, expires_at: 1.minute.from_now)
+    expect(SolidQueue::BlockedExecution.where(job_id: queue_job.id)).to exist
+
+    result = reconcile(run_id: run.id)
+
+    expect(result.issues.map(&:kind)).not_to include("queued_run_with_orphaned_queue_job")
+  end
+
   it "classifies a queued Run whose SolidQueue job has no execution row" do
     run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
     workflow.update_columns(state: "running", started_at: 3.hours.ago, worker_storage_key: "storage-orphan")
