@@ -1515,8 +1515,8 @@
         "stale_pr_check_base"
       ],
       "status": "partial",
-      "done_by": "F7",
-      "notes": "Mutual exclusion is covered by F7's SlotExact; queue order is not modelled."
+      "done_by": "LockSafety · LandingSlot (F7) · F13",
+      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Queue *order* (approved Jobs land in order, override semantics) is not modelled yet."
     },
     {
       "id": "externally-blocked-landing-slot",
@@ -1873,9 +1873,9 @@
         "dependent_active_initial_dedup_collision",
         "single_initial_success"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Safety (no early start) is easy; liveness needs every dependency event to wake its dependents. stale_dependency_start_block is the missed-wakeup symptom."
+      "status": "partial",
+      "done_by": "reviewed",
+      "notes": "Safety holds at the start funnel: StepDispatcher.start_workflow refuses a Job whose dependencies failed (landings fail closed, rebases are cancelled, others start-block), whose stack is not ready (JobStackResolver), or which is not ready for execution. Liveness is event-driven by design: the dependency and stack branches record a start block but schedule no WorkflowPhaseAdmissionJob recheck (unlike the Epic-sibling and admission branches), so starting relies on the satisfying event waking the dependent, with stale_dependency_start_block as the reconciler safety net. Periodic rechecks for every blocked dependent would add churn for large Epics, so not changed. Open edge: a step retry of a failed dependent does not re-check dependencies (rare; would change retry semantics). No Lean model yet: the safety half is a single guard."
     },
     {
       "id": "queued-workflow-without-first-run",
@@ -2187,9 +2187,9 @@
         "worker_died_retries_once",
         "parallel_grader_worker_loss_retries"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "No fencing token: a slow-but-alive worker can keep mutating and pushing after being declared dead. Known, accepted (write fence deferred); state as an assumption in the model."
+      "status": "partial",
+      "done_by": "NY3",
+      "notes": "Run ownership is a heartbeat lease without a fencing token. WorkflowWorkspaceRecovery#requeue! and worker-died recovery put the same Run back to queued; a stalled-but-alive old process can resume and keep executing (git writes, pushes) alongside the replacement. F12's pre-merge check does not stop it because a requeued Run is not terminal. Needs an attempt token checked at side-effect boundaries: NY3."
     },
     {
       "id": "lock-order-acyclic",
@@ -2342,6 +2342,18 @@
         "C. Keep today's behavior."
       ],
       "recommendation": "A. Waiting is the only option that never discards running agent work, it needs no relaunch bookkeeping, and EpicWide.lean shows it keeps the Epic exclusive under every interleaving. A stack rebase is rarely urgent enough to justify killing an implementation mid-run."
+    },
+    {
+      "id": "NY3",
+      "item": "single-live-executor",
+      "title": "Should Run execution be fenced by an attempt token?",
+      "context": "When a worker looks dead (stale heartbeat), recovery puts the same Run back to queued and another worker picks it up. If the original process was only stalled (long GC, network partition, laptop sleep), it can resume and continue: commit, push, call GitHub. Nothing tells it that it no longer owns the Run. The new pre-merge check (F12) only catches cancelled/finished Runs, not requeued ones.",
+      "options": [
+        "A. Add an attempt counter to Run, incremented on every requeue/claim; the executor records the value it claimed and ensure_run_still_active! (already called before agent work and merges) also fails when the counter moved. Cheap, closes the gap at existing checkpoints.",
+        "B. A full lease with expiry and renewal checked before every external side effect (push, GitHub API, workspace writes).",
+        "C. Accept the risk: rely on the heartbeat threshold and the merge call's expected_sha fence."
+      ],
+      "recommendation": "A. It reuses the checkpoints that already exist and turns a stalled executor's next side effect into a clean RunEndedExternally stop. Needs a migration (one integer column), hence the question."
     }
   ]
 }
