@@ -743,12 +743,42 @@ func (s *Store) WorkspaceFiles(ctx context.Context, id, revision string, paths [
 			return WorkspaceFiles{}, fmt.Errorf("%w: invalid path", ErrBadRequest)
 		}
 	}
-	args := append([]string{"archive", "--format=tar", revision, "--"}, paths...)
-	archive, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, args...)
+	result := WorkspaceFiles{Blobs: map[string]Blob{}, LastModified: map[string]time.Time{}}
+	metadataArgs := append([]string{"ls-tree", "-l", "-z", "--full-tree", revision, "--"}, paths...)
+	metadata, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, metadataArgs...)
 	if err != nil {
 		return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	result := WorkspaceFiles{Blobs: map[string]Blob{}, LastModified: map[string]time.Time{}}
+	smallPaths := make([]string, 0, len(paths))
+	contentIDs := make(map[string]string, len(paths))
+	for _, record := range bytes.Split(metadata.Stdout, []byte{0}) {
+		meta, listed, ok := bytes.Cut(record, []byte{'\t'})
+		fields := strings.Fields(string(meta))
+		if !ok || len(fields) != 4 || fields[1] != "blob" {
+			continue
+		}
+		size, parseErr := strconv.ParseInt(fields[3], 10, 64)
+		if parseErr != nil {
+			continue
+		}
+		path := string(listed)
+		contentIDs[path] = fields[2]
+		if size > int64(maxBytes) {
+			result.Blobs[path] = Blob{ContentID: fields[2], Size: size, Truncated: true}
+		} else {
+			smallPaths = append(smallPaths, path)
+		}
+	}
+
+	var archive gitexec.Result
+	if len(smallPaths) > 0 {
+		args := append([]string{"archive", "--format=tar", revision, "--"}, smallPaths...)
+		maxArchiveBytes := int64(len(smallPaths))*(int64(maxBytes)+1024) + 10240
+		archive, err = s.gitLimited(ctx, r.dir, s.cfg.ReadTimeout, maxArchiveBytes, args...)
+		if err != nil {
+			return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
+		}
+	}
 	reader := tar.NewReader(bytes.NewReader(archive.Stdout))
 	for {
 		header, readErr := reader.Next()
@@ -761,15 +791,11 @@ func (s *Store) WorkspaceFiles(ctx context.Context, id, revision string, paths [
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
-		limit := header.Size
-		if int64(maxBytes) < limit {
-			limit = int64(maxBytes)
-		}
-		content, readErr := io.ReadAll(io.LimitReader(reader, limit))
+		content, readErr := io.ReadAll(reader)
 		if readErr != nil {
 			return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, readErr)
 		}
-		result.Blobs[header.Name] = Blob{Bytes: content, Size: header.Size, Truncated: header.Size > int64(maxBytes)}
+		result.Blobs[header.Name] = Blob{Bytes: content, ContentID: contentIDs[header.Name], Size: header.Size}
 	}
 	if !lastModified {
 		return result, nil
@@ -1197,6 +1223,12 @@ func (s *Store) git(ctx context.Context, dir string, cred *gitexec.Credential, t
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return s.cfg.Git.Run(ctx, dir, cred, args...)
+}
+
+func (s *Store) gitLimited(ctx context.Context, dir string, timeout time.Duration, maxStdout int64, args ...string) (gitexec.Result, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return s.cfg.Git.RunLimited(ctx, dir, nil, maxStdout, args...)
 }
 
 func (s *Store) gitLimitedTo(ctx context.Context, dir string, destination io.Writer, timeout time.Duration, maxStdout int64, args ...string) (int64, error) {
