@@ -1118,6 +1118,45 @@ and keeps the requested order" (red before: the paging query selected
 
 ---
 
+## F38. Skipping an in-place retry ended the unit under its running Workflow — fixed
+
+**Property.** While a Workflow is active, its WorkUnit is active and holds
+its locks once the Workflow runs (`UnitReentry.LiveWorkflowOwned`).
+
+**Gap.** `AutoRetryBackoff.record!` blocks the Workflow's unit while an
+auto-retry sleeps. For an in-place step retry, that Workflow is still
+running. When the attempt was skipped (failure no longer retryable, source
+Step recovered or superseded, branch rewritten, retry execution error),
+`clear!` defaulted to `mark_terminal!("failed")`. The unit ended and released
+its locks while the Workflow, and any parallel Steps still in it, kept
+running (`clear_before_breaks`). The next `TerminalWorkflowSync`, which treats
+a terminal unit as authoritative, then failed the Workflow. That happened
+even when the skip meant the Workflow had moved on. A probe confirmed the
+sequence: blocked → skip → unit `failed` with 0 locks, Workflow `running` →
+sync → Workflow `failed`.
+
+**The disagreement underneath.** For "active Workflow, terminal unit", the
+code has two opposite rules. `TerminalWorkflowSync` makes the Workflow follow
+the unit. `DeferredPhaseResume#reactivate_terminal_unit_for_active_workflow!`
+makes the unit follow the Workflow. This was the known producer of the state.
+
+**Fix.** `clear!` ends the unit only once its Workflow is itself terminal.
+Otherwise it hands the unit back (`resume_for_workflow!`, which re-acquires
+the locks). If the retry was abandoned, the held Step is failed through the
+Workflow's own path, since F18/F36 no longer see a pending attempt
+(`clear_after_keeps`).
+
+**Spec.** `auto_retry_backoff_spec.rb` "hands the unit back to a still-running
+Workflow when an in-place retry is skipped" (red before). The existing skip
+example now uses a failed Workflow, which is the case it describes.
+
+**Remaining.** `DeferredPhaseResume#reactivate_terminal_unit_for_active_workflow!`
+lets a `LockConflict` from `mark_running!` escape, and
+`WorkflowPhaseAdmissionJob` retries only deadlocks and lock-wait timeouts.
+That phase-boundary deferral then has no recheck (deferral-schedules-recheck).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
