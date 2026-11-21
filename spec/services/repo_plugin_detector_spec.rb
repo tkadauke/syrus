@@ -117,15 +117,10 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
   context "with a language-support family", :reset_plugin_registry do
     before do
       Syrus::PluginRegistry.reset!
-      adapter = Module.new do
-        module_function
-        def detect?(provider, repo_path) = provider.detect_prepare(repo_path).any?
-      end
       Syrus::Plugin::Family.define(:detector_family) do
         shape :facet
-        indicates_language_support
+        indicates_language_support capability: :detect_prepare
         capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: String, returns: Array
-        legacy :prepare_detector, capability: :detect_prepare, adapter:
       end
       provider = Class.new do
         def self.key = :family_language
@@ -144,7 +139,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
       Syrus::Plugin::Family.reset!
     end
 
-    it "detects a plugin registered through the family declaration" do
+    it "detects a plugin registered only through the family declaration" do
       write("family.lock")
 
       expect(described_class.for(@dir)).to eq([ "family-language" ])

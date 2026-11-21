@@ -67,13 +67,20 @@ class RepoPluginDetector
     legacy = EXTENSION_POINTS.any? do |extension_point|
       Array(manifest.provides[extension_point]).any? { |provider| provider_detects?(provider) }
     end
-    legacy || family_language_providers(manifest).any? { |provider| provider_detects?(provider) }
+    legacy || family_language_support?(manifest)
   end
 
-  def family_language_providers(manifest)
-    Syrus::Plugin::Family.all.select(&:indicates_language_support?).flat_map do |family|
-      family.legacy_mappings.keys.flat_map do |extension_point|
-        Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, extension_point)
+  def family_language_support?(manifest)
+    Syrus::Plugin::Family.all.select(&:indicates_language_support?).any? do |family|
+      manifest.family_provides.any? do |declaration|
+        capability = family.language_support_capability
+        next false unless declaration.family == family.name && declaration.capabilities.include?(capability)
+
+        reference = Syrus::Plugin::CapabilityProvider.new(
+          plugin_name: manifest.name, family: family.name, capability:,
+          provider_name: declaration.provider, key: declaration.key, priority: manifest.prepare_priority
+        )
+        reference.invoke { |provider| Array(provider.public_send(capability, repo_path)).any? }
       end
     end
   end
