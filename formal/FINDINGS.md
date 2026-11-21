@@ -2564,6 +2564,48 @@ resolve. It was red before: the first case resolved to
 
 ---
 
+## F78. A reported Syrus version became Ruby in a scaffolded gemspec — fixed
+
+**Found by** DOC-44 Phase 6, CLI plugins and scaffolding: "Scaffolded
+projects contain only template text and validated names; no input becomes
+code."
+
+**Gap.** `syrus plugin new` takes the oldest supported Syrus version from
+`--syrus-version`. By default it takes it from the connected instance's
+`/api/v1/app/bootstrap` (`connectedInstanceVersion`), and it splices that
+value into `spec.metadata["requires_syrus"] = ">= {{SYRUS_VERSION}}"`.
+
+- **Ruby injection.** Bundler evaluates a gemspec as Ruby. A reported version
+  such as `1.0"; system("touch pwned"); "` produced
+  `">= 1.0"; system("touch pwned"); ""`, which runs on the developer's machine
+  at the next `bundle` or `syrus plugin test`.
+- **Docker image tags.** The same reported value also picks the Docker image
+  tag for `plugin test` and `plugin dev`. It is passed as a single argv
+  element, so it cannot inject flags, but it was otherwise unchecked.
+
+The plugin name was already validated by `pluginNamePattern`. The destination
+must be empty or absent.
+
+**Fix.**
+
+- `instanceVersionFromReported` keeps a reported version only when it is a
+  plain release version: digits and dot-separated parts, with an optional
+  pre-release and build part, at most 64 characters. Anything else falls back
+  to the CLI's release version, as development describes already did.
+- `generatePluginScaffold` refuses any version that is not plain. This also
+  catches a dev-build fallback of `latest`, which used to produce the invalid
+  requirement `>= latest`.
+
+**Spec.** `plugin_new_test.go` has two tests:
+
+- "TestGeneratePluginScaffoldRefusesAVersionThatIsNotAPlainVersion" (red
+  before: the gemspec contained `system("touch pwned")`);
+- "TestInstanceVersionIgnoresAReportedVersionThatIsNotAPlainVersion".
+
+All CLI packages pass and vet is clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

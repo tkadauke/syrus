@@ -2778,6 +2778,23 @@
       "status": "done",
       "done_by": "M23 (NY23 open)",
       "notes": "Dirty trees are refused; diverged local branches are backed up before any reset or branch -f; plain branches only fast-forward. Open: post-checkout hooks run commands authored in the checked-out branch (NY23)."
+    },
+    {
+      "id": "cli-plugin-scaffold",
+      "area": "cli",
+      "title": "Scaffolded plugin projects contain only template text and validated values",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "generatePluginScaffold / renderPluginTemplate; connectedInstanceVersion",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F78",
+      "notes": "Names match pluginNamePattern; versions must be plain release versions, and a reported one that is not falls back to the CLI release. Destination must be empty. Docker image tags are single argv elements."
     }
   ],
   "needs_you": [

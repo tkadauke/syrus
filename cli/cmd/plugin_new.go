@@ -82,6 +82,10 @@ func validateNewPluginName(name string, collisions []string) error {
 }
 
 func generatePluginScaffold(options pluginScaffoldOptions) error {
+	// The version lands inside a Ruby string literal in the gemspec.
+	if version := strings.TrimPrefix(options.Version, "v"); !plainVersion(version) {
+		return fmt.Errorf("invalid Syrus version %q: use a release version such as 1.2.3", options.Version)
+	}
 	destination, err := filepath.Abs(options.Destination)
 	if err != nil {
 		return err
