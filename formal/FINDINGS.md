@@ -1330,6 +1330,12 @@ instead of skipping it as rewritten" and "does not keep planning resumes from
 a Run whose branch was rewritten" (both red before). F44's spec still holds:
 the rewritten Run now gets a single fresh retry.
 
+**Production (read-only).** The only `branch_diverged_pr_open` repairs in the
+retained history are three consecutive `retry_workflow` attempts for one Job
+within two minutes (Nov 18, 12:41–12:43). That is consistent with the
+skip-and-replan loop, but it stopped after three, and the attempts' skip
+reasons are past the activity retention, so it is not proof.
+
 ---
 
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
