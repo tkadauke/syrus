@@ -61,4 +61,23 @@ RSpec.describe LocalBackups::ArtifactSource do
     expect(replication.state).to eq("failed")
     expect(replication.failure_summary).to eq("request to [REDACTED_URL] failed")
   end
+
+  it "preserves verified evidence when a completion event is delivered again" do
+    described_class.record_replication(backup.uuid, destination: "s3:v1", context: nil, result: {
+      state: "verified", remote_reference: "opaque-reference", remote_checksum: "b" * 64,
+      uploaded_at: 1.hour.ago, verified_at: 1.hour.ago
+    })
+    replication = backup.replications.find_by!(destination_identity: "s3:v1")
+    created_at = replication.created_at
+
+    expect(described_class.pin(backup.uuid, owner: "s3:v1", context: nil)).to be(false)
+    described_class.record_replication(backup.uuid, destination: "s3:v1", context: nil, result: {
+      state: "failed", failure_summary: "duplicate delivery failed"
+    })
+
+    expect(replication.reload).to have_attributes(
+      state: "verified", remote_reference: "opaque-reference", remote_checksum: "b" * 64,
+      failure_summary: nil, created_at:
+    )
+  end
 end
