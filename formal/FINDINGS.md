@@ -2166,6 +2166,38 @@ capability then has an explicit neutral behaviour is the separate
 
 ---
 
+## M14. Missing execution backends and the local default — audited, one question
+
+DOC-44 plugin host: "Missing contributions never silently select core defaults
+where behaviour would change," and "Plugin capabilities still pass core
+authorization."
+
+`Execution::Router#backend_for` is the one place in core where a missing
+contribution selects a core default: when no enabled, healthy
+`:execution_backend` answers `available_for?`, the command runs through
+`Execution::Local`. Checked:
+
+- **Authorization:** the fallback is never silent about authority. The router
+  authorizes the backend it actually picked, with location `:host` for
+  `Local` and `:container` otherwise, and anything but an explicit allow
+  raises `NotAuthorized` before a process starts. An `ask` fails closed.
+- **Fail-closed workloads:** the only fail-closed workload is
+  `Execution::ChatWorkloadPolicy` under `contained_chat_execution: required`.
+  The policy is read live per request, so a database error while reading it
+  propagates out of the rescue instead of falling back to local.
+- **Who carries the policy:** chat agent turns (`ChatTurnJob`) and Coworkers
+  runs attach it.
+
+One path does not: Coding Mode `!` shell commands
+(`ChatShellCommandExecutor::Coding`) go through `ProcessRunner` with no
+workload policy. Under `required` they run on the worker while the chat agent
+is contained, in the same checkout the agent writes. That is NY15.
+
+`providers_for`'s own database-error fallback hands out disabled backends too.
+That is the NY13 question again, not a separate one.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
