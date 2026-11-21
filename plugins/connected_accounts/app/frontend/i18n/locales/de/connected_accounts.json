@@ -14,6 +14,25 @@
     "api_origins": "API-Ursprünge",
     "save": "Konfiguration speichern",
     "saved": "Anbieterkonfiguration gespeichert.",
-    "save_failed": "Die Anbieterkonfiguration konnte nicht gespeichert werden."
+    "save_failed": "Die Anbieterkonfiguration konnte nicht gespeichert werden.",
+    "allow_as_owner": "Aktionen mit verbundenen Konten dürfen als Kontoinhaber ausgeführt werden"
+  },
+  "nav_accounts": "Verbundene Konten",
+  "accounts": {
+    "title": "Verbundene Konten",
+    "description": "Verbinde und verwalte externe Konten, die Syrus mit deiner Erlaubnis verwenden darf.",
+    "loading": "Verbundene Konten werden geladen…",
+    "empty": "Du hast noch keine verbundenen Konten.",
+    "connect": "Konto verbinden",
+    "connect_provider": "{{provider}} verbinden",
+    "status": "Status: {{status}}",
+    "statuses": { "connected": "Verbunden", "needs_reauth": "Erneute Autorisierung erforderlich", "revoked": "Getrennt", "error": "Fehler" },
+    "scopes": "Gewährte Bereiche: {{scopes}}",
+    "none": "Keine",
+    "last_used": "Zuletzt verwendet: {{value}}",
+    "never": "Nie",
+    "read_only": "Dieses Konto auf schreibgeschützte Bereiche beschränken",
+    "reauthorize": "Erneut autorisieren",
+    "disconnect": "Trennen"
   }
 }

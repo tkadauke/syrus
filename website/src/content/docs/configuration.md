@@ -828,6 +828,11 @@ under **Admin > Connected accounts**. Syrus refreshes
 expiring access tokens and probes account health in the background. Disconnect
 attempts provider revocation and always revokes the local stored credential;
 token material is kept out of logs, audit metadata, and agent transcripts.
+Users connect, inspect, restrict to read-only, reauthorize, and disconnect their
+own accounts under **Settings > Connected accounts**. Acting as an account owner
+is a separate administrator opt-in and defaults off. Coworker access also
+requires the default-off **Coworker connected accounts** feature after the
+listed coworker isolation and permission prerequisites are satisfied.
 
 Generic plugin-managed credentials live in the bundled `credential_store`
 plugin, which stores payloads as encrypted blobs and keeps only safe display

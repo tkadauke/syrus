@@ -436,6 +436,15 @@ Provider authors can require `connected_accounts/provider_test_kit` and run
 the shared `"a connected accounts provider"` RSpec examples. The bundled fake
 provider is the reference implementation used by development and tests.
 
+Service plugins register concept-level capabilities such as `mail.read@v1`,
+not provider endpoint names, and keep acting identity explicit in the
+`connected_account` resource scope. Split authority at least into read/search,
+draft or private creation, actions that affect other people, delete, and
+administration. Send/share/invite and similar outward operations default to
+asking for exact-invocation authority. Service-specific mailboxes, calendars,
+drives, channels, or comparable selectors belong in the scope's typed
+`sub_resources` object rather than in the capability name.
+
 Data removal is a separate, explicit operation after uninstall. Operators can
 preview it with `bin/rails 'plugin:data[name]'` and confirm it with
 `bin/rails 'plugin:purge[name]'`. Purge removes declared plugin tables,

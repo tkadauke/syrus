@@ -4,6 +4,10 @@ Connected Accounts is an experimental, default-disabled plugin that stores safe 
 
 Tool plugins request block-scoped access through `ConnectedAccounts::AccountClient`. Access is refused unless the account is connected, belongs to the invoking user, permits the requested acting mode and scopes, and the permission system supplied an authorized invocation reference. Tokens are held in memory only and are redacted from results and errors.
 
+Users manage their accounts under **Settings → Connected accounts**. The page shows connection status, granted scopes, the read-only ceiling, last use, disconnect, and reauthorization controls. The administrator can enable `as_owner` separately in the Connected Accounts provider configuration; it is off by default. `as_self` and `as_service` remain the normal acting modes.
+
+Coworker access has an additional instance-wide `coworker_connected_accounts` feature gate, off by default. Enabling it is appropriate only after coworker sandboxing, confirmation for edits to standing instruction files, and unified permission enforcement for coworkers are deployed. The broker checks this gate at credential-use time, so a direct or plugin caller cannot bypass it.
+
 Before access is yielded, the client validates the stored token expiry. Expired tokens are replaced atomically through Credential Store when the account provider has configured a refresh handler; otherwise access fails closed. Invalid, missing, or still-expired replacement tokens are rejected without replacing the stored credential.
 
 Connections use authorization code with PKCE. The opaque state is bound to the signed-in user and browser session, expires after ten minutes, and can be consumed only once. The callback stores access and refresh material together as one encrypted Credential Store value. Providers may return fewer scopes than requested; the recorded grant and ceiling are reduced to the scopes actually returned.
@@ -49,3 +53,11 @@ The capability contexts and results are:
 Token-bearing `exchange_code` and `refresh` results are returned only to the Connected Accounts broker. Providers must not log token material or include it in exceptions, user-visible output, or other external results. The manifest scope catalog constrains `requested_scopes`: each entry has a provider scope `key`, a human `label`, its `risk`, an explicit boolean `read_only`, and the `syrus_capabilities` that scope enables. `callback_route` must be an absolute path owned by the contributing plugin, and `supports_read_only` states whether the authorization flow can limit the resulting connection to scopes marked `read_only`. The generic provider takes the equivalent read-only subset from its instance configuration.
 
 Provider gems can require `connected_accounts/provider_test_kit` and run the shared `"a connected accounts provider"` examples with their declaration and provider. The fake provider bundled with Connected Accounts is the executable reference implementation.
+
+## Capability names and granularity
+
+Service plugins name capabilities for the user-facing concept rather than for a vendor or HTTP endpoint: for example `mail.read@v1`, not `google.gmail.messages.list`. Acting identity is a separate, explicit `acting_mode` in the `connected_account` resource scope; capability names must not hide whether an operation runs as self, a service identity, or the account owner.
+
+Each service splits authority at least into read/search, draft or private creation, actions that send/share/invite or otherwise reach other people, delete, and administration. Operations that affect another person default to `ask`, with `maximum_autonomy: :invocation` and invocation-only authority durations. A plugin may define typed `sub_resources` inside the connected-account scope (mailboxes, calendars, drives, channels, and similar service concepts), while account selection and acting mode retain their common broker semantics.
+
+Revoked and failed account records and their broker audit rows follow the instance retention policy. Plugin purge also removes audit rows held in Credential Store for Connected Accounts.

@@ -65,14 +65,24 @@ module ConnectedAccounts
       ConnectedAccounts::ProviderRegistry.load!
       nil
     end
-    provides admin_page: "ConnectedAccounts::AdminPages"
+    provides admin_page: "ConnectedAccounts::AdminPages",
+             sidebar_page: "ConnectedAccounts::SidebarPages",
+             permission_provider: "ConnectedAccounts::PermissionProvider",
+             retention_policy: "ConnectedAccounts::RetentionPolicy",
+             purge_contributor: "ConnectedAccounts::PurgeContributor"
+    route :get, "/api/v1/app/connected_accounts/accounts", to: "api/v1/app/connected_accounts/accounts#index"
+    route :patch, "/api/v1/app/connected_accounts/accounts/:id", to: "api/v1/app/connected_accounts/accounts#update"
     route :get, "/api/v1/app/connected_accounts/connect/:provider", to: "api/v1/app/connected_accounts/oauth#start"
     route :get, "/api/v1/app/connected_accounts/callback/:provider", to: "api/v1/app/connected_accounts/oauth#callback"
     route :delete, "/api/v1/app/connected_accounts/accounts/:id", to: "api/v1/app/connected_accounts/accounts#destroy"
     route :get, "/api/v1/app/admin/connected_accounts/provider_config", to: "api/v1/app/connected_accounts/provider_configs#show"
     route :patch, "/api/v1/app/admin/connected_accounts/provider_config", to: "api/v1/app/connected_accounts/provider_configs#update"
     route :get, "/admin/connected_accounts", to: "spa#show"
-    frontend routes: { "connected_accounts/ConnectedAccountsAdmin" => "app/frontend/routes/ConnectedAccountsAdmin.tsx" },
+    route :get, "/settings/connected_accounts", to: "spa#show"
+    frontend routes: {
+      "connected_accounts/ConnectedAccountsAdmin" => "app/frontend/routes/ConnectedAccountsAdmin.tsx",
+      "connected_accounts/ConnectedAccountsSettings" => "app/frontend/routes/ConnectedAccountsSettings.tsx"
+    },
       i18n: [ "app/frontend/i18n/locales/*/connected_accounts.json" ]
   end
 end

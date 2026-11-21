@@ -30,7 +30,7 @@ RSpec.describe "Connected accounts OAuth", type: :request do
 
     get "/api/v1/app/connected_accounts/callback/generic_oauth2", params: { state: "state", code: "code" }
 
-    expect(response).to redirect_to("/admin/connected_accounts")
+    expect(response).to redirect_to("/settings/connected_accounts")
     expect(ConnectedAccounts::OauthBroker).to have_received(:complete!).with(hash_including(provider: "generic_oauth2", state: "state", code: "code", user: user))
   end
 
@@ -40,7 +40,7 @@ RSpec.describe "Connected accounts OAuth", type: :request do
 
     get "/api/v1/app/connected_accounts/callback/generic_oauth2", params: { error: "access_denied", state: "denied-state" }
 
-    expect(response).to redirect_to("/admin/connected_accounts")
+    expect(response).to redirect_to("/settings/connected_accounts")
     expect(ConnectedAccounts::OauthState).to have_received(:consume!).with(hash_including(token: "denied-state", user: user, provider: "generic_oauth2"))
     expect(ConnectedAccounts::OauthBroker).not_to have_received(:complete!)
   end
@@ -50,7 +50,7 @@ RSpec.describe "Connected accounts OAuth", type: :request do
 
     get "/api/v1/app/connected_accounts/callback/generic_oauth2", params: { state: "invalid", code: "code" }
 
-    expect(response).to redirect_to("/admin/connected_accounts")
+    expect(response).to redirect_to("/settings/connected_accounts")
     expect(flash[:alert]).to eq(I18n.t("connected_accounts.oauth.invalid_state"))
   end
 end

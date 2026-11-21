@@ -152,6 +152,10 @@ class Feature < ApplicationRecord
     enabled?(:execution_request_assertions)
   end
 
+  def self.coworker_connected_accounts_enabled?
+    enabled?(:coworker_connected_accounts)
+  end
+
   def effective_enabled?
     enabled? && (AppSetting.beta_mode_enabled? || !experimental?)
   end
