@@ -22,6 +22,14 @@ module MaintenanceTasks
       def fetch(key)
         definitions.fetch(key.to_s)
       end
+
+      # A stored task can name a definition this build does not have: a newer
+      # pod created it before a rollback, or the definition was retired. Reads
+      # that only describe the task use this, so one unknown row cannot take
+      # the whole maintenance surface down.
+      def find(key)
+        definitions[key.to_s]
+      end
     end
   end
 end

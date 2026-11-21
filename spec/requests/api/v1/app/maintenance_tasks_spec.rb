@@ -41,4 +41,27 @@ RSpec.describe "API: /api/v1/app/maintenance_tasks/sidebar", type: :request do
     get "/api/v1/app/maintenance_tasks/sidebar", headers: { "If-None-Match" => response.headers.fetch("ETag") }
     expect(response).to have_http_status(:not_modified)
   end
+
+  it "still lists a task whose definition this build does not know" do
+    MaintenanceTask.create!(
+      definition_key: "definition_from_a_newer_build",
+      task_key: "spec:unknown-definition",
+      state: "pending",
+      recurrence: "one_off",
+      category: "repair",
+      title: "Task from a newer build",
+      summary: "Created by a pod running a newer revision before a rollback",
+      trigger_kind: "manual",
+      trigger_key: "spec",
+      required_role: "admin",
+      checkpoint: {},
+      metadata: {}
+    )
+    sign_in_as(Factories.user(admin: true))
+
+    get "/api/v1/app/maintenance_tasks/sidebar"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("tasks").map { |task| task.fetch("title") }).to eq([ "Task from a newer build" ])
+  end
 end
