@@ -317,7 +317,11 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         user: shared_user,
         repository: shared_repository,
         issue_number: 30_000 + case_number,
-        state: "queued",
+        # The workflow is made running below, and a running workflow carries
+        # its Job to running. A queued Job under it is state drift in its own
+        # right, which shadowed the degradation under test for templates whose
+        # drift the reconciler repairs first (external PR feedback).
+        state: "running",
         agent_provider: random_provider
       )
       workflow = entry.template_class.instantiate(job: job, artifacts: instantiate_artifacts_for(entry.template_class), agent_provider: job.agent_provider)
@@ -695,6 +699,21 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         created_at: age.ago,
         updated_at: (age - 1.minute).ago
       )
+      # Readiness follows the successor's dependency edges, not the linked-list
+      # predecessor alone: a grader_collect waits on every grader of its fan-out.
+      # Settle the other dependencies too, or the "stranded" step is simply not
+      # ready yet and the reconciler is right to leave it alone.
+      successor.reload.depends_on_steps.reject { |dependency| dependency.id == predecessor.id }.each do |dependency|
+        next if dependency.state.in?(%w[succeeded skipped])
+
+        Run.where(step_id: dependency.id).delete_all
+        dependency.update_columns(state: "succeeded", started_at: age.ago, finished_at: (age - 1.minute).ago, updated_at: (age - 1.minute).ago)
+        dependency.runs.create!(
+          job: workflow.job, user: workflow.job.user, trigger_kind: workflow.trigger_kind,
+          agent_provider: workflow.agent_provider, state: "succeeded", iteration: dependency.iteration,
+          started_at: age.ago, finished_at: (age - 1.minute).ago, created_at: age.ago, updated_at: (age - 1.minute).ago
+        )
+      end
       successor.update_columns(state: "queued", started_at: nil, finished_at: nil, created_at: age.ago, updated_at: age.ago)
       trace << "step=#{successor.id}:queued_without_run predecessor=#{predecessor.id}:#{predecessor.kind} age=#{age.inspect}"
       successor
