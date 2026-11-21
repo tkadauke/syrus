@@ -61,13 +61,9 @@ class RepositoryExecutionProbeRunner
   def version_declared?
     return true if Steps::Prepare::UNIVERSAL_MISE_VERSION_FILES.any? { |file| path.join(file).file? }
 
-    Syrus::PluginRegistry.providers_for(:prepare_detector).any? do |detector|
-      result = Syrus::PluginInvocation.call(
-        extension_point: :prepare_detector, provider: detector, operation: :mise_version_file, on_decline: nil
-      ) { detector.mise_version_file }
-      file = Syrus::PluginInvocation.value(result)
-      file.present? && path.join(file).file?
-    end
+    context = Syrus::Plugin::Context::RepoContext.new(repo_path: path.to_s)
+    Syrus::Plugin::Dispatch.call(:ecosystem, :detect_prepare, context)
+      .any? { |plan| plan.version_file.present? && path.join(plan.version_file).file? }
   end
 
   def grader_timeout(grader)

@@ -27,7 +27,7 @@ RSpec.describe "Plugin family migration architecture" do
 
   # Add a family only after all core callers use Dispatch; entries map the
   # family to every absorbed point so the assertion cannot silently narrow.
-  MIGRATED_FAMILIES = {}.freeze
+  DISPATCHED_FAMILIES = { ecosystem: ECOSYSTEM_POINTS }.freeze
 
   # The bridge is live while core callers and bundled plugins move in later
   # changes. A migrating family must own every legacy point up front.
@@ -68,10 +68,10 @@ RSpec.describe "Plugin family migration architecture" do
     expect(LEGACY_REGISTRATION_ALLOWLIST[:prepare_detector]).not_to include("new_language")
   end
 
-  it "keeps migrated-family core callers off legacy registry lookups" do
+  it "keeps dispatched-family core callers off legacy registry lookups" do
     core = Dir["{app,lib}/**/*.rb"].to_h { |path| [ path, File.read(path) ] }
     violations = core.flat_map do |path, source|
-      forbidden_migrated_lookups(source, MIGRATED_FAMILIES).map { |family, point| "#{path}: #{family}/#{point}" }
+      forbidden_migrated_lookups(source, DISPATCHED_FAMILIES).map { |family, point| "#{path}: #{family}/#{point}" }
     end
     expect(violations).to be_empty
   end

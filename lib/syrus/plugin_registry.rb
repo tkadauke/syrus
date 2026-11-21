@@ -531,7 +531,19 @@ module Syrus
         capability = capability.to_sym
         raise ArgumentError, "Unknown capability #{capability.inspect} for family #{family.inspect}" unless definition.capabilities.key?(capability)
 
-        capability_providers_from(available_capability_plugins, definition, capability)
+        plugins = available_capability_plugins
+        family_providers = capability_providers_from(plugins, definition, capability)
+        mapping = definition.legacy_mappings.values.find { |entry| entry.capability == capability }
+        return family_providers unless mapping
+
+        legacy_providers = providers_for(mapping.extension_point).filter_map do |provider|
+          next if provider.is_a?(Syrus::Plugin::LegacyBridge::Provider)
+          key = mapping.adapter.key(provider) if mapping.adapter.respond_to?(:key)
+          Syrus::Plugin::LegacyBridge::LegacyCapabilityProvider.new(
+            provider:, adapter: mapping.adapter, capability:, key:
+          )
+        end
+        family_providers + legacy_providers
       end
 
       def capability_catalog(family = nil)

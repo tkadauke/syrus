@@ -25,15 +25,6 @@ module Syrus
     # Isolated repro recording uses `isolated_command_for` to derive a trusted
     # exact-example command; it never executes caller-supplied shell text.
     module FocusedTestCommand
-      def self.invoke(provider, project_path: nil, **arguments)
-        parameters = provider.method(:command_for).parameters
-        accepts_project_path = parameters.any? do |kind, name|
-          kind == :keyrest || (%i[key keyreq].include?(kind) && name == :project_path)
-        end
-        arguments[:project_path] = project_path if accepts_project_path
-        provider.command_for(**arguments)
-      end
-
       def self.included(base)
         base.extend(ClassMethods)
       end

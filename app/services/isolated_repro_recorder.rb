@@ -123,21 +123,11 @@ class IsolatedReproRecorder
   private
 
   def isolated_command_for(grader_step, failing_test)
-    Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
-      next unless provider.respond_to?(:isolated_command_for)
-
-      result = Syrus::PluginInvocation.call(
-        extension_point: :focused_test_command, provider:, operation: :isolated_command_for, on_decline: nil
-      ) do
-        provider.isolated_command_for(
-          grader_name: @grader_name, grader_command: grader_step.details.to_h["command"].to_s,
-          test_case: failing_test
-        )
-      end
-      command = Syrus::PluginInvocation.value(result)
-      return command.to_s.strip if command.to_s.strip.present?
-    end
-    nil
+    context = Syrus::Plugin::Context::GraderContext.new(
+      name: @grader_name, command: grader_step.details.to_h["command"].to_s,
+      test_case: failing_test, operation: :isolated
+    )
+    Syrus::Plugin::Dispatch.call(:ecosystem, :focused_tests, context)&.to_s&.strip&.presence
   end
 
   def execute_repro(command)

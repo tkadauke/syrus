@@ -759,14 +759,9 @@ module Steps
     end
 
     def run_grader_augmentors!(name:, command:)
-      Syrus::PluginRegistry.providers_for(:grader_augmentor).each do |provider|
-        lines = Syrus::PluginInvocation.call(
-          extension_point: :grader_augmentor, provider:, operation: :augment_grader_failure, on_decline: []
-        ) do
-          provider.augment_grader_failure(name: name, command: command, workspace_path: workspace.path)
-        end
-        Array(Syrus::PluginInvocation.value(lines)).each { |line| log(line, kind: "grade_log") }
-      end
+      context = Syrus::Plugin::Context::GraderContext.new(name:, command:, workspace_path: workspace.path)
+      Syrus::Plugin::Dispatch.call(:ecosystem, :grader_diagnostics, context)
+        .each { |line| log(line, kind: "grade_log") }
     end
 
     def capture_grade_log(path, relative_path, diagnostic_warning: nil, fallback_output: nil)
