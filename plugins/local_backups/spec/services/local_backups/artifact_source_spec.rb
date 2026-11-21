@@ -1,6 +1,17 @@
 require "rails_helper"
 
 RSpec.describe LocalBackups::ArtifactSource do
+  around do |example|
+    Dir.mktmpdir do |directory|
+      @backup_root = Pathname.new(directory)
+      previous = ENV["SYRUS_BACKUP_ROOT"]
+      ENV["SYRUS_BACKUP_ROOT"] = directory
+      example.run
+    ensure
+      previous.nil? ? ENV.delete("SYRUS_BACKUP_ROOT") : ENV["SYRUS_BACKUP_ROOT"] = previous
+    end
+  end
+
   let!(:backup) do
     LocalBackups::Backup.create!(
       uuid: SecureRandom.uuid,
@@ -25,8 +36,29 @@ RSpec.describe LocalBackups::ArtifactSource do
     )
   end
 
-  it "does not substitute the manifest for a streamable backup artifact" do
-    expect { described_class.open(backup.uuid, context: nil) }
-      .to raise_error(described_class::UnsupportedOperation, /sealed archives/)
+  it "streams a sealed archive without exposing its path" do
+    sealed = @backup_root.join("sealed")
+    sealed.mkdir
+    sealed.join("manifest.json").write("sealed bundle")
+
+    io = described_class.open(backup.uuid, context: nil)
+    expect(io.read).to include("sealed bundle")
+    expect(io).to be_a(Tempfile)
+  ensure
+    io&.close!
+  end
+
+  it "records destination-scoped pins and redacted results idempotently" do
+    described_class.pin(backup.uuid, owner: "s3:v1", context: nil)
+    expect(backup.replications.find_by!(destination_identity: "s3:v1").state).to eq("uploading")
+
+    2.times do
+      described_class.record_replication(backup.uuid, destination: "s3:v1", context: nil, result: {
+        state: "failed", failure_summary: "request to https://secret.example/object failed"
+      })
+    end
+    replication = backup.replications.find_by!(destination_identity: "s3:v1")
+    expect(replication.state).to eq("failed")
+    expect(replication.failure_summary).to eq("request to [REDACTED_URL] failed")
   end
 end
