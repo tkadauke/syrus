@@ -243,6 +243,7 @@ RSpec.describe LocalBackups::Recovery do
         failure = JSON.parse(output.string.lines.last)
         expect(failure).to include("maintenance_mode" => true)
         expect(failure.fetch("rollback").join).to include("replace")
+        expect(failure.fetch("rollback").last).to include("remove maintenance marker #{marker}")
       end
     end
 
@@ -254,6 +255,58 @@ RSpec.describe LocalBackups::Recovery do
 
         expect { described_class.new(**options).call }.to raise_error(LocalBackups::Recovery::Error, /break-glass/)
         expect(Pathname.new(options[:maintenance_marker])).to exist
+      end
+    end
+
+    it "restores with explicit break-glass confirmation when no safety backup can be made" do
+      Dir.mktmpdir do |directory|
+        root = Pathname.new(directory)
+        options, database, _objects, marker, = restore_options(root, create_restore_bundle(root))
+        options[:commands] = options[:commands].merge(safety_backup: nil)
+        options[:break_glass] = true
+
+        result = described_class.new(**options).call
+
+        restored = SQLite3::Database.new(database.to_s, readonly: true)
+        expect(restored.get_first_value("SELECT value FROM recovery_probe")).to eq("restored")
+        restored.close
+        expect(result.safety_backup).to be_nil
+        expect(marker).not_to exist
+      end
+    end
+
+    it "reports that maintenance is inactive when preflight validation fails" do
+      Dir.mktmpdir do |directory|
+        root = Pathname.new(directory)
+        options, = restore_options(root, create_restore_bundle(root))
+        options[:token] = "invalid"
+        output = StringIO.new
+        options[:output] = output
+
+        expect { described_class.new(**options).call }.to raise_error(LocalBackups::Recovery::Error, /preflight token/)
+        failure = JSON.parse(output.string.lines.last)
+        expect(failure).to include("maintenance_mode" => false, "rollback" => [])
+        expect(Pathname.new(options[:maintenance_marker])).not_to exist
+      end
+    end
+
+    it "rejects object paths outside the bundle blobs directory" do
+      Dir.mktmpdir do |directory|
+        root = Pathname.new(directory)
+        bundle = create_restore_bundle(root)
+        blob = bundle.join("config/evil").tap { |path| path.dirname.mkpath }
+        blob.write("escaped object")
+        manifest = JSON.parse(bundle.join("manifest.json").read)
+        manifest["active_storage"]["blobs"] = [{ "id" => 1, "relative_path" => "config/evil",
+          "bundle_checksum" => Digest::SHA256.file(blob).hexdigest }]
+        checksums = bundle.join("checksums.sha256")
+        checksums.write(checksums.read + "#{Digest::SHA256.file(blob).hexdigest}  config/evil\n")
+        manifest["checksum"] = Digest::SHA256.file(checksums).hexdigest
+        bundle.join("manifest.json").write(JSON.generate(manifest))
+        options, = restore_options(root, bundle)
+
+        expect { described_class.new(**options).call }.to raise_error(LocalBackups::Recovery::Error, /beneath blobs/)
+        expect(Pathname.new(options[:destination]).join("config/evil")).not_to exist
       end
     end
 
@@ -290,7 +343,8 @@ RSpec.describe LocalBackups::Recovery do
         expect { described_class.new(**options).call }.to raise_error(LocalBackups::Recovery::Error, /health check failed/)
         expect(log.readlines(chomp: true)).to eq(%w[mysql-stage object-stage mysql-promote object-promote])
         rollback = JSON.parse(output.string.lines.last).fetch("rollback")
-        expect(rollback).to eq(["run: object-rollback", "run: mysql-rollback"])
+        expect(rollback).to eq(["run: object-rollback", "run: mysql-rollback",
+          "after rollback succeeds, remove maintenance marker #{options[:maintenance_marker]} before resuming service"])
         expect(Pathname.new(options[:maintenance_marker])).to exist
       end
     end
