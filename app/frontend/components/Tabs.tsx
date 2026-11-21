@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useLayoutEffect, useRef, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { CloseIcon } from "./CloseIcon"
 
@@ -24,14 +24,11 @@ export type UnderlineTabItem<Key extends TabKey = string> = {
 }
 
 const DEFAULT_ACTIVE_TAB_CLASS = "border-brand text-brand dark:border-brand dark:text-brand-emphasis"
-const DEFAULT_INACTIVE_TAB_CLASS = "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"
+const DEFAULT_INACTIVE_TAB_CLASS =
+  "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"
 
 export function underlineTabClass(active: boolean, className = "", activeClassName = DEFAULT_ACTIVE_TAB_CLASS, inactiveClassName = DEFAULT_INACTIVE_TAB_CLASS) {
-  return [
-    "min-w-0 shrink-0 border-b-2 font-medium",
-    active ? activeClassName : inactiveClassName,
-    className
-  ].filter(Boolean).join(" ")
+  return ["min-w-0 shrink-0 border-b-2 font-medium", active ? activeClassName : inactiveClassName, className].filter(Boolean).join(" ")
 }
 
 export function UnderlineTabs<Key extends TabKey>({
@@ -43,7 +40,8 @@ export function UnderlineTabs<Key extends TabKey>({
   inactiveClassName,
   itemClassName = "px-4 py-2 text-sm",
   items,
-  onSelect
+  onSelect,
+  scrollActiveIntoView = false
 }: {
   activeKey: Key | null
   activeClassName?: string
@@ -54,9 +52,24 @@ export function UnderlineTabs<Key extends TabKey>({
   itemClassName?: string
   items: UnderlineTabItem<Key>[]
   onSelect?: (key: Key) => void
+  scrollActiveIntoView?: boolean
 }) {
+  const activeTabRef = useRef<HTMLElement | null>(null)
+  const tabStripRef = useRef<HTMLElement | null>(null)
+  const setActiveTabRef = (element: HTMLElement | null) => {
+    activeTabRef.current = element
+  }
+  const setTabStripRef = (element: HTMLElement | null) => {
+    tabStripRef.current = element
+  }
+
+  useLayoutEffect(() => {
+    if (!scrollActiveIntoView || !tabStripRef.current || tabStripRef.current.scrollWidth <= tabStripRef.current.clientWidth) return
+    activeTabRef.current?.scrollIntoView?.({ block: "nearest", inline: "start" })
+  }, [activeKey, scrollActiveIntoView])
+
   return (
-    <Element aria-label={ariaLabel} className={className}>
+    <Element aria-label={ariaLabel} className={className} ref={setTabStripRef}>
       {items.map((item) => {
         const active = item.key === activeKey
         const tabClassName = underlineTabClass(active, [itemClassName, item.tabClassName].filter(Boolean).join(" "), activeClassName, inactiveClassName)
@@ -91,7 +104,7 @@ export function UnderlineTabs<Key extends TabKey>({
 
         if (item.to) {
           return (
-            <Link className={tabClassName} key={String(item.key)} title={item.title} to={item.to}>
+            <Link className={tabClassName} key={String(item.key)} ref={active ? setActiveTabRef : undefined} title={item.title} to={item.to}>
               {content}
             </Link>
           )
@@ -103,6 +116,7 @@ export function UnderlineTabs<Key extends TabKey>({
             disabled={item.disabled}
             key={String(item.key)}
             onClick={() => onSelect?.(item.key)}
+            ref={active ? setActiveTabRef : undefined}
             title={item.title}
             type="button"
           >

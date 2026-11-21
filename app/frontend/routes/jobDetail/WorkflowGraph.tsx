@@ -1,11 +1,14 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
-import { PluginUiSlot } from "../../pluginUiSlots"
+import { PluginUiSlot, pluginUiSlotComponentFor, type UiSlotPanel } from "../../pluginUiSlots"
 import { matchingReviewContribution, renderReviewContribution, type ReviewContribution } from "../../pluginReviewContributions"
 import { useT } from "../../hooks/useT"
+import { useMediaQuery } from "../../hooks/useMediaQuery"
+import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { AnsiText } from "../../components/AnsiText"
 import { CloseIcon } from "../../components/CloseIcon"
 import { StatusPill, TonePill } from "../../components/StatusPill"
@@ -77,7 +80,16 @@ import {
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { WorkflowReference } from "../../components/WorkflowReference"
-import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
+import {
+  actionMenuClass,
+  artifactPanelClass,
+  disabledPaginationClass,
+  formatCurrency,
+  formatDuration,
+  paginationLinkClass,
+  shortSha,
+  withRoutePrefix
+} from "./formatting"
 import {
   stepArtifactAdversarialReview,
   stepArtifactCoworkerReview,
@@ -512,11 +524,12 @@ function WorkflowCard({
   const stepItems = workflowStepItems(displayedWorkflow.steps)
   const branchDivergence = workflowBranchDivergence(displayedWorkflow)
   const detectedPlugins = workflowDetectedPlugins(displayedWorkflow)
+  const mobile = useMediaQuery("(max-width: 639px)")
 
   return (
     <Section.Root id={`workflow-${workflow.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-text-primary">
             <WorkflowReference path={withRoutePrefix(workflow.path, prefix)} slug={workflow.slug || workflowSlug(workflow.id)} />
           </h2>
@@ -537,25 +550,37 @@ function WorkflowCard({
             </p>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
-          <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
-          {workflow.retry_available ? (
-            <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
-              {t("retry_failed_step")}
-            </CommandButton>
-          ) : null}
-          {workflow.state === "failed" && !workflow.cleaned_up_at ? (
-            <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
-              {t("push_commits")}
-            </CommandButton>
-          ) : null}
-          {!alreadyDetailed ? (
-            <Button aria-expanded={open} onClick={() => setOpen((value) => !value)} variant="secondary">
-              {open ? t("common:show_less") : t("common:show_more")}
-            </Button>
-          ) : null}
-        </div>
+        {mobile ? (
+          <WorkflowMobileControls
+            command={command}
+            onToggleDetails={() => setOpen((value) => !value)}
+            open={open}
+            payload={payload}
+            prefix={prefix}
+            showDisclosure={!alreadyDetailed}
+            workflow={workflow}
+          />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
+            <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
+            {workflow.retry_available ? (
+              <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
+                {t("retry_failed_step")}
+              </CommandButton>
+            ) : null}
+            {workflow.state === "failed" && !workflow.cleaned_up_at ? (
+              <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
+                {t("push_commits")}
+              </CommandButton>
+            ) : null}
+            {!alreadyDetailed ? (
+              <Button aria-expanded={open} onClick={() => setOpen((value) => !value)} variant="secondary">
+                {open ? t("common:show_less") : t("common:show_more")}
+              </Button>
+            ) : null}
+          </div>
+        )}
       </div>
       {open && detailQuery.isLoading ? <PanelMessage>{t("loading")}</PanelMessage> : null}
       {open && detailQuery.error ? <PanelMessage tone="error">{errorMessage(detailQuery.error, t("load_error"))}</PanelMessage> : null}
@@ -617,6 +642,155 @@ function WorkflowCard({
       ) : null}
     </Section.Root>
   )
+}
+
+function WorkflowMobileControls({
+  command,
+  onToggleDetails,
+  open,
+  payload,
+  prefix,
+  showDisclosure,
+  workflow
+}: {
+  command: ReturnType<typeof useJobCommand>
+  onToggleDetails: () => void
+  open: boolean
+  payload: JobDetailPayload
+  prefix: string
+  showDisclosure: boolean
+  workflow: JobWorkflow
+}) {
+  const { t } = useT("jobs")
+  const [menuOpen, setMenuOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useDismissiblePopup<HTMLDivElement>(menuOpen, () => {
+    setMenuOpen(false)
+    triggerRef.current?.focus()
+  }, [triggerRef])
+  const pluginActions = renderableWorkflowActions(payload.ui_workflow_actions, workflow.id)
+  const hasCommands = Boolean(pluginActions.length || workflow.retry_available || (workflow.state === "failed" && !workflow.cleaned_up_at))
+  const menuPosition = workflowMenuPosition(triggerRef.current)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    menuRef.current?.querySelector<HTMLElement>("[role='menuitem']:not([disabled])")?.focus()
+  }, [menuOpen, menuRef])
+
+  function handleMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return
+
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']:not([disabled])") || [])
+    if (items.length === 0) return
+
+    event.preventDefault()
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement)
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? items.length - 1
+          : event.key === "ArrowDown"
+            ? (currentIndex + 1) % items.length
+            : (currentIndex - 1 + items.length) % items.length
+    items[nextIndex]?.focus()
+  }
+
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
+      {hasCommands ? (
+        <div>
+          <Button
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label={t("workflow_actions")}
+            className="h-11 min-w-11 text-lg"
+            disabled={command.isPending}
+            onClick={() => setMenuOpen((value) => !value)}
+            ref={triggerRef}
+            variant="secondary"
+          >
+            ⋯
+          </Button>
+          {menuOpen && menuPosition
+            ? createPortal(
+                <div
+                  className={`${actionMenuClass()} [&_button]:!flex [&_button]:!h-11 [&_button]:!w-full [&_button]:!justify-start [&_button]:!rounded-none [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!px-4 [&_button]:!py-2 [&_button]:!text-left [&_button]:!text-sm [&_button]:hover:!bg-surface-raised [&>div]:!w-full [&>div]:!max-w-none`}
+                  aria-label={t("workflow_actions")}
+                  onClick={() => setMenuOpen(false)}
+                  onKeyDown={handleMenuKeyDown}
+                  ref={menuRef}
+                  role="menu"
+                  style={menuPosition}
+                >
+                  <PluginUiSlot panels={pluginActions} props={{ prefix, role: "menuitem", tabIndex: -1, workflow }} />
+                  {workflow.retry_available ? (
+                    <CommandButton
+                      command={command}
+                      input={{ method: "post", path: workflow.app_retry_step_path }}
+                      role="menuitem"
+                      tabIndex={-1}
+                      tone="secondary"
+                    >
+                      {t("retry_failed_step")}
+                    </CommandButton>
+                  ) : null}
+                  {workflow.state === "failed" && !workflow.cleaned_up_at ? (
+                    <CommandButton
+                      command={command}
+                      input={{ method: "post", path: workflow.app_push_commits_path }}
+                      role="menuitem"
+                      tabIndex={-1}
+                      tone="secondary"
+                    >
+                      {t("push_commits")}
+                    </CommandButton>
+                  ) : null}
+                </div>,
+                document.body
+              )
+            : null}
+        </div>
+      ) : null}
+      {showDisclosure ? (
+        <Button
+          aria-expanded={open}
+          aria-label={open ? t("common:show_less") : t("common:show_more")}
+          className="h-11 w-11 px-0 text-lg"
+          onClick={onToggleDetails}
+          size="icon"
+          variant="secondary"
+        >
+          <span aria-hidden="true">{open ? "⌃" : "⌄"}</span>
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+function workflowMenuPosition(trigger: HTMLButtonElement | null) {
+  const rect = trigger?.getBoundingClientRect()
+  if (!rect) return null
+
+  const menuWidth = 224
+  const viewportPadding = 16
+  const left = Math.min(Math.max(viewportPadding, rect.right - menuWidth), window.innerWidth - menuWidth - viewportPadding)
+  return { left, top: rect.bottom + 4 }
+}
+
+function renderableWorkflowActions(panels: UiSlotPanel[] | undefined, workflowId: number) {
+  return (panels || []).filter((panel) => {
+    if (!pluginUiSlotComponentFor(panel.component)) return false
+
+    const availabilityByWorkflow = panel.props?.availability_by_workflow_id
+    if (!availabilityByWorkflow || typeof availabilityByWorkflow !== "object") return true
+
+    const availability = (availabilityByWorkflow as Record<string, unknown>)[String(workflowId)]
+    if (!availability || typeof availability !== "object") return true
+
+    return (availability as { available?: unknown }).available !== false
+  })
 }
 
 function BranchDivergencePanel({

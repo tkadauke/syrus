@@ -12,7 +12,7 @@ import { useShortcut } from "../../contexts/ShortcutsContext"
 import { type JobDetailPayload } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand, type CommandInput } from "./command"
-import { menuButtonClass } from "./formatting"
+import { actionMenuClass, menuButtonClass } from "./formatting"
 
 type HeaderAction = {
   key: string
@@ -846,12 +846,7 @@ function HeaderActionsMenu({
             // an absolutely-positioned descendant of the header. z-20 keeps it
             // consistent with other in-page dropdown menus, still under the
             // z-30+ modal/backdrop layers.
-            <div
-              className="fixed z-20 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-              ref={menuRef}
-              role="menu"
-              style={menuPosition}
-            >
+            <div className={actionMenuClass()} ref={menuRef} role="menu" style={menuPosition}>
               {extraItems.map((item) => (
                 <button
                   className={menuButtonClass(item.tone)}

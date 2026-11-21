@@ -4667,13 +4667,14 @@ describe("Job detail tabs", () => {
     expect(screen.getByRole("button", { name: "Agent Conversation" })).toBeInTheDocument()
   })
 
-  it("gives the horizontally-scrolling tab strip an edge fade instead of a hard clip", () => {
-    // Mobile-width TabNav scrolls with no visible scrollbar; without the
-    // fade, an off-screen tab (e.g. Attachments) looks clipped rather than
-    // reachable by scrolling.
+  it("shows complete tabs in the horizontally-scrolling mobile tab strip", () => {
+    // Two equal-width tabs fill the mobile strip exactly, so a resting scroll
+    // position cannot leave an unusable fragment of the neighboring tab.
     renderJobDetail(jobPayload())
     const summaryTab = screen.getByRole("button", { name: "Summary" })
-    expect(summaryTab.parentElement).toHaveClass("overflow-x-auto", "scroll-fade-x")
+    expect(summaryTab.parentElement).toHaveClass("overflow-x-auto", "scroll-fade-x", "snap-x", "snap-mandatory", "px-2", "sm:px-0")
+    expect(summaryTab).toHaveClass("w-1/2", "snap-start", "justify-center", "truncate", "sm:w-auto", "sm:justify-start")
+    expect(screen.getByRole("button", { name: "Agent Conversation" })).toHaveClass("w-1/2", "sm:w-auto")
   })
 
   it("clips the mobile review page shell without disabling per-file diff scrolling", async () => {
