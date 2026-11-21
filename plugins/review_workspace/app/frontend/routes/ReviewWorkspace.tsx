@@ -30,7 +30,7 @@ export default function ReviewWorkspaceRoute() {
   const [deferred, setDeferred] = useState<Set<number>>(() => new Set())
   const [loadedDetail, setLoadedDetail] = useState<{ jobId: number; payload: JobDetailPayload } | null>(null)
   const [evidenceNavigation, setEvidenceNavigation] = useState<{ direction: -1 | 1; sequence: number }>()
-  const [gestureIntent, setGestureIntent] = useState<{ kind: "approve" | "feedback"; sequence: number }>()
+  const [gestureIntent, setGestureIntent] = useState<{ jobId: number; sequence: number }>()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [conversationTarget, setConversationTarget] = useState<HTMLDivElement | null>(null)
   const exitRef = useRef<HTMLButtonElement>(null)
@@ -71,22 +71,26 @@ export default function ReviewWorkspaceRoute() {
           <span className="text-sm text-text-secondary">{t("position", { current: jobs.indexOf(active) + 1, count: jobs.length })}</span>
         </div>
         <div className="flex items-center gap-1">
-          <button
-            aria-label={t("previous_job")}
-            className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
-            onClick={() => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) - 1 + jobs.length) % jobs.length].slug}`, prefix))}
-            type="button"
-          >
-            ↑
-          </button>
-          <button
-            aria-label={t("next_job")}
-            className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
-            onClick={() => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + 1) % jobs.length].slug}`, prefix))}
-            type="button"
-          >
-            ↓
-          </button>
+          {jobs.length > 1 ? (
+            <>
+              <button
+                aria-label={t("previous_job")}
+                className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
+                onClick={() => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) - 1 + jobs.length) % jobs.length].slug}`, prefix))}
+                type="button"
+              >
+                ↑
+              </button>
+              <button
+                aria-label={t("next_job")}
+                className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
+                onClick={() => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + 1) % jobs.length].slug}`, prefix))}
+                type="button"
+              >
+                ↓
+              </button>
+            </>
+          ) : null}
           <button
             aria-label={t("details")}
             className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
@@ -106,10 +110,10 @@ export default function ReviewWorkspaceRoute() {
           </button>
         </div>
       </header>
-      <div className={WORKSPACE_SCROLL_CLASS} data-testid="review-workspace-scroll-container">
+      <div className={WORKSPACE_SCROLL_CLASS} data-review-workspace-scroll-container data-testid="review-workspace-scroll-container">
         <JobRail active={active} jobs={jobs} prefix={prefix} />
         <MobileGestureSurface
-          onApprove={() => setGestureIntent((current) => ({ kind: "approve", sequence: (current?.sequence ?? 0) + 1 }))}
+          onApprove={() => setGestureIntent((current) => ({ jobId: active.id, sequence: (current?.sequence ?? 0) + 1 }))}
           onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
           onDetails={() => setDetailsOpen(true)}
           onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
@@ -157,7 +161,16 @@ function MobileGestureSurface({
   onMove: (offset: number) => void
 }) {
   const { t } = useT("review_workspace")
-  const start = useRef<{ x: number; y: number; pointerId: number; edge: boolean }>()
+  const start = useRef<{
+    x: number
+    y: number
+    lastY: number
+    pointerId: number
+    pointerType: string
+    edge: boolean
+    mode?: "gesture" | "scroll"
+    scroller: HTMLElement | null
+  }>()
   const longPress = useRef<number>()
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const clearLongPress = () => {
@@ -174,7 +187,15 @@ function MobileGestureSurface({
     if (event.pointerType === "mouse" && event.button !== 0) return
     if ((event.target as HTMLElement).closest("button, a, input, textarea, [role='button'], [data-review-gesture-exempt]")) return
     const edge = event.clientX < 28 || event.clientX > window.innerWidth - 28
-    start.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, edge }
+    start.current = {
+      x: event.clientX,
+      y: event.clientY,
+      lastY: event.clientY,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      edge,
+      scroller: event.currentTarget.closest<HTMLElement>("[data-review-workspace-scroll-container]")
+    }
     event.currentTarget.setPointerCapture?.(event.pointerId)
     longPress.current = window.setTimeout(() => {
       if (!start.current) return
@@ -189,6 +210,20 @@ function MobileGestureSurface({
     const y = event.clientY - origin.y
     if (Math.abs(x) > DIRECTION_SLOP || Math.abs(y) > DIRECTION_SLOP) clearLongPress()
     if (origin.edge && x > 0) return
+    if (!origin.mode && (Math.abs(x) > DIRECTION_SLOP || Math.abs(y) > DIRECTION_SLOP)) {
+      if (origin.pointerType !== "touch" || Math.abs(x) > Math.abs(y)) origin.mode = "gesture"
+      else {
+        const scroller = origin.scroller
+        const atTop = !scroller || scroller.scrollTop <= 0
+        const atBottom = !scroller || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
+        origin.mode = (y > 0 && atTop) || (y < 0 && atBottom) ? "gesture" : "scroll"
+      }
+    }
+    if (origin.mode === "scroll" && origin.scroller) {
+      origin.scroller.scrollTop += origin.lastY - event.clientY
+      origin.lastY = event.clientY
+      return
+    }
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
       setOffset({ x: Math.abs(x) > Math.abs(y) ? Math.max(-120, Math.min(120, x)) : 0, y: Math.abs(y) > Math.abs(x) ? Math.max(-80, Math.min(80, y)) : 0 })
   }
@@ -197,7 +232,14 @@ function MobileGestureSurface({
     if (!origin || origin.pointerId !== event.pointerId) return
     const x = event.clientX - origin.x
     const y = event.clientY - origin.y
+    if (!origin.mode && origin.pointerType === "touch" && Math.abs(y) > Math.abs(x)) {
+      const scroller = origin.scroller
+      const atTop = !scroller || scroller.scrollTop <= 0
+      const atBottom = !scroller || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
+      origin.mode = (y > 0 && atTop) || (y < 0 && atBottom) ? "gesture" : "scroll"
+    }
     reset()
+    if (origin.mode === "scroll") return
     if (Math.abs(x) > Math.abs(y) && Math.abs(x) >= SWIPE_THRESHOLD) {
       if (x > 0 && !origin.edge) onApprove()
       else if (x < 0) onDefer()
@@ -207,7 +249,8 @@ function MobileGestureSurface({
     <div className="relative min-w-0 lg:contents">
       <div
         aria-label={t("gesture_surface")}
-        className="touch-pan-y motion-reduce:transform-none lg:contents"
+        className="touch-none motion-reduce:transform-none lg:contents"
+        data-review-workspace-gesture-surface
         data-testid="mobile-review-card"
         onPointerCancel={reset}
         onPointerDown={pointerDown}
@@ -389,13 +432,18 @@ function DecisionPanel({
   onExit: () => void
   onMove: (offset: number) => void
   setConversationTarget: (target: HTMLDivElement | null) => void
-  gestureIntent?: { kind: "approve" | "feedback"; sequence: number }
+  gestureIntent?: { jobId: number; sequence: number }
 }) {
   const { t } = useT("review_workspace")
   const queryClient = useQueryClient()
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedback, setFeedback] = useState("")
   const [confirming, setConfirming] = useState(false)
+  useEffect(() => {
+    setConfirming(false)
+    setFeedbackOpen(false)
+    setFeedback("")
+  }, [job.id])
   async function completed() {
     await queryClient.invalidateQueries({ queryKey: ["review_workspace"] })
     await queryClient.invalidateQueries({ queryKey: ["jobs", String(job.id)] })
@@ -425,9 +473,8 @@ function DecisionPanel({
     return () => window.removeEventListener("keydown", shortcut)
   }, [canApprove, confirming, feedbackOpen, onEvidenceMove, onExit, onMove])
   useEffect(() => {
-    if (gestureIntent?.kind === "approve" && canApprove) setConfirming(true)
-    if (gestureIntent?.kind === "feedback") setFeedbackOpen(true)
-  }, [canApprove, gestureIntent])
+    if (gestureIntent?.jobId === job.id && canApprove) setConfirming(true)
+  }, [canApprove, gestureIntent, job.id])
   const mutationError = approve.error ?? submitFeedback.error
   return (
     <aside aria-label={t("decision_context")} className="border-l border-border bg-surface p-5 max-lg:border-t max-lg:pb-28 lg:overflow-y-auto">
