@@ -102,6 +102,7 @@ RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
   end
 
   it "answers a legacy prepare lookup from a family provider with the merged plan" do
+    Syrus::PluginRegistry.reset!
     provider = Class.new do
       def self.key = :fixture
       def self.display_name = "Fixture"
