@@ -461,6 +461,10 @@ module LocalBackups
         @staged.mkpath
         Array(@manifest.dig("active_storage", "blobs")).each do |blob|
           relative = Bundle.safe_relative(blob.fetch("relative_path"))
+          components = relative.each_filename.to_a
+          unless components.first == "blobs" && components.length > 1
+            raise Error, "staged object path must be beneath blobs/: #{relative}"
+          end
           source = @bundle.path.join(relative)
           target = @staged.join(relative.relative_path_from(Pathname.new("blobs")))
           target.dirname.mkpath
@@ -554,6 +558,7 @@ module LocalBackups
       end
 
       def call
+        maintenance = nil
         @bundle.validate!
         verify_token!
         command = Command.new(output: @output)
@@ -585,7 +590,11 @@ module LocalBackups
           safety_backup: safety&.path&.to_s, maintenance_marker: maintenance.marker.to_s)
       rescue StandardError => error
         instructions = journal&.instructions || []
-        @output.puts(JSON.generate(status: "failed", error: error.message, maintenance_mode: true,
+        maintenance_mode = maintenance&.marker&.exist? || false
+        if maintenance_mode
+          instructions << "after rollback succeeds, remove maintenance marker #{maintenance.marker} before resuming service"
+        end
+        @output.puts(JSON.generate(status: "failed", error: error.message, maintenance_mode:,
           rollback: instructions, safety_backup: safety&.path&.to_s))
         raise
       end
