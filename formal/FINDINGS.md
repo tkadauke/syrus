@@ -1403,6 +1403,33 @@ lead.
 
 ---
 
+## NY9 (decided A). Authorization installed at registration
+
+`McpToolRegistry#entry` now calls `Mcp::Sidecar.authorize_tool` for every
+registered tool. That is idempotent, and it runs before any route wrapper, so
+the layer stays innermost. Whether a tool is gated therefore no longer
+depends on which path served it first, which closes Lead L3
+(`DispatchOrder.registered_tool_always_authorized`). Read in a fresh process
+without the change, about 277 registered tools lacked the layer.
+`spec/architecture/mcp_tool_authorization_spec.rb` now fails if any
+registered tool lacks it.
+
+Making the layer universal surfaced the other half of L3. Two specs passed
+only because their tools happened to be unwrapped:
+`ci_read_tools_spec.rb` "refuses outside a workflow run" and
+`read_live_state_tool_spec.rb` "returns a tool error for an invalid run
+context". Called with an unusable context, the layer raised while building
+it, before the tool ran. The pre-call checks
+(`AuthorizationSupport.authorization_gate`) now fail closed with the tool
+error response the tool itself would give. An authorization error still maps
+to `not_authorized`, and errors from the tool body propagate as before.
+
+Also fixed on the way: `work_unit_workflow_ownership_spec.rb` defined global
+constants in its describe block (`ALLOWED`), which clobbered
+`repository_content_reads_spec.rb`'s whenever both ran in one process.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -1584,7 +1611,7 @@ session.
 tools with `authorize_tool` and opts into `full_chat_access: :all`. It passes
 alone and after the polluting example.
 
-## Lead L3: whether a tool call is gated depends on process history (instances fixed as F46, F47)
+## Lead L3: whether a tool call is gated depends on process history (closed by F46, F47 and NY9)
 
 The same mechanism has a production side. Sidecar and daemon dispatch wrap a
 tool before calling it, so real agent tool calls are gated. But any in-process

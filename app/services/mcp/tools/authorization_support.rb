@@ -23,12 +23,8 @@ module Mcp::Tools
       def call(*args, server_context: nil, **kwargs, &block)
         call_context = server_context&.dup
         Mcp::Tools::AuthorizationSupport.with_server_context(call_context) do
-          scheduled = Mcp::Tools::AuthorizationSupport.pending_scheduled_authorization(self, call_context, kwargs)
-          return scheduled if scheduled
-          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, call_context, kwargs)
-          return pending if pending
-          pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(self, call_context, kwargs)
-          return pending if pending
+          gate = Mcp::Tools::AuthorizationSupport.authorization_gate(self, call_context, kwargs)
+          return gate if gate
 
           super(*args, server_context: call_context, **kwargs, &block)
         end
@@ -38,6 +34,22 @@ module Mcp::Tools
     end
 
     class << self
+      # The three pre-call checks. Every registered tool now carries this
+      # layer (NY9), including tools called with a context they cannot use;
+      # building the context then raises before the tool runs. Fail closed
+      # with the same tool error the tool itself would return, rather than
+      # letting the exception escape -- an authorization error still maps to
+      # not_authorized in ToolDispatch#call.
+      def authorization_gate(tool, server_context, arguments)
+        pending_scheduled_authorization(tool, server_context, arguments) ||
+          pending_coworker_approval(tool, server_context, arguments) ||
+          pending_actor_approval(tool, server_context, arguments)
+      rescue AuthorizationError
+        raise
+      rescue StandardError => e
+        Mcp::Tools.exception_response(e)
+      end
+
       def current_server_context
         Thread.current[:mcp_tools_authorization_server_context]
       end

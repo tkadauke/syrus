@@ -2433,7 +2433,8 @@
         "B. Keep per-path installation and add an architecture spec that every serving path (stdio sidecar, daemon chat, daemon workflow, plugin tool sets) calls authorize_tool.",
         "C. Keep as is after F47."
       ],
-      "recommendation": "A. It makes the guarantee structural instead of a convention every new serving path must remember, which is exactly how F47 happened; the layer is already idempotent and context-driven, so tools that need no gating pass straight through."
+      "recommendation": "A. It makes the guarantee structural instead of a convention every new serving path must remember, which is exactly how F47 happened; the layer is already idempotent and context-driven, so tools that need no gating pass straight through.",
+      "decision": "A: every registered tool carries the authorization layer from registration (McpToolRegistry#entry), enforced by spec/architecture/mcp_tool_authorization_spec.rb; the layer fails closed with a tool error when it cannot build the call's context."
     }
   ]
 }
