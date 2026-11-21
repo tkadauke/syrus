@@ -37,7 +37,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `on_boot` — Idempotent process-level boot callback.
 - `optionally_depends_on` — Optional plugin names.
 - `prepare_priority` — Ordering priority for prepare contributions.
-- `provides` — Map of extension-point names to implementing class names.
+- `provides` — Extension-point classes, or one family provider with implements/provisional capabilities and an optional key.
 - `roles` — Process roles in which the plugin may load.
 - `route` — Plugin-owned Rails route (verb, path, controller).
 - `suggests_enabling` — Evidence callback for suggesting a disabled plugin.
@@ -124,6 +124,12 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `workspace_git_transport` — Provides clone and fetch transport for workflow workspaces backed by a supported repository source. Implement `Syrus::Plugin::WorkspaceGitTransport`; interface contract: `lib/syrus/plugin/workspace_git_transport.rb`.
 - `workspace_tab` — Registers a plugin-owned tab in the live workflow workspace UI. Implement `Syrus::Plugin::WorkspaceTab`; interface contract: `lib/syrus/plugin/workspace_tab.rb`.
 
+## Capability families
+
+Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`.
+
+No capability families are currently defined.
+
 ## Public host surface
 
 - `Syrus::Host::AdminController` (since 0.1.16) — Bases admin-token plugin API controllers; core filters and implementation details are not promised. Only the listed members are supported. Supported members: `params`, `render`.
@@ -172,4 +178,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 29582 bytes (UTF-8, including this line).
+Size: 30014 bytes (UTF-8, including this line).

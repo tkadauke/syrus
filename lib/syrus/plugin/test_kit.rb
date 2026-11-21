@@ -8,6 +8,7 @@ require "set"
 require "securerandom"
 require "tmpdir"
 require "syrus/plugin_loader"
+require "syrus/plugin/family_contract_kit"
 
 module Syrus
   module Plugin
@@ -238,11 +239,27 @@ module Syrus
 
       module SharedExamples
         def self.install!
-          RSpec.shared_examples "a valid Syrus plugin provider" do |extension_point|
-            it "implements the extension-point contract" do
-              interface = Syrus::PluginRegistry::INTERFACE_FOR.fetch(extension_point.to_sym).call
-              provider_class = subject.is_a?(Class) ? subject : subject.class
-              expect(provider_class.ancestors).to include(interface)
+          unless @base_installed
+            RSpec.shared_examples "a valid Syrus plugin provider" do |extension_point|
+              it "implements the extension-point contract" do
+                interface = Syrus::PluginRegistry::INTERFACE_FOR.fetch(extension_point.to_sym).call
+                provider_class = subject.is_a?(Class) ? subject : subject.class
+                expect(provider_class.ancestors).to include(interface)
+              end
+            end
+            @base_installed = true
+          end
+
+          Syrus::Plugin::Family.all.each do |family|
+            @installed_families ||= Set.new
+            next unless @installed_families.add?(family.name)
+            RSpec.shared_examples "a valid #{family.name} provider" do |capabilities:, contexts:, decline_contexts:|
+              it "satisfies the generated #{family.name} family contract" do
+                resolved_contexts = contexts.respond_to?(:call) ? instance_exec(&contexts) : contexts
+                resolved_declines = decline_contexts.respond_to?(:call) ? instance_exec(&decline_contexts) : decline_contexts
+                Syrus::Plugin::FamilyContractKit.validate!(family: family.name, provider: subject,
+                  capabilities:, contexts: resolved_contexts, decline_contexts: resolved_declines)
+              end
             end
           end
         end

@@ -4344,12 +4344,13 @@ Syrus::Plugin::Family.define(:ecosystem) do
     composition: :collect,
     absent: [],
     tier: :stable,
-    context: "Ecosystem::PrepareContext"
+    context: "Ecosystem::PrepareContext",
+    returns: Array
 end
 ```
 
 Each capability must document its composition, absent result, stability tier,
-and context. Facets require provider `key` and `display_name` methods; service
+context, and return shape. Facets require provider `key` and `display_name` methods; service
 families additionally require `available_for?` because the host selects among
 implementations.
 
@@ -4410,3 +4411,12 @@ without recording a provider crash. Unexpected exceptions and opt-in timeouts
 are recorded in plugin health, participate in the circuit breaker, and become
 the capability's neutral decline value. A keyed lookup with no matching
 provider raises `Syrus::Plugin::Dispatch::MissingKey`.
+
+The plugin test kit generates an `"a valid <family> provider"` shared example
+for every definition. It checks required core methods, calls each claimed
+capability with the family's context, validates the declared return shape, and
+checks the absent/decline result. Pass the claimed capability names and call
+and decline contexts to the shared example. Core runs these same generated
+contracts for bundled family declarations. A capability may be marked
+`stable` only when at least two independent bundled plugins implement it and
+the generated contract is present; otherwise it remains `provisional`.
