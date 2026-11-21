@@ -30,6 +30,7 @@ import SyrusModel.AskNeverApproves
 import SyrusModel.LeaseScope
 import SyrusModel.ScopeMatching
 import SyrusModel.InvocationClaim
+import SyrusModel.ApprovalDelegation
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

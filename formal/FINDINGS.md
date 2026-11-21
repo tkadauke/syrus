@@ -1996,6 +1996,31 @@ DOC-44 Phase 4.
 
 ---
 
+## M12. Delegated approval and audit evidence — proved, no bug
+
+DOC-44 Phase 4. `ApprovalDelegation.lean` models
+`Permissions::ApprovalProviderAuthorizer` and `ApprovalProviderLifecycle`. A
+provider may decide a request only if:
+
+- it is not `syrus.permissions` and has no core human-only effect (`financial`,
+  `privilege_change`);
+- an active delegation covers it: same capability and resource type, every key
+  of the delegation's scope present and equal (a non-empty subset for list keys),
+  and no excluded effect, the human-only ones always excluded;
+- no non-delegable rule stands above `allow`;
+- the provider's confidence is at least 0.8.
+
+The approval is recorded with `invocation` duration and issues one
+`AuthorizedInvocation`, so a delegated approval never becomes standing
+authority (`delegated_within_authority`). A list-scoped delegation never covers
+a request outside its list (`list_scope_subset`).
+
+"Audit evidence records the decision actually used" holds by construction:
+`Permissions::Management#authorize` passes the same decision object it returns
+to `DecisionAudit.record`.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
