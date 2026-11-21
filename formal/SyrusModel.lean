@@ -44,6 +44,7 @@ import SyrusModel.EnablementRead
 import SyrusModel.ScopedDelivery
 import SyrusModel.GapRecovery
 import SyrusModel.UnknownKindHandback
+import SyrusModel.ExistingKindDefinition
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

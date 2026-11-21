@@ -2414,6 +2414,53 @@ The job, step, dispatcher and remediation specs pass (854 examples).
 
 ---
 
+## F74. A disabled or unhealthy plugin's in-flight work could not be cancelled — fixed (NY14)
+
+**Found by** F61's remaining case (queued as NY14). Decision: A, keep kind
+metadata resolvable for existing rows, and let only new work require a
+healthy owner.
+
+**Property.** An existing row always gets a definition. A launch gets one
+exactly when the kind is built-in or its owner is enabled and healthy, and
+the neutral `Unavailable` definition is never what a launch receives
+(`ExistingKindDefinition.existing_always_answers`,
+`launch_needs_healthy_owner`, `unavailable_never_launches`).
+
+**Gap.** F61 kept rows of a withdrawn kind saveable. But
+`Workflow#work_definition` still resolved through the live registry, and the
+cancel cascade asks it questions (`infrastructure_workflow?` in
+`Workflows::JobLifecyclePropagation`). So `WorkUnits::WorkflowCancellation`
+raised `WorkDefinitions::UnknownKind` for an in-flight Workflow whose plugin
+was disabled or unhealthy (`cancel_raised`). That work could be neither
+finished nor cancelled.
+
+**Fix.**
+
+- `WorkDefinitions.for_existing(kind)` answers like `.for` while the kind is
+  registered. Otherwise it returns the definition from the installed plugin's
+  own `workflow_kinds` provider, whatever the plugin's state. If the plugin is
+  uninstalled or failed to load, it returns `WorkDefinitions::Unavailable`.
+- `Unavailable` keeps Base's conservative defaults: operator-only retries,
+  not infrastructure. Its plugin marker is never provided, so it is never in
+  the registry, and `.for`, which every launch path uses, never returns it.
+- `Workflow#work_definition` uses `for_existing`.
+- F73 made `Step::Kind.remediation_for` neutral for an unknown kind, so the
+  Step side of the cascade does not raise either.
+
+**Spec.**
+
+- `plugin_kind_persistence_spec.rb` "can still cancel the in-flight workflow,
+  its steps and runs" (red before: `UnknownKind`). This file moved into
+  `plugins/agent_insights/spec/models/`, because core specs must not depend
+  on a bundled plugin.
+- `work_definitions/for_existing_spec.rb`: `Unavailable` for an uninstalled
+  kind, never registered and never returned by `.for`, and identical to
+  `.for` for a registered kind.
+- `agent_insights/work_definition_for_existing_spec.rb`: a disabled plugin's
+  own definition is still resolved for existing rows.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

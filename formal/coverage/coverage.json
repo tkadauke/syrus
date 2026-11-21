@@ -2430,9 +2430,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "F61 (NY14 decided)",
-      "notes": "F61: kinds validated on create or change only, and the disable guard blocks while active work of the plugin's kinds exists (PluginDisableRecovery.lean). Decided NY14: keep kind metadata resolvable for in-flight work when a plugin turns unhealthy. To implement."
+      "status": "done",
+      "done_by": "F61, F73, F74",
+      "notes": "Kinds are validated on create or change only, and the disable guard blocks while the plugin's work is active (F61). An unknown kind's Step fails cleanly (F73). An existing Workflow resolves its definition whatever its plugin's state, so in-flight work can always be cancelled, while launches still need a healthy owner (F74, ExistingKindDefinition.lean)."
     },
     {
       "id": "plugin-missing-contribution-defaults",
@@ -2871,7 +2871,7 @@
         "C. Keep as is: an unhealthy plugin's in-flight work stays stuck until it is healthy again."
       ],
       "recommendation": "A. Cancellation and display need only metadata, not the plugin's code paths. It matches F61's create-only validation, and it keeps the 'withheld providers are never called' rule for anything that starts work. B loses work that a plugin fix would have resumed.",
-      "decision": "A (2026-11-21): keep kind metadata resolvable for work already in flight, so it can always be cancelled; new work still needs a healthy owner. To implement."
+      "decision": "A (2026-11-21). Implemented as F74: existing rows resolve their definition from the installed plugin whatever its state (WorkDefinitions.for_existing), or the neutral Unavailable; launches still need an enabled and healthy owner."
     },
     {
       "id": "NY15",

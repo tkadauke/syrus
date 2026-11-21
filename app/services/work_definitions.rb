@@ -12,6 +12,36 @@ module WorkDefinitions
     definition_class.new
   end
 
+  # The definition for a row that already exists. A plugin that is disabled or
+  # unhealthy withdraws its kinds from the registry, which is right for new
+  # work, but its in-flight Workflows still have to be finished or cancelled,
+  # and the cancel cascade asks their definition questions. So an existing row
+  # resolves its own kind from any installed plugin, enabled and healthy or
+  # not (the definition is metadata; nothing here starts work), and otherwise
+  # gets the neutral Unavailable definition (NY14,
+  # formal/SyrusModel/ExistingKindDefinition.lean).
+  def for_existing(kind)
+    self.for(kind)
+  rescue UnknownKind
+    (installed_definition_for(kind.to_s) || Unavailable).new
+  end
+
+  def installed_definition_for(kind)
+    Syrus::PluginRegistry.all_plugins.each do |manifest|
+      Array(manifest.provides[:workflow_kinds]).each do |provider|
+        provider = provider.safe_constantize if provider.is_a?(String)
+        next unless provider.respond_to?(:work_definitions)
+
+        definition = Array(provider.work_definitions).find { |candidate| candidate.kind.to_s == kind }
+        return definition if definition
+      rescue StandardError => e
+        Rails.logger.error("[WorkDefinitions] #{provider}.work_definitions failed: #{e.class}: #{e.message}")
+      end
+    end
+    nil
+  end
+  private_class_method :installed_definition_for
+
   def landing_lock_kinds
     @landing_lock_kinds ||= kinds_matching(&:landing_lock?)
   end

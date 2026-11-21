@@ -992,8 +992,11 @@ class Workflow < ApplicationRecord
     work_definition.manages_own_job_lifecycle?
   end
 
+  # An existing Workflow resolves its definition even when the plugin that
+  # owns its kind is disabled or unhealthy, so it can still be finished or
+  # cancelled; launching new work uses WorkDefinitions.for (NY14).
   def work_definition
-    WorkDefinitions.for(trigger_kind)
+    WorkDefinitions.for_existing(trigger_kind)
   end
 
 
