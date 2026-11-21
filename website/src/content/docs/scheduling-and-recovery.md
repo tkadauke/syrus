@@ -84,7 +84,11 @@ duplicating work.
 Syrus prefers the smallest safe retry:
 
 - Retry failed step: continue the current attempt when the workspace and
-  branch are still trustworthy.
+  branch are still trustworthy. A chat agent's `retry_job` (mode
+  `failed_step`) can carry operator guidance with it: the guidance joins the
+  attempt's operator context, so the next repair round works on the current
+  branch with it. Before a Job reaches implemented, when chat feedback is not
+  yet available, this is how to steer it without discarding its branch.
 - Resume: continue after a pause or transient failure.
 - Retry workflow: start a new workflow for the same desired work.
 - Retry implementation: start a new implementation attempt when the previous

@@ -129,7 +129,12 @@ base, `failed_step` to rerun the failed step or grader loop against the same
 immutable source snapshot, `implementation` to begin a fresh implementation
 attempt from the Job's current effective base, and `refresh_base` to restore a
 published mutation checkpoint onto the current effective base. Base refresh
-requires an audit `reason`. Syrus preflights every selected Job before showing
+requires an audit `reason`. `failed_step` and `implementation` also accept a
+`context`: operator guidance for the retrying agent. With `failed_step` it joins
+the existing attempt's operator context, so the next repair round sees it on
+the current branch -- the way to steer a Job that has not reached implemented,
+where `submit_chat_feedback` does not apply yet. With `implementation` it is the
+fresh attempt's operator context. Syrus preflights every selected Job before showing
 one confirmation, includes checkpoint and base details in that confirmation,
 and durably sequences grouped base refreshes upstream-first. A dependent
 refresh remains waiting until every selected upstream refresh workflow

@@ -1,6 +1,11 @@
 module RetryJobs
   module Modes
     class FailedStep < Mode
+      def initialize(retry_context: nil, **arguments)
+        super(**arguments)
+        @retry_context = retry_context.to_s.strip.presence
+      end
+
       def preflight
         workflow = source_workflow
         return failure("No failed workflow is available to retry.") unless workflow
@@ -18,7 +23,10 @@ module RetryJobs
       end
 
       def execute
-        RetryFailedStepEnqueuer.call(workflow: source_workflow)
+        workflow = source_workflow
+        OperatorRetryContext.with_context(workflow, @retry_context) do
+          RetryFailedStepEnqueuer.call(workflow: workflow)
+        end
       end
     end
   end

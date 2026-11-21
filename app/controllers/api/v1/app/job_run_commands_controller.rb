@@ -193,7 +193,9 @@ module Api
             return
           end
 
-          result = RetryFailedStepEnqueuer.call(workflow: workflow)
+          result = OperatorRetryContext.with_context(workflow, params[:retry_context]) do
+            RetryFailedStepEnqueuer.call(workflow: workflow)
+          end
           unless result.success?
             render_error("validation_failed", result.error, status: :unprocessable_content)
             return

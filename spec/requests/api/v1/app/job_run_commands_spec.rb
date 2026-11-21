@@ -520,6 +520,19 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body.dig("job", "state")).to eq("running")
   end
 
+  it "carries operator guidance into the retried workflow's next repair round" do
+    workflow = job.workflows.last
+    failed_step = workflow.steps.find_by!(kind: "summarize")
+    failed_step.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+    workflow.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+
+    post app_job_path("/workflows/#{workflow.id}/retry_step"),
+      params: { retry_context: "List GitMergeDrivers in the host surface." }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(workflow.reload.artifact("replay_context")).to include("Operator guidance", "List GitMergeDrivers in the host surface.")
+  end
+
   it "allows a repository writer to retry a failed step on another user's job" do
     writer = Factories.user
     RepositoryMembership.create!(repository: repo, user: writer, role: "write")

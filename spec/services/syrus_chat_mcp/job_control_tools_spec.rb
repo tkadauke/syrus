@@ -717,6 +717,32 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(job.workflows.where(trigger_kind: "retry")).to be_empty
   end
 
+  it "carries operator guidance through a failed_step retry confirmation into the workflow" do
+    job = make_retryable_job(state: "failed")
+    workflow = job.workflows.find_by!(trigger_kind: "initial")
+    workflow.steps.find_by!(kind: "implement").update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+
+    response = call_tool("retry_job", job_id: job.id, mode: "failed_step", context: "Add the two legacy host surface entries.")
+    expect(response.dig(:result, :isError)).not_to be(true), response.dig(:result, :content, 0, :text)
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
+    expect(pending_action.payload).to include("context" => "Add the two legacy host surface entries.")
+
+    allow(RetryFailedStepEnqueuer).to receive(:call)
+      .and_return(RetryFailedStepEnqueuer::Result.new(run: :started, workflow: workflow, step: nil, error: nil))
+    PendingActions::RetryJob.new(pending_action).execute
+
+    expect(workflow.reload.artifact("replay_context")).to include("Add the two legacy host surface entries.")
+  end
+
+  it "rejects operator guidance for a retry mode that cannot carry it" do
+    job = make_retryable_job
+
+    response = call_tool("retry_job", job_id: job.id, context: "anything")
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("context is supported only for")
+  end
+
   it "creates an authorized base-refresh confirmation for a published checkpoint" do
     job = make_retryable_job
     workflow = job.workflows.find_by!(trigger_kind: "initial")

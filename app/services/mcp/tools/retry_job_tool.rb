@@ -40,12 +40,23 @@ module Mcp::Tools
         },
         mode: { type: "string", enum: RetryJobs::Mode::MODES.keys, description: "Retry mode (defaults to auto)." },
         source_workflow_id: { type: "integer", description: "Optional failed Workflow to use for failed_step, or failed/strictly eligible blocked Workflow for refresh_base." },
-        reason: { type: "string", description: "Required operator-facing audit reason for refresh_base." }
+        reason: { type: "string", description: "Required operator-facing audit reason for refresh_base." },
+        context: {
+          type: "string",
+          description: "Operator guidance for the retrying agent (failed_step and implementation modes). failed_step adds it to the existing Workflow, so the next repair round on the current branch sees it; implementation gives it to the fresh attempt from the base."
+        }
       }
     )
 
     class << self
-      def call(job_id: nil, job_ids: nil, mode: "auto", source_workflow_id: nil, reason: nil, server_context:)
+      CONTEXT_MODES = %w[failed_step implementation].freeze
+
+      def call(job_id: nil, job_ids: nil, mode: "auto", source_workflow_id: nil, reason: nil, context: nil, server_context:)
+        context = context.to_s.strip.presence
+        if context && !CONTEXT_MODES.include?(mode.to_s)
+          return Mcp::Tools.invalid("context is supported only for the #{CONTEXT_MODES.join(' and ')} modes")
+        end
+
         chat_session = server_context.fetch(:chat_session)
         ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
         return error if error
@@ -75,7 +86,7 @@ module Mcp::Tools
             server_context,
             chat_session,
             action: "retry_job",
-            payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id), selected_job_ids),
+            payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id), selected_job_ids, context),
             requested_by: "agent"
           )
 
@@ -91,7 +102,7 @@ module Mcp::Tools
           server_context: server_context,
           chat_session: chat_session,
           member_attributes: jobs.map do |job|
-            { action: "retry_job", payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id), selected_job_ids), requested_by: "agent" }
+            { action: "retry_job", payload: retry_payload(job, mode, source_workflow_id, reason, preflights.fetch(job.id), selected_job_ids, context), requested_by: "agent" }
           end,
           reason: reason.to_s.strip.presence
         )
@@ -106,8 +117,9 @@ module Mcp::Tools
 
       private
 
-      def retry_payload(job, mode, source_workflow_id, reason, preflight, selected_job_ids)
+      def retry_payload(job, mode, source_workflow_id, reason, preflight, selected_job_ids, context = nil)
         payload = { "job_id" => job.id }
+        payload["context"] = context if context.present?
         payload["mode"] = mode.to_s unless mode.to_s == "auto"
         payload["source_workflow_id"] = preflight.details["source_workflow_id"] || source_workflow_id if source_workflow_id.present? || preflight.details["source_workflow_id"]
         payload["reason"] = reason.to_s.strip if reason.present?

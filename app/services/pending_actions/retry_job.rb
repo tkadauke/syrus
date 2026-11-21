@@ -7,6 +7,7 @@ module PendingActions
       mode_name = payload.fetch("mode", "auto")
       mode_arguments = { job: job, source_workflow_id: payload["source_workflow_id"], reason: payload["reason"] }
       mode_arguments[:explicit_operator_intent] = true if mode_name == "implementation"
+      mode_arguments[:retry_context] = payload["context"] if payload["context"].present? && %w[failed_step implementation].include?(mode_name)
       mode = RetryJobs::Mode.for(mode_name).new(**mode_arguments)
       if mode_name == "implementation"
         preflight = mode.preflight
