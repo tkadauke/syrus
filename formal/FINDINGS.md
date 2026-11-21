@@ -1026,9 +1026,38 @@ Workflow are still reported. `repair_executor_spec.rb`
 "cancel_epic_workflow_conflict": a waiting member is skipped (red with the
 guard removed), and a running one is cancelled.
 
-**Correction.** The coverage note for `epic-wide-workflow-conflict` said
+**Correction (F34).** The coverage note for `epic-wide-workflow-conflict` said
 that after F30 the reconciler's cancellation remained only as a backstop for
 a race. That was wrong, and it is corrected there.
+
+---
+
+## F35. The inline landing door could jump the queue — fixed
+
+**Property.** A unit lands only if every unit ahead of it in the same landing
+slot is blocked. Blocked units do not hold the queue
+(`QueueOrder.InOrder`).
+
+**Gap.** `LandingQueueProcessor#call` walks the queue in priority, approval
+time and dependency order and lands the first eligible unit. `try_land!(job)`
+is the inline door: approval, auto-approval and mergeability refreshes call
+it so a ready Job lands without waiting for the next tick. It checked only
+that Job's own blockage. When a Job was approved while an older or
+higher-priority Job of the same slot had already become eligible, and the
+next tick hadn't run yet, the new Job took the slot first
+(`tryLand_before_jumps`). This breaks the documented "ordered by priority and
+FIFO approval time".
+
+**Fix.** Before landing its own Job, `try_land!` checks for an eligible unit
+of the same slot ahead of it. If there is one, it runs the ordered pass
+instead. Both doors now pick the same unit (`tryLand_after_agrees`), and the
+inline door still lands its own Job when it is first in line
+(`tryLand_after_lands_front`).
+
+**Spec.** `landing_queue_processor_spec.rb` ".try_land!": "lands the front of
+the queue rather than jumping an earlier eligible Job" and "honours priority
+over approval time for the inline door too" (both red before), plus "still
+lands its own Job when an earlier Job is blocked".
 
 ---
 

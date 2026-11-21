@@ -1753,6 +1753,43 @@ RSpec.describe LandingQueueProcessor, :ci_only do
       expect(job.workflows.where(trigger_kind: "auto_merge").count).to eq(auto_merge_count)
     end
 
+    # The inline door used to check only its own Job, so a Job approved while
+    # an earlier Job in the same landing slot was already eligible took the
+    # slot ahead of it (QueueOrder.tryLand_before_jumps).
+    it "lands the front of the queue rather than jumping an earlier eligible Job" do
+      older = queue_job(issue_number: 1, approved_at: 10.minutes.ago)
+      newer = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+
+      workflow = described_class.try_land!(newer)
+
+      expect(workflow).to have_attributes(job: older, trigger_kind: "auto_merge")
+      expect(older.reload).to be_landing
+      expect(newer.reload).to be_approved
+    end
+
+    it "honours priority over approval time for the inline door too" do
+      older = queue_job(issue_number: 1, approved_at: 10.minutes.ago)
+      high = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+      older.update_columns(priority: "medium")
+      high.update_columns(priority: "high")
+
+      workflow = described_class.try_land!(older)
+
+      expect(workflow).to have_attributes(job: high)
+      expect(older.reload).to be_approved
+    end
+
+    it "still lands its own Job when an earlier Job is blocked" do
+      older = queue_job(issue_number: 1, approved_at: 10.minutes.ago)
+      older.update!(manual_paused: true)
+      newer = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+
+      workflow = described_class.try_land!(newer)
+
+      expect(workflow).to have_attributes(job: newer)
+      expect(older.reload).to be_approved
+    end
+
     it "still admits a fresh unstable PR to the existing landing preflight" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.update!(github_mergeable_state: "unstable", mergeability_checked_at: Time.current)

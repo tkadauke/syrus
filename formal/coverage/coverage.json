@@ -1515,8 +1515,8 @@
         "stale_pr_check_base"
       ],
       "status": "partial",
-      "done_by": "LockSafety · LandingSlot (F7) · F13",
-      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Queue *order* (approved Jobs land in order, override semantics) is not modelled yet."
+      "done_by": "LockSafety · LandingSlot (F7) · F13 · QueueOrder.lean (F35)",
+      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Order: the ordered pass lands the first eligible unit (QueueOrder.firstEligible_in_order). F35: the inline try_land! door checked only its own Job and could take the slot ahead of an earlier eligible Job; it now defers to the ordered pass (tryLand_after_agrees). Not modelled: how the order itself is computed (epic grouping, dependency topological sort and its cycle fallback), and the merge-train and bundle dispatchers' own selection."
     },
     {
       "id": "externally-blocked-landing-slot",
