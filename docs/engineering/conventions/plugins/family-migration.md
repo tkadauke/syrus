@@ -17,6 +17,7 @@ family registrations themselves.
    `indicates_language_support capability: :detect_prepare`) when its
    declaration should participate in `RepoPluginDetector`. This declaration is
    independent of legacy mappings and remains after their adapters are removed.
+   The named capability must use `Syrus::Plugin::Context::RepoContext`.
 3. Declare every absorbed legacy point with `legacy`, its replacement
    capability, and an adapter that exposes the old method names. The adapter
    translates arguments into the typed context; it must not guess capabilities
