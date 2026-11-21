@@ -39,16 +39,16 @@ module Syrus
         available_for?: MethodContract.context(Object)
       }.freeze
       class Definition
-        attr_reader :name, :capabilities, :legacy_mappings
+        attr_reader :name, :capabilities, :legacy_mappings, :language_support_capability
         def initialize(name)
           @name, @capabilities, @legacy_mappings = name.to_sym, {}, {}
-          @indicates_language_support = false
+          @language_support_capability = nil
           @migrated = false
           @absorbed_legacy_points = []
         end
         def shape(value = nil) = value ? @shape = value.to_sym : @shape
-        def indicates_language_support(value = true) = @indicates_language_support = value
-        def indicates_language_support? = @indicates_language_support
+        def indicates_language_support(capability:) = @language_support_capability = capability.to_sym
+        def indicates_language_support? = !language_support_capability.nil?
         def migrated(value = true) = @migrated = value
         def migrated? = @migrated
         def absorbs(*extension_points) = @absorbed_legacy_points.concat(extension_points.flatten.map(&:to_sym)).uniq!
@@ -79,6 +79,10 @@ module Syrus
           definition = Definition.new(name).tap { |entry| entry.instance_eval(&block) }
           raise ArgumentError, "Family #{name.inspect} must declare a shape" unless definition.shape
           raise ArgumentError, "Family #{name.inspect} must declare at least one capability" if definition.capabilities.empty?
+          if definition.indicates_language_support? && !definition.capabilities.key?(definition.language_support_capability)
+            raise ArgumentError,
+              "Family #{name.inspect} declares unknown language-support capability #{definition.language_support_capability.inspect}"
+          end
           if definition.unmapped_legacy_points.any?
             raise ArgumentError, "Family #{name.inspect} is missing legacy mappings for #{definition.unmapped_legacy_points.join(', ')}"
           end

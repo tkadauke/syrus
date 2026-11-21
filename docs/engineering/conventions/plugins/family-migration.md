@@ -12,8 +12,11 @@ family registrations themselves.
    lookup to identify its real composition rule, decline value, and error
    handling; a raw match count is not a contract.
 2. Define the family, capability contracts, contexts, composition modes, and
-   absent behavior. Mark a family as indicating language support when its
-   declaration should participate in `RepoPluginDetector`.
+   absent behavior. Mark a family as indicating language support with the
+   capability that detects it (for example,
+   `indicates_language_support capability: :detect_prepare`) when its
+   declaration should participate in `RepoPluginDetector`. This declaration is
+   independent of legacy mappings and remains after their adapters are removed.
 3. Declare every absorbed legacy point with `legacy`, its replacement
    capability, and an adapter that exposes the old method names. The adapter
    translates arguments into the typed context; it must not guess capabilities
