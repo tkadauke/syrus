@@ -438,7 +438,7 @@ module Steps
     # plugin newly enabled, etc. Cheap: just the file-existence checks
     # :prepare_detector/:preview_provider already implement.
     def record_detected_plugins!
-      detected = RepoPluginDetector.for(workspace.path)
+      detected = RepoPluginDetector.for(workspace.path, repository:)
       workflow.set_artifact!("detected_plugins", detected)
       log("[prepare] detected: #{detected.any? ? detected.join(', ') : 'none'}")
       record_plugin_signals!
@@ -450,7 +450,7 @@ module Steps
     # which is why a failure here is logged and dropped rather than failing
     # prepare over a suggestion nobody asked for yet.
     def record_plugin_signals!
-      observed = RepoPluginDetector.observed_for(workspace.path)
+      observed = RepoPluginDetector.observed_for(workspace.path, repository:)
       repository&.update_columns(
         plugin_signals: observed,
         plugin_signals_observed_at: Time.current
