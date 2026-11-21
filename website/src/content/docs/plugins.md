@@ -289,7 +289,7 @@ snapshot calls out the launch-relevant groups:
 | Work inputs and planning | Walkthrough Videos, Scheduled Tasks, GitHub Source, Linear Source, Design Docs, Operator Briefing |
 | Repository intelligence | Agent Insights, Agent Memory, Git History, Search, Test Insights, Throughput, Metrics Dashboard, Spending Insights, Attention Report |
 | Language and platform support | Browser (Playwright), Django, Go, iOS, Java, JavaScript, Kotlin, Python, Rails, Ruby |
-| Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache, Local Backups |
+| Runtime and infrastructure | Git Mirror, GitHub Host, Kubernetes Cluster Viewer, Plugin Runtime, Tailscale, Terminal, Runtime Terminal, Worker Timeline, Build Cache, Local Backups, S3 Backup Destination |
 
 Local Backups can create sealed recovery bundles for installations that use an
 authoritative SQLite database and Disk Active Storage. It takes a consistent
@@ -301,6 +301,13 @@ bundles. Capacity admission keeps the larger of an absolute free-space reserve
 (`SYRUS_BACKUP_MIN_FREE_PERCENT`, default 10%), in addition to construction
 space sized conservatively for roughly two complete bundles. Scheduling,
 retention, download, and restore are separate stages.
+
+S3 Backup Destination is separately packaged and disabled by default. It
+streams completed Local Backups bundles through the public artifact-source
+contract into an S3-compatible bucket, verifies the remote bytes with SHA-256,
+and records destination-specific state without invalidating the local recovery
+point when replication fails. Operators can require a verified copy before
+local retention deletes an artifact.
 
 Worker Timeline uses the shared composable filter bar and Smart Folders. Saved
 timeline expressions can combine supported fields with nested AND, OR, and NOT
