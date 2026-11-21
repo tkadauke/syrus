@@ -73,6 +73,22 @@ def failedWithQueuedTail : World where
 
 example : failedWithQueuedTail.diagnose = [ .activeStepUnderTerminalWorkflow 1001 ] := by decide
 
+/-- A live Workflow with an active Run left on a Step that has already
+    finished: the Run is obsolete and skipped, and nothing else changes.
+    Phase 2 differential testing found the first kernel missing this rule. -/
+def activeRunOnFinishedStep : World where
+  intents := [⟨1, .requested⟩]
+  units := [⟨10, 1, some 100, .running⟩]
+  workflows := [⟨100, .running⟩]
+  steps := [⟨1000, 100, .skipped⟩, ⟨1001, 100, .running⟩]
+  runs := [⟨5000, 1000, .queued⟩, ⟨5001, 1001, .running⟩]
+  locks := [⟨"job:7", 10⟩]
+
+example : activeRunOnFinishedStep.diagnose = [ .activeRunOnTerminalStep 5000 ] := by decide
+
+example : activeRunOnFinishedStep.reconcile =
+    { activeRunOnFinishedStep with runs := [⟨5000, 1000, .skipped⟩, ⟨5001, 1001, .running⟩] } := by decide
+
 end Examples
 end Kernel
 end SyrusModel

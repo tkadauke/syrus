@@ -22,7 +22,7 @@ and an `error` object.
 open Lean SyrusModel.Kernel
 
 def schemaVersion : Nat := 1
-def modelVersion : String := "kernel-0.1"
+def modelVersion : String := "kernel-0.2"
 
 def report (w : World) : Json :=
   let next := w.reconcile

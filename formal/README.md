@@ -133,8 +133,37 @@ The comparison also runs at the start of every simulation tick (a
 `tick_observer:` seam on the simulator), so the intermediate worlds the engine
 passes through are covered: all 99 scenarios agree at every tick.
 
-Next in Phase 2:
-generate and shrink differential traces.
+`spec/services/work_engine/lean_oracle_differential_spec.rb` generates random
+worlds from real records: two launched Workflows plus a seeded list of
+Workflow, Step, unit and extra-Run mutations, with hour-old timestamps so no
+grace period applies. It diagnoses each world with both engines and shrinks any
+disagreement to a minimal mutation list (`SYRUS_LEAN_DIFF_SEED` and
+`SYRUS_LEAN_DIFF_WORLDS` replay or widen a run). The comparison it shares with
+the conformance spec lives in `spec/support/lean_oracle.rb`.
+
+The first 200 worlds shrank to two disagreements, both kept as permanent
+examples in that spec:
+
+- **Kernel gap.** The kernel left an active Run on a finished Step of a live
+  Workflow alone. Ruby skips it as obsolete (`active_run_on_terminal_step`).
+  The kernel now does too: `fixRun` cancels a Run under a finished Workflow and
+  skips an active Run on a finished Step (`runStale`, `runTarget`, issue
+  `activeRunOnTerminalStep`). `reconcile_idem`, `diagnose_reconcile` and
+  `reconcile_valid` still hold, and the scoping theorem now reads "a Run is
+  changed only if its Workflow or Step has finished, and only to an inactive
+  state". Fixture: `active_run_on_finished_step.json`,
+  `Examples.activeRunOnFinishedStep`. The oracle reports `kernel-0.2`.
+- **Ordering exception.** The kernel gives a unit its Workflow's outcome in the
+  same pass that cleans up the Workflow's Runs; Ruby waits for the Runs to go
+  (`next if workflow.runs.active.exists?`) and reports the outcome on the next
+  pass. The projection drops the kernel's outcome issue while the Workflow
+  still has active Runs. (That the two orders end in the same state is
+  observed, not proved.)
+
+After the fix, 1,000 generated worlds across three seeds agree, and all 99
+scenarios agree at every tick.
+
+Phase 2 is complete in this scope.
 
 ## Next steps
 

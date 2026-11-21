@@ -9,11 +9,16 @@ The terminal-cleanup family of the reconciler, as pure functions:
 | --- | --- | --- |
 | `activeRunUnderTerminalWorkflow` | cancel the Run | `CancelTerminalWorkflowActiveDescendants` |
 | `activeStepUnderTerminalWorkflow` | cancel the Step | same |
+| `activeRunOnTerminalStep` | skip the Run | `classify_active_runs_on_terminal_steps` |
 | `activeUnitBehindTerminalWorkflow` | the unit takes the Workflow's outcome | `WorkUnits::TerminalWorkflowSync` |
 | `lockOfInactiveUnit` | release the lock | `classify_terminal_work_units_with_active_locks` |
 
 A `blocked` Workflow is terminal, but its unit stays active (DOC-44): the
 unit-sync repair skips it.
+
+An active Run under a finished Workflow is cancelled; an active Run on a
+finished Step of a live Workflow is skipped (`skip_obsolete_run`). Phase 2
+differential testing found the second rule missing from the first kernel.
 
 Proved here:
 
@@ -38,8 +43,23 @@ def unitOutcome : WorkflowState → Option UnitState
 
 namespace World
 
+/-- The Run's Step has finished (`Step#terminal?`: anything but queued or running). -/
+def runStepTerminal (w : World) (r : Run) : Bool :=
+  match w.steps.find? (·.id == r.step) with
+  | some s => !s.state.active
+  | none => false
+
+/-- Terminal cleanup touches the Run: it is active and its Workflow or its Step
+    has finished. -/
+def runStale (w : World) (r : Run) : Bool :=
+  r.state.active && (w.runWorkflowTerminal r || w.runStepTerminal r)
+
+/-- Cancelled under a finished Workflow, otherwise skipped as obsolete. -/
+def runTarget (w : World) (r : Run) : RunState :=
+  if w.runWorkflowTerminal r then .cancelled else .skipped
+
 def fixRun (w : World) (r : Run) : Run :=
-  if w.runWorkflowTerminal r && r.state.active then { r with state := .cancelled } else r
+  if w.runStale r then { r with state := w.runTarget r } else r
 
 def fixStep (w : World) (s : Step) : Step :=
   if w.stepStale s then { s with state := .cancelled } else s
@@ -74,13 +94,19 @@ def reconcile (w : World) : World :=
 
 inductive Issue where
   | activeRunUnderTerminalWorkflow (run : Id)
+  | activeRunOnTerminalStep (run : Id)
   | activeStepUnderTerminalWorkflow (step : Id)
   | activeUnitBehindTerminalWorkflow (unit : Id) (target : UnitState)
   | lockOfInactiveUnit (key : String)
   deriving DecidableEq, Repr
 
+def runIssue (w : World) (r : Run) : Option Issue :=
+  if w.runStale r then
+    some (if w.runWorkflowTerminal r then .activeRunUnderTerminalWorkflow r.id else .activeRunOnTerminalStep r.id)
+  else none
+
 def diagnose (w : World) : List Issue :=
-  (w.runs.filter (fun r => w.runWorkflowTerminal r && r.state.active)).map (Issue.activeRunUnderTerminalWorkflow ·.id) ++
+  w.runs.filterMap w.runIssue ++
   (w.steps.filter (fun s => w.stepStale s)).map (Issue.activeStepUnderTerminalWorkflow ·.id) ++
   w.units.filterMap (fun u => (w.unitTarget u).map (Issue.activeUnitBehindTerminalWorkflow u.id)) ++
   (w.locks.filter (fun l => !w.lockKeep l)).map (Issue.lockOfInactiveUnit ·.key)
@@ -138,16 +164,6 @@ theorem runWorkflowTerminal_fixRun (w w' : World) (r : Run) :
   simp [runWorkflowTerminal, fixRun_step]
 
 /-! ## Each fix is idempotent against the reconciled world -/
-
-theorem fixRun_idem (w : World) (r : Run) : w.reconcile.fixRun (w.fixRun r) = w.fixRun r := by
-  have ht := runWorkflowTerminal_reconcile w (w.fixRun r)
-  rw [runWorkflowTerminal_fixRun] at ht
-  unfold fixRun at *
-  by_cases h : (w.runWorkflowTerminal r && r.state.active) = true
-  · simp only [h, if_true] at ht ⊢
-    simp [ht, RunState.active]
-  · simp only [h, if_false, Bool.false_eq_true] at ht ⊢
-    rw [ht]; simp [h]
 
 theorem stepStale_reconcile (w : World) (s : Step) : w.reconcile.stepStale s = w.stepStale s := rfl
 
@@ -221,10 +237,10 @@ theorem lockKeep_reconcile (w : World) (l : Lock) : w.reconcile.lockKeep l = w.l
   | none => rfl
   | some u => simp only [Option.map_some]; rw [fixUnit_idem]
 
-theorem fixRun_pos (w : World) {r : Run} (h : (w.runWorkflowTerminal r && r.state.active) = true) :
-    w.fixRun r = { r with state := .cancelled } := by simp [fixRun, h]
+theorem fixRun_pos (w : World) {r : Run} (h : w.runStale r = true) :
+    w.fixRun r = { r with state := w.runTarget r } := by simp [fixRun, h]
 
-theorem fixRun_neg (w : World) {r : Run} (h : ¬ (w.runWorkflowTerminal r && r.state.active) = true) :
+theorem fixRun_neg (w : World) {r : Run} (h : ¬ w.runStale r = true) :
     w.fixRun r = r := by simp [fixRun, h]
 
 theorem fixStep_pos (w : World) {s : Step} (h : w.stepStale s = true) :
@@ -233,12 +249,57 @@ theorem fixStep_pos (w : World) {s : Step} (h : w.stepStale s = true) :
 theorem fixStep_neg (w : World) {s : Step} (h : ¬ w.stepStale s = true) :
     w.fixStep s = s := by simp [fixStep, h]
 
-theorem fixRun_clean (w : World) (r : Run) :
-    ¬ (w.reconcile.runWorkflowTerminal (w.fixRun r) && (w.fixRun r).state.active) = true := by
-  rw [runWorkflowTerminal_fixRun, runWorkflowTerminal_reconcile]
-  by_cases h : (w.runWorkflowTerminal r && r.state.active) = true
-  · rw [fixRun_pos w h]; simp [RunState.active]
-  · rw [fixRun_neg w h]; exact h
+theorem stepStale_terminal (w : World) (s : Step) (h : w.stepStale s = true) : w.stepWorkflowTerminal s = true := by
+  unfold stepStale at h
+  unfold stepWorkflowTerminal
+  cases hw : w.workflowState? s.workflow with
+  | none => simp [hw] at h
+  | some st => cases st <;> simp_all [WorkflowState.terminal]
+
+theorem runTarget_inactive (w : World) (r : Run) : (w.runTarget r).active = false := by
+  unfold runTarget; split <;> rfl
+
+/-- While the Run's Workflow is live, cleanup leaves its Step alone, so whether
+    the Step has finished is the same before and after. -/
+theorem runStepTerminal_reconcile_of_live (w : World) {r : Run} (h : w.runWorkflowTerminal r = false) :
+    w.reconcile.runStepTerminal r = w.runStepTerminal r := by
+  unfold runStepTerminal
+  show (match (w.steps.map w.fixStep).find? (·.id == r.step) with
+    | some s => !s.state.active | none => false) = _
+  rw [find?_fixStep]
+  unfold runWorkflowTerminal at h
+  cases hf : w.steps.find? (·.id == r.step) with
+  | none => rfl
+  | some s =>
+    simp only [hf] at h
+    have hs : ¬ w.stepStale s = true := fun hc => by
+      rw [stepStale_terminal w s hc] at h; exact Bool.noConfusion h
+    simp only [Option.map_some]
+    rw [fixStep_neg w hs]
+
+theorem runStale_reconcile_neg (w : World) {r : Run} (h : ¬ w.runStale r = true) :
+    w.reconcile.runStale r = false := by
+  unfold runStale at h ⊢
+  cases ha : r.state.active with
+  | false => rfl
+  | true =>
+    rw [ha] at h
+    have hw : w.runWorkflowTerminal r = false := by
+      cases hw : w.runWorkflowTerminal r <;> simp_all
+    have hs : w.runStepTerminal r = false := by
+      cases hs : w.runStepTerminal r <;> simp_all
+    rw [runWorkflowTerminal_reconcile, hw, runStepTerminal_reconcile_of_live w hw, hs]; rfl
+
+theorem runStale_target (w w' : World) (r : Run) : w'.runStale { r with state := w.runTarget r } = false := by
+  simp [runStale, runTarget_inactive]
+
+theorem fixRun_clean (w : World) (r : Run) : ¬ w.reconcile.runStale (w.fixRun r) = true := by
+  by_cases h : w.runStale r = true
+  · rw [fixRun_pos w h, runStale_target]; simp
+  · rw [fixRun_neg w h, runStale_reconcile_neg w h]; simp
+
+theorem fixRun_idem (w : World) (r : Run) : w.reconcile.fixRun (w.fixRun r) = w.fixRun r :=
+  fixRun_neg w.reconcile (fixRun_clean w r)
 
 theorem fixStep_clean (w : World) (s : Step) : ¬ w.reconcile.stepStale (w.fixStep s) = true := by
   rw [stepStale_reconcile]
@@ -268,11 +329,12 @@ theorem reconcile_idem (w : World) : w.reconcile.reconcile = w.reconcile := by
 
 /-- Reconciliation leaves none of its own issues behind. -/
 theorem diagnose_reconcile (w : World) : w.reconcile.diagnose = [] := by
-  have hr : w.reconcile.runs.filter (fun r => w.reconcile.runWorkflowTerminal r && r.state.active) = [] := by
-    rw [List.filter_eq_nil_iff]
+  have hr : w.reconcile.runs.filterMap w.reconcile.runIssue = [] := by
+    rw [List.filterMap_eq_nil_iff]
     intro r hr
     obtain ⟨r0, _, rfl⟩ := List.mem_map.mp hr
-    exact fixRun_clean w r0
+    have hc := fixRun_clean w r0
+    simp [runIssue, hc]
   have hs : w.reconcile.steps.filter (fun s => w.reconcile.stepStale s) = [] := by
     rw [List.filter_eq_nil_iff]
     intro s hs

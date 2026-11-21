@@ -1,0 +1,14 @@
+{
+  "intents": [{"id": 1, "state": "requested"}],
+  "units": [{"id": 10, "intent": 1, "workflow": 100, "state": "running"}],
+  "workflows": [{"id": 100, "state": "running"}],
+  "steps": [
+    {"id": 1000, "workflow": 100, "state": "skipped"},
+    {"id": 1001, "workflow": 100, "state": "running"}
+  ],
+  "runs": [
+    {"id": 5000, "step": 1000, "state": "queued"},
+    {"id": 5001, "step": 1001, "state": "running"}
+  ],
+  "locks": [{"key": "job:7", "unit": 10}]
+}
