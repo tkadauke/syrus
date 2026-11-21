@@ -14,6 +14,17 @@ RSpec.describe SyrusYml do
     File.write(File.join(@dir, ".syrus.yml"), contents)
   end
 
+  it "parses the grader execution backend" do
+    config = parse("execution:\n  grader_backend: container_execution\n")
+
+    expect(config.execution).to eq(described_class::ExecutionConfig.new(grader_backend: "container_execution"))
+  end
+
+  it "rejects malformed grader execution backends" do
+    expect { parse("execution:\n  grader_backend: Container Execution\n") }
+      .to raise_error(described_class::ParseError, /execution\.grader_backend/)
+  end
+
   it "parses security review configuration" do
     config = parse(<<~YAML)
       security_review:
