@@ -9,6 +9,7 @@ require "securerandom"
 require "tmpdir"
 require "syrus/plugin_loader"
 require "syrus/plugin/family_contract_kit"
+require "syrus/plugin/external_reviewer_contract_kit"
 
 module Syrus
   module Plugin
