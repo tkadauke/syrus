@@ -2817,6 +2817,40 @@
       "status": "done",
       "done_by": "F79",
       "notes": "Proved in ChannelIsolation.lean. Fixed uninstall.sh's tag classifier to match tagChannel exactly."
+    },
+    {
+      "id": "desktop-watchdog-stop",
+      "area": "desktop",
+      "title": "Watchdog recovery never overrides a deliberate stop",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "startWatchdog tick vs stopBackend/startBackend/updateBackend",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F80",
+      "notes": "Lifecycle generation; proved in WatchdogStop.lean over all 7-event interleavings."
+    },
+    {
+      "id": "desktop-update-settles",
+      "area": "desktop",
+      "title": "A backend update settles once, never reports success after cancellation, and never leaves busy set",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "updateBackend, ChildTerminationController",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F80 (audit)",
+      "notes": "Deadline settles false once; busy clears in finally; the child keeps the backend busy until it exits or is SIGKILLed; image cleanup only after ok && healthy."
     }
   ],
   "needs_you": [

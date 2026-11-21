@@ -2662,6 +2662,61 @@ It rests on three audited premises:
 
 ---
 
+## F80. A watchdog probe in flight could override a deliberate stop — fixed
+
+**Found by** DOC-44 Phase 7, desktop backend lifecycle: "Watchdog recovery
+does not override a deliberate stop."
+
+**Gap.** The watchdog reports only health transitions, measured against
+`lastHealthy`. `stopBackend` sets `lastHealthy := false`, so the "stopped"
+page is not replaced by an outage. But a tick checked `backendBusy()` only
+when it began, and then awaited `backendHealthy()`. The race ran like this:
+
+1. A tick's probe starts while the stack is up.
+2. The user stops the backend, and the stop finishes while the probe is still
+   outstanding.
+3. The stale probe answers "healthy", which flips `lastHealthy` back to true
+   and reports healthy.
+4. The next tick reports the deliberately stopped stack as `containers-down`.
+
+The vitest reproduction saw exactly `[true, null]` followed by
+`[false, "containers-down"]`.
+
+The update path was audited and holds:
+
+- the deadline settles `false` once, and a later `close` cannot resolve it
+  again;
+- `busy` clears in `finally`;
+- `ChildTerminationController` keeps the backend busy until the installer
+  really exits or is SIGKILLed;
+- old images are removed only after `ok && backendHealthy()`.
+
+**Fix.** `start`, `stop` and `update` each bump a lifecycle generation when
+they take the stack. A tick drops its result if the generation changed, or a
+lifecycle action is running, at either await point. It sets `lastHealthy`
+only when it reports.
+
+**Proved.** `WatchdogStop.lean` checks every interleaving of up to seven tick
+begin/end, stop, start, crash and recover events:
+
+- after a stop with no later start or recover, nothing is reported;
+- the old unguarded tick violates this, on tick-begin, stop, tick-end;
+- a crash followed by a full tick is still reported.
+
+**Spec.** `desktop/src/backendWatchdog.test.ts` drives the real module with
+fake timers and stubbed Docker:
+
+- "never lets a probe that started before a deliberate stop override it" (red
+  before);
+- "still reports a stack that goes down and comes back on its own".
+
+**Also fixed.** `spec/desktop/desktop_settings_spec.rb` still looked for the
+`mode: 0o600` text that F76 replaced, and F76 had not run the desktop specs.
+It now checks for the temporary file and the rename. All 389 desktop specs
+(run with `RUN_CI_ONLY_SPECS=true`) and all 299 desktop vitest tests pass.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

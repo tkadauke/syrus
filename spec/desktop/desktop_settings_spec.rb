@@ -75,7 +75,10 @@ RSpec.describe "desktop settings and credentials modules" do
     # The credentials path is per-channel (credentials / credentials.test) so
     # the test build shares its file with the syrus-test CLI, not production's.
     expect(credentials_module).to include("currentStackIdentity().credentialsFile")
-    expect(credentials_module).to include("mode: 0o600")
+    # Written to a fresh 0600 file and renamed over the path (never through
+    # a symlink); desktop/src/credentialsStore.test.ts exercises it.
+    expect(credentials_module).to include('fs.open(tempPath, "wx", 0o600)')
+    expect(credentials_module).to include("fs.rename(tempPath, filePath)")
     expect(main_process).to include('from "./credentialsStore.js"')
     expect(main_process).not_to include("const parseCredentials")
     expect(main_process).not_to include('".syrus", "credentials"')

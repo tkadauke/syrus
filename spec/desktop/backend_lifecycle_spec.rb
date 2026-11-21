@@ -54,7 +54,7 @@ RSpec.describe "desktop backend lifecycle" do
     expect(main_process).to include("startLocalBackendSupervision()")
     expect(lifecycle).to include("export const ensureRunning")
     expect(lifecycle).to include("WATCHDOG_INTERVAL_MS = 30_000")
-    expect(lifecycle).to include("if (healthy === lastHealthy)")
+    expect(lifecycle).to include("if (superseded() || healthy === lastHealthy)")
   end
 
   it "diagnoses daemon-down vs data-gone vs containers-down without auto-restarting" do

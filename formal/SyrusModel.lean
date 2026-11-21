@@ -46,6 +46,7 @@ import SyrusModel.GapRecovery
 import SyrusModel.UnknownKindHandback
 import SyrusModel.ExistingKindDefinition
 import SyrusModel.ChannelIsolation
+import SyrusModel.WatchdogStop
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet
