@@ -3908,6 +3908,33 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M39. No WorkUnit state write bypasses the lock release — audited, pinned
+
+**Scope.** DOC-44 ownership, the partial coverage item
+`terminal-unit-holds-locks`. `Proofs.lean` `inv_no_terminal_locks` proves that
+no terminal unit holds an active lock under the modelled transitions. The gap
+was callback-skipping `update_columns` writers outside the model.
+
+**Audit.** The two terminal transitions release locks inside the same
+transaction as the state write:
+
+- `WorkUnit#mark_terminal!` (`work_unit_locks.active.find_each(&:release!)`);
+- `WorkUnit#preempt!`.
+
+Lock *acquisition* is an INSERT against a unique key (M25), so release is the
+only half that a raw write could skip. A search of `app/`, `lib/` and the
+plugins' `app/` and `lib/` finds no production write of a WorkUnit's state
+through `update_columns`, `update_column` or `update_all`. The only one is the
+simulator's scenario loader, which builds fixtures. So the model's transitions
+are the only ways a unit becomes terminal, and the proof covers the code.
+
+**Pinned.** `spec/architecture/work_unit_terminal_writes_release_locks_spec.rb`
+fails on any callback-skipping write of WorkUnit state outside the simulator.
+Its pattern was checked against the loader's real line, which it matches, so a
+production write would be caught.
+
+---
+
 ## M38. Work launched on a closed Job is cancelled at start and its intent retired — audited, no bug
 
 **Scope.** DOC-44 job state, the partial coverage item `closed-job-active-unit`:

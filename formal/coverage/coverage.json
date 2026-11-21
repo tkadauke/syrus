@@ -262,9 +262,9 @@
       "simulator": [
         "terminal_work_unit_active_lock"
       ],
-      "status": "partial",
-      "done_by": "model round 1 (Proofs.lean inv_no_terminal_locks)",
-      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered."
+      "status": "done",
+      "done_by": "model round 1 (Proofs.lean inv_no_terminal_locks) · M39",
+      "notes": "Inv proves no terminal unit holds locks under modelled transitions; update_columns writers outside the model are not covered. M39: no production writer bypasses mark_terminal!/preempt!; pinned by an architecture spec."
     },
     {
       "id": "active-unit-terminal-workflow-locks",
