@@ -177,11 +177,13 @@ describe("WorkflowsTab", () => {
 
     expect(screen.queryByRole("button", { name: "Retry failed step" })).not.toBeInTheDocument()
     const actions = screen.getByRole("button", { name: "Workflow actions" })
-    expect(actions).toHaveClass("h-11", "w-11")
-    expect(actions).not.toHaveAttribute("aria-haspopup")
+    expect(actions).toHaveClass("h-11", "min-w-11")
+    expect(actions).toHaveAttribute("aria-haspopup", "menu")
     fireEvent.click(actions)
 
-    expect(screen.getByRole("group", { name: "Workflow actions" })).toBeInTheDocument()
+    const menu = screen.getByRole("menu", { name: "Workflow actions" })
+    expect(menu).toHaveClass("fixed", "w-56", "py-1", "shadow-[var(--shadow-panel)]")
+    expect(menu.parentElement).toBe(document.body)
     expect(await screen.findByRole("button", { name: "Open terminal in workspace" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Retry failed step" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Push commits" })).toBeInTheDocument()
@@ -190,7 +192,7 @@ describe("WorkflowsTab", () => {
     const retry = screen.getByRole("button", { name: "Retry failed step" })
     retry.focus()
     fireEvent.keyDown(window, { key: "Escape" })
-    expect(screen.queryByRole("group", { name: "Workflow actions" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("menu", { name: "Workflow actions" })).not.toBeInTheDocument()
     expect(actions).toHaveFocus()
 
     fireEvent.click(actions)
