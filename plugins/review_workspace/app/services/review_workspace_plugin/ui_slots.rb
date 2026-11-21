@@ -6,7 +6,7 @@ module ReviewWorkspacePlugin
       return [] unless slot == "dashboard.jobs.notice"
       return [] unless context[:subject] == "job"
 
-      count = EligibleJobs.call(user: context.fetch(:user), scope: Job.all).length
+      count = EligibleJobs.call(user: context.fetch(:user), scope: context.fetch(:accessible_jobs_scope)).length
       return [] if count.zero?
 
       [

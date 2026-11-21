@@ -2354,6 +2354,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
         expect(context[:subject]).to eq("job")
         expect(context[:active_smart_folder]).to eq(inbox_folder)
         expect(context[:active_repositories_scope]).to respond_to(:where)
+        expect(context[:accessible_jobs_scope]).to respond_to(:where)
         cacheable ? [ panel ] : []
       end
 

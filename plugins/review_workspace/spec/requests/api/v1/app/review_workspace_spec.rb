@@ -72,5 +72,11 @@ RSpec.describe "API: review workspace", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body).to include("count" => 0)
+
+    get "/api/v1/app/dashboard", params: { subject: "job", section: "chrome" },
+      headers: { "Authorization" => "Bearer #{token}" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("ui_panels").pluck("id")).not_to include("review_workspace.ready_jobs")
   end
 end

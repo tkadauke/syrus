@@ -33,13 +33,14 @@ module App
     WORKFLOW_DONE_STATES = %w[succeeded failed cancelled blocked].freeze
     class InvalidScope < StandardError; end
 
-    def self.call(user:, params:)
-      new(user: user, params: params).call
+    def self.call(user:, params:, accessible_jobs_scope: Job.all)
+      new(user: user, params: params, accessible_jobs_scope: accessible_jobs_scope).call
     end
 
-    def initialize(user:, params:)
+    def initialize(user:, params:, accessible_jobs_scope: Job.all)
       @user = user
       @params = params
+      @accessible_jobs_scope = accessible_jobs_scope
     end
 
     def call
@@ -140,7 +141,7 @@ module App
 
     private
 
-    attr_reader :user, :params
+    attr_reader :user, :params, :accessible_jobs_scope
 
     # Stable chrome can vary with preferences, saved folders, permission grants,
     # repository/plugin configuration, and the selected folder's plugin context.
@@ -257,7 +258,8 @@ module App
         subject: subject,
         view: view,
         active_smart_folder: active_smart_folder,
-        active_repositories_scope: active_repositories_scope
+        active_repositories_scope: active_repositories_scope,
+        accessible_jobs_scope: accessible_jobs_scope
       }
     end
 
