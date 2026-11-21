@@ -4667,14 +4667,13 @@ describe("Job detail tabs", () => {
     expect(screen.getByRole("button", { name: "Agent Conversation" })).toBeInTheDocument()
   })
 
-  it("gives the horizontally-scrolling tab strip an edge fade instead of a hard clip", () => {
-    // Mobile-width TabNav scrolls with no visible scrollbar; without the
-    // fade, an off-screen tab (e.g. Attachments) looks clipped rather than
-    // reachable by scrolling.
+  it("snaps the horizontally-scrolling mobile tab strip to whole tab boundaries", () => {
+    // Mobile-width TabNav scrolls with no visible scrollbar. Snap points keep
+    // a neighboring tab usable instead of leaving only a clipped fragment.
     renderJobDetail(jobPayload())
     const summaryTab = screen.getByRole("button", { name: "Summary" })
-    expect(summaryTab.parentElement).toHaveClass("overflow-x-auto", "scroll-fade-x")
-    expect(summaryTab).toHaveClass("first:ml-2")
+    expect(summaryTab.parentElement).toHaveClass("overflow-x-auto", "scroll-fade-x", "snap-x", "snap-mandatory", "scroll-px-2")
+    expect(summaryTab).toHaveClass("first:ml-2", "snap-start", "scroll-ml-2")
     expect(screen.getByRole("button", { name: "Source" })).toHaveClass("last:mr-2")
   })
 
