@@ -2139,6 +2139,33 @@ to `DecisionAudit.record`.
 
 ---
 
+## M13. Optional dependencies never disable a plugin — audited, no bug
+
+DOC-44 plugin host: "Optional dependency absence cannot disable the dependent
+plugin." `optionally_depends_on` has three ways in which it could act, and all
+three follow hard edges only:
+
+- **Health:** `PluginHealth#status_for` and the F60 propagation read
+  `depends_on` only. A plugin stays `ok` when an optional dependency is
+  missing, disabled or unhealthy.
+- **Load:** `PluginLoader#load!` and `install_definition!` skip a plugin only
+  for a failed `required_dependencies` entry. A plugin whose optional
+  dependency raised in `on_boot` still loads, and its providers are handed out.
+- **Cascade:** `Admin::PluginDependencyGraph` walks `depends_on` only.
+  Disabling an optional dependency does not cascade to the plugin that uses it,
+  and enabling a plugin does not pull its optional dependencies in.
+
+The property is structural (no code path reads optional edges for any of these
+three decisions), so it is pinned by specs rather than a Lean model:
+`plugin_health_spec.rb` "leaves a plugin ok when an optional dependency is
+disabled or unhealthy", `plugin_loader_spec.rb` "still loads a plugin whose
+optional dependency raised during boot", and `plugin_dependency_graph_spec.rb`
+"ignores optional dependencies in both directions". Whether an absent optional
+capability then has an explicit neutral behaviour is the separate
+`defined?(X) && X.enabled?` guard, covered by the next property.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine

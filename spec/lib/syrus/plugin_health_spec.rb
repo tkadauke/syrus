@@ -95,6 +95,17 @@ RSpec.describe Syrus::PluginHealth do
     expect(subject.status("chat").state).to eq(:ok)
   end
 
+  # DOC-44: optional dependency absence cannot disable the dependent plugin.
+  # Unhealthy propagation follows hard edges only.
+  it "leaves a plugin ok when an optional dependency is disabled or unhealthy" do
+    manifests = [ manifest("c"), manifest("b", depends_on: [ "c" ]),
+                  manifest("chat", optionally_depends_on: [ "b", "off" ]), manifest("off") ]
+    subject = health(manifests, enabled: %w[b chat])
+
+    expect(subject.status("b").state).to eq(:degraded)
+    expect(subject.status("chat").state).to eq(:ok)
+  end
+
   it "degrades both sides of an enabled conflict" do
     manifests = [ manifest("memory_a", conflicts_with: [ "memory_b" ]),
                   manifest("memory_b", conflicts_with: [ "memory_a" ]) ]

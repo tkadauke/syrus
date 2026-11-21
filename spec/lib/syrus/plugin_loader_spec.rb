@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Syrus::PluginLoader do
-  def write_plugin(root, directory_name:, gem_name:, plugin_name: gem_name, dependencies: [], gem_dependencies: [], requires_syrus: nil, roles: nil)
+  def write_plugin(root, directory_name:, gem_name:, plugin_name: gem_name, dependencies: [], optional_dependencies: [], gem_dependencies: [], requires_syrus: nil, roles: nil)
     directory = root.join(directory_name)
     directory.join("lib").mkpath
     dependency_lines = ([ [ "rails", ">= 8.1" ] ] + gem_dependencies).map do |name, requirement|
@@ -20,6 +20,7 @@ RSpec.describe Syrus::PluginLoader do
       end
     RUBY
     dependency_declaration = dependencies.any? ? "depends_on #{dependencies.inspect}" : ""
+    dependency_declaration += "\n  optionally_depends_on #{optional_dependencies.inspect}" if optional_dependencies.any?
     role_declaration = roles.nil? ? "" : "roles #{roles.inspect}"
     directory.join("lib/#{gem_name}.rb").write(<<~RUBY)
       module ExternalLoaderFixture
@@ -407,6 +408,38 @@ RSpec.describe Syrus::PluginLoader do
         Object.send(:remove_const, :StandardFixture) if defined?(StandardFixture)
         Object.send(:remove_const, :LoadErrorFixture) if defined?(LoadErrorFixture)
         Object.send(:remove_const, :SyntaxFixture) if defined?(SyntaxFixture)
+      end
+    end
+
+    # DOC-44: optional dependency absence cannot disable the dependent plugin.
+    it "still loads a plugin whose optional dependency raised during boot" do
+      Dir.mktmpdir do |temporary|
+        snapshot = Syrus::PluginRegistry.snapshot
+        app_root = Pathname.new(temporary).join("app").tap { |path| path.join("plugins").mkpath }
+        external_root = Pathname.new(temporary).join("external").tap(&:mkpath)
+        broken = write_plugin(external_root, directory_name: "broken", gem_name: "atomic_fixture")
+        write_plugin(external_root, directory_name: "dependent", gem_name: "dependent_fixture", optional_dependencies: [ "atomic_fixture" ])
+        overwrite_entry(broken, "atomic_fixture", <<~RUBY)
+          module AtomicFixture
+            extend Syrus::PluginApi
+            syrus_plugin "atomic_fixture" do
+              on_boot { raise "after registry write" }
+            end
+          end
+        RUBY
+        loader = described_class.new(plugin_roots: Syrus::PluginRoots.new(application_root: app_root, external_path: external_root))
+        loader.load!
+
+        described_class.install_definition!(AtomicFixture.syrus_plugin_definition)
+        described_class.install_definition!(ExternalLoaderFixture.syrus_plugin_definition)
+
+        expect(Syrus::PluginRegistry.health.status("atomic_fixture").state).to eq(:failed)
+        expect(Syrus::PluginRegistry.health.status("dependent_fixture").state).to eq(:ok)
+        expect(Syrus::PluginRegistry.providers_for(:callbacks)).to include(ExternalLoaderFixture::Provider)
+      ensure
+        Syrus::PluginRegistry.restore(snapshot) if snapshot
+        Object.send(:remove_const, :AtomicFixture) if defined?(AtomicFixture)
+        Object.send(:remove_const, :ExternalLoaderFixture) if defined?(ExternalLoaderFixture)
       end
     end
 
