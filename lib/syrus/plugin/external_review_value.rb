@@ -29,6 +29,7 @@ module Syrus
         if %i[connected_account client].include?(name) && value.is_a?(String)
           raise ArgumentError, "#{name} must be a facade, not a raw credential"
         end
+        raise ArgumentError, "#{name} public facade must be immutable" unless value.frozen?
 
         value
       end
