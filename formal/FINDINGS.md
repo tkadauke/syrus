@@ -1954,6 +1954,23 @@ make it (NY12).
 
 ---
 
+## M10. Permission leases stay within their grant — proved, no bug
+
+DOC-44 Phase 4. `LeaseScope.lean` models `PermissionLease#available?` and
+`LeaseAuthorizer`'s consumption. Leases are loaded per owner, capability and
+operation under a row lock and consumed in the same transaction. An available
+lease is unrevoked, unexpired, has uses left, grants every effect of the
+invocation, matches its constraints, and belongs to the caller's instance: the
+exact invocation fingerprint (single use), the same live chat session, or the
+same non-terminal Job (`available_sound`). It then enters the evaluator as a
+rule carrying its subject selector and resource scope, so another actor or
+resource does not match. Consumption never exceeds `max_uses`
+(`consume_bounded`). Revocation also invalidates unclaimed authorized
+invocations. One observation: a Job-scoped lease becomes usable again if its
+closed Job is reopened, which reads as intended (same thread, same grant).
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
