@@ -22,6 +22,7 @@
   "checks": "Prüfungen",
   "checks_ready": "Die Freigabeprüfungen sind bereit.",
   "checks_blocked": "Die Freigabe ist derzeit nicht verfügbar.",
+  "pull_request_number": "PR #{{number}}",
   "findings": "Risiken und Review-Befunde",
   "approve": "Zur Landung freigeben",
   "approve_mobile": "Freigeben",

@@ -22,6 +22,7 @@
   "checks": "Probationes",
   "checks_ready": "Probationes approbationis paratae sunt.",
   "checks_blocked": "Approbatio nunc praesto non est.",
+  "pull_request_number": "PR #{{number}}",
   "findings": "Pericula et inventa recensionis",
   "approve": "Ad coniunctionem approbare",
   "approve_mobile": "Approbare",
