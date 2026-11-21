@@ -62,6 +62,32 @@ RSpec.describe "WorkUnit workflow ownership" do
     MSG
   end
 
+  # A Workflow's unit ends with it: every terminal Workflow transition runs
+  # Workflows::LifecyclePropagation, which marks the unit terminal and releases
+  # its locks in the same transaction. A column write of a Workflow's state
+  # skips that and leaves an active unit holding locks behind a finished
+  # Workflow. RunCompletionReconciler#force_state! is the one sanctioned
+  # writer; it calls the propagation explicitly afterwards.
+  it "writes a Workflow's state only through its transitions" do
+    state_write = /\b(?i:\w*(workflow|wf)\w*)(\.\w+\([^)]*\))*\.(update_columns|update_column|update_all)\(.*(?<!\w)(state:|:state\b)/
+    expect('workflow.update_columns(state: "failed")').to match(state_write)
+    expect('Workflow.where(id: ids).update_all(state: "cancelled")').to match(state_write)
+    allowed = %w[app/services/run_completion_reconciler.rb app/services/work_engine/simulation/scenario_loader.rb]
+    offenders = Dir.glob(Rails.root.join("{app,lib,plugins/*/app,plugins/*/lib}/**/*.rb")).filter_map do |file|
+      relative = Pathname(file).relative_path_from(Rails.root).to_s
+      next if allowed.include?(relative)
+
+      File.readlines(file).each_with_index.filter_map do |line, index|
+        "#{relative}:#{index + 1}: #{line.strip}" if line.match?(state_write)
+      end.presence
+    end.flatten
+
+    expect(offenders).to be_empty, <<~MSG
+      Move a Workflow through its AASM events so its WorkUnit ends with it:
+        #{offenders.join("\n  ")}
+    MSG
+  end
+
   # Guard the guard: the launcher still does both, so the pattern still
   # matches the code it is meant to confine.
   it "still matches the launcher's own writes" do
