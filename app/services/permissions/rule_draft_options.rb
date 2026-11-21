@@ -12,7 +12,9 @@ module Permissions
         capability: descriptor.capability, operation: descriptor.operation,
         policies: RuleDraft::POLICIES, risk: descriptor.risk.to_s,
         subject_types: subject_types,
-        resource_scope: descriptor.resource_scope.to_h,
+        resource_scope: descriptor.resource_scope.to_h.merge(
+          options: descriptor.resource_scope.authoring_options(context: { user: })
+        ),
         constraint_fields: descriptor.constraint_fields.transform_values(&:to_s),
         presets: descriptor.presets,
         authority_durations: authority_durations,

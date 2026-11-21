@@ -432,6 +432,10 @@ Providers apply the caller's normal resource visibility during lookup; hidden
 and unknown identifiers receive the same result. Syrus canonicalizes and
 validates normalized scopes and treats any lookup or normalization failure as
 a closed authorization outcome.
+Resource schemas may additionally return user-scoped authoring choices so the
+Permissions Hub can offer visible resources by safe label instead of asking
+for database identifiers. Those choices are presentation only; lookup and
+validation still enforce visibility when authority is saved or used.
 
 Plugin authors can expose reusable permission metadata through a
 `permission_provider`. The provider registers typed resource scopes and

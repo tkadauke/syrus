@@ -35,4 +35,23 @@ RSpec.describe ConnectedAccounts::PermissionProvider do
     unknown = schema.validate({ account_id: -1, acting_mode: "as_self" }, context: { user: stranger })
     expect(hidden.errors).to eq(unknown.errors)
   end
+
+  it "lists only the current user's accounts as safe authoring choices" do
+    stranger = Factories.user
+    hidden_credential = CredentialStore::Credential.create!(name: "hidden-permission-account",
+      credential_type: "connected_accounts.oauth", scope_type: "user", scope_id: stranger.id,
+      created_by: stranger, owner_user: stranger, payload: { access_token: "hidden" }.to_json,
+      safe_metadata: {}, target_constraints: { "allowed_url_prefixes" => [ "https://api.example/" ] },
+      allowed_tools: [ "connected_accounts.broker" ])
+    ConnectedAccounts::Account.create!(provider: "example", display_label: "Hidden account", granted_scopes: [ "mail.read" ],
+      status: "connected", read_only: true, acting_modes: [ "as_self" ], owner_user: stranger,
+      credential_store_credential: hidden_credential)
+
+    options = described_class.permission_resource_scopes.fetch(:connected_account)
+      .authoring_options(context: { user: owner })
+    account_field = options.fetch("fields").find { |field| field.fetch("name") == "account_id" }
+
+    expect(account_field.fetch("type")).to eq("select")
+    expect(account_field.fetch("choices")).to eq([ { "label" => "Visible account", "value" => account.id.to_s } ])
+  end
 end

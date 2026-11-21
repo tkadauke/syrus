@@ -49,6 +49,19 @@ module ConnectedAccounts
 
         :disjoint
       end
+
+      def authoring_options(context:)
+        user = context[:user]
+        accounts = Account.where(owner_user_id: user&.id).order(:provider, :display_label, :id)
+        {
+          fields: [
+            { name: "account_id", label: "Connected account", type: "select",
+              choices: accounts.map { |account| { value: account.id.to_s, label: account.display_label } } },
+            { name: "acting_mode", label: "Acting mode", type: "select",
+              choices: ACTING_MODES.map { |mode| { value: mode, label: mode.tr("_", " ") } } }
+          ]
+        }
+      end
     end
 
     register_resource_scope(
@@ -61,7 +74,7 @@ module ConnectedAccounts
         ]
       },
       lookup: method(:lookup_account), normalize: method(:normalize_scope), validate: method(:validate_scope),
-      label: method(:scope_label), compare: method(:compare_scopes)
+      label: method(:scope_label), compare: method(:compare_scopes), authoring: method(:authoring_options)
     )
   end
 end

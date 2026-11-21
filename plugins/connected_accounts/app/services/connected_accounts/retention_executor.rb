@@ -13,10 +13,16 @@ module ConnectedAccounts
       cutoff = Time.current - window
       scope = Account.retention_candidates.where(updated_at: ...cutoff).limit(batch_size * max_batches)
       credential_ids = scope.pluck(:credential_store_credential_id)
-      account_count = Account.where(id: scope.select(:id)).delete_all
-      audit_count = CredentialStore::CredentialAccessEvent.where(credential_id: credential_ids).delete_all
+      account_count = audit_count = credential_count = 0
+      Account.transaction do
+        audit_count = CredentialStore::CredentialAccessEvent.where(credential_id: credential_ids).delete_all
+        account_count = Account.where(id: scope.select(:id)).delete_all
+        credential_count = CredentialStore::Credential.where(
+          id: credential_ids, credential_type: AccountClient::CREDENTIAL_TYPE
+        ).delete_all
+      end
       backlog = Account.retention_candidates.where(updated_at: ...cutoff).exists?
-      Result.new(deleted_count: account_count + audit_count, backlog:)
+      Result.new(deleted_count: account_count + audit_count + credential_count, backlog:)
     end
   end
 end

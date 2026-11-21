@@ -19,7 +19,7 @@ module Permissions
 
     attr_reader :type, :options
 
-    def initialize(type:, options: nil, lookup: nil, normalize: nil, validate: nil, label: nil, compare: nil)
+    def initialize(type:, options: nil, lookup: nil, normalize: nil, validate: nil, label: nil, compare: nil, authoring: nil)
       @type = type.to_sym
       @options = options
       @lookup_callback = lookup
@@ -27,6 +27,7 @@ module Permissions
       @validate_callback = validate || method(:valid)
       @label_callback = label || method(:default_label)
       @compare_callback = compare || method(:default_compare)
+      @authoring_callback = authoring
       validate_contract!
       freeze
     end
@@ -81,6 +82,18 @@ module Permissions
 
     def to_h = { type: type, options: options }
 
+    # Authoring choices may depend on the current user and therefore cannot be
+    # part of the immutable descriptor contract. Providers filter visibility in
+    # this callback just as they do for lookup; callers receive only safe labels
+    # and identifiers they are allowed to use.
+    def authoring_options(context:)
+      return options unless @authoring_callback
+
+      canonicalize(@authoring_callback.call(context: context))
+    rescue StandardError
+      options
+    end
+
     private
 
     def validate_contract!
@@ -91,6 +104,7 @@ module Permissions
         compare: @compare_callback
       }
       callbacks[:lookup] = @lookup_callback if @lookup_callback
+      callbacks[:authoring] = @authoring_callback if @authoring_callback
       invalid = callbacks.filter_map { |name, callback| name unless callback.respond_to?(:call) }
       raise ArgumentError, "resource scope callbacks must respond to call: #{invalid.join(', ')}" if invalid.any?
     end
