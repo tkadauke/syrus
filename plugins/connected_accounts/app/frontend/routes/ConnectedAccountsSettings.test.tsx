@@ -5,7 +5,7 @@ import { jsonResponse } from "@app/testSupport"
 import ConnectedAccountsSettings from "./ConnectedAccountsSettings"
 
 vi.mock("@app/hooks/useT", () => ({
-  useT: () => ({ t: (key: string, values?: Record<string, string>) => values?.provider ? `Connect ${values.provider}` : key })
+  useT: () => ({ t: (key: string, values?: Record<string, string>) => (values?.provider ? `Connect ${values.provider}` : key) })
 }))
 
 function renderPage() {
@@ -20,12 +20,24 @@ afterEach(() => vi.restoreAllMocks())
 
 describe("ConnectedAccountsSettings", () => {
   it("shows account status, scopes, last use, and all management actions", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValueOnce(jsonResponse({
-      accounts: [{ id: 7, provider: "mail", display_label: "person@example.com", status: "connected",
-        granted_scopes: ["mail.read"], read_only: false, acting_modes: ["as_self"],
-        last_used_at: null, reauthorize_url: "/reauthorize" }],
-      providers: [{ key: "mail", display_name: "Mail", scopes: ["mail.read"], supports_read_only: true }]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValueOnce(
+      jsonResponse({
+        accounts: [
+          {
+            id: 7,
+            provider: "mail",
+            display_label: "person@example.com",
+            status: "connected",
+            granted_scopes: ["mail.read"],
+            read_only: false,
+            acting_modes: ["as_self"],
+            last_used_at: null,
+            reauthorize_url: "/reauthorize"
+          }
+        ],
+        providers: [{ key: "mail", display_name: "Mail", scopes: ["mail.read"], supports_read_only: true }]
+      })
+    )
 
     renderPage()
 
@@ -38,10 +50,26 @@ describe("ConnectedAccountsSettings", () => {
   })
 
   it("persists the read-only toggle", async () => {
-    const fetchMock = vi.spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse({ accounts: [{ id: 7, provider: "mail", display_label: "person@example.com",
-        status: "connected", granted_scopes: ["mail.read"], read_only: false, acting_modes: ["as_self"],
-        last_used_at: null, reauthorize_url: "/reauthorize" }], providers: [] }))
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({
+          accounts: [
+            {
+              id: 7,
+              provider: "mail",
+              display_label: "person@example.com",
+              status: "connected",
+              granted_scopes: ["mail.read"],
+              read_only: false,
+              acting_modes: ["as_self"],
+              last_used_at: null,
+              reauthorize_url: "/reauthorize"
+            }
+          ],
+          providers: []
+        })
+      )
       .mockResolvedValueOnce(jsonResponse({ account: { id: 7, read_only: true } }))
       .mockResolvedValueOnce(jsonResponse({ accounts: [], providers: [] }))
 
