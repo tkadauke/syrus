@@ -1799,6 +1799,23 @@ branch, which only that train writes.
 
 ---
 
+## M7. Database boundary for lock exclusivity — pinned, no bug
+
+The lock models (`LockSafety.lean`, `LockAcquire.lean`) assume at most one
+active `WorkUnitLock` per key. The model validation runs before the insert, so
+two concurrent acquirers can both pass it. The unique index
+`idx_work_unit_locks_active_key_unique` on `active_lock_key` is what rejects the
+second, and `release!` clears that column with `released_at`.
+`work_unit_lock_spec.rb` now pins both against the database with validation
+skipped, as in the race. `spec/architecture/work_unit_lock_release_spec.rb`
+fails if any code writes `released_at` with a bulk or callback-skipping write
+that would leave the key taken; none does today. The other uniqueness
+assumptions in the models are already pinned at the database:
+`retry_workflow_uniqueness_key` (`auto_retry_attempt_spec.rb`), external PR
+number, merge-train membership and position.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
