@@ -380,9 +380,9 @@
       "simulator": [
         "dependent_active_initial_dedup_collision"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "DB-enforced except the nil-scope hole and lockless materialization; see superseded-active-runtime-work for the visible violation."
+      "status": "done",
+      "done_by": "LockSafety · UnitReentry · one-unit-per-workflow guard",
+      "notes": "DB-enforced by idx_work_units_active_dedup_key_unique except where scope_id is nil, which is only an epic-scoped kind (stack_rebase, merge_train, merge_train_validation) on a Job without an Epic. There the per-member job:<id> lock keys carry it: stack_rebase and merge_train are in WorkUnits::PathOwnership::PATH_GROUPS, so lock_conflicts_enforced? holds and ensure_active_locks raises LockConflict for a second unit. Units that materialize behind an active lock may be queued side by side without locks, by design; they reach running only through mark_running!, which acquires every key (UnitReentry.run_preserves), and running holders are exclusive (LockSafety), with one unit per Workflow guarded by spec/architecture/work_unit_workflow_ownership_spec.rb. So at most one runs per scope and kind."
     },
     {
       "id": "queued-run-without-claim",
