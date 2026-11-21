@@ -137,7 +137,7 @@ class WorkUnit < ApplicationRecord
         blocked_by_user: user
       )
       release_landing_locks! if EXTERNALLY_CLEARED_BLOCKED_REASONS.include?(reason.to_s)
-      release_landing_locks! if urgent_prestart_landing_block?(reason)
+      release_landing_locks! if prestart_landing_block?
     end
   end
 
@@ -279,10 +279,14 @@ class WorkUnit < ApplicationRecord
 
   private
 
-  def urgent_prestart_landing_block?(reason)
-    return false unless reason.to_s == "urgent_job_active"
-
-    workflow&.queued_landing_before_first_run?
+  # A landing blocked before its first Run gives the repository slot back,
+  # whatever the reason (decision NY7, formal/SyrusModel/PrestartSlot.lean):
+  # an allowlist of reasons starved every other landing in the repository
+  # three times, most recently on a manual pause. Nothing is lost: the
+  # Workflow's start (WorkflowLifecycle.started! -> mark_running!) and
+  # resume_for_workflow! re-acquire every key before the first Run.
+  def prestart_landing_block?
+    workflow&.queued_landing_before_first_run? || false
   end
 
   def ensure_active_locks!

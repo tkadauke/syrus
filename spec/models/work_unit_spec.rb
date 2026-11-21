@@ -257,6 +257,26 @@ RSpec.describe WorkUnit do
       expect(other_locks.map { |lock| lock.reload.active? }).to all(be(true))
     end
 
+    # NY7 (decided A): any block before the first Run surrenders the slot. A
+    # manual pause of a Job whose landing had not started held the slot for
+    # the whole repository until someone unpaused it
+    # (PrestartSlot.today_starves_on_manual_pause).
+    %w[manual_pause provider_availability admission_control main_branch_health].each do |reason|
+      it "surrenders the landing slot when queued landing work is blocked for #{reason} before its first Run" do
+        repository = Factories.repository
+        job = Factories.job_record(user: repository.user, repository: repository, state: "landing")
+        workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+        unit = workflow.work_unit
+        landing = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:%")
+        other_locks = unit.work_unit_locks.active.where.not(id: landing.id).to_a
+
+        unit.block!(reason: reason)
+
+        expect(landing.reload).not_to be_active
+        expect(other_locks.map { |lock| lock.reload.active? }).to all(be(true))
+      end
+    end
+
     it "keeps the landing slot when urgent blocking is projected after a Run exists" do
       repository = Factories.repository
       job = Factories.job_record(user: repository.user, repository: repository, state: "landing")
