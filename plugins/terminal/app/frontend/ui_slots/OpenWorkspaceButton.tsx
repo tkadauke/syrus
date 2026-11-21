@@ -17,10 +17,14 @@ type WorkspaceAvailability = {
 export default function OpenWorkspaceButton({
   availability_by_workflow_id,
   prefix,
+  role,
+  tabIndex,
   workflow
 }: {
   availability_by_workflow_id?: Record<string, WorkspaceAvailability>
   prefix?: string
+  role?: "menuitem"
+  tabIndex?: number
   workflow?: Workflow
 }) {
   const { t } = useT("terminal")
@@ -51,7 +55,7 @@ export default function OpenWorkspaceButton({
 
   return (
     <div className="flex max-w-80 flex-col items-start gap-1">
-      <Button disabled={opening} onClick={open} variant="secondary">
+      <Button disabled={opening} onClick={open} role={role} tabIndex={tabIndex} variant="secondary">
         {t("open_terminal_in_workspace")}
       </Button>
       {error ? <p className="text-xs text-red-600 dark:text-red-300">{error}</p> : null}
