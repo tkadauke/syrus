@@ -258,6 +258,38 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
       expect(described_class.superseded_base?(job, base_sha)).to be(false)
     end
 
+    # Regression (formal/SyrusModel/BaseSupersession.lean): only an observation
+    # of the branch head says main moved past the base. A main grade of an
+    # older commit that finishes after the repair began waiting, or a grade
+    # recorded without a SHA, says nothing about the base being stale.
+    {
+      "a late grade of an older commit" => "0ld1234567890000000000000000000000000000",
+      "a grade recorded without a SHA" => "unknown"
+    }.each do |description, sha|
+      it "does not count #{description} as main moving past the base" do
+        job.update!(pr_checks_base_sha: base_sha)
+        repository.update!(last_health_checked_sha: base_sha)
+        MainBranchHealthCheck.create!(
+          repository: repository, branch: "main", sha: sha,
+          checked_at: 1.day.ago, source: "grader_workflow", ci_health: "healthy", grader_health: "healthy"
+        )
+
+        expect(described_class.superseded_base?(job, base_sha, since: 2.days.ago)).to be(false)
+      end
+    end
+
+    it "counts a grade of the head main health is tracking, for repositories without CI" do
+      job.update!(pr_checks_base_sha: base_sha)
+      head = "fff1234567890000000000000000000000000000"
+      repository.update!(last_health_checked_sha: head)
+      MainBranchHealthCheck.create!(
+        repository: repository, branch: "main", sha: head,
+        checked_at: 1.day.ago, source: "grader_workflow", ci_health: "not_configured", grader_health: "healthy"
+      )
+
+      expect(described_class.superseded_base?(job, base_sha, since: 2.days.ago)).to be(true)
+    end
+
     it "does not count a base while main health has checked nothing newer" do
       job.update!(pr_checks_base_sha: base_sha)
       MainBranchHealthCheck.create!(

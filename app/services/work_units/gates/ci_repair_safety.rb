@@ -135,15 +135,24 @@ module WorkUnits
         base_health_moved_past?(candidate_job, candidate_base_sha, since)
       end
 
+      # Only an observation of the branch head says main has moved past the
+      # base: a CI poll (the poller only polls the head), or a grade of the
+      # head the poller last recorded. A main grade of an older commit that
+      # finishes late, or one recorded without a SHA, does not
+      # (formal/SyrusModel/BaseSupersession.lean).
       def base_health_moved_past?(candidate_job, candidate_base_sha, since)
         repository = candidate_job&.repository
         return false if since.blank? || repository.nil?
 
-        MainBranchHealthCheck
-          .where(repository: repository, branch: candidate_job.effective_base_branch)
-          .where.not(sha: candidate_base_sha)
+        branch = candidate_job.effective_base_branch
+        checks = MainBranchHealthCheck
+          .where(repository: repository, branch: branch)
+          .where.not(sha: [ candidate_base_sha, "unknown" ])
           .where(checked_at: since..)
-          .exists?
+        tracked_head = repository.last_health_checked_sha.presence if branch == repository.default_branch
+        head_checks = checks.where(source: "ci_poll")
+        head_checks = head_checks.or(checks.where(sha: tracked_head)) if tracked_head
+        head_checks.exists?
       end
 
       def require_clean_base_health?
