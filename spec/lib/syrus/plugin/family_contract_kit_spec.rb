@@ -25,7 +25,10 @@ RSpec.describe Syrus::Plugin::FamilyContractKit do
 
   def validate(candidate = provider, contexts: { items: ContractContext.new(decline: false) },
     decline_contexts: { items: ContractContext.new(decline: true) })
-    described_class.validate!(family: :contract_fixture, provider: candidate, capabilities: %i[items],
+    declaration = Syrus::Plugin::FamilyDeclaration.build(
+      family: :contract_fixture, provider: "ContractFixture::Provider", provisional: %i[items]
+    )
+    described_class.validate!(declaration:, provider: candidate,
       contexts:, decline_contexts:)
   end
 
@@ -61,5 +64,22 @@ RSpec.describe Syrus::Plugin::FamilyContractKit do
     expect { validate(never_declines) }.to raise_error(RSpec::Expectations::ExpectationNotMetError, /must decline with \[\]/)
 
     expect { validate(contexts: {}) }.to raise_error(RSpec::Expectations::ExpectationNotMetError, /missing call context/)
+  end
+
+  it "derives the complete capability set from the declaration" do
+    Syrus::Plugin::Family.define(:multi_capability_fixture) do
+      shape :facet
+      capability :first, composition: :collect, absent: [], tier: :provisional,
+        context: ContractContext, returns: Array
+      capability :second, composition: :collect, absent: [], tier: :provisional,
+        context: ContractContext, returns: Array
+    end
+    declaration = Syrus::Plugin::FamilyDeclaration.build(
+      family: :multi_capability_fixture, provider: "ContractFixture::Provider", provisional: %i[first second]
+    )
+
+    expect do
+      described_class.validate!(declaration:, provider:, contexts: {}, decline_contexts: {})
+    end.to raise_error(RSpec::Expectations::ExpectationNotMetError, /must define capability first/)
   end
 end

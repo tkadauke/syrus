@@ -95,7 +95,7 @@ module Syrus
 
           ## Capability families
 
-          Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`.
+          Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`, passing the plugin name, provider class name, and call and decline contexts. The kit derives the full capability list from that exact manifest declaration.
 
           #{families}
 
@@ -156,7 +156,7 @@ module Syrus
 
           Shape: `#{family.shape}`. Required core methods: #{family.required_core.map { |name| "`#{name}`" }.join(", ")}.
 
-          Use `it_behaves_like "a valid #{family.name} provider"` from `syrus/plugin/test_kit` to exercise this contract.
+          Use `it_behaves_like "a valid #{family.name} provider"` from `syrus/plugin/test_kit`, passing the plugin name, provider class name, and call and decline contexts, to exercise this exact manifest declaration.
 
           ## Capabilities
 

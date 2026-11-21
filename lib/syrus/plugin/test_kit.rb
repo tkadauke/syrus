@@ -266,12 +266,18 @@ module Syrus
           Syrus::Plugin::Family.all.each do |family|
             @installed_families ||= Set.new
             next unless @installed_families.add?(family.name)
-            RSpec.shared_examples "a valid #{family.name} provider" do |capabilities:, contexts:, decline_contexts:|
+            RSpec.shared_examples "a valid #{family.name} provider" do |plugin:, provider:, contexts:, decline_contexts:|
+              declaration = Syrus::Plugin::FamilyContractCoverage.declaration!(
+                plugin:, family: family.name, provider:
+              )
               it "satisfies the generated #{family.name} family contract" do
+                provider_class = subject.is_a?(Module) ? subject : subject.class
+                expect(provider_class.name).to eq(declaration.provider),
+                  "expected the shared example subject to be #{declaration.provider}, got #{provider_class.name || provider_class.inspect}"
                 resolved_contexts = contexts.respond_to?(:call) ? instance_exec(&contexts) : contexts
                 resolved_declines = decline_contexts.respond_to?(:call) ? instance_exec(&decline_contexts) : decline_contexts
-                Syrus::Plugin::FamilyContractKit.validate!(family: family.name, provider: subject,
-                  capabilities:, contexts: resolved_contexts, decline_contexts: resolved_declines)
+                Syrus::Plugin::FamilyContractKit.validate!(declaration:, provider: subject,
+                  contexts: resolved_contexts, decline_contexts: resolved_declines)
               end
             end
           end
