@@ -781,9 +781,9 @@
         "cancelled_retry_until_barrier_blocks_tail",
         "terminal_cleanup_cancelled_retry_recovers"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: queued step with a dependency cancelled-without-runs is itself cancelled; suppressed cascades are the hazard."
+      "status": "done",
+      "done_by": "M29",
+      "notes": "Invariant: queued step with a dependency cancelled-without-runs is itself cancelled; suppressed cascades are the hazard. M29: both cancelled-barrier shapes (no runs; cleanup-cancelled with runs) are auto-repaired on running workflows, each guarded by settled dependencies."
     },
     {
       "id": "terminal-workflow-active-descendants",

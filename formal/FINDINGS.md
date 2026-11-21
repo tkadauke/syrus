@@ -3858,6 +3858,35 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M29. A cancelled retry-until barrier never blocks its tail for long — audited, no bug
+
+**Scope.** DOC-44 steps and workflows, the coverage item
+`cancelled-barrier-blocks-tail`. The invariant: "a queued Step with a
+dependency cancelled without runs is itself cancelled". The hazard is a
+cancellation made with the cascade suppressed
+(`Step.suppress_cancel_cascade`, used by `Workflow#cancel_active_descendants!`
+and the loop-exit paths), on a Workflow that is later reopened.
+
+**Covered by two auto-repairs, both scoped to a running Workflow** (only a
+running Workflow can have a queued tail waiting on a barrier):
+
+- `cancelled_retry_until_barrier_blocking_tail` (`classify_queued_steps_without_runs`)
+  covers a queued Step outside the loop whose latest unsuperseded
+  retry-until barrier is cancelled with *no* Runs.
+  `ReopenCancelledRetryUntilBarrier` requeues the barrier and creates its Run,
+  once its own dependencies are settled.
+- The terminal-workflow cleanup revival covers a cleanup-cancelled Step that
+  *had* started a Run. After the Workflow is reopened, the reconciler and
+  `DeferredPhaseResume#revive_cancelled_tail_after!` revive the earliest such
+  Step, so dispatch can pass it.
+
+So whichever path left the barrier cancelled, the tail is released on the next
+reconciler pass instead of waiting forever. Neither repair requeues a barrier
+whose Runs exist or whose dependencies are unsettled, so neither can start
+work out of order.
+
+---
+
 ## M28. Finished infrastructure Jobs are closed — audited, no bug
 
 **Scope.** DOC-44 infrastructure Jobs, the coverage item
