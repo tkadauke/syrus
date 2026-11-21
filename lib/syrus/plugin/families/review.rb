@@ -2,7 +2,7 @@
 
 module Syrus
   module Plugin
-    definition = Family.define(:review) do
+    definition = Family.define(:review, built_in: true) do
       shape :facet
       capability :external_reviewer,
         composition: :first_claim,

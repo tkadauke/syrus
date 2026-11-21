@@ -22,6 +22,17 @@ RSpec.describe Syrus::Plugin::ExternalReviewer do
       return_contract: have_attributes(description: "Syrus::Plugin::ExternalReviewer"))
   end
 
+  it "restores the built-in Review family after isolated registry tests reset it" do
+    Syrus::Plugin::Family.reset!
+
+    expect { Syrus::Plugin::Family.fetch(:review) }.to raise_error(ArgumentError, /Unknown plugin family/)
+
+    Syrus::Plugin::Family.restore_built_ins!
+    expect(Syrus::Plugin::Family.fetch(:review)).to equal(Syrus::Plugin::Families::Review)
+  ensure
+    Syrus::Plugin::Family.restore_built_ins!
+  end
+
   it "publishes the complete provider capability vocabulary" do
     expect(described_class::CAPABILITIES).to contain_exactly(
       :artifact, :asynchronous_completion, :polling, :webhook_delivery, :feedback,

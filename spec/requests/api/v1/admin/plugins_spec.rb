@@ -53,7 +53,7 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     expect(Object.const_defined?(:UnloadedApiPlugin)).to be(false)
   ensure
     Syrus::PluginRegistry.reset!
-    Syrus::Plugin::Family.reset!
+    Syrus::Plugin::Family.restore_built_ins!
   end
 
   it "falls back to the SPQR eagle icon when the manifest has no icon_url" do
