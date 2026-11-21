@@ -486,6 +486,15 @@ describe("Markdown", () => {
     expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
   })
 
+  it("highlights lean4 fenced code blocks with the canonical Lean grammar", async () => {
+    const { container } = render(<Markdown text={"```lean4\ntheorem add_zero (n : Nat) : n + 0 = n := by\n  simp\n```"} />)
+
+    const keyword = await screen.findByText("theorem")
+    expect(keyword.tagName).toBe("SPAN")
+    expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
+    expect(container.querySelectorAll("pre code span").length).toBeGreaterThan(1)
+  })
+
   it("renders inline TeX math as selectable KaTeX HTML and MathML", async () => {
     const { container } = render(<Markdown text={"Smooth interpolation uses $t^2(3 - 2t)$ for easing."} />)
 

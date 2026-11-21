@@ -204,6 +204,16 @@ describe("tokenizeLines", () => {
     expect(colorOf(closeLine)).toBe(stringColor)
     expect(colorOf(afterLine)).not.toBe(stringColor)
   })
+
+  it("tokenizes representative Lean 4 declarations with the canonical Lean grammar", async () => {
+    const code = "theorem add_zero (n : Nat) : n + 0 = n := by\n  simp"
+
+    const lines = await tokenizeLines(code, "lean")
+
+    expect(lines.map(textOf)).toEqual(code.split("\n"))
+    expect(lines[0].find((token) => token.content === "theorem")?.color).toBe("var(--shiki-token-keyword)")
+    expect(lines[1].some((token) => token.content.trim() === "simp" && token.color)).toBe(true)
+  })
 })
 
 describe("detectHighlighterLanguage", () => {
@@ -237,6 +247,7 @@ describe("detectHighlighterLanguage", () => {
     expect(detectHighlighterLanguage("src/main.cs")).toBe("csharp")
     expect(detectHighlighterLanguage("src/main.clj")).toBe("clojure")
     expect(detectHighlighterLanguage("src/main.hs")).toBe("haskell")
+    expect(detectHighlighterLanguage("Mathlib/Algebra.lean")).toBe("lean")
     expect(detectHighlighterLanguage("src/main.ps1")).toBe("powershell")
     expect(detectHighlighterLanguage("src/main.wgsl")).toBe("wgsl")
     expect(detectHighlighterLanguage("src/template.haml")).toBe("haml")
@@ -273,6 +284,8 @@ describe("detectFenceLanguage", () => {
     expect(detectFenceLanguage("python")).toBe("python")
     expect(detectFenceLanguage("angular-html")).toBe("angular-html")
     expect(detectFenceLanguage("angular-ts")).toBe("angular-ts")
+    expect(detectFenceLanguage("lean")).toBe("lean")
+    expect(detectFenceLanguage("lean4")).toBe("lean")
   })
 
   it("accepts the same extension aliases detectHighlighterLanguage understands", () => {
