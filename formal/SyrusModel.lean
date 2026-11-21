@@ -28,6 +28,8 @@ import SyrusModel.AssociationOrder
 import SyrusModel.CheckpointLineage
 import SyrusModel.AskNeverApproves
 import SyrusModel.LeaseScope
+import SyrusModel.ScopeMatching
+import SyrusModel.InvocationClaim
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

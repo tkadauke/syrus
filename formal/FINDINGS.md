@@ -1971,6 +1971,31 @@ closed Job is reopened, which reads as intended (same thread, same grant).
 
 ---
 
+## M11. Scope matching and approved-invocation claims — proved, no bug
+
+DOC-44 Phase 4.
+
+- `ScopeMatching.lean`: `PolicyRule#match_status` matches a rule only when the
+  invocation's normalized scope is `equal` to or `narrower` than the rule's,
+  and `ResourceScopeSchema#compare` fails closed on any normalize or compare
+  error. Under set semantics a matching rule covers every resource of the
+  invocation (`match_within_scope`). A `string_prefix` constraint compares
+  whitespace tokens, so `git commit` does not match `git commitfoo`
+  (`prefix_tokens`, `no_raw_text_prefix`). A rule with no scope is family-wide,
+  and an allow that broad is capped by the descriptor's breadth ceiling. The
+  guarantee rests on each provider's normalize and compare callbacks being right
+  for their scope type.
+- `InvocationClaim.lean`: an approved tool call is an `AuthorizedInvocation`
+  claimed once, under the row lock, only from `issued`, only with the approved
+  fingerprint, only while the originating action is still confirming, and only
+  if authority still holds when re-evaluated at claim time (`claim_requires`,
+  `claim_once`). The tool gate then requires the same claim key, claimant, tool
+  and fingerprint, and revocation invalidates unclaimed invocations. So authority
+  is checked when the effect becomes possible, and a retry cannot reuse a spent
+  approval.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
