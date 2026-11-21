@@ -60,6 +60,19 @@ def healthy : World where
 
 example : healthy.diagnose = [] := by decide
 
+/-- A failed Workflow keeps its queued tail for a retry from the failed Step
+    (decision NY4); only the running Step is cleaned up. Phase 2 conformance
+    caught the first kernel cancelling the tail
+    (`codex_overload_initial_retries`). -/
+def failedWithQueuedTail : World where
+  intents := [⟨1, .failed⟩]
+  units := [⟨10, 1, some 100, .failed⟩]
+  workflows := [⟨100, .failed⟩]
+  steps := [⟨1000, 100, .failed⟩, ⟨1001, 100, .running⟩, ⟨1002, 100, .queued⟩]
+  runs := [⟨5000, 1000, .failed⟩]
+
+example : failedWithQueuedTail.diagnose = [ .activeStepUnderTerminalWorkflow 1001 ] := by decide
+
 end Examples
 end Kernel
 end SyrusModel

@@ -78,11 +78,18 @@ theorem fixRun_changed_only_under_terminal (w : World) (r : Run) (h : w.fixRun r
   · exact (Bool.and_eq_true _ _ ▸ hc).1
   · exact absurd (fixRun_neg w hc) h
 
+theorem stepStale_terminal (w : World) (s : Step) (h : w.stepStale s = true) : w.stepWorkflowTerminal s = true := by
+  unfold stepStale at h
+  unfold stepWorkflowTerminal
+  cases hw : w.workflowState? s.workflow with
+  | none => simp [hw] at h
+  | some st => cases st <;> simp_all [WorkflowState.terminal]
+
 /-- A Step is changed only if its Workflow has finished. -/
 theorem fixStep_changed_only_under_terminal (w : World) (s : Step) (h : w.fixStep s ≠ s) :
     w.stepWorkflowTerminal s = true := by
-  by_cases hc : (w.stepWorkflowTerminal s && s.state.active) = true
-  · exact (Bool.and_eq_true _ _ ▸ hc).1
+  by_cases hc : w.stepStale s = true
+  · exact stepStale_terminal w s hc
   · exact absurd (fixStep_neg w hc) h
 
 /-- A unit is changed only to the outcome of its own Workflow, and only while
