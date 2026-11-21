@@ -114,6 +114,21 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Object.send(:remove_const, :LazyFamilySpec) if Object.const_defined?(:LazyFamilySpec)
   end
 
+  it "attributes family implementations to their declaring plugin at invocation time" do
+    namespace = Object.const_set(:AttributionFamilySpec, Module.new)
+    implementation = namespace.const_set(:Provider, Class.new do
+      def self.key = :attributed
+      def self.display_name = "Attributed"
+      def self.detect_prepare(context) = context
+    end)
+    described_class.register(name: "attributed", version: "1",
+      family_provides: [ declaration("AttributionFamilySpec::Provider") ])
+
+    expect(described_class.plugin_name_for(implementation)).to eq("attributed")
+  ensure
+    Object.send(:remove_const, :AttributionFamilySpec) if Object.const_defined?(:AttributionFamilySpec)
+  end
+
   it "reports missing capabilities and withholds only the non-conforming family" do
     namespace = Object.const_set(:ConformanceFamilySpec, Module.new)
     namespace.const_set(:Missing, Class.new do
@@ -160,7 +175,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     described_class.register(name: "unknown", version: "1", family_provides: [ unknown ])
 
     expect(described_class.health.status("wrong-signature").reasons.join)
-      .to include("1 required context argument(s), required keywords [], and optional keywords []")
+      .to include("1 required and 0 optional positional argument(s), required keywords [], and optional keywords []")
     expect(described_class.health.status("missing-core").reasons).to include(
       "ConformanceVariantsSpec::MissingCore does not define required method key",
       "ConformanceVariantsSpec::MissingCore does not define required method display_name"

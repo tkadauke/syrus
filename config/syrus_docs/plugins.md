@@ -520,6 +520,23 @@ the plugin non-conforming and withhold that family's declarations without
 disabling unrelated registrations. Disabled plugins remain unloaded. Admin and
 `syrus plugin capabilities` show declarations and conformance failures.
 
+Core invokes a declared capability through `Syrus::Plugin::Dispatch.call`,
+passing one immutable context object. The initial context shapes are
+`RepoContext` (`repo_path`, `repository`), `WorkspaceContext`
+(`workspace_path`, `changed_files`, `repository`), `GraderContext` (`name`,
+`command`, `workspace_path`, `failed_cases`, `base_retry`, `project_path`), and
+`JobContext` (`repository`, `job`). Providers accept the context as one
+positional argument and read only the fields they need. Context fields are
+additive: core may add a field without changing the provider method signature.
+
+The dispatcher applies the capability's composition and absent behavior and
+isolates every provider through plugin runtime health, timing, optional timeout,
+and circuit-breaker handling. A crash or timeout becomes a neutral decline or
+empty contribution. A missing keyed provider raises
+`Syrus::Plugin::Dispatch::MissingKey`. Providers may raise
+`Syrus::Host::CapabilityValidationError` for a deliberate caller-visible
+configuration problem; validation errors do not count as plugin crashes.
+
 ## Background jobs
 
 Plugin-owned Active Jobs subclass `PluginJob` and declare their owner with

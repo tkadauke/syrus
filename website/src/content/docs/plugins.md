@@ -645,6 +645,18 @@ Non-conforming family declarations are withheld without disabling unrelated
 features, while disabled plugins stay unloaded. Both surfaces show the precise
 conformance failure.
 
+Core calls family capabilities through one dispatcher and passes an immutable
+context object. Providers accept that object as one positional argument and
+read only the fields they need. The initial contexts cover repository,
+workspace, grader, and Job calls. Context fields are additive, so a provider
+keeps working when a later Syrus release supplies more context.
+
+The dispatcher applies the declared composition and absent behavior, records
+timing, and contains provider crashes, timeouts, and open circuits as neutral
+declines or empty contributions. Missing keyed providers and deliberate
+provider validation failures remain typed, caller-visible errors rather than
+being reported as plugin crashes.
+
 ## Execution Backend Contract
 
 Execution backends use the stable, versioned `Execution::Backend` contract.

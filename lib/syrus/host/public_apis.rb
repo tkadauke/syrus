@@ -32,7 +32,8 @@ module Syrus
         PerformanceLogging: "PerformanceLogging",
         Metrics: "Syrus::Metrics",
         PluginRegistry: "Syrus::PluginRegistry",
-        PluginInvocation: "Syrus::PluginInvocation"
+        PluginInvocation: "Syrus::PluginInvocation",
+        CapabilityValidationError: "Syrus::Plugin::Dispatch::ValidationError"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -57,11 +58,11 @@ module Syrus
         PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase] ],
         Metrics: [ "Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised.", %w[counter gauge histogram] ],
         PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register providers_for extension_point?] ],
-        PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ]
+        PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ],
+        CapabilityValidationError: [ "Reports a deliberate caller-visible capability validation problem without counting it as a provider crash.", %w[new code details message] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {
-        ApplicationRecord: [ "Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.", %w[abstract_class table_name table_name=] ],
         Job: [ "Reads a job's identity, state, title, repository, owner, and workflows through find and visibility-scoped lookups; transitions, persistence, callbacks, and other associations are not promised.", %w[find visible_to accessible_to id state title repository user workflows] ],
         Repository: [ "Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised.", %w[find active accessible_to writable_by id owner name archived_at jobs] ],
         User: [ "Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised.", %w[find id handle display_name admin? repositories jobs] ],
