@@ -1661,9 +1661,9 @@
         "stale_pr_check_base",
         "main_branch_break_then_heal"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Liveness: the block is eventually rechecked and the marker is a cache of the gate. Low priority."
+      "status": "done",
+      "done_by": "M30",
+      "notes": "Liveness: the block is eventually rechecked and the marker is a cache of the gate. Low priority. M30: each landing start-block either fails the Workflow explicitly or schedules a phase-admission recheck; the marker is cleared when its gate passes."
     },
     {
       "id": "locked-landing-recheck",

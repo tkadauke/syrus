@@ -3908,6 +3908,34 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M30. Landing start-blocks always recheck or fail — audited, no bug
+
+**Scope.** DOC-44 landing, the coverage item `landing-start-blocked`: "A
+landing Workflow is blocked before start (main repair, transient gate)." The
+liveness question is whether every block is rechecked, and whether its marker
+outlives the gate.
+
+**Every start-block on a landing Workflow either fails it or schedules its own
+recheck** (`StepDispatcher.start_workflow`):
+
+- **Fail explicitly.** A failed dependency, an unresolved stack base, and a
+  Job-level block each call `fail_unstartable_landing_workflow!` with the
+  reason. The landing never sits waiting on them.
+- **Record and recheck.** The provider, repository-preflight and Epic-wide
+  locks, the landing-queue pause, main health, and urgent work each record the
+  block, then enqueue `WorkflowPhaseAdmissionJob` after
+  `START_BLOCKED_BACKOFF`. The comments on the main-health and urgent gates
+  record that their release wakes nothing else, which is why they look again
+  on their own backoff.
+- **Pause.** A manual pause is a deliberate wait that `unpause!` resumes.
+
+**The marker is a cache of the gate.** Each gate calls `clear_start_blocked!`
+for its own reason the first time it passes. So a `start_blocked_reason` left
+behind after the gate cleared lasts at most until the next recheck.
+`warn_if_stuck_queued` surfaces a block that persists.
+
+---
+
 ## M29. A cancelled retry-until barrier never blocks its tail for long — audited, no bug
 
 **Scope.** DOC-44 steps and workflows, the coverage item
