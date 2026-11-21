@@ -3,6 +3,7 @@
 module Syrus
   module Plugin
     module Composition
+      module CallerError; end
       class MissingKey < KeyError; end
       module_function
       def collect(providers, &call) = providers.flat_map { |provider| Array(provider.invoke(&call)) }
@@ -12,6 +13,8 @@ module Syrus
           value = provider.invoke(&call)
           return value unless value.nil?
         rescue StandardError => error
+          raise if error.is_a?(CallerError)
+
           provider_name = provider.respond_to?(:provider_name) ? provider.provider_name : provider.class.name
           Rails.logger.warn("[Plugin::Composition] #{provider_name} declined with #{error.class}: #{error.message}")
           next

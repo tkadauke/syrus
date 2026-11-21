@@ -5,12 +5,12 @@ module Syrus
     class Family
       COMPOSITIONS = %i[collect broadcast first_claim keyed].freeze
       TIERS = %i[stable provisional].freeze
-      MethodContract = Data.define(:required_positionals, :required_keywords, :optional_keywords) do
-        def self.no_arguments = new(required_positionals: 0, required_keywords: [], optional_keywords: [])
+      MethodContract = Data.define(:required_positionals, :optional_positionals, :required_keywords, :optional_keywords) do
+        def self.no_arguments = new(required_positionals: 0, optional_positionals: 0, required_keywords: [], optional_keywords: [])
         def self.context(context)
           raise ArgumentError, "Capability context contract is required" if context.nil?
 
-          new(required_positionals: 1, required_keywords: [], optional_keywords: [])
+          new(required_positionals: 1, optional_positionals: 0, required_keywords: [], optional_keywords: [])
         end
       end
       Capability = Data.define(:name, :composition, :absent, :tier, :context, :method_contract)
