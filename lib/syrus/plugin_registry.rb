@@ -356,14 +356,23 @@ module Syrus
       # disabled as well as when the contributor is: a point only exists while
       # whoever offers it does.
       def hosted_providers_for(extension_point)
+        providers_with_owner_for(extension_point).map(&:last)
+      end
+
+      # [plugin_name, provider] pairs for a plugin-hosted point
+      # ("<host>:<point>"), for registries that must know which plugin
+      # contributed each entry. The same callable rule as providers_for:
+      # enabled *and* healthy, for the host and for each contributor. A host
+      # degrades a malformed contributor through add_validation_error, which
+      # must then stop it contributing (formal/SyrusModel/EffectHealth.lean).
+      # Public Host API, so plugin-side registries never fall back to reading
+      # manifests with enabled? alone.
+      def providers_with_owner_for(extension_point)
         key = extension_point.to_s
+        raise ArgumentError, "providers_with_owner_for takes a plugin-hosted point (\"<host>:<point>\"), got #{key.inspect}" unless key.include?(":")
+
         host_name = key.split(":", 2).first
         plugins = all_plugins
-
-        # The same callable rule as the core points: enabled *and* healthy,
-        # for the host and for each contributor. A host degrades a malformed
-        # contributor through add_validation_error, which must then stop it
-        # contributing (formal/SyrusModel/EffectHealth.lean).
         enabled = plugins.select(&:enabled?)
         health = health_for(plugins, enabled_names: enabled.map(&:name))
         live = enabled.select { |manifest| health.healthy?(manifest.name) }
@@ -378,8 +387,8 @@ module Syrus
         return [] unless host.hosted_extension_points.include?(key)
 
         live.flat_map do |manifest|
-          Array(manifest.provides[key] || manifest.provides[key.to_sym])
-        end.compact
+          Array(manifest.provides[key] || manifest.provides[key.to_sym]).compact.map { |provider| [ manifest.name, provider ] }
+        end
       end
 
       def hosted_extension_points

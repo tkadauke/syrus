@@ -29,6 +29,6 @@ module PluginRuntime
     def self.contract = PrivilegedService
     def self.label = "privileged service"
     def self.public_name_for(provider) = provider.privileged_service_name
-    def self.eligible_manifest?(manifest) = FIRST_PARTY_PRIVILEGED_PLUGINS.include?(manifest.name)
+    def self.eligible_plugin?(plugin_name) = FIRST_PARTY_PRIVILEGED_PLUGINS.include?(plugin_name)
   end
 end

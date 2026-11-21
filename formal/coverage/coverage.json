@@ -2396,9 +2396,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "F60, F62, F66, F69 (NY18 decided)",
-      "notes": "Proved in PluginClosure, EffectHealth and EnablementRead: health propagates up hard dependencies (F60); effects and plugin-hosted points use the same gate as providers (F62, F66); an unreadable enablement answer is retried and then refused, never 'every installed plugin' (F69). To implement: NY18, a health-aware owner-aware lookup for the two plugin-side registries."
+      "status": "done",
+      "done_by": "F60, F62, F66, F69, F72",
+      "notes": "Proved in PluginClosure, EffectHealth and EnablementRead: health propagates up hard dependencies (F60); effects, plugin-hosted points and plugin-side registries use the same enabled-and-healthy gate as providers (F62, F66, F72); an unreadable enablement answer is retried and then refused (F69)."
     },
     {
       "id": "plugin-capabilities-pass-evaluator",
@@ -2923,7 +2923,7 @@
         "C. Keep as is: plugin-side registries own their own filtering."
       ],
       "recommendation": "B. It keeps plugins out of manifest internals and makes the health rule impossible to forget, because there is no enabled-only path left to reach for. A adds a second public notion of 'enabled'.",
-      "decision": "B (2026-11-21): add a public providers_with_owner_for(point) on the health-aware path; both plugin registries switch to it. To implement."
+      "decision": "B (2026-11-21): add one. Implemented as F72: public PluginRegistry.providers_with_owner_for on the health-aware hosted path; Connected Accounts and Plugin Runtime use it."
     },
     {
       "id": "NY19",

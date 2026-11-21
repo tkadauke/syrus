@@ -2329,6 +2329,44 @@ All 518 frontend lib tests pass, and lint and tsc are clean.
 
 ---
 
+## F72. Plugin-side registries kept unhealthy contributors live — fixed (NY18)
+
+**Found by** the F66 audit of direct `manifest.provides` readers (queued as
+NY18). Decision: B, add a health-aware owner-aware lookup.
+
+**Property.** The single callable gate (`EffectHealth.lean`: enabled and
+healthy, for the host and each contributor) now also governs the two
+plugin-side registries that need to know which plugin contributed each entry.
+
+**Gap.** `ConnectedAccounts::ProviderRegistry` (OAuth provider declarations)
+and `PluginRuntime::DesiredServiceCollection` (supervised and privileged
+services) each read manifests themselves with `enabled?` alone. A degraded or
+failed contributor's OAuth provider stayed offered, and its service kept
+running. The Host API gave plugins no other way to learn the owner of a
+provider.
+
+**Fix.** `Syrus::PluginRegistry.providers_with_owner_for(point)` returns
+`[plugin_name, provider]` pairs for a plugin-hosted point, from the same
+enabled-and-healthy set as `providers_for`, and `hosted_providers_for` is now
+built on it. It is on the declared Host API
+(`lib/syrus/host/public_apis.rb`). Both registries use it. Plugin Runtime's
+first-party allowlist now checks the owning plugin's name
+(`eligible_plugin?`).
+
+**Spec.**
+
+- `plugin_registry_spec.rb` `.providers_with_owner_for`: owners are paired,
+  and a degraded contributor or an unhealthy host yields nothing.
+- `provider_registry_spec.rb` "withholds a valid provider whose contributing
+  plugin is unhealthy" (red before).
+- The connected-accounts spec now registers `credential_store`. It had relied
+  on a host degraded by its own missing hard dependency still contributing,
+  which is the bug itself.
+- The plugin_runtime specs stub the new lookup instead of `all_plugins`
+  doubles. Enablement and health are the core lookup's responsibility.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

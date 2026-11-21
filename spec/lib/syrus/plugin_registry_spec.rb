@@ -382,6 +382,26 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.providers_for("host_plugin:thing")).to eq([])
     end
 
+    # Plugin-side registries need to know which plugin contributed each entry,
+    # and used to read manifests with enabled? alone, skipping health (NY18).
+    describe ".providers_with_owner_for" do
+      it "pairs each provider with its owning plugin, from healthy enabled contributors only" do
+        described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
+        described_class.register(name: "healthy_contributor", version: "1.0.0", provides: { "host_plugin:thing" => test_result_parser_class })
+        described_class.register(name: "broken_contributor", version: "1.0.0", provides: { "host_plugin:thing" => { "key" => "broken" } })
+        described_class.add_validation_error("broken_contributor", "invalid thing")
+
+        expect(described_class.providers_with_owner_for("host_plugin:thing")).to eq([ [ "healthy_contributor", test_result_parser_class ] ])
+      end
+
+      it "returns nothing while the host is unhealthy" do
+        described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ], depends_on: [ "missing_dependency" ])
+        described_class.register(name: "contributor", version: "1.0.0", provides: { "host_plugin:thing" => test_result_parser_class })
+
+        expect(described_class.providers_with_owner_for("host_plugin:thing")).to eq([])
+      end
+    end
+
     it "returns nothing for a point no registered plugin hosts" do
       described_class.register(
         name: "contributor_plugin", version: "1.0.0",
