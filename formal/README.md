@@ -69,6 +69,25 @@ Counterexamples (leads to check against the Ruby, not automatically bugs):
    reconcile is scoped to a `work_intent_id`, and no production caller passes
    one.
 
+## DOC-44 Phase 1 kernel (`SyrusModel/Kernel/`)
+
+The focused models above were each built around one finding, over a fixed
+`Fin n` universe. The kernel is the shared core DOC-44 Phase 1 asks for:
+WorkIntent → WorkUnit → Workflow → Step → Run plus locks, as id-keyed lists,
+so the same definitions run in the executable oracle on JSON input and are
+reasoned about in proofs.
+
+- `Kernel/Basic.lean`: states, the world, and `Valid` (unique ids, referential
+  integrity, one active holder per lock key).
+- `Kernel/Reconcile.lean`: the terminal-cleanup family (`diagnose`,
+  `reconcile`) with `reconcile_idem` (reconciling twice is reconciling once)
+  and `diagnose_reconcile` (no own issue survives), over arbitrary worlds.
+- `Kernel/Examples.lean`: small worlds checked by `decide`; the first oracle
+  and conformance fixtures.
+
+Still to come in Phase 1: validity preservation and repair scoping,
+dependencies with their satisfaction modes, and the executable oracle.
+
 ## Next steps
 
 - Model unit creation (`Launcher#instantiate`) so retries and new attempts are
