@@ -7,33 +7,6 @@ RSpec.describe Python::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "python" }
     end
 
-    before do
-      # The after_initialize block runs once at boot; plugin_registry.rb resets
-      # the in-memory registry in test mode. Re-register here so examples see
-      # the manifest. Interface modules were included during after_initialize
-      # and are permanent on the classes.
-      unless Syrus::PluginRegistry.registered_names.include?("python")
-        Syrus::PluginRegistry.register(
-          name:             "python",
-          version:          Syrus::PluginApi.default_version,
-          description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
-                             "pytest JSON-report grader detail, venv/uv prompt reminder, " \
-                             "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 30,
-          provides: {
-            prepare_detector:         Python::PrepareDetector,
-            grader_augmentor:         Python::GraderAugmentor,
-            prompt_injector:          Python::PromptContext,
-            review_criteria_provider: Python::ReviewCriteriaProvider,
-            autofix_command:          [ Python::RuffFormatAutofix, Python::BlackAutofix ],
-            dependency_audit_command: Python::DependencyAuditCommand
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end
