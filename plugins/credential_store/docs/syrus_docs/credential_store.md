@@ -54,6 +54,10 @@ an old record contains an explicit wrapper grant. Only the owning plugin's
 typed consumer may materialize them through the broker, so plugin-managed
 credentials are never exposed to a shell.
 
+When a plugin is purged, Credential Store removes credentials in that plugin's
+enforced type namespace and their access-audit rows. This cleanup remains
+available after the owning plugin has been uninstalled.
+
 The plugin also owns append-only `CredentialStore::CredentialAccessEvent`
 rows. Access events record which credential was used or denied, the actor and
 runtime context when available (`user`, `repository`, `job`, `workflow`, `run`,
