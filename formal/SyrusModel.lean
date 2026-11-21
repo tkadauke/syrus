@@ -27,6 +27,7 @@ import SyrusModel.ValidationReuse
 import SyrusModel.AssociationOrder
 import SyrusModel.CheckpointLineage
 import SyrusModel.AskNeverApproves
+import SyrusModel.LeaseScope
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet
