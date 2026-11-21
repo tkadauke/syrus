@@ -2418,65 +2418,32 @@ module WorkEngine
     # train from the reaper. Generous next to MergeTrainFailureHandler's
     # 30-second relaunch delay, because the control-plane queue can be backed
     # up; bounded so a relaunch whose worker died still frees the train.
-    PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE = 10.minutes
+    PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE = MergeTrainOwnership::RELAUNCH_GRACE
 
+    # Shared with FailStaleActiveMergeTrain's re-check (MergeTrainOwnership):
+    # queued, running or blocked train Workflows, active units, and a pending
+    # preserved-train relaunch all own the train.
     def stale_active_merge_train_without_runtime?(train)
       return false unless train.updated_at < 2.minutes.ago
-      return false if preserved_merge_train_relaunch_pending?(train)
 
-      active_merge_train_workflow_ids(train).empty? &&
-        active_merge_train_work_unit_ids(train).empty?
+      !merge_train_ownership(train).owned?
     end
 
-    # A preserved train's workflow is `failed` by design -- that is what
-    # preservation means -- so it never shows up as active runtime, and reaping
-    # it would both discard the real failure reason and cancel the relaunch
-    # that is already on its way. The pending AutoRetryAttempt *is* the owner
-    # here, and it stops being one the moment it is performed or skipped.
-    #
-    # The window is bounded on both sides on purpose. An attempt whose worker
-    # died never performs, and one parked hours out behind a provider backoff
-    # would otherwise hold the landing lock for those hours; past the grace the
-    # train is reaped and its approved members go to a fresh one.
-    def preserved_merge_train_relaunch_pending?(train)
-      pending_merge_train_relaunches.any? do |attempt|
-        attempt.workflow&.artifact("merge_train_id").to_i == train.id
-      end
+    def merge_train_ownership(train)
+      @merge_train_ownership ||= {}
+      @merge_train_ownership[train.id] ||= MergeTrainOwnership.new(train, pending_relaunches: pending_merge_train_relaunches)
     end
 
     def pending_merge_train_relaunches
-      @pending_merge_train_relaunches ||= AutoRetryAttempt
-        .pending
-        .where(scheduled_at: PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE.ago..PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE.from_now)
-        .includes(workflow: :workflow_artifact_values)
-        .to_a
-        .select { |attempt| attempt.workflow&.trigger_kind == "merge_train" }
+      @pending_merge_train_relaunches ||= MergeTrainOwnership.pending_relaunches
     end
 
-    # `blocked` belongs here with `queued` and `running`: a merge-train
-    # workflow waiting on admission (no capable worker, main-branch health)
-    # still owns its train, and reaping the train out from under it loses an
-    # assembly that was about to start.
     def active_merge_train_workflow_ids(train)
-      @active_merge_train_workflow_ids ||= {}
-      @active_merge_train_workflow_ids[train.id] ||= Workflow
-        .where(trigger_kind: "merge_train", state: %w[queued running blocked])
-        .select(:id)
-        .preload(:workflow_artifact_values)
-        .filter_map { |workflow| workflow.id if workflow.artifact("merge_train_id").to_i == train.id }
+      merge_train_ownership(train).active_workflow_ids
     end
 
     def active_merge_train_work_unit_ids(train)
-      @active_merge_train_work_unit_ids ||= {}
-      @active_merge_train_work_unit_ids[train.id] ||= begin
-        kind = train.epic_id.present? ? "merge_train" : "job_bundle"
-        scope_type = train.epic_id.present? ? "epic" : "repository"
-        scope_id = train.epic_id.presence || train.repository_id
-
-        WorkUnit
-          .where(kind: kind, scope_type: scope_type, scope_id: scope_id, state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
-          .pluck(:id)
-      end
+      merge_train_ownership(train).active_work_unit_ids
     end
 
     def merge_train_member_repairable?(train, job)

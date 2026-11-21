@@ -2153,7 +2153,7 @@ module WorkEngine
           train = MergeTrain.includes(members: :job).find_by(id: train_id)
           return skipped("MergeTrain ##{train_id} no longer exists") unless train
           return skipped("MergeTrain ##{train.id} is #{train.state}, not active") if train.terminal?
-          return skipped("MergeTrain ##{train.id} still has active runtime work") if active_runtime?(train)
+          return skipped("MergeTrain ##{train.id} still has an owner") if active_runtime?(train)
 
           reason = MergeTrain::STALE_RUNTIME_FAILURE_REASON
           ActiveRecord::Base.transaction do
@@ -2178,25 +2178,7 @@ module WorkEngine
         private
 
         def active_runtime?(train)
-          active_workflow_ids(train).any? || active_work_unit_ids(train).any?
-        end
-
-        def active_workflow_ids(train)
-          Workflow
-            .where(trigger_kind: "merge_train", state: %w[queued running])
-            .select(:id)
-            .preload(:workflow_artifact_values)
-            .filter_map { |workflow| workflow.id if workflow.artifact("merge_train_id").to_i == train.id }
-        end
-
-        def active_work_unit_ids(train)
-          kind = train.epic_id.present? ? "merge_train" : "job_bundle"
-          scope_type = train.epic_id.present? ? "epic" : "repository"
-          scope_id = train.epic_id.presence || train.repository_id
-
-          WorkUnit
-            .where(kind: kind, scope_type: scope_type, scope_id: scope_id, state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
-            .pluck(:id)
+          WorkEngine::MergeTrainOwnership.new(train).owned?
         end
       end
 

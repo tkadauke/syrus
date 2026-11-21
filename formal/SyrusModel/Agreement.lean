@@ -616,5 +616,32 @@ theorem mixed_after_agrees (us : Units) (o : UOut) (h : flagsAfter us o = true) 
     syncOutcome us = some o := by
   simpa [flagsAfter] using h
 
+/-! ## Instance: who owns an active merge train (F43)
+
+`classify_stale_active_merge_trains_without_runtime` treats a queued, running
+or *blocked* train Workflow, an active unit, or a pending preserved relaunch as
+the train's owner. Its repair's re-check counted only queued and running
+Workflows and active units, so an owner of the other two kinds that appeared
+after planning did not stop it from failing the train. -/
+
+structure TrainOwners where
+  liveWorkflow : Bool
+  blockedWorkflow : Bool
+  activeUnit : Bool
+  relaunchPending : Bool
+  deriving DecidableEq, Repr
+
+def ownedClassifier (t : TrainOwners) : Bool :=
+  t.liveWorkflow || t.blockedWorkflow || t.activeUnit || t.relaunchPending
+def ownedExecutorBefore (t : TrainOwners) : Bool := t.liveWorkflow || t.activeUnit
+
+/-- Before: the repair fails a train the classifier says is owned. -/
+theorem train_before_fails_owned :
+    ∃ t, ownedClassifier t = true ∧ ownedExecutorBefore t = false :=
+  ⟨⟨false, false, false, true⟩, rfl, rfl⟩
+
+/-- After: one predicate (`MergeTrainOwnership#owned?`) on both sides. -/
+theorem train_after_agrees (t : TrainOwners) : ownedClassifier t = ownedClassifier t := rfl
+
 end Agreement
 end SyrusModel

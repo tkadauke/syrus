@@ -1728,9 +1728,9 @@
         "merge_train_invalid_workspace_rebuilds",
         "paused_queue_allows_active_merge_train_continuation"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Classifier counts blocked train workflows as owners but the executor re-check uses only queued/running (minor inconsistency). Needs atomic terminal hooks plus a fairness assumption for preserved relaunches."
+      "status": "partial",
+      "done_by": "F43",
+      "notes": "F43: the repair's re-check ignored blocked train Workflows and a pending preserved relaunch, so an owner appearing after planning did not stop it failing the train; classifier and repair now share WorkEngine::MergeTrainOwnership#owned?. Remaining: atomic terminal hooks (MergeTrainFailureHandler completing with the Workflow) and a fairness assumption for preserved relaunches."
     },
     {
       "id": "stack-children-rebased-after-train",
@@ -2295,7 +2295,7 @@
       "prod_skipped": 0,
       "simulator": [],
       "status": "partial",
-      "done_by": "F1, F4, F16, F17, F23, F26, F27, F40",
+      "done_by": "F1, F4, F16, F17, F23, F26, F27, F40, F43",
       "notes": "Each instance found from production skip/refusal counts and fixed with a shared predicate or a tightened classifier: waiting intents (F1), retries on active Workflows (F4) and on succeeded ones (F27, 115 refused rebuilds in 13 h on two landed trains), paused queued Steps (F16), stack start blocks (F17), review-panel fanouts (F23), failed Workflows' missing workspaces (F26). Agreement.lean holds one Actionable theorem per instance. Remaining skip sources are timing windows (F19) and pending retries ('retry already pending')."
     },
     {
