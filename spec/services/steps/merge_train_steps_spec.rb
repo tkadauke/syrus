@@ -2104,7 +2104,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         calls += 1
         raise octokit_error(Octokit::MethodNotAllowed, status: 405, message: "Base branch was modified. Review and try the merge again.") if calls == 1
 
-        OpenStruct.new(merged: true)
+        # A real merge response carries the merge commit; without one the land
+        # step asks GitHub for it before trusting the merge.
+        OpenStruct.new(merged: true, sha: "trainsha789")
       end
 
       handler.call
