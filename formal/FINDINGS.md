@@ -3908,6 +3908,45 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M32. Runs stranded on a dead worker's resume queue are rerouted once — audited, no bug
+
+**Scope.** DOC-44 runs and queue, the coverage item
+`queued-run-dead-resume-queue`: "A queued Run sits on a resume/worker queue
+that no live worker consumes." This is a liveness question that depends on
+workers (class c).
+
+**Detection.** `classify_queued_runs` reports `queued_run_on_dead_resume_queue`
+only when both hold:
+
+- none of the Run's SolidQueue rows can progress;
+- a ready row sits on an explicit worker or storage queue with no live
+  consumer (`dead_worker_queue?`).
+
+A cached failed grader conclusion takes the separate cached-failure path
+instead.
+
+**Repair, which terminates in one step.** `ReenqueueRun` rechecks under the
+Run lock:
+
+1. the Run is still queued;
+2. the Workflow is still active;
+3. no auto-retry is pending;
+4. no cached failure blocks it;
+5. the affinity queue is still stranded (`remove_stranded_affinity_queue`).
+
+It then clears the Workflow's dead resume affinity and re-enqueues with
+`ignore_workflow_affinity`. So the replacement goes to the general queue and
+the workspace is re-prepared there. Routing cannot hand the Run back to the
+dead storage queue, because the affinity that pointed at it is gone. Each
+stranded Run is therefore repaired once, not looped.
+
+**Production** (read-only): 60 applied re-enqueues, all in four windows on
+2026-11-19 while worker pods were being replaced. That is the intended
+recovery. Handing Runs off when a pod drains, instead of waiting for the
+reconciler, belongs to the graceful-deploy work.
+
+---
+
 ## M31. Checkpoint-backed retry of a blocked Workflow is gated on proof, not age — audited, no bug
 
 **Scope.** DOC-44 retries, the coverage item `checkpoint-backed-blocked`. A

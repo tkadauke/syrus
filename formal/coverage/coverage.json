@@ -475,9 +475,9 @@
       "simulator": [
         "dead_resume_queue_reenqueues_elsewhere"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Production (60 applied re-enqueues, read-only): all in four windows on 2026-11-19 evening (22/5/15/18 per hour), i.e. worker pods being replaced. Runs pinned to a replaced pod's storage-specific resume queue are re-routed by the reconciler after clearing affinity -- the intended recovery. Handing them off when a pod drains (instead of waiting for the reconciler) belongs with the graceful-deploy work, not this pass. No correctness bug."
+      "status": "done",
+      "done_by": "M32",
+      "notes": "Production (60 applied re-enqueues, read-only): all in four windows on 2026-11-19 evening (22/5/15/18 per hour), i.e. worker pods being replaced. Runs pinned to a replaced pod's storage-specific resume queue are re-routed by the reconciler after clearing affinity -- the intended recovery. Handing them off when a pod drains (instead of waiting for the reconciler) belongs with the graceful-deploy work, not this pass. No correctness bug. M32: the repair rechecks under the Run lock and clears the affinity before re-enqueueing to the general queue, so it cannot route back to the dead queue and terminates in one step."
     },
     {
       "id": "queued-run-failed-execution",
