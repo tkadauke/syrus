@@ -5,11 +5,12 @@ module Python
       def display_name = "Python"
 
       def detect_prepare(context)
-        return [] unless context.repo_path && PrepareDetector.detect?(context.repo_path)
+        return [] unless context.repo_path
+        detected = PrepareDetector.detect?(context.repo_path)
 
         [ Syrus::Host::EcosystemPreparePlan.new(
-          detected: true,
-          commands: PrepareDetector.prepare_commands(context.repo_path),
+          detected:,
+          commands: detected ? PrepareDetector.prepare_commands(context.repo_path) : [],
           version_file: PrepareDetector.mise_version_file,
           span_labels: PrepareDetector.span_labels,
           label: display_name

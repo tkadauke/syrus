@@ -417,10 +417,9 @@ RSpec.describe Steps::Implement do
 
       it "includes output from a registered prompt injector in the assembled prompt" do
         injector = Class.new do
-          include Syrus::Plugin::PromptInjector
           def call(repository:, job:) = "Plugin-injected context: review the schema changes."
         end.new
-        Syrus::PluginRegistry.register(:prompt_injector, injector)
+        register_prompt_context_provider(injector)
 
         handler.call
 
@@ -430,14 +429,13 @@ RSpec.describe Steps::Implement do
       it "passes the step's repository and job to the injector" do
         received = {}
         injector = Class.new do
-          include Syrus::Plugin::PromptInjector
           attr_accessor :received
           def call(repository:, job:)
             self.received = { repository: repository, job: job }
             nil
           end
         end.new
-        Syrus::PluginRegistry.register(:prompt_injector, injector)
+        register_prompt_context_provider(injector)
 
         handler.call
 
@@ -446,8 +444,7 @@ RSpec.describe Steps::Implement do
       end
 
       it "skips injectors that return nil without raising" do
-        Syrus::PluginRegistry.register(:prompt_injector, Class.new do
-          include Syrus::Plugin::PromptInjector
+        register_prompt_context_provider(Class.new do
           def call(repository:, job:) = nil
         end.new)
 
@@ -457,9 +454,8 @@ RSpec.describe Steps::Implement do
 
       it "appends output from multiple injectors in registration order" do
         %w[Alpha Beta].each do |label|
-          Syrus::PluginRegistry.register(:prompt_injector, Class.new do
+          register_prompt_context_provider(Class.new do
             define_method(:call) { |repository:, job:| "Injected by #{label}" }
-            include Syrus::Plugin::PromptInjector
           end.new)
         end
 
@@ -552,10 +548,9 @@ RSpec.describe Steps::Implement do
 
       it "appends injected context text from a registered prompt_injector" do
         injector = Class.new do
-          include Syrus::Plugin::PromptInjector
           def call(repository:, job:) = "Plugin-injected context: review the schema changes."
         end.new
-        Syrus::PluginRegistry.register(:prompt_injector, injector)
+        register_prompt_context_provider(injector)
 
         handler.call
 
@@ -565,14 +560,13 @@ RSpec.describe Steps::Implement do
       it "passes the step's repository and job to the injector" do
         received = {}
         injector = Class.new do
-          include Syrus::Plugin::PromptInjector
           attr_accessor :received
           def call(repository:, job:)
             self.received = { repository: repository, job: job }
             nil
           end
         end.new
-        Syrus::PluginRegistry.register(:prompt_injector, injector)
+        register_prompt_context_provider(injector)
 
         handler.call
 
@@ -581,8 +575,7 @@ RSpec.describe Steps::Implement do
       end
 
       it "skips injectors that return nil without raising" do
-        Syrus::PluginRegistry.register(:prompt_injector, Class.new do
-          include Syrus::Plugin::PromptInjector
+        register_prompt_context_provider(Class.new do
           def call(repository:, job:) = nil
         end.new)
 
@@ -592,9 +585,8 @@ RSpec.describe Steps::Implement do
 
       it "appends output from multiple injectors in registration order" do
         %w[Alpha Beta].each do |label|
-          Syrus::PluginRegistry.register(:prompt_injector, Class.new do
+          register_prompt_context_provider(Class.new do
             define_method(:call) { |repository:, job:| "Injected by #{label}" }
-            include Syrus::Plugin::PromptInjector
           end.new)
         end
 

@@ -78,14 +78,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include TestInsights::Parser }
   end
 
-  let(:coverage_analyzer_class) do
-    Class.new { include Syrus::Plugin::CoverageAnalyzer }
-  end
-
-  let(:ci_log_parser_class) do
-    Class.new { include Syrus::Plugin::CiLogParser }
-  end
-
   let(:preview_provider_class) do
     Class.new { include Syrus::Plugin::PreviewProvider }
   end
@@ -146,18 +138,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   describe "EXTENSION_POINTS" do
-    it "includes :chat_provider and :coverage_analyzer" do
+    it "includes core service and policy extension points" do
       expect(described_class::EXTENSION_POINTS).to include(
         :chat_provider,
-        :coverage_analyzer,
         :mentionable,
         :chat_identity_provider,
         :repository_filter
       )
-    end
-
-    it "includes :ci_log_parser" do
-      expect(described_class::EXTENSION_POINTS).to include(:ci_log_parser)
     end
 
     it "includes :preview_provider" do
@@ -184,10 +171,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:speech_to_text_provider)
     end
 
-    it "includes :prompt_injector" do
-      expect(described_class::EXTENSION_POINTS).to include(:prompt_injector)
-    end
-
     it "includes :artifact_renderer" do
       expect(described_class::EXTENSION_POINTS).to include(:artifact_renderer)
     end
@@ -200,40 +183,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:platform_delivery)
     end
 
-    it "includes :prepare_detector" do
-      expect(described_class::EXTENSION_POINTS).to include(:prepare_detector)
-    end
-
-    it "includes :grade_detector" do
-      expect(described_class::EXTENSION_POINTS).to include(:grade_detector)
-    end
-
-    it "includes :grader_type" do
-      expect(described_class::EXTENSION_POINTS).to include(:grader_type)
-    end
-
-    it "includes :review_criteria_provider" do
-      expect(described_class::EXTENSION_POINTS).to include(:review_criteria_provider)
-    end
-
-    it "includes :autofix_command" do
-      expect(described_class::EXTENSION_POINTS).to include(:autofix_command)
-    end
-
-    it "includes :dependency_audit_command" do
-      expect(described_class::EXTENSION_POINTS).to include(:dependency_audit_command)
-    end
-
-    it "includes :affected_test_analyzer" do
-      expect(described_class::EXTENSION_POINTS).to include(:affected_test_analyzer)
-    end
-
-    it "includes :focused_test_command" do
-      expect(described_class::EXTENSION_POINTS).to include(:focused_test_command)
-    end
-
-    it "includes :build_system_graph_provider" do
-      expect(described_class::EXTENSION_POINTS).to include(:build_system_graph_provider)
+    it "does not expose migrated Ecosystem points" do
+      expect(described_class::EXTENSION_POINTS & Syrus::Plugin::Ecosystem::DEFINITION.send(:unmapped_legacy_points)).to be_empty
     end
 
     it "includes :purge_contributor" do
@@ -279,10 +230,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   describe "INTERFACE_FOR" do
-    it "maps :coverage_analyzer to Syrus::Plugin::CoverageAnalyzer" do
-      expect(described_class::INTERFACE_FOR[:coverage_analyzer].call).to eq(Syrus::Plugin::CoverageAnalyzer)
-    end
-
     it "maps :chat_provider to Syrus::Plugin::ChatProvider" do
       expect(described_class::INTERFACE_FOR[:chat_provider].call).to eq(Syrus::Plugin::ChatProvider)
     end
@@ -314,10 +261,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :workflow_artifact_contributor to its interface" do
       expect(described_class::INTERFACE_FOR[:workflow_artifact_contributor].call).to eq(Syrus::Plugin::WorkflowArtifactContributor)
-    end
-
-    it "maps :prompt_injector to Syrus::Plugin::PromptInjector" do
-      expect(described_class::INTERFACE_FOR[:prompt_injector].call).to eq(Syrus::Plugin::PromptInjector)
     end
 
     it "maps :artifact_renderer to Syrus::Plugin::ArtifactRenderer" do
@@ -358,156 +301,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(provider.payload_schema).to be_nil
     end
 
-    it "gives coverage analyzer providers the class call contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::CoverageAnalyzer }
-
-      expect(provider).to respond_to(:call)
-      expect {
-        provider.call(artifact_path: Pathname.new("coverage/lcov.info"), format_hint: "lcov")
-      }.to raise_error(NotImplementedError, /must implement \.call/)
-    end
-
-    it "maps :prepare_detector to Syrus::Plugin::PrepareDetector" do
-      expect(described_class::INTERFACE_FOR[:prepare_detector].call).to eq(Syrus::Plugin::PrepareDetector)
-    end
-
-    it "maps :build_system_graph_provider to Syrus::Plugin::BuildSystemGraphProvider" do
-      expect(described_class::INTERFACE_FOR[:build_system_graph_provider].call).to eq(Syrus::Plugin::BuildSystemGraphProvider)
-    end
-
     it "maps :repository_content_provider to Syrus::Plugin::RepositoryContentProvider" do
       expect(described_class::INTERFACE_FOR[:repository_content_provider].call).to eq(Syrus::Plugin::RepositoryContentProvider)
     end
 
     it "maps :workspace_git_transport to Syrus::Plugin::WorkspaceGitTransport" do
       expect(described_class::INTERFACE_FOR[:workspace_git_transport].call).to eq(Syrus::Plugin::WorkspaceGitTransport)
-    end
-
-    it "gives build-system graph providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::BuildSystemGraphProvider }
-
-      expect(provider).to respond_to(:provider_key)
-      expect(provider).to respond_to(:import_target_graph)
-      expect { provider.provider_key }.to raise_error(NotImplementedError, /provider_key is required/)
-      expect {
-        provider.import_target_graph(repo_path: "/tmp/repo", config: {})
-      }.to raise_error(NotImplementedError, /import_target_graph is required/)
-    end
-
-    it "gives prepare detector providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::PrepareDetector }
-
-      expect(provider).to respond_to(:detect?)
-      expect(provider).to respond_to(:prepare_commands)
-      expect { provider.detect?("/tmp") }.to raise_error(NotImplementedError, /detect\? is required/)
-      expect { provider.prepare_commands("/tmp") }.to raise_error(NotImplementedError, /prepare_commands is required/)
-    end
-
-    it "defaults mise_version_file to nil for prepare detector providers that don't declare one" do
-      provider = Class.new { include Syrus::Plugin::PrepareDetector }
-
-      expect(provider.mise_version_file).to be_nil
-    end
-
-    it "maps :review_criteria_provider to Syrus::Plugin::ReviewCriteriaProvider" do
-      expect(described_class::INTERFACE_FOR[:review_criteria_provider].call).to eq(Syrus::Plugin::ReviewCriteriaProvider)
-    end
-
-    it "gives review criteria providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::ReviewCriteriaProvider }
-
-      expect(provider).to respond_to(:criteria)
-      expect { provider.criteria("/tmp") }.to raise_error(NotImplementedError, /criteria is required/)
-    end
-
-    it "maps :autofix_command to Syrus::Plugin::AutofixCommand" do
-      expect(described_class::INTERFACE_FOR[:autofix_command].call).to eq(Syrus::Plugin::AutofixCommand)
-    end
-
-    it "gives autofix command providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::AutofixCommand }
-
-      expect(provider).to respond_to(:autofix_command)
-      expect { provider.autofix_command(workspace_path: "/tmp", changed_files: []) }.to raise_error(NotImplementedError, /autofix_command is required/)
-    end
-
-    it "maps :dependency_audit_command to Syrus::Plugin::DependencyAuditCommand" do
-      expect(described_class::INTERFACE_FOR[:dependency_audit_command].call).to eq(Syrus::Plugin::DependencyAuditCommand)
-    end
-
-    it "gives dependency audit command providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::DependencyAuditCommand }
-
-      expect(provider).to respond_to(:lockfiles)
-      expect(provider).to respond_to(:audit_command)
-      expect { provider.lockfiles }.to raise_error(NotImplementedError, /lockfiles is required/)
-      expect { provider.audit_command(workspace_path: "/tmp") }.to raise_error(NotImplementedError, /audit_command is required/)
-    end
-
-    it "maps :affected_test_analyzer to Syrus::Plugin::AffectedTestAnalyzer" do
-      expect(described_class::INTERFACE_FOR[:affected_test_analyzer].call).to eq(Syrus::Plugin::AffectedTestAnalyzer)
-    end
-
-    it "maps :grade_detector to Syrus::Plugin::GradeDetector" do
-      expect(described_class::INTERFACE_FOR[:grade_detector].call).to eq(Syrus::Plugin::GradeDetector)
-    end
-
-    it "maps :grader_type to Syrus::Plugin::GraderType" do
-      expect(described_class::INTERFACE_FOR[:grader_type].call).to eq(Syrus::Plugin::GraderType)
-    end
-
-    it "gives grade detector providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::GradeDetector }
-
-      expect(provider).to respond_to(:grade_candidates)
-      expect { provider.grade_candidates("/tmp") }.to raise_error(NotImplementedError, /grade_candidates is required/)
-    end
-
-    it "gives grader type providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::GraderType }
-
-      expect(provider).to respond_to(:type_name)
-      expect(provider).to respond_to(:grade_steps)
-      expect { provider.type_name }.to raise_error(NotImplementedError, /type_name is required/)
-      expect {
-        provider.grade_steps(config: {}, default_failures: "strict")
-      }.to raise_error(NotImplementedError, /grade_steps is required/)
-    end
-
-    it "gives affected test analyzer providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::AffectedTestAnalyzer }
-
-      expect(provider).to respond_to(:affected_files)
-      expect { provider.affected_files(repo_path: "/tmp", changed_files: []) }.to raise_error(NotImplementedError, /affected_files is required/)
-    end
-
-    it "maps :focused_test_command to Syrus::Plugin::FocusedTestCommand" do
-      expect(described_class::INTERFACE_FOR[:focused_test_command].call).to eq(Syrus::Plugin::FocusedTestCommand)
-    end
-
-    it "gives focused test command providers the class contract used by the registry" do
-      provider = Class.new { include Syrus::Plugin::FocusedTestCommand }
-
-      expect(provider).to respond_to(:command_for)
-      expect {
-        provider.command_for(grader_name: "rspec", grader_command: "bin/rspec", failed_cases: [], base_retry: {})
-      }.to raise_error(NotImplementedError, /command_for is required/)
-    end
-
-    it "keeps legacy providers with an exact keyword signature working through the context adapter" do
-      provider = Class.new do
-        def self.command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
-          [ grader_name, grader_command, failed_cases, base_retry ]
-        end
-      end
-
-      context = Syrus::Plugin::Context::GraderContext.new(
-        name: "vitest", command: "npx vitest run", failed_cases: [],
-        base_retry: { "strategy" => "plugin" }, project_path: "frontend", operation: :command
-      )
-      result = Syrus::Plugin::Ecosystem::Adapters::FocusedTests.dispatch(provider, context)
-
-      expect(result).to eq([ "vitest", "npx vitest run", [], { "strategy" => "plugin" } ])
     end
 
     it "maps :workspace_tab to Syrus::Plugin::WorkspaceTab" do
@@ -526,12 +325,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe ".providers_for" do
     it "returns an empty array when no providers are registered" do
-      expect(described_class.providers_for(:prompt_injector)).to eq([])
+      expect(described_class.providers_for(:callbacks)).to eq([])
     end
 
     it "returns a copy so callers cannot mutate the internal list" do
-      described_class.providers_for(:prompt_injector) << double("interloper")
-      expect(described_class.providers_for(:prompt_injector)).to eq([])
+      described_class.providers_for(:callbacks) << double("interloper")
+      expect(described_class.providers_for(:callbacks)).to eq([])
     end
 
     it "returns only classes registered for the requested extension point" do
@@ -575,24 +374,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       )
 
       expect(described_class.providers_for("host_plugin:undeclared")).to eq([])
-    end
-
-    it "returns coverage analyzer providers" do
-      described_class.register(
-        name: "coverage_plugin", version: "1.0.0",
-        provides: { coverage_analyzer: coverage_analyzer_class }
-      )
-
-      expect(described_class.providers_for(:coverage_analyzer)).to eq([ coverage_analyzer_class ])
-    end
-
-    it "returns ci log parser providers" do
-      described_class.register(
-        name: "ci_log_parser_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_class }
-      )
-
-      expect(described_class.providers_for(:ci_log_parser)).to eq([ ci_log_parser_class ])
     end
 
     it "returns preview providers" do
@@ -1208,8 +989,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             mcp_tool_set:       mcp_tool_set_class,
             input_source:       input_source_class,
             "test_insights:parser" => test_result_parser_class,
-            coverage_analyzer:  coverage_analyzer_class,
-            ci_log_parser:      ci_log_parser_class,
             preview_provider:   preview_provider_class,
             admin_page:         admin_page_class,
             sidebar_page:       sidebar_page_class,
@@ -1256,6 +1035,24 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           provides: { unknown_point: agent_provider_class }
         )
       }.to raise_error(described_class::RegistrationError, /Unknown extension point/)
+    end
+
+    it "rejects every removed Ecosystem extension point as unknown" do
+      removed = %i[
+        prepare_detector grade_detector grader_type grader_augmentor review_criteria_provider
+        autofix_command dependency_audit_command focused_test_command coverage_analyzer
+        affected_test_analyzer ci_log_parser prompt_injector diff_review_file_pattern_provider
+        build_system_graph_provider
+      ]
+
+      removed.each do |extension_point|
+        expect {
+          described_class.register(
+            name: "legacy_#{extension_point}", version: "1.0.0",
+            provides: { extension_point => agent_provider_class }
+          )
+        }.to raise_error(described_class::RegistrationError, /Unknown extension point #{extension_point.inspect}/)
+      end
     end
 
     it "raises RegistrationError when class does not include the required interface module" do
@@ -1313,17 +1110,6 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           provides: { "test_insights:parser" => plain_class }
         )
       }.not_to raise_error
-    end
-
-    it "raises RegistrationError when coverage_analyzer class lacks the interface module" do
-      plain_class = Class.new
-
-      expect {
-        described_class.register(
-          name: "bad_plugin", version: "1.0.0",
-          provides: { coverage_analyzer: plain_class }
-        )
-      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::CoverageAnalyzer/)
     end
 
     it "raises RegistrationError when preview_provider class lacks the interface module" do
@@ -1606,16 +1392,16 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     context "direct registration (register(:extension_point, provider))" do
       it "registers a provider for a known extension point" do
         provider = double("provider")
-        described_class.register(:prompt_injector, provider)
-        expect(described_class.providers_for(:prompt_injector)).to eq([ provider ])
+        described_class.register(:callbacks, provider)
+        expect(described_class.providers_for(:callbacks)).to eq([ provider ])
       end
 
       it "accumulates multiple providers in registration order" do
         first  = double("first")
         second = double("second")
-        described_class.register(:prompt_injector, first)
-        described_class.register(:prompt_injector, second)
-        expect(described_class.providers_for(:prompt_injector)).to eq([ first, second ])
+        described_class.register(:callbacks, first)
+        described_class.register(:callbacks, second)
+        expect(described_class.providers_for(:callbacks)).to eq([ first, second ])
       end
 
       it "raises ArgumentError for unknown extension points" do
@@ -1642,17 +1428,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.providers_for(:agent_provider)).to eq([])
     end
 
-    it "clears coverage analyzer providers so providers_for returns an empty array" do
-      described_class.register(name: "plugin", version: "1.0.0", provides: { coverage_analyzer: coverage_analyzer_class })
-      described_class.reset!
-
-      expect(described_class.providers_for(:coverage_analyzer)).to eq([])
-    end
-
     it "clears all registered providers" do
-      described_class.register(:prompt_injector, double("provider"))
+      described_class.register(:callbacks, double("provider"))
       described_class.reset!
-      expect(described_class.providers_for(:prompt_injector)).to eq([])
+      expect(described_class.providers_for(:callbacks)).to eq([])
     end
   end
 
@@ -1768,23 +1547,23 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   describe ".providers_for prepare_priority ordering" do
-    let(:low_provider) { Class.new { include Syrus::Plugin::PrepareDetector } }
-    let(:high_provider) { Class.new { include Syrus::Plugin::PrepareDetector } }
+    let(:low_provider) { Class.new { include Syrus::Plugin::Callbacks } }
+    let(:high_provider) { Class.new { include Syrus::Plugin::Callbacks } }
 
     it "orders manifest-registered providers by ascending prepare_priority, not registration order" do
       described_class.register(name: "low_priority_plugin", version: "1.0.0", prepare_priority: 200,
-                                provides: { prepare_detector: low_provider })
+                                provides: { callbacks: low_provider })
       described_class.register(name: "high_priority_plugin", version: "1.0.0", prepare_priority: 10,
-                                provides: { prepare_detector: high_provider })
+                                provides: { callbacks: high_provider })
 
-      expect(described_class.providers_for(:prepare_detector)).to eq([ high_provider, low_provider ])
+      expect(described_class.providers_for(:callbacks)).to eq([ high_provider, low_provider ])
     end
 
     it "keeps registration order among equal (default) priorities" do
-      described_class.register(name: "first_plugin", version: "1.0.0", provides: { prepare_detector: low_provider })
-      described_class.register(name: "second_plugin", version: "1.0.0", provides: { prepare_detector: high_provider })
+      described_class.register(name: "first_plugin", version: "1.0.0", provides: { callbacks: low_provider })
+      described_class.register(name: "second_plugin", version: "1.0.0", provides: { callbacks: high_provider })
 
-      expect(described_class.providers_for(:prepare_detector)).to eq([ low_provider, high_provider ])
+      expect(described_class.providers_for(:callbacks)).to eq([ low_provider, high_provider ])
     end
   end
 
@@ -2002,43 +1781,40 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
   describe "health-gated providers" do
     let(:provider) do
-      Class.new do
-        include Syrus::Plugin::PromptInjector
-        def call(repository:, job:) = "x"
-      end
+      Class.new { include Syrus::Plugin::Callbacks }
     end
 
     it "withholds providers from a plugin whose hard dependency is missing" do
       described_class.register(
         name: "dependent", version: "1.0.0", depends_on: [ "absent" ],
-        provides: { prompt_injector: provider }
+        provides: { callbacks: provider }
       )
 
-      expect(described_class.providers_for(:prompt_injector)).not_to include(provider)
+      expect(described_class.providers_for(:callbacks)).not_to include(provider)
       expect(described_class.health.status("dependent").state).to eq(:degraded)
     end
 
     it "activates providers once the dependency is registered" do
       described_class.register(
         name: "dependent", version: "1.0.0", depends_on: [ "base" ],
-        provides: { prompt_injector: provider }
+        provides: { callbacks: provider }
       )
-      expect(described_class.providers_for(:prompt_injector)).not_to include(provider)
+      expect(described_class.providers_for(:callbacks)).not_to include(provider)
 
       described_class.register(name: "base", version: "1.0.0")
 
-      expect(described_class.providers_for(:prompt_injector)).to include(provider)
+      expect(described_class.providers_for(:callbacks)).to include(provider)
       expect(described_class.health.status("dependent").state).to eq(:ok)
     end
 
     it "withholds providers from plugins in a dependency cycle" do
       described_class.register(
         name: "a", version: "1.0.0", depends_on: [ "b" ],
-        provides: { prompt_injector: provider }
+        provides: { callbacks: provider }
       )
       described_class.register(name: "b", version: "1.0.0", depends_on: [ "a" ])
 
-      expect(described_class.providers_for(:prompt_injector)).not_to include(provider)
+      expect(described_class.providers_for(:callbacks)).not_to include(provider)
       expect(described_class.health.status("a").state).to eq(:cycle)
     end
 

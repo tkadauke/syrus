@@ -945,7 +945,7 @@ grade:
 
 Glob matching uses `File::FNM_DOTMATCH` so `*` and `**` cross directory separators — `website/**` matches any file under the `website/` directory at any depth, including dotfiles. If the git diff command fails (e.g. no commits on the branch yet), Syrus logs a warning, treats the changed-file list as empty, and skips any grader with `when_files_changed` set while still running graders without it.
 
-If a registered `:affected_test_analyzer` plugin (see `plugins.md`, "Autofix, audits, affected tests, and review criteria") can confidently analyze the diff, Syrus adds its reported files to the changed-file set before glob matching — this can only turn a would-be skip into a run (e.g. a grader whose glob only matches spec files still runs when a changed source file transitively affects one of those specs), never the reverse. No registered analyzer, a declining analyzer, or an analyzer error all behave identically to plain glob matching against the raw diff.
+If an Ecosystem provider implementing `affected_tests` (see `plugins.md`, "Autofix, audits, affected tests, and review criteria") can confidently analyze the diff, Syrus adds its reported files to the changed-file set before glob matching — this can only turn a would-be skip into a run (e.g. a grader whose glob only matches spec files still runs when a changed source file transitively affects one of those specs), never the reverse. No registered analyzer, a declining analyzer, or an analyzer error all behave identically to plain glob matching against the raw diff.
 
 ### grade.max_iterations
 
@@ -1415,7 +1415,7 @@ target_graph:
 
 | Field | Required | Default | Notes |
 |---|---|---|---|
-| `provider` | yes | — | Registered `:build_system_graph_provider` key. |
+| `provider` | yes | — | Key of an Ecosystem provider implementing `target_graph`. |
 | `failures` | no | `strict` | `strict` fails graph compilation on provider errors; `warn` records diagnostics and continues. |
 | `config` / `options` | no | `{}` | Free-form mapping passed to the provider. |
 

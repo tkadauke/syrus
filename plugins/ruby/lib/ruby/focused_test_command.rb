@@ -3,7 +3,6 @@ require "shellwords"
 
 module Ruby
   class FocusedTestCommand
-    include Syrus::Plugin::FocusedTestCommand
 
     def self.command_for(grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil)
       new(grader_name: grader_name, grader_command: grader_command, failed_cases: failed_cases, base_retry: base_retry).command

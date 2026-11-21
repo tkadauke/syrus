@@ -62,16 +62,15 @@ RSpec.describe GraderCommandSpans::Plan, requires_plugin: %w[ruby javascript] do
   describe "plugin-contributed span_labels" do
     def register_detector(plugin_name:, span_labels:, prepare_priority: 100)
       detector = Class.new do
-        include Syrus::Plugin::PrepareDetector
+        define_singleton_method(:key) { plugin_name.to_sym }
+        define_singleton_method(:display_name) { plugin_name }
       end
-      detector.define_singleton_method(:detect?) { |_repo_path| false }
-      detector.define_singleton_method(:prepare_commands) { |_repo_path| [] }
-      detector.define_singleton_method(:span_labels) { span_labels }
-
-      Syrus::PluginRegistry.register(
-        name: plugin_name, version: "1.0.0", prepare_priority: prepare_priority,
-        provides: { prepare_detector: detector }
-      )
+      detector.define_singleton_method(:detect_prepare) do |_context|
+        [ Syrus::Host::EcosystemPreparePlan.new(detected: false, commands: [], version_file: nil,
+          span_labels:, label: plugin_name) ]
+      end
+      register_ecosystem_provider(name: plugin_name, provider: detector, implements: %i[detect_prepare],
+        prepare_priority:)
     end
 
     it "uses a plugin's span_labels to name a sub-command" do

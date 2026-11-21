@@ -141,7 +141,10 @@ RSpec.describe BaseRevisionRetry do
         "bin/rspec-fast spec/models/widget_spec.rb"
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    allow(Syrus::Plugin::Dispatch).to receive(:call).and_call_original
+    allow(Syrus::Plugin::Dispatch).to receive(:call)
+      .with(:ecosystem, :focused_tests, kind_of(Syrus::Plugin::Context::GraderContext))
+      .and_return("bin/rspec-fast spec/models/widget_spec.rb")
     retry_check = described_class.new(
       workflow: workflow,
       grader_step: grader_step,
@@ -180,7 +183,10 @@ RSpec.describe BaseRevisionRetry do
         "bin/rspec-fast spec/models/widget_spec.rb"
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    allow(Syrus::Plugin::Dispatch).to receive(:call).and_call_original
+    allow(Syrus::Plugin::Dispatch).to receive(:call)
+      .with(:ecosystem, :focused_tests, kind_of(Syrus::Plugin::Context::GraderContext))
+      .and_return("bin/rspec-fast spec/models/widget_spec.rb")
     retry_check = described_class.new(
       workflow: workflow, grader_step: grader_step, base_sha: "main123",
       failed_cases: failed_cases, log: ->(_message) { }
@@ -266,7 +272,10 @@ RSpec.describe BaseRevisionRetry do
         "bin/rspec-fast spec/models/widget_spec.rb"
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    allow(Syrus::Plugin::Dispatch).to receive(:call).and_call_original
+    allow(Syrus::Plugin::Dispatch).to receive(:call)
+      .with(:ecosystem, :focused_tests, kind_of(Syrus::Plugin::Context::GraderContext))
+      .and_return("bin/rspec-fast spec/models/widget_spec.rb")
     retry_check = described_class.new(
       workflow: workflow,
       grader_step: grader_step,

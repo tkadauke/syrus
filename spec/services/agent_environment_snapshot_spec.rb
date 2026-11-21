@@ -244,14 +244,18 @@ RSpec.describe AgentEnvironmentSnapshot do
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
         Syrus::PluginRegistry.register(
           name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-          provides: { prepare_detector: Ruby::PrepareDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare]
+          ) ]
         )
       end
 
       unless Syrus::PluginRegistry.registered_names.include?("javascript")
         Syrus::PluginRegistry.register(
           name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
-          provides: { prepare_detector: JavaScript::PrepareDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "JavaScript::Ecosystem", implements: %i[detect_prepare]
+          ) ]
         )
       end
     end
@@ -289,14 +293,18 @@ RSpec.describe AgentEnvironmentSnapshot do
       unless Syrus::PluginRegistry.registered_names.include?("python")
         Syrus::PluginRegistry.register(
           name: "python", version: Syrus::PluginApi.default_version, prepare_priority: 30,
-          provides: { prepare_detector: Python::PrepareDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "Python::Ecosystem", implements: %i[detect_prepare]
+          ) ]
         )
       end
 
       unless Syrus::PluginRegistry.registered_names.include?("go")
         Syrus::PluginRegistry.register(
           name: "go", version: Syrus::PluginApi.default_version, prepare_priority: 40,
-          provides: { prepare_detector: Go::PrepareDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "Go::Ecosystem", implements: %i[detect_prepare]
+          ) ]
         )
       end
       @workspace_path.join("requirements.txt").write("")
@@ -304,8 +312,8 @@ RSpec.describe AgentEnvironmentSnapshot do
 
       snapshot = snapshot_for_workspace
 
-      expect(snapshot).to include("Python::PrepareDetector (pip install -r requirements.txt)")
-      expect(snapshot).to include("Go::PrepareDetector (GOWORK=off go mod download)")
+      expect(snapshot).to include("Python (pip install -r requirements.txt)")
+      expect(snapshot).to include("Go (GOWORK=off go mod download)")
     end
 
     it "omits a disabled plugin's signal" do

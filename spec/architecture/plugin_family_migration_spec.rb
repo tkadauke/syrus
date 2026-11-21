@@ -12,10 +12,6 @@ RSpec.describe "Plugin family migration architecture" do
   # family to every absorbed point so the assertion cannot silently narrow.
   DISPATCHED_FAMILIES = { ecosystem: ECOSYSTEM_POINTS }.freeze
 
-  # The bridge is live while core callers and bundled plugins move in later
-  # changes. A migrating family must own every legacy point up front.
-  MIGRATING_FAMILIES = { ecosystem: ECOSYSTEM_POINTS }.freeze
-
   def registrations_in(source, point)
     source.scan(/\b#{Regexp.escape(point.to_s)}\s*:/).length
   end
@@ -37,12 +33,12 @@ RSpec.describe "Plugin family migration architecture" do
     expect(actual).to eq(ECOSYSTEM_POINTS.index_with { [] })
   end
 
-  it "marks Ecosystem as migrating with a complete legacy bridge" do
+  it "marks Ecosystem as migrated without a legacy bridge" do
     definition = Syrus::Plugin::Family.fetch(:ecosystem)
 
-    expect(MIGRATING_FAMILIES.fetch(:ecosystem)).to match_array(ECOSYSTEM_POINTS)
-    expect(definition.legacy_mappings.keys).to match_array(ECOSYSTEM_POINTS)
-    expect(definition).not_to be_migrated
+    expect(definition.legacy_mappings).to be_empty
+    expect(definition).to be_migrated
+    expect(Syrus::PluginRegistry::EXTENSION_POINTS & ECOSYSTEM_POINTS).to be_empty
   end
 
   it "detects a legacy registration in a manifest fixture" do

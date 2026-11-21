@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 479
+legacy_baseline: 476
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -389,11 +389,8 @@ constants:
 - name: Syrus::Plugin::DiffReviewAnnotationProvider
 - name: Syrus::Plugin::DomainSubscriber
 - name: Syrus::Plugin::ExecutionBackend
-- name: Syrus::Plugin::FocusedTestCommand
 - name: Syrus::Plugin::GatedToolSet
-- name: Syrus::Plugin::GradeDetector
 - name: Syrus::Plugin::GraderFailureSummarizer
-- name: Syrus::Plugin::GraderType
 - name: Syrus::Plugin::InputSource
 - name: Syrus::Plugin::JobOrigin
 - name: Syrus::Plugin::JobVisibilityRestriction

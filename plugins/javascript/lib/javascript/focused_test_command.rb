@@ -2,7 +2,6 @@ require "shellwords"
 
 module JavaScript
   class FocusedTestCommand
-    include Syrus::Plugin::FocusedTestCommand
 
     TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?\z/.freeze
 

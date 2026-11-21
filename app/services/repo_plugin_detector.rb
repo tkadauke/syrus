@@ -1,24 +1,22 @@
 # Centralized per-repo plugin/language detection. Computed once per Run
 # (see Steps::Prepare) against the freshly-cloned workspace, then cached on
 # the Workflow as the "detected_plugins" artifact so every later Step and
-# extension point without its own natural per-repo gate (:prompt_injector,
-# :review_criteria_provider, etc.) can check membership instead of
+# capability without its own natural per-repo gate can check membership instead of
 # re-deriving file-existence checks itself.
 #
 # Reuses declarations that explicitly answer "does this plugin apply to this
 # repo", including family declarations marked as language support:
 #
-#   - :prepare_detector — language plugins (ruby, javascript, python, go).
-#     detect?(repo_path) is a CLASS method (Syrus::Plugin::PrepareDetector).
+#   - Ecosystem's language-support capability — language plugins.
 #   - :preview_provider  — framework plugins (rails, django) that don't
-#     register their own :prepare_detector. detect?(repo_path) is an
+#     register their own Ecosystem detector. detect?(repo_path) is an
 #     INSTANCE method (Syrus::Plugin::PreviewProvider).
 #
 # Only enabled plugins are considered (Syrus::PluginRegistry.all_plugins
 # reflects current PluginRecord state), and the result is the union of
 # matching plugin manifest names, de-duplicated.
 class RepoPluginDetector
-  EXTENSION_POINTS = %i[prepare_detector preview_provider].freeze
+  EXTENSION_POINTS = %i[preview_provider].freeze
 
   def self.for(repo_path, repository: nil)
     new(repo_path, repository:).detect
@@ -65,10 +63,10 @@ class RepoPluginDetector
   end
 
   def detected_by?(manifest)
-    legacy = EXTENSION_POINTS.any? do |extension_point|
+    extension_point_match = EXTENSION_POINTS.any? do |extension_point|
       Array(manifest.provides[extension_point]).any? { |provider| provider_detects?(provider) }
     end
-    legacy || family_language_support?(manifest)
+    extension_point_match || family_language_support?(manifest)
   end
 
   def family_language_support?(manifest)
@@ -82,14 +80,16 @@ class RepoPluginDetector
           provider_name: declaration.provider, key: declaration.key, priority: manifest.prepare_priority
         )
         context = Syrus::Plugin::Context::RepoContext.new(repo_path:, repository:)
-        reference.invoke { |provider| Array(provider.public_send(capability, context)).any? }
+        reference.invoke do |provider|
+          Array(provider.public_send(capability, context)).any? { |plan| !plan.respond_to?(:detected?) || plan.detected? }
+        end
       end
     end
   end
 
   # Providers can be registered as either a class/instance that already
-  # responds to `detect?` (prepare_detector's class-method form, or a
-  # directly-registered preview_provider instance) or a class that needs
+  # responds to `detect?` (a directly-registered preview_provider instance)
+  # or a class that needs
   # instantiating first (preview_provider's instance-method form) —
   # mirrors Syrus::Plugin::PreviewProvider.instantiate.
   def provider_detects?(provider)

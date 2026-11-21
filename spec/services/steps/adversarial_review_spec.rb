@@ -395,9 +395,7 @@ RSpec.describe Steps::AdversarialReview do
   context "with plugin-contributed review criteria" do
     let(:review_criteria_provider_class) do
       Class.new do
-        include Syrus::Plugin::ReviewCriteriaProvider
-
-        def self.criteria(repo_path)
+        def self.review_criteria(_context)
           [ "Flag new N+1 query patterns in ActiveRecord code" ]
         end
       end
@@ -407,10 +405,8 @@ RSpec.describe Steps::AdversarialReview do
       allow(App::AdversarialReviewProjects).to receive(:call).and_return(
         App::AdversarialReviewProjects::Result.new(projects: [])
       )
-      Syrus::PluginRegistry.register(
-        name: "fake_review_criteria_plugin", version: "1.0.0",
-        provides: { review_criteria_provider: review_criteria_provider_class }
-      )
+      register_ecosystem_provider(name: "fake_review_criteria_plugin_#{review_criteria_provider_class.object_id}",
+        provider: review_criteria_provider_class, implements: %i[review_criteria])
     end
 
     after { Syrus::PluginRegistry.reset! }
@@ -474,7 +470,7 @@ RSpec.describe Steps::AdversarialReview do
     end
 
     it "does not appear when the contributing plugin is disabled" do
-      PluginRecord.find_by!(name: "fake_review_criteria_plugin").update!(enabled: false)
+      PluginRecord.find_by!(name: "fake_review_criteria_plugin_#{review_criteria_provider_class.object_id}").update!(enabled: false)
 
       expect(handler).to receive(:run_agent) do |prompt: nil, **|
         expect(prompt).not_to include("pay particular attention")
@@ -487,18 +483,14 @@ RSpec.describe Steps::AdversarialReview do
     end
 
     it "treats a provider returning an empty array as a no-op" do
-      PluginRecord.find_by!(name: "fake_review_criteria_plugin").update!(enabled: false)
+      PluginRecord.find_by!(name: "fake_review_criteria_plugin_#{review_criteria_provider_class.object_id}").update!(enabled: false)
       empty_provider_class = Class.new do
-        include Syrus::Plugin::ReviewCriteriaProvider
-
-        def self.criteria(repo_path)
+        def self.review_criteria(_context)
           []
         end
       end
-      Syrus::PluginRegistry.register(
-        name: "empty_review_criteria_plugin", version: "1.0.0",
-        provides: { review_criteria_provider: empty_provider_class }
-      )
+      register_ecosystem_provider(name: "empty_review_criteria_plugin",
+        provider: empty_provider_class, implements: %i[review_criteria])
 
       expect(handler).to receive(:run_agent) do |prompt: nil, **|
         expect(prompt).not_to include("pay particular attention")

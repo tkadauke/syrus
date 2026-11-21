@@ -31,7 +31,7 @@ Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `au
 
 **Empty/uninitialized remotes.** `WorkflowWorkspace#clone_and_checkout` (called at the start of `prepare`) auto-recovers when a freshly-created GitHub repository has zero branches — for example, when GitHub hasn't finished async-provisioning its auto-init commit yet, or auto-init was disabled. When the branch-scoped clone fails, Syrus checks whether the remote genuinely has no branches at all (`git ls-remote --heads`); if so, it clones the empty repository, creates the configured default branch locally with a minimal initial commit, and pushes it before continuing. A log line in the Run transcript notes when this happened. Any other clone failure — most commonly a `default_branch` that doesn't match what's actually on GitHub — still fails the step as before.
 
-**Plugin detection.** Right alongside `RepoPrepPlan.for`, `prepare` also runs `RepoPluginDetector.for(workspace.path)` against the freshly-cloned workspace and records the result as the `detected_plugins` Workflow artifact (`workflow.set_artifact!("detected_plugins", [...])`, readable back via `workflow.detected_plugins`) — the union of every enabled `:prepare_detector` and `:preview_provider` plugin's `detect?(repo_path)` match, e.g. `["ruby", "syrus-rails", "javascript"]`. Computed fresh every Run rather than cached on `Repository`, so a repo's language mix never goes stale. Any later Step in the same Run (or extension point without its own natural per-repo gate, such as `:prompt_injector`) can read `workflow.detected_plugins` instead of re-deriving file-existence checks. The Job/Workflow detail page renders it as a "Detected: …" line on the workflow card. See `docs/engineering/conventions/plugins/authoring.md` for the underlying extension points.
+**Plugin detection.** Right alongside `RepoPrepPlan.for`, `prepare` also runs `RepoPluginDetector.for(workspace.path)` against the freshly-cloned workspace and records the result as the `detected_plugins` Workflow artifact (`workflow.set_artifact!("detected_plugins", [...])`, readable back via `workflow.detected_plugins`) — the union of enabled Ecosystem language-support declarations and `:preview_provider` matches, e.g. `["ruby", "syrus-rails", "javascript"]`. Computed fresh every Run rather than cached on `Repository`, so a repo's language mix never goes stale. Any later Step in the same Run can read `workflow.detected_plugins` instead of re-deriving file-existence checks. The Job/Workflow detail page renders it as a "Detected: …" line on the workflow card. See `docs/engineering/conventions/plugins/authoring.md` for the capability contract.
 
 ## Agentic implementation steps
 
@@ -554,8 +554,8 @@ diff is skipped. With no `formatters:` key at all, no formatting runs at
 all — the safe default, since a repo that never configured formatting
 should never receive unsolicited autocorrect commits. An explicit
 `formatters: []` (a blank array) opts into the deterministic
-formatter/linter-autocorrect commands language plugins register under the
-`:autofix_command` extension point (Ruby's `bundle exec rubocop -a`,
+formatter/linter-autocorrect commands language plugins register through the
+Ecosystem `autofix` capability (Ruby's `bundle exec rubocop -a`,
 JavaScript's `npx eslint --fix .`/`npx prettier --write .`, Go's `gofmt -w
 .`, Python's `ruff format .`/`black .`), each gated on the plugin detecting
 its own config signal in the repo (e.g. Ruby only offers `rubocop -a` when
@@ -608,7 +608,7 @@ on every retry iteration right before graders check again — a style
 regression or stale generated output the agent's latest edit reintroduced
 gets fixed for free before the next grade rather than costing another agent
 turn. See the "Autofix, audits, affected tests, and review criteria" section of `plugins.md` for the
-`:autofix_command` extension point contract and the bundled providers `format`
+Ecosystem `autofix` capability contract and the bundled providers `format`
 falls back to.
 
 `initial` shapes the same loop `repair_first: false` instead: `repair: [
@@ -747,7 +747,7 @@ fetch, and HEAD verification are logged in the run transcript so operators can
 separate repository grader failures from rollout infrastructure failures.
 
 Before matching a grader's `when_files_changed` globs, this step also asks
-every registered `:affected_test_analyzer` plugin (see
+every Ecosystem provider implementing `affected_tests` (see
 `plugins.md`, "Autofix, audits, affected tests, and review criteria") whether it can more
 precisely resolve which files this diff actually affects — real
 import/dependency-graph analysis instead of a glob's path-pattern guess. A
@@ -1161,7 +1161,7 @@ Non-agentic. Posts the formatted coverage summary as a PR comment when `pr_comme
 
 ### dependency_audit
 
-Non-agentic. Runs after `coverage_analyze`, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows. Always present in these chains, but self-skips at runtime unless the PR diff (`git diff <default>...HEAD`) touched a lockfile owned by a registered `:dependency_audit_command` plugin (Ruby's `Gemfile.lock`, JavaScript's `yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`, Python's `uv.lock`/`poetry.lock`/`requirements.txt`, Go's `go.sum`) — see `plugins.md`, "Autofix, audits, affected tests, and review criteria" for the extension point contract.
+Non-agentic. Runs after `coverage_analyze`, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows. Always present in these chains, but self-skips at runtime unless the PR diff (`git diff <default>...HEAD`) touched a lockfile owned by an Ecosystem `dependency_audit` provider (Ruby's `Gemfile.lock`, JavaScript's `yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`, Python's `uv.lock`/`poetry.lock`/`requirements.txt`, Go's `go.sum`) — see `plugins.md`, "Autofix, audits, affected tests, and review criteria" for the capability contract.
 
 When a matching lockfile changed, runs each matching provider's audit command (`bundle-audit check --update`, `npm`/`yarn`/`pnpm audit --json`, `pip-audit`, `govulncheck ./...`) and stores the results as the `dependency_audit` workflow artifact. A non-zero exit status is not a step failure — it is how these tools report that vulnerabilities were found, and `dependency_audit`'s `fail_policy` is `:advance` so a broken audit tool never blocks the chain. A clean scan across every scanned ecosystem leaves no `pr_comment_body` in the artifact, so nothing gets posted — a clean scan is a silent no-op. `Steps::PrOpen` posts the formatted findings as a PR comment (alongside the coverage comment) when it opens or updates the PR in `initial`/`retry` workflows.
 
