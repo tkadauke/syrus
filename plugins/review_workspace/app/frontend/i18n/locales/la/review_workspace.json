@@ -29,5 +29,14 @@
   "send_feedback": "Responsum mittere",
   "defer": "In hac sessione differre",
   "mutation_error": "Iudicium adhiberi non potuit. Argumenta renova et iterum tenta.",
-  "shortcuts": "J / K movere · ← / → argumenta · A approbare · F responsum · Esc exire"
+  "shortcuts": "J / K movere · ← / → argumenta · A approbare · F responsum · Esc exire",
+  "previous_job": "Job prior",
+  "next_job": "Job proximus",
+  "details": "Singula Job",
+  "close_details": "Singula Job claudere",
+  "gesture_surface": "Regio gestuum Job praesentis",
+  "gesture_approve": "Dimitte ut approbationem recognoscas",
+  "gesture_defer": "Dimitte ut in hac sessione differas",
+  "gesture_next": "Dimitte ad Job proximum",
+  "gesture_previous": "Dimitte ad Job priorem"
 }

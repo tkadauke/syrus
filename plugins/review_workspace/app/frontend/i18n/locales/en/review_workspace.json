@@ -29,5 +29,14 @@
   "send_feedback": "Send feedback",
   "defer": "Defer for this session",
   "mutation_error": "The decision could not be applied. Refresh the evidence and try again.",
-  "shortcuts": "J / K move · ← / → evidence · A approve · F feedback · Esc exit"
+  "shortcuts": "J / K move · ← / → evidence · A approve · F feedback · Esc exit",
+  "previous_job": "Previous Job",
+  "next_job": "Next Job",
+  "details": "Job details",
+  "close_details": "Close Job details",
+  "gesture_surface": "Current Job gesture area",
+  "gesture_approve": "Release to review approval",
+  "gesture_defer": "Release to defer for this session",
+  "gesture_next": "Release for next Job",
+  "gesture_previous": "Release for previous Job"
 }

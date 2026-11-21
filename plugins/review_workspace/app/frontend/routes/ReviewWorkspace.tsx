@@ -9,12 +9,16 @@ import { normalizeJobDetailPayload } from "@app/lib/entityStore"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { ReviewWorkspace as CanonicalReviewWorkspace } from "@app/routes/jobDetail/ReviewWorkspace"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
 import { fetchReviewWorkspace, type ReviewWorkspaceJob } from "../api/reviewWorkspace"
 
 const WORKSPACE_SCROLL_CLASS =
   "h-[calc(100dvh-4rem)] shrink-0 overflow-x-hidden overflow-y-scroll overscroll-contain [-webkit-overflow-scrolling:touch] lg:grid lg:h-auto lg:min-h-0 lg:flex-1 lg:grid-cols-[17rem_minmax(0,1fr)_20rem] lg:overflow-hidden"
+const MOBILE_ACTION_BAR_CLASS =
+  "mt-5 space-y-2 max-lg:fixed max-lg:inset-x-3 max-lg:bottom-[max(.75rem,env(safe-area-inset-bottom))] max-lg:z-20 max-lg:grid max-lg:grid-cols-3 max-lg:gap-2 max-lg:space-y-0 max-lg:rounded-xl max-lg:border max-lg:border-border max-lg:bg-surface/95 max-lg:p-2 max-lg:shadow-lg max-lg:backdrop-blur"
+const MOBILE_FEEDBACK_SHEET_CLASS =
+  "mt-4 space-y-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:rounded-t-2xl max-lg:border max-lg:border-border max-lg:bg-surface max-lg:p-5 max-lg:pb-[max(1.25rem,env(safe-area-inset-bottom))] max-lg:shadow-xl"
 
 export default function ReviewWorkspaceRoute() {
   const { t } = useT("review_workspace")
@@ -22,10 +26,12 @@ export default function ReviewWorkspaceRoute() {
   const navigate = useNavigate()
   const { job_id: requestedJobId } = useParams()
   const prefix = routePrefix(location.pathname)
-  const review = useQuery({ queryKey: ["review_workspace"], queryFn: fetchReviewWorkspace })
+  const review = useQuery({ queryKey: ["review_workspace"], queryFn: fetchReviewWorkspace, refetchInterval: 30_000 })
   const [deferred, setDeferred] = useState<Set<number>>(() => new Set())
   const [loadedDetail, setLoadedDetail] = useState<{ jobId: number; payload: JobDetailPayload } | null>(null)
   const [evidenceNavigation, setEvidenceNavigation] = useState<{ direction: -1 | 1; sequence: number }>()
+  const [gestureIntent, setGestureIntent] = useState<{ kind: "approve" | "feedback"; sequence: number }>()
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [conversationTarget, setConversationTarget] = useState<HTMLDivElement | null>(null)
   const exitRef = useRef<HTMLButtonElement>(null)
   const handleDetail = useCallback((jobId: number, payload: JobDetailPayload) => setLoadedDetail({ jobId, payload }), [])
@@ -64,19 +70,52 @@ export default function ReviewWorkspaceRoute() {
           <strong>{t("title")}</strong>
           <span className="text-sm text-text-secondary">{t("position", { current: jobs.indexOf(active) + 1, count: jobs.length })}</span>
         </div>
-        <button
-          aria-label={t("exit")}
-          className="rounded border border-border bg-surface p-2 hover:bg-surface-subtle focus-visible:outline-brand"
-          onClick={exitWorkspace}
-          ref={exitRef}
-          type="button"
-        >
-          <CloseIcon className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            aria-label={t("previous_job")}
+            className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
+            onClick={() => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) - 1 + jobs.length) % jobs.length].slug}`, prefix))}
+            type="button"
+          >
+            ↑
+          </button>
+          <button
+            aria-label={t("next_job")}
+            className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
+            onClick={() => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + 1) % jobs.length].slug}`, prefix))}
+            type="button"
+          >
+            ↓
+          </button>
+          <button
+            aria-label={t("details")}
+            className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
+            onClick={() => setDetailsOpen(true)}
+            type="button"
+          >
+            …
+          </button>
+          <button
+            aria-label={t("exit")}
+            className="min-h-11 min-w-11 rounded border border-border bg-surface p-2 hover:bg-surface-subtle focus-visible:outline-brand"
+            onClick={exitWorkspace}
+            ref={exitRef}
+            type="button"
+          >
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
       </header>
       <div className={WORKSPACE_SCROLL_CLASS} data-testid="review-workspace-scroll-container">
         <JobRail active={active} jobs={jobs} prefix={prefix} />
-        <JobReview conversationTarget={conversationTarget} job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
+        <MobileGestureSurface
+          onApprove={() => setGestureIntent((current) => ({ kind: "approve", sequence: (current?.sequence ?? 0) + 1 }))}
+          onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
+          onDetails={() => setDetailsOpen(true)}
+          onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
+        >
+          <JobReview conversationTarget={conversationTarget} job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
+        </MobileGestureSurface>
         <DecisionPanel
           detail={loadedDetail?.jobId === active.id ? loadedDetail.payload : undefined}
           job={active}
@@ -89,9 +128,149 @@ export default function ReviewWorkspaceRoute() {
           onExit={exitWorkspace}
           onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
           setConversationTarget={setConversationTarget}
+          gestureIntent={gestureIntent}
         />
       </div>
+      {detailsOpen ? <DetailsSheet job={active} onClose={() => setDetailsOpen(false)} /> : null}
+      <p aria-live="polite" className="sr-only">
+        {t("position", { current: jobs.indexOf(active) + 1, count: jobs.length })}
+      </p>
     </main>
+  )
+}
+
+const SWIPE_THRESHOLD = 72
+const DIRECTION_SLOP = 12
+const LONG_PRESS_MS = 550
+
+function MobileGestureSurface({
+  children,
+  onApprove,
+  onDefer,
+  onDetails,
+  onMove
+}: {
+  children: ReactNode
+  onApprove: () => void
+  onDefer: () => void
+  onDetails: () => void
+  onMove: (offset: number) => void
+}) {
+  const { t } = useT("review_workspace")
+  const start = useRef<{ x: number; y: number; pointerId: number; edge: boolean }>()
+  const longPress = useRef<number>()
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const clearLongPress = () => {
+    if (longPress.current) window.clearTimeout(longPress.current)
+    longPress.current = undefined
+  }
+  const reset = () => {
+    clearLongPress()
+    start.current = undefined
+    setOffset({ x: 0, y: 0 })
+  }
+  function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (window.innerWidth >= 1024) return
+    if (event.pointerType === "mouse" && event.button !== 0) return
+    if ((event.target as HTMLElement).closest("button, a, input, textarea, [role='button'], [data-review-gesture-exempt]")) return
+    const edge = event.clientX < 28 || event.clientX > window.innerWidth - 28
+    start.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, edge }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    longPress.current = window.setTimeout(() => {
+      if (!start.current) return
+      reset()
+      onDetails()
+    }, LONG_PRESS_MS)
+  }
+  function pointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const origin = start.current
+    if (!origin || origin.pointerId !== event.pointerId) return
+    const x = event.clientX - origin.x
+    const y = event.clientY - origin.y
+    if (Math.abs(x) > DIRECTION_SLOP || Math.abs(y) > DIRECTION_SLOP) clearLongPress()
+    if (origin.edge && x > 0) return
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
+      setOffset({ x: Math.abs(x) > Math.abs(y) ? Math.max(-120, Math.min(120, x)) : 0, y: Math.abs(y) > Math.abs(x) ? Math.max(-80, Math.min(80, y)) : 0 })
+  }
+  function pointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const origin = start.current
+    if (!origin || origin.pointerId !== event.pointerId) return
+    const x = event.clientX - origin.x
+    const y = event.clientY - origin.y
+    reset()
+    if (Math.abs(x) > Math.abs(y) && Math.abs(x) >= SWIPE_THRESHOLD) {
+      if (x > 0 && !origin.edge) onApprove()
+      else if (x < 0) onDefer()
+    } else if (Math.abs(y) >= SWIPE_THRESHOLD) onMove(y < 0 ? 1 : -1)
+  }
+  return (
+    <div className="relative min-w-0 lg:contents">
+      <div
+        aria-label={t("gesture_surface")}
+        className="touch-pan-y motion-reduce:transform-none lg:contents"
+        data-testid="mobile-review-card"
+        onPointerCancel={reset}
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={pointerUp}
+        style={{ transform: offset.x || offset.y ? `translate3d(${offset.x}px, ${offset.y}px, 0)` : undefined }}
+      >
+        {children}
+      </div>
+      {Boolean(offset.x || offset.y) && (
+        <div aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-20 z-10 text-center text-sm font-semibold text-brand lg:hidden">
+          {Math.abs(offset.x) > Math.abs(offset.y)
+            ? offset.x > 0
+              ? t("gesture_approve")
+              : t("gesture_defer")
+            : offset.y < 0
+              ? t("gesture_next")
+              : t("gesture_previous")}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DetailsSheet({ job, onClose }: { job: ReviewWorkspaceJob; onClose: () => void }) {
+  const { t } = useT("review_workspace")
+  const closeRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    closeRef.current?.focus()
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.stopImmediatePropagation()
+      onClose()
+    }
+    window.addEventListener("keydown", escape, true)
+    return () => {
+      window.removeEventListener("keydown", escape, true)
+      previous?.focus()
+    }
+  }, [onClose])
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end bg-black/40 p-0 lg:hidden" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <section
+        aria-label={t("details")}
+        aria-modal="true"
+        className="w-full rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-text-secondary">
+              {job.slug} · {job.repository.slug}
+            </p>
+            <h2 className="mt-1 text-lg font-semibold">{job.title}</h2>
+          </div>
+          <button aria-label={t("close_details")} className="min-h-11 min-w-11 rounded border border-border p-2" onClick={onClose} ref={closeRef} type="button">
+            <CloseIcon className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mt-4 text-sm text-text-secondary">{t("decision_hint")}</p>
+      </section>
+    </div>
   )
 }
 
@@ -199,7 +378,8 @@ function DecisionPanel({
   onEvidenceMove,
   onExit,
   onMove,
-  setConversationTarget
+  setConversationTarget,
+  gestureIntent
 }: {
   detail?: JobDetailPayload
   job: ReviewWorkspaceJob
@@ -209,6 +389,7 @@ function DecisionPanel({
   onExit: () => void
   onMove: (offset: number) => void
   setConversationTarget: (target: HTMLDivElement | null) => void
+  gestureIntent?: { kind: "approve" | "feedback"; sequence: number }
 }) {
   const { t } = useT("review_workspace")
   const queryClient = useQueryClient()
@@ -221,11 +402,12 @@ function DecisionPanel({
     onCompleted()
   }
   const canApprove = Boolean(detail?.actions.can_approve && detail.job.summary_state.toLowerCase() === "implemented" && detail.paths.app_approve_path)
-  const approve = useMutation({ mutationFn: () => postJobCommand(detail!.paths.app_approve_path), onSuccess: completed })
-  const submitFeedback = useMutation({ mutationFn: () => submitJobFeedback(job.id, feedback.trim()), onSuccess: completed })
+  const refreshEligibility = () => queryClient.invalidateQueries({ queryKey: ["review_workspace"] })
+  const approve = useMutation({ mutationFn: () => postJobCommand(detail!.paths.app_approve_path), onError: refreshEligibility, onSuccess: completed })
+  const submitFeedback = useMutation({ mutationFn: () => submitJobFeedback(job.id, feedback.trim()), onError: refreshEligibility, onSuccess: completed })
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      if (event.key !== "Escape" && (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) return
       const key = event.key.toLowerCase()
       if (key === "a" && canApprove) setConfirming(true)
       if (key === "f") setFeedbackOpen(true)
@@ -233,14 +415,22 @@ function DecisionPanel({
       if (key === "k") onMove(-1)
       if (event.key === "ArrowLeft") onEvidenceMove(-1)
       if (event.key === "ArrowRight") onEvidenceMove(1)
-      if (event.key === "Escape") onExit()
+      if (event.key === "Escape") {
+        if (feedbackOpen) setFeedbackOpen(false)
+        else if (confirming) setConfirming(false)
+        else onExit()
+      }
     }
     window.addEventListener("keydown", shortcut)
     return () => window.removeEventListener("keydown", shortcut)
-  }, [canApprove, onEvidenceMove, onExit, onMove])
+  }, [canApprove, confirming, feedbackOpen, onEvidenceMove, onExit, onMove])
+  useEffect(() => {
+    if (gestureIntent?.kind === "approve" && canApprove) setConfirming(true)
+    if (gestureIntent?.kind === "feedback") setFeedbackOpen(true)
+  }, [canApprove, gestureIntent])
   const mutationError = approve.error ?? submitFeedback.error
   return (
-    <aside aria-label={t("decision_context")} className="border-l border-border bg-surface p-5 max-lg:border-t lg:overflow-y-auto">
+    <aside aria-label={t("decision_context")} className="border-l border-border bg-surface p-5 max-lg:border-t max-lg:pb-28 lg:overflow-y-auto">
       <h2 className="font-semibold">{t("decision_context")}</h2>
       <p className="mt-2 text-sm text-text-secondary">{t("decision_hint")}</p>
       <section className="mt-5 border-t border-border pt-4" aria-label={t("checks")}>
@@ -251,9 +441,9 @@ function DecisionPanel({
         <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("findings")}</h3>
         <div className="mt-2" ref={setConversationTarget} />
       </section>
-      <div className="mt-5 space-y-2">
+      <div className={MOBILE_ACTION_BAR_CLASS}>
         {confirming ? (
-          <div className="rounded border border-brand/30 bg-brand-subtle p-3">
+          <div className="col-span-3 rounded border border-brand/30 bg-brand-subtle p-3">
             <p className="text-sm font-medium">{t("approve_confirm", { slug: job.slug })}</p>
             <div className="mt-3 flex gap-2">
               <Button disabled={approve.isPending} onClick={() => setConfirming(false)} variant="secondary">
@@ -278,7 +468,8 @@ function DecisionPanel({
       </div>
       {feedbackOpen ? (
         <form
-          className="mt-4 space-y-2"
+          aria-label={t("feedback_shortcut")}
+          className={MOBILE_FEEDBACK_SHEET_CLASS}
           onSubmit={(event) => {
             event.preventDefault()
             if (feedback.trim()) submitFeedback.mutate()
