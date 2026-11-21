@@ -2025,6 +2025,16 @@ invokes tool classes directly.
   failed repairs left open under `MAX_OPEN_FAILED_FIX_JOBS`, none created
   within seconds of another. A repository row lock would close it, at the cost
   of a new lock in a path with known lock-wait pressure (Lead L2). Left as is.
+- **D4.** Landing deferral vs rejection (DOC-44, "Deferral preserves approval
+  only for declared transient classes"). `LandingFailureHandler` maps a
+  declared Problem first, but a known non-retryable Problem that is not itself
+  a landing code (`grader_failure`, `git_failure`) falls through to
+  pattern-matching the free-text reason, so its text can still classify it
+  transient. For landing-grader failures the reason is "required graders
+  failed:" plus grader names, not their output, so test output cannot reach
+  the patterns. Making the Problem decisive would turn a `git_failure` whose
+  text is a dropped connection from a deferral into a rejection, so the text
+  fallback stays. Left as is.
 
 ---
 
