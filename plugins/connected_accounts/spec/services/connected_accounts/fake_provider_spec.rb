@@ -56,6 +56,6 @@ RSpec.describe ConnectedAccounts::FakeProvider do
     )
     expect {
       declaration.call("events", context.with(headers: {}))
-    }.to raise_error(ArgumentError, "invalid fake event signature")
+    }.to raise_error(ConnectedAccounts::Invoker::ProviderCallFailed, "failed")
   end
 end
