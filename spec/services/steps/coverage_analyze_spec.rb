@@ -14,7 +14,7 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
   let(:handler) { described_class.new(run) }
 
   # These examples exercise Steps::CoverageAnalyze's built-in parsing. The
-  # bundled `ruby` and `go` plugins also provide a :coverage_analyzer and are
+  # bundled `ruby` and `go` plugins also provide `analyze_coverage` and are
   # consulted first, so disable them here; the extension-point context below
   # covers the plugin path explicitly.
   before do
@@ -817,7 +817,9 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
       )
       Syrus::PluginRegistry.register(
         name: "go_coverage_integration", version: "1.0.0",
-        provides: { coverage_analyzer: Go::CoverageAnalyzer }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "Go::Ecosystem", implements: %i[analyze_coverage]
+        ) ]
       )
     end
 

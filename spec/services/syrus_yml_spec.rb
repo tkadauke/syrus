@@ -183,8 +183,6 @@ RSpec.describe SyrusYml do
   end
 
   it "rejects unknown plugin-defined grader types" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([])
-
     expect {
       parse(<<~YAML)
         grade:

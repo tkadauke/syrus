@@ -1203,31 +1203,6 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(spans.map(&:command_excerpt)).not_to include("printf skipped")
   end
 
-  it "logs diagnostics from a legacy-registered grader augmentor when the grader fails" do
-    step.update!(details: step.details.merge("command" => "ruby -e 'exit 1'"))
-
-    augmentor = double("augmentor")
-    allow(augmentor).to receive(:augment_grader_failure)
-      .with(name: "tests", command: "ruby -e 'exit 1'", workspace_path: @ws_path)
-      .and_return(["[rspec failures from JSON output]\n", "MyTest fails\n"])
-
-    allow(Syrus::PluginRegistry).to receive(:capability_providers).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:capability_providers)
-      .with(:ecosystem, :grader_diagnostics)
-      .and_return([
-        Syrus::Plugin::LegacyBridge::LegacyCapabilityProvider.new(
-          provider: augmentor, adapter: Syrus::Plugin::Ecosystem::Adapters::GraderDiagnostics,
-          capability: :grader_diagnostics
-        )
-      ])
-
-    expect { handler.call }.to raise_error(Steps::Base::StepFailed)
-
-    logged = run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join
-    expect(logged).to include("[rspec failures from JSON output]")
-    expect(logged).to include("MyTest fails")
-  end
-
   it "logs diagnostics from a family-registered grader provider when the grader fails" do
     step.update!(details: step.details.merge("command" => "ruby -e 'exit 1'"))
     provider = Class.new do

@@ -7,7 +7,6 @@ RSpec.describe "grading, preparation, and review provider failures" do
 
   before do
     Syrus::PluginInvocation.runtime_health = health
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
   end
 
   after { Syrus::PluginInvocation.runtime_health = Syrus::PluginRuntimeHealth.new }
@@ -20,36 +19,39 @@ RSpec.describe "grading, preparation, and review provider failures" do
   end
 
   it "continues grade detection with built-in candidates and records plugin health" do
-    provider = failing_provider(:grade_candidates)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grade_detector).and_return([ provider ])
+    provider = Class.new do
+      def self.grade_candidates(_context) = raise("provider exploded")
+    end
+    register_ecosystem_provider(name: "failing-grade-candidates", provider:, implements: %i[grade_candidates])
 
     result = RepoGradeSignals.for(Dir.mktmpdir)
 
     expect(result.candidates).to eq([])
-    expect(health.failures.last).to have_attributes(extension_point: "grade_detector", operation: "grade_candidates")
+    expect(health.failures.last).to have_attributes(extension_point: "ecosystem", operation: "grade_candidates")
   end
 
   it "continues preparation with an empty auto-detected plan and records plugin health" do
     provider = Class.new do
-      def self.detect?(_path) = raise("provider exploded")
-      def self.to_s = "FailureFixtureProvider"
+      def self.detect_prepare(_context) = raise("provider exploded")
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_return([ provider ])
+    register_ecosystem_provider(name: "failing-prepare", provider:, implements: %i[detect_prepare])
 
     result = RepoPrepPlan.for(Dir.mktmpdir)
 
     expect(result.commands).to eq([])
-    expect(health.failures.last).to have_attributes(extension_point: "prepare_detector", operation: "detect?")
+    expect(health.failures.last).to have_attributes(extension_point: "ecosystem", operation: "detect_prepare")
   end
 
   it "falls through a failing CI parser and records plugin health" do
-    provider = failing_provider(:call)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:ci_log_parser).and_return([ provider ])
+    provider = Class.new do
+      def self.parse_ci_log(_context) = raise("provider exploded")
+    end
+    register_ecosystem_provider(name: "failing-ci-log", provider:, provisional: %i[parse_ci_log])
 
     result = CiLogParser.new("plain failure output", step_name: "test").parse
 
     expect(result[:parser]).to eq("fallback")
-    expect(health.failures.last).to have_attributes(extension_point: "ci_log_parser", operation: "call")
+    expect(health.failures.last).to have_attributes(extension_point: "ecosystem", operation: "parse_ci_log")
   end
 
   it "omits a failing review presentation contribution and records plugin health" do
