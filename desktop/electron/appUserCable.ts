@@ -101,10 +101,13 @@ export class AppUserCableClient {
       socket.send(JSON.stringify({ command: "subscribe", identifier: CHANNEL_IDENTIFIER }))
     }
 
+    // Per socket: a broadcast is only a message once THIS socket's
+    // subscription is confirmed, and never after it was rejected.
+    let subscribed = false
     socket.onmessage = (event) => {
       if (generation !== this.generation) return
 
-      let message: { type?: string; reason?: string; message?: unknown }
+      let message: { type?: string; reason?: string; identifier?: unknown; message?: unknown }
       try {
         message = JSON.parse(String(event.data)) as typeof message
       } catch {
@@ -118,14 +121,19 @@ export class AppUserCableClient {
         return
       }
       if (message.type === "reject_subscription") {
+        subscribed = false
         socket.close()
         return
       }
       // The upgrade alone does not prove that the token or channel is usable.
       if (message.type === "confirm_subscription") {
+        subscribed = true
         this.reconnectMs = INITIAL_RECONNECT_MS
         return
       }
+      // Protocol frames (welcome, ping — whose "message" is a timestamp) carry
+      // a type; channel broadcasts carry this subscription's identifier.
+      if (message.type !== undefined || !subscribed || message.identifier !== CHANNEL_IDENTIFIER) return
       if ("message" in message) this.deps.onMessage(message.message)
     }
 

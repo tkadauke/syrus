@@ -2851,6 +2851,23 @@
       "status": "done",
       "done_by": "F80 (audit)",
       "notes": "Deadline settles false once; busy clears in finally; the child keeps the backend busy until it exits or is SIGKILLed; image cleanup only after ok && healthy."
+    },
+    {
+      "id": "desktop-cable-delivery",
+      "area": "desktop",
+      "title": "The desktop cable delivers only confirmed own-channel broadcasts, with one socket per credential generation",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "AppUserCableClient",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F81",
+      "notes": "Proved in CableDelivery.lean. Generations, single reconnect per socket, capped backoff, unauthorized stop, and confirmation reset were audited sound."
     }
   ],
   "needs_you": [

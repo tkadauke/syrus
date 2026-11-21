@@ -2717,6 +2717,61 @@ It now checks for the temporary file and the rename. All 389 desktop specs
 
 ---
 
+## F81. The desktop cable delivered pings and unconfirmed or rejected frames — fixed
+
+**Found by** DOC-44 Phase 7, desktop ActionCable and notifications:
+"Subscription rejection delivers no messages", "Stale socket callbacks are
+ignored", "Confirmation resets backoff", and "Error and close callbacks
+schedule at most one reconnect".
+
+**Gap.** `AppUserCableClient` forwarded every frame that had a `message` key
+to `onMessage`. That handler broadcasts the payload to every window and to the
+native notification dispatcher. Three kinds of frame got through that should
+not have:
+
+- ActionCable pings, `{type: "ping", message: <timestamp>}`. The server sends
+  one every few seconds, so each window received a stream of numbers.
+- Broadcasts that arrived before `confirm_subscription`.
+- Broadcasts on a socket after `reject_subscription`, and frames for any other
+  identifier.
+
+The handlers currently ignore non-object payloads and unknown types, so the
+harm was noise rather than a false notification. But the property is a
+delivery contract, and the next consumer would have inherited it.
+
+**Already sound.**
+
+- Every callback checks the socket's generation, and `start`/`stop` bump it.
+- `finish` is idempotent, so each socket schedules at most one reconnect.
+- Backoff doubles up to a cap, and resets on confirmation.
+- An `unauthorized` disconnect marks the token suspect and stops reconnecting.
+- A credential change starts a new generation, so the old token is never
+  reused.
+
+**Fix.** Each socket tracks whether its own subscription is confirmed.
+`onMessage` receives a frame only if it is untyped (a broadcast, not a
+protocol frame), carries this channel's identifier, and arrives while the
+subscription is confirmed. A rejection clears the confirmed state.
+
+**Proved.** `CableDelivery.lean` checks every sequence of up to six frames on
+one socket:
+
+- each delivered frame is an own-channel broadcast that follows a confirmation
+  with no rejection after it;
+- the old behaviour violates this;
+- a confirmed broadcast is delivered.
+
+**Spec.** `desktop/src/appUserCable.test.ts` has two new tests, both red
+before:
+
+- "delivers only this channel's broadcasts, and only once the subscription is
+  confirmed";
+- "delivers nothing on a socket whose subscription was rejected".
+
+All 301 desktop vitest tests and 389 desktop specs pass.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
