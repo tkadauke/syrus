@@ -137,6 +137,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `Syrus::Host::ApplicationRecord` (since 0.1.16) — Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public. Supported members: `abstract_class`, `table_name`, `table_name=`.
 - `Syrus::Host::BackgroundJob` (since 0.1.16) — Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised. Only the listed members are supported. Supported members: `operational_log_context`, `queue_as`.
 - `Syrus::Host::BackupArtifactSource` (since 0.1.16) — Defines the sealed backup-artifact source operations plugins may provide; replication orchestration is not promised. Only the listed members are supported. Supported members: `checksum`, `describe`, `list`, `open`, `pin`, `record_replication`, `release_pin`.
+- `Syrus::Host::BackupDestination` (since 0.1.16) — Defines offsite backup destination operations plugins may provide; credential storage and replication orchestration are not promised. Only the listed members are supported. Supported members: `delete`, `health`, `materialize_local`, `upload`, `verify`.
 - `Syrus::Host::Callbacks` (since 0.1.16) — Defines plugin lifecycle callbacks; callback scheduling and storage are not promised. Only the listed members are supported. Supported members: `effect`, `on_boot`, `on_disable`, `on_enable`, `on_metrics_scrape`, `on_shutdown`, `on_tick`.
 - `Syrus::Host::ChatSession` (since 0.1.16) — Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised. Supported members: `find`, `id`, `repository`, `title`, `user`.
 - `Syrus::Host::ChatTitles` (since 0.1.16) — Queues automatic title generation for a chat; job implementation and queue details are not promised. Supported members: `enqueue`.
@@ -178,4 +179,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 30954 bytes (UTF-8, including this line).
+Size: 31261 bytes (UTF-8, including this line).
