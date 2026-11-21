@@ -3908,6 +3908,34 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M42. A landing Job whose units are all blocked externally is returned to approved — audited, no bug
+
+**Scope.** DOC-44 landing, the partial coverage item `stranded-landing-job`: "A
+Job stays in landing although every unit landing it is blocked externally."
+
+**The gap.** `WorkUnit#block!` on an externally cleared reason gives back the
+landing slot (M41), but it does not move the Job: the Job stays in `landing`.
+After F7, the only such reason left for landings is `ci_repair_disabled`. A
+Job parked on it reads as landing, and nothing lands until an operator
+re-enables CI repair. Separately, `Launcher.start!` lifts the Job to landing
+(`ensure_landing_job_state!`) before `Scheduler.evaluate!`, so a gate that
+blocks at start can leave the same shape.
+
+**Covered by an auto-repair.** `classify_stranded_landing_job` reports a Job in
+`landing` whose landing units exist and are *all* blocked on an externally
+cleared condition (`externally_blocked?`). It is safe to auto-repair:
+`defer_stranded_landing_job` returns the Job to `approved`. The landing queue
+then re-admits it once the condition clears, instead of leaving it apparently
+in flight. If any landing unit is not externally blocked (it is running, or
+waiting on something that clears by itself), the Job is legitimately landing
+and is left alone.
+
+Production (one week, read-only): zero `stranded_landing_job` detections; 3
+`landing_job_without_active_runtime_work`, all skipped because the Job had
+already left landing.
+
+---
+
 ## M41. A blocked landing holds the repository slot only while it is about to run — audited, no bug
 
 **Scope.** DOC-44 landing, the partial coverage item

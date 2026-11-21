@@ -1611,9 +1611,9 @@
         "stranded_landing_job_without_lock_returns_to_approved",
         "blocked_no_capable_worker_does_not_hold_landing_slot"
       ],
-      "status": "partial",
-      "done_by": "F7",
-      "notes": "F7 removed the no_capable_worker producer for landings; block! still does not defer members for other external reasons. Production check (one week, read-only): zero stranded_landing_job detections and 3 landing_job_without_active_runtime_work, all skipped because the Job had already left landing. Not observed; left as a modelled hypothesis, not worked further."
+      "status": "done",
+      "done_by": "F7 · M42",
+      "notes": "F7 removed the no_capable_worker producer for landings; block! still does not defer members for other external reasons. Production check (one week, read-only): zero stranded_landing_job detections and 3 landing_job_without_active_runtime_work, all skipped because the Job had already left landing. Not observed; left as a modelled hypothesis, not worked further. M42: block! leaves the Job in landing, but classify_stranded_landing_job auto-defers it to approved when every landing unit is externally blocked."
     },
     {
       "id": "landing-work-job-state",
