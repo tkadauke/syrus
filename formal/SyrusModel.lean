@@ -15,6 +15,8 @@ import SyrusModel.RepairLift
 import SyrusModel.WorkerEvidence
 import SyrusModel.BlockedFeedback
 import SyrusModel.LandingOverride
+import SyrusModel.EdgeReadiness
+import SyrusModel.ReviewRevision
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet
