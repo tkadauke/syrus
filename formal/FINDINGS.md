@@ -1778,6 +1778,27 @@ while runaway loops stay bounded, and each Step's budget is.
 
 ---
 
+## M6. Force pushes never overwrite an unobserved remote update — proved, no bug
+
+DOC-44 Phase 3, Git boundary. `ForcePushLease.lean` models the three lease
+forms Syrus pushes with, and `spec/lib/git_force_with_lease_semantics_spec.rb`
+pins their behaviour against real git (a bare repository, two clones). An
+explicit lease succeeds only while the remote is the SHA Syrus observed; an
+empty expectation only while the branch does not exist; a bare lease against a
+URL refuses once the branch exists ("stale info"). Every explicit SHA is one
+Syrus observed before it rewrote (`ls-remote`, or the tip right after fetching
+and before any agent ran), so an accepted push replaced exactly what Syrus saw
+(`accepted_replaces_observed`) and any later update makes it fail
+(`unobserved_update_rejects`).
+
+`Steps::StackForcePush` falls back to a bare lease when an entry has no
+`pre_sha`. `StackAgentRebase` always records one, and the bare form fails
+closed anyway (`bare_never_overwrites`). The one plain `--force`
+(`Steps::MergeTrainBuild`) publishes a train's freshly built integration
+branch, which only that train writes.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
