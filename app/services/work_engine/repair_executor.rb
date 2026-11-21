@@ -1993,15 +1993,7 @@ module WorkEngine
         def clean_up_landed_member!(train, job)
           client = GithubClient.for(repository: train.repository, user: job.user)
           log = ->(message, kind: nil) { Rails.logger.info("[RepairMergeTrainMemberReconciliation] #{message}") }
-          MergeTrainMemberPrReconciler.call(client: client, repository: train.repository, train: train, member_job: job, log: log)
-          return if job.branch_name.blank?
-
-          StackChildPullRequestRetargeter.call(
-            client: client, parent: job, base: train.base_branch,
-            skip_job_ids: train.members.map(&:job_id), log: log
-          )
-          client.delete_branch(train.repository.slug, job.branch_name)
-          job.update_column(:branch_deleted_at, now)
+          MergeTrainMemberLandedCleanup.call(client: client, train: train, job: job, log: log, now: now)
         rescue StandardError => e
           Rails.logger.warn("[RepairMergeTrainMemberReconciliation] cleanup for #{job.slug} failed: #{e.class}: #{e.message}")
         end

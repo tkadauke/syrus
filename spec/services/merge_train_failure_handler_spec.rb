@@ -790,6 +790,30 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(a.closure_reason).to eq("pr_merged")
     end
 
+    # Regression (formal/SyrusModel/MemberLandingCleanup.lean): every path that
+    # lands a train member cleans up the same way. The land step and the
+    # reconciler's member repair retarget stacked child PRs onto the base and
+    # delete the member branch; a self-healed member's child PRs kept pointing
+    # at its landed branch.
+    it "retargets stacked children and deletes a self-healed member's branch" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, failure_reason: "merge_train: reconcile_members! crashed")
+      LandedCommit.create!(landable: epic, sha: "trainsha987", kind: "integration_merge", position: 0)
+      LandedCommit.create!(landable: a, sha: "a-landed-1", kind: "implementation", position: 0)
+      client = instance_double(GithubClient, add_issue_comment: true, close_pull_request: true)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+      allow(StackChildPullRequestRetargeter).to receive(:call)
+
+      described_class.call(workflow: workflow)
+
+      expect(StackChildPullRequestRetargeter).to have_received(:call)
+        .with(hash_including(client: client, parent: a, base: train.base_branch))
+      expect(client).to have_received(:delete_branch).with(repository.slug, "syrus/issue-1")
+      expect(a.reload.branch_deleted_at).to be_present
+    end
+
     # PR cleanup is best-effort -- a GitHub hiccup while commenting/closing
     # must not stop the Job from correctly closing pr_merged, the same way
     # delete_integration_branch's failures don't stop member reverting.
