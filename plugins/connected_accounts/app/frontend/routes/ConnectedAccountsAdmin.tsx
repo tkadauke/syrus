@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { Button, Input, Notice, Page, Text } from "@app/components/ui"
+import { Button, Checkbox, Input, Notice, Page, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { getJson, patchJson } from "@app/api/client"
 
@@ -9,7 +9,7 @@ type ConfigPayload = { provider_config: Config }
 
 export default function ConnectedAccountsAdmin() {
   const { t } = useT("connected_accounts")
-  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [draft, setDraft] = useState<Record<string, string | boolean>>({})
   const query = useQuery({
     queryKey: ["connected_accounts", "provider_config"],
     queryFn: async () => {
@@ -23,15 +23,15 @@ export default function ConnectedAccountsAdmin() {
       const body = {
         provider_config: {
           ...draft,
-          scope_catalog: (draft.scope_catalog || String(current.scope_catalog || ""))
+          scope_catalog: String(draft.scope_catalog || current.scope_catalog || "")
             .split(",")
             .map((v) => v.trim())
             .filter(Boolean),
-          read_only_scopes: (draft.read_only_scopes || String(current.read_only_scopes || ""))
+          read_only_scopes: String(draft.read_only_scopes || current.read_only_scopes || "")
             .split(",")
             .map((v) => v.trim())
             .filter(Boolean),
-          api_origins: (draft.api_origins || String(current.api_origins || ""))
+          api_origins: String(draft.api_origins || current.api_origins || "")
             .split(",")
             .map((v) => v.trim())
             .filter(Boolean)
@@ -70,11 +70,16 @@ export default function ConnectedAccountsAdmin() {
             <span>{t(`settings.${field}`)}</span>
             <Input
               type={field === "client_secret" ? "password" : "text"}
-              value={draft[field] ?? String(query.data?.[field] || "")}
+              value={String(draft[field] ?? query.data?.[field] ?? "")}
               onChange={(event) => setDraft((current) => ({ ...current, [field]: event.target.value }))}
             />
           </label>
         ))}
+        <Checkbox
+          checked={Boolean(draft.allow_as_owner ?? query.data?.allow_as_owner ?? false)}
+          label={t("settings.allow_as_owner")}
+          onChange={(event) => setDraft((current) => ({ ...current, allow_as_owner: event.target.checked }))}
+        />
         <Button type="submit" disabled={save.isPending}>
           {t("settings.save")}
         </Button>

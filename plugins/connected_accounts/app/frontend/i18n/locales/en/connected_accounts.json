@@ -14,6 +14,25 @@
     "api_origins": "API origins",
     "save": "Save configuration",
     "saved": "Provider configuration saved.",
-    "save_failed": "Could not save provider configuration."
+    "save_failed": "Could not save provider configuration.",
+    "allow_as_owner": "Allow connected-account operations to act as the account owner"
+  },
+  "nav_accounts": "Connected accounts",
+  "accounts": {
+    "title": "Connected accounts",
+    "description": "Connect and manage the external accounts Syrus may use with your permission.",
+    "loading": "Loading connected accounts…",
+    "empty": "You have no connected accounts yet.",
+    "connect": "Connect an account",
+    "connect_provider": "Connect {{provider}}",
+    "status": "Status: {{status}}",
+    "statuses": { "connected": "Connected", "needs_reauth": "Reauthorization required", "revoked": "Disconnected", "error": "Error" },
+    "scopes": "Granted scopes: {{scopes}}",
+    "none": "None",
+    "last_used": "Last used: {{value}}",
+    "never": "Never",
+    "read_only": "Restrict this account to read-only scopes",
+    "reauthorize": "Reauthorize",
+    "disconnect": "Disconnect"
   }
 }

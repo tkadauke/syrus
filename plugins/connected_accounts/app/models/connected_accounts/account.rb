@@ -14,6 +14,8 @@ module ConnectedAccounts
 
     enum :status, STATUSES.index_with(&:itself), validate: true
 
+    scope :retention_candidates, -> { where(status: %w[revoked error]) }
+
     validates :provider, :display_label, presence: true
     validates :read_only, inclusion: { in: [ true, false ] }
     validate :validate_string_arrays
@@ -21,6 +23,19 @@ module ConnectedAccounts
     validate :validate_credential_contract
 
     before_validation :normalize_values
+
+    def last_used_at
+      CredentialStore::CredentialAccessEvent.where(
+        credential_id: credential_store_credential_id, action: "lease", result: "allowed"
+      ).maximum(:created_at)
+    end
+
+    def acting_mode_enabled?(mode)
+      mode = mode.to_s
+      return ProviderConfig.where(provider_key: provider, allow_as_owner: true).exists? if mode == "as_owner"
+
+      acting_modes.include?(mode)
+    end
 
     def effective_scope_ceiling
       return scope_ceiling if scope_ceiling.present?

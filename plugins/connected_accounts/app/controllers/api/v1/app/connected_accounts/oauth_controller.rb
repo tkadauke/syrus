@@ -11,7 +11,7 @@ module Api::V1::App::ConnectedAccounts
         state:, requested_scopes: scopes, read_only: read_only?, code_verifier: verifier))
       redirect_to result.fetch(:authorize_url), allow_other_host: true
     rescue KeyError, ArgumentError
-      redirect_to "/admin/connected_accounts", alert: I18n.t("connected_accounts.oauth.invalid_request")
+      redirect_to "/settings/connected_accounts", alert: I18n.t("connected_accounts.oauth.invalid_request")
     end
 
     def callback
@@ -19,15 +19,15 @@ module Api::V1::App::ConnectedAccounts
       if params[:error].present?
         ::ConnectedAccounts::OauthState.consume!(token: params.require(:state), user: Current.user,
           session_binding: session_binding, provider: declaration.key)
-        return redirect_to("/admin/connected_accounts", alert: I18n.t("connected_accounts.oauth.denied"))
+        return redirect_to("/settings/connected_accounts", alert: I18n.t("connected_accounts.oauth.denied"))
       end
       ::ConnectedAccounts::OauthBroker.complete!(provider: declaration.key, state: params.require(:state), code: params.require(:code),
         user: Current.user, session_binding: session_binding, redirect_uri: callback_url(declaration))
-      redirect_to "/admin/connected_accounts", notice: I18n.t("connected_accounts.oauth.connected")
+      redirect_to "/settings/connected_accounts", notice: I18n.t("connected_accounts.oauth.connected")
     rescue ActiveRecord::RecordNotFound, ActionController::ParameterMissing
-      redirect_to "/admin/connected_accounts", alert: I18n.t("connected_accounts.oauth.invalid_state")
+      redirect_to "/settings/connected_accounts", alert: I18n.t("connected_accounts.oauth.invalid_state")
     rescue StandardError
-      redirect_to "/admin/connected_accounts", alert: I18n.t("connected_accounts.oauth.failed")
+      redirect_to "/settings/connected_accounts", alert: I18n.t("connected_accounts.oauth.failed")
     end
 
     private

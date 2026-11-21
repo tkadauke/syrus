@@ -90,8 +90,27 @@ RSpec.describe ConnectedAccounts::AccountClient do
   end
 
   it "refuses an ineligible acting mode" do
-    expect { with_access(acting_mode: :as_owner) { :unused } }
+    expect { with_access(acting_mode: :as_service) { :unused } }
       .to raise_error(described_class::Denied, /acting mode is not eligible/)
+  end
+
+  it "refuses as_owner by default and allows it only after the administrator opts in" do
+    expect { with_access(acting_mode: :as_owner) { :unused } }
+      .to raise_error(described_class::Denied, /acting as the account owner is disabled/)
+
+    ConnectedAccounts::ProviderConfig.create!(provider_key: "example", authorize_url: "https://oauth.example/authorize",
+      token_url: "https://oauth.example/token", identity_url: "https://api.example/me", client_id: "id", client_secret: "secret",
+      scope_catalog: [], read_only_scopes: [], api_origins: [ "https://api.example/" ], allow_as_owner: true)
+    expect(with_access(acting_mode: :as_owner) { :ok }).to eq(:ok)
+  end
+
+  it "blocks every coworker use while the feature gate is off" do
+    coworker_context = McpToolContext.new(surface: :chat, role: AgentRole::COWORKER_CHAT, user: owner,
+      permission_authorization: { "tool_name" => "mail_search" })
+    allow(Feature).to receive(:coworker_connected_accounts_enabled?).and_return(false)
+
+    expect { with_access(context: coworker_context) { :unused } }
+      .to raise_error(described_class::Denied, /coworker connected account access is disabled/)
   end
 
   it "refuses access without an authorized invocation reference" do

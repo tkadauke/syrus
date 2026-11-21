@@ -82,11 +82,19 @@ module ConnectedAccounts
 
     def validate_invocation!
       raise Denied, "authorized invocation reference is required" if context.permission_authorization.blank?
+      if coworker_context? && !Feature.coworker_connected_accounts_enabled?
+        raise Denied, "coworker connected account access is disabled"
+      end
+    end
+
+    def coworker_context?
+      [ AgentRole::COWORKER, AgentRole::COWORKER_CHAT ].include?(context.role)
     end
 
     def account_denial_reason(account)
       return "account is not connected" unless account.connected?
-      return "acting mode is not eligible" unless account.acting_modes.include?(acting_mode)
+      return "acting as the account owner is disabled" if acting_mode == "as_owner" && !account.acting_mode_enabled?(acting_mode)
+      return "acting mode is not eligible" unless account.acting_mode_enabled?(acting_mode)
       return "requested scopes exceed the account grant" unless (scopes - account.granted_scopes).empty?
       "requested scopes exceed the account ceiling" unless (scopes - account.effective_scope_ceiling).empty?
     end

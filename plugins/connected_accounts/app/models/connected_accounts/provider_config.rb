@@ -5,6 +5,7 @@ module ConnectedAccounts
     attribute :scope_catalog, :json, default: -> { [] }
     attribute :read_only_scopes, :json, default: -> { [] }
     attribute :api_origins, :json, default: -> { [] }
+    attribute :allow_as_owner, :boolean, default: false
 
     validates :provider_key, :authorize_url, :token_url, :identity_url, :client_id, :client_secret, presence: true
     validates :provider_key, uniqueness: true, format: { with: /\A[a-z][a-z0-9_]*\z/ }

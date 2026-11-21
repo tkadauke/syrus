@@ -14,6 +14,25 @@
     "api_origins": "Origines API",
     "save": "Configurationem serva",
     "saved": "Configuratio praebitoris servata est.",
-    "save_failed": "Configuratio praebitoris servari non potuit."
+    "save_failed": "Configuratio praebitoris servari non potuit.",
+    "allow_as_owner": "Actiones rationis coniunctae nomine domini agere permitte"
+  },
+  "nav_accounts": "Rationes coniunctae",
+  "accounts": {
+    "title": "Rationes coniunctae",
+    "description": "Rationes externas coniunge et administra quas Syrus permissu tuo adhibere potest.",
+    "loading": "Rationes coniunctae onerantur…",
+    "empty": "Nullas rationes coniunctas adhuc habes.",
+    "connect": "Rationem coniunge",
+    "connect_provider": "{{provider}} coniunge",
+    "status": "Status: {{status}}",
+    "statuses": { "connected": "Coniuncta", "needs_reauth": "Auctoritas renovanda", "revoked": "Disiuncta", "error": "Error" },
+    "scopes": "Ambitus concessi: {{scopes}}",
+    "none": "Nulli",
+    "last_used": "Ultime adhibita: {{value}}",
+    "never": "Numquam",
+    "read_only": "Hanc rationem ad ambitus solos legendos restringe",
+    "reauthorize": "Iterum auctoriza",
+    "disconnect": "Disiunge"
   }
 }
