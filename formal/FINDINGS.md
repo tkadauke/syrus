@@ -1200,6 +1200,29 @@ built without the launcher and have no WorkUnit, so F40 cannot affect it.
 
 ---
 
+## F41. Mixed unit outcomes could settle an intent from a stale unit — fixed
+
+**Property.** An intent is settled by the outcome of its latest finished
+unit, the one `WorkIntents::TerminalUnitSync` acts on
+(`Agreement.mixed_after_agrees`).
+
+**Gap.** The reconciler's backstops for a missed sync
+(`succeeded_work_unit_unsatisfied_intent`, `failed_work_unit_unfailed_intent`,
+`superseded_work_unit_uncancelled_intent`) each looked at every terminal unit
+of the intent. Take an intent whose older unit succeeded and whose newer
+retry failed. If the sync was missed, it was flagged both ways, and whichever
+repair ran first won, possibly the stale success
+(`mixed_before_flags_both`).
+
+**Fix.** `WorkIntent#settled_by?(unit)` (the latest finished unit) gates all
+three classifiers and their executors.
+
+**Spec.** `reconciler_spec.rb` "settles an intent with mixed unit outcomes
+from its latest unit only" (red before) and `repair_executor_spec.rb`
+"satisfy_work_intent_from_succeeded_work_unit".
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

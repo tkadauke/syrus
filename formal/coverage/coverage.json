@@ -195,7 +195,7 @@
         "superseded_unit_uncancelled_intent"
       ],
       "status": "partial",
-      "done_by": "model round 1 (Reconciler.lean, Proofs.lean)",
+      "done_by": "model round 1 (Reconciler.lean, Proofs.lean) · F41",
       "notes": "Repairs satisfyFromSucceeded / failFromFailed / cancelFromSuperseded are proved to preserve Inv; making the intent sync part of the terminal transition would make the states unreachable."
     },
     {
@@ -214,9 +214,9 @@
         "failed_unit_unfailed_intent",
         "succeeded_unit_unsatisfied_intent"
       ],
-      "status": "open",
-      "done_by": "O3",
-      "notes": "Low priority: an older success can satisfy an intent whose latest attempt failed."
+      "status": "done",
+      "done_by": "F41 · Agreement.mixed_after_agrees",
+      "notes": "TerminalUnitSync settles an intent from the unit that finished last; the three reconciler backstops looked at every terminal unit, so an older success and a newer failure (sync missed) were flagged both ways and the first repair won. Now WorkIntent#settled_by? (latest finished unit) gates the classifiers and executors, matching the sync."
     },
     {
       "id": "terminal-unit-holds-locks",

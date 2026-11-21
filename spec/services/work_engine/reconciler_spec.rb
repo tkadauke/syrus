@@ -2654,6 +2654,29 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(intent.reload).to be_requested
   end
 
+  # The terminal sync settles an intent from the unit that finished last. The
+  # backstops looked at every terminal unit, so an older success and a newer
+  # failure were both flagged and the first repair to run won
+  # (Agreement.mixed_before_flags_both).
+  it "settles an intent with mixed unit outcomes from its latest unit only" do
+    workflow = job.latest_workflow
+    old_unit = workflow.work_unit
+    intent = old_unit.work_intent
+    old_unit.update_columns(state: "succeeded", finished_at: 2.hours.ago)
+    retry_unit = WorkUnit.create!(
+      work_intent: intent, kind: old_unit.kind, state: "failed",
+      repository: job.repository, scope_type: "job", scope_id: job.id,
+      started_at: 1.hour.ago, finished_at: 30.minutes.ago
+    )
+    retry_unit.work_unit_members.create!(job: job, role: "primary")
+    intent.update_columns(state: "requested")
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :succeeded_work_unit_unsatisfied_intent)).to be_nil
+    expect(kind(result, :failed_work_unit_unfailed_intent)).to be_present
+  end
+
   it "fails requested WorkIntents left behind by failed WorkUnits" do
     workflow = job.latest_workflow
     unit = workflow.work_unit

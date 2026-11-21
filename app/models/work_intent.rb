@@ -65,6 +65,20 @@ class WorkIntent < ApplicationRecord
     define_method("#{state_name}?") { state == state_name }
   end
 
+  # The unit whose outcome settles this intent: the one that finished last,
+  # which is the unit WorkIntents::TerminalUnitSync acts on. An older unit's
+  # outcome is history (formal/SyrusModel/Agreement.lean, mixed outcomes).
+  def latest_terminal_work_unit
+    work_units
+      .where(state: WorkUnit::TERMINAL_STATES)
+      .reorder(Arel.sql("COALESCE(finished_at, updated_at) DESC"), id: :desc)
+      .first
+  end
+
+  def settled_by?(work_unit)
+    work_unit.present? && latest_terminal_work_unit&.id == work_unit.id
+  end
+
   def definition
     WorkDefinitions.for(kind)
   end

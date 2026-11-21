@@ -1607,6 +1607,7 @@ module WorkEngine
         intent = unit.work_intent
         next unless intent&.requested? || intent&.waiting?
         next if closed_job_scoped_intent?(intent)
+        next unless intent.settled_by?(unit)
 
         active_sibling_ids = active_work_unit_ids_for_intent(intent, excluding: unit)
         next if active_sibling_ids.any?
@@ -1639,6 +1640,7 @@ module WorkEngine
           intent = unit.work_intent
           next unless intent&.requested? || intent&.waiting?
           next if closed_job_scoped_intent?(intent)
+          next unless intent.settled_by?(unit)
 
           active_sibling_ids = active_work_unit_ids_for_intent(intent, excluding: unit)
           next if active_sibling_ids.any?
@@ -1668,6 +1670,7 @@ module WorkEngine
         intent = unit.work_intent
         next unless intent&.requested? || intent&.waiting?
         next if closed_job_scoped_intent?(intent)
+        next unless intent.settled_by?(unit)
 
         active_sibling_ids = active_work_unit_ids_for_intent(intent, excluding: unit)
         next if active_sibling_ids.any?

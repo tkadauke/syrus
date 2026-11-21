@@ -588,5 +588,33 @@ theorem gated_before_refused :
 theorem gated_after_skips_due (s : GatedStep) (h : s.recheckDue = true) : ¬ detectGatedAfter s := by
   intro hd; rw [hd.2.2] at h; exact Bool.noConfusion h
 
+/-! ## Instance: an intent with a succeeded and a failed unit (mixed outcomes)
+
+`WorkIntents::TerminalUnitSync` settles an intent from the unit that just
+finished: the last one to finish decides. Its reconciler backstops
+(`succeeded_work_unit_unsatisfied_intent`, `failed_work_unit_unfailed_intent`)
+looked at *every* terminal unit, so an intent whose older unit succeeded and
+whose newer retry failed, with the sync missed, was flagged both ways; the
+first repair to run won, which could be the stale success. -/
+
+inductive UOut where | succeeded | failed deriving DecidableEq, Repr
+
+/-- Terminal units of one intent, oldest first. -/
+abbrev Units := List UOut
+
+def syncOutcome (us : Units) : Option UOut := us.getLast?
+
+def flagsBefore (us : Units) (o : UOut) : Bool := us.contains o
+def flagsAfter (us : Units) (o : UOut) : Bool := syncOutcome us == some o
+
+theorem mixed_before_flags_both :
+    flagsBefore [.succeeded, .failed] .succeeded = true ∧ flagsBefore [.succeeded, .failed] .failed = true := by
+  decide
+
+/-- After: at most one outcome is flagged, and it is the sync's. -/
+theorem mixed_after_agrees (us : Units) (o : UOut) (h : flagsAfter us o = true) :
+    syncOutcome us = some o := by
+  simpa [flagsAfter] using h
+
 end Agreement
 end SyrusModel
