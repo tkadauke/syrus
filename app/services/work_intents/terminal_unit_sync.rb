@@ -33,7 +33,7 @@ module WorkIntents
         intent.satisfy!
       elsif work_unit.failed?
         intent.fail!
-      elsif cancelled_by_superseding_work?(work_unit)
+      elsif cancelled_by_superseding_work?(work_unit) || cancelled_after_job_closed?(work_unit, intent)
         intent.cancel!
       end
     end
@@ -44,6 +44,14 @@ module WorkIntents
 
     def cancelled_by_superseding_work?(unit)
       unit.cancelled? && unit.preemption_reason.in?(SUPERSEDING_CANCEL_REASONS)
+    end
+
+    # Job#cancel_stale_work_intents_after_close leaves an intent whose unit is
+    # still active to that unit. Once the last unit ends, nothing relaunches
+    # work on a closed Job, so a cancellation ends the intent whatever its
+    # reason -- including reasons that otherwise keep it for a relaunch.
+    def cancelled_after_job_closed?(unit, intent)
+      unit.cancelled? && intent.scope_type == "job" && Job.where(id: intent.scope_id, state: "closed").exists?
     end
 
     def active_sibling_unit?(intent)
