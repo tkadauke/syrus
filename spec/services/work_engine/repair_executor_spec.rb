@@ -555,4 +555,53 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(member_job.reload.state).to eq("approved")
     end
   end
+
+  describe "repair_merge_train_member_reconciliation" do
+    let(:client) { instance_double(GithubClient, add_issue_comment: true, close_pull_request: true, delete_branch: true) }
+    let(:member_job) do
+      Factories.job_record(user: job.user, repository: job.repository, issue_number: 778).tap do |j|
+        j.update_columns(state: "landing", approved_at: Time.current, pr_number: 4242, branch_name: "syrus/direct-4242")
+      end
+    end
+    let(:train) do
+      MergeTrain.create!(
+        repository: job.repository, base_branch: "main", state: "succeeded", priority: "medium",
+        integration_sha: "trainsha123", finished_at: 1.minute.from_now
+      )
+    end
+
+    before do
+      allow(GithubClient).to receive(:for).and_return(client)
+      MergeTrainMember.create!(merge_train: train, job: member_job, position: 0, state: "failed")
+      LandedCommit.create!(landable: member_job, sha: "member-landed-1", kind: "implementation", position: 0)
+    end
+
+    def reconcile!
+      plan = repair_plan(action: "repair_merge_train_member_reconciliation", target: member_job)
+      plan = plan.with(preconditions: { "merge_train_id" => train.id })
+      described_class.call(result: RepairResult.new([ plan ])).sole
+    end
+
+    # A member closed here never passed through the land step's cleanup, so
+    # its PR stayed open forever and the open PR kept the stale-branch reaper
+    # from ever deleting the branch.
+    it "closes the member's PR and deletes its branch, like the land step does" do
+      reconcile!
+
+      expect(member_job.reload).to be_closed
+      expect(client).to have_received(:add_issue_comment).with(job.repository.slug, 4242, a_string_including("merge-train"))
+      expect(client).to have_received(:close_pull_request).with(job.repository.slug, 4242)
+      expect(client).to have_received(:delete_branch).with(job.repository.slug, "syrus/direct-4242")
+      expect(member_job.branch_deleted_at).to be_present
+    end
+
+    it "still closes the member when GitHub cleanup fails" do
+      allow(client).to receive(:delete_branch).and_raise(Octokit::ServerError)
+
+      reconcile!
+
+      expect(member_job.reload).to be_closed
+      expect(member_job.branch_deleted_at).to be_nil
+    end
+  end
 end
