@@ -76,7 +76,10 @@ module Ruby
           name: "#{ci_name}-serial",
           run: ci_serial_command,
           phases: ci_phases, mode: "ci", junit_output: extra_junit_output(ci_name, "serial"),
-          when_files_changed: configured_scope, coverage: false
+          when_files_changed: configured_scope, coverage: false,
+          # Without a suffix it read as the unsharded suite running beside
+          # its own shards.
+          label_suffix: "serial"
         )
       ]
     end
@@ -1073,10 +1076,11 @@ module Ruby
       RUBY
     end
 
-    def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil, shard: nil)
+    def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil, shard: nil, label_suffix: nil)
+      suffix = label_suffix || (shard && "#{shard['index']}/#{shard['count']}")
       SyrusYml::GradeStep.new(
         name: name,
-        display_name: shard ? "#{display_name_for(mode)} #{shard['index']}/#{shard['count']}" : display_name_for(mode),
+        display_name: [ display_name_for(mode), suffix ].compact.join(" "),
         run: run,
         ci: nil,
         phases: phases,

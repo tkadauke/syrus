@@ -169,6 +169,7 @@ RSpec.describe Ruby::RspecGraderType do
       steps = sharded_steps(serial_shard: true)
 
       expect(steps.map(&:name)).to eq(%w[rspec-ci-1-of-3 rspec-ci-2-of-3 rspec-ci-3-of-3 rspec-ci-serial])
+      expect(steps.map(&:display_name)).to eq([ "RSpec (CI) 1/3", "RSpec (CI) 2/3", "RSpec (CI) 3/3", "RSpec (CI) serial" ])
       steps.first(3).each do |shard|
         expect(shard.run).not_to match(%r{bundle exec rspec [^;]* spec/migrations/})
       end
