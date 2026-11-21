@@ -720,4 +720,33 @@ RSpec.describe JobDependency do
       }.to change(EpicDependency, :count).by(1)
     end
   end
+  # Only approving clears approval_withdrawn_at. A Job whose approval was
+  # withdrawn and whose PR was then merged on GitHub (or emergency-landed, or
+  # closed with no changes) is succeeded and still marked withdrawn; its
+  # dependents were neither satisfied nor terminally failed, so they waited
+  # forever (formal/SyrusModel/Kernel/Dependencies.lean closed_undecided_before).
+  describe "an upstream Job that succeeded after its approval was withdrawn" do
+    %w[success landed].each do |mode|
+      it "satisfies a #{mode} dependency" do
+        job = issue_job(1)
+        upstream = issue_job(2)
+        dependency = described_class.create!(job: job, depends_on_job: upstream, source: "manual", satisfaction_mode: mode)
+        upstream.update_columns(state: "closed", closure_reason: "pr_merged", landed_sha: "a" * 40,
+                                approval_withdrawn_at: 1.hour.ago)
+
+        expect(dependency.reload.execution_dependency_satisfied?).to be true
+        expect(dependency.dependency_terminal_unsuccessful_for_execution?).to be false
+      end
+    end
+
+    it "still blocks a ready-but-unfinished upstream whose approval was withdrawn" do
+      job = issue_job(1)
+      upstream = issue_job(2)
+      dependency = described_class.create!(job: job, depends_on_job: upstream, source: "manual")
+      upstream.update_columns(state: "implemented", pr_number: 7, branch_name: "b", approval_withdrawn_at: 1.hour.ago)
+      allow_any_instance_of(Job).to receive(:head_sha).and_return("c" * 40)
+
+      expect(dependency.reload.execution_dependency_satisfied?).to be false
+    end
+  end
 end
