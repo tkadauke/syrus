@@ -2289,6 +2289,42 @@ a migration. Whether to drop them is NY16.
 
 ---
 
+## M16. Every automatic repair has an executor — audited, one dead executor removed
+
+DOC-44 reconciler and plugin host: "Every automatic repair action has an
+executor," "Operator-only repairs never become automatic through a missing
+policy," and "Plugin repair actions have executors."
+
+- **Automatic actions have policies.** `RepairPlanner` names all 63 of its
+  `automatic_plan` actions as literals, and every one has a
+  `RepairExecutor::Policies` class. Before this, `Policies::Default` would only
+  record "no executor policy exists", so an automatic plan without a policy
+  would have been planned and skipped on every pass.
+- **A missing planner policy stays manual.** An issue kind with no planner
+  policy gets `operator_plan("operator_review_recovery")`, never an automatic
+  plan, even when the issue is flagged safe to auto-repair.
+- **No plugin repair actions exist.** Plugins contribute no reconciler issue
+  kinds or repair policies. Their problem kinds carry a `default_remediation`
+  from the closed set. `RetryFailedStepEnqueuer` executes only `rebuild_unit`
+  and `resume_step`, and answers every other remediation with an explicit
+  "requires a new workflow attempt", so no remediation reaches a missing
+  executor.
+
+**Dead executor.** `Policies::DeferLandingStartBlockedWorkflow` had been
+unreachable since landing start blocks moved to `start_workflow`. No planner
+emitted it, and the executor is called only on freshly planned results. It
+still carried authority to fail a landing workflow and send its Job back to
+`approved`, so it is removed rather than left for whatever next names it.
+
+**Pinned.** `spec/architecture/repair_action_executors_spec.rb`:
+
+- every automatic action is a literal and has a policy;
+- every policy is planned automatically somewhere (this failed for the dead
+  executor);
+- an unknown issue kind flagged safe still gets a non-automatic operator plan.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
