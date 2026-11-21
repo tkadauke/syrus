@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "set"
+require "prism"
 
 module Syrus
   module Plugin
@@ -99,12 +100,12 @@ module Syrus
         raise ArgumentError,
           "#{plugin} does not declare #{provider} as a #{family} provider" unless declaration
 
-        covered << Entry.new(plugin: manifest.name, family: declaration.family, provider: declaration.provider)
         declaration
       end
 
       def missing(manifests: PluginRegistry.all_plugins)
         manifests.reject(&:external).flat_map do |manifest|
+          covered = covered_entries(manifest)
           Array(manifest.family_provides).filter_map do |declaration|
             entry = Entry.new(plugin: manifest.name, family: declaration.family, provider: declaration.provider)
             entry unless covered.include?(entry)
@@ -112,8 +113,52 @@ module Syrus
         end
       end
 
-      def covered = @covered ||= Set.new
-      private_class_method :covered
+      def covered_entries(manifest)
+        return Set.new unless manifest.plugin_root
+
+        Pathname.new(manifest.plugin_root).glob("spec/**/*_spec.rb").each_with_object(Set.new) do |path, entries|
+          result = Prism.parse_file(path)
+          raise "Could not parse #{path}: #{result.errors.map(&:message).join(', ')}" unless result.success?
+
+          collect_contract_entries(result.value, entries, manifest.name)
+        end
+      end
+      private_class_method :covered_entries
+
+      def collect_contract_entries(node, entries, plugin)
+        if node.is_a?(Prism::CallNode) && node.name == :it_behaves_like
+          entry = entry_for_call(node, plugin)
+          entries << entry if entry
+        end
+        node.compact_child_nodes.each { |child| collect_contract_entries(child, entries, plugin) }
+      end
+      private_class_method :collect_contract_entries
+
+      def entry_for_call(node, plugin)
+        arguments = node.arguments&.arguments || []
+        example_name = static_string(arguments.first)
+        match = example_name&.match(/\Aa valid ([a-z0-9_]+) provider\z/)
+        return unless match
+
+        keyword_elements = arguments.grep(Prism::KeywordHashNode).flat_map(&:elements).grep(Prism::AssocNode)
+        keywords = keyword_elements.to_h do |element|
+          [ static_symbol(element.key), static_string(element.value) ]
+        end
+        return unless keywords[:plugin] == plugin && keywords[:provider]
+
+        Entry.new(plugin:, family: match[1].to_sym, provider: keywords[:provider])
+      end
+      private_class_method :entry_for_call
+
+      def static_string(node)
+        node.unescaped if node.is_a?(Prism::StringNode)
+      end
+      private_class_method :static_string
+
+      def static_symbol(node)
+        node.unescaped.to_sym if node.is_a?(Prism::SymbolNode)
+      end
+      private_class_method :static_symbol
     end
   end
 end
