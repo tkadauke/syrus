@@ -162,4 +162,27 @@ RSpec.describe Workflows::LifecyclePropagation do
 
     expect(job.reload.needs_attention_reason).to eq(GraderLoopProgress::NO_PROGRESS_REASON)
   end
+
+  # Regression: removing a merge train's workspace took 3.5 minutes in
+  # production, inside the transaction that records the Workflow's success.
+  # Until it committed, the finish was invisible (the reconciler flagged the
+  # Workflow as running with nothing left) and the member Jobs' rows stayed
+  # locked (lock-wait timeouts in the landing queue). Filesystem cleanup must
+  # run after the terminal transition commits.
+  %i[succeed cancel].each do |event|
+    it "removes the workspace only after the #{event} transition has committed" do
+      workflow = Workflow.create!(job: job, trigger_kind: "initial")
+      workflow.start!
+      baseline = ActiveRecord::Base.connection.open_transactions
+      depths = []
+      allow(WorkflowWorkspace).to receive(:cleanup_for) do
+        depths << ActiveRecord::Base.connection.open_transactions
+        true
+      end
+
+      workflow.public_send(:"#{event}!")
+
+      expect(depths).to eq([ baseline ])
+    end
+  end
 end

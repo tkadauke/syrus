@@ -25,7 +25,7 @@ module Workflows
       workflow.finished_at = Time.current
       workflow.sync_work_unit_terminal!("succeeded")
       JobClosure.apply_pending!(workflow)
-      workflow.cleanup_workspace!
+      workflow.cleanup_workspace_after_commit!
       workflow.job.clear_needs_attention!(reason: GraderLoopProgress::NO_PROGRESS_REASON)
       workflow.propagate_succeed_to_job!
       workflow.cancel_superseded_retry_workflows!
@@ -39,7 +39,7 @@ module Workflows
       JobClosure.apply_pending!(workflow)
       workflow.propagate_fail_to_job!
       dispatch_hook(:after_fail)
-      workflow.cleanup_workspace! if workflow.infrastructure_workflow?
+      workflow.cleanup_workspace_after_commit! if workflow.infrastructure_workflow?
     end
 
     def cancelled!
@@ -52,7 +52,7 @@ module Workflows
         workflow.cancel_active_descendants!
         JobClosure.apply_pending!(workflow)
         workflow.propagate_cancel_to_job!
-        workflow.cleanup_workspace!
+        workflow.cleanup_workspace_after_commit!
         dispatch_hook(:after_cancel)
       end
     end
@@ -75,7 +75,7 @@ module Workflows
       # Feedback queued "until the current run finishes" is exactly what can
       # unblock this; the run will not finish on its own, so offer it now.
       ChatPendingAction.promote_queued_for_job!(workflow.job) unless workflow.job.closed?
-      workflow.cleanup_workspace!
+      workflow.cleanup_workspace_after_commit!
     end
 
     def reopened!

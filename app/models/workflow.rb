@@ -262,6 +262,23 @@ class Workflow < ApplicationRecord
   # missing path can't block a state transition. Writes JobLog entries
   # to the latest run so absence of the log lines signals a missed
   # cleanup.
+  # Removes the workspace once every open transaction has committed. A terminal
+  # transition runs inside one, and deleting a large workspace (a merge
+  # train's took 3.5 minutes) there kept the finish invisible and held the
+  # transaction's row locks for the whole deletion. Outside a transaction this
+  # runs immediately. If the process dies before it runs, the workspace prune
+  # job removes the directory as it does any incomplete cleanup.
+  def cleanup_workspace_after_commit!
+    ActiveRecord.after_all_transactions_commit do
+      cleanup_workspace!
+    rescue StandardError => e
+      # The terminal state is committed; a failed deletion must not surface in
+      # whichever caller finished the Workflow. The prune job retries it.
+      Rails.logger.error("[workspace] cleanup after commit failed for Workflow ##{id}: #{e.class}: #{e.message}")
+      log_workspace_event("[workspace] cleanup failed (#{e.class}); prune job will retry")
+    end
+  end
+
   def cleanup_workspace!
     if cleanup_blocked_by_active_descendants?
       log_workspace_event("[workspace] cleanup deferred — workflow still has active steps, runs, or spawned processes")
