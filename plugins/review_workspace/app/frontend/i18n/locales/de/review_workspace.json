@@ -27,6 +27,7 @@
   "approve_shortcut": "Zur Landung freigeben (A)",
   "approve_confirm": "{{slug}} zur Landung freigeben?",
   "feedback_shortcut": "Feedback geben (F)",
+  "feedback": "Feedback geben",
   "feedback_label": "Was soll geändert werden?",
   "send_feedback": "Feedback senden",
   "defer": "Für diese Sitzung zurückstellen",
@@ -40,5 +41,16 @@
   "gesture_approve": "Loslassen, um die Freigabe zu prüfen",
   "gesture_defer": "Loslassen, um für diese Sitzung zurückzustellen",
   "gesture_next": "Loslassen für den nächsten Job",
-  "gesture_previous": "Loslassen für den vorherigen Job"
+  "gesture_previous": "Loslassen für den vorherigen Job",
+  "summary_unavailable": "Es wurde keine Implementierungszusammenfassung eingereicht.",
+  "visual_evidence": "Visuelle Belege",
+  "no_visual_evidence": "Für diesen Job wurden keine visuellen Belege eingereicht.",
+  "evidence_position": "{{current}} von {{count}}",
+  "previous_evidence": "Vorheriger visueller Beleg",
+  "next_evidence": "Nächster visueller Beleg",
+  "why_needed": "Warum du gebraucht wirst:",
+  "why_needed_ready": "Implementierung und Belege sind bereit für deine Entscheidung.",
+  "why_needed_blocked": "Prüfe Belege und Prüfungen, bevor du entscheidest.",
+  "gesture_cue": "Nach oben oder unten wischen · rechts freigeben · links zurückstellen · halten für Details",
+  "gesture_coach": "Wechsle vertikal zwischen Jobs. Wische nach rechts, um die Freigabe zu prüfen, nach links zum Zurückstellen oder halte für den vollständigen Diff und Details. Die Schaltflächen bleiben unten verfügbar."
 }
