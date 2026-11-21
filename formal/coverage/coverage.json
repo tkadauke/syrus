@@ -2551,6 +2551,19 @@
       ],
       "recommendation": "A. Cancellation and display need only metadata, not the plugin's code paths. It matches F61's create-only validation, and it keeps the 'withheld providers are never called' rule for anything that starts work. B loses work that a plugin fix would have resumed.",
       "decision": null
+    },
+    {
+      "id": "NY15",
+      "item": "plugin-missing-contribution-defaults",
+      "title": "Should Coding Mode `!` shell commands be contained when contained chat execution is required?",
+      "context": "Under contained_chat_execution: required, ChatTurnJob runs the chat agent through a fail-closed ChatWorkloadPolicy, so no agent process runs on the worker. ChatShellCommandExecutor::Coding runs the operator's `!` commands through ProcessRunner with no workload policy, so they still run on the worker host, in the persistent ChatWorkspace checkout the contained agent writes to. An `!npm test` or `!bin/rspec` therefore executes code the contained agent wrote, outside the container.",
+      "options": [
+        "A. Attach ChatWorkloadPolicy to Coding Mode `!` commands too, so under required they run in the container or fail with 'no execution backend'.",
+        "B. Keep `!` commands on the worker (the operator typed them), and say so in the contained-chat setting's help text.",
+        "C. Keep as is."
+      ],
+      "recommendation": "A. The containment boundary is about where agent-influenced code executes, and the checkout is agent-written. Under 'preferred' nothing changes, because an unavailable backend still falls back to the worker.",
+      "decision": null
     }
   ]
 }
