@@ -2826,6 +2826,75 @@ This typecheck also covers F76, F80 and F81.
 
 ---
 
+## F83. Onboarding: a cancel during lock acquisition still spawned the installer, and a reused PID kept a stale lock forever — fixed
+
+**Found by** DOC-44 Phase 7, installer and onboarding:
+
+- "Only one installer owns the install lock";
+- "Cancellation eventually terminates the complete child-process tree";
+- "Every terminal path releases the lock";
+- "Interrupted installation remains diagnosable and recoverable".
+
+**Gap 1: cancelling while the lock is acquired.**
+`OnboardingDriver.performStartInstall` awaits the state directory, the backend
+manifest and the install lock, then spawns the installer. Cancellation was
+checked only after the manifest. If a cancel arrived while
+`acquireInstallLock` was in flight:
+
+- `cancelInstall` reset the wizard to Welcome;
+- the start then resumed, set `local.installing` and spawned an installer;
+- nothing killed that installer, because the cancel had already been handled.
+
+The vitest reproduction holds the lock's `open` and cancels in that window. It
+saw the spawn.
+
+**Gap 2: a stale lock behind a reused PID.** A stale lock was broken only when
+its PID was dead. An install interrupted by a reboot, which is the case
+reboot-resume exists for, leaves the installer's PID in `install.pid`. After a
+reboot, PIDs are reused. If any process now runs under that PID, every install
+was refused as "A Syrus installation is already running" until the file was
+deleted by hand.
+
+**Already sound.**
+
+- The lock is created with `wx`, so only one creator wins.
+- While the installer runs, the lock holds the installer's own PID.
+- Release only removes a lock that holds our PID, unless the release is
+  forced.
+- A cancel after the spawn kills the process group and escalates to SIGKILL.
+- `handleExit` returns to Welcome on a cancelled run, even if the exit code is
+  0.
+- The backend config is saved only on exit 0, which comes after the
+  installer's own health gate.
+- Quitting waits for the installer tree to close (F82 audit).
+
+**Fix.**
+
+- The start re-checks cancellation after acquiring the lock. If a cancel
+  arrived, it releases the lock and stops.
+- A lock whose modification time is before the current boot (`now - uptime`,
+  with a minute of slack) is treated as stale, whatever its PID.
+
+**Model.** `InstallCancel.lean` is a table of the start's code paths, one row
+per point where a cancel can land:
+
+- a cancel before the spawn never spawns and leaves no lock;
+- a cancel after the spawn kills the installer;
+- every cancelled path ends at Welcome;
+- the old behaviour spawned on a cancel during lock acquisition.
+
+**Spec.** `desktop/src/installerDriverCancel.test.ts` drives the real driver
+with a held lock `open` and a fake `spawn`. Both tests were red before:
+
+- "never spawns an installer after a cancel that lands while the lock is being
+  acquired";
+- "breaks a lock written before the last boot even when its PID is in use".
+
+All 304 desktop vitest tests and 391 desktop specs pass, and the desktop
+typecheck is clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

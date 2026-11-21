@@ -1,6 +1,7 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process"
 import { createWriteStream } from "node:fs"
 import fs from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import readline from "node:readline"
 import { promisify } from "node:util"
@@ -212,6 +213,20 @@ export class OnboardingDriver {
     }
   }
 
+  // A lock written before this boot cannot be held by a running process, even
+  // if its PID has since been reused by an unrelated one (an install
+  // interrupted by a reboot leaves exactly that behind). A minute of slack
+  // absorbs clock and uptime rounding.
+  private async lockPredatesBoot(lockPath: string) {
+    try {
+      const { mtimeMs } = await fs.stat(lockPath)
+      const bootedAt = Date.now() - os.uptime() * 1000
+      return mtimeMs < bootedAt - 60_000
+    } catch {
+      return false
+    }
+  }
+
   private async acquireInstallLock() {
     const lockPath = this.installLockPath()
 
@@ -228,7 +243,7 @@ export class OnboardingDriver {
         }
 
         const pid = Number.parseInt(await fs.readFile(lockPath, "utf8").catch(() => ""), 10)
-        if (Number.isFinite(pid) && pid > 0 && (await this.processIsRunning(pid))) {
+        if (Number.isFinite(pid) && pid > 0 && !(await this.lockPredatesBoot(lockPath)) && (await this.processIsRunning(pid))) {
           return false
         }
 
@@ -867,7 +882,16 @@ export class OnboardingDriver {
       flags.push("--port", String(this.port))
     }
 
-    if (!(await this.acquireInstallLock())) {
+    const acquired = await this.acquireInstallLock()
+    // A cancel can land while the lock is being acquired: cancelInstall has
+    // already put the wizard back at Welcome, so stop here — never set
+    // "installing" or spawn an installer nobody would kill.
+    if (this.cancelRequested) {
+      this.cancelRequested = false
+      if (acquired) await this.releaseInstallLock()
+      return
+    }
+    if (!acquired) {
       this.setState({
         phase: "local.failed",
         code: 1,

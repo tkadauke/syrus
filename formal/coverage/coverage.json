@@ -2902,6 +2902,23 @@
       "status": "done",
       "done_by": "F82 (audit)",
       "notes": "Packaged, stable channel, not a pinned test build; both restart-to-update entries defer while backendBusy; quit SIGKILLs the installer tree rather than orphaning it."
+    },
+    {
+      "id": "desktop-install-lock",
+      "area": "desktop",
+      "title": "One installer owns the install lock; cancellation never leaves an unkilled installer; interrupted installs stay recoverable",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "OnboardingDriver.performStartInstall, acquireInstallLock, cancelInstall, handleExit",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F83",
+      "notes": "Re-check cancel after the lock; a lock older than the current boot is stale. Table model in InstallCancel.lean."
     }
   ],
   "needs_you": [
