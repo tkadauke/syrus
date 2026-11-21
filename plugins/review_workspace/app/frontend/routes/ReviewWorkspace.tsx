@@ -18,7 +18,7 @@ import { fetchReviewWorkspace, type ReviewWorkspaceJob } from "../api/reviewWork
 const WORKSPACE_SCROLL_CLASS =
   "h-[calc(100dvh-4rem)] shrink-0 overflow-x-hidden overflow-y-scroll overscroll-contain [-webkit-overflow-scrolling:touch] lg:grid lg:h-auto lg:min-h-0 lg:flex-1 lg:grid-cols-[17rem_minmax(0,1fr)_20rem] lg:overflow-hidden"
 const MOBILE_ACTION_BAR_CLASS =
-  "mt-5 space-y-2 max-lg:fixed max-lg:inset-x-3 max-lg:bottom-[max(.75rem,env(safe-area-inset-bottom))] max-lg:z-20 max-lg:grid max-lg:grid-cols-3 max-lg:gap-2 max-lg:space-y-0 max-lg:rounded-xl max-lg:border max-lg:border-border max-lg:bg-surface/95 max-lg:p-2 max-lg:shadow-lg max-lg:backdrop-blur"
+  "mt-5 space-y-2 max-lg:fixed max-lg:inset-x-3 max-lg:bottom-[max(.75rem,env(safe-area-inset-bottom))] max-lg:z-20 max-lg:grid max-lg:grid-cols-4 max-lg:gap-2 max-lg:space-y-0 max-lg:rounded-xl max-lg:border max-lg:border-border max-lg:bg-surface/95 max-lg:p-2 max-lg:shadow-lg max-lg:backdrop-blur"
 const MOBILE_FEEDBACK_SHEET_CLASS =
   "mt-4 space-y-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:rounded-t-2xl max-lg:border max-lg:border-border max-lg:bg-surface max-lg:p-5 max-lg:pb-[max(1.25rem,env(safe-area-inset-bottom))] max-lg:shadow-xl"
 
@@ -643,6 +643,10 @@ function DecisionPanel({
         </section>
       </div>
       <div className={MOBILE_ACTION_BAR_CLASS}>
+        <Button aria-label={t("defer")} className="w-full" onClick={onDefer} variant="secondary">
+          <span className="max-lg:hidden">{t("defer")}</span>
+          <DeferToQueueEndIcon className="hidden size-5 max-lg:block" />
+        </Button>
         {confirming ? (
           <div className="col-span-3 rounded border border-brand/30 bg-brand-subtle p-3">
             <p className="text-sm font-medium">{t("approve_confirm", { slug: job.slug })}</p>
@@ -656,15 +660,13 @@ function DecisionPanel({
             </div>
           </div>
         ) : (
-          <Button className="w-full" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
-            {t(isDesktop ? "approve_shortcut" : "approve")}
+          <Button className="w-full max-lg:col-span-2" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
+            {t(isDesktop ? "approve_shortcut" : "approve_mobile")}
           </Button>
         )}
-        <Button className="w-full" onClick={() => setFeedbackOpen(true)} variant="secondary">
-          {t(isDesktop ? "feedback_shortcut" : "feedback")}
-        </Button>
-        <Button className="w-full" onClick={onDefer} variant="secondary">
-          {t("defer")}
+        <Button aria-label={t("feedback")} className="w-full" onClick={() => setFeedbackOpen(true)} variant="secondary">
+          <span className="max-lg:hidden">{t(isDesktop ? "feedback_shortcut" : "feedback")}</span>
+          <FeedbackIcon className="hidden size-5 max-lg:block" />
         </Button>
       </div>
       {feedbackOpen ? (
@@ -703,6 +705,24 @@ function DecisionPanel({
       ) : null}
       {isDesktop ? <p className="mt-5 text-xs text-text-secondary">{t("shortcuts")}</p> : null}
     </aside>
+  )
+}
+
+function DeferToQueueEndIcon({ className }: { className: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M5 7h9a5 5 0 0 1 5 5v1" />
+      <path d="m16 10 3 3 3-3" />
+      <path d="M5 12h6M5 17h10" />
+    </svg>
+  )
+}
+
+function FeedbackIcon({ className }: { className: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M20 15a3 3 0 0 1-3 3H9l-5 3v-6a3 3 0 0 1-1-2V7a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3Z" />
+    </svg>
   )
 }
 

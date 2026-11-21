@@ -24,6 +24,7 @@
   "checks_blocked": "Approbatio nunc praesto non est.",
   "findings": "Pericula et inventa recensionis",
   "approve": "Ad coniunctionem approbare",
+  "approve_mobile": "Approbare",
   "approve_shortcut": "Ad coniunctionem approbare (A)",
   "approve_confirm": "{{slug}} ad coniunctionem approbare?",
   "feedback_shortcut": "Responsum dare (F)",
