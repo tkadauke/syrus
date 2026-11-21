@@ -2245,6 +2245,50 @@ That is the NY13 question again, not a separate one.
 
 ---
 
+## M15. Purge removes only plugin-owned tables — audited, schema drift found
+
+DOC-44 plugin host: "Purge removes only resources declared as plugin-owned and
+preserves generic history and evidence."
+
+**The rule holds by construction.** `Syrus::PluginPurge#tables` keeps a table
+only when the plugin's own models or migrations declare it *and* its name
+carries the plugin's prefix (the namespace grader's rule). Shared tables are
+touched only through the plugin's `config/plugin_ownership.yml`
+`inline_fields`, which name exact columns and a row predicate. A Lean model
+would restate that definition, so the evidence is an audit of the bundled set
+(57 plugins, 60 purgeable tables, against the live development schema):
+
+- No two plugins' purge sets share a table.
+- Every live table with a plugin's prefix is in that plugin's purge set, apart
+  from the two orphans below. No purge set names a table nobody declares.
+- `scheduled_tasks`, `connected_accounts_*` and `github_source_issues` were
+  created by core migrations before their plugins were extracted. Their models
+  now live in the plugin, so the plugin owning them is right.
+- The ownership manifests' `tables:` lists agree with the computed purge sets.
+- Generic history survives: purge deletes no Job, Workflow, Run or evidence
+  row. The one shared-row predicate (Coworkers' `scheduled_tasks` rows with a
+  `coworker_id`) removes rows of a plugin-owned table.
+
+**Drift found.** `db/schema.rb` declares `operator_briefing_review_findings`
+and `operator_briefing_workflow_notable_changes`, and no migration creates
+them. The detector pipeline that used them was removed by *editing* the
+plugin's original migration, not by adding a drop migration. A later schema
+dump copied the tables back from a database that still had them. So:
+
+- `db:schema:load` builds both on every fresh install;
+- databases that ran the original migration keep them;
+- purging `operator_briefing` can never remove them.
+
+No code reads them and they carry no foreign keys, so they are inert.
+
+**Pinned.** `spec/architecture/schema_tables_have_migrations_spec.rb`: every
+`schema.rb` table is created by a core or plugin migration, through a rename
+or one of the Solid Queue, Cache and Cable engine schemas. The two orphans are
+listed as pending, and a second example fails once either is dropped or gains
+a migration. Whether to drop them is NY16.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine

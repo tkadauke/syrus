@@ -2564,6 +2564,19 @@
       ],
       "recommendation": "A. The containment boundary is about where agent-influenced code executes, and the checkout is agent-written. Under 'preferred' nothing changes, because an unavailable backend still falls back to the worker.",
       "decision": null
+    },
+    {
+      "id": "NY16",
+      "item": "plugin-purge-ownership",
+      "title": "Drop the two orphaned operator briefing tables?",
+      "context": "db/schema.rb declares operator_briefing_review_findings and operator_briefing_workflow_notable_changes, but no migration creates them and no code uses them. The removed detector pipeline wrote them, and its removal edited the original migration instead of adding a drop. A later schema dump copied them back. Fresh installs build them from schema.rb, databases that ran the original migration still hold their rows, and PluginPurge can never remove them. A drop migration deletes whatever rows production still has.",
+      "options": [
+        "A. Add an idempotent operator_briefing migration that drops both tables (drop_table ..., if_exists: true) and remove them from schema.rb and the spec's pending list.",
+        "B. Only remove them from schema.rb, so fresh installs stop creating them, and leave existing databases alone.",
+        "C. Keep as is."
+      ],
+      "recommendation": "A. The rows came from a pipeline that no longer exists and nothing reads them. B alone comes back the next time someone dumps the schema from a database that still has the tables, which is how they came back the first time.",
+      "decision": null
     }
   ]
 }
