@@ -241,6 +241,84 @@ RSpec.describe CredentialStore::Broker do
     )
   end
 
+  it "refuses raw wrappers for plugin-managed credential types even when explicitly allowed" do
+    credential = create_credential(
+      credential_type: "k8s_cluster.kubeconfig",
+      allowed_tools: [ "credential.exec" ]
+    )
+
+    expect {
+      described_class.with_credential_env(
+        context: context,
+        credential: credential.id,
+        type: credential.credential_type,
+        env_key: "CREDENTIAL",
+        purpose: "raw access",
+        tool_name: "credential.exec"
+      ) { |env, _metadata| env }
+    }.to raise_error(CredentialStore::Broker::Denied, /plugin-managed credential cannot use raw wrappers/)
+  end
+
+  it "refreshes a plugin-managed credential under a row lock and records a distinct audit action" do
+    credential = create_credential(credential_type: "k8s_cluster.kubeconfig", payload: "old-payload")
+    relation = instance_double(ActiveRecord::Relation)
+    allow(CredentialStore::Credential).to receive(:lock).and_return(relation)
+    allow(relation).to receive(:find).with(credential.id).and_return(credential)
+
+    refreshed = described_class.refresh_credential!(
+      credential: credential,
+      plugin_name: "k8s_cluster",
+      purpose: "renew provider session",
+      user: user,
+      metadata: { provider: "cluster" }
+    ) { |payload| "#{payload}-refreshed" }
+
+    expect(CredentialStore::Credential).to have_received(:lock)
+    expect(refreshed.reload.payload).to eq("old-payload-refreshed")
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
+      credential: credential,
+      user: user,
+      surface: "api",
+      action: "refresh",
+      purpose: "renew provider session",
+      result: "allowed"
+    )
+    expect(CredentialStore::CredentialAccessEvent.last.metadata).to include("provider" => "cluster", "payload_replaced" => true)
+  end
+
+  it "refuses to refresh an operator-revoked plugin-managed credential" do
+    revoked_at = Time.current
+    credential = create_credential(
+      credential_type: "k8s_cluster.kubeconfig",
+      payload: "old-payload",
+      revoked_at: revoked_at
+    )
+
+    expect {
+      described_class.refresh_credential!(
+        credential: credential,
+        plugin_name: "k8s_cluster",
+        purpose: "renew provider session"
+      ) { "new-payload" }
+    }.to raise_error(CredentialStore::Broker::Denied, /credential revoked/)
+
+    expect(credential.reload).to have_attributes(payload: "old-payload", revoked_at: be_within(1.second).of(revoked_at))
+    expect(credential.access_events.where(action: "refresh")).to be_empty
+  end
+
+  it "discovers plugin-declared typed consumers without allowing runtime mutation", :reset_plugin_registry do
+    Syrus::PluginRegistry.register(
+      name: "mail_plugin",
+      version: "1.0.0",
+      credential_types: [
+        { name: "mail_plugin.oauth", typed_consumer: { name: "mail_plugin.account_client", description: "Brokered account access." } }
+      ]
+    )
+
+    expect(CredentialStore::ConsumerRegistry.typed_for("mail_plugin.oauth").map(&:name)).to eq([ "mail_plugin.account_client" ])
+    expect(CredentialStore::ConsumerRegistry.consumers).to be_frozen
+  end
+
   it "denies revoked credentials" do
     credential = create_credential(revoked_at: Time.current)
 

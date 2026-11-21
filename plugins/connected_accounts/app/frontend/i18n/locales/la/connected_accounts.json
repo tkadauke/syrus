@@ -1,0 +1,38 @@
+{
+  "settings": {
+    "title": "Rationes conexae",
+    "description": "Praebitorem OAuth 2 generalem totius instantiae configura. Ambitus, ambitus solos legendi, et origines API commatibus separa.",
+    "authorize_url": "URL auctoritatis",
+    "token_url": "URL tesserae",
+    "revoke_url": "URL revocationis",
+    "identity_url": "URL identitatis",
+    "validate_url": "URL probationis",
+    "client_id": "ID clientis",
+    "client_secret": "Secretum clientis",
+    "scope_catalog": "Catalogus ambituum",
+    "read_only_scopes": "Ambitus soli legendi",
+    "api_origins": "Origines API",
+    "save": "Configurationem serva",
+    "saved": "Configuratio praebitoris servata est.",
+    "save_failed": "Configuratio praebitoris servari non potuit.",
+    "allow_as_owner": "Actiones rationis coniunctae nomine domini agere permitte"
+  },
+  "nav_accounts": "Rationes coniunctae",
+  "accounts": {
+    "title": "Rationes coniunctae",
+    "description": "Rationes externas coniunge et administra quas Syrus permissu tuo adhibere potest.",
+    "loading": "Rationes coniunctae onerantur…",
+    "empty": "Nullas rationes coniunctas adhuc habes.",
+    "connect": "Rationem coniunge",
+    "connect_provider": "{{provider}} coniunge",
+    "status": "Status: {{status}}",
+    "statuses": { "connected": "Coniuncta", "needs_reauth": "Auctoritas renovanda", "revoked": "Disiuncta", "error": "Error" },
+    "scopes": "Ambitus concessi: {{scopes}}",
+    "none": "Nulli",
+    "last_used": "Ultime adhibita: {{value}}",
+    "never": "Numquam",
+    "read_only": "Hanc rationem ad ambitus solos legendos restringe",
+    "reauthorize": "Iterum auctoriza",
+    "disconnect": "Disiunge"
+  }
+}

@@ -747,6 +747,62 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   describe ".credential_types" do
+    it "registers a typed consumer owned by the declaring credential type" do
+      described_class.register(
+        name: "mail_plugin",
+        version: "1.0.0",
+        credential_types: [
+          {
+            name: "mail_plugin.oauth",
+            typed_consumer: { name: "mail_plugin.account_client", description: "Brokered mail access." }
+          }
+        ]
+      )
+
+      expect(described_class.credential_types.first.fetch("typed_consumer")).to eq(
+        "name" => "mail_plugin.account_client",
+        "description" => "Brokered mail access."
+      )
+    end
+
+    it "rejects invalid and duplicate typed credential consumers at registration" do
+      expect {
+        described_class.register(
+          name: "invalid_consumer",
+          version: "1.0.0",
+          credential_types: [ { name: "invalid_consumer.oauth", typed_consumer: { name: "Invalid consumer", description: "Bad." } } ]
+        )
+      }.to raise_error(Syrus::PluginRegistry::RegistrationError, /consumer name.*invalid/i)
+
+      described_class.register(
+        name: "first_consumer",
+        version: "1.0.0",
+        credential_types: [ { name: "first_consumer.oauth", typed_consumer: { name: "accounts.access", description: "First." } } ]
+      )
+      expect {
+        described_class.register(
+          name: "second_consumer",
+          version: "1.0.0",
+          credential_types: [ { name: "second_consumer.oauth", typed_consumer: { name: "accounts.access", description: "Second." } } ]
+        )
+      }.to raise_error(Syrus::PluginRegistry::RegistrationError, /typed consumer.*already declared/)
+    end
+
+    it "rejects typed credential consumers that collide with raw wrappers" do
+      expect {
+        described_class.register(
+          name: "wrapper_collision",
+          version: "1.0.0",
+          credential_types: [
+            {
+              name: "wrapper_collision.oauth",
+              typed_consumer: { name: "credential.exec", description: "Unsafe collision." }
+            }
+          ]
+        )
+      }.to raise_error(Syrus::PluginRegistry::RegistrationError, /credential\.exec.*reserved by credential_store/)
+    end
+
     it "returns credential type declarations from enabled healthy plugins" do
       described_class.register(
         name: "credential_plugin",

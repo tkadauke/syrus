@@ -402,6 +402,20 @@ module Syrus
         @mutex.synchronize { @plugins.dup }.flat_map(&:hosted_extension_points).to_set
       end
 
+      # Plugin-hosted extension points own their contracts. They use this seam
+      # to reject malformed contributions without preventing Syrus from
+      # booting; the contributor becomes degraded in the ordinary health UI.
+      def add_validation_error(plugin_name, message)
+        @mutex.synchronize do
+          index = @plugins.index { |manifest| manifest.name == plugin_name.to_s }
+          return if index.nil?
+
+          manifest = @plugins[index]
+          errors = (manifest.validation_errors + [ message.to_s ]).uniq
+          @plugins[index] = manifest.with(validation_errors: errors)
+        end
+      end
+
       def registered_events
         @mutex.synchronize { @plugins.dup }.each_with_object({}) do |manifest, registered|
           registered.merge!(manifest.events)
@@ -516,6 +530,11 @@ module Syrus
 
       def credential_type_names
         credential_types.map { |entry| entry.fetch("name") }
+      end
+
+      def credential_type_owner(name)
+        plugins = @mutex.synchronize { @plugins.dup }
+        plugins.find { |manifest| manifest.credential_types.any? { |entry| entry.fetch("name") == name.to_s } }&.name
       end
 
       def credential_type_name_pattern
@@ -1001,6 +1020,7 @@ module Syrus
         ssh_private_key
         token
       ].freeze
+      RESERVED_CREDENTIAL_CONSUMER_NAMES = %w[credential.exec credential.ssh-agent].freeze
       CREDENTIAL_TYPE_NAME_PATTERN = /\A[a-z0-9_]+(?:\.[a-z0-9_]+)*\z/
 
       def normalize_credential_types!(plugin_name:, credential_types:, credential_type_names:)
@@ -1029,18 +1049,37 @@ module Syrus
               "Credential type name #{name.inspect} must be namespaced with the declaring plugin name #{plugin_name.inspect}"
           end
 
-          {
+          normalized = {
             "name" => name,
             "label" => attrs["label"].presence,
             "description" => attrs["description"].presence
           }.compact
+          normalized["typed_consumer"] = normalize_typed_credential_consumer!(attrs["typed_consumer"]) if attrs["typed_consumer"].present?
+          normalized
         end.tap do |normalized|
           duplicates = normalized.map { |entry| entry.fetch("name") }.tally.select { |_name, count| count > 1 }.keys
           if duplicates.any?
             raise RegistrationError,
               "Plugin #{plugin_name.inspect} declares duplicate credential type name(s): #{duplicates.inspect}"
           end
+          consumer_duplicates = normalized.filter_map { |entry| entry.dig("typed_consumer", "name") }.tally.select { |_name, count| count > 1 }.keys
+          if consumer_duplicates.any?
+            raise RegistrationError,
+              "Plugin #{plugin_name.inspect} declares duplicate typed credential consumer name(s): #{consumer_duplicates.inspect}"
+          end
         end
+      end
+
+      def normalize_typed_credential_consumer!(declaration)
+        attrs = declaration.respond_to?(:to_h) ? declaration.to_h.stringify_keys : {}
+        name = attrs["name"].to_s
+        description = attrs["description"].to_s
+        unless name.match?(/\A[a-z][a-z0-9_.:-]*\z/)
+          raise RegistrationError, "Typed credential consumer name #{name.inspect} is invalid"
+        end
+        raise RegistrationError, "Typed credential consumer #{name.inspect} requires a description" if description.blank?
+
+        { "name" => name, "description" => description }
       end
 
       def credential_type_entry_list(entries)
@@ -1061,11 +1100,25 @@ module Syrus
           manifest.credential_types.each { |entry| names[entry.fetch("name")] = manifest.name }
         end
         collisions = credential_types.map { |entry| entry.fetch("name") } & existing.keys
-        return if collisions.empty?
+        existing_consumers = @plugins.each_with_object({}) do |manifest, names|
+          manifest.credential_types.each do |entry|
+            consumer_name = entry.dig("typed_consumer", "name")
+            names[consumer_name] = manifest.name if consumer_name
+          end
+        end
+        consumer_collisions = credential_types.filter_map { |entry| entry.dig("typed_consumer", "name") } & existing_consumers.keys
+        reserved_consumer_collisions = credential_types.filter_map { |entry| entry.dig("typed_consumer", "name") } & RESERVED_CREDENTIAL_CONSUMER_NAMES
+        return if collisions.empty? && consumer_collisions.empty? && reserved_consumer_collisions.empty?
 
         details = collisions.map do |credential_type_name|
           "#{credential_type_name.inspect} already declared by #{existing[credential_type_name].inspect}"
         end
+        details.concat(consumer_collisions.map do |consumer_name|
+          "typed consumer #{consumer_name.inspect} already declared by #{existing_consumers[consumer_name].inspect}"
+        end)
+        details.concat(reserved_consumer_collisions.map do |consumer_name|
+          "typed consumer #{consumer_name.inspect} is reserved by credential_store"
+        end)
         raise RegistrationError,
           "Plugin #{plugin_name.inspect} declares duplicate credential type name(s): #{details.join(', ')}"
       end

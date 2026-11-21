@@ -45,6 +45,8 @@ for operator automation should declare the `/api/v1/admin/*` prefix; a plugin
 route intended only for the in-app admin UI should declare the
 `/api/v1/app/admin/*` prefix. Static form metadata such as the MySQL browser's
 credential-scope options is a UI-shaped app-admin endpoint, not an operator API.
+Connected-account provider configuration follows the same pattern: its read and
+update endpoints exist only to drive the plugin's in-app administrator form.
 
 The development-only permission factory-reset preview and confirmation routes
 are intentionally app-admin-only. They drive the Syrus Dev Permission Model

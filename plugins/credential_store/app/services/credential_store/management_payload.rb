@@ -25,6 +25,7 @@ module CredentialStore
         target_constraints: credential.target_constraints || {},
         allowed_surfaces: credential.allowed_surfaces || [],
         allowed_tools: credential.allowed_tools || [],
+        plugin_managed: ConsumerRegistry.plugin_managed_type?(credential.credential_type),
         effective_typed_consumers: ConsumerRegistry.typed_for(credential.credential_type).map(&:name),
         explicit_wrapper_grants: explicit_wrapper_grants(credential),
         expires_at: credential.expires_at&.iso8601,
@@ -71,7 +72,7 @@ module CredentialStore
     end
 
     def credential_wrappers
-      ConsumerRegistry::CONSUMERS.values.filter_map do |consumer|
+      ConsumerRegistry.consumers.values.filter_map do |consumer|
         next unless consumer.kind == :raw_wrapper
 
         {

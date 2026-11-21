@@ -55,6 +55,7 @@ module Api
 
           def create
             attrs = credential_attrs
+            return if reject_managed_allowed_tools!(attrs)
             unless authorization.can_manage_scope?(attrs[:scope_type], attrs[:scope_id])
               render_error("forbidden", "You cannot manage credentials for that scope.", status: :forbidden)
               return
@@ -78,6 +79,7 @@ module Api
             return unless authorize_credential!(credential)
 
             attrs = credential_attrs(require_payload: false)
+            return if reject_managed_allowed_tools!(attrs, credential: credential)
             unless authorization.can_manage_scope?(attrs[:scope_type], attrs[:scope_id])
               render_error("forbidden", "You cannot move credentials into that scope.", status: :forbidden)
               return
@@ -223,6 +225,32 @@ module Api
             raw[:scope_id] = nil if raw[:scope_type].to_s == "instance" || raw[:scope_id].blank?
             raw.delete(:payload) if !require_payload && raw[:payload].blank?
             raw
+          end
+
+          def reject_managed_allowed_tools!(attrs, credential: nil)
+            credential_type = attrs[:credential_type].presence || credential&.credential_type
+            if credential && ::CredentialStore::ConsumerRegistry.plugin_managed_type?(credential.credential_type) && credential_type != credential.credential_type
+              render_error(
+                "managed_credential_type",
+                I18n.t("credential_store.api.managed_credential_type"),
+                status: :unprocessable_content
+              )
+              return true
+            end
+            return false unless ::CredentialStore::ConsumerRegistry.plugin_managed_type?(credential_type)
+            requested = Array(attrs[:allowed_tools]).map(&:to_s)
+            return false if credential.nil? && requested.empty?
+            return false if credential && !attrs.key?(:allowed_tools)
+
+            existing = Array(credential&.allowed_tools).map(&:to_s)
+            return false if credential && credential_type == credential.credential_type && requested == existing
+
+            render_error(
+              "managed_credential_allowed_tools",
+              I18n.t("credential_store.api.managed_credential_allowed_tools"),
+              status: :unprocessable_content
+            )
+            true
           end
 
           def audit_snapshot(credential)

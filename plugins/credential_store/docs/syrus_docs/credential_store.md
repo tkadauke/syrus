@@ -42,8 +42,21 @@ Credential types are strings. The store offers default types including
 `ssh_private_key`, `token`, `json`, `env`, and `file_blob`, legacy
 `credential_store.*` aliases, and type names declared by enabled plugins, such
 as Kubernetes credential types from `k8s_cluster` when that plugin is enabled.
-Plugins declare type names and safe descriptions only; they do not provide
-payload forms, parsers, storage handlers, or authorization rules.
+Plugins declare type names and safe descriptions. A declaration may also name
+one typed consumer for that plugin-owned type; consumer names are validated for
+uniqueness when plugins load. Typed consumers are inferred from the credential
+type and do not use the legacy `allowed_tools` list.
+
+Credentials whose types belong to another plugin are managed credentials. The
+generic management API and page cannot change their `allowed_tools`, and the
+raw `credential.exec` and `credential.ssh-agent` wrappers refuse them even if
+an old record contains an explicit wrapper grant. Only the owning plugin's
+typed consumer may materialize them through the broker, so plugin-managed
+credentials are never exposed to a shell.
+
+When a plugin is purged, Credential Store removes credentials in that plugin's
+enforced type namespace and their access-audit rows. This cleanup remains
+available after the owning plugin has been uninstalled.
 
 The plugin also owns append-only `CredentialStore::CredentialAccessEvent`
 rows. Access events record which credential was used or denied, the actor and
@@ -91,6 +104,17 @@ tool name, expected credential type, target constraints, revocation, and
 expiry. A successful call issues a short-lived local lease, materializes the
 payload only inside the block as either a restrictive temporary file or a
 per-call env hash, and cleans that local material in `ensure`.
+
+An owning plugin can refresh its credential atomically with
+`CredentialStore::Broker.refresh_credential!`. The broker locks the database
+row, yields the current payload to the plugin, writes the replacement, updates
+the rotation timestamp, and records a separate `refresh` audit action. An
+operator-revoked credential cannot be refreshed. Human rotation through the
+management page remains the existing `rotate` action and explicitly un-revokes
+the credential.
+The safe-metadata key `refreshable` remains display metadata only; refresh
+authority comes from ownership of the plugin-declared credential type, not
+from an operator-editable metadata flag.
 
 Name lookup considers active credentials only and resolves scopes in user,
 repository, team, then instance order. Names must be unique among active

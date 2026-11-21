@@ -41,6 +41,21 @@ RSpec.describe Permissions::ResourceScopeSchema do
     expect(result.value).to eq(id: 1, name: "Visible")
   end
 
+  it "resolves user-scoped authoring options without changing the descriptor contract" do
+    authoring = described_class.new(
+      type: :account,
+      options: { fields: [ { name: "account_id", type: "integer" } ] },
+      authoring: ->(context:) do
+        { fields: [ { name: "account_id", type: "select",
+          choices: context.visible_ids.map { |id| { value: id.to_s, label: "Account #{id}" } } } ] }
+      end
+    )
+
+    expect(authoring.to_h.dig(:options, :fields).sole).to include(type: "integer")
+    expect(authoring.authoring_options(context: context).dig("fields").sole.fetch("choices"))
+      .to eq([ { "label" => "Account 1", "value" => "1" } ])
+  end
+
   it "canonically normalizes JSON scope values before validation" do
     result = schema.normalize({ paths: [ "z", "a", "z" ], repository_id: "1" }, context: context)
 

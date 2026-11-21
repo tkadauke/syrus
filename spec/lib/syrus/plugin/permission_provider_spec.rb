@@ -138,6 +138,11 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
       .to raise_error(KeyError)
   end
 
+  it "validates authoring callbacks when registering resource schemas" do
+    expect { provider.register_resource_scope(:invalid_authoring, authoring: Object.new) }
+      .to raise_error(ArgumentError, /authoring/)
+  end
+
   it "registers scope migrations and validates upgrades through the public provider API" do
     migration = provider.migrate_permission_scope(
       from_operation: "legacy.records/read@v1",

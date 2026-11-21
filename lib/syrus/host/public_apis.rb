@@ -5,6 +5,7 @@ require "syrus/host/chat_titles"
   cli_command_handler
 ].each { |name| require "syrus/plugin/#{name}" }
 require "syrus/host/admin_page"
+require "syrus/plugin_invocation"
 
 module Syrus
   module Host
@@ -30,7 +31,8 @@ module Syrus
         OperationalLogging: "OperationalLogging",
         PerformanceLogging: "PerformanceLogging",
         Metrics: "Syrus::Metrics",
-        PluginRegistry: "Syrus::PluginRegistry"
+        PluginRegistry: "Syrus::PluginRegistry",
+        PluginInvocation: "Syrus::PluginInvocation"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -54,7 +56,8 @@ module Syrus
         OperationalLogging: [ "Emits structured plugin diagnostic events; subscribers and storage are not promised.", %w[ingest] ],
         PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase] ],
         Metrics: [ "Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised.", %w[counter gauge histogram] ],
-        PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register providers_for extension_point?] ]
+        PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register providers_for extension_point?] ],
+        PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

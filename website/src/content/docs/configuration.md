@@ -819,6 +819,21 @@ Per-user credentials use Active Record Encryption:
 - `codex_auth_json`
 - `api_token`
 
+The experimental Connected Accounts plugin can connect a user-owned hosted
+account through an OAuth 2 authorization-code flow with PKCE. Administrators
+configure the generic provider's HTTPS authorization, token, identity,
+validation, and revocation endpoints, client credentials, offered scopes, and
+the explicit subset allowed for read-only connections, and allowed API origins
+under **Admin > Connected accounts**. Syrus refreshes
+expiring access tokens and probes account health in the background. Disconnect
+attempts provider revocation and always revokes the local stored credential;
+token material is kept out of logs, audit metadata, and agent transcripts.
+Users connect, inspect, restrict to read-only, reauthorize, and disconnect their
+own accounts under **Settings > Connected accounts**. Acting as an account owner
+is a separate administrator opt-in and defaults off. Coworker access also
+requires the default-off **Coworker connected accounts** feature after the
+listed coworker isolation and permission prerequisites are satisfied.
+
 Generic plugin-managed credentials live in the bundled `credential_store`
 plugin, which stores payloads as encrypted blobs and keeps only safe display
 metadata outside the encrypted payload. The plugin also exposes brokered MCP
@@ -830,8 +845,14 @@ tool name. This does not grant command authority: unified permissions still
 evaluate the operation and exact invocation, while raw-materialization wrappers
 remain explicit grants under **Allowed credential wrappers**. Management and
 discovery payloads report inferred typed consumers separately from those raw
-wrapper grants. The SSH editor guides operators through private-key entry,
-destination allowlists, and explicit host-key enrollment. A discovered key is
+wrapper grants. Credential types owned by another plugin are protected from
+those raw wrappers, and their wrapper grants cannot be changed in the generic
+Credential Store UI or API; the owning plugin instead uses its validated typed
+consumer. Plugin refreshes take a database row lock and produce a distinct
+refresh audit event; operator-revoked credentials cannot be refreshed. They do
+not change the human rotation action, which explicitly un-revokes. The SSH editor
+guides operators through private-key entry, destination allowlists, and explicit
+host-key enrollment. A discovered key is
 not proof of server identity: verify its SHA-256 fingerprint through a trusted
 channel before confirming it. SSH execution requires that confirmed entry,
 uses a temporary `0600` known-hosts file with strict checking, and never relies

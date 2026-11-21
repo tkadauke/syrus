@@ -291,11 +291,17 @@ module Admin
         Array(providers).map do |provider|
           {
             extension_point: extension_point.to_s,
-            class_name: provider.name || provider.to_s,
+            class_name: provider_class_name(provider),
             availability: availability_for(extension_point, provider)
           }
         end
       end
+    end
+
+    def provider_class_name(provider)
+      return provider.name || provider.to_s if provider.respond_to?(:name)
+
+      provider.to_h.with_indifferent_access[:provider].presence || provider.to_s
     end
 
     def availability_for(extension_point, provider)

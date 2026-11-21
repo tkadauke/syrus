@@ -38,4 +38,13 @@ RSpec.describe "Credential Store frontend locales", type: :unit do
       end
     end
   end
+
+  it "provides matching server API translations" do
+    %i[en de la].each do |name|
+      I18n.with_locale(name) do
+        expect(I18n.t("credential_store.api.managed_credential_allowed_tools")).not_to match(/translation missing/i)
+        expect(I18n.t("credential_store.api.managed_credential_type")).not_to match(/translation missing/i)
+      end
+    end
+  end
 end

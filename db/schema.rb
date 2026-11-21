@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_224806) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_001246) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -1098,6 +1098,57 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_224806) do
     t.index ["run_id", "sequence"], name: "index_command_spans_on_run_id_and_sequence", unique: true
     t.index ["spawned_process_id"], name: "index_command_spans_on_spawned_process_id"
     t.index ["workflow_id", "step_id"], name: "index_command_spans_on_workflow_id_and_step_id"
+  end
+
+  create_table "connected_accounts_accounts", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "display_label", null: false
+    t.json "granted_scopes", null: false
+    t.string "status", null: false
+    t.boolean "read_only", null: false
+    t.json "scope_ceiling"
+    t.json "acting_modes", null: false
+    t.integer "owner_user_id", null: false
+    t.integer "credential_store_credential_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["credential_store_credential_id"], name: "idx_on_credential_store_credential_id_7b6d26bf18"
+    t.index ["owner_user_id", "provider"], name: "idx_connected_accounts_owner_provider"
+    t.index ["owner_user_id"], name: "index_connected_accounts_accounts_on_owner_user_id"
+  end
+
+  create_table "connected_accounts_oauth_states", force: :cascade do |t|
+    t.string "digest", null: false
+    t.string "session_digest", null: false
+    t.text "code_verifier", null: false
+    t.json "requested_scopes", null: false
+    t.boolean "read_only", null: false
+    t.string "provider", null: false
+    t.integer "user_id", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "used_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["digest"], name: "idx_connected_accounts_oauth_state_digest", unique: true
+    t.index ["user_id"], name: "index_connected_accounts_oauth_states_on_user_id"
+  end
+
+  create_table "connected_accounts_provider_configs", force: :cascade do |t|
+    t.string "provider_key", null: false
+    t.string "authorize_url", null: false
+    t.string "token_url", null: false
+    t.string "revoke_url"
+    t.string "identity_url", null: false
+    t.string "validate_url"
+    t.string "client_id", null: false
+    t.text "client_secret", null: false
+    t.json "scope_catalog", null: false
+    t.json "read_only_scopes", null: false
+    t.json "api_origins", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "allow_as_owner", default: false, null: false
+    t.index ["provider_key"], name: "idx_connected_accounts_provider_key", unique: true
   end
 
   create_table "coverage_snapshots", force: :cascade do |t|

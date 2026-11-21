@@ -274,6 +274,16 @@ Supported members:
 - `syrus_plugin`
 - `syrus_plugin_definition`
 
+### `Syrus::Host::PluginInvocation`
+
+Since: `0.1.16`
+
+Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
+
 ### `Syrus::Host::PluginRegistry`
 
 Since: `0.1.16`

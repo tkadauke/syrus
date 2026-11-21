@@ -1,0 +1,25 @@
+la:
+  connected_accounts:
+    plugin:
+      display_name: "Rationes conexae"
+      description: "Accessum ad rationes externas usoris conciliat sine secretis diuturnis patefactis."
+      long_description: "Rationes conexae metadata tuta possidet atque accessum OAuth brevem et auctoratum per receptaculum credentialium conciliat."
+    oauth:
+      connected: "Ratio coniuncta est."
+      denied: "Praebitor accessum recusavit."
+      invalid_state: "Petitio coniunctionis exspiravit aut iam adhibita est."
+      invalid_request: "Petitio coniunctionis invalida est."
+      failed: "Praebitor rationem coniungere non potuit."
+    settings:
+      saved: "Configuratio praebitoris servata est."
+      read_only_scopes_not_in_catalog: "etiam in catalogo ambituum contineri debent"
+    errors:
+      array_of_strings: "series textuum esse debet"
+      scope_ceiling_subset: "pars ambituum concessorum esse debet"
+      unsupported_modes: "modos non sustentatos continet: %{modes}"
+      oauth_material: "materiam OAuth rationis conexae continere debet"
+      same_owner: "eundem dominum habere debet"
+      broker_pinned: "conciliatori rationum conexarum alligari debet"
+      origins_pinned: "originibus API praebitoris alligari debet"
+      https_urls: "URL praebitoris HTTPS uti debent"
+      invalid_url: "URL praebitoris invalidum est"
