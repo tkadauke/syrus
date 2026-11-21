@@ -2512,6 +2512,19 @@
       ],
       "recommendation": "B. A transport outage is one event, and the job-wide count already exists (budget_scope_for); worker_died keeps its higher per-Step limit, where independence is real.",
       "decision": "A (2026-11-21): keep the per-Step in-place budget. Infrastructure failures should fail work as rarely as possible while runaway loops stay bounded; each Step's budget is bounded (step_bound) and in-place attempts still count against the job-wide reconciler budget."
+    },
+    {
+      "id": "NY12",
+      "item": "plugin-capabilities-pass-evaluator",
+      "title": "Should a plugin tool be able to declare approval_effect for itself?",
+      "context": "A tool marked approval_effect skips the generic 'ask' approval because its only mutation is creating the owner's real confirmation card (documented in the Coworkers docs); policy is still evaluated and a deny still refuses it. For core tools the flag is set in McpToolRegistry, or derived when the tool is a registered pending action. A plugin's tool-set definition can also set approval_effect: true (Mcp::CoworkerToolCatalog), and nothing checks that such a tool really creates a confirmation card, so a plugin tool could declare it and run on 'ask' with no confirmation. Today only the Coworkers plugin's own spawn-chat tools use it, and they do create cards. DOC-44: 'Plugin-contributed capabilities cannot bypass the evaluator.'",
+      "options": [
+        "A. Honour approval_effect only for core-registered tools and tools that are registered pending actions; a plugin definition's flag is ignored unless the plugin registers the pending action it creates.",
+        "B. Keep honouring plugin declarations, and add a contract spec that every tool declaring approval_effect returns a pending action when invoked.",
+        "C. Keep as is: plugins are trusted code reviewed like core."
+      ],
+      "recommendation": "A. It makes the exemption derived rather than declared, the same way pending-action tools already are, and costs nothing for today's tools (the spawn-chat tools can register their pending actions).",
+      "decision": null
     }
   ]
 }

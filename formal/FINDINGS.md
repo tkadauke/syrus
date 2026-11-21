@@ -1928,6 +1928,32 @@ number, merge-train membership and position.
 
 ---
 
+## M9. An "ask" decision never becomes implicit approval — proved, one question (NY12)
+
+DOC-44 Phase 4. `AskNeverApproves.lean` models the policy combination and the
+three MCP gate paths (`Mcp::Tools::AuthorizationSupport.authorization_gate`):
+
+- `Permissions::PolicyEvaluator`: a matching deny in any layer is decisive
+  (`any_deny_wins`). Matching and scope-normalization failures fail closed,
+  over-broad allows are inert, and non-delegable rules cap the result.
+- Scheduled runs (`ScheduledAuthorization`): on `ask`, every routing outcome
+  (created, reused, denial cooldown, request cap) returns a response instead of
+  running the tool.
+- Chats (`AuthorizationRequest`): `ask` always yields a request, either an
+  equivalent existing one or a new one, so the gate's "no request means
+  authorized" branch is reached only on `allow`.
+- Tools whose effect is the owner's confirmation card (`approval_effect`, or a
+  tool registered as a pending action): `deny` raises, and `ask` runs the tool,
+  because what it does is create that card.
+
+Proved: a deny never runs a tool (`deny_never_runs`), and `ask` runs one only
+when its effect is a confirmation card (`ask_runs_only_confirmation_tools`).
+`authorization_support_spec.rb` already pins each path. No bug found. The trust
+boundary: `approval_effect` is a declaration, and a plugin tool definition can
+make it (NY12).
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
