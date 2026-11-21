@@ -505,6 +505,7 @@ module Api
 
           job.update!(
             landing_blocker_override_key: blocker_key,
+            landing_blocker_override_params: LandingBlockerOverride.params_for(job.landing_queue_blocked_reason),
             landing_blocker_override_reason: params[:reason].presence || "Operator chose to land through #{blocker_key}.",
             landing_blocker_override_requested_at: Time.current,
             landing_blocker_override_requested_by_user_id: Current.user.id,

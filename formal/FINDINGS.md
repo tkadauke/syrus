@@ -1616,6 +1616,34 @@ when the blocked workflow is a CI repair" (refused before);
 
 ---
 
+## F54. A one-shot landing override bypassed a different blocker of the same kind — fixed
+
+**Found by** DOC-44 Phase 3, landing overrides (`LandingOverride.lean`).
+
+**Property.** An override bypasses only the blocker instance it was granted for
+(`after_only_granted`), never a non-overridable blocker, and nothing once used
+(`after_respects_gates`).
+
+**Gap.** `LandingQueueProcessor#landing_blocker_override_matches?` compared the
+blocker key only. An override stays until it actually unblocks a landing, so one
+granted for this Job's CI repair, these inherited failing checks, or that urgent
+Job, and never needed, later bypassed a different blocker under the same key
+(`stale_override_bypasses`). DOC-44: "Stale overrides cannot bypass a changed
+blocker".
+
+**Fix.** Granting an override (app API and the `override_landing_blocker_once`
+pending action) records the current blocker's parameters
+(`jobs.landing_blocker_override_params`), and the queue matches key and
+parameters. The fix only narrows (`after_narrows`). An unused override granted
+before this change has no recorded parameters, so it matches only a
+parameterless blocker; for anything else the operator grants it again.
+
+**Spec.** `landing_queue_processor_spec.rb` "override binding" (the
+other-instance case was bypassed before); the app API grant spec asserts the
+recorded parameters.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

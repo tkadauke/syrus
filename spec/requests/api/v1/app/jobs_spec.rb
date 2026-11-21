@@ -228,6 +228,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(job.reload.landing_blocker_override_key).to eq("pr_checks_failing_inherited")
+    # Bound to the checks the operator reviewed, not every inherited failure.
+    expect(job.landing_blocker_override_params).to eq("slug" => job.slug, "checks" => "rails-test")
     expect(job.landing_blocker_override_reason).to eq("Reviewed base failure.")
     expect(job.landing_blocker_override_requested_by_user_id).to eq(user.id)
     expect(parse_body.dig("actions", "can_override_inherited_pr_checks")).to eq(false)

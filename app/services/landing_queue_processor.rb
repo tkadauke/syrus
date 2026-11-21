@@ -1025,12 +1025,17 @@ class LandingQueueProcessor
     audit(job, "landing_queue: one-shot override consumed for blocker #{job.landing_blocker_override_key}; reason=#{job.landing_blocker_override_reason}")
   end
 
+  # An override is one operator decision about one blocker instance: its key
+  # and its parameters (which Job's CI repair, which checks, which parent). A
+  # different instance under the same key needs its own decision
+  # (formal/SyrusModel/LandingOverride.lean).
   def landing_blocker_override_matches?(job, reason)
     key = reason[:key].to_s
     return false if key.in?(LandingBlockerOverride::NON_OVERRIDABLE_KEYS)
     return false if job.landing_blocker_override_used_at.present?
+    return false unless job.landing_blocker_override_key.to_s == key
 
-    job.landing_blocker_override_key.to_s == key
+    LandingBlockerOverride.params_for(reason) == LandingBlockerOverride.normalize_params(job.landing_blocker_override_params)
   end
 
   def blocked(reason, waiting_for = nil, waiting_for_jobs: [])
