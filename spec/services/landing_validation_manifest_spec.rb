@@ -80,6 +80,53 @@ RSpec.describe LandingValidationManifest, :real_landing_validation_gate do
     end
   end
 
+  # Conformance with formal/SyrusModel/ValidationGate.lean: for every target
+  # shape and both bindings, Ruby accepts exactly when the model's `verify`
+  # does (manifest head and snapshot are the landing SHA here, so only the
+  # per-target rule decides). The model's theorems -- no advisory-only pass,
+  # required results passed with fingerprints, exact-head results from this
+  # SHA -- therefore describe this code.
+  describe ".verify against the Lean model" do
+    outcomes = [
+      GraderOutcome::PASSED, GraderOutcome::TEST_FAILED, GraderOutcome::INCONCLUSIVE,
+      GraderOutcome::INFRASTRUCTURE_FAILED, GraderOutcome::CANCELLED, nil
+    ]
+    source_shas = { "this SHA" => :landing, "another SHA" => :other, "no snapshot" => nil }
+    bindings = { "exact_head" => nil, "clean_rebase_carry_forward" => "clean_rebase_carry_forward" }
+
+    def model_target_ok(outcome, source, evidence, binding)
+      return false unless outcome == GraderOutcome::PASSED
+
+      sha_ok = binding.nil? && source == :other ? false : true
+      sha_ok && evidence
+    end
+
+    it "accepts exactly the target shapes the model accepts" do
+      disagreements = []
+      bindings.each do |binding_name, binding|
+        outcomes.each do |outcome|
+          source_shas.each do |source_name, source|
+            [ true, false ].each do |evidence|
+              [ true, false ].each do |required|
+                source_sha = { landing: sha, other: "c" * 40 }[source]
+                shape = target("rspec", outcome: outcome, required: required, evidence: evidence, source_sha: source_sha)
+                targets = required ? [ shape ] : [ shape, target("lint") ]
+                expected = required ? model_target_ok(outcome, source, evidence, binding) : true
+                verdict = described_class.verify(manifest(targets: targets).merge("binding" => binding).compact, expected_sha: sha)
+                next if verdict.ok? == expected
+
+                disagreements << "#{binding_name}/#{outcome.inspect}/#{source_name}/evidence=#{evidence}/required=#{required}: " \
+                                 "ruby=#{verdict.ok?} (#{verdict.blockers.map(&:code).join(", ")}) model=#{expected}"
+              end
+            end
+          end
+        end
+      end
+
+      expect(disagreements).to be_empty, disagreements.join("\n")
+    end
+  end
+
   describe ".evidence_for (merge-train integration SHAs and rebases)" do
     it "finds the manifest recorded for the exact integration SHA" do
       store(manifest, trigger_kind: "merge_train")

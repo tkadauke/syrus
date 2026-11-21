@@ -1523,6 +1523,34 @@ found. Unmodelled: Step insertion (review re-materialization, grader fan-out),
 
 ---
 
+## M3. The landing validation gate — proved, no bug
+
+`ValidationGate.lean` mirrors `LandingValidationManifest.verify` and
+`.evidence_for`, the gate `AutoMerge` and `MergeTrainLand` consult before
+merging. For every manifest it proves:
+
+- a manifest without a required result never passes (`ok_has_required`), so
+  advisory evidence cannot replace required evidence;
+- every required result passed with command and environment fingerprints
+  (`ok_required_passed`), so infrastructure failure, inconclusive, cancelled
+  or missing results never pass (`infra_never_passes`);
+- under exact-head binding, the manifest, its snapshot and every snapshotted
+  required result are for the landing SHA (`ok_exact_current`);
+- only a manifest recorded for the landing SHA is consulted
+  (`evidenceFor_ok_current`), never one for another SHA with the same tree.
+
+`landing_validation_manifest_spec.rb` "accepts exactly the target shapes the
+model accepts" checks Ruby against the model's per-target rule over every
+outcome, source SHA, fingerprint, requiredness and binding (144 shapes).
+
+Trust boundary (`reused_not_sha_checked`): carried-forward and target-health
+results have no source SHA, so the gate accepts them on fingerprints alone.
+Their applicability is decided upstream by `Steps::GraderFanout`, which reuses a
+result only when the target's fingerprints or health record still match. That
+reuse decision is the next thing to model.
+
+---
+
 ## Open questions for review
 
 - **Q1 — resolved as F7** (fail and hold instead of parking).
