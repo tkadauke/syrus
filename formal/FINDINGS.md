@@ -3354,6 +3354,99 @@ Also run and green:
 
 ---
 
+## F93. The plugin capability lookup treated every installed plugin as enabled when enablement could not be read — fixed
+
+**Found by** checking main through `31254a466c` (the plugin capability-family
+epic) against NY13. NY13 was decided: "We should not treat installed plugins
+as enabled... retry until we have a straight answer."
+
+The new private `PluginRegistry.available_capability_plugins` backs both
+`capability_providers` (and so `Syrus::Plugin::Dispatch.call`) and
+`capability_catalog`. It read the plugin records inside its own `begin`/`rescue
+ActiveRecord::ActiveRecordError`, and on any database error kept every
+installed plugin. That is exactly the fallback F-NY13 removed from
+`providers_for`, `all_plugins`, `health` and `credential_types`. During a lock
+timeout or a dropped connection, a family capability of a plugin the operator
+had disabled was dispatched.
+
+**Fix.** It now reads through `enablement_records`, like every other
+enablement decision:
+
+- declared defaults while the database or table does not exist;
+- every plugin only for an asset build;
+- otherwise retried, then `EnablementUnavailable`.
+
+**Why the guard missed it.** The Lean model (`EnablementRead.lean`) proves the
+read. That every enablement decision *uses* the read is a fact about call
+sites, which the model cannot see. The behavioural specs pin only the methods
+that existed then.
+`spec/architecture/plugin_enablement_reads_fail_closed_spec.rb` now walks
+`plugin_registry.rb` with Prism. It rejects any method that calls
+`plugin_enabled?` and rescues a database error itself. One method is exempt,
+`eager_load_skippable_plugin_names`, which fails toward loading more code. The
+guard was red on the pre-fix code.
+
+**Same rebase, same rule.** Main switched `providers_for` from `healthy?` to
+`registrations_healthy?`, so a non-conforming family declaration withholds
+only that family. This branch's `providers_with_owner_for` (plugin-hosted
+points) documents "the same callable rule as providers_for" but still used
+`healthy?`, so a plugin's hosted contributions vanished over an unrelated
+family. It now uses `registrations_healthy?`.
+
+**Specs.** Both were red before the fix:
+
+- `capability_registry_spec.rb` "raises instead of offering a disabled
+  plugin's capability when enablement cannot be read";
+- `capability_registry_spec.rb` "keeps a non-conforming plugin's
+  plugin-hosted contributions, like its other registrations".
+
+Also run and green: `spec/lib`, `spec/architecture`, `spec/services/steps`,
+the admin plugins request spec, and the `connected_accounts` and
+`plugin_runtime` plugin specs (1,836 examples).
+
+---
+
+## F94. Family language detection called non-conforming providers, and a load error failed Prepare — fixed
+
+**Found by** checking the same epic. It relies on this invariant: *a family
+capability is only invoked through a conforming declaration*. `Dispatch`,
+`LegacyBridge.providers_for_manifest` and `capability_providers` all check
+`Conformance#conforming?` first.
+
+`RepoPluginDetector#family_language_support?`, called from Prepare on every
+workflow, resolved the declared provider by name and called its
+language-support capability directly. Two counterexamples:
+
+- **Non-conforming provider still claimed repos.** A provider that breaks the
+  family contract (for example, an extra optional positional argument) still
+  claimed the repository in both `detected_plugins` and the observed plugin
+  signals.
+- **A load error failed Prepare.** A family provider resolves lazily, so a
+  provider file that fails to load raises `LoadError`/`SyntaxError`. That is a
+  `ScriptError`, which the per-plugin `rescue StandardError` in `detect_among`
+  let escape out of `record_detected_plugins!` and fail Prepare. That broke the
+  detector's own contract: one plugin's failure must not take the detection
+  pass with it.
+
+No bundled plugin declares `family_provides` yet, so this was latent: an
+external plugin or the first migrated bundled one would hit it.
+
+**Fix.**
+
+- Each manifest's declarations are checked with
+  `Syrus::Plugin::Conformance.new([manifest])`. It is per manifest because
+  `observe` deliberately includes disabled plugins, which the registry lookup
+  omits.
+- `detect_among` also contains `ScriptError`, the same pair `Conformance`
+  contains.
+
+**Specs.** Both were red before the fix, in `repo_plugin_detector_spec.rb`:
+
+- "does not call a non-conforming declaration";
+- "keeps detecting the other plugins when a family provider fails to load".
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -3956,6 +4049,49 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 - *How the gate is shaped.* It is a deny-list over an open, plugin-extensible
   kind set, so a new kind carrying outside content, or a response without a
   `kind`, runs hooks by default.
+
+---
+
+## M45. Main commits through `31254a466c` — the plugin capability-family epic
+
+Forty-one commits landed on main after `d9be256158`:
+
+- the plugin capability-family epic (merge `31254a466c`);
+- e2e spec maintenance;
+- a loading state for suspending plugin components.
+
+The rebase conflicted in `plugin_registry.rb`, `host/public_apis.rb` and the
+generated `plugin-spec.md`, where this branch's NY13 enablement read and
+`providers_with_owner_for` met the epic. The conflicts were resolved by
+keeping both. The plugin docs were regenerated with `bin/generate-plugin-docs`.
+
+**Invariants the epic relies on, and how each was checked:**
+
+1. **An unreadable enablement table never enables a plugin (NY13).**
+   *Counterexample:* `available_capability_plugins` rescued and kept every
+   plugin. Fixed in F93, with a structural guard.
+2. **A non-conforming family withholds only that family.** Holds for
+   `providers_for`, the legacy bridge, `capability_providers` and the health
+   state. `non_conforming` replaces only `:ok`, so a plugin that is also
+   degraded stays unhealthy. *Counterexample:* `providers_with_owner_for`,
+   which is on this branch only. Fixed in F93.
+3. **A family capability is only invoked through a conforming declaration.**
+   Holds for `Dispatch`, `LegacyBridge` and `capability_providers`.
+   *Counterexample:* the detector's language-support path. Fixed in F94.
+4. **A plugin's failure does not take down core work.**
+   - `Dispatch` invokes through `PluginInvocation`. A `ValidationError` passes
+     through deliberately, without counting against health.
+   - The detector rescued only `StandardError`, while a lazily resolved
+     provider can raise `ScriptError`. Fixed in F94.
+5. **Conformance results are never stale.** The `conformance_for` cache is
+   keyed by `[generation, sorted manifest names]`, and every `register` and
+   `reset!` bumps the generation, so a changed manifest set is never answered
+   from an old entry. Old keys are never evicted. Generations only advance at
+   registration (boot, test reset), so this is bounded in production.
+
+**Not engine-relevant:** e2e spec updates, the plugin error-boundary loading
+state, the admin plugin capability table and CLI `plugin capabilities`, the
+scaffold and authoring guide, and generated catalogs.
 
 ---
 
@@ -4848,7 +4984,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `d9be256158`. Each loop iteration continues from there:
+Checked through main `31254a466c`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
