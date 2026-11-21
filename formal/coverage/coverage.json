@@ -1051,9 +1051,9 @@
       "simulator": [
         "stranded_landing_job_without_lock_returns_to_approved"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: job in {running, landing} -> an active first-class unit exists. Pair with job-state-matches-latest-workflow; this catches what Plan.for cannot decide. Production (read-only): no running_job_without_active_runtime_work repairs; 3 landing_job_without_active_runtime_work executions, all skipped because the Job had already left landing."
+      "status": "done",
+      "done_by": "F88",
+      "notes": "Invariant: job in {running, landing} -> an active first-class unit exists. Pair with job-state-matches-latest-workflow; this catches what Plan.for cannot decide. Production (read-only): no running_job_without_active_runtime_work repairs; 3 landing_job_without_active_runtime_work executions, all skipped because the Job had already left landing. F88: handoff kinds own the Job lifecycle but lacked after_cancel and skipped after_fail when Coding Mode was off; fixed, pinned by an architecture spec, proved in RunningHasWork.lean."
     },
     {
       "id": "stale-workflow-fails-job",

@@ -3091,6 +3091,70 @@ Also run and green:
 
 ---
 
+## F88. Coding and local-mode handoffs could leave a Job running with nothing working on it — fixed
+
+**Found by** DOC-44 job state, coverage item `job-running-without-work`: "A
+Job is running or landing but no Workflow is working on it" must be
+unreachable.
+
+**Shape.** `JobLifecyclePropagation.lifts_job_on_start?` lifts the Job to
+`running` for every kind except landing and infrastructure ones. Generic
+`fail!` skips kinds that own their Job lifecycle, and generic `cancel!` also
+skips the two handoff kinds. So for a lifecycle-owning kind that lifts the
+Job, its own `after_fail` and `after_cancel` are the only things that can
+settle the Job.
+
+Enumerating the registry, three such kinds lift the Job:
+
+- `coding_handoff`;
+- `local_mode_handoff`;
+- `external_pr_ingest`, which settles failure in `after_fail` and goes through
+  generic `cancel!`.
+
+**Gaps.**
+
+1. `CodingHandoff.after_fail` began `return unless
+   Feature.coding_mode_enabled?`, yet its own comment says generic
+   propagation was suppressed. So a handoff that failed after Coding Mode was
+   switched off left its Job `running`. An existing spec pinned this ("is a
+   no-op … expect(job).to be_running").
+2. Neither handoff defined `after_cancel`. The generic skip has been there
+   since the propagation was first written, apparently copied from the
+   failure-owner list. So any cancellation that did not close the Job
+   stranded it in `running`.
+
+**Fix.**
+
+- `CodingHandoff.after_fail` settles the Job on every failure. Only the chat
+  report depends on Coding Mode.
+- Both handoffs gain `after_cancel` through `Workflows::HandoffCancellation`.
+  It fails a Job left `running`, unless the cancellation was a supersession,
+  and the local-mode variant also clears the chat link. This mirrors generic
+  `cancel!`.
+- The pinned no-op spec now asserts that the chat gets no report and the Job
+  fails.
+
+**Proved.** `RunningHasWork.lean` covers each category of kind that lifts the
+Job, every terminal outcome, and Coding Mode on or off:
+
+- once the Workflow ends, the Job is not `running`, except after a
+  supersession, when newer work owns it;
+- the old hooks strand it in all three cases.
+
+**Specs.**
+
+- `coding_handoff_spec.rb` "terminal outcomes always settle a running Job":
+  red before on flag-off failure and on cancel.
+- `local_mode_handoff_spec.rb` ".after_cancel": red before.
+- `spec/architecture/lifecycle_owning_kinds_settle_job_spec.rb`: every
+  lifecycle-owning kind that lifts its Job must define its own hooks. It was
+  red with the hooks removed ("inherits the no-op after_cancel").
+
+The `spec/services/workflows`, pending-action, workflow and job specs pass
+(513 examples).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
