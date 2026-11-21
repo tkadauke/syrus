@@ -50,6 +50,7 @@ import SyrusModel.WatchdogStop
 import SyrusModel.CableDelivery
 import SyrusModel.PrivilegedWindows
 import SyrusModel.InstallCancel
+import SyrusModel.LockOrder
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

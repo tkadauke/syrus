@@ -3632,6 +3632,84 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M25. Row-lock order across the engine — counterexample, design question
+
+**Scope.** DOC-44 concurrency, the coverage item `lock-order-acyclic`. Every
+transaction that takes FOR UPDATE locks on more than one of these models was
+traced one or two calls deep: Job, Workflow, Step, Run, WorkUnit, WorkIntent,
+WorkUnitLock, Epic, AppSetting, User and Repository. The traced forms are
+`lock!`, `with_lock`, `.lock` and `lock(true)`.
+
+**Ground rules.**
+
+- `Workflow#start` and `Run#start` lock the Job in a `before` callback
+  (`workflow.rb:103`, `run.rb:176`).
+- `Workflow#set_artifact!`, `#delete_artifacts!` and `#request_job_closure!`
+  take the Workflow lock.
+- `WorkflowCancellation` locks the Workflow, then its active Steps, then the
+  WorkUnit.
+- Lifecycle propagation runs in `after_update_commit`, so it does not nest
+  inside the caller's locks.
+- WorkUnitLock rows are inserted against a unique key, never locked.
+- `AppEvents.next_sequence` runs after the outermost commit, so it is not part
+  of any cycle (lead L2's User row is refuted).
+- `GraderFanoutAdmission` does hold the AppSetting lock while it creates grader
+  Runs. This is a long holder, not a cycle.
+
+**Counterexample.** The recorded graph has cycles. The clearest one involves
+the same records from two plausible concurrent actions:
+
+- An operator **cancel** or force-transition of a landing Job runs
+  `Job#cancel_active_runs_and_close!`. It locks the Job (`job.rb:1365`), then
+  `WorkflowCancellation` locks each active Workflow
+  (`workflow_cancellation.rb:51`).
+- The **landing queue's** `release_blocked_landing_slots!` locks that Job's
+  queued landing Workflow (`landing_queue_processor.rb:757`), then its Job
+  (`:759`).
+
+Under InnoDB, one of the two is rolled back with `ActiveRecord::Deadlocked`.
+The other inversions are:
+
+- **Run ↔ Job.**
+  - RunJob takes Run → Job.
+  - `PlannedExecutionOverrides` takes Job → Run.
+- **Run ↔ Workflow.**
+  - The RepairExecutor requeue and `RepairQueueAffinity` take Run → Workflow.
+  - `PlannedExecutionOverrides` takes Workflow → Run.
+- **Epic ↔ Job.**
+  - `MergeTrainDispatcher` takes Epic → Job.
+  - The merge-train rebuild in `RetryFailedStepEnqueuer` takes Job → Epic.
+- **Workflow → Job**, more generally: any path that holds a Workflow lock and
+  calls `workflow.start!` takes it, because of the `before { job.lock! }`.
+  Examples are `TerminalWorkflowSync` called without a Job lock, and
+  auto-merge `record_run_failure!`.
+
+In production (read-only, 7 days) no deadlocks occurred, but there were 33
+lock-wait timeouts on hot rows. So the cycles are latent, not yet observed.
+
+**Model.** `LockOrder.lean` encodes the audited edge set:
+
+- `observed_has_cycle`: the observed graph has cycles;
+- `job_workflow_inversion`: the two-transaction witness;
+- `exactly_four_inversions`: under the proposed order
+  AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit →
+  User, exactly four edge kinds are wrong (Job → Run, Job → Epic,
+  Workflow → Job, Workflow → Run). The hot RunJob Run → Job path keeps its
+  order.
+
+The model proves a property of the recorded graph, not of the code. The edges
+come from this audit.
+
+Not counted: plain UPDATEs also take InnoDB row X locks. Paths that UPDATE a
+Job inside a Workflow lock without FOR UPDATE (for example
+`WorkflowCancellation`'s Job writes) add implicit Workflow → Job orders. The
+proposed order makes those consistent too.
+
+**Open: NY25.** Fixing this is choosing a global order and changing the
+inverted sites to follow it, which is a design decision.
+
+---
+
 ## M24. Desktop image cleanup and reboot resume — audited, one design question
 
 **Scope.** DOC-44 Phase 7:

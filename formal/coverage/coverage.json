@@ -2229,9 +2229,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "open",
-      "done_by": null,
-      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven."
+      "status": "partial",
+      "done_by": "M25 (NY25 open)",
+      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven. M25: full audit; observed graph has cycles (Job↔Workflow, Run↔Job, Run↔Workflow, Epic↔Job). LockOrder.lean proves the cycles and that a proposed global order needs exactly four edge kinds flipped (NY25)."
     },
     {
       "id": "launch-funnel",
@@ -3334,6 +3334,19 @@
         "C. Keep as is: reclaim all space immediately, and rely on re-pulling for rollback."
       ],
       "recommendation": "A. It bounds disk use at two images, and it keeps the one image that makes a local rollback possible.",
+      "decision": null
+    },
+    {
+      "id": "NY25",
+      "item": "lock-order-acyclic",
+      "title": "Should the engine adopt one global row-lock order and fix the sites that invert it?",
+      "context": "An audit of every multi-lock transaction found lock-order cycles. The clearest: cancelling a landing Job locks the Job and then its Workflows, while the landing queue's slot release locks the queued landing Workflow and then its Job. Both can target the same records, so under InnoDB one of them is rolled back as a deadlock. Others: RunJob locks Run then Job, while a planned-execution override locks Job then Run; merge-train dispatch locks Epic then Job, while a merge-train step retry locks Job then Epic. Workflow#start's before { job.lock! } turns any held Workflow lock into Workflow then Job. No deadlocks were seen in production over 7 days, so these are latent.",
+      "options": [
+        "A. Adopt the order AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit → User. Fix the four inverted edge kinds (landing slot release and the Workflow#start-under-Workflow-lock paths lock the Job first; planned-execution overrides lock Runs before the Job; the merge-train rebuild locks the Epic before member Jobs). Add a test-mode lock-order checker that fails when a transaction takes locks out of order.",
+        "B. Fix only the Job ↔ Workflow landing inversion (the one with two automatic actors on the same records) and accept the rarer operator-path inversions, relying on InnoDB deadlock detection plus retries.",
+        "C. Keep as is: InnoDB detects deadlocks and aborts one side; the callers already tolerate failures."
+      ],
+      "recommendation": "A. The order matches what the hot paths already do, so the changes are confined to four rarer paths. The checker stops new sites from reintroducing a cycle, which an audit alone cannot.",
       "decision": null
     }
   ]
