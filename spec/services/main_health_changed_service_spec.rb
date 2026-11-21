@@ -704,6 +704,25 @@ RSpec.describe MainHealthChangedService, :ci_only do
         expect(status[:failed_jobs].map(&:issue_title)).to contain_exactly("failed repair 0", "failed repair 1", "failed repair 2")
       end
 
+      # Regression: failed repair Jobs stay open until someone closes them, so
+      # three failures -- here all on since-fixed harness bugs -- stopped
+      # automatic repair for good and main stayed broken.
+      it "tries again once the failed repairs that hit the cap are no longer recent" do
+        MainHealthChangedService::MAX_OPEN_FAILED_FIX_JOBS.times do |index|
+          repository.jobs.create!(
+            user: user, kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+            issue_title: "old failed repair #{index}", issue_body: "fixing main",
+            agent_provider: "claude", priority: "high", state: "failed",
+            finished_at: (MainHealthChangedService::FAILED_FIX_JOB_CAP_WINDOW + 1.hour).ago
+          )
+        end
+
+        expect(MainHealthChangedService.new(repository).repair_status).to include(failed_open_jobs_count: 0)
+        expect {
+          described_class.on_health_change!(repository)
+        }.to change { repository.jobs.where(kind: "direct").count }.by(1)
+      end
+
       it "does not spawn another automatic fix Job for the same failed main SHA" do
         repository.jobs.create!(
           user: user,

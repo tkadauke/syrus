@@ -292,7 +292,7 @@ handoff succeeds.
 
 When the default branch is unhealthy, Syrus can create an infrastructure repair Job that checks out the failing revision, attempts a bounded repair, validates it, and opens the normal reviewed change. Repository landing is held while main is known broken and resumes when health becomes healthy or inconclusive according to policy. A merged repair marks main healthy only while main is still at the repair's merge commit; if other commits reached main after it, Syrus grades the current head first and keeps landing held until that result is in.
 
-Only one active repair is maintained for the same repository health episode. Polling retries transient GitHub failures without treating missing data as healthy; sustained inability to inspect an already-broken branch makes health inconclusive so the outage does not freeze landing forever. Recovery work is rate-limited to avoid a burst after a broad outage.
+Only one active repair is maintained for the same repository health episode. A failed repair is retried automatically. Automatic repair pauses after three repairs fail within six hours, so a repair that cannot succeed does not run in a loop; once those failures are older than six hours Syrus tries again without an operator closing them. Polling retries transient GitHub failures without treating missing data as healthy; sustained inability to inspect an already-broken branch makes health inconclusive so the outage does not freeze landing forever. Recovery work is rate-limited to avoid a burst after a broad outage.
 
 Infrastructure workflow workspaces are cleaned after either success or failure. They are not operator-retryable through ordinary Job retry/reopen actions; a new health evaluation creates the appropriate recovery attempt.
 
