@@ -19,7 +19,10 @@ function PluginErrorFallback({ pluginName }: { pluginName: string }) {
 function PluginLoadingFallback() {
   const { t } = useT("common")
   return (
-    <p className="text-sm text-text-muted" role="status">
+    // aria-live, not role="status": the plugin rendered here often owns that
+    // role itself, and claiming it while loading made queries for the
+    // plugin's own status message find this placeholder instead.
+    <p aria-busy="true" aria-live="polite" className="text-sm text-text-muted" data-testid="plugin-loading">
       {t("loading")}
     </p>
   )
