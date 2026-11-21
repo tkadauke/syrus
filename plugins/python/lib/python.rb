@@ -5,6 +5,7 @@ require "python/black_autofix"
 require "python/dependency_audit_command"
 require "python/prompt_context"
 require "python/review_criteria_provider"
+require "python/ecosystem"
 
 module Python
   extend Syrus::PluginApi
@@ -24,11 +25,9 @@ module Python
       signals.repositories_detecting("python")
     end
 
-    provides prepare_detector: "Python::PrepareDetector",
-             grader_augmentor: "Python::GraderAugmentor",
-             prompt_injector: "Python::PromptContext",
-             review_criteria_provider: "Python::ReviewCriteriaProvider",
-             autofix_command: [ "Python::RuffFormatAutofix", "Python::BlackAutofix" ],
-             dependency_audit_command: "Python::DependencyAuditCommand"
+    provides ecosystem: "Python::Ecosystem",
+      implements: %i[detect_prepare grader_diagnostics review_criteria prompt_context dependency_audit]
+    provides ecosystem: "Python::RuffEcosystem", implements: %i[autofix]
+    provides ecosystem: "Python::BlackEcosystem", implements: %i[autofix]
   end
 end

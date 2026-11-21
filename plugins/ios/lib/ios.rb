@@ -1,6 +1,7 @@
 require "ios/prepare_detector"
 require "ios/swiftpm_grader_type"
 require "ios/xcodebuild_grader_type"
+require "ios/ecosystem"
 
 module Ios
   extend Syrus::PluginApi
@@ -18,7 +19,8 @@ module Ios
       signals.repositories_detecting("ios")
     end
 
-    provides prepare_detector: "Ios::PrepareDetector",
-             grader_type: [ "Ios::XcodebuildGraderType", "Ios::SwiftpmGraderType" ]
+    provides ecosystem: "Ios::Ecosystem", implements: %i[detect_prepare]
+    provides ecosystem: "Ios::XcodebuildEcosystem", key: :xcodebuild, implements: %i[grader_types]
+    provides ecosystem: "Ios::SwiftpmEcosystem", key: :swiftpm, implements: %i[grader_types]
   end
 end
