@@ -103,9 +103,5 @@ module App
     def normalize_path(path)
       path.to_s.delete_prefix("./").delete_prefix("/")
     end
-
-    def provider_source(provider)
-      provider.respond_to?(:name) ? provider.name.presence || "plugin" : provider.class.name.presence || "plugin"
-    end
   end
 end

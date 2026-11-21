@@ -206,7 +206,15 @@ module Syrus
 
         module ReviewPatterns
           module_function
-          def dispatch(provider, _context) = provider.diff_review_file_patterns
+          def dispatch(provider, _context)
+            Array(provider.diff_review_file_patterns).map do |entry|
+              next entry unless entry.respond_to?(:to_h)
+
+              attributes = entry.to_h.with_indifferent_access
+              attributes[:source] ||= provider.respond_to?(:name) ? provider.name.presence : provider.class.name.presence
+              attributes
+            end
+          end
           def diff_review_file_patterns(provider) = provider.review_file_patterns(Adapters.repo)
         end
 
@@ -237,7 +245,7 @@ module Syrus
         context: Context::RepoContext, returns: Array
       capability :grader_types, composition: :keyed, absent: :configuration_error, decline: nil, tier: :stable,
         context: Context::GraderContext, returns: Array
-      capability :grader_diagnostics, composition: :broadcast, absent: nil, tier: :stable,
+      capability :grader_diagnostics, composition: :collect, absent: [], tier: :stable,
         context: Context::GraderContext, returns: [ Array, NilClass ]
       capability :review_criteria, composition: :collect, absent: [], tier: :stable,
         context: Context::RepoContext, returns: Array
