@@ -68,7 +68,12 @@ class Step < ApplicationRecord
 
   # See Workflow#trigger_kind: resolved per validation so plugin-contributed
   # step kinds are honoured.
-  validates :kind, presence: true, inclusion: { in: ->(_) { Step::Kind.values } }
+  # Checked against the live registry only when the kind is set or changed:
+  # an existing row keeps the kind it was created with, so work of a disabled
+  # plugin's kind can still be cancelled and finished
+  # (formal/SyrusModel/PluginDisableRecovery.lean).
+  validates :kind, presence: true
+  validates :kind, inclusion: { in: ->(_) { Step::Kind.values } }, if: -> { new_record? || will_save_change_to_kind? }
   validates :placement_policy, presence: true, inclusion: { in: PlacementPolicy::VALUES }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :placement_policy_requires_distributed_gate

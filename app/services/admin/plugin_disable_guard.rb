@@ -40,6 +40,7 @@ module Admin
         result.concat(input_source_blockers)
         result.concat(source_control_blockers)
         result.concat(repository_content_blockers)
+        result.concat(workflow_kind_blockers)
         result
       end
     end
@@ -118,6 +119,32 @@ module Admin
         end
         blocker(:configured_repositories, "Repositories read their files only through #{provider.display_name}", count)
       end
+    end
+
+    # Disabling a plugin removes its workflow and step kinds from the kind
+    # registries, and with them the handler and WorkDefinition that running
+    # work of those kinds needs to finish or even be cancelled. So active work
+    # of the plugin's own kinds keeps it on, like active workflows keep an agent
+    # provider on (formal/SyrusModel/PluginDisableRecovery.lean).
+    def workflow_kind_blockers
+      kind_providers = providers(:workflow_kinds)
+      return [] if kind_providers.empty?
+
+      trigger_kinds = contributed_kinds(kind_providers, :trigger_kinds)
+      step_kinds = contributed_kinds(kind_providers, :step_kinds)
+      [
+        trigger_kinds.any? ? blocker(:active_workflows, "Active workflows are of #{manifest.name}'s kinds", Workflow.where(state: %w[queued running], trigger_kind: trigger_kinds).count) : nil,
+        step_kinds.any? ? blocker(:active_steps, "Active steps are of #{manifest.name}'s kinds", Step.active.where(kind: step_kinds).count) : nil
+      ].compact
+    end
+
+    def contributed_kinds(kind_providers, provider_method)
+      kind_providers.flat_map do |provider|
+        provider = provider.constantize if provider.is_a?(String)
+        next [] unless provider.respond_to?(provider_method)
+
+        Array(provider.public_send(provider_method)).map { |attrs| attrs.to_h.symbolize_keys[:kind].to_s }
+      end.uniq
     end
 
     def providers(extension_point)
