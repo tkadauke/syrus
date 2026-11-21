@@ -3908,6 +3908,38 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M38. Work launched on a closed Job is cancelled at start and its intent retired — audited, no bug
+
+**Scope.** DOC-44 job state, the partial coverage item `closed-job-active-unit`:
+"A closed Job still has an active job-scoped WorkUnit without a Workflow."
+The note asked for the launch to check that the Job is open under the same
+lock as the close.
+
+**`WorkUnits::Launcher.instantiate` does not check that the Job is open.**
+Closure is enforced where work would *run*:
+
+- `StepDispatcher.start_workflow` cancels a Workflow whose Job is closed
+  (`cancel_unstartable_closed_job_workflow!`, reason `job_closed`), unless it
+  is a redeploy on a closed Job;
+- `enqueue_next_runnable_steps!` applies the same check at every step
+  boundary (`job_closed_for_execution?`);
+- `classify_closed_jobs_with_active_runtime_work` auto-cancels anything left
+  active under a closed Job.
+
+So a launch that races a close produces at most a queued unit, and that unit
+is cancelled the moment it would start. No Step runs for a closed Job.
+
+**The intent does not relaunch.** Cancelling that Workflow preempts its unit
+with reason `job_closed`. That string is `JobClosure::CANCELLED_REASON`, which
+is in `WorkIntents::TerminalUnitSync::SUPERSEDING_CANCEL_REASONS`, so the
+unit's intent is cancelled instead of left `requested`. That rules out the
+F27-shaped loop of a requested intent re-materializing on a closed Job.
+
+**Left as is.** `closed-job-open-intent` stays partial: member-scoped (Epic or
+merge-train) intents outlive the close of a single member by design.
+
+---
+
 ## M37. The last queued-Run recoveries: wedged claims, cached grader failures, pre-start crashes — audited, no bug
 
 **Scope.** These are the three remaining open DOC-44 runs and queue items:

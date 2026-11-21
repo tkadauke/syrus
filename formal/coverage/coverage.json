@@ -1139,9 +1139,9 @@
       "simulator": [
         "closed_job_active_work_unit"
       ],
-      "status": "partial",
-      "done_by": "F6",
-      "notes": "F6 models Workflows on closed Jobs, not bare units; launch must check job.open? under the same lock as the close."
+      "status": "done",
+      "done_by": "F6 · M38",
+      "notes": "F6 models Workflows on closed Jobs, not bare units; launch must check job.open? under the same lock as the close. M38: no open-check at instantiate, but start and every step boundary cancel work on a closed Job, the reconciler auto-cancels leftovers, and the job_closed preemption reason retires the intent."
     },
     {
       "id": "closed-job-open-intent",
