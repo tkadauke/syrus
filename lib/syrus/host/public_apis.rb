@@ -40,7 +40,8 @@ module Syrus
         PerformanceLogging: "PerformanceLogging",
         Metrics: "Syrus::Metrics",
         PluginRegistry: "Syrus::PluginRegistry",
-        PluginInvocation: "Syrus::PluginInvocation"
+        PluginInvocation: "Syrus::PluginInvocation",
+        CapabilityValidationError: "Syrus::Plugin::Dispatch::ValidationError"
       }.freeze
 
       ALIAS_CONTRACTS = {
@@ -68,7 +69,8 @@ module Syrus
         PerformanceLogging: [ "Times named plugin phases; event storage and thresholds are not promised.", %w[phase] ],
         Metrics: [ "Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised.", %w[counter gauge histogram] ],
         PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register providers_for extension_point?] ],
-        PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ]
+        PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ],
+        CapabilityValidationError: [ "Reports a deliberate caller-visible capability validation problem without counting it as a provider crash.", %w[new code details message] ]
       }.freeze
 
       DOMAIN_CONTRACTS = {

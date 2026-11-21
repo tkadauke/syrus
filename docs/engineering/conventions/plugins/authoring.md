@@ -4338,3 +4338,97 @@ plugin-owned review invocation while preserving the already-recorded repair.
 2. Register it from the plugin gem's engine initializer: `Syrus::PluginRegistry.register(name: "discord", version: "1.0.0", provides: { platform_delivery: Discord::PlatformAdapter })`.
 3. `PlatformDelivery::Registry.for`, `PlatformIdentity.available_platforms`, and boot-time connector start all pick it up automatically, respecting the plugin's `PluginRecord` enable/disable state. No core code change needed.
 4. If the platform needs custom linking instructions (bot handle, DM command, etc.), also implement `.platform_config_class` on the adapter, returning a `PlatformIdentity::PlatformConfig::Base` subclass defined in the plugin gem (e.g. `Discord::PlatformConfig`, implementing `#configured?` and `#instructions(token)`). `PlatformIdentity::PlatformConfig::Base.for` consults this hook for plugin platforms; leaving it unset (or omitting the method) falls back to `PlatformIdentity::PlatformConfig::Unconfigured` (shows up in Settings, not connectable).
+
+## Defining and implementing capability families
+
+Core defines a family and its complete capability contracts without referring
+to provider constants:
+
+```ruby
+Syrus::Plugin::Family.define(:ecosystem) do
+  shape :facet
+  capability :detect_prepare,
+    composition: :collect,
+    absent: [],
+    tier: :stable,
+    context: "Ecosystem::PrepareContext",
+    returns: Array
+end
+```
+
+Each capability must document its composition, absent result, stability tier,
+context, and return shape. Facets require provider `key` and `display_name` methods; service
+families additionally require `available_for?` because the host selects among
+implementations.
+
+Plugin manifests name classes as strings so inspection does not autoload them:
+
+```ruby
+provides ecosystem: "Kotlin::Ecosystem",
+  implements: %i[detect_prepare],
+  provisional: %i[prompt_context]
+```
+
+Several classes may be declared for the same family. Put stable capabilities
+in `implements` and provisional ones in `provisional`; unknown, duplicate, or
+tier-mismatched names fail manifest parsing. Registry callers use
+`capability_providers(family, capability)` for ordered lazy references and
+invoke a reference only at the call boundary. Inventory surfaces use
+`capability_catalog`, which contains only manifest data and does not resolve
+provider constants.
+
+Providers implementing a `keyed` capability must also put their selector in
+the manifest with `key:`, so selection does not load candidate classes:
+
+```ruby
+provides ecosystem: "Kotlin::Resolver", key: :kotlin, implements: %i[resolve]
+```
+
+Core constructs the context and invokes capabilities through the common
+dispatcher:
+
+```ruby
+context = Syrus::Plugin::Context::RepoContext.new(repo_path:, repository:)
+items = Syrus::Plugin::Dispatch.call(:ecosystem, :detect_prepare, context, timeout: 2.seconds)
+```
+
+A provider accepts the context as its only required positional argument and
+reads the fields it uses:
+
+```ruby
+def self.detect_prepare(context)
+  return [] unless context.repo_path.join("build.gradle.kts").exist?
+
+  [ "./gradlew dependencies" ]
+end
+```
+
+The four initial immutable shapes are `RepoContext` (`repo_path`,
+`repository`), `WorkspaceContext` (`workspace_path`, `changed_files`,
+`repository`), `GraderContext` (`name`, `command`, `workspace_path`,
+`failed_cases`, `base_retry`, `project_path`), and `JobContext` (`repository`,
+`job`). Fields are additive. Do not destructure the context or reject unknown
+fields; keep accepting the context and read only the accessors the provider
+needs.
+
+Return `nil` to decline first-claim work. Raise
+`Syrus::Host::CapabilityValidationError` only for an intentional,
+caller-visible configuration error. The dispatcher lets that typed error pass
+without recording a provider crash. Unexpected exceptions and opt-in timeouts
+are recorded in plugin health, participate in the circuit breaker, and become
+the capability's neutral decline value. A keyed lookup with no matching
+provider raises `Syrus::Plugin::Dispatch::MissingKey`.
+
+The plugin test kit generates an `"a valid <family> provider"` shared example
+for every definition. It checks required core methods, calls each claimed
+capability with the family's context, validates the declared return shape, and
+checks the absent/decline result. Pass the plugin name, provider class name,
+and call and decline contexts to the shared example. The kit resolves that
+exact manifest declaration and derives its complete capability list; callers
+cannot omit a claimed capability. Use literal strings for the shared-example
+name, `plugin:`, and `provider:` so the isolated architecture check can verify
+coverage without depending on another RSpec worker's process state. Core runs
+these same generated contracts for every bundled family declaration. A
+capability may be marked `stable` only when at least two independent bundled
+plugins implement it and the generated contract is present; otherwise it
+remains `provisional`.

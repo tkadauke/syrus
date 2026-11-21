@@ -96,23 +96,6 @@ adapters, worker hosts, recent agent activity, repository count, or Syrus
 repositories. Recommendations are informational only, never gate work, and are
 suppressed when there is no evidence or the plugin is already enabled.
 
-## Where plugin documentation lives
-
-## External plugin frontends
-
-Plugins installed outside the Syrus repository can provide a prebuilt browser
-bundle and stylesheet. Syrus loads these assets at startup only while the
-plugin is enabled and healthy. A broken external bundle is logged and skipped;
-it does not prevent the application from opening. Plugin styles are
-self-contained and cannot rely on Syrus compiling plugin-specific Tailwind
-classes.
-
-Plugin authors build the conventional `frontend/entry.tsx` file with
-`bin/build-plugin-frontend <plugin-dir>`. The bundle may import the host's
-React, React DOM, TanStack Query, i18next, react-i18next, and
-`@syrus/plugin-sdk` modules; those dependencies must remain external rather
-than being copied into the plugin bundle.
-
 ## Installing an external plugin
 
 An external plugin is trusted code that runs inside the Syrus process with its
@@ -482,6 +465,18 @@ instance. The standard distribution includes:
   `draw_image`, `move_element`, `delete_element`, `update_scene`, `save_canvas`,
   `clear_canvas`, and `load_canvas`.
 - `worker_timeline` — default-disabled worker and workflow timeline views.
+
+## Capability families
+
+Capability families declare provider capabilities, stability, composition
+(`collect`, `broadcast`, `first_claim`, or `keyed`), and absent behavior.
+Undeclared capabilities and providers from disabled or non-conforming plugins
+are not called; Admin and `syrus plugin capabilities` show the declarations.
+Core dispatches each call with one immutable repository, workspace, grader, or
+Job context whose fields are additive. Providers read only the fields they need.
+Calls share timing, timeout, health, and circuit-breaker isolation, so crashes
+become neutral contributions. Missing keyed providers and intentional
+`Syrus::Host::CapabilityValidationError` failures remain caller-visible.
 
 ## Background jobs
 

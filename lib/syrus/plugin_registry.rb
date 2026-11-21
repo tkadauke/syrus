@@ -251,6 +251,7 @@ module Syrus
     @generation       = 0
     @plugins          = []
     @direct_providers = Hash.new { |h, k| h[k] = [] }
+    @conformance_cache = {}
     @plugin_record_cache_mutex = Mutex.new
 
     class << self
@@ -262,7 +263,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, family_provides: [], display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           bump_generation!
@@ -315,6 +316,7 @@ module Syrus
             display_name_i18n_key: display_name_i18n_key,
             version:         version,
             provides:        provides,
+            family_provides: family_provides,
             metadata:        metadata,
             description:     description,
             description_i18n_key: description_i18n_key,
@@ -496,14 +498,23 @@ module Syrus
             performance_phase("plugin_registry.providers_for.filter", extension_point: ep, plugin_count: plugins.size) do
               enabled = plugins.select { |m| plugin_enabled?(m, records[m.name]) }
               health = health_for(plugins, enabled_names: enabled.map(&:name))
+              bridge_mapping = Syrus::Plugin::LegacyBridge.mapping_for(ep)
+              conformance = conformance_for(enabled) if bridge_mapping
 
               enabled
-                .select { |m| health.healthy?(m.name) }
+                .select { |m| health.registrations_healthy?(m.name) }
                 .then { |ms| sort_by_prepare_priority(ms) }
-                .flat_map { |m| Array(m.provides[ep]) }
+                .flat_map do |manifest|
+                  Array(manifest.provides[ep]) +
+                    Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+                end
             end
           rescue ActiveRecord::ActiveRecordError
-            sort_by_prepare_priority(plugins).flat_map { |m| Array(m.provides[ep]) }
+            conformance = conformance_for(plugins) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
+            sort_by_prepare_priority(plugins).flat_map do |manifest|
+              Array(manifest.provides[ep]) +
+                Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+            end
           end
         end
 
@@ -511,14 +522,67 @@ module Syrus
         manifest_providers + direct
       end
 
+      def legacy_bridge_duplicate_registrations
+        Syrus::Plugin::LegacyBridge.duplicates_for(@mutex.synchronize { @plugins.dup })
+      end
+
+      def capability_providers(family, capability)
+        definition = Syrus::Plugin::Family.fetch(family)
+        capability = capability.to_sym
+        raise ArgumentError, "Unknown capability #{capability.inspect} for family #{family.inspect}" unless definition.capabilities.key?(capability)
+
+        capability_providers_from(available_capability_plugins, definition, capability)
+      end
+
+      def capability_catalog(family = nil)
+        definitions = family ? [ Syrus::Plugin::Family.fetch(family) ] : Syrus::Plugin::Family.all
+        plugins = available_capability_plugins
+        definitions.flat_map do |definition|
+          definition.capabilities.keys.flat_map do |capability|
+            capability_providers_from(plugins, definition, capability).map(&:catalog_payload)
+          end
+        end
+      end
+
+      def capability_providers_from(plugins, definition, capability)
+        conformance = conformance_for(plugins)
+        plugins.flat_map do |manifest|
+          next [] unless conformance.conforming?(plugin: manifest.name, family: definition.name)
+
+          manifest.family_provides.filter_map do |declaration|
+            next unless declaration.family == definition.name && declaration.capabilities.include?(capability)
+            Syrus::Plugin::CapabilityProvider.new(plugin_name: manifest.name, family: definition.name,
+              capability:, provider_name: declaration.provider, key: declaration.key, priority: manifest.prepare_priority)
+          end
+        end
+      end
+      private :capability_providers_from
+
+      def available_capability_plugins
+        plugins = @mutex.synchronize { @plugins.dup }
+        begin
+          records = records_for(plugins)
+          enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
+          health = health_for(plugins, enabled_names: enabled.map(&:name))
+          plugins = enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
+        rescue ActiveRecord::ActiveRecordError
+          # Registration remains usable before the plugin_records table exists.
+        end
+        sort_by_prepare_priority(plugins)
+      end
+      private :available_capability_plugins
+
       def direct_providers_for(extension_point)
         @mutex.synchronize { @direct_providers[extension_point.to_sym].dup }
       end
 
       def plugin_name_for(provider)
+        provider_class = provider.is_a?(Class) ? provider : provider.class
         @mutex.synchronize do
           @plugins.find do |manifest|
-            manifest.provides.values.any? { |providers| Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider.class } }
+            manifest.provides.values.any? do |providers|
+              Array(providers).any? { |candidate| candidate.equal?(provider) || candidate == provider_class }
+            end || manifest.family_provides.any? { |declaration| declaration.provider == provider_class.name }
           end&.name
         end
       end
@@ -537,7 +601,7 @@ module Syrus
           records = records_for(plugins)
           enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
           health = health_for(plugins, enabled_names: enabled.map(&:name))
-          enabled.select { |manifest| health.healthy?(manifest.name) }
+          enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
         rescue ActiveRecord::ActiveRecordError
           plugins
         end.flat_map do |manifest|
@@ -627,8 +691,22 @@ module Syrus
       end
 
       def health_for(plugins, enabled_names:)
-        Syrus::PluginHealth.new(plugins, enabled_names: enabled_names)
+        enabled = plugins.select { |manifest| enabled_names.include?(manifest.name) }
+        Syrus::PluginHealth.new(plugins, enabled_names: enabled_names, conformance: conformance_for(enabled))
       end
+
+      def conformance_for(manifests)
+        key = [ generation, manifests.map(&:name).sort ]
+        @mutex.synchronize { @conformance_cache[key] } || PerformanceLogging.phase("plugin_registry.capability_conformance", plugin_count: manifests.size) do
+          conformance = Syrus::Plugin::Conformance.new(manifests)
+          conformance.findings
+          @mutex.synchronize do
+            @conformance_cache[key] = conformance
+          end
+          conformance
+        end
+      end
+      private :conformance_for
 
       def record_load_failure(name:, state:, message:, backtrace: [], version: "unknown", external: true, requires_syrus: nil, dependencies: [])
         details = { load_state: state.to_s, load_message: message.to_s, load_backtrace: Array(backtrace).first(12) }

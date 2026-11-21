@@ -52,6 +52,7 @@ RSpec.describe "frontend table conventions" do
     "app/frontend/routes/AdminPlugins.tsx#root1" => "plugin fleet convergence matrix with a fixed diagnostic schema",
     "app/frontend/routes/AdminPlugins.tsx#root2" => "plugin detail metric subtable with a fixed schema",
     "app/frontend/routes/AdminPlugins.tsx#root3" => "plugin detail extension-point subtable with a fixed schema",
+    "app/frontend/routes/AdminPlugins.tsx#root4" => "plugin detail capability-declaration subtable with a fixed schema",
     "app/frontend/routes/AdminQueue.tsx#root1" => "per-worker health minute-bucket diagnostic table",
     "app/frontend/routes/AdminQueue.tsx#root2" => "per-worker health trend diagnostic table",
     "app/frontend/routes/AdminUsers.tsx#root1" => "user detail recent-activity mini-list without stable column definitions",

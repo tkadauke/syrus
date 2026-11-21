@@ -5,8 +5,8 @@
 # :review_criteria_provider, etc.) can check membership instead of
 # re-deriving file-existence checks itself.
 #
-# Reuses the two extension points that already answer "does this plugin
-# apply to this repo" instead of inventing a third detection mechanism:
+# Reuses declarations that explicitly answer "does this plugin apply to this
+# repo", including family declarations marked as language support:
 #
 #   - :prepare_detector — language plugins (ruby, javascript, python, go).
 #     detect?(repo_path) is a CLASS method (Syrus::Plugin::PrepareDetector).
@@ -20,16 +20,17 @@
 class RepoPluginDetector
   EXTENSION_POINTS = %i[prepare_detector preview_provider].freeze
 
-  def self.for(repo_path)
-    new(repo_path).detect
+  def self.for(repo_path, repository: nil)
+    new(repo_path, repository:).detect
   end
 
-  def initialize(repo_path)
+  def initialize(repo_path, repository: nil)
     @repo_path = repo_path.to_s
+    @repository = repository
   end
 
-  def self.observed_for(repo_path)
-    new(repo_path).observe
+  def self.observed_for(repo_path, repository: nil)
+    new(repo_path, repository:).observe
   end
 
   def detect
@@ -49,7 +50,7 @@ class RepoPluginDetector
 
   private
 
-  attr_reader :repo_path
+  attr_reader :repo_path, :repository
 
   # A plugin whose detector raises must not take the detection pass with it:
   # every other plugin's answer is still good, and a missing one only means a
@@ -64,8 +65,25 @@ class RepoPluginDetector
   end
 
   def detected_by?(manifest)
-    EXTENSION_POINTS.any? do |extension_point|
+    legacy = EXTENSION_POINTS.any? do |extension_point|
       Array(manifest.provides[extension_point]).any? { |provider| provider_detects?(provider) }
+    end
+    legacy || family_language_support?(manifest)
+  end
+
+  def family_language_support?(manifest)
+    Syrus::Plugin::Family.all.select(&:indicates_language_support?).any? do |family|
+      manifest.family_provides.any? do |declaration|
+        capability = family.language_support_capability
+        next false unless declaration.family == family.name && declaration.capabilities.include?(capability)
+
+        reference = Syrus::Plugin::CapabilityProvider.new(
+          plugin_name: manifest.name, family: family.name, capability:,
+          provider_name: declaration.provider, key: declaration.key, priority: manifest.prepare_priority
+        )
+        context = Syrus::Plugin::Context::RepoContext.new(repo_path:, repository:)
+        reference.invoke { |provider| Array(provider.public_send(capability, context)).any? }
+      end
     end
   end
 

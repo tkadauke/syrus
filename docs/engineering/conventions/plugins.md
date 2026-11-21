@@ -24,6 +24,8 @@ The complete extension-point interfaces, examples, frontend integration rules,
 icon pipeline, lifecycle hooks, and boundary tooling live in the
 [plugin-authoring reference](plugins/authoring.md). To build a plugin outside
 this repository, start with [Authoring an external plugin](plugins/external.md).
+The [capability-family migration playbook](plugins/family-migration.md) owns the
+legacy-to-family inventory and the step-by-step removal process.
 
 ## Choosing the public host API
 
@@ -89,6 +91,14 @@ The currently registered contribution kinds are:
 - `review_annotation` for `plugins/*/app/frontend/review_annotations/*.tsx`
 - `ui_slot` for `plugins/*/app/frontend/ui_slots/*.tsx`
 
+- **Capability declarations are checked after boot.** The first plugin-health
+  resolution loads and reflects enabled family providers, checking required
+  core methods and claimed capability signatures. Non-conformance withholds
+  only declarations for the affected family; other registrations remain
+  available. The check is timed under `plugin_registry.capability_conformance`.
+  Disabled providers are not loaded. Boot conformance and later runtime
+  capability failures use `PluginHealth::Finding`, distinguished by `source`,
+  so health presentation and diagnostics consume one record contract.
 - **A disabled plugin is not eager loaded.** Its `app/` dirs stay on the
   autoload path, so Zeitwerk resolves constants on demand and enabling needs no
   restart, but its code is skipped at eager load (`Syrus::PluginEagerLoad`,

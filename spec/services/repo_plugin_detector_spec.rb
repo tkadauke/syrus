@@ -113,4 +113,39 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
       expect(described_class.observed_for(@dir)).to eq([ "test_go" ])
     end
   end
+
+  context "with a language-support family", :reset_plugin_registry do
+    before do
+      Syrus::PluginRegistry.reset!
+      Syrus::Plugin::Family.define(:detector_family) do
+        shape :facet
+        indicates_language_support capability: :detect_prepare
+        capability :detect_prepare, composition: :collect, absent: [], tier: :stable,
+          context: Syrus::Plugin::Context::RepoContext, returns: Array
+      end
+      provider = Class.new do
+        def self.key = :family_language
+        def self.display_name = "Family language"
+        def self.detect_prepare(context)
+          File.exist?(File.join(context.repo_path, "family.lock")) && context.repository == :repository ? [ "prepare" ] : []
+        end
+      end
+      stub_const("DetectorFamilySpecProvider", provider)
+      declaration = Syrus::Plugin::FamilyDeclaration.build(
+        family: :detector_family, provider: "DetectorFamilySpecProvider", implements: %i[detect_prepare]
+      )
+      Syrus::PluginRegistry.register(name: "family-language", version: "1", family_provides: [ declaration ])
+    end
+
+    after do
+      Syrus::PluginRegistry.reset!
+      Syrus::Plugin::Family.reset!
+    end
+
+    it "detects a plugin registered only through the family declaration" do
+      write("family.lock")
+
+      expect(described_class.for(@dir, repository: :repository)).to eq([ "family-language" ])
+    end
+  end
 end

@@ -1041,6 +1041,16 @@ describe("AdminPlugins", () => {
               availability: { status: "registered", label: "Registered" }
             }
           ],
+          capabilities: [
+            {
+              family: "ecosystem",
+              capability: "detect_prepare",
+              provider: "Terminal::Ecosystem",
+              key: "terminal",
+              tier: "stable",
+              priority: 10
+            }
+          ],
           depends_on: [],
           optionally_depends_on: [],
           conflicts_with: [],
@@ -1067,6 +1077,10 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("Sessions")).toBeInTheDocument()
     expect(screen.getByText("GET /api/v1/app/terminal_sessions")).toBeInTheDocument()
     expect(screen.getByText("Terminal::SidebarPages")).toBeInTheDocument()
+    expect(screen.getByText("detect_prepare")).toBeInTheDocument()
+    expect(screen.getByText("Terminal::Ecosystem")).toBeInTheDocument()
+    expect(screen.getByText("Terminal::Ecosystem implements ecosystem: detect_prepare")).toBeInTheDocument()
+    expect(screen.getAllByText("terminal").length).toBeGreaterThan(1)
     expect(screen.getByText("/app/plugins/terminal")).toBeInTheDocument()
 
     const homepageLinks = screen.getAllByRole("link", { name: "https://example.test/terminal" })

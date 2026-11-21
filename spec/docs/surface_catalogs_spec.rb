@@ -13,7 +13,8 @@ RSpec.describe "Surface catalogs" do
       user_api: "website/src/content/docs/generated/user-api-catalog.md",
       admin_api: "docs/engineering/architecture/admin_api_catalog.md",
       mcp: "config/syrus_docs/mcp_tool_catalog.md",
-      cli: "website/src/content/docs/generated/cli-catalog.md"
+      cli: "website/src/content/docs/generated/cli-catalog.md",
+      families: "docs/engineering/conventions/plugins/family-catalog.md"
     )
   end
 

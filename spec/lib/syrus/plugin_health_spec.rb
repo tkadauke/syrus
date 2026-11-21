@@ -1,6 +1,31 @@
 require "rails_helper"
 
 RSpec.describe Syrus::PluginHealth do
+  it "uses one finding record for conformance and runtime failures" do
+    conformance = described_class::Finding.conformance(
+      plugin: "ruby", family: :ecosystem, provider: "Ruby::Ecosystem",
+      code: :missing_capability, message: "missing detect_prepare"
+    )
+    error = RuntimeError.new("detector failed")
+    error.set_backtrace([ "plugin.rb:1" ])
+    runtime = described_class::Finding.runtime(
+      plugin: "ruby", family: :ecosystem, provider: "Ruby::Ecosystem",
+      extension_point: :ecosystem, operation: :detect_prepare, exception: error,
+      count: 2, last_at: Time.zone.at(1)
+    )
+
+    expect(conformance).to have_attributes(
+      source: :conformance, code: :missing_capability, extension_point: nil, operation: nil, count: 1
+    )
+    expect(runtime).to have_attributes(
+      source: :runtime, family: :ecosystem, provider: "Ruby::Ecosystem", code: :runtime_failure,
+      extension_point: "ecosystem", operation: "detect_prepare", exception_class: "RuntimeError",
+      message: "detector failed", backtrace: [ "plugin.rb:1" ], count: 2
+    )
+    expect(Syrus::Plugin::Conformance::Finding).to equal(described_class::Finding)
+    expect(Syrus::PluginRuntimeHealth::Failure).to equal(described_class::Finding)
+  end
+
   def manifest(name, depends_on: [], conflicts_with: [], optionally_depends_on: [])
     Syrus::Plugin::Manifest.new(
       name: name, version: "1.0.0", provides: {}, metadata: {},

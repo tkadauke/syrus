@@ -1575,11 +1575,14 @@ function dependencyRequirementLabel(requirement: ChatProposalDependencyRequireme
   return labels[requirement.satisfaction_mode]()
 }
 
+const proposalResultFooterClass =
+  "mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-text-secondary"
+
 function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatProposal; prefix: string; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   if (proposal.state === "confirmed") {
     return (
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-text-secondary">
+      <div className={proposalResultFooterClass}>
         <span className="rounded bg-green-50 px-2 py-0.5 font-medium text-green-700 dark:bg-green-950 dark:text-green-200">{t("confirmed")}</span>
         <ProposalMaterializedResult proposal={proposal} prefix={prefix} />
         <StartEpicButton proposal={proposal} onNotice={onNotice} />
@@ -1590,7 +1593,7 @@ function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatPr
   if (proposal.state === "rejected" || proposal.state === "withdrawn") {
     const label = proposal.state === "withdrawn" ? "Withdrawn" : "Rejected"
     return (
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+      <div className={proposalResultFooterClass}>
         <span className="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">{label}</span>
       </div>
     )
