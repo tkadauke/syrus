@@ -4132,6 +4132,37 @@ wrapping, as about 37 tools already do in their class body, would make gating
 independent of load history. Not yet checked: whether any production caller
 invokes tool classes directly.
 
+## Lead L4: a running rebase whose next Step never got a Run, for 22 days (production, read-only)
+
+Found while working the coverage item `job-state-vs-active-workflow-kind`.
+The `/admin/stuck` list shows one `job_workflow_state_drift`: a `failed` Job
+that still has a `running` rebase Workflow. The evidence:
+
+- **The storm.** Five rebase Workflows on the Job ran in about 15 minutes.
+  Each one ran `auto_rebase` → `agent_rebase` (both succeeded) →
+  `force_push`, which failed with `StepFailed`. That ends in
+  `enforce_workflow_runaway_limits!` setting
+  `runaway_protection = too_many_failed_workflows` and force-failing the
+  Job.
+- **The stall.** The last Workflow started 3 minutes after the previous one
+  failed. Its `auto_rebase` and `agent_rebase` succeeded, but its `force_push`
+  Step has been `queued` with no Run ever since. The Workflow is still
+  `running`.
+- **Not the gate.** `WorkIntents::Gates::RunawayProtection` gates only
+  admission of new intents, so it does not explain a Step that never got a
+  Run inside an already-running Workflow.
+
+Open questions for the next pass:
+
+1. Why did step advancement after `agent_rebase` not create the `force_push`
+   Run?
+2. Why does no reconciler classifier repair "running Workflow, next Step
+   queued with no Run"? The existing `queued_workflow_without_first_run` only
+   covers a queued Workflow's first Step.
+3. Should the drift classifier treat `implemented` plus an active
+   non-approval-blocking follow-up (rebase), whose start deliberately leaves
+   the Job `implemented`, as legal? Today it reports it as drift.
+
 ## Leads not yet worked (from the catalog)
 
 - `approved`/`implemented` Job without a PR: approve guard is `true`, and
