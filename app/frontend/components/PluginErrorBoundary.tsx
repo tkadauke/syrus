@@ -1,4 +1,4 @@
-import { Component, type ComponentType, type ErrorInfo, type ReactNode } from "react"
+import { Component, Suspense, type ComponentType, type ErrorInfo, type ReactNode } from "react"
 import { buildBrowserErrorPayload, recordBrowserError } from "../api/browserErrors"
 import { computeBrowserErrorFingerprint } from "../lib/browserErrorFingerprint"
 import { useT } from "../hooks/useT"
@@ -13,6 +13,15 @@ function PluginErrorFallback({ pluginName }: { pluginName: string }) {
         {t("plugin_error.reload")}
       </Button>
     </div>
+  )
+}
+
+function PluginLoadingFallback() {
+  const { t } = useT("common")
+  return (
+    <p className="text-sm text-text-muted" role="status">
+      {t("loading")}
+    </p>
   )
 }
 
@@ -37,8 +46,15 @@ export class PluginErrorBoundary extends Component<{ children: ReactNode; plugin
     })
   }
 
+  // A plugin component that suspends (a lazy chunk, a suspense query) must get
+  // a loading state, not an error. Without a Suspense boundary here, suspending
+  // during a synchronous update -- picking a Rails artifact in the Review tab's
+  // selector -- threw React #426 into this error boundary, and the plugin showed
+  // "could not be displayed" instead of rendering once loaded.
   render() {
-    return this.state.failed ? <PluginErrorFallback pluginName={this.props.pluginName} /> : this.props.children
+    if (this.state.failed) return <PluginErrorFallback pluginName={this.props.pluginName} />
+
+    return <Suspense fallback={<PluginLoadingFallback />}>{this.props.children}</Suspense>
   }
 }
 

@@ -26,6 +26,25 @@ describe("PluginErrorBoundary", () => {
     await waitFor(() => expect(recordBrowserError).toHaveBeenCalledWith(expect.objectContaining({ boundary: "plugin:weather" })))
   })
 
+  // Regression: a suspending plugin component had no Suspense boundary of its
+  // own, so React threw #426 into this error boundary and the plugin showed
+  // "could not be displayed" instead of rendering once it loaded.
+  it("shows a loading state for a suspending plugin component instead of failing", async () => {
+    let resolveChunk: (module: { default: () => JSX.Element }) => void = () => {}
+    const Loaded = lazy(() => new Promise<{ default: () => JSX.Element }>((resolve) => { resolveChunk = resolve }))
+    render(
+      <PluginErrorBoundary pluginName="rails">
+        <Loaded />
+      </PluginErrorBoundary>
+    )
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading...")
+    resolveChunk({ default: () => <p>Schema ERD</p> })
+
+    expect(await screen.findByText("Schema ERD")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
   it("isolates lazy-load rejections", async () => {
     const Rejected = lazy(() => Promise.reject(new Error("chunk missing")))
     render(
