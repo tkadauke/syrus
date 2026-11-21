@@ -123,6 +123,28 @@ RSpec.describe "API: /api/v1/app/admin/work_units", type: :request do
     expect(evidence_queries.grep(/"provider_availability_evidences"."user_id" =/)).to be_empty
   end
 
+  it "sorts and pages over narrow rows, loading full intents only for the page" do
+    sign_in_as(admin)
+    fixtures = Array.new(3) { |i| work_unit_fixture(user: user, repository: repo, issue_number: 20 + i, kind: "initial") }
+    fixtures.each_with_index { |fixture, i| fixture.fetch(:intent).update_columns(requested_at: (10 - i).minutes.ago) }
+    sorted_selects = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      sql = payload[:sql].to_s
+      sorted_selects << sql if sql.include?("FROM \"work_intents\"") && sql.include?("ORDER BY")
+    end
+
+    get "/api/v1/app/admin/work_units", params: { per_page: 2, page: 1 }
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+
+    expect(response).to have_http_status(:ok)
+    expected = fixtures.map { |fixture| fixture.fetch(:intent).id }.reverse.first(2)
+    expect(parse_body.fetch("intents").map { |intent| intent["id"] }).to eq(expected)
+    # The ORDER BY query must not drag the JSON payload columns through the
+    # sort; MySQL ran out of sort memory doing that on deep pages.
+    expect(sorted_selects).not_to be_empty
+    expect(sorted_selects).to all(satisfy { |sql| !sql.include?("work_intents\".*") && !sql.include?("payload_artifacts") })
+  end
+
   it "filters by job membership" do
     sign_in_as(admin)
     matching = work_unit_fixture(user: user, repository: repo, issue_number: 12, kind: "initial")
