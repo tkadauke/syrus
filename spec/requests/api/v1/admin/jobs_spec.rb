@@ -114,6 +114,19 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(parse_body.dig("workflows", 0)).to have_key("artifacts")
     end
 
+    it "returns the newest workflows, not the oldest" do
+      oldest = job.latest_workflow
+      oldest.update_columns(created_at: 3.hours.ago)
+      middle = Workflow.create!(job: job, trigger_kind: "retry", created_at: 2.hours.ago)
+      newest = Workflow.create!(job: job, trigger_kind: "retry", created_at: 1.hour.ago)
+
+      get "/api/v1/admin/jobs/#{job.id}", params: { workflows: "latest" }, headers: auth(admin_token)
+      expect(parse_body["workflows"].map { |workflow| workflow["id"] }).to eq([ newest.id ])
+
+      get "/api/v1/admin/jobs/#{job.id}", params: { workflows: 2 }, headers: auth(admin_token)
+      expect(parse_body["workflows"].map { |workflow| workflow["id"] }).to eq([ middle.id, newest.id ])
+    end
+
     it "projects diff and transcript sizes without materializing heavyweight columns" do
       run = job.initial_run
       run.update!(agent_diff: "large diff", step_agent_diff: "step diff")

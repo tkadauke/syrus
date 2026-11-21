@@ -387,9 +387,12 @@ module Api
           # No `includes(:steps)`: with `workflows=100` that preloads Steps
           # across an id list, and the ordered `has_many` cannot be served by
           # the (workflow_id, position) index across an `IN` list.
+          # `reorder`, not `order`: Job#workflows is scoped oldest-first, and an
+          # appended `order` only breaks ties, so `latest` returned the first
+          # workflow the Job ever had.
           workflows = job.workflows
             .includes(:workflow_artifact_values)
-            .order(created_at: :desc, id: :desc)
+            .reorder(created_at: :desc, id: :desc)
             .limit(limit)
             .to_a
             .reverse
