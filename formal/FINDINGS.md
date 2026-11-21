@@ -2629,6 +2629,42 @@ writes, with revisions 0 to 2, each setting any subset of two fields.
 
 ---
 
+## M19. Subscriptions, optimistic acknowledgement, hidden tabs, reconnect — audited, no bug
+
+The rest of DOC-44 Phase 5's frontend invariants, read against
+`app/frontend/lib/actionCable.ts`, `appEvents.ts` and
+`routes/chat/inFlightComposerDraftStore.ts`.
+
+- **Subscription changes.** "An old resource event cannot mutate the newly
+  selected route." This holds. Job and Chat subscriptions pass every event to
+  `applyAppEvent`, which keys every write on the event's own identifiers:
+  entity store by `(kind, id)`, chat tails by `["chats", event.id]`, and job
+  patches by `event.job_id`. Nothing writes to "the current route", so a late
+  event for the chat being left can change only that chat's cache.
+- **Optimistic acknowledgement.** "Client idempotency keys acknowledge exactly
+  the intended optimistic item." This holds.
+  `acknowledgeInFlightComposerDraft` matches the chat id *and* the key, so a
+  delivery for one chat never acknowledges another chat's draft.
+- **Hidden tabs.** "Hidden-tab invalidations eventually refetch after
+  visibility returns." This holds. While hidden, `invalidateAppQuery` marks the
+  query stale without fetching and records it in `hiddenInvalidations`. The
+  first `visibilitychange` to visible refetches every recorded active target.
+  Inactive ones are already stale and refetch when they mount.
+- **Reconnect recovery.** "Reconnect recovery covers every query that could
+  have missed state." This holds, with bounded staleness.
+  `recoverAppEventContinuity` refetches the *active* continuity queries, and
+  the Job and Chat channels recover their own resource on reconnect. An
+  inactive cached query is not invalidated by the sweep, so if it is mounted
+  again within its `staleTime` it shows data from before the disconnect. Every
+  continuity query uses the 30 s default or shorter; the `Infinity` stale
+  times belong to settings, themes, admin controls and immutable per-node
+  data. So that window is at most 30 s.
+
+The global-gap convergence question remains NY19, and Job subscription
+revocation NY20.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
