@@ -673,5 +673,29 @@ theorem rewritten_after_bounded (n : Nat) : totalAttempts true true n = 0 := by
   | zero => rfl
   | succ n ih => simp [totalAttempts, passAttempts, ih]
 
+/-! ## Refinement (F45): which retries a rewritten branch makes stale
+
+The staleness is about the source Run's *workspace*. Only same-attempt retries
+(`failed_step`, `resume_failed_step`) reuse it; a `retry_workflow` starts from
+the current PR branch. Skipping every kind made the branch-divergence recovery
+(a `retry_workflow` whose premise is a moved branch) unperformable: planned,
+skipped, planned again. After: the skip applies to same-attempt kinds only,
+and the planner routes a rewritten Run to a fresh retry. -/
+
+inductive RKind where | sameAttempt | fresh deriving DecidableEq, Repr
+
+def skipsAsRewritten (scopedToSameAttempt : Bool) (k : RKind) (rewritten : Bool) : Bool :=
+  rewritten && (!scopedToSameAttempt || k == .sameAttempt)
+
+/-- The planner after F45: a rewritten Run gets a fresh retry. -/
+def plannedKind (rewritten : Bool) : RKind := if rewritten then .fresh else .sameAttempt
+
+theorem divergence_recovery_skipped_before : skipsAsRewritten false .fresh true = true := rfl
+
+/-- After: whatever the planner picks is never skipped as rewritten. -/
+theorem planned_retry_never_skipped (rewritten : Bool) :
+    skipsAsRewritten true (plannedKind rewritten) rewritten = false := by
+  cases rewritten <;> rfl
+
 end Agreement
 end SyrusModel

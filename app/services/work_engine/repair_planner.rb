@@ -887,8 +887,13 @@ module WorkEngine
           end
 
           return rebuild_work_unit if rebuild_unit_retry?
-          return resume_failed_step if primary_step&.agentic? && primary_run&.provider_session_metadata.present?
-          return retry_failed_step if workspace_available? && safe_step_retry?
+          # A rewritten branch makes the source Run's workspace stale: reuse
+          # it and AutoRetryJob skips the attempt (budget-exempt) every time.
+          # Retry from the current branch instead (F44).
+          unless branch_rewritten?
+            return resume_failed_step if primary_step&.agentic? && primary_run&.provider_session_metadata.present?
+            return retry_failed_step if workspace_available? && safe_step_retry?
+          end
           return retry_workflow if retry_whole_workflow_safe?
 
           operator_plan(
@@ -898,6 +903,10 @@ module WorkEngine
         end
 
         private
+
+        def branch_rewritten?
+          AutoRetryAttempt.branch_rewritten_since?(primary_run&.job, primary_run)
+        end
 
         def delayed_provider_retry?
           classification&.classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])

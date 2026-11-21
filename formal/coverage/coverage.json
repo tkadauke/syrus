@@ -1354,8 +1354,8 @@
         "repeated_pr_open_failure_retry_recovers"
       ],
       "status": "partial",
-      "done_by": "F44 · Agreement.rewritten_after_bounded",
-      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; now shared (AutoRetryAttempt.branch_rewritten_since?). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop."
+      "done_by": "F44, F45 · Agreement.planned_retry_never_skipped",
+      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop."
     },
     {
       "id": "resumable-agent-session",
@@ -1378,9 +1378,9 @@
         "worker_died_retries_once",
         "visual_diff_worker_loss_does_not_fail_job"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Recovery opportunity after an external fault; only needs the classifier/executor agreement check."
+      "status": "partial",
+      "done_by": "F45",
+      "notes": "Recovery opportunity after an external fault; only needs the classifier/executor agreement check. F45: the classifier offered resume from a Run whose branch was rewritten, which AutoRetryJob skips budget-exempt, so resumes were planned every pass; it now excludes such Runs (production: 1 applied resume in the retained history)."
     },
     {
       "id": "repeated-failure-circuit",
@@ -1448,9 +1448,9 @@
       "simulator": [
         "remote_moved_push_rebases"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "External fault; recovery is retry_workflow for the latest attempt, discard_superseded_branch_output otherwise."
+      "status": "partial",
+      "done_by": "F45",
+      "notes": "External fault; recovery is retry_workflow for the latest attempt, discard_superseded_branch_output otherwise. F45: the recovery's retry_workflow attempt was always skipped as 'job branch was rewritten' (its premise is a moved branch), so it was replanned every pass and never ran; the skip now applies only to same-attempt retries."
     },
     {
       "id": "nonretryable-git-failure",

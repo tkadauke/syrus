@@ -1294,13 +1294,41 @@ branch stays moved, nothing ends it (`Agreement.rewritten_before_loops`). A
 probe showed attempts #1, #2, #3 in three passes, all skipped for the same
 reason.
 
-**Fix.** `AutoRetryAttempt.branch_rewritten_since?(job, run)`, shared by the
-pre-start skip and the planner. A Job whose branch moved stays `failed`, and
-the branch-divergence repairs or the operator take it from there
-(`rewritten_after_bounded`).
+**Fix (as first committed).** `AutoRetryAttempt.branch_rewritten_since?(job, run)`,
+shared by the pre-start skip and the retry classifier (`rewritten_after_bounded`).
+That guard was too broad and is superseded by F45: it also suppressed fresh
+`retry_workflow` retries, which a moved branch does not make stale.
 
 **Spec.** `reconciler_spec.rb` "does not keep scheduling retries from a Run
 whose branch was rewritten" (red before: 3 attempts in 3 passes).
+
+---
+
+## F45. The branch-divergence recovery could never run — fixed (refines F44)
+
+**Gap.** `AutoRetryJob`'s rewritten-branch skip applied to every retry kind.
+Its rationale is that the source Run's *workspace* is stale, and only
+same-attempt retries (`failed_step`, `resume_failed_step`) reuse that
+workspace. `classify_branch_divergence` plans a `retry_workflow` from the
+current PR branch precisely because the branch moved. The skip caught it
+every time, and since the skip is budget-exempt and requests a
+reconciliation, the recovery was replanned every pass and never performed.
+A probe showed three `retry_workflow` attempts in three passes, all skipped.
+The resumable-session planner had the F44 loop as well (3 resumes in 3
+passes).
+
+**Fix.** The skip applies only to same-attempt kinds
+(`AutoRetryAttempt#same_attempt_retry?`). For a rewritten Run, the retry
+planner (`RepairPlanner`) skips resume and in-place retry and plans a fresh
+`retry_workflow`. The resumable-session classifier, which only offers resume,
+excludes rewritten Runs. F44's classifier-level guard is removed. The model is
+`Agreement.planned_retry_never_skipped`; the old behaviour is
+`divergence_recovery_skipped_before`.
+
+**Spec.** `reconciler_spec.rb` "performs the branch-divergence recovery retry
+instead of skipping it as rewritten" and "does not keep planning resumes from
+a Run whose branch was rewritten" (both red before). F44's spec still holds:
+the rewritten Run now gets a single fresh retry.
 
 ---
 
