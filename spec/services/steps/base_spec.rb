@@ -1258,6 +1258,16 @@ RSpec.describe Steps::Base, :ci_only do
       expect(out).to include("complete and untruncated")
     end
 
+    it "tells the agent when a main concern it already reported did not clear the failure" do
+      repair_run = Step.create!(workflow: workflow, kind: "implement", position: 4, iteration: 1, state: "succeeded")
+        .runs.create!(job: job, trigger_kind: "initial", state: "succeeded", iteration: 1)
+      MainConcernReport.create!(repository: job.repository, job: job, workflow: workflow, run: repair_run, reason: "files I did not touch")
+
+      out = handler.send(:append_grade_failure_feedback, "PROMPT")
+
+      expect(out).to include("You already reported a failure here as a main-branch concern")
+    end
+
     it "still renders the feedback when materialization fails" do
       allow(GraderLogArchive).to receive(:materialize!).and_raise(Errno::EACCES)
 

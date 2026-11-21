@@ -4,7 +4,8 @@ module Prompts
     HEAD_BYTES = 4 * 1024
     TAIL_BYTES = 8 * 1024
 
-    def initialize(iterations:, intro: nil, include_guidance: true, include_git_safety: true, log_manifest: {})
+    def initialize(iterations:, intro: nil, include_guidance: true, include_git_safety: true, log_manifest: {}, main_concern_already_reported: false)
+      @main_concern_already_reported = main_concern_already_reported
       @iterations = iterations || []
       @intro = intro
       @include_guidance = include_guidance
@@ -276,9 +277,7 @@ module Prompts
         PROMPT
       else
         <<~PROMPT.strip
-          If CI or graders are failing in files you did not touch, call
-          `report_main_concern` with your reasoning before retrying. Do not
-          burn retries on a systemic failure.
+          #{main_concern_guidance}
 
           If you suspect a specific failing test is flaky rather than a real
           regression, run that exact example in isolation, against the
@@ -288,6 +287,32 @@ module Prompts
           auditable evidence, not a broad rerun of the whole grader and not
           just your opinion that it's flaky.
         PROMPT
+      end
+    end
+
+    # "Files you did not touch" is not evidence of a main-branch problem: a
+    # merge, a rebase, or this branch's own configuration can break code
+    # elsewhere while the base still passes. Told only that, an agent filed
+    # report_main_concern on every iteration for a failure its own merge of
+    # main had caused, changed nothing, and the Job failed the same grader
+    # round after round. A concern that did not clear the failure is said so.
+    def main_concern_guidance
+      if @main_concern_already_reported
+        <<~TEXT.strip
+          You already reported a failure here as a main-branch concern, and the
+          required graders still fail: Syrus did not accept it as inherited from
+          the base. Treat the failure as this branch's to fix, even where the fix
+          is outside the files you changed, and do not report it again.
+        TEXT
+      else
+        <<~TEXT.strip
+          A grader failing in files you did not touch can still come from this
+          branch -- a merge, a rebase, or configuration that does not account
+          for code elsewhere. Call `report_main_concern` only after confirming
+          the same grader also fails on the branch you build on; if it passes
+          there, the failure is yours to fix here. Do not burn retries on a
+          failure that really is systemic.
+        TEXT
       end
     end
 

@@ -660,7 +660,8 @@ module Steps
         prompt,
         Prompts::GradeFailureFeedback.new(
           iterations: iterations,
-          log_manifest: materialized_grade_log_manifest
+          log_manifest: materialized_grade_log_manifest,
+          main_concern_already_reported: MainConcernReport.where(workflow_id: workflow.id).exists?
         ).to_s
       ].join("\n\n")
     end

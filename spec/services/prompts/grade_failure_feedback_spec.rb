@@ -108,7 +108,7 @@ RSpec.describe Prompts::GradeFailureFeedback do
     expect(out).not_to include(Prompts::SubmitSummaryInstructions::TEXT)
   end
 
-  it "advises calling report_main_concern when graders fail in unmodified files" do
+  it "reserves report_main_concern for failures confirmed on the base branch" do
     iterations = [
       [
         { "name" => "tests", "status" => "failed", "exit_code" => 1, "output" => "failure\n" }
@@ -118,7 +118,27 @@ RSpec.describe Prompts::GradeFailureFeedback do
     out = described_class.new(iterations: iterations).to_s
 
     expect(out).to include("report_main_concern")
-    expect(out).to include("files you did not touch")
+    expect(out).to include("files you did not touch can still come from this")
+    expect(out).to include("only after confirming")
+    expect(out).to include("the same grader also fails on the branch you build on")
+  end
+
+  # Regression: an agent reported a failure its own merge of main had caused
+  # as a main-branch concern on every iteration, changed nothing, and the Job
+  # failed the same grader round after round with nothing telling it the
+  # concern had not cleared the failure.
+  it "tells an agent whose main concern did not clear the failure to fix it here" do
+    iterations = [
+      [
+        { "name" => "plugin-boundaries", "status" => "failed", "exit_code" => 1, "output" => "failure\n" }
+      ]
+    ]
+
+    out = described_class.new(iterations: iterations, main_concern_already_reported: true).to_s
+
+    expect(out).to include("You already reported a failure here as a main-branch concern")
+    expect(out).to include("do not report it again")
+    expect(out).not_to include("Call `report_main_concern`")
   end
 
   it "does not advise report_main_concern for timeout-only latest grader failures" do
