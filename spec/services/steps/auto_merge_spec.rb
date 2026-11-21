@@ -685,6 +685,18 @@ RSpec.describe Steps::AutoMerge, :ci_only do
       expect(job.reload.branch_deleted_at).to be_present
     end
 
+    it "retargets open stacked child PRs onto the merged base before deleting the branch" do
+      child = Factories.job(user: user, repository: repository, pr_number: 8, branch_name: "syrus/issue-43-1")
+      child.update_columns(parent_job_id: job.id)
+      calls = []
+      allow(client).to receive(:update_pull_request_base) { |_slug, number, base:| calls << [ :retarget, number, base ] }
+      allow(client).to receive(:delete_branch) { |_slug, branch| calls << [ :delete, branch ] }
+
+      described_class.new(run).call
+
+      expect(calls).to eq([ [ :retarget, 8, "main" ], [ :delete, "syrus/issue-42-1" ] ])
+    end
+
     it "does not stamp branch_deleted_at when branch cleanup is left for later" do
       allow(client).to receive(:delete_branch).and_return(false)
 

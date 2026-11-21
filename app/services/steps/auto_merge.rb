@@ -88,6 +88,9 @@ module Steps
       add_merge_comment(client, comment)
       workflow.request_job_closure!(job, "pr_merged") if job.may_close?
       if job.branch_name.present?
+        StackChildPullRequestRetargeter.call(
+          client: client, parent: job, base: job.effective_base_branch, log: ->(message) { log("auto_merge: #{message}") }
+        )
         job.update_column(:branch_deleted_at, Time.current) if client.delete_branch(repository.slug, job.branch_name)
       end
       log("auto_merge: merged PR ##{job.pr_number}")

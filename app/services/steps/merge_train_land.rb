@@ -424,6 +424,10 @@ module Steps
           workflow.request_job_closure!(member_job, "pr_merged")
         end
         if member_job.branch_name.present?
+          StackChildPullRequestRetargeter.call(
+            client: client, parent: member_job, base: train.base_branch,
+            skip_job_ids: train.members.map(&:job_id), log: ->(message) { log("merge_train: #{message}") }
+          )
           member_job.update_column(:branch_deleted_at, Time.current) if delete_branch_after_landing(client, member_job.branch_name)
         end
         member.update!(state: "merged")

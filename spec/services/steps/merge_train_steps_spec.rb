@@ -1902,6 +1902,34 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(b.reload.branch_deleted_at).to be_present
     end
 
+    it "retargets a stacked child outside the train onto the train base before deleting its parent branch" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      b.update_columns(parent_job_id: a.id)
+      child = member_job(issue_number: 3, state: "implemented")
+      child.update_columns(parent_job_id: b.id)
+      train = build_train([ a, b ])
+      record_landed_commit!(a, sha: "a-landed-1")
+      record_landed_commit!(b, sha: "b-landed-1")
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+      calls = []
+      allow(client).to receive(:update_pull_request_base) { |_slug, number, base:| calls << [ :retarget, number, base ] }
+      allow(client).to receive(:delete_branch) { |_slug, branch| calls << [ :delete, branch ] }
+
+      handler.call
+
+      # GitHub closes an open PR the moment its base branch is deleted, so the
+      # child must already point at the train base when b's branch goes.
+      expect(calls).to include([ :retarget, child.pr_number, "master" ])
+      expect(calls.index([ :retarget, child.pr_number, "master" ])).to be < calls.index([ :delete, b.branch_name ])
+      # b landed in the same train as a; its PR is closed, so it is not retargeted.
+      expect(calls).not_to include([ :retarget, b.pr_number, anything ])
+    end
+
     it "skips member branch deletion when branch_name is absent" do
       a = member_job(issue_number: 1)
       a.update!(branch_name: nil)
