@@ -9,11 +9,11 @@
 # - A blocked *implementation* starts a fresh implementation attempt carrying
 #   the feedback as operator context -- the same retry the Job page's "Retry
 #   implementation" runs -- which also retires the blocked workflow.
-# - A blocked *feedback* workflow (chat or PR feedback whose respond step could
-#   not proceed) already sits on an implemented branch. Retrying implementation
+# - Any other blocked workflow -- chat or PR feedback, a CI repair -- already
+#   sits on an implemented branch. Retrying implementation
 #   would start over from the base and abandon that branch, so the blocked
 #   workflow is retired and the feedback runs as an ordinary chat_feedback
-#   workflow on the existing branch.
+#   workflow on the existing branch (formal/SyrusModel/BlockedFeedback.lean).
 module BlockedImplementationFeedback
   RETIRED_REASON = "retired_for_operator_feedback".freeze
 
@@ -27,7 +27,7 @@ module BlockedImplementationFeedback
     workflow = blocked_workflow(job)
     raise ArgumentError, "#{job.slug} has no blocked work for this feedback to unblock" unless workflow
 
-    feedback_workflow?(workflow) ? resubmit_feedback!(job, workflow, feedback:) : retry_implementation!(job, feedback:)
+    on_implemented_branch?(job, workflow) ? resubmit_feedback!(job, workflow, feedback:) : retry_implementation!(job, feedback:)
   end
 
   def blocked_workflow(job)
@@ -40,8 +40,13 @@ module BlockedImplementationFeedback
     workflow
   end
 
-  def feedback_workflow?(workflow)
-    Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind).present?
+  # Feedback workflows always run on the implemented branch; any other kind
+  # that does not build from the base does too once the Job has a branch.
+  def on_implemented_branch?(job, workflow)
+    return true if Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind).present?
+    return false if Workflow::TriggerKind.builds_from_base?(workflow.trigger_kind)
+
+    job.branch_name.present?
   end
 
   def retry_implementation!(job, feedback:)

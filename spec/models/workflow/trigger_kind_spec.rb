@@ -155,4 +155,15 @@ RSpec.describe Workflow::TriggerKind do
       expect(described_class.non_approval_blocking?("unknown_kind")).to be(false)
     end
   end
+
+  describe ".builds_from_base?" do
+    it "marks exactly the implementation attempts among the built-in kinds" do
+      built_in = %w[initial retry base_refresh_retry pr_comment chat_feedback ci_failure rebase auto_merge merge_train]
+      expect(built_in.select { |kind| described_class.builds_from_base?(kind) }).to eq(%w[initial retry base_refresh_retry])
+    end
+
+    it "is false for an unknown kind" do
+      expect(described_class.builds_from_base?("unknown_kind")).to be(false)
+    end
+  end
 end

@@ -224,6 +224,28 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
       expect(job.workflows.where(trigger_kind: "retry")).to be_empty
     end
 
+    # Regression (formal/SyrusModel/BlockedFeedback.lean): the same holds for
+    # every blocked Workflow that works on the implemented branch, not only
+    # feedback kinds. A blocked CI repair got an implementation retry from the
+    # base, abandoning the PR it was repairing.
+    it "keeps the implemented branch when the blocked workflow is a CI repair" do
+      job = Factories.job(user: user, repository: repository)
+      job.workflows.first.update_columns(state: "succeeded", finished_at: 1.hour.ago)
+      job.update_columns(state: "implemented", pr_number: 77, branch_name: "syrus/issue-77")
+      blocked = Workflow.create!(job: job, user: user, trigger_kind: "ci_failure", state: "blocked", finished_at: Time.current)
+      blocked.set_artifact!("cannot_proceed", { "reason" => "the failing check needs a secret this workflow lacks" })
+      job.update_columns(state: "running")
+      response = call_tool(job_id: job.id, feedback: "Skip that check; it is being retired.")
+      pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
+
+      pending_action.confirm!(user: user)
+
+      expect(pending_action.reload).to be_confirmed
+      expect(pending_action.result).to have_attributes(trigger_kind: "chat_feedback")
+      expect(blocked.reload).to be_cancelled
+      expect(job.workflows.where(trigger_kind: "retry")).to be_empty
+    end
+
     it "offers feedback queued earlier as soon as the implementation blocks" do
       job = Factories.job_record(repository: repository, state: "running")
       pending_action = chat_session.pending_actions.find(
