@@ -24,6 +24,14 @@ After the fix, one read (`enablement_records`) decides every case:
 The Installer resolves the set before disposing anything, and on an
 unavailable answer keeps what is installed.
 
+This proves the read. That every enablement decision *uses* it is a fact
+about call sites, which the model cannot see. The plugin capability-family
+work added `capability_providers` / `capability_catalog` with their own
+`rescue ActiveRecord::ActiveRecordError` that answered with every installed
+plugin. `spec/architecture/plugin_enablement_reads_fail_closed_spec.rb` now
+rejects any `PluginRegistry` method that decides enablement and rescues a
+database error itself.
+
 Over every outcome sequence of up to three read attempts, every combination
 of two plugins' declared defaults and operator records, and both build modes:
 outside an asset build, the answer is exactly what the first non-transient

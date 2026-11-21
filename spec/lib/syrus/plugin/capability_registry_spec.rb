@@ -114,6 +114,30 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Object.send(:remove_const, :LazyFamilySpec) if Object.const_defined?(:LazyFamilySpec)
   end
 
+  # The same enablement rule as providers_for (formal/SyrusModel/EnablementRead.lean):
+  # a read error never switches on a plugin the operator disabled.
+  it "raises instead of offering a disabled plugin's capability when enablement cannot be read" do
+    namespace = Object.const_set(:LazyFamilySpec, Module.new)
+    %i[Enabled Disabled].each do |name|
+      namespace.const_set(name, Class.new do
+        def self.key = :provider
+        def self.display_name = "Provider"
+        def self.detect_prepare(context) = context
+      end)
+    end
+    described_class.register(name: "enabled", version: "1", family_provides: [ declaration("LazyFamilySpec::Enabled") ])
+    described_class.register(name: "disabled", version: "1", default_enabled: false,
+      family_provides: [ declaration("LazyFamilySpec::Disabled") ])
+    allow(described_class).to receive(:enablement_retry_sleep)
+    allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+    expect { described_class.capability_providers(:ecosystem, :detect_prepare) }
+      .to raise_error(described_class::EnablementUnavailable)
+    expect { described_class.capability_catalog }.to raise_error(described_class::EnablementUnavailable)
+  ensure
+    Object.send(:remove_const, :LazyFamilySpec) if Object.const_defined?(:LazyFamilySpec)
+  end
+
   it "attributes family implementations to their declaring plugin at invocation time" do
     namespace = Object.const_set(:AttributionFamilySpec, Module.new)
     implementation = namespace.const_set(:Provider, Class.new do
@@ -145,6 +169,23 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     )
     expect(described_class.capability_providers(:ecosystem, :detect_prepare)).to be_empty
     expect(described_class.providers_for(:callbacks)).to include(legacy)
+  ensure
+    Object.send(:remove_const, :ConformanceFamilySpec) if Object.const_defined?(:ConformanceFamilySpec)
+  end
+
+  it "keeps a non-conforming plugin's plugin-hosted contributions, like its other registrations" do
+    namespace = Object.const_set(:ConformanceFamilySpec, Module.new)
+    namespace.const_set(:Missing, Class.new do
+      def self.key = :missing
+      def self.display_name = "Missing"
+    end)
+    contribution = Class.new
+    described_class.register(name: "host_plugin", version: "1", hosts: [ :thing ])
+    described_class.register(name: "missing", version: "1", provides: { "host_plugin:thing" => contribution },
+      family_provides: [ declaration("ConformanceFamilySpec::Missing") ])
+
+    expect(described_class.health.status("missing").state).to eq(:non_conforming)
+    expect(described_class.providers_with_owner_for("host_plugin:thing")).to eq([ [ "missing", contribution ] ])
   ensure
     Object.send(:remove_const, :ConformanceFamilySpec) if Object.const_defined?(:ConformanceFamilySpec)
   end

@@ -375,7 +375,7 @@ module Syrus
         plugins = all_plugins
         enabled = plugins.select(&:enabled?)
         health = health_for(plugins, enabled_names: enabled.map(&:name))
-        live = enabled.select { |manifest| health.healthy?(manifest.name) }
+        live = enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
 
         host = live.find { |manifest| manifest.name == host_name }
         return [] if host.nil?
@@ -546,13 +546,14 @@ module Syrus
 
       def available_capability_plugins
         plugins = @mutex.synchronize { @plugins.dup }
-        begin
-          records = records_for(plugins)
+        # The same enablement read as providers_for: declared defaults before
+        # the table exists, retried and then raised on any other read error,
+        # never "every installed plugin" (formal/SyrusModel/EnablementRead.lean).
+        records = enablement_records(plugins)
+        unless records.nil?
           enabled = plugins.select { |manifest| plugin_enabled?(manifest, records[manifest.name]) }
           health = health_for(plugins, enabled_names: enabled.map(&:name))
           plugins = enabled.select { |manifest| health.registrations_healthy?(manifest.name) }
-        rescue ActiveRecord::ActiveRecordError
-          # Registration remains usable before the plugin_records table exists.
         end
         sort_by_prepare_priority(plugins)
       end
