@@ -1,4 +1,5 @@
 require "rails_helper"
+require "syrus/plugin/family_contract_kit"
 
 RSpec.describe "Bundled plugin family contract coverage" do
   it "runs each bundled family declaration through its generated shared examples" do

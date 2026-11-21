@@ -1,4 +1,5 @@
 require "rails_helper"
+require "syrus/plugin/family_contract_kit"
 
 RSpec.describe Syrus::Plugin::FamilyContractCoverage do
   before do
@@ -14,26 +15,43 @@ RSpec.describe Syrus::Plugin::FamilyContractCoverage do
     Syrus::Plugin::Family.reset!
   end
 
-  def manifest(name, provider)
-    declaration = Syrus::Plugin::FamilyDeclaration.build(
-      family: :coverage_fixture, provider:, provisional: %i[items]
-    )
+  def manifest(name, *providers, plugin_root: nil)
+    declarations = providers.map do |provider|
+      Syrus::Plugin::FamilyDeclaration.build(
+        family: :coverage_fixture, provider:, provisional: %i[items]
+      )
+    end
     Syrus::Plugin::Manifest.new(
-      name:, version: "1.0.0", provides: {}, family_provides: [ declaration ], metadata: {}
+      name:, version: "1.0.0", provides: {}, family_provides: declarations, metadata: {}, plugin_root:
     )
   end
 
-  it "tracks every plugin provider declaration independently" do
-    manifests = [ manifest("one", "One::Provider"), manifest("two", "Two::Provider") ]
+  def with_plugin_spec(source)
+    Dir.mktmpdir do |root|
+      spec_root = Pathname(root).join("spec")
+      FileUtils.mkdir_p(spec_root)
+      spec_root.join("family_contract_spec.rb").write(source)
+      yield root
+    end
+  end
 
-    declaration = described_class.declaration!(
-      plugin: "one", family: :coverage_fixture, provider: "One::Provider", manifests:
-    )
+  it "finds exact provider coverage from a plugin spec in an isolated process" do
+    with_plugin_spec(<<~RUBY) do |root|
+      # A comment mentioning "a valid coverage_fixture provider" is not coverage.
+      it_behaves_like(
+        'a valid coverage_fixture provider',
+        plugin: 'one',
+        provider: 'One::Provider',
+        contexts: {},
+        decline_contexts: {}
+      )
+    RUBY
+      manifests = [ manifest("one", "One::Provider", "Two::Provider", plugin_root: root) ]
 
-    expect(declaration.capabilities).to eq(%i[items])
-    expect(described_class.missing(manifests:)).to contain_exactly(
-      have_attributes(plugin: "two", family: :coverage_fixture, provider: "Two::Provider")
-    )
+      expect(described_class.missing(manifests:)).to contain_exactly(
+        have_attributes(plugin: "one", family: :coverage_fixture, provider: "Two::Provider")
+      )
+    end
   end
 
   it "rejects a shared example that does not identify an exact declaration" do

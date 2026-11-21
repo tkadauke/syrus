@@ -4418,7 +4418,10 @@ capability with the family's context, validates the declared return shape, and
 checks the absent/decline result. Pass the plugin name, provider class name,
 and call and decline contexts to the shared example. The kit resolves that
 exact manifest declaration and derives its complete capability list; callers
-cannot omit a claimed capability. Core runs these same generated contracts for
-every bundled family declaration. A capability may be marked
-`stable` only when at least two independent bundled plugins implement it and
-the generated contract is present; otherwise it remains `provisional`.
+cannot omit a claimed capability. Use literal strings for the shared-example
+name, `plugin:`, and `provider:` so the isolated architecture check can verify
+coverage without depending on another RSpec worker's process state. Core runs
+these same generated contracts for every bundled family declaration. A
+capability may be marked `stable` only when at least two independent bundled
+plugins implement it and the generated contract is present; otherwise it
+remains `provisional`.
