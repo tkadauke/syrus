@@ -92,7 +92,25 @@ reasoned about in proofs.
   (never satisfied and terminally failed at once) and `closed_decided` (a closed
   upstream Job always decides its dependency); found F48.
 
-Still to come in Phase 1: the executable oracle.
+- `Kernel/Json.lean`: the canonical JSON schema (schema version 1) and
+  `validB`, the executable validity check, with `validB_sound` (it never calls
+  an invalid world valid).
+- `Oracle.lean`: the `syrus_oracle` executable. It reads one world as JSON on
+  stdin and prints validity, issues, the reconciled next state, and the issues
+  left in it (always none, by `diagnose_reconcile`, and printed so consumers
+  can check). Malformed input exits 2 with an `error` object.
+
+```
+lake build syrus_oracle
+.lake/build/bin/syrus_oracle < contracts/work_engine_traces/lost_cleanup.json
+```
+
+`contracts/work_engine_traces/` holds the first canonical fixtures (DOC-44,
+"Shared contract corpora").
+
+Phase 1 is complete in this scope. Next is Phase 2: export the Ruby
+work-engine simulation fixtures into this schema and compare the Ruby
+reconciler with the oracle.
 
 ## Next steps
 

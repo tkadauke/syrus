@@ -4,3 +4,7 @@ defaultTargets = ["SyrusModel"]
 
 [[lean_lib]]
 name = "SyrusModel"
+
+[[lean_exe]]
+name = "syrus_oracle"
+root = "Oracle"
