@@ -4375,3 +4375,38 @@ the manifest with `key:`, so selection does not load candidate classes:
 ```ruby
 provides ecosystem: "Kotlin::Resolver", key: :kotlin, implements: %i[resolve]
 ```
+
+Core constructs the context and invokes capabilities through the common
+dispatcher:
+
+```ruby
+context = Syrus::Plugin::Context::RepoContext.new(repo_path:, repository:)
+items = Syrus::Plugin::Dispatch.call(:ecosystem, :detect_prepare, context, timeout: 2.seconds)
+```
+
+A provider accepts the context as its only required positional argument and
+reads the fields it uses:
+
+```ruby
+def self.detect_prepare(context)
+  return [] unless context.repo_path.join("build.gradle.kts").exist?
+
+  [ "./gradlew dependencies" ]
+end
+```
+
+The four initial immutable shapes are `RepoContext` (`repo_path`,
+`repository`), `WorkspaceContext` (`workspace_path`, `changed_files`,
+`repository`), `GraderContext` (`name`, `command`, `workspace_path`,
+`failed_cases`, `base_retry`, `project_path`), and `JobContext` (`repository`,
+`job`). Fields are additive. Do not destructure the context or reject unknown
+fields; keep accepting the context and read only the accessors the provider
+needs.
+
+Return `nil` to decline first-claim work. Raise
+`Syrus::Host::CapabilityValidationError` only for an intentional,
+caller-visible configuration error. The dispatcher lets that typed error pass
+without recording a provider crash. Unexpected exceptions and opt-in timeouts
+are recorded in plugin health, participate in the circuit breaker, and become
+the capability's neutral decline value. A keyed lookup with no matching
+provider raises `Syrus::Plugin::Dispatch::MissingKey`.
