@@ -2936,6 +2936,40 @@
       "status": "done",
       "done_by": "F84",
       "notes": "precheck now drops results after any navigation (generation). connectRemote already re-checked; lifecycle actions are gated on local mode."
+    },
+    {
+      "id": "desktop-notification-semantics",
+      "area": "desktop",
+      "title": "Notifications are at-most-once, the badge reconciles to the server's count, and main/renderer never both notify",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "NotificationService broadcast; handleNotificationCreated; webAppWindowHandlingNotifications; AppUserCableClient.onSubscribed",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F85",
+      "notes": "Resync on every (re)subscription closes the missed-broadcast staleness."
+    },
+    {
+      "id": "desktop-credential-validation",
+      "area": "desktop",
+      "title": "Failed validation never replaces valid stored credentials; the newest credential action is the final disk mutation",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "saveCredentials, CredentialMutationCoordinator",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F85 (audit)",
+      "notes": "Validate-then-write; serialized queue with generation supersession."
     }
   ],
   "needs_you": [

@@ -2938,6 +2938,53 @@ typecheck is clean.
 
 ---
 
+## F85. The tray badge never resynced after a cable outage — fixed; credential and notification semantics audited
+
+**Found by** DOC-44 Phase 7:
+
+- desktop credentials: "Failed validation cannot replace valid stored
+  credentials";
+- desktop ActionCable and notifications: "Notification delivery semantics are
+  explicitly at-least-once or exactly-once", "If duplicates are permitted,
+  unread-count behavior eventually reconciles to an authoritative count", and
+  "Main-process and renderer notification paths do not jointly create
+  uncontrolled duplicates".
+
+**Semantics, as implemented.**
+
+- *Delivery is at most once.* `NotificationService` broadcasts once, after the
+  notification row commits, and ActionCable keeps no replay.
+- *The count is authoritative per broadcast.* The broadcast carries the
+  server's `unread_count`, and `handleNotificationCreated` sets the badge from
+  it. Only a payload without a count falls back to `+1`.
+- *No main/renderer duplication.* The main process shows a native
+  notification only when the web-app window is not live, visible and
+  unminimised. Otherwise the web app shows it, so the two paths never both
+  fire for one event.
+
+**Gap.** Because delivery is at most once, a broadcast missed while the cable
+was down is gone. The badge resynced only on bootstrap (startup and
+credentials save), when the tray popover opened, or with the next
+notification. After an outage, a missed notification, or one read on another
+device, left the badge wrong indefinitely if none of those happened.
+
+**Fix.** `AppUserCableClient` reports every confirmed subscription through
+`onSubscribed`, on the first connect and every reconnect. Main resyncs the
+badge from `/notifications` there. Errors are swallowed; the badge is cosmetic.
+
+**Credentials hold.** `saveCredentials` validates with the server before
+`writeCredentialsFile`, so a failed validation throws before anything touches
+the stored file. `CredentialMutationCoordinator` serialises operations and
+lets a newer one supersede an older one. The newest operation always runs
+last, so it is the final mutation on disk.
+
+**Spec.** `desktop/src/appUserCable.test.ts` "reports every confirmed
+subscription so the unread count can resync" was red before (0 calls). All
+306 desktop vitest tests and 391 desktop specs pass, and the desktop typecheck
+is clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

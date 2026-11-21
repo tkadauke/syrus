@@ -20,6 +20,10 @@ type AppUserCableDeps = {
   credentialsKey: (credentials: Credentials) => string
   onMessage: (message: unknown) => void
   onUnauthorized: (credentials: Credentials) => void
+  // Called on every confirmed subscription (first connect and each
+  // reconnect). The cable has no replay, so this is where state derived from
+  // broadcasts (the unread badge) resyncs from its authoritative source.
+  onSubscribed?: () => void
   setTimeout?: (callback: () => void, delay: number) => Timer
   clearTimeout?: (timer: Timer) => void
 }
@@ -129,6 +133,7 @@ export class AppUserCableClient {
       if (message.type === "confirm_subscription") {
         subscribed = true
         this.reconnectMs = INITIAL_RECONNECT_MS
+        this.deps.onSubscribed?.()
         return
       }
       // Protocol frames (welcome, ping — whose "message" is a timestamp) carry

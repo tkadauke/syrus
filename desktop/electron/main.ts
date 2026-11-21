@@ -434,6 +434,11 @@ const appUserCableClient = new AppUserCableClient({
   },
   onUnauthorized: (credentials) => {
     suspectTokenKey = credentialsKey(credentials)
+  },
+  // Broadcasts missed while disconnected are never replayed; resync the badge
+  // from the server's count on every (re)subscription.
+  onSubscribed: () => {
+    void syncUnreadCount().catch(() => {})
   }
 })
 

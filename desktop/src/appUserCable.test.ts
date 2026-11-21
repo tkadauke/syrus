@@ -95,6 +95,37 @@ describe("AppUserCableClient", () => {
     expect(onMessage.mock.calls).toEqual([[{ type: "notification_created", id: 3 }]])
   })
 
+  // The cable has no replay: notifications broadcast while it was down are
+  // never delivered, so the tray badge stayed stale until the popover opened
+  // or another notification happened to arrive. Each confirmed subscription
+  // (first connect and every reconnect) is the point to resync from the
+  // authoritative count.
+  it("reports every confirmed subscription so the unread count can resync", () => {
+    const onSubscribed = vi.fn()
+    const sockets: FakeSocket[] = []
+    const timers: Array<() => void> = []
+    const client = new AppUserCableClient({
+      createSocket: () => { const socket = new FakeSocket(); sockets.push(socket); return socket },
+      cableUrl: () => "wss://syrus.example/cable",
+      credentialsKey: ({ url, token }) => `${url}\n${token}`,
+      onMessage: vi.fn(),
+      onUnauthorized: vi.fn(),
+      onSubscribed,
+      setTimeout: ((callback: () => void) => { timers.push(callback); return timers.length }),
+      clearTimeout: vi.fn()
+    })
+    const identifier = JSON.stringify({ channel: "AppUserChannel" })
+    client.start(credentials)
+    sockets[0].open()
+    sockets[0].receive({ type: "confirm_subscription", identifier })
+    sockets[0].onclose?.()
+    timers.shift()?.()
+    sockets[1].open()
+    sockets[1].receive({ type: "confirm_subscription", identifier })
+
+    expect(onSubscribed).toHaveBeenCalledTimes(2)
+  })
+
   it("delivers nothing on a socket whose subscription was rejected", () => {
     const { client, sockets, onMessage, timers } = setup()
     const identifier = JSON.stringify({ channel: "AppUserChannel" })
