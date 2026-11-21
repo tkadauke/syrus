@@ -241,6 +241,18 @@ class, `SYRUS_BACKUP_MIN_FREE_BYTES`, `SYRUS_BACKUP_MIN_FREE_PERCENT`, and
 claim read-only in web pods. The plugin's capacity admission blocks new
 construction before the configured reserve is consumed.
 
+Disaster recovery must scale or route every mutating web and worker workload
+out of service and verify the drain before `bin/disaster-recovery restore`
+promotes anything. Run the CLI from the matching Syrus image with access to the
+backup PVC. MySQL and S3-compatible restores use deployment-specific commands
+to create isolated staging schemas, buckets, or prefixes, validate them,
+promote them, and roll them back. The CLI retains its maintenance marker and
+prints the pinned safety-bundle and rollback steps on any failure. Resume
+workloads only after migration, index rebuild, work reconciliation, and boot
+health commands all succeed. Recovery is like-for-like; the existence of both
+backup drivers does not make SQLite-to-MySQL or Disk-to-S3 conversion a
+supported restore path.
+
 For the data-root PVC, use your cluster storage snapshot mechanism or a volume
 backup tool such as Velero with CSI snapshots.
 
