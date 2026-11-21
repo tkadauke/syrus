@@ -144,7 +144,8 @@ module Syrus
             ### `#{capability.name}`
 
             - Composition: `#{capability.composition}`
-            - Absent/decline result: `#{capability.absent.inspect}`
+            - Absent result: `#{capability.absent.inspect}`
+            - Provider decline: `#{capability.decline.inspect}`
             - Tier: `#{capability.tier}`
             - Context: `#{capability.context.respond_to?(:name) ? capability.context.name : capability.context}`
             - Return shape: `#{capability.return_contract.description}`
@@ -160,7 +161,7 @@ module Syrus
 
           ## Capabilities
 
-          #{capabilities}
+          #{capabilities.rstrip}
         MD
       end
 
