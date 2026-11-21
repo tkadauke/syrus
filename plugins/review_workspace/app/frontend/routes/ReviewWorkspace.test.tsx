@@ -136,9 +136,9 @@ describe("ReviewWorkspaceRoute", () => {
       "Give feedback",
       "Defer for this session"
     ])
-    expect(buttons[0]).toHaveClass("max-lg:order-2", "max-lg:col-span-2")
-    expect(buttons[1]).toHaveClass("max-lg:order-3")
-    expect(buttons[2]).toHaveClass("max-lg:order-1")
+    expect(buttons[0]).toHaveClass("max-lg:order-2", "max-lg:col-span-2", "max-lg:min-h-11")
+    expect(buttons[1]).toHaveClass("max-lg:order-3", "max-lg:min-h-11")
+    expect(buttons[2]).toHaveClass("max-lg:order-1", "max-lg:min-h-11")
     expect(within(buttons[1]).queryByText("Give feedback")).toHaveClass("max-lg:hidden")
     expect(within(buttons[2]).queryByText("Defer for this session")).toHaveClass("max-lg:hidden")
     fireEvent.click(screen.getByRole("button", { name: "Approve" }))

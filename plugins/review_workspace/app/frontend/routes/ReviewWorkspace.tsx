@@ -656,15 +656,15 @@ function DecisionPanel({
             </div>
           </div>
         ) : (
-          <Button className="w-full max-lg:order-2 max-lg:col-span-2" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
+          <Button className="w-full max-lg:order-2 max-lg:col-span-2 max-lg:min-h-11" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
             {t(isDesktop ? "approve_shortcut" : "approve_mobile")}
           </Button>
         )}
-        <Button aria-label={t("feedback")} className="w-full max-lg:order-3" onClick={() => setFeedbackOpen(true)} variant="secondary">
+        <Button aria-label={t("feedback")} className="w-full max-lg:order-3 max-lg:min-h-11" onClick={() => setFeedbackOpen(true)} variant="secondary">
           <span className="max-lg:hidden">{t(isDesktop ? "feedback_shortcut" : "feedback")}</span>
           <FeedbackIcon className="hidden size-5 max-lg:block" />
         </Button>
-        <Button aria-label={t("defer")} className="w-full max-lg:order-1" onClick={onDefer} variant="secondary">
+        <Button aria-label={t("defer")} className="w-full max-lg:order-1 max-lg:min-h-11" onClick={onDefer} variant="secondary">
           <span className="max-lg:hidden">{t("defer")}</span>
           <DeferToQueueEndIcon className="hidden size-5 max-lg:block" />
         </Button>
