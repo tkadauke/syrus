@@ -156,6 +156,8 @@ RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
   end
 
   it "declines a malformed CI-log result and accepts the next valid claim through dispatch" do
+    health = Syrus::PluginRuntimeHealth.new
+    Syrus::PluginInvocation.runtime_health = health
     malformed = Class.new { def self.parse_ci_log(_context) = { parser: :incomplete } }
     valid = Class.new do
       def self.parse_ci_log(_context) = { parser: :reference, error_summary: "failure", error_block: "details" }
@@ -169,6 +171,8 @@ RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
     allow(Syrus::PluginRegistry).to receive(:capability_providers).with(:ecosystem, :parse_ci_log).and_return(providers)
 
     expect(Syrus::Plugin::Dispatch.call(:ecosystem, :parse_ci_log, grader_context)).to include(parser: :reference)
+    expect(health.failures).to be_empty
+    expect(health.circuits).to be_empty
   end
 
   def repo_context(config: nil) = Syrus::Plugin::Context::RepoContext.new(repo_path: "/repo", config:)
