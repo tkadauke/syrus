@@ -308,5 +308,244 @@ module LocalBackups
         FileUtils.remove_entry_secure(staging) if staging&.exist?
       end
     end
+
+    # The offline restore intentionally supports only the topology which can be
+    # qualified on an ordinary Linux host: SQLite and Disk Active Storage. The
+    # deployment-specific MySQL/S3 paths remain fail-closed until their own
+    # environment-backed recovery drills exist.
+    class Restore
+      Result = Data.define(:backup_id, :rollback_path, :database_path, :storage_path)
+
+      def initialize(bundle:, destination:, database_path:, storage_path:, installation_id:, token_secret:, token:,
+        pid_files:, break_glass: false, health_check: nil, phase_hook: ->(_phase) { })
+        @bundle = bundle
+        @destination = Pathname.new(destination)
+        @database_path = Pathname.new(database_path)
+        @storage_path = Pathname.new(storage_path)
+        @installation_id = installation_id.to_s
+        @token_secret = token_secret.to_s
+        @token = token.to_s
+        @pid_files = Array(pid_files).map { |path| Pathname.new(path) }
+        @break_glass = break_glass
+        @health_check = health_check || RestoredStateCheck.new(@bundle)
+        @phase_hook = phase_hook
+      end
+
+      def call
+        validate_request!
+        maintenance = Maintenance.new(@destination)
+        maintenance.enter!
+        maintenance.verify_drained!(@pid_files)
+        @phase_hook.call(:maintenance_verified)
+
+        rollback = SafetyCopy.new(@destination, @database_path, @storage_path).create!(break_glass: @break_glass)
+        @phase_hook.call(:safety_copy_created)
+        staging = stage!
+        @phase_hook.call(:staged)
+        verify_staging!(staging)
+        @phase_hook.call(:staging_verified)
+        promote!(staging, rollback)
+        @phase_hook.call(:promoted)
+        raise Error, "restored-state health check failed" unless @health_check.call(@database_path, @storage_path)
+
+        maintenance.leave!
+        @phase_hook.call(:healthy)
+        Result.new(backup_id: @bundle.manifest.fetch("backup_id"), rollback_path: rollback&.to_s,
+          database_path: @database_path.to_s, storage_path: @storage_path.to_s)
+      rescue StandardError => error
+        write_failure(error)
+        raise
+      ensure
+        FileUtils.remove_entry_secure(staging) if staging&.exist?
+      end
+
+      private
+
+      def validate_request!
+        @bundle.validate!
+        adapter = @bundle.manifest.dig("database", "adapter")
+        service = @bundle.manifest.dig("active_storage", "service")
+        raise Error, "restore is not qualified for database adapter #{adapter.inspect}" unless adapter == "sqlite3"
+        raise Error, "restore is not qualified for Active Storage service #{service.inspect}" unless service == "Disk"
+        unless Token.valid?(@token, secret: @token_secret, artifact_checksum: @bundle.identity_checksum,
+          installation_id: @installation_id)
+          raise Error, "preflight token is stale or belongs to another artifact or installation"
+        end
+        raise Error, "restore destination must be a writable directory" unless @destination.directory? && @destination.writable?
+        raise Error, "at least one mutating-process PID file is required" if @pid_files.empty?
+      end
+
+      def stage!
+        staging = @destination.join(".restore-#{SecureRandom.uuid}.partial")
+        staging.mkdir(0o700)
+        database_source = @bundle.path.join(safe_manifest_path("database", "path"))
+        database_target = staging.join("database.sqlite3")
+        FileUtils.copy_file(database_source, database_target)
+        File.chmod(0o600, database_target)
+        objects_target = staging.join("storage").tap(&:mkpath)
+        Array(@bundle.manifest.dig("active_storage", "blobs")).each do |blob|
+          relative = Bundle.safe_relative(blob.fetch("relative_path"))
+          target = objects_target.join(storage_relative(blob.fetch("key")))
+          target.dirname.mkpath
+          FileUtils.copy_file(@bundle.path.join(relative), target)
+          File.chmod(0o600, target)
+        end
+        staging
+      end
+
+      def verify_staging!(staging)
+        database = staging.join("database.sqlite3")
+        raise Error, "staged SQLite database is invalid" unless database.binread(16) == "SQLite format 3\0"
+        blobs = Array(@bundle.manifest.dig("active_storage", "blobs"))
+        raise Error, "staged object count does not match the manifest" unless staging.join("storage").find.count(&:file?) == blobs.length
+        blobs.each do |blob|
+          target = staging.join("storage", storage_relative(blob.fetch("key")))
+          raise Error, "staged object size mismatch" unless target.size == Integer(blob.fetch("byte_size"))
+          raise Error, "staged object checksum mismatch" unless Digest::SHA256.file(target).hexdigest == blob.fetch("bundle_checksum")
+        end
+      rescue Errno::ENOENT, KeyError, ArgumentError
+        raise Error, "staged restore contents do not match the manifest"
+      end
+
+      def promote!(staging, rollback)
+        promoted_database = staging.join("database.sqlite3")
+        promoted_storage = staging.join("storage")
+        FileUtils.mkdir_p(@database_path.dirname)
+        FileUtils.mkdir_p(@storage_path.dirname)
+        FileUtils.rm_f(@database_path)
+        FileUtils.remove_entry_secure(@storage_path) if @storage_path.exist?
+        File.rename(promoted_database, @database_path)
+        File.rename(promoted_storage, @storage_path)
+      rescue StandardError
+        SafetyCopy.restore!(rollback, @database_path, @storage_path) if rollback
+        raise
+      end
+
+      def safe_manifest_path(*keys)
+        Bundle.safe_relative(@bundle.manifest.dig(*keys) || raise(Error, "manifest is missing #{keys.join('.') }"))
+      end
+
+      def storage_relative(key)
+        clean = Bundle.safe_relative(key)
+        value = clean.to_s
+        raise Error, "Active Storage key is too short" if value.length < 4
+        Pathname.new(value[0, 2]).join(value[2, 2], clean)
+      end
+
+      def write_failure(error)
+        return unless @destination.directory?
+        path = @destination.join("RESTORE_FAILED.json")
+        path.write(JSON.pretty_generate(
+          status: "maintenance_required", error: error.message,
+          rollback: "restore the pinned pre-restore directory, then repeat health checks before removing MAINTENANCE"
+        ) + "\n")
+        File.chmod(0o600, path)
+      rescue StandardError
+        nil
+      end
+    end
+
+    class RestoredStateCheck
+      def initialize(bundle)
+        @manifest = bundle.manifest
+      end
+
+      def call(database_path, _storage_path)
+        require "sqlite3"
+        database = SQLite3::Database.new(database_path.to_s, readonly: true)
+        return false unless database.get_first_value("PRAGMA integrity_check") == "ok"
+        expected_schema = @manifest.dig("database", "schema_version")
+        return false if expected_schema && database.get_first_value("PRAGMA user_version").to_i != expected_schema.to_i
+        expected_blobs = Integer(@manifest.dig("active_storage", "blob_count") || 0)
+        database.get_first_value("SELECT COUNT(*) FROM active_storage_blobs").to_i == expected_blobs
+      rescue LoadError, SQLite3::Exception, ArgumentError
+        false
+      ensure
+        database&.close
+      end
+    end
+
+    class Maintenance
+      def initialize(root)
+        @marker = root.join("MAINTENANCE")
+      end
+
+      def enter!
+        @marker.write("restore in progress\n")
+        File.chmod(0o600, @marker)
+      end
+
+      def leave!
+        @marker.delete if @marker.exist?
+        failure = @marker.dirname.join("RESTORE_FAILED.json")
+        failure.delete if failure.exist?
+      end
+
+      def verify_drained!(pid_files)
+        pid_files.each do |path|
+          next unless path.file?
+          pid = Integer(path.read.strip, 10)
+          Process.kill(0, pid)
+          raise Error, "mutating process #{pid} from #{path} is still running"
+        rescue Errno::ESRCH
+          next
+        rescue Errno::EPERM
+          raise Error, "cannot verify mutating process #{pid} from #{path}"
+        rescue ArgumentError
+          raise Error, "invalid PID file: #{path}"
+        end
+      end
+    end
+
+    class SafetyCopy
+      def initialize(root, database_path, storage_path)
+        @root = root
+        @database_path = database_path
+        @storage_path = storage_path
+      end
+
+      def create!(break_glass:)
+        return nil if !@database_path.exist? && !@storage_path.exist?
+        destination = @root.join("pre-restore-#{Time.now.utc.strftime('%Y%m%dT%H%M%SZ')}-#{SecureRandom.hex(4)}.pinned")
+        destination.mkdir(0o700)
+        FileUtils.copy_file(@database_path, destination.join("database.sqlite3")) if @database_path.file?
+        FileUtils.copy_entry(@storage_path, destination.join("storage"), false, false, true) if @storage_path.directory?
+        validate_copy!(destination)
+        pin = destination.join("PINNED")
+        pin.write("pre-restore safety copy\n")
+        File.chmod(0o600, pin)
+        destination
+      rescue StandardError => error
+        FileUtils.remove_entry_secure(destination) if destination&.exist?
+        raise Error, "pre-restore safety copy failed: #{error.message}; repeat with --break-glass only after accepting rollback loss" unless break_glass
+        nil
+      end
+
+      def self.restore!(source, database_path, storage_path)
+        return unless source
+        FileUtils.rm_f(database_path)
+        FileUtils.remove_entry_secure(storage_path) if storage_path.exist?
+        FileUtils.copy_file(source.join("database.sqlite3"), database_path) if source.join("database.sqlite3").file?
+        FileUtils.copy_entry(source.join("storage"), storage_path, false, false, true) if source.join("storage").directory?
+      end
+
+      private
+
+      def validate_copy!(destination)
+        if @database_path.file? && Digest::SHA256.file(@database_path).hexdigest != Digest::SHA256.file(destination.join("database.sqlite3")).hexdigest
+          raise Error, "pre-restore database copy failed validation"
+        end
+        return unless @storage_path.directory?
+        source = tree_checksums(@storage_path)
+        copied = tree_checksums(destination.join("storage"))
+        raise Error, "pre-restore object copy failed validation" unless source == copied
+      end
+
+      def tree_checksums(root)
+        root.find.select(&:file?).to_h do |path|
+          [path.relative_path_from(root).to_s, Digest::SHA256.file(path).hexdigest]
+        end
+      end
+    end
   end
 end

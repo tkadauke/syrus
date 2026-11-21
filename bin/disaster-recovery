@@ -19,6 +19,11 @@ parser = OptionParser.new do |opts|
   opts.on("--plugin NAME") { |value| (options[:plugins] ||= []) << value }
   opts.on("--encryption-fingerprints JSON") { |value| options[:encryption_fingerprints] = JSON.parse(value) }
   opts.on("--in-flight COUNT", Integer) { |value| options[:in_flight] = value }
+  opts.on("--token TOKEN") { |value| options[:token] = value }
+  opts.on("--database-path PATH") { |value| options[:database_path] = value }
+  opts.on("--storage-path PATH") { |value| options[:storage_path] = value }
+  opts.on("--pid-file PATH") { |value| (options[:pid_files] ||= []) << value }
+  opts.on("--break-glass") { options[:break_glass] = true }
   opts.on("--max-bytes BYTES", Integer) { |value| options[:max_bytes] = value }
   opts.on("--max-files COUNT", Integer) { |value| options[:max_files] = value }
   opts.on("--stdin") { options[:stdin] = true }
@@ -83,6 +88,20 @@ when "verify-token"
   )
   raise LocalBackups::Recovery::Error, "preflight token is stale or belongs to another artifact or installation" unless valid
   puts JSON.generate(status: "valid", artifact_checksum: bundle.identity_checksum, installation_id:)
+when "restore"
+  bundle = open_bundle(bundle_argument, options)
+  destination = options[:destination] || ENV["SYRUS_DATA_ROOT"]
+  raise LocalBackups::Recovery::Error, "--destination or SYRUS_DATA_ROOT is required" if destination.to_s.empty?
+  raise LocalBackups::Recovery::Error, "--database-path is required" if options[:database_path].to_s.empty?
+  raise LocalBackups::Recovery::Error, "--storage-path is required" if options[:storage_path].to_s.empty?
+  result = LocalBackups::Recovery::Restore.new(
+    bundle:, destination:, database_path: options[:database_path], storage_path: options[:storage_path],
+    installation_id: options[:installation_id] || ENV["SYRUS_INSTALLATION_ID"],
+    token_secret: ENV["SYRUS_RECOVERY_TOKEN_SECRET"], token: options[:token],
+    pid_files: options[:pid_files], break_glass: options[:break_glass]
+  ).call
+  puts JSON.pretty_generate(status: "restored", backup_id: result.backup_id,
+    rollback_path: result.rollback_path, database_path: result.database_path, storage_path: result.storage_path)
 else
   warn parser
   exit 64

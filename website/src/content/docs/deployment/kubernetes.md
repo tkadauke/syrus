@@ -241,6 +241,11 @@ class, `SYRUS_BACKUP_MIN_FREE_BYTES`, `SYRUS_BACKUP_MIN_FREE_PERCENT`, and
 claim read-only in web pods. The plugin's capacity admission blocks new
 construction before the configured reserve is consumed.
 
+Kubernetes restore is not qualified. The offline CLI rejects MySQL and
+S3-compatible restore execution; do not treat bundle creation or checksum
+validation as proof of cluster recovery. Qualification requires a separate
+environment-backed MySQL, object-storage, and Kubernetes drill.
+
 For the data-root PVC, use your cluster storage snapshot mechanism or a volume
 backup tool such as Velero with CSI snapshots.
 
