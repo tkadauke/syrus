@@ -10,7 +10,7 @@ module Prompts
       pr_comment:    { context: "PR comment feedback", history: "PR comments being addressed"   }
     }.freeze
 
-    def initialize(issue:, diff:, prior_findings:, base_ref:, workflow_kind: nil, feedback_context: nil, criteria: [], affected_projects: [])
+    def initialize(issue:, diff:, prior_findings:, base_ref:, workflow_kind: nil, feedback_context: nil, criteria: [], affected_projects: [], proposed_follow_ups: [])
       @issue = issue
       @diff = diff.to_s
       @prior_findings = Array(prior_findings)
@@ -19,6 +19,7 @@ module Prompts
       @feedback_context = feedback_context.to_s
       @criteria = Array(criteria)
       @affected_projects = Array(affected_projects)
+      @proposed_follow_ups = Array(proposed_follow_ups)
     end
 
     def to_s
@@ -32,6 +33,7 @@ module Prompts
         job_context,
         feedback_history,
         change_manifest,
+        proposed_follow_up_context,
         prior_review_context,
         submission_instructions
       ].compact_blank.join("\n\n")
@@ -102,6 +104,18 @@ module Prompts
 
       label = FEEDBACK_KIND_LABELS.fetch(feedback_kind)[:history]
       "#{label}:\n\n#{@feedback_context}"
+    end
+
+    def proposed_follow_up_context
+      return nil if @proposed_follow_ups.empty?
+
+      lines = @proposed_follow_ups.map { |job| "- #{job[:slug]}: #{job[:title]}" }
+      [
+        "Follow-up Jobs the implementing agent proposed instead of doing in this change:",
+        *lines,
+        "",
+        "Check each against the Job description above. A follow-up that covers anything this Job asks for is unfinished work in this change, not a follow-up: say so and return needs_work."
+      ].join("\n")
     end
 
     def change_manifest

@@ -544,7 +544,7 @@ class McpToolRegistry
         workflow_action(Mcp::Tools::InvestigationProposeJobTool, capability: :propose_job, required_roles: [
           AgentRole::WORKFLOW_IMPLEMENT,
           AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
-        ], step_kinds: %w[investigate submit_report], mutation: true),
+        ], step_kinds: %w[investigate submit_report implement respond analyze_and_fix], mutation: true),
         workflow_action(Mcp::Tools::SearchJobsTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ListJobsTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ListOpenPrsTool, required_roles: workflow_roles),

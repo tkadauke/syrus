@@ -161,8 +161,16 @@ module Steps
         workflow_kind: workflow.trigger_kind,
         feedback_context: feedback_context_text,
         criteria: adversarial_review_criteria,
-        affected_projects: adversarial_review_projects.to_a
+        affected_projects: adversarial_review_projects.to_a,
+        proposed_follow_ups: proposed_follow_ups
       ).to_s
+    end
+
+    def proposed_follow_ups
+      ids = Array(workflow.artifact("proposed_job_ids")).filter_map { |id| Integer(id, exception: false) }
+      return [] if ids.empty?
+
+      Job.where(id: ids).order(:id).map { |job| { slug: job.slug, title: job.issue_title } }
     end
 
     def review_step_kind = "adversarial_review"

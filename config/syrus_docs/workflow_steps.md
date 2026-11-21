@@ -435,10 +435,18 @@ create concrete follow-up implementation work. This is not the chat proposal
 card path: it creates a real Job immediately in `triaging` with
 `triaging_reason: proposed_job`, records a link back to the investigation in
 the Job body, and waits for an operator to Accept or Reject it on the Job page
-before anything starts. The tool is available only on `investigate` and
-`submit_report` steps, caps one investigation workflow at ten proposals, and
-requires explicit `planned_execution.capabilities` using the same placement
-rule as chat proposals.
+before anything starts. It requires explicit `planned_execution.capabilities`
+using the same placement rule as chat proposals.
+
+The same tool is available on `implement`, `respond` and `analyze_and_fix`
+steps, for work an agent finds that is outside the Job it is working on. It is
+not a way to defer part of the current Job: the adversarial review prompt lists
+every follow-up the workflow proposed and tells the reviewer to return
+`needs_work` when one covers something the Job asks for. An investigation
+workflow may propose up to ten Jobs and any other workflow up to three.
+Proposing the same title again from the same Job -- for example from a rerun
+or a later review round -- returns the existing untriaged proposal instead of
+creating a duplicate, and the proposal's body links back to the source Job.
 
 ### submit_report
 

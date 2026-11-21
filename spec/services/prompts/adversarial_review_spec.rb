@@ -22,6 +22,23 @@ RSpec.describe Prompts::AdversarialReview do
   let(:criteria) { [] }
   let(:base_ref) { "origin/main" }
 
+  describe "proposed follow-up Jobs" do
+    it "lists them and tells the reviewer to treat in-scope ones as unfinished work" do
+      text = described_class.new(
+        issue: issue, diff: diff, prior_findings: [], base_ref: base_ref,
+        proposed_follow_ups: [ { slug: "JOB-12", title: "Handle nil users in the admin API" } ]
+      ).to_s
+
+      expect(text).to include("Follow-up Jobs the implementing agent proposed")
+      expect(text).to include("- JOB-12: Handle nil users in the admin API")
+      expect(text).to include("return needs_work")
+    end
+
+    it "says nothing about follow-ups when none were proposed" do
+      expect(prompt).not_to include("Follow-up Jobs the implementing agent proposed")
+    end
+  end
+
   it "includes independence instruction" do
     expect(prompt).to include("independent reviewer")
   end

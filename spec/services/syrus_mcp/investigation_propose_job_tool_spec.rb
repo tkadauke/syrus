@@ -84,4 +84,46 @@ RSpec.describe Mcp::Tools::InvestigationProposeJobTool do
     expect(response).to be_error
     expect(response.content.first[:text]).to include("at most #{described_class::MAX_PROPOSALS_PER_WORKFLOW}")
   end
+
+  describe "from an implementation step" do
+    let(:implement_job) { Factories.job(user: user, repository: repository) }
+    let(:implement_workflow) { implement_job.workflows.first }
+    let(:implement_run) do
+      step = implement_workflow.steps.find_by!(kind: "implement")
+      step.runs.create!(job: implement_job, trigger_kind: implement_workflow.trigger_kind, agent_provider: implement_workflow.agent_provider)
+    end
+
+    it "creates a triaging follow-up that names the work it came from" do
+      response = call_tool(context_run: implement_run)
+
+      expect(response).not_to be_error
+      proposed = Job.find(payload(response).fetch("id"))
+      expect(proposed).to have_attributes(state: "triaging", triaging_reason: "proposed_job")
+      expect(proposed.issue_body).to include("Proposed during work on [#{implement_job.slug}](/jobs/#{implement_job.id})")
+      expect(implement_workflow.reload.artifact("proposed_job_ids")).to eq([ proposed.id ])
+    end
+
+    it "returns the existing proposal when a rerun proposes the same follow-up again" do
+      first = payload(call_tool(context_run: implement_run))
+      rerun = implement_run.step.runs.create!(
+        job: implement_job, trigger_kind: implement_workflow.trigger_kind, agent_provider: implement_workflow.agent_provider
+      )
+
+      second = payload(call_tool(title: "  fix MUTATION timeout ", context_run: rerun))
+
+      expect(second).to include("id" => first.fetch("id"), "already_proposed" => true)
+      expect(Job.where(triaging_reason: "proposed_job", repository: repository).count).to eq(1)
+    end
+
+    it "caps an implementation workflow at fewer proposals than an investigation" do
+      implement_workflow.set_artifact!(
+        "proposed_job_ids", (1..described_class::MAX_IMPLEMENTATION_PROPOSALS_PER_WORKFLOW).to_a
+      )
+
+      response = call_tool(context_run: implement_run)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("a workflow may propose at most #{described_class::MAX_IMPLEMENTATION_PROPOSALS_PER_WORKFLOW}")
+    end
+  end
 end
