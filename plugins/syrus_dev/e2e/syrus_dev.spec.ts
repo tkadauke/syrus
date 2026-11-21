@@ -199,11 +199,36 @@ function seededPerformancePayload() {
   }
 }
 
+// The page reads summaries from PERFORMANCE_PATH and, since summaries and raw
+// events were split apart, the events behind a summary row from
+// PERFORMANCE_EVENTS_PATH. Without the second mock the drill-down dialog asked
+// the real (empty) server and showed no matching request.
+const PERFORMANCE_EVENTS_PATH = `${PERFORMANCE_PATH}/events`
+const EVENT_FILTERS = ["method", "path", "controller", "action", "name"] as const
+
 async function mockPerformanceEvents(page: Page) {
   await page.route(
     (url) => url.pathname === PERFORMANCE_PATH,
     async (route) => {
       await route.fulfill({ json: seededPerformancePayload() })
+    }
+  )
+  await page.route(
+    (url) => url.pathname === PERFORMANCE_EVENTS_PATH,
+    async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      const eventName = params.get("event_name")
+      const seeded = seededPerformancePayload().events as Array<Record<string, unknown>>
+      const matched = seeded.filter(
+        (event) =>
+          (!eventName || event.event === eventName) &&
+          EVENT_FILTERS.every((key) => !params.has(key) || event[key] === params.get(key))
+      )
+      // Like SyrusDev::PerformancePayload#events_json: the matched events plus
+      // every event sharing their request id (the request's slow phases).
+      const requestIds = new Set(matched.map((event) => event.request_id).filter(Boolean))
+      const events = seeded.filter((event) => matched.includes(event) || requestIds.has(event.request_id))
+      await route.fulfill({ json: { events, event_count: events.length } })
     }
   )
 }

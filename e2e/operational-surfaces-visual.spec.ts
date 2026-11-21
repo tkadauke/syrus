@@ -20,6 +20,8 @@ const SURFACES = [
       await openSeededJob(page, "Inspect preview dashboard states")
       await page.getByRole("button", { name: "Workflows" }).click()
       await expect(page.getByRole("heading", { name: /^WF-/ })).toBeVisible()
+      // A settled workflow card starts collapsed; its steps render once expanded.
+      await page.getByRole("button", { name: "Show more" }).first().click()
       await page.getByRole("button", { name: /Implement/ }).click()
       await expect(page.getByRole("button", { name: "Transcript" })).toBeVisible()
       await expect(page.getByRole("button", { name: "Diff" })).toBeVisible()

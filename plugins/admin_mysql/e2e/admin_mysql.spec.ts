@@ -93,6 +93,25 @@ function mysqlPayload(includeSlowLog: boolean) {
   }
 }
 
+// The page polls live process state and configuration/diagnostics as separate
+// requests and merges them, live last, exactly as AdminMysql::Inspector serves
+// them: each request gets only the sections it asked for. A mock returning every
+// section on every request let the live poll's empty slow log overwrite the
+// rows the diagnostics request had just loaded.
+const SECTION_KEYS: Record<string, string[]> = {
+  live: ["connection_summary", "process_list"],
+  configuration: ["adapter", "database", "variables", "status"],
+  diagnostics: ["statement_digests", "slow_log"]
+}
+
+function sectionsOf(payload: Record<string, unknown>, sections: string | null) {
+  const requested = (sections ?? "").split(",").filter((section) => section in SECTION_KEYS)
+  const keys = (requested.length > 0 ? requested : Object.keys(SECTION_KEYS)).flatMap((section) => SECTION_KEYS[section])
+  return Object.fromEntries(
+    Object.entries(payload).filter(([key]) => key === "available" || key === "generated_at" || keys.includes(key))
+  )
+}
+
 async function mockAdminMysql(page: Page) {
   await page.route((url) => url.pathname === ADMIN_PAGES_PATH, async (route) => {
     await route.fulfill({
@@ -114,8 +133,9 @@ async function mockAdminMysql(page: Page) {
   })
 
   await page.route((url) => url.pathname === MYSQL_PATH, async (route) => {
-    const includeSlowLog = new URL(route.request().url()).searchParams.get("include_slow_log") === "true"
-    await route.fulfill({ json: mysqlPayload(includeSlowLog) })
+    const params = new URL(route.request().url()).searchParams
+    const includeSlowLog = params.get("include_slow_log") === "true"
+    await route.fulfill({ json: sectionsOf(mysqlPayload(includeSlowLog), params.get("sections")) })
   })
 
   await page.route((url) => url.pathname === KILL_PATH, fulfillKillQuery)

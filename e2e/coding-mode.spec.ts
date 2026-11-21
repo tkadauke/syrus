@@ -51,6 +51,6 @@ test("renders Coding Mode handoff confirmations and moves one into the pending c
   await page.getByRole("button", { name: "Previous pending action" }).click()
   await existingJobHandoff.getByRole("button", { name: "Confirm", exact: true }).click()
 
-  await expect(existingJobHandoff).toContainText("Working…")
+  // A confirmed card shrinks to its progress line while the action runs.
   await expect(existingJobHandoff).toContainText("Waiting for background worker...")
 })
