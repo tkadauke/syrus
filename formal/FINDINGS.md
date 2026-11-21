@@ -3908,6 +3908,36 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M31. Checkpoint-backed retry of a blocked Workflow is gated on proof, not age — audited, no bug
+
+**Scope.** DOC-44 retries, the coverage item `checkpoint-backed-blocked`. A
+blocked Workflow on a failed Job has a verified checkpoint and could be
+retried. This is a recovery opportunity, not a bad state. The safety side is
+that a retry from the checkpoint never resumes past work that is still live or
+semantically failed.
+
+**`BaseRefreshRetryEligibility`** admits a blocked source only if all of these
+hold:
+
+- it has no active Runs;
+- the Job has no live WorkUnit ownership or retained mutation locks;
+- *every* failed Run carries a structured, retryable
+  infrastructure classification (`disk_full`, `storage_unavailable`,
+  `worker_died`, `worker_died_under_resource_pressure`). Anything semantic or
+  ambiguous goes to operator review.
+
+It then requires a published `RunCheckpoint` whose provenance matches the Job,
+the Workflow and the checkpoint's Run, with a commit SHA and a durable remote
+ref. That ref must resolve to exactly that SHA right now, with `max_age: 0`,
+and the Job's effective base must resolve. An unresolvable checkpoint or base
+is refused. The existing negative fixture pins the case of a dirty grader
+barrier.
+
+So a blocked Workflow is only ever retried from a checkpoint that is provably
+the work it recorded, onto a base that exists, with nothing else live.
+
+---
+
 ## M30. Landing start-blocks always recheck or fail — audited, no bug
 
 **Scope.** DOC-44 landing, the coverage item `landing-start-blocked`: "A

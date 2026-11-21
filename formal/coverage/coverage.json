@@ -2109,9 +2109,9 @@
         "checkpoint_backed_blocked_stack_recovery",
         "checkpoint_resume_rejects_dirty_grader_barrier"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Recovery opportunity, not a bad state; the negative fixture guards against resuming past a dirty grader barrier."
+      "status": "done",
+      "done_by": "M31",
+      "notes": "Recovery opportunity, not a bad state; the negative fixture guards against resuming past a dirty grader barrier. M31: eligibility requires no live work or locks, only retryable infrastructure failure evidence, and a checkpoint whose provenance and ref resolve exactly."
     },
     {
       "id": "workspace-missing",
