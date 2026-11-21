@@ -1575,11 +1575,14 @@ function dependencyRequirementLabel(requirement: ChatProposalDependencyRequireme
   return labels[requirement.satisfaction_mode]()
 }
 
+const proposalResultFooterClass =
+  "mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300"
+
 function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatProposal; prefix: string; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   if (proposal.state === "confirmed") {
     return (
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+      <div className={proposalResultFooterClass}>
         <span className="rounded bg-green-50 px-2 py-0.5 font-medium text-green-700 dark:bg-green-950 dark:text-green-200">{t("confirmed")}</span>
         <ProposalMaterializedResult proposal={proposal} prefix={prefix} />
         <StartEpicButton proposal={proposal} onNotice={onNotice} />
@@ -1590,7 +1593,7 @@ function ProposalResultFooter({ proposal, prefix, onNotice }: { proposal: ChatPr
   if (proposal.state === "rejected" || proposal.state === "withdrawn") {
     const label = proposal.state === "withdrawn" ? "Withdrawn" : "Rejected"
     return (
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+      <div className={proposalResultFooterClass}>
         <span className="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">{label}</span>
       </div>
     )
@@ -1836,7 +1839,7 @@ function ProposalChildren({
             <span className="text-gray-400 group-open:rotate-90 dark:text-gray-500">▸</span>
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
             {child.proposed ? null : (
-              <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              <span className="shrink-0 rounded bg-surface-raised px-2 py-0.5 text-xs font-medium text-text-secondary">
                 {child.state_label || humanizeProposalValue(child.state)}
               </span>
             )}
