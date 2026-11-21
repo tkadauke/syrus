@@ -35,6 +35,8 @@ Shape: `facet`. Required core: `key`, `display_name`.
 | `review_file_patterns` | `collect` | `[]` | `[]` | `provisional` | `Syrus::Plugin::Context::RepoContext` | `Array<String or Hash>` |
 | `target_graph` | `keyed` | `:configuration_error` | `nil` | `provisional` | `Syrus::Plugin::Context::RepoContext` | `Object` |
 
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|
 | - | - | - | - | - |
