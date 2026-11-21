@@ -6,6 +6,8 @@ import { Link, useNavigate } from "react-router-dom"
 import { PluginUiSlot } from "../../pluginUiSlots"
 import { matchingReviewContribution, renderReviewContribution, type ReviewContribution } from "../../pluginReviewContributions"
 import { useT } from "../../hooks/useT"
+import { useMediaQuery } from "../../hooks/useMediaQuery"
+import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { AnsiText } from "../../components/AnsiText"
 import { CloseIcon } from "../../components/CloseIcon"
 import { StatusPill, TonePill } from "../../components/StatusPill"
@@ -512,11 +514,12 @@ function WorkflowCard({
   const stepItems = workflowStepItems(displayedWorkflow.steps)
   const branchDivergence = workflowBranchDivergence(displayedWorkflow)
   const detectedPlugins = workflowDetectedPlugins(displayedWorkflow)
+  const mobile = useMediaQuery("(max-width: 639px)")
 
   return (
     <Section.Root id={`workflow-${workflow.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-text-primary">
             <WorkflowReference path={withRoutePrefix(workflow.path, prefix)} slug={workflow.slug || workflowSlug(workflow.id)} />
           </h2>
@@ -537,25 +540,37 @@ function WorkflowCard({
             </p>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
-          <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
-          {workflow.retry_available ? (
-            <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
-              {t("retry_failed_step")}
-            </CommandButton>
-          ) : null}
-          {workflow.state === "failed" && !workflow.cleaned_up_at ? (
-            <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
-              {t("push_commits")}
-            </CommandButton>
-          ) : null}
-          {!alreadyDetailed ? (
-            <Button aria-expanded={open} onClick={() => setOpen((value) => !value)} variant="secondary">
-              {open ? t("common:show_less") : t("common:show_more")}
-            </Button>
-          ) : null}
-        </div>
+        {mobile ? (
+          <WorkflowMobileControls
+            command={command}
+            onToggleDetails={() => setOpen((value) => !value)}
+            open={open}
+            payload={payload}
+            prefix={prefix}
+            showDisclosure={!alreadyDetailed}
+            workflow={workflow}
+          />
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
+            <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
+            {workflow.retry_available ? (
+              <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
+                {t("retry_failed_step")}
+              </CommandButton>
+            ) : null}
+            {workflow.state === "failed" && !workflow.cleaned_up_at ? (
+              <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
+                {t("push_commits")}
+              </CommandButton>
+            ) : null}
+            {!alreadyDetailed ? (
+              <Button aria-expanded={open} onClick={() => setOpen((value) => !value)} variant="secondary">
+                {open ? t("common:show_less") : t("common:show_more")}
+              </Button>
+            ) : null}
+          </div>
+        )}
       </div>
       {open && detailQuery.isLoading ? <PanelMessage>{t("loading")}</PanelMessage> : null}
       {open && detailQuery.error ? <PanelMessage tone="error">{errorMessage(detailQuery.error, t("load_error"))}</PanelMessage> : null}
@@ -616,6 +631,84 @@ function WorkflowCard({
         </Surface>
       ) : null}
     </Section.Root>
+  )
+}
+
+function WorkflowMobileControls({
+  command,
+  onToggleDetails,
+  open,
+  payload,
+  prefix,
+  showDisclosure,
+  workflow
+}: {
+  command: ReturnType<typeof useJobCommand>
+  onToggleDetails: () => void
+  open: boolean
+  payload: JobDetailPayload
+  prefix: string
+  showDisclosure: boolean
+  workflow: JobWorkflow
+}) {
+  const { t } = useT("jobs")
+  const [menuOpen, setMenuOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useDismissiblePopup<HTMLDivElement>(menuOpen, () => setMenuOpen(false), [triggerRef])
+  const hasCommands = Boolean(payload.ui_workflow_actions?.length || workflow.retry_available || (workflow.state === "failed" && !workflow.cleaned_up_at))
+
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
+      {hasCommands ? (
+        <div className="relative">
+          <Button
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label={t("workflow_actions")}
+            className="h-11 w-11 px-0 text-lg"
+            disabled={command.isPending}
+            onClick={() => setMenuOpen((value) => !value)}
+            ref={triggerRef}
+            size="icon"
+            variant="secondary"
+          >
+            ⋯
+          </Button>
+          {menuOpen ? (
+            <div
+              className="absolute right-0 z-20 mt-1 flex w-[min(18rem,calc(100vw-2rem))] flex-col gap-1 rounded border border-border bg-surface p-2 shadow-lg"
+              ref={menuRef}
+              role="menu"
+            >
+              <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
+              {workflow.retry_available ? (
+                <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
+                  {t("retry_failed_step")}
+                </CommandButton>
+              ) : null}
+              {workflow.state === "failed" && !workflow.cleaned_up_at ? (
+                <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
+                  {t("push_commits")}
+                </CommandButton>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {showDisclosure ? (
+        <Button
+          aria-expanded={open}
+          aria-label={open ? t("common:show_less") : t("common:show_more")}
+          className="h-11 w-11 px-0 text-lg"
+          onClick={onToggleDetails}
+          size="icon"
+          variant="secondary"
+        >
+          <span aria-hidden="true">{open ? "⌃" : "⌄"}</span>
+        </Button>
+      ) : null}
+    </div>
   )
 }
 
