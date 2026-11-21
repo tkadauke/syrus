@@ -870,10 +870,16 @@ module WorkEngine
         live_process = running_spawned_process_for(run)
         terminal_process = live_process ? nil : terminal_spawned_process_for(run)
         terminal_orphan_process = orphaned_terminal_process(terminal_process)
-        terminal_orphan_ready = terminal_orphan_process_ready?(terminal_orphan_process)
         heartbeat_stale = run_stale?(run)
         heartbeat_fresh = fresh_activity?(run.last_heartbeat_at)
         queue_execution_live = solid_queue_execution_live?(run)
+        # A grader spawns dozens of processes; one of them ending "orphaned"
+        # says nothing about a run whose worker still holds its queue claim
+        # and is still heartbeating. Treating it as a dead worker failed
+        # healthy graders mid-suite and ran them twice. A worker that really
+        # died loses its claim, and a hung one goes heartbeat-stale.
+        terminal_orphan_ready = terminal_orphan_process_ready?(terminal_orphan_process) &&
+          !(queue_execution_live && !heartbeat_stale)
         last_activity_at = run.last_heartbeat_at || run.started_at
         detached = detached_running_run?(sq, live_process)
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)

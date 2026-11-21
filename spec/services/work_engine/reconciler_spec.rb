@@ -1544,6 +1544,27 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  it "does not fail a run as worker-died over an orphaned helper process while its worker still holds the claim" do
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 12.minutes.ago)
+    step.update_columns(state: "running", started_at: 10.minutes.ago)
+    run.update_columns(state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 158.seconds.ago)
+    solid_queue_run_job(run, claimed: true, created_at: 1.minute.ago)
+    SpawnedProcess.create!(
+      run: run, workflow: workflow, kind: "grader", command: "bundle exec rspec", hostname: "worker-1",
+      pid: 4242, pgid: 4242, started_at: 9.minutes.ago, last_chunk_at: 8.minutes.ago,
+      finished_at: 7.minutes.ago, outcome: "orphaned"
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(job_id: job.id)
+
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to be_nil
+    issue = kind(result, :running_run_without_live_worker_evidence)
+    expect(issue&.recommended_repair_action).not_to eq("fail_run_as_worker_died")
+  end
+
   it "ignores replay workflows without WorkUnits on closed jobs" do
     closed = Factories.job_record(
       user: job.user,
