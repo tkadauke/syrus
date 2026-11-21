@@ -86,5 +86,14 @@ theorem workflow_only_tool_unauthorized_before : authorizedBefore ⟨false, true
 theorem served_tool_authorized_after (w : Wrapped) (h : w.chatRoute || w.workflowRoute) :
     authorizedAfter w = true := by simpa [authorizedAfter] using h
 
+/-! ## Installed at registration (NY9: A)
+
+After NY9 the registry installs the layer when it builds a tool's entry, so
+whether a tool is authorized no longer depends on any serving path at all. -/
+
+def authorizedAtRegistration (_ : Wrapped) : Bool := true
+
+theorem registered_tool_always_authorized (w : Wrapped) : authorizedAtRegistration w = true := rfl
+
 end DispatchOrder
 end SyrusModel

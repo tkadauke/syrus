@@ -725,6 +725,14 @@ class McpToolRegistry
       # that asks for an ungated tool the classification does not list gets a
       # registry that fails CapabilityRegistryValidator, not a silent bypass.
       ungated ||= resolved_descriptor&.essential? || false
+      # Every registered tool carries the capability authorization layer from
+      # registration, not from whichever serving path happens to wrap it
+      # first (decision NY9). A serving path that forgot it -- the daemon's
+      # workflow route -- let scheduled runs skip the owner's rules (F47);
+      # installing it lazily also made gating depend on process history
+      # (F46, Lead L3). Idempotent, and it runs before any route wrapper, so
+      # the layer stays innermost.
+      Mcp::Sidecar.authorize_tool(tool)
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
