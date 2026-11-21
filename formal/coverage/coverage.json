@@ -2464,9 +2464,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "M15 (NY16 decided)",
-      "notes": "The purge rule holds by construction across all bundled plugins; two orphaned operator briefing tables exist only in schema.rb, pinned by schema_tables_have_migrations_spec. Decided NY16: delete them. To implement."
+      "status": "done",
+      "done_by": "M15, NY16",
+      "notes": "The purge rule holds by construction across all bundled plugins. The two orphaned operator briefing tables are dropped by an idempotent plugin migration, and every schema.rb table must now have a creating migration (schema_tables_have_migrations_spec)."
     },
     {
       "id": "plugin-fleet-admission",
@@ -2897,7 +2897,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. The rows came from a pipeline that no longer exists and nothing reads them. B alone comes back the next time someone dumps the schema from a database that still has the tables, which is how they came back the first time.",
-      "decision": "A (2026-11-21): delete the leftovers with an idempotent drop migration, and remove them from schema.rb and the spec's pending list. To implement."
+      "decision": "A (2026-11-21): delete the leftovers. Implemented: an idempotent drop migration in operator_briefing, both removed from schema.rb, and no pending list in the spec."
     },
     {
       "id": "NY17",

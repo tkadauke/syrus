@@ -2523,6 +2523,14 @@ or one of the Solid Queue, Cache and Cable engine schemas. The two orphans are
 listed as pending, and a second example fails once either is dropped or gains
 a migration. Whether to drop them is NY16.
 
+**Resolved (NY16: delete them).** `DropOrphanedOperatorBriefingTables`
+(`plugins/operator_briefing/db/migrate/20261121172512_*`) drops both tables
+with `if_exists: true`, so fresh installs that never had them are a no-op. Its
+`down` is intentionally empty. They are removed from `schema.rb`, and the
+architecture spec no longer carries a pending list: every table must have a
+creating migration. `drop_orphaned_operator_briefing_tables_spec.rb` covers
+the drop, a second run, and that the plugin's other tables survive.
+
 ---
 
 ## M16. Every automatic repair has an executor — audited, one dead executor removed

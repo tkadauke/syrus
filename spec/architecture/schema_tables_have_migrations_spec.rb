@@ -10,13 +10,6 @@ require "rails_helper"
 # tables, can never remove it, so "purge removes what the plugin owns" quietly
 # stops being true (formal/FINDINGS.md M15).
 RSpec.describe "db/schema.rb tables" do
-  # Left by an edited migration; whether to drop them is NY16 in
-  # formal/coverage/coverage.json. Remove an entry once a migration drops it.
-  PENDING_ORPHANS = %w[
-    operator_briefing_review_findings
-    operator_briefing_workflow_notable_changes
-  ].freeze
-
   def migration_sources
     Dir[Rails.root.join("{db,plugins/*/db}/migrate/*.rb")].map { |path| File.read(path) }
   end
@@ -43,13 +36,8 @@ RSpec.describe "db/schema.rb tables" do
   end
 
   it "has a creating migration for every table" do
-    orphans = schema_tables.reject { |table| created_by_migrations.include?(table) } - PENDING_ORPHANS
+    orphans = schema_tables.reject { |table| created_by_migrations.include?(table) }
 
     expect(orphans).to be_empty, "tables in db/schema.rb that no migration creates:\n#{orphans.join("\n")}"
-  end
-
-  it "keeps the pending orphan list honest" do
-    expect(PENDING_ORPHANS - schema_tables).to be_empty
-    expect(PENDING_ORPHANS.select { |table| created_by_migrations.include?(table) }).to be_empty
   end
 end
