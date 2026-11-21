@@ -14,6 +14,7 @@ module Syrus
       end
       private_constant :InvocationProvider
       ExpectedValidation = Data.define(:error)
+      ProviderResult = Data.define(:value, :provider_name)
       private_constant :ExpectedValidation
 
       COMPOSITION_ARGUMENTS = Hash.new { |_modes, _mode| ->(_key) { [] } }.merge(
@@ -43,7 +44,7 @@ module Syrus
 
       module_function
 
-      def call(family, capability, context, key: nil, timeout: nil, **args)
+      def call(family, capability, context, key: nil, timeout: nil, with_provider: false, **args)
         definition = Family.fetch(family)
         contract = definition.capabilities.fetch(capability.to_sym) do
           raise ArgumentError, "Unknown capability #{capability.inspect} for family #{family.inspect}"
@@ -74,6 +75,12 @@ module Syrus
         end
 
         invoked_providers = providers.map { |provider| InvocationProvider.new(provider:, invocation:) }
+        if with_provider
+          raise ArgumentError, "with_provider is only supported for keyed capabilities" unless contract.composition == :keyed
+          selected = invoked_providers.find { |provider| provider.key.to_s == key.to_s }
+          raise MissingKey, "No capability provider for key #{key.inspect}" unless selected
+          return ProviderResult.new(value: selected.invoke { |value| value }, provider_name: selected.provider.provider_name)
+        end
         composition_args = COMPOSITION_ARGUMENTS[contract.composition].call(key)
         result = Composition.public_send(contract.composition, invoked_providers, *composition_args) { |value| value }
         RESULT_FINALIZERS[contract.composition].call(result, absent_value(contract))

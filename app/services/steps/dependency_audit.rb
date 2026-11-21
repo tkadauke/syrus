@@ -29,13 +29,13 @@ module Steps
         return
       end
 
-      providers = matching_providers(files)
-      if providers.empty?
+      plans = matching_plans(files)
+      if plans.empty?
         log("[dependency_audit] no changed lockfile matches a registered dependency_audit_command provider — skipping")
         return
       end
 
-      results = providers.filter_map { |provider| run_provider(provider) }
+      results = plans.filter_map { |plan| run_plan(plan) }
       if results.empty?
         log("[dependency_audit] matched provider(s) declined to return a command — skipping")
         return
@@ -54,24 +54,18 @@ module Steps
       []
     end
 
-    def matching_providers(files)
+    def matching_plans(files)
       basenames = files.map { |f| File.basename(f) }
-      Syrus::PluginRegistry.providers_for(:dependency_audit_command).select do |provider|
-        result = Syrus::PluginInvocation.call(
-          extension_point: :dependency_audit_command, provider:, operation: :lockfiles, on_decline: []
-        ) { provider.lockfiles }
-        Array(Syrus::PluginInvocation.value(result)).any? { |lockfile| basenames.include?(lockfile) }
-      end
+      context = Syrus::Plugin::Context::WorkspaceContext.new(workspace_path: workspace.path, changed_files: files)
+      Syrus::Plugin::Dispatch.call(:ecosystem, :dependency_audit, context)
+        .select { |plan| plan.lockfiles.any? { |lockfile| basenames.include?(lockfile) } }
     end
 
-    def run_provider(provider)
-      result = Syrus::PluginInvocation.call(
-        extension_point: :dependency_audit_command, provider:, operation: :audit_command, on_decline: nil
-      ) { provider.audit_command(workspace_path: workspace.path) }
-      cmd = Syrus::PluginInvocation.value(result)
+    def run_plan(plan)
+      cmd = plan.command
       return nil if cmd.blank?
 
-      ecosystem = ecosystem_name(provider)
+      ecosystem = plan.label || "Plugin"
       log("[dependency_audit] (#{ecosystem}) $ #{cmd}")
 
       tail = +""
@@ -99,10 +93,6 @@ module Steps
         "output_tail" => compact_output_tail(tail),
         "clean"       => result.success?
       }
-    end
-
-    def ecosystem_name(provider)
-      provider.to_s.split("::").first
     end
 
     def store_artifact!(results)

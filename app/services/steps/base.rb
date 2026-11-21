@@ -737,13 +737,8 @@ module Steps
     end
 
     def collect_injected_context
-      Syrus::PluginRegistry.providers_for(:prompt_injector)
-        .filter_map do |provider|
-          result = Syrus::PluginInvocation.call(
-            extension_point: :prompt_injector, provider:, operation: :call, on_decline: nil
-          ) { provider.call(repository: repository, job: job) }
-          Syrus::PluginInvocation.value(result)
-        end
+      context = Syrus::Plugin::Context::JobContext.new(repository:, job:)
+      Syrus::Plugin::Dispatch.call(:ecosystem, :prompt_context, context)
     end
 
     # ---- Workspace + git helpers ----

@@ -305,21 +305,8 @@ module Steps
     end
 
     def affected_test_files(files)
-      Syrus::PluginRegistry.providers_for(:affected_test_analyzer).flat_map do |analyzer|
-        result = Syrus::PluginInvocation.call(
-          extension_point: :affected_test_analyzer, provider: analyzer, operation: :affected_files, on_decline: []
-        ) do
-          result = analyzer.affected_files(repo_path: workspace.path.to_s, changed_files: files)
-          if result.nil?
-            log("[grader_fanout] #{analyzer} declined to analyze this diff — falling back to glob-only for it")
-            []
-          else
-            log("[grader_fanout] #{analyzer} reports #{result.size} additional affected file(s)") if result.any?
-            Array(result)
-          end
-        end
-        Array(Syrus::PluginInvocation.value(result))
-      end.uniq
+      context = Syrus::Plugin::Context::WorkspaceContext.new(workspace_path: workspace.path.to_s, changed_files: files)
+      Syrus::Plugin::Dispatch.call(:ecosystem, :affected_tests, context).uniq
     end
 
     # Most recent succeeded grader Step for each name that still belongs to the

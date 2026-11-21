@@ -101,6 +101,43 @@ RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
     expect(legacy.span_labels).to eq([ [ /rspec/, "rspec" ] ])
   end
 
+  it "passes autofix and focused-test fields through typed contexts without reflecting on provider signatures" do
+    seen = []
+    provider = Class.new do
+      define_singleton_method(:autofix) do |context|
+        seen << [ :autofix, context.workspace_path, context.changed_files ]
+        "format"
+      end
+      define_singleton_method(:focused_tests) do |context|
+        seen << [ :focused, context.name, context.command, context.failed_cases, context.base_retry, context.project_path ]
+        "focused"
+      end
+    end
+    stub_const("EcosystemContextFixture", provider)
+    references = {
+      autofix: Syrus::Plugin::CapabilityProvider.new(plugin_name: "fixture", family: :ecosystem,
+        capability: :autofix, provider_name: provider.name, key: nil, priority: 0),
+      focused_tests: Syrus::Plugin::CapabilityProvider.new(plugin_name: "fixture", family: :ecosystem,
+        capability: :focused_tests, provider_name: provider.name, key: nil, priority: 0)
+    }
+    allow(Syrus::PluginRegistry).to receive(:capability_providers) { |_family, capability| [ references.fetch(capability) ] }
+
+    workspace = Syrus::Plugin::Context::WorkspaceContext.new(
+      workspace_path: "/repo", changed_files: [ "app.rb" ]
+    )
+    grader = Syrus::Plugin::Context::GraderContext.new(
+      name: "rspec", command: "bin/rspec", failed_cases: [ { "name" => "fails" } ],
+      base_retry: { "strategy" => "provider" }, project_path: "backend", operation: :command
+    )
+
+    expect(Syrus::Plugin::Dispatch.call(:ecosystem, :autofix, workspace)).to eq([ "format" ])
+    expect(Syrus::Plugin::Dispatch.call(:ecosystem, :focused_tests, grader)).to eq("focused")
+    expect(seen).to eq([
+      [ :autofix, "/repo", [ "app.rb" ] ],
+      [ :focused, "rspec", "bin/rspec", [ { "name" => "fails" } ], { "strategy" => "provider" }, "backend" ]
+    ])
+  end
+
   it "provides conforming reference implementations for capabilities without bundled providers" do
     references = {
       parse_ci_log: Class.new { def self.parse_ci_log(context) = context.text == "failure" ? { parser: :fake, error_summary: "failure", error_block: "failure" } : nil },
