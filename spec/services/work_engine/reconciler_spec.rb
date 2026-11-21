@@ -5021,6 +5021,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to queued from #{run.slug}")
   end
 
+  # Regression: between preflight waves a main-branch repair has no running
+  # descendants, and a failed preflight grader made the reconciler fail the
+  # whole Workflow while its later waves and collector were still queued.
+  it "leaves a running workflow alone when only an advance-on-failure grader failed" do
+    collect = Step.create!(workflow: workflow, kind: "preflight_grader_collect", position: 2)
+    queued_grader = Step.create!(workflow: workflow, kind: "preflight_grader", position: 1, next_step: collect, details: { "name" => "e2e" })
+    step.update!(kind: "preflight_grader", details: { "name" => "rspec-ci-serial" }, next_step: queued_grader)
+    job.update_columns(state: "running", started_at: 30.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 30.minutes.ago, finished_at: nil)
+    step.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    run.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_workflow_with_failed_step)).to be_nil
+    expect(workflow.reload).to be_running
+  end
+
   it "fails a running workflow that already has a failed step and a queued tail" do
     pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
     step.update!(kind: "test_plan", next_step: pr_open)

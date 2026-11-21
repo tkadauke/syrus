@@ -3657,10 +3657,24 @@ module WorkEngine
         .reject(&:superseded_retry_until_failure?)
         .reject(&:superseded_try_branch_failure?)
         .reject(&:superseded_by_later_loop_iteration?)
+        .reject { |step| advances_past_failure?(step) }
       return nil if failed_steps.empty?
       return nil if workflow.live_descendants?
 
       failed_steps.max_by { |step| [ step.position || -1, step.id || -1 ] }
+    end
+
+    # A kind whose failure policy is to advance (graders, preflight graders,
+    # formatters) failing is an outcome its collector judges, not a stalled
+    # Workflow. Between two preflight waves a main-branch repair has nothing
+    # running, so treating such a failure as orphaned failed the Workflow with
+    # a hundred graders still queued -- before its collector could re-run
+    # infrastructure failures or hand real ones to the repair agent. A
+    # hand-off that really stalls still surfaces as a queued Step without a Run.
+    def advances_past_failure?(step)
+      Step::Kind.remediation_for(step.kind)&.action == :advance
+    rescue ArgumentError
+      false
     end
 
     def failed_step_repair_action(step)
