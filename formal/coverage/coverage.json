@@ -1965,9 +1965,9 @@
       "simulator": [
         "parallel_merge_train_blocks_dirty_publication"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Same kind is also emitted (info) for a queued workflow intentionally waiting on admission; model the recheck job as a token whose loss is a fault."
+      "status": "done",
+      "done_by": "M35",
+      "notes": "Same kind is also emitted (info) for a queued workflow intentionally waiting on admission; model the recheck job as a token whose loss is a fault. M35: each block schedules its own recheck; an overdue one on a running Workflow is auto-resumed through the same gates."
     },
     {
       "id": "intentional-start-blocks",

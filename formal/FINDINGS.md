@@ -3908,6 +3908,33 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M35. A Workflow paused at a phase boundary by admission resumes — audited, no bug
+
+**Scope.** DOC-44 start blocks, the coverage item
+`resource-admission-start-block`: "A Workflow paused at a phase boundary is not
+resumed after its admission recheck."
+
+**Two layers.**
+
+- **The gate's own recheck.** A phase-boundary admission or resource block
+  goes through `Launcher.schedule_blocked_recheck!`, which enqueues
+  `WorkflowPhaseAdmissionJob` at the gate's `retry_at`, or after
+  `START_BLOCKED_BACKOFF`.
+- **The overdue safety net.** If that recheck is lost, `classify_start_blocks`
+  reports `resource_admission_start_block`. It does so only for a *running*
+  Workflow whose recorded block has a `phase_step_id`, whose recheck time has
+  passed (`start_blocked_check_due?`), and whose reason is an admission or
+  resource reason (`WorkflowAdmissionCapacityWakeup.admission_or_resource_reason?`).
+  It is safe to auto-repair, through `resume_deferred_phase`, which goes back
+  through the same gates.
+
+The repair re-runs the gates instead of bypassing them. So it can only resume
+a phase that admission now allows, and otherwise re-blocks with a fresh
+recheck. Capacity freeing up also wakes blocked work directly
+(`WorkflowAdmissionCapacityWakeup`).
+
+---
+
 ## M34. Provider pauses only pause admission, and recovery re-admits the paused work — audited, no bug
 
 **Scope.** DOC-44 start blocks, the coverage item `provider-pause-readmits`:
