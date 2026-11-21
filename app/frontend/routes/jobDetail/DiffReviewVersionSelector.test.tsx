@@ -278,7 +278,7 @@ describe("DiffReviewVersionSelector", () => {
     expect(highlightedChips(/^To/)).toHaveLength(1)
   })
 
-  it("clamps endpoint selections that cross a rebase boundary to the selected version's own range", () => {
+  it("keeps nonlinear history endpoints independent instead of collapsing to either stored version", () => {
     const oldRange = rangeVersion({ id: 1, version_index: 1, workflow_id: 10, run_id: 100, base_sha: "old-base", head_sha: "old-head" })
     const currentRange = rangeVersion({ id: 2, version_index: 2, workflow_id: 11, run_id: 101, base_sha: "current-base", head_sha: "current-head", label: "Rebase", reason: "rebase" })
     const onRangeChange = vi.fn()
@@ -296,8 +296,25 @@ describe("DiffReviewVersionSelector", () => {
     fireEvent.click(screen.getByRole("button", { name: /Version/ }))
     fireEvent.click(screen.getByRole("button", { name: "From v1 RUN-100" }))
 
-    expect(onRangeChange).toHaveBeenCalledWith({ baseSha: "old-base", headSha: "old-head", versionId: null })
-    expect(onRangeChange).not.toHaveBeenCalledWith({ baseSha: "old-base", headSha: "current-head", versionId: null })
+    expect(onRangeChange).toHaveBeenLastCalledWith({ baseSha: "old-base", headSha: "current-head", versionId: null })
+  })
+
+  it("changes only TO after FROM was selected across nonlinear history", () => {
+    const first = rangeVersion({ id: 1, version_index: 1, run_id: 100, base_sha: "first-base", head_sha: "first-head" })
+    const second = rangeVersion({ id: 2, version_index: 2, run_id: 101, base_sha: "unrelated-base", head_sha: "second-head" })
+    const third = rangeVersion({ id: 3, version_index: 3, run_id: 102, base_sha: "rebased-again", head_sha: "third-head" })
+
+    render(<ControlledSelector latestVersionId={3} versions={[ first, second, third ]} />)
+
+    fireEvent.click(screen.getByRole("button", { name: /Version/ }))
+    fireEvent.click(screen.getByRole("button", { name: "From v1 RUN-100" }))
+    fireEvent.click(screen.getByRole("button", { name: /Version/ }))
+    fireEvent.click(screen.getByRole("button", { name: "To v2 RUN-101" }))
+
+    expect(screen.getByRole("button", { name: /Version/ })).toHaveTextContent("v1 to v2")
+    fireEvent.click(screen.getByRole("button", { name: /Version/ }))
+    expect(screen.getByRole("button", { name: "From v1 RUN-100" })).toHaveClass("bg-brand")
+    expect(screen.getByRole("button", { name: "To v2 RUN-101" })).toHaveClass("bg-brand")
   })
 
   it("highlights only the clicked range's own row when the backend-resolved active version disagrees with it", () => {
@@ -305,7 +322,7 @@ describe("DiffReviewVersionSelector", () => {
     const second = rangeVersion({ id: 2, version_index: 2, workflow_id: 11, run_id: 101, base_sha: "b", head_sha: "c" })
     const third = rangeVersion({ id: 3, version_index: 3, workflow_id: 12, run_id: 102, base_sha: "c", head_sha: "d" })
 
-    render(<StaleBackendSelector latestVersionId={1} staleVersionId={1} versions={[ first, second, third ]} />)
+    render(<StaleBackendSelector latestVersionId={3} staleVersionId={1} versions={[ first, second, third ]} />)
 
     fireEvent.click(screen.getByRole("button", { name: /Version/ }))
     fireEvent.click(screen.getByRole("button", { name: /^From.*v2/ }))
