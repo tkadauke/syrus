@@ -63,5 +63,28 @@ theorem after_order_independent (r : Route) :
 theorem after_serves_both (r : Route) : runWrappers [chatWrapperAfter, workflowWrapper] r = .served := by
   cases r <;> decide
 
+/-! ## Both routes install the authorization layer (F47)
+
+The stdio sidecar installs `Mcp::Sidecar.authorize_tool` on every tool it
+serves, and `ChatToolDispatch.wrap` does too; `WorkflowToolDispatch.wrap` did
+not. A permission-gated tool served only on the workflow route (`patch_workflow`,
+`read_artifact`) therefore reached its body in persistent mode without the
+layer that runs `ScheduledAuthorization` -- so a scheduled run skipped the
+owner's rules -- unless some other path had already wrapped the class. -/
+
+structure Wrapped where
+  chatRoute : Bool
+  workflowRoute : Bool
+  deriving DecidableEq, Repr
+
+def authorizedBefore (w : Wrapped) : Bool := w.chatRoute
+def authorizedAfter (w : Wrapped) : Bool := w.chatRoute || w.workflowRoute
+
+theorem workflow_only_tool_unauthorized_before : authorizedBefore ⟨false, true⟩ = false := rfl
+
+/-- After: any tool the daemon serves on some route is authorized. -/
+theorem served_tool_authorized_after (w : Wrapped) (h : w.chatRoute || w.workflowRoute) :
+    authorizedAfter w = true := by simpa [authorizedAfter] using h
+
 end DispatchOrder
 end SyrusModel

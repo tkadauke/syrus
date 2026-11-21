@@ -207,6 +207,25 @@ RSpec.describe PersistentMcpDaemon do
         )
       end
 
+      # The stdio sidecar installs the capability authorization layer on every
+      # workflow tool (Mcp::Sidecar.authorize_tool); the daemon's workflow route
+      # did not, so a permission-gated workflow-only tool -- patch_workflow,
+      # read_artifact -- reached its tool without ScheduledAuthorization ever
+      # consulting the owner's rules for a scheduled run.
+      it "runs the capability authorization layer for a gated workflow-only tool" do
+        token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "claude")
+        allow(Permissions::ScheduledAuthorization).to receive(:route).and_call_original
+
+        call_workflow_tool(
+          described_class.workflow_role_path(AgentRole::WORKFLOW_IMPLEMENT),
+          "read_artifact",
+          token: token,
+          arguments: { workflow_id: run.workflow.id, type: "pr_title" }
+        )
+
+        expect(Permissions::ScheduledAuthorization).to have_received(:route)
+      end
+
       it "dispatches owner-scoped coworker chat discovery and reads over the persistent workflow route" do
         PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
         Syrus::PluginRegistry.clear_plugin_record_cache!
