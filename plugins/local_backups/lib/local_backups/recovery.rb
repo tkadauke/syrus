@@ -335,6 +335,7 @@ module LocalBackups
         validate_request!
         maintenance = Maintenance.new(@destination)
         maintenance.enter!
+        maintenance_entered = true
         maintenance.verify_drained!(@pid_files)
         @phase_hook.call(:maintenance_verified)
 
@@ -353,7 +354,7 @@ module LocalBackups
         Result.new(backup_id: @bundle.manifest.fetch("backup_id"), rollback_path: rollback&.to_s,
           database_path: @database_path.to_s, storage_path: @storage_path.to_s)
       rescue StandardError => error
-        write_failure(error)
+        write_failure(error) if maintenance_entered
         raise
       ensure
         FileUtils.remove_entry_secure(staging) if staging&.exist?
@@ -367,6 +368,7 @@ module LocalBackups
         service = @bundle.manifest.dig("active_storage", "service")
         raise Error, "restore is not qualified for database adapter #{adapter.inspect}" unless adapter == "sqlite3"
         raise Error, "restore is not qualified for Active Storage service #{service.inspect}" unless service == "Disk"
+        raise Error, "SYRUS_RECOVERY_TOKEN_SECRET is required for restore" if @token_secret.empty?
         unless Token.valid?(@token, secret: @token_secret, artifact_checksum: @bundle.identity_checksum,
           installation_id: @installation_id)
           raise Error, "preflight token is stale or belongs to another artifact or installation"
