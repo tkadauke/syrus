@@ -932,6 +932,59 @@ neighbouring gates". It goes red with the recheck removed.
 
 ---
 
+## F33. A polled GitHub review approved Jobs under approval-blocking work — fixed
+
+**Property.** No approval path changes a Job's state while it has
+approval-blocking runtime work (`ApprovalPaths.NoApprovalUnderBlockingWork`).
+
+**Gap.** The operator endpoint, the `approve_job` MCP tool and the
+approve-job pending action all refuse while `approval_blocking_runtime_work?`
+holds. `Job#record_github_review_approval!`, which the PR poll, the
+external-PR poll and the fork-review approver call, did two things first:
+
+1. `mark_implemented! if may_mark_implemented?`. A `running` Job became
+   `implemented` under its live Workflow, even when the approval was then
+   declined because a feedback Workflow was active
+   (`github_before_drifts_under_feedback`).
+2. It checked only `active_feedback_workflow?`, so a GitHub review approved a
+   Job under any non-feedback approval-blocking Workflow, such as `ci_failure`
+   or `retry` (`github_before_violates`), approving a HEAD that Workflow was
+   about to move.
+
+**How it was found.** Tracing the `running → implemented` Job-state repairs.
+Four of the five were the echo of F20: the reconciler wrongly moved a Job
+from `implemented` to `running` about a minute before its Workflow succeeded.
+The success propagation (`JobLifecyclePropagation.succeed!`) then decided on
+the Workflow's cached Job, loaded before that repair, which still said
+`implemented`, so it returned early and the next pass had to fix the Job.
+Looking for other writers that could change a Job under a running Workflow
+led to the GitHub path.
+
+**Fix.** Refuse while approval-blocking work runs, before writing anything.
+Each poll re-reads the PR's reviews, so the approval is recorded on the first
+poll after the work ends (`github_after_eventually_approves`). With no
+blocking work, behaviour is unchanged (`github_after_agrees_when_idle`).
+
+**Spec.** `job_spec.rb` "neither approves nor leaves running while a
+non-feedback approval-blocking workflow runs" and "does not move a running
+Job to implemented when a feedback workflow declines the approval". Both go
+red without the fix. "still approves under non-approval-blocking work" pins
+the `rebase` exemption. The `fork_review_approver_spec.rb` self-policy
+fixture approved while its initial Workflow was still queued; it now finishes
+that Workflow first.
+
+**Remaining.** `ForkReviewApprover` runs once: it returns as soon as the
+upstream PR exists. A fork approval refused under blocking work is therefore
+not re-recorded. The approval is withheld, not wrongly given, and the
+operator can still approve, but it is a liveness gap. This was already true
+under a feedback Workflow before the fix. Also: `JobLifecyclePropagation`
+decides on the Workflow's cached Job instead of reloading it under the Job
+lock. With F20 and F33 no known writer changes a Job under a running
+approval-blocking Workflow, so this is not exploitable today, but it is
+check-then-act on a stale snapshot.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

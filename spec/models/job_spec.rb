@@ -1454,6 +1454,50 @@ RSpec.describe Job, :ci_only do
         expect(job.reload.state).to eq("implemented")
       end
 
+      # The operator, MCP and pending-action approval paths all refuse while
+      # approval-blocking work runs; a polled GitHub review used to check only
+      # for feedback Workflows, and moved a running Job to implemented first.
+      it "neither approves nor leaves running while a non-feedback approval-blocking workflow runs" do
+        job = Factories.job_record(state: "running")
+        attach_work_unit(Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running"))
+
+        result = job.record_github_review_approval!(
+          review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          approved_at: Time.current,
+          reviewer_user: job.user
+        )
+
+        expect(result).to be false
+        expect(job.reload.state).to eq("running")
+        expect(job.job_approvals).to be_empty
+      end
+
+      it "does not move a running Job to implemented when a feedback workflow declines the approval" do
+        job = Factories.job_record(state: "running")
+        attach_work_unit(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running"))
+
+        job.record_github_review_approval!(
+          review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          approved_at: Time.current,
+          reviewer_user: job.user
+        )
+
+        expect(job.reload.state).to eq("running")
+      end
+
+      it "still approves under non-approval-blocking work" do
+        job = Factories.job_record(state: "implemented")
+        attach_work_unit(Workflow.create!(job: job, trigger_kind: "rebase", state: "running"))
+
+        job.record_github_review_approval!(
+          review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          approved_at: Time.current,
+          reviewer_user: job.user
+        )
+
+        expect(job.reload.state).to eq("approved")
+      end
+
       it "approves once the active feedback workflow reaches a terminal state" do
         job = Factories.job_record
         job.update!(state: "implemented")
