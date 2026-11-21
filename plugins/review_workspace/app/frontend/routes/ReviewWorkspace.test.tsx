@@ -371,6 +371,36 @@ describe("ReviewWorkspaceRoute", () => {
     expect(await screen.findByText("No submitted visual evidence for this Job.")).toBeInTheDocument()
   })
 
+  it("resets the evidence position when navigating between cached Jobs", async () => {
+    const second = { ...job(), id: 43, slug: "JOB-43", title: "Review next" }
+    jobApi.fetchJobTab.mockImplementation(async (id: string, tab: string) => {
+      if (tab !== "review") return {}
+      const screenshots = id === "42" ? [screenshot(1), screenshot(2), screenshot(3)] : [screenshot(4)]
+      return { visual_evidence: { captured_count: screenshots.length, submitted_count: screenshots.length, screenshots } }
+    })
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 2, jobs: [job(), second] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+
+    expect(await screen.findByText("1 of 3")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
+    expect(await screen.findByRole("heading", { name: "Review next" })).toBeInTheDocument()
+    expect(await screen.findByText("1 of 1")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Previous Job" }))
+    expect(await screen.findByRole("heading", { name: "Review me" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Next visual evidence" }))
+    fireEvent.click(screen.getByRole("button", { name: "Next visual evidence" }))
+    expect(await screen.findByText("3 of 3")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
+
+    expect(await screen.findByRole("heading", { name: "Review next" })).toBeInTheDocument()
+    expect(screen.getByText("1 of 1")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Screenshot 4" })).toBeInTheDocument()
+    expect(screen.queryByText("No submitted visual evidence for this Job.")).not.toBeInTheDocument()
+  })
+
   it("refreshes eligibility and clears a stale Job after an approval error", async () => {
     let workspaceRequests = 0
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
