@@ -108,9 +108,29 @@ lake build syrus_oracle
 `contracts/work_engine_traces/` holds the first canonical fixtures (DOC-44,
 "Shared contract corpora").
 
-Phase 1 is complete in this scope. Next is Phase 2: export the Ruby
-work-engine simulation fixtures into this schema and compare the Ruby
-reconciler with the oracle.
+Phase 1 is complete in this scope.
+
+## DOC-44 Phase 2: Ruby simulator conformance
+
+- `WorkEngine::CanonicalWorld` (Ruby) exports a database world in this schema.
+  Its spec mirrors `Valid`, so an export the oracle would reject is caught
+  without Lean.
+- `spec/services/work_engine/lean_oracle_conformance_spec.rb` loads every
+  simulation scenario in `spec/fixtures/work_engine_simulations/`, exports it,
+  and runs both the Ruby reconciler and `syrus_oracle`. It projects both
+  diagnoses onto the targets the kernel models and requires them to agree. It
+  runs only where the oracle is built, so the regular suite does not need Lean.
+
+The first pass agreed on 96 of 99 scenarios. Two differences came from the
+projection: Ruby releases a unit's locks inside its outcome repair, so it does
+not report them separately. The third was a kernel bug. The kernel cancelled a
+failed Workflow's queued tail, which retry-from-failed-step continues through
+(decision NY4). `World.stepStale` now encodes that, and every proof still
+holds. All 99 scenarios agree now; the case is a fixture
+(`failed_with_queued_tail.json`, `Examples.failedWithQueuedTail`).
+
+Next in Phase 2: compare at every simulation tick, not only the starting world,
+and generate and shrink differential traces.
 
 ## Next steps
 

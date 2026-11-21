@@ -120,6 +120,17 @@ def stepWorkflowTerminal (w : World) (s : Step) : Bool :=
   | some st => st.terminal
   | none => false
 
+/-- A Step terminal cleanup must cancel. A *failed* Workflow keeps its queued
+    tail on purpose -- retrying from the failed Step continues through it
+    (`Workflow#stale_terminal_steps`, decision NY4) -- so only its running
+    Steps are stale; any other finished Workflow leaves no Step active.
+    Found by Phase 2 conformance: the first kernel cancelled the tail. -/
+def stepStale (w : World) (s : Step) : Bool :=
+  match w.workflowState? s.workflow with
+  | some .failed => s.state == .running
+  | some st => st.terminal && s.state.active
+  | none => false
+
 /-- The Workflow a Run belongs to (through its Step) has finished. -/
 def runWorkflowTerminal (w : World) (r : Run) : Bool :=
   match w.steps.find? (·.id == r.step) with

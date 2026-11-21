@@ -1,0 +1,11 @@
+{
+  "intents": [{"id": 1, "state": "failed"}],
+  "units": [{"id": 10, "intent": 1, "workflow": 100, "state": "failed"}],
+  "workflows": [{"id": 100, "state": "failed"}],
+  "steps": [
+    {"id": 1000, "workflow": 100, "state": "failed"},
+    {"id": 1001, "workflow": 100, "state": "running"},
+    {"id": 1002, "workflow": 100, "state": "queued"}
+  ],
+  "runs": [{"id": 5000, "step": 1000, "state": "failed"}]
+}
