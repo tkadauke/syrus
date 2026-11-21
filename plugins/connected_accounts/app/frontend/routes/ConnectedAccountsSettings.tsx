@@ -59,7 +59,10 @@ export default function ConnectedAccountsSettings() {
               onChange={(event) => toggle.mutate({ id: account.id, readOnly: event.target.checked })}
             />
             <div className="flex flex-wrap gap-2">
-              <a className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text-primary hover:bg-surface-muted" href={account.reauthorize_url}>
+              <a
+                className="rounded-md border border-border px-3 py-2 text-sm font-medium text-text-primary hover:bg-surface-muted"
+                href={account.reauthorize_url}
+              >
                 {t("accounts.reauthorize")}
               </a>
               {account.status !== "revoked" && (
