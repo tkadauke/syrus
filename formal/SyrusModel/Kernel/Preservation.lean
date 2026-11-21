@@ -6,7 +6,8 @@ import SyrusModel.Kernel.Reconcile
 * `reconcile_valid`: reconciling a valid world yields a valid world (DOC-44,
   "Reconciliation preserves valid worlds").
 * Scoping (DOC-44, "A scoped repair cannot mutate unrelated Jobs, WorkUnits,
-  or locks"): a Run or Step is changed only if its Workflow has finished, a
+  or locks"): a Run is changed only if its Workflow or Step has finished, a
+  Step only if its Workflow has finished, a
   unit only if its own Workflow has a terminal outcome, and a lock is dropped
   only if its holder is not active after the unit sync. Everything else is
   left exactly as it was.
@@ -71,19 +72,15 @@ theorem reconcile_valid {w : World} (hv : w.Valid) : w.reconcile.Valid where
 
 /-! ## Scoping -/
 
-/-- A Run is changed only if the Workflow above it has finished. -/
+/-- A Run is changed only if the Workflow above it or its own Step has
+    finished, and then only to an inactive state. -/
 theorem fixRun_changed_only_under_terminal (w : World) (r : Run) (h : w.fixRun r ≠ r) :
-    w.runWorkflowTerminal r = true := by
-  by_cases hc : (w.runWorkflowTerminal r && r.state.active) = true
-  · exact (Bool.and_eq_true _ _ ▸ hc).1
+    (w.runWorkflowTerminal r = true ∨ w.runStepTerminal r = true) ∧ (w.fixRun r).state.active = false := by
+  by_cases hc : w.runStale r = true
+  · refine ⟨?_, ?_⟩
+    · unfold runStale at hc; simp_all
+    · rw [fixRun_pos w hc]; exact runTarget_inactive w r
   · exact absurd (fixRun_neg w hc) h
-
-theorem stepStale_terminal (w : World) (s : Step) (h : w.stepStale s = true) : w.stepWorkflowTerminal s = true := by
-  unfold stepStale at h
-  unfold stepWorkflowTerminal
-  cases hw : w.workflowState? s.workflow with
-  | none => simp [hw] at h
-  | some st => cases st <;> simp_all [WorkflowState.terminal]
 
 /-- A Step is changed only if its Workflow has finished. -/
 theorem fixStep_changed_only_under_terminal (w : World) (s : Step) (h : w.fixStep s ≠ s) :
