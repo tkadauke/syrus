@@ -2553,6 +2553,41 @@ declare no roles. That is NY17.
 
 ---
 
+## M18. Entity store revision merge — proved, convergence relies on refetch
+
+DOC-44 Phase 5: "Accepted entity revisions never decrease," "the higher
+revision wins regardless of arrival order," "an older REST response cannot
+overwrite a newer cable patch," and "equal-revision overlapping patches are
+equal or have deterministic precedence."
+
+`EntityMerge.lean` models `upsertEntity` over every order of up to three
+writes, with revisions 0 to 2, each setting any subset of two fields.
+
+- **Proved.** The stored revision never decreases (`monotone`). Full writes
+  with distinct revisions end in the same state in every order
+  (`full_writes_commute`), so an older snapshot never overwrites a newer
+  patch.
+- **Units agree.** Every snapshot source of an entity kind that cable events
+  patch with fields (jobs, workflows, steps, runs, chat messages) carries
+  `entity_revision`. Each event's `revision` is the counter of the record it
+  names: the job-level event uses the Job's counter, and the per-resource
+  event uses the record's own. So the `updated_at` fallback in
+  `revisionFromFields`, a millisecond timestamp, never meets an integer
+  revision. If it did, it would freeze the entity, because every later
+  integer revision would compare as older. No payload of these kinds uses a
+  bare `revision` key, which `revisionFromFields` would read first.
+- **Not guaranteed; Syrus relies on refetch.** A partial patch at revision
+  N+1 keeps the fields it did not carry from revision N and labels them N+1
+  (`partial_patch_relabels`). Two writes at the same revision resolve by
+  arrival order. `JobEventFields` carries `start_blocked_*`, which is derived
+  from WorkUnits and changes without the Job's revision moving, so a job
+  detail snapshot already in flight can briefly restore an older blocked
+  reason. Both converge: every job-level event also invalidates the job
+  queries, and the refetch it triggers is a newer full snapshot. No change
+  made.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
