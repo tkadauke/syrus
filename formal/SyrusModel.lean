@@ -42,6 +42,7 @@ import SyrusModel.EntityMerge
 import SyrusModel.ChatDelivery
 import SyrusModel.EnablementRead
 import SyrusModel.ScopedDelivery
+import SyrusModel.GapRecovery
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

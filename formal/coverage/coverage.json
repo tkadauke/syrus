@@ -2600,9 +2600,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "F67 (NY19 decided)",
-      "notes": "F67: only a seen sequence is a duplicate; late deliveries are applied (EventSequence.lean). Decided NY19: after a short grace, sweep active continuity queries for a sequence still missing. To implement."
+      "status": "done",
+      "done_by": "F67, F71",
+      "notes": "Late deliveries are applied, and only a seen sequence is a duplicate (F67, EventSequence.lean). A sequence still missing 2 s after a gap triggers the reconnect continuity sweep (F71, GapRecovery.lean)."
     },
     {
       "id": "frontend-scoped-events",
@@ -2936,7 +2936,7 @@
         "C. Keep the targeted refresh, and state the weaker guarantee: the stale resource converges on the next reconnect or focus refetch."
       ],
       "recommendation": "A. It needs no server change and sweeps only on a genuine loss. revision_gap_recoveries already measures how often that happens, so the cost is visible before and after. B is the strongest option, but it adds server state and a new endpoint.",
-      "decision": "A (2026-11-21): wait about 2 s for late deliveries, then sweep active continuity queries for any sequence still missing. To implement."
+      "decision": "A (2026-11-21): wait about 2 s for late deliveries, then sweep. Implemented as F71."
     },
     {
       "id": "NY20",

@@ -2288,6 +2288,47 @@ the one predicate the subscription itself uses covers all of them.
 
 ---
 
+## F71. A genuinely lost app event left its resource stale — fixed (NY19)
+
+**Found by** DOC-44 Phase 5, the plan's "global sequence-gap issue" (F67's
+remaining case, queued as NY19). Decision: wait about 2 s for late
+deliveries, then sweep.
+
+**Property.** A continuity sweep runs exactly when some sequence in a gap is
+still missing when the grace timer fires
+(`GapRecovery.sweeps_iff_still_missing`). This is checked over every
+assignment of up to four events to an arrival tick or "lost". So every event
+lost for good is recovered, and a gap that closes in time costs no sweep.
+The model's "still missing" is computed from the delivered set rather than
+the client's bookkeeping, so it is close to a restatement; the vitest cases
+below are the behavioural evidence.
+
+**Gap.** On a gap (10, then 12), the client refreshed only event 12's
+queries. Event 11's resource is unknown, so if 11 never arrived, that
+resource stayed stale until an unrelated reconnect, focus refetch or later
+event (`lost_left_stale`).
+
+**Fix.** In `trackAppEventSequence` (`app/frontend/lib/appEvents.ts`), a gap
+records the skipped sequences in `missing`, bounded by the 256-wide window,
+and starts one timer of `APP_EVENT_GAP_GRACE_MS` (2 s). A late delivery
+removes its sequence (F67). When the timer fires with anything still missing,
+the client runs `recoverAppEventContinuity`, the same sweep a reconnect does,
+which already defers for hidden tabs. A reconnect cancels the timer, because
+its own recovery sweeps anyway. The existing `revision_gap_recoveries` metric
+still counts gaps; no metric was added, since client metric names are a
+closed set on both sides.
+
+**Spec.** `appEvents.test.ts` "genuinely lost events":
+
+- a sweep after the grace period with a sequence still missing, and none
+  before it (red before: no sweep ever ran);
+- no sweep when the late sequence arrives in time;
+- no sweep after a reconnect.
+
+All 518 frontend lib tests pass, and lint and tsc are clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
