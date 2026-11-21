@@ -1027,9 +1027,9 @@
         "ci_failure_repair",
         "pr_review_feedback_repair"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Needs a declared table of legal (job state, active workflow kind) pairs; failed_job_active_repair_work is the legal 'repair in flight on a failed Job' entry of that table (info only)."
+      "status": "done",
+      "done_by": "F89",
+      "notes": "Needs a declared table of legal (job state, active workflow kind) pairs; failed_job_active_repair_work is the legal 'repair in flight on a failed Job' entry of that table (info only). F89: the legal-pair table is start propagation itself; the classifier reported implemented + non-approval-blocking (rebase) as drift. Fixed; proved in LegalJobWorkflowPairs.lean."
     },
     {
       "id": "job-running-without-work",

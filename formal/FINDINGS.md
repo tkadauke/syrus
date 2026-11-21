@@ -3155,6 +3155,57 @@ The `spec/services/workflows`, pending-action, workflow and job specs pass
 
 ---
 
+## F89. The drift classifier reported every rebase on an implemented Job — fixed; Lead L4 closed
+
+**Found by** DOC-44 job state, coverage item
+`job-state-vs-active-workflow-kind`, while working Lead L4.
+
+**Gap.** `JobLifecyclePropagation.lifts_job_on_start?` deliberately leaves an
+*implemented* Job implemented when a non-approval-blocking follow-up starts
+(rebase, stack rebase, manual reviews, visual diff). But
+`classify_job_workflow_drift` reported any active Workflow on an implemented
+Job as `job_workflow_state_drift`, a warning that sends the operator to
+"operator_review_state_transition". So every ordinary rebase on an
+implemented Job read as drift while it ran.
+
+**Fix.** The classifier skips an implemented Job whose active Workflows are
+all non-approval-blocking. An approval-blocking Workflow on an implemented
+Job, which start propagation would have lifted, is still reported.
+
+**Proved.** `LegalJobWorkflowPairs.lean` encodes start propagation and the
+classifier over every launch state and kind category:
+
+- no pair that start propagation produces is reported as drift;
+- an approval-blocking Workflow on an implemented Job still is;
+- the old classifier reports a produced pair.
+
+**Spec.** `reconciler_spec.rb` "does not report an implemented Job with a
+running non-approval-blocking follow-up as drift" was red before. "still
+reports an implemented Job with a running approval-blocking Workflow as drift"
+passes. All 322 examples of `reconciler_spec.rb` and
+`resilience_matrix_spec.rb` pass, with `RUN_CI_ONLY_SPECS=true` since both are
+CI-only, as do the other `work_engine` specs.
+
+**Lead L4 closed: no stall bug.** Read-only production queries, through the
+database browser plugin's read-only query endpoint and the admin API, show
+what happened:
+
+- the operator paused the Job manually during the rebase storm, a minute
+  before `agent_rebase` finished;
+- the pause requested a stop at the WorkUnit's next phase boundary, which was
+  `force_push` (`blocked_details` = `{pause_requested: true, phase_step_kind:
+  force_push}`);
+- runaway protection had been set four days earlier.
+
+So the queued Step is a deliberate wait. The reconciler classified it as
+`queued_step_without_run` and skipped the resume about once a minute: 16,596
+detections and 8,298 skips since 2026-11-14. Main's "Leave queued Steps alone
+while their gate recheck is still due" (`71c415f76a`) excludes deliberate
+waits from that classifier, but it is not in the deployed build
+(`a47a6abd37`). The churn stops on the next deploy.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -4132,7 +4183,7 @@ wrapping, as about 37 tools already do in their class body, would make gating
 independent of load history. Not yet checked: whether any production caller
 invokes tool classes directly.
 
-## Lead L4: a running rebase whose next Step never got a Run, for 22 days (production, read-only)
+## Lead L4: a running rebase whose next Step never got a Run, for 22 days (production, read-only) — closed by F89: a deliberate operator pause
 
 Found while working the coverage item `job-state-vs-active-workflow-kind`.
 The `/admin/stuck` list shows one `job_workflow_state_drift`: a `failed` Job

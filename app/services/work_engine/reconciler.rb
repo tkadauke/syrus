@@ -1828,6 +1828,9 @@ module WorkEngine
         latest = latest_workflow_for_job(job)
         next if job.failed? && latest&.queued? && ReconcileJobStatesJob::Plan.for(job)
         next if job.failed? && active_repair_workflows?(active)
+        # A non-approval-blocking follow-up leaves an implemented Job
+        # implemented on purpose (JobLifecyclePropagation.lifts_job_on_start?).
+        next if job.implemented? && active.all? { |workflow| Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind) }
         next if active.all? { |workflow| expected_start_blocked_workflow?(job, workflow) }
 
         issue(

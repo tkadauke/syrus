@@ -53,6 +53,7 @@ import SyrusModel.InstallCancel
 import SyrusModel.LockOrder
 import SyrusModel.FollowUpFailure
 import SyrusModel.RunningHasWork
+import SyrusModel.LegalJobWorkflowPairs
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet
