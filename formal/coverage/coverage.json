@@ -2525,6 +2525,19 @@
       ],
       "recommendation": "A. It makes the exemption derived rather than declared, the same way pending-action tools already are, and costs nothing for today's tools (the spawn-chat tools can register their pending actions).",
       "decision": null
+    },
+    {
+      "id": "NY13",
+      "item": "plugin-contribution-callable",
+      "title": "Should a runtime database error make disabled plugins' providers callable?",
+      "context": "Syrus::PluginRegistry.providers_for reads plugin enablement from PluginRecord. On any ActiveRecord error it returns every registered plugin's providers, disabled and unhealthy ones included (pinned by 'returns all plugins when the database is unavailable'). That exists so asset precompile and boot work before the database does. At runtime the same rescue turns a transient error (a lock-wait timeout, a dropped connection) into every disabled plugin's contribution being callable for that call: an execution backend, an approval provider, a repository content provider. PluginRegistry.health falls back the same way.",
+      "options": [
+        "A. Fall back to the last enablement set this process read successfully; return every plugin only when none was ever read (precompile, first boot).",
+        "B. Fail closed at runtime: no plugin providers on a database error, keep the all-plugins fallback only when no database is configured.",
+        "C. Keep as is."
+      ],
+      "recommendation": "A. It keeps precompile and boot working, keeps a running instance's behaviour stable through a blip, and never activates a plugin the operator disabled. B is safer still but turns a transient error into every plugin vanishing for that call.",
+      "decision": null
     }
   ]
 }

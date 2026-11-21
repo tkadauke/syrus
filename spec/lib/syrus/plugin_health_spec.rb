@@ -46,6 +46,29 @@ RSpec.describe Syrus::PluginHealth do
     expect(subject.status("rails").reasons).to include("requires ruby, which is disabled")
   end
 
+  # Regression (formal/SyrusModel/PluginClosure.lean): a contribution is
+  # callable only when the whole required dependency closure is healthy.
+  # Only direct dependencies were checked, and only for being enabled, so a
+  # plugin stayed healthy on top of a hard dependency that was itself
+  # degraded and whose providers were withheld.
+  it "degrades a plugin whose enabled hard dependency is itself unhealthy" do
+    manifests = [ manifest("c"), manifest("b", depends_on: [ "c" ]), manifest("a", depends_on: [ "b" ]) ]
+    subject = health(manifests, enabled: %w[a b])
+
+    expect(subject.status("b").state).to eq(:degraded)
+    expect(subject.status("a").state).to eq(:degraded)
+    expect(subject.status("a").reasons).to include("requires b, which is degraded")
+    expect(subject.healthy?("a")).to be(false)
+  end
+
+  it "degrades every plugin above an unhealthy one along a dependency chain" do
+    manifests = [ manifest("d", depends_on: [ "missing" ]), manifest("c", depends_on: [ "d" ]),
+                  manifest("b", depends_on: [ "c" ]), manifest("a", depends_on: [ "b" ]) ]
+    subject = health(manifests)
+
+    expect(%w[a b c d].map { |name| subject.healthy?(name) }).to all(be(false))
+  end
+
   it "leaves a disabled plugin ok when its own dependency is disabled too" do
     manifests = [ manifest("plugin_runtime"), manifest("git_mirror", depends_on: [ "plugin_runtime" ]) ]
     subject = health(manifests, enabled: [])
