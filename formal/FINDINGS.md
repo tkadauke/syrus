@@ -2665,6 +2665,42 @@ revocation NY20.
 
 ---
 
+## M20. Backup retention never deletes what it must keep — audited, one question
+
+Main's backup epic ("Recheck backup deletion gates atomically," "Fence backup
+replication attempts with leases," "Preserve verified backup replications").
+The invariants it relies on, read against `LocalBackups::Retention` and
+`LocalBackups::ArtifactSource`:
+
+- **Safety holds.** Retention never deletes the protected backup (the newest
+  valid one, or the newest completed one when none is valid), a pinned backup,
+  one with an uploading replication, or, when verified replication is
+  required, one without a verified copy. `claim_deletions!` re-evaluates every
+  gate inside one transaction, from `Backup.lock` and `Replication.lock` rows,
+  and moves the claimed rows to `deleting` before any file is touched. Pinning
+  and verification changes take the same Backup row lock, so they serialize
+  with the claim.
+- **Replication cannot race a deletion.** `ArtifactSource.pin` locks the
+  Backup row and requires it to be `completed`. A pin after the claim finds
+  `deleting` and fails. A pin before it makes the claim skip the backup.
+- **A verified copy is never overwritten.** `pin` refuses a verified
+  replication. `record_replication` and `release_pin` require the current
+  lease token on an uploading row, so a stale attempt that has been taken over
+  cannot record anything.
+- **Failure restores state.** A failed filesystem delete returns the claimed
+  rows to `completed`.
+
+**Liveness question.** The lease lasts six hours and is never renewed. Nothing
+expires it, and retention treats any `uploading` replication as protected,
+lease expired or not. While the destination keeps retrying, it re-pins after
+expiry and the state resolves. If the destination never retries, for example
+because it was removed while an upload was in flight, that backup is
+protected forever, and capacity reclamation cannot free it. Making expiry
+lift the protection would let retention delete an artifact under an upload
+running longer than six hours. That is NY21.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
