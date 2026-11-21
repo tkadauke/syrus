@@ -10,23 +10,32 @@ require "rails_helper"
 # place that creates units or re-points one at a Workflow breaks the proof's
 # assumption silently.
 RSpec.describe "WorkUnit workflow ownership" do
-  WRITERS = /WorkUnit\.(create|new|insert|upsert)|\bupdate!?\(workflow: |update_columns?\(.*\bworkflow(_id)?:|\.workflow(_id)? = (?!\S+\.)/
-  ALLOWED = %w[
-    app/services/work_units/launcher.rb
-    app/services/work_engine/simulation/scenario_loader.rb
-  ].freeze
+  # Methods, not constants: a constant in a describe block is global, and
+  # this file's ALLOWED clobbered repository_content_reads_spec's whenever
+  # both ran in one process.
+  def writers
+    /WorkUnit\.(create|new|insert|upsert)|\bupdate!?\(workflow: |update_columns?\(.*\bworkflow(_id)?:|\.workflow(_id)? = (?!\S+\.)/
+  end
+
+  def allowed
+    %w[
+      app/services/work_units/launcher.rb
+      app/services/work_engine/simulation/scenario_loader.rb
+    ]
+  end
+
   # Other models with a workflow association whose writes match the pattern.
-  UNRELATED = %w[
-    app/services/diff_review_versions/creator.rb
-  ].freeze
+  def unrelated
+    %w[app/services/diff_review_versions/creator.rb]
+  end
 
   def offenders
     Dir.glob(Rails.root.join("{app,lib,plugins/*/app,plugins/*/lib}/**/*.rb")).filter_map do |file|
       relative = Pathname(file).relative_path_from(Rails.root).to_s
-      next if ALLOWED.include?(relative) || UNRELATED.include?(relative)
+      next if allowed.include?(relative) || unrelated.include?(relative)
 
       File.readlines(file).each_with_index.filter_map do |line, index|
-        "#{relative}:#{index + 1}: #{line.strip}" if line.match?(WRITERS)
+        "#{relative}:#{index + 1}: #{line.strip}" if line.match?(writers)
       end.presence
     end.flatten
   end
@@ -48,7 +57,7 @@ RSpec.describe "WorkUnit workflow ownership" do
     expect('WorkUnit.where(id: ids).update_all(state: "queued")').to match(state_write)
     offenders = Dir.glob(Rails.root.join("{app,lib,plugins/*/app,plugins/*/lib}/**/*.rb")).filter_map do |file|
       relative = Pathname(file).relative_path_from(Rails.root).to_s
-      next if relative == "app/models/work_unit.rb" || ALLOWED.include?(relative)
+      next if relative == "app/models/work_unit.rb" || allowed.include?(relative)
 
       File.readlines(file).each_with_index.filter_map do |line, index|
         "#{relative}:#{index + 1}: #{line.strip}" if line.match?(state_write)
@@ -93,6 +102,6 @@ RSpec.describe "WorkUnit workflow ownership" do
   it "still matches the launcher's own writes" do
     launcher = File.read(Rails.root.join("app/services/work_units/launcher.rb"))
 
-    expect(launcher.lines.grep(WRITERS).size).to be >= 2
+    expect(launcher.lines.grep(writers).size).to be >= 2
   end
 end
