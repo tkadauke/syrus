@@ -2147,6 +2147,47 @@ gap. This is the plan's "global sequence-gap issue", queued as NY19.
 
 ---
 
+## F68. A shared chat never updated live for the person it was shared with — fixed
+
+**Found by** DOC-44 Phase 5, "Job- and Chat-scoped events cannot affect another
+resource or unauthorized user," and its converse (`ChatDelivery.lean`).
+
+**Property.** On every broadcast, the chat subscribers reached are exactly
+those authorized at that moment (`reaches_exactly_authorized`, checked over
+every state of four users).
+
+**Gap.** `ChatChannel` lets a user subscribe when the chat is in
+`accessible_chat_sessions`: owner, participant, or `ChatShare` target. Each
+subscription gets its own `(chat, user)` stream. But
+`AppEvents.broadcast_chat_resource` published only to participants' streams.
+A share target is by validation never a participant
+(`ChatShare#target_is_not_participant`), so a person viewing a chat shared
+with them subscribed successfully and then received no new message
+(`viewer_missed`). `Chat.tsx` polls only while disconnected, so the open chat
+stayed stale until a focus refetch.
+
+**Checked and refuted along the way.** Marking a chat read runs
+`find_or_create_by!` on a participant row. For a share viewer that would have
+created a `member` row and lifted the chat's `read_only`. It cannot happen:
+`Api::V1::App::BaseController#prevent_shared_chat_mutations` forbids every
+non-GET on `/chats/:id` from a share viewer who is not a participant, which
+covers `mark_read` and posting alike.
+
+**Fix.** `broadcast_chat_resource` publishes to participants and to the
+chat's user share targets, recomputed on each broadcast. So revoking a share,
+or removing a participant, stops delivery to an already-open subscription.
+
+**Spec.** `app_events_spec.rb` "also reaches users the chat is shared with, and
+no one else" was red before. `chat_shares_spec.rb` and the channel specs still
+pass.
+
+**Remaining.** `JobChannel` streams one shared `job_resource:<id>` stream and
+checks `Job.visible_to` only on subscribe. A user whose visibility of the Job
+is revoked keeps receiving its Workflow, Step and Run patches while the tab
+stays open. That is NY20.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
