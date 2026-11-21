@@ -77,5 +77,44 @@ theorem reentry_runs_only_locked (ops : List Op) :
     RunningHoldsLocks (ops.foldl step { st := .terminal, locked := false }) :=
   run_preserves _ ops (by intro h; cases h)
 
+/-! ## Clearing a backoff must not end the unit under a live Workflow (F38)
+
+`AutoRetryBackoff.record!` blocks the Workflow's unit while an auto-retry
+waits; for an *in-place* step retry that Workflow is still running. When the
+attempt is skipped, `clear!` defaulted to `mark_terminal!("failed")`: the unit
+ended and released its locks while its Workflow kept running (parallel Steps
+included), and the next `TerminalWorkflowSync` failed the Workflow — also when
+the skip meant the Workflow had moved on ("source step already recovered").
+
+**Invariant `LiveWorkflowOwned`:** while the Workflow is active, its unit is
+active, and holds its locks once the Workflow runs. -/
+
+structure WU where
+  wfActive : Bool
+  unit : Unit
+  deriving DecidableEq, Repr
+
+def LiveWorkflowOwned (s : WU) : Prop :=
+  s.wfActive = true → s.unit.st ≠ .terminal ∧ s.unit.locked = true
+
+/-- `clear!` before: always the terminal state. -/
+def clearBefore (s : WU) : WU := { s with unit := step s.unit .markTerminal }
+
+/-- After: terminal only once the Workflow itself is terminal; otherwise the
+    unit resumes for its Workflow (`resume_for_workflow!`, which re-acquires). -/
+def clearAfter (s : WU) : WU :=
+  if s.wfActive then { s with unit := step s.unit (.markRunning true) } else clearBefore s
+
+theorem clear_before_breaks :
+    ¬ LiveWorkflowOwned (clearBefore ⟨true, ⟨.blocked, true⟩⟩) := by
+  intro h; have := (h rfl).1; simp [clearBefore, step] at this
+
+theorem clear_after_keeps (s : WU) : LiveWorkflowOwned (clearAfter s) := by
+  cases s with
+  | mk wfActive unit =>
+    cases wfActive
+    · intro h; simp [clearAfter, clearBefore] at h
+    · intro _; simp [clearAfter, step]
+
 end UnitReentry
 end SyrusModel

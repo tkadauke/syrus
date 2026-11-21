@@ -76,7 +76,7 @@ RSpec.describe WorkUnits::AutoRetryBackoff do
   end
 
   it "terminalizes the unit again when the sleeping same-attempt retry is skipped" do
-    workflow.update!(work_unit: unit)
+    workflow.update!(work_unit: unit, state: "failed", finished_at: 1.minute.ago)
     attempt = attempt!(retry_kind: "resume_failed_step")
     described_class.record!(attempt)
 
@@ -95,5 +95,22 @@ RSpec.describe WorkUnits::AutoRetryBackoff do
 
     expect(unit.reload).to have_attributes(state: "running", blocked_reason: nil)
     expect(unit.work_unit_locks.active.pluck(:lock_key)).to include("job:#{job.id}")
+  end
+  # An in-place step retry blocks the unit of a Workflow that is still
+  # running. Skipping that attempt marked the unit failed and released its
+  # locks under the live Workflow (UnitReentry.clear_before_breaks), and the
+  # next TerminalWorkflowSync then failed the Workflow, even when the skip
+  # meant the Workflow had moved on.
+  it "hands the unit back to a still-running Workflow when an in-place retry is skipped" do
+    workflow.update!(work_unit: unit, state: "running", started_at: 2.minutes.ago)
+    attempt = attempt!(retry_kind: "failed_step")
+    described_class.record!(attempt)
+
+    described_class.clear!(attempt)
+    WorkUnits::TerminalWorkflowSync.for_job(job)
+
+    expect(unit.reload).to have_attributes(state: "running", blocked_reason: nil)
+    expect(unit.work_unit_locks.active.pluck(:lock_key)).to include("job:#{job.id}")
+    expect(workflow.reload).to be_running
   end
 end

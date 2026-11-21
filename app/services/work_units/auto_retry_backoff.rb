@@ -34,7 +34,12 @@ module WorkUnits
       return unless unit.blocked_reason == "auto_retry_backoff"
       return unless unit.blocked_details.to_h["auto_retry_attempt_id"].to_i == attempt.id
 
-      if terminal_state
+      # A unit ends with its Workflow. An in-place step retry blocks the unit
+      # of a Workflow that is still running; ending the unit here released its
+      # locks under that live Workflow and let TerminalWorkflowSync fail it
+      # (UnitReentry.lean). Hand it back instead; if the retry was abandoned,
+      # the held Step is failed through the Workflow's own path.
+      if terminal_state && !workflow_active?
         unit.mark_terminal!(terminal_state)
       else
         unit.resume_for_workflow!
@@ -51,6 +56,10 @@ module WorkUnits
 
     def workflow
       attempt.workflow
+    end
+
+    def workflow_active?
+      workflow.present? && workflow.reload.state.in?(WorkUnits::TerminalWorkflowSync::ACTIVE_WORKFLOW_STATES)
     end
 
     def unit
