@@ -272,6 +272,16 @@ RSpec.describe App::JobRetryActions do
     expect(preflight.message).to include("newer attempt already succeeded")
   end
 
+  it "stops offering retry of a failed publication once its branch divergence was resolved" do
+    job = Factories.job_record(user: user, repository: repo, state: "implemented")
+    workflow, _step = build_failed_workflow(job, failed_step_kind: "pr_open")
+    expect(actions_for(job)[:failed_step]).to include(key: "retry_failed_step")
+
+    workflow.set_artifact!("branch_divergence_recovery", { "action" => "force_pushed", "at" => Time.current.iso8601 })
+
+    expect(actions_for(job)[:failed_step]).to be_nil
+  end
+
   it "omits implementation retry when its preflight refuses" do
     job = Factories.job_record(user: user, repository: repo, state: "failed")
     build_failed_workflow(job, failed_step_kind: "pr_open")

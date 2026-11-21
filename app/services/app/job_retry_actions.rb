@@ -30,6 +30,7 @@ module App
     def failed_step_action
       return if job.no_change_needed?
       return if latest_workflow&.infrastructure_workflow?
+      return if branch_divergence_resolved?
       return unless latest_workflow&.retry_available?
       return unless failed_step
       return if RetryFailedStepEnqueuer.fresh_workflow_required_for?(failed_step)
@@ -54,6 +55,15 @@ module App
         label: "Retry implementation",
         path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
       }
+    end
+
+    # The operator already settled this workflow's failed publication through
+    # branch divergence recovery (replaced, adopted, or discarded). Retrying the
+    # step would publish the same choice again, and offering it kept "Retry
+    # failed step" as the Job's headline action, ahead of approving the Job
+    # the recovery had just made approvable.
+    def branch_divergence_resolved?
+      latest_workflow&.failed? && latest_workflow.artifact("branch_divergence_recovery").present?
     end
 
     def implementation_preflight
