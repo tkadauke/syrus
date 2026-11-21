@@ -1160,9 +1160,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "F42",
-      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close."
+      "status": "done",
+      "done_by": "F42 · F95 (ClosedIntent.lean)",
+      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close. F95: an intent whose unit was still active at close is now cancelled when that unit is cancelled for any reason after the close (production had one, cancelled 50 s after close for epic_wide_workflow_active); ClosedIntent.lean proves a closed Job's open intent always has an active unit. Member-scoped intents remain covered by F42's reason list."
     },
     {
       "id": "queued-job-after-cancelled-workflow",

@@ -3447,6 +3447,61 @@ external plugin or the first migrated bundled one would hit it.
 
 ---
 
+## F95. A closed Job's intent stayed requested when its unit was cancelled after the close — fixed
+
+**Found by** coverage item `closed-job-open-intent`. Its note named the open
+half: "an intent skipped because its unit was active is not re-cancelled when
+the unit later ends".
+
+**Evidence (production, read-only).** Two requested intents belong to closed
+Jobs, each with a single cancelled unit:
+
+- a `retry` intent whose unit was cancelled for `approved` (August). Its Job
+  closed before the close-time cancel shipped, which today's close path would
+  cancel.
+- a `rebase` intent whose Job closed *50 seconds before* its unit was
+  cancelled for `epic_wide_workflow_active` (September). This is the
+  counterexample. F42, which covers specific reasons, is deployed and does not
+  catch it.
+
+**Cause.** Two writers end a Job-scoped intent, and each left this case to the
+other:
+
+1. `Job#cancel_stale_work_intents_after_close` cancels at close only intents
+   with no active unit, and leaves the rest to their unit.
+2. `WorkIntents::TerminalUnitSync` cancels on a unit cancellation only for
+   `SUPERSEDING_CANCEL_REASONS`. It deliberately keeps an Epic-conflict
+   victim's intent requested for its relaunch, and it never asked whether the
+   Job had closed in the meantime.
+
+Nothing relaunches work on a closed Job, so the intent was stranded.
+
+**Fix.** `TerminalUnitSync` also cancels the intent when the cancelled unit
+was its last active one and the intent's Job is closed. While the Job is open,
+the Epic-conflict victim's intent is still kept for the relaunch.
+
+**Proof.** `formal/SyrusModel/ClosedIntent.lean` models both writers with two
+units and four outcomes:
+
+- `after_closed_intents_have_owner`: over every sequence of up to six events,
+  a closed Job's open intent always has an active unit.
+- `before_strands`: replays the production order, close then a
+  relaunch-keeping cancel.
+- `open_job_keeps_relaunch`: pins that the victim relaunch still works while
+  the Job is open.
+
+**Spec.** `terminal_unit_sync_spec.rb` "cancels the intent of a closed Job
+when its last active unit is cancelled for any reason" was red before the fix.
+Also run and green: `spec/services/work_intents`, `spec/services/work_units`,
+`spec/services/work_engine` (CI-only included), and the job, work unit and
+work intent model specs (406 examples).
+
+The two existing production rows are left alone. The reconciler's
+`closed_job_requested_work_intent` classifier is the backstop for them, and
+this mission repairs nothing by hand.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
