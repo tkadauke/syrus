@@ -643,12 +643,8 @@ function DecisionPanel({
         </section>
       </div>
       <div className={MOBILE_ACTION_BAR_CLASS}>
-        <Button aria-label={t("defer")} className="w-full" onClick={onDefer} variant="secondary">
-          <span className="max-lg:hidden">{t("defer")}</span>
-          <DeferToQueueEndIcon className="hidden size-5 max-lg:block" />
-        </Button>
         {confirming ? (
-          <div className="col-span-3 rounded border border-brand/30 bg-brand-subtle p-3">
+          <div className="col-span-3 rounded border border-brand/30 bg-brand-subtle p-3 max-lg:order-2">
             <p className="text-sm font-medium">{t("approve_confirm", { slug: job.slug })}</p>
             <div className="mt-3 flex gap-2">
               <Button disabled={approve.isPending} onClick={() => setConfirming(false)} variant="secondary">
@@ -660,13 +656,17 @@ function DecisionPanel({
             </div>
           </div>
         ) : (
-          <Button className="w-full max-lg:col-span-2" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
+          <Button className="w-full max-lg:order-2 max-lg:col-span-2" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
             {t(isDesktop ? "approve_shortcut" : "approve_mobile")}
           </Button>
         )}
-        <Button aria-label={t("feedback")} className="w-full" onClick={() => setFeedbackOpen(true)} variant="secondary">
+        <Button aria-label={t("feedback")} className="w-full max-lg:order-3" onClick={() => setFeedbackOpen(true)} variant="secondary">
           <span className="max-lg:hidden">{t(isDesktop ? "feedback_shortcut" : "feedback")}</span>
           <FeedbackIcon className="hidden size-5 max-lg:block" />
+        </Button>
+        <Button aria-label={t("defer")} className="w-full max-lg:order-1" onClick={onDefer} variant="secondary">
+          <span className="max-lg:hidden">{t("defer")}</span>
+          <DeferToQueueEndIcon className="hidden size-5 max-lg:block" />
         </Button>
       </div>
       {feedbackOpen ? (

@@ -66,8 +66,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function renderRoute(path = "/review") {
-  Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
+function renderRoute(path = "/review", width = 390) {
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: width })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -132,16 +132,35 @@ describe("ReviewWorkspaceRoute", () => {
     const actions = screen.getByRole("complementary", { name: "Decision context" })
     const buttons = within(actions).getAllByRole("button")
     expect(buttons.map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual([
-      "Defer for this session",
       "Approve",
-      "Give feedback"
+      "Give feedback",
+      "Defer for this session"
     ])
-    expect(buttons[1]).toHaveClass("max-lg:col-span-2")
-    expect(within(buttons[0]).queryByText("Defer for this session")).toHaveClass("max-lg:hidden")
-    expect(within(buttons[2]).queryByText("Give feedback")).toHaveClass("max-lg:hidden")
+    expect(buttons[0]).toHaveClass("max-lg:order-2", "max-lg:col-span-2")
+    expect(buttons[1]).toHaveClass("max-lg:order-3")
+    expect(buttons[2]).toHaveClass("max-lg:order-1")
+    expect(within(buttons[1]).queryByText("Give feedback")).toHaveClass("max-lg:hidden")
+    expect(within(buttons[2]).queryByText("Defer for this session")).toHaveClass("max-lg:hidden")
     fireEvent.click(screen.getByRole("button", { name: "Approve" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
     await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/canonical/jobs/42/approve", { expected_revision: 3 }))
+  })
+
+  it("preserves the desktop decision action order", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42", 1280)
+
+    await screen.findByText("Canonical review evidence for Job 42")
+    const actions = screen.getByRole("complementary", { name: "Decision context" })
+    expect(within(actions).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual([
+      "Approve for landing (A)",
+      "Give feedback",
+      "Defer for this session"
+    ])
+    expect(within(actions).getByRole("button", { name: "Approve for landing (A)" })).toBeInTheDocument()
+    expect(within(actions).getByRole("button", { name: "Give feedback" })).toHaveTextContent("Give feedback (F)")
   })
 
   it("owns mobile scrolling inside the fixed dynamic-viewport workspace", async () => {
