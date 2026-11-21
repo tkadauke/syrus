@@ -688,7 +688,7 @@
       ],
       "status": "partial",
       "done_by": "F18, F19",
-      "notes": "Production (~2 days, 324 executions). ~50 applied repairs were F18 (in-place git_transport_transient retries thrown away) — fixed. The 92 'Step is succeeded, not active' skips were RunJob committing run.succeed! and step.succeed! separately — F19 commits them together, so the success path can no longer produce the state (AtomicSuccess.atomic_hides). Still open: Workflow#fail! cancel_orphan_active_runs! via update_columns, and ImmutableReviewHeadBarrier.cancel_run_without_cascade!."
+      "notes": "Production (~2 days, 324 executions). ~50 applied repairs were F18 (in-place git_transport_transient retries thrown away) — fixed. The 92 'Step is succeeded, not active' skips were RunJob committing run.succeed! and step.succeed! separately — F19 commits them together, so the success path can no longer produce the state (AtomicSuccess.atomic_hides). Still open: Workflow#fail! cancel_orphan_active_runs! via update_columns, and ImmutableReviewHeadBarrier.cancel_run_without_cascade!. Explained (no change): Workflow#cancel_orphan_active_runs! runs in failed! propagation and cancels Runs with update_columns on purpose -- a callback cancel would cascade and cancel the failed Workflow's queued tail, which Retry-from-failed-step resumes through. The running Step it leaves behind is stale_terminal_steps for a failed Workflow, so terminal cleanup turns it back, and active_step_with_terminal_runs reconciles it from its latest terminal Run in the meantime. Remaining: the ImmutableReviewHeadBarrier producer."
     },
     {
       "id": "in-place-retry-reconciled-away",
