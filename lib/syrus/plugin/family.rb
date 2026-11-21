@@ -32,15 +32,27 @@ module Syrus
         end
       end
       Capability = Data.define(:name, :composition, :absent, :tier, :context, :method_contract, :return_contract)
+      LegacyMapping = Data.define(:extension_point, :capability, :adapter)
       CORE_METHOD_CONTRACTS = {
         key: MethodContract.no_arguments,
         display_name: MethodContract.no_arguments,
         available_for?: MethodContract.context(Object)
       }.freeze
       class Definition
-        attr_reader :name, :capabilities
-        def initialize(name) = (@name, @capabilities = name.to_sym, {})
+        attr_reader :name, :capabilities, :legacy_mappings
+        def initialize(name)
+          @name, @capabilities, @legacy_mappings = name.to_sym, {}, {}
+          @indicates_language_support = false
+          @migrated = false
+          @absorbed_legacy_points = []
+        end
         def shape(value = nil) = value ? @shape = value.to_sym : @shape
+        def indicates_language_support(value = true) = @indicates_language_support = value
+        def indicates_language_support? = @indicates_language_support
+        def migrated(value = true) = @migrated = value
+        def migrated? = @migrated
+        def absorbs(*extension_points) = @absorbed_legacy_points.concat(extension_points.flatten.map(&:to_sym)).uniq!
+        def unmapped_legacy_points = @absorbed_legacy_points - legacy_mappings.keys
         def capability(name, composition:, absent:, tier:, context:, returns: nil)
           name = name.to_sym
           raise ArgumentError, "Duplicate capability #{name.inspect} in family #{@name.inspect}" if capabilities.key?(name)
@@ -54,6 +66,12 @@ module Syrus
         def required_core = shape == :service ? %i[key display_name available_for?] : %i[key display_name]
         def method_contract(method_name) = capabilities.fetch(method_name).method_contract
         def core_method_contract(method_name) = CORE_METHOD_CONTRACTS.fetch(method_name)
+        def legacy(extension_point, capability:, adapter:)
+          extension_point, capability = extension_point.to_sym, capability.to_sym
+          raise ArgumentError, "Duplicate legacy mapping #{extension_point.inspect} in family #{@name.inspect}" if legacy_mappings.key?(extension_point)
+          raise ArgumentError, "Unknown capability #{capability.inspect} for family #{@name.inspect}" unless capabilities.key?(capability)
+          legacy_mappings[extension_point] = LegacyMapping.new(extension_point:, capability:, adapter:)
+        end
       end
       @definitions = {}
       class << self
@@ -61,11 +79,19 @@ module Syrus
           definition = Definition.new(name).tap { |entry| entry.instance_eval(&block) }
           raise ArgumentError, "Family #{name.inspect} must declare a shape" unless definition.shape
           raise ArgumentError, "Family #{name.inspect} must declare at least one capability" if definition.capabilities.empty?
+          if definition.unmapped_legacy_points.any?
+            raise ArgumentError, "Family #{name.inspect} is missing legacy mappings for #{definition.unmapped_legacy_points.join(', ')}"
+          end
           raise ArgumentError, "Family #{name.inspect} is already defined" if @definitions.key?(definition.name)
           @definitions[definition.name] = definition
         end
         def fetch(name) = @definitions.fetch(name.to_sym) { raise ArgumentError, "Unknown plugin family #{name.inspect}" }
         def all = @definitions.values.freeze
+        def legacy_mapping(extension_point)
+          matches = all.filter_map { |definition| [ definition, definition.legacy_mappings[extension_point.to_sym] ] if definition.legacy_mappings.key?(extension_point.to_sym) }
+          raise ArgumentError, "Legacy extension point #{extension_point.inspect} is claimed by multiple families" if matches.many?
+          matches.first
+        end
         def reset! = @definitions.clear
       end
     end

@@ -481,19 +481,32 @@ module Syrus
             performance_phase("plugin_registry.providers_for.filter", extension_point: ep, plugin_count: plugins.size) do
               enabled = plugins.select { |m| plugin_enabled?(m, records[m.name]) }
               health = health_for(plugins, enabled_names: enabled.map(&:name))
+              bridge_mapping = Syrus::Plugin::LegacyBridge.mapping_for(ep)
+              conformance = conformance_for(enabled) if bridge_mapping
 
               enabled
                 .select { |m| health.registrations_healthy?(m.name) }
                 .then { |ms| sort_by_prepare_priority(ms) }
-                .flat_map { |m| Array(m.provides[ep]) }
+                .flat_map do |manifest|
+                  Array(manifest.provides[ep]) +
+                    Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+                end
             end
           rescue ActiveRecord::ActiveRecordError
-            sort_by_prepare_priority(plugins).flat_map { |m| Array(m.provides[ep]) }
+            conformance = conformance_for(plugins) if Syrus::Plugin::LegacyBridge.mapping_for(ep)
+            sort_by_prepare_priority(plugins).flat_map do |manifest|
+              Array(manifest.provides[ep]) +
+                Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, ep, conformance:)
+            end
           end
         end
 
         direct = @mutex.synchronize { @direct_providers[ep].dup }
         manifest_providers + direct
+      end
+
+      def legacy_bridge_duplicate_registrations
+        Syrus::Plugin::LegacyBridge.duplicates_for(@mutex.synchronize { @plugins.dup })
       end
 
       def capability_providers(family, capability)

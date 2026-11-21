@@ -66,6 +66,16 @@ RSpec.describe Syrus::Plugin::Family do
     end.to raise_error(ArgumentError, /Duplicate capabilities/)
   end
 
+  it "rejects a claimed legacy point without a complete mapping" do
+    expect do
+      described_class.define(:incomplete_fixture) do
+        shape :facet
+        absorbs :prepare_detector
+        capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: String
+      end
+    end.to raise_error(ArgumentError, /missing legacy mappings for prepare_detector/)
+  end
+
   it "requires manifest keys for keyed capabilities" do
     described_class.define(:resolver) do
       shape :facet

@@ -5,8 +5,8 @@
 # :review_criteria_provider, etc.) can check membership instead of
 # re-deriving file-existence checks itself.
 #
-# Reuses the two extension points that already answer "does this plugin
-# apply to this repo" instead of inventing a third detection mechanism:
+# Reuses declarations that explicitly answer "does this plugin apply to this
+# repo", including family declarations marked as language support:
 #
 #   - :prepare_detector — language plugins (ruby, javascript, python, go).
 #     detect?(repo_path) is a CLASS method (Syrus::Plugin::PrepareDetector).
@@ -64,8 +64,17 @@ class RepoPluginDetector
   end
 
   def detected_by?(manifest)
-    EXTENSION_POINTS.any? do |extension_point|
+    legacy = EXTENSION_POINTS.any? do |extension_point|
       Array(manifest.provides[extension_point]).any? { |provider| provider_detects?(provider) }
+    end
+    legacy || family_language_providers(manifest).any? { |provider| provider_detects?(provider) }
+  end
+
+  def family_language_providers(manifest)
+    Syrus::Plugin::Family.all.select(&:indicates_language_support?).flat_map do |family|
+      family.legacy_mappings.keys.flat_map do |extension_point|
+        Syrus::Plugin::LegacyBridge.providers_for_manifest(manifest, extension_point)
+      end
     end
   end
 
