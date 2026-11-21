@@ -9,7 +9,9 @@ RSpec.describe "API: /api/v1/app/permission_rule_drafts", type: :request do
       capability: "syrus.deploys@v1", operation: "syrus.deploys/run@v1", effects: %i[internal_write], risk: :medium,
       requestable_roles: [ role ], defaults: { role => :ask }, maximum_autonomy: :permanent,
       authority_durations: %i[invocation chat_session job permanent], constraint_fields: { "branch" => :string },
-      resource_scope: Permissions::ResourceScopeSchema.new(type: :none),
+      resource_scope: Permissions::ResourceScopeSchema.new(type: :none,
+        authoring: ->(context:) { { fields: [ { name: "owner", type: "select",
+          choices: [ { value: context.fetch(:user).id.to_s, label: "Current user" } ] } ] } }),
       classifier: ->(_arguments) { { operation: "syrus.deploys/run@v1", confidence: :certain } },
       fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }
     )
@@ -32,6 +34,8 @@ RSpec.describe "API: /api/v1/app/permission_rule_drafts", type: :request do
     expect(response.headers["ETag"]).to be_present
     expect(options).to include("authority_durations" => %w[chat_session job permanent], "permanent_allowed" => true,
       "maximum_autonomy" => "permanent", "constraint_fields" => { "branch" => "string" })
+    expect(options.dig("resource_scope", "options", "fields", 0, "choices"))
+      .to eq([ { "label" => "Current user", "value" => user.id.to_s } ])
     expect(options.fetch("subject_types").pluck("type")).to include("interactive_chat", "agent", "workflow_role")
     expect(options.fetch("subject_types").pluck("type")).not_to include("eligible_roles")
   end

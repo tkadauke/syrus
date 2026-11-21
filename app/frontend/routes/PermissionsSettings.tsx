@@ -700,6 +700,7 @@ function ResourceView({ descriptors, rules, t }: { descriptors: InheritedPermiss
                     <code className="block text-xs text-text-muted">
                       {rule.capability} · {rule.operation}
                     </code>
+                    <span className="block text-xs text-text-muted">{permissionSubjectLabel(rule, t)}</span>
                   </span>
                 </li>
               ))}
@@ -710,6 +711,11 @@ function ResourceView({ descriptors, rules, t }: { descriptors: InheritedPermiss
       </div>
     </section>
   )
+}
+
+function permissionSubjectLabel(rule: PermissionRule, t: Translate) {
+  const kind = t(`permissions.subjects.${rule.subject_selector_type}`)
+  return rule.subject_selector_id ? `${kind}: ${rule.subject_selector_id}` : kind
 }
 
 function LeaseView({

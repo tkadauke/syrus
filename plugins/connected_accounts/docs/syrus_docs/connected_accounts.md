@@ -60,4 +60,4 @@ Service plugins name capabilities for the user-facing concept rather than for a 
 
 Each service splits authority at least into read/search, draft or private creation, actions that send/share/invite or otherwise reach other people, delete, and administration. Operations that affect another person default to `ask`, with `maximum_autonomy: :invocation` and invocation-only authority durations. A plugin may define typed `sub_resources` inside the connected-account scope (mailboxes, calendars, drives, channels, and similar service concepts), while account selection and acting mode retain their common broker semantics.
 
-Revoked and failed account records and their broker audit rows follow the instance retention policy. Plugin purge also removes audit rows held in Credential Store for Connected Accounts.
+Revoked and failed account records, their encrypted Credential Store records, and their broker audit rows follow the instance retention policy. Plugin purge also removes the credentials and audit rows held in Credential Store for Connected Accounts.
