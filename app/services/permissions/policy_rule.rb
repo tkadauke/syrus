@@ -39,8 +39,8 @@ module Permissions
     end
 
     def match_status(invocation, descriptor:, context:, arguments: {})
-      return :no_match if capability && capability != invocation.capability
-      return :no_match if operation && operation != invocation.operation
+      return :no_match if capability && !names?(capability, invocation.capability, descriptor&.capability_aliases)
+      return :no_match if operation && !names?(operation, invocation.operation, descriptor&.operation_aliases)
       return :no_match unless selectors.all? { |key, expected| context.fetch(key, nil) == expected }
       return :no_match unless constraints.all? { |key, expected| constraint_satisfied?(key, expected, descriptor, arguments) }
       return :match unless resource_scope
@@ -87,6 +87,12 @@ module Permissions
     end
 
     private
+
+    # A rule written for an identifier the descriptor has since renamed still
+    # names it through the descriptor's aliases (CapabilityDescriptor#names_*).
+    def names?(rule_identifier, invocation_identifier, aliases)
+      rule_identifier == invocation_identifier || Array(aliases).include?(rule_identifier)
+    end
 
     def deep_freeze(value)
       case value
