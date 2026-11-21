@@ -2577,6 +2577,19 @@
       ],
       "recommendation": "A. The rows came from a pipeline that no longer exists and nothing reads them. B alone comes back the next time someone dumps the schema from a database that still has the tables, which is how they came back the first time.",
       "decision": null
+    },
+    {
+      "id": "NY17",
+      "item": "plugin-fleet-admission",
+      "title": "How should a worker without a plugin handle a Run of that plugin's step kind?",
+      "context": "Workers heartbeat their plugin-set digest and plugin list, but routing (RunQueueResolver) ignores them, and no work records the plugin set it needs. During a fleet plugin rollout, or for a fleet installation limited to some roles, a worker that lacks the plugin can claim a Run of the plugin's step kind. RunJob then raises in Steps.handler_for, and the step fails terminally, even though a worker that has the plugin could run it. Bundled plugins are unaffected: they load everywhere and declare no roles.",
+      "options": [
+        "A. Treat the owning plugin as a placement requirement: RunQueueResolver asks for a live worker whose heartbeat lists the plugin that contributes the step kind, and otherwise blocks the start as no_capable_worker, the same way an OS or toolchain requirement does.",
+        "B. In RunJob, when the step kind is unknown on this process but known to the instance, release the Run back to the queue with a bounded deferral instead of failing it, and fail only once no live worker reports the plugin.",
+        "C. Keep as is: a fleet plugin rollout can fail in-flight steps of that plugin's kinds."
+      ],
+      "recommendation": "A. It reuses the existing capability-routing contract and the no_capable_worker diagnosis, so a blocked start explains itself. B is smaller, but it spins on a worker that will never have the plugin.",
+      "decision": null
     }
   ]
 }

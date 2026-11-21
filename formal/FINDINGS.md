@@ -2325,6 +2325,39 @@ still carried authority to fail a landing workflow and send its Job back to
 
 ---
 
+## M17. Migrations before enablement, and plugin-set admission — audited, one question
+
+DOC-44 plugin host: "Required migrations and schema are present before
+enablement becomes active," and "Work requiring plugin-set digest D is never
+admitted to a process or worker observing a different incompatible digest."
+
+**Migrations hold by construction.** Every installed plugin's `db/migrate` is
+on `config.paths["db/migrate"]`, whether or not the plugin is enabled
+(`config/application.rb`). The deploy runs migrations as a one-shot Job from
+the new image before any workload moves (`Deploy::Migrations`). That Job copies
+the web pod's volumes, so externally mounted plugins are migrated too.
+Enablement is a `PluginRecord` flag and never runs or needs a migration, so a
+plugin's schema is present before it can be switched on. The one way around
+this is an external plugin added to a mounted plugin path between deploys,
+whose process then boots without a migrate step. That is a deployment
+precondition, not a host rule.
+
+**Plugin-set admission is not enforced.** Workers report
+`SYRUS_PLUGIN_SET_DIGEST` and their plugin list in `InstanceVersion`
+heartbeats. `PluginDesiredState::Convergence` uses them only for the admin
+convergence view: `converged`, `pending_restart`, `behind`. No Run, Step or
+Workflow records the plugin set it needs, and `RunQueueResolver` routes only
+by OS and toolchain capabilities. So during a fleet plugin rollout (`pending_restart`),
+or for a fleet installation limited to some process roles, a worker without
+the plugin can claim a Run whose step kind only that plugin provides.
+`Steps.handler_for` then raises in `RunJob`, and `handle_failure` fails the
+step terminally, instead of leaving it for a worker that has the plugin. The
+F61 and NY14 cancellation path applies after that. This affects only fleet
+installations of external plugins: bundled plugins load on every process and
+declare no roles. That is NY17.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
