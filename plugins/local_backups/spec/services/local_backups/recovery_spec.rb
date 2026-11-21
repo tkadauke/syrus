@@ -190,6 +190,55 @@ RSpec.describe LocalBackups::Recovery do
     end
   end
 
+  it "proceeds without rollback state only when break glass accepts a failed safety copy" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      destination = root.join("data").tap(&:mkpath)
+      database = destination.join("primary.sqlite3").tap { |path| path.write("old database") }
+      storage = destination.join("storage").tap(&:mkpath)
+      storage.join("old").write("old object")
+      pid_file = root.join("worker.pid").tap { |path| path.write("99999999") }
+      bundle = described_class::Bundle.new(create_restore_bundle(root))
+      token = described_class::Token.issue(secret: "secret", artifact_checksum: bundle.identity_checksum, installation_id: "install-a")
+      allow_any_instance_of(described_class::SafetyCopy).to receive(:validate_copy!).and_raise(Errno::EIO, "copy failed")
+
+      result = described_class::Restore.new(bundle:, destination:, database_path: database, storage_path: storage,
+        installation_id: "install-a", token_secret: "secret", token:, pid_files: [pid_file], break_glass: true).call
+
+      expect(result.rollback_path).to be_nil
+      expect(database.binread).to start_with("SQLite format 3\0")
+      expect(storage.join("ab/cd/abcd-restored-key").read).to eq("restored object")
+      expect(destination.children.grep_v(storage).grep_v(database)).to be_empty
+    end
+  end
+
+  it "restores the safety copy when promotion fails after replacing the database" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      destination = root.join("data").tap(&:mkpath)
+      database = destination.join("primary.sqlite3").tap { |path| path.write("old database") }
+      storage = destination.join("storage").tap(&:mkpath)
+      storage.join("old").write("old object")
+      pid_file = root.join("worker.pid").tap { |path| path.write("99999999") }
+      bundle = described_class::Bundle.new(create_restore_bundle(root))
+      token = described_class::Token.issue(secret: "secret", artifact_checksum: bundle.identity_checksum, installation_id: "install-a")
+      rename_count = 0
+      allow(File).to receive(:rename).and_wrap_original do |original, *arguments|
+        rename_count += 1
+        raise Errno::EIO, "promotion failed" if rename_count == 2
+        original.call(*arguments)
+      end
+
+      expect { described_class::Restore.new(bundle:, destination:, database_path: database, storage_path: storage,
+        installation_id: "install-a", token_secret: "secret", token:, pid_files: [pid_file]).call }
+        .to raise_error(Errno::EIO, /promotion failed/)
+      expect(database.read).to eq("old database")
+      expect(storage.join("old").read).to eq("old object")
+      expect(destination.join("MAINTENANCE")).to exist
+      expect(destination.join("RESTORE_FAILED.json")).to exist
+    end
+  end
+
   it "refuses restore while a declared mutating process is still alive" do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
@@ -238,6 +287,23 @@ RSpec.describe LocalBackups::Recovery do
       expect { described_class::Restore.new(bundle:, destination: root, database_path: root.join("db"), storage_path: root.join("storage"),
         installation_id: "install-a", token_secret: "secret", token:, pid_files: [root.join("worker.pid")]).call }
         .to raise_error(described_class::Error, /not qualified for database adapter/)
+      expect(root.join("RESTORE_FAILED.json")).not_to exist
+      expect(root.join("MAINTENANCE")).not_to exist
+    end
+  end
+
+  it "rejects restore without a token secret before entering maintenance" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      destination = root.join("data").tap(&:mkpath)
+      bundle = described_class::Bundle.new(create_restore_bundle(root))
+
+      expect { described_class::Restore.new(bundle:, destination:, database_path: destination.join("primary.sqlite3"),
+        storage_path: destination.join("storage"), installation_id: "install-a", token_secret: nil, token: "token",
+        pid_files: [root.join("worker.pid")]).call }
+        .to raise_error(described_class::Error, "SYRUS_RECOVERY_TOKEN_SECRET is required for restore")
+      expect(destination.join("RESTORE_FAILED.json")).not_to exist
+      expect(destination.join("MAINTENANCE")).not_to exist
     end
   end
 end
