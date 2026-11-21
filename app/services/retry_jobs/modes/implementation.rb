@@ -40,12 +40,6 @@ module RetryJobs
         success(audit_details)
       end
 
-      # The Job's current implementation is blocked because its agent
-      # reported it cannot proceed, and a retry would retire that block.
-      def agent_blocked?
-        agent_blocked_workflow.present?
-      end
-
       def execute
         retire_agent_blocked_workflow!
         RetryWorkflowEnqueuer.call(job: job, agent_provider: @agent_provider,

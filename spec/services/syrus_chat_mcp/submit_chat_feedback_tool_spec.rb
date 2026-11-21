@@ -201,6 +201,29 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
       expect(blocked_job.workflows.where(trigger_kind: "chat_feedback")).to be_empty
     end
 
+    it "retires a blocked feedback workflow and runs the new feedback on the existing branch" do
+      job = Factories.job(user: user, repository: repository)
+      job.workflows.first.update_columns(state: "succeeded", finished_at: 1.hour.ago)
+      job.update_columns(state: "implemented", pr_number: 77, branch_name: "syrus/issue-77")
+      ChatFeedbackSubmission.call(job: job.reload, feedback: "Retitle the PR.", allowed_states: [ job.state ])
+      blocked = job.workflows.where(trigger_kind: "chat_feedback").sole
+      blocked.update_columns(state: "blocked", finished_at: Time.current)
+      blocked.set_artifact!("cannot_proceed", { "reason" => "cannot edit the PR title" })
+      job.update_columns(state: "running")
+      response = call_tool(job_id: job.id, feedback: "Narrow the PR title to the progress rendering fix.")
+      pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
+
+      pending_action.confirm!(user: user)
+
+      new_workflow = pending_action.reload.result
+      expect(pending_action).to be_confirmed
+      expect(new_workflow).to have_attributes(trigger_kind: "chat_feedback")
+      expect(new_workflow.artifact("chat_feedback")).to eq("Narrow the PR title to the progress rendering fix.")
+      expect(blocked.reload).to be_cancelled
+      # The implemented branch is kept: no fresh implementation attempt.
+      expect(job.workflows.where(trigger_kind: "retry")).to be_empty
+    end
+
     it "offers feedback queued earlier as soon as the implementation blocks" do
       job = Factories.job_record(repository: repository, state: "running")
       pending_action = chat_session.pending_actions.find(

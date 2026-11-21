@@ -61,7 +61,9 @@ module Mcp::Tools
         unless actionable?(job) || blocked_implementation
           return Mcp::Tools.invalid("#{job.state} jobs are not actionable for chat feedback; the job must be implemented or approved, or its implementation blocked.")
         end
-        if active_chat_feedback_workflow?(job)
+        # A blocked feedback workflow still holds its WorkUnit, so it reads as
+        # active; it is the work this feedback retires, not a competing run.
+        if active_chat_feedback_workflow?(job) && !blocked_implementation
           return Mcp::Tools.invalid("a chat_feedback workflow is already queued or running for this job")
         end
 
