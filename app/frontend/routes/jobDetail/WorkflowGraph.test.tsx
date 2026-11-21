@@ -14,16 +14,19 @@ afterEach(() => {
 })
 
 function mockMobileViewport() {
-  vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
-    matches: query === "(max-width: 639px)",
-    media: query,
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn()
-  })))
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query === "(max-width: 639px)",
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  )
 }
 
 function render(ui: Parameters<typeof testingRender>[0]) {
