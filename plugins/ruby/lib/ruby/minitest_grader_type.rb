@@ -2,7 +2,6 @@ require "shellwords"
 
 module Ruby
   class MinitestGraderType
-
     DEFAULT_TIMEOUT_MINUTES = 15
     DEFAULT_CHANGED_FILES = [
       "*.rb",
