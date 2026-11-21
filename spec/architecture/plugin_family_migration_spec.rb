@@ -41,6 +41,10 @@ RSpec.describe "Plugin family migration architecture" do
   # changes. A migrating family must own every legacy point up front.
   MIGRATING_FAMILIES = { ecosystem: ECOSYSTEM_POINTS }.freeze
 
+  # The bridge is live while core callers and bundled plugins move in later
+  # changes. A migrating family must own every legacy point up front.
+  MIGRATING_FAMILIES = { ecosystem: ECOSYSTEM_POINTS }.freeze
+
   def registrations_in(source, point)
     source.scan(/\b#{Regexp.escape(point.to_s)}\s*:/).length
   end
