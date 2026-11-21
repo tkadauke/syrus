@@ -47,6 +47,7 @@ export type HighlighterLanguageId =
   | "scheme"
   | "clojure"
   | "haskell"
+  | "lean"
   | "coffeescript"
   | "vb"
   | "powershell"
@@ -133,6 +134,7 @@ const LANGUAGE_LOADERS: Record<HighlighterLanguageId, LanguageInput> = {
   scheme: () => import("@shikijs/langs/scheme"),
   clojure: () => import("@shikijs/langs/clojure"),
   haskell: () => import("@shikijs/langs/haskell"),
+  lean: () => import("@shikijs/langs/lean"),
   coffeescript: () => import("@shikijs/langs/coffeescript"),
   vb: () => import("@shikijs/langs/vb"),
   powershell: () => import("@shikijs/langs/powershell"),
@@ -447,6 +449,7 @@ const EXTENSION_LANGUAGE_MAP: Record<string, HighlighterLanguageId> = {
   edn: "clojure",
   hs: "haskell",
   lhs: "haskell",
+  lean: "lean",
   coffee: "coffeescript",
   litcoffee: "coffeescript",
   vb: "vb",
@@ -535,7 +538,8 @@ export function detectHighlighterLanguage(path: string): HighlighterLanguageId |
 const HIGHLIGHTER_LANGUAGE_IDS = new Set<string>(Object.keys(LANGUAGE_LOADERS))
 const FENCE_LANGUAGE_ALIASES: Record<string, HighlighterLanguageId> = {
   "c++": "cpp",
-  "c#": "csharp"
+  "c#": "csharp",
+  lean4: "lean"
 }
 
 // Maps a Markdown fenced code block's info string (e.g. the `ruby` in

@@ -142,6 +142,14 @@ RSpec.describe "API: /api/v1/app/admin/work_units", type: :request do
     expect(sql).to include("ORDER BY work_intents.requested_at desc, work_intents.id desc")
   end
 
+  it "paginates with a narrow projection before hydrating intent payloads" do
+    sql = Admin::WorkUnitsPayload.new(params: { page: 30, per_page: 100 }).send(:page_relation).to_sql
+
+    expect(sql).to include("SELECT work_intents.id, work_intents.requested_at")
+    expect(sql).not_to include("work_intents.*")
+    expect(sql).to include("LIMIT 100 OFFSET 2900")
+  end
+
   it "keeps distinct when joined filters can duplicate intents" do
     q = Filters::QueryParam.encode("and" => [ { "field" => "unit_state", "op" => "is", "value" => "running" } ])
 

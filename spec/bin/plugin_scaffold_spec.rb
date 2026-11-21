@@ -4,11 +4,21 @@ require "find"
 require "generators/syrus/plugin/plugin_generator"
 
 RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
-  let(:go) { Syrus::SurfaceCatalogs.go_command }
+  before(:context) do
+    @cli_build_directory = Dir.mktmpdir("plugin-scaffold-cli")
+    @cli_binary = build_cli(@cli_build_directory)
+  end
+
+  after(:context) do
+    FileUtils.remove_entry(@cli_build_directory)
+  end
 
   def build_cli(directory)
     binary = Pathname.new(directory).join("syrus")
-    output, status = Open3.capture2e({ "GOWORK" => "off" }, *go, "build", "-o", binary.to_s, ".", chdir: Rails.root.join("cli").to_s)
+    output, status = Open3.capture2e(
+      { "GOWORK" => "off" }, *Syrus::SurfaceCatalogs.go_command,
+      "build", "-o", binary.to_s, ".", chdir: Rails.root.join("cli").to_s
+    )
     raise output unless status.success?
     binary
   end
@@ -25,20 +35,32 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
       .to_h { |path| [ Pathname.new(path).relative_path_from(root).to_s, File.binread(path) ] }
   end
 
-  it "generates variants that validate and test successfully" do
+  def expect_optional_surfaces(plugin, flags)
+    expect(plugin.join("frontend/entry.tsx").exist?).to eq(flags.include?("--frontend"))
+    expect(plugin.join("app/models/sample_plugin/widget.rb").exist?).to eq(flags.include?("--model"))
+    expect(plugin.join("db/migrate/20200101000000_create_sample_plugin_widgets.rb").exist?).to eq(flags.include?("--model"))
+    expect(plugin.join("app/services/sample_plugin/cli/hello.rb").exist?).to eq(flags.include?("--cli"))
+  end
+
+  def expect_plugin_test_to_pass(plugin)
+    output, status = Open3.capture2e(
+      { "SYRUS_PLUGIN_TEST_MODE" => "test", "SYRUS_PLUGIN_TEST_JSON" => "1", "SYRUS_VERSION" => "0.1.0" },
+      Rails.root.join("bin/plugin-test").to_s, plugin.to_s, chdir: Rails.root.to_s
+    )
+    expect(status).to be_success, output
+    json_line = output.lines.reverse_each.find { |line| line.strip.present? }
+    expect(JSON.parse(json_line)).to include("validation" => "passed", "tests" => "passed")
+  end
+
+  it "generates every variant and validates each one end to end" do
     Dir.mktmpdir("plugin-scaffold-acceptance") do |temporary|
-      binary = build_cli(temporary)
-      [ [], [ "--frontend" ], [ "--model" ], [ "--cli" ], [ "--frontend", "--model", "--cli" ] ].each_with_index do |flags, index|
+      variants = [ [], [ "--frontend" ], [ "--model" ], [ "--cli" ], [ "--frontend", "--model", "--cli" ] ]
+      variants.each_with_index do |flags, index|
         plugin = Pathname.new(temporary).join("variant-#{index}/sample_plugin")
-        generation_output = generate(binary, plugin, *flags)
+        generation_output = generate(@cli_binary, plugin, *flags)
         expect(generation_output).to eq("Created #{plugin}\nRun: cd #{plugin} && syrus plugin test .\n")
-        output, status = Open3.capture2e(
-          { "SYRUS_PLUGIN_TEST_MODE" => "test", "SYRUS_PLUGIN_TEST_JSON" => "1", "SYRUS_VERSION" => "0.1.0" },
-          Rails.root.join("bin/plugin-test").to_s, plugin.to_s, chdir: Rails.root.to_s
-        )
-        expect(status).to be_success, output
-        json_line = output.lines.reverse_each.find { |line| line.strip.present? }
-        expect(JSON.parse(json_line)).to include("validation" => "passed", "tests" => "passed")
+        expect_optional_surfaces(plugin, flags)
+        expect_plugin_test_to_pass(plugin)
       end
     end
   end
@@ -48,7 +70,7 @@ RSpec.describe "plugin scaffold acceptance", :aggregate_failures do
       root = Pathname.new(temporary)
       cli_plugin = root.join("cli/sample_plugin")
       rails_root = root.join("rails")
-      generate(build_cli(temporary), cli_plugin, "--frontend", "--model", "--cli", version: "v1.2.3")
+      generate(@cli_binary, cli_plugin, "--frontend", "--model", "--cli", version: "v1.2.3")
       described_class = Syrus::Plugin::PluginGenerator
       described_class.start([ "sample_plugin", "--frontend", "--model", "--cli", "--syrus-version", "v1.2.3" ], destination_root: rails_root)
 
