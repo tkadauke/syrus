@@ -31,10 +31,10 @@ module Syrus
 
           decline_context = fetch_context!(decline_contexts, capability_name, capability.context, "decline")
           declined = invoke!(provider, capability_name, decline_context)
-          next if declined == capability.absent
+          next if declined == capability.decline
 
           raise RSpec::Expectations::ExpectationNotMetError,
-            "#{provider}.#{capability_name} must decline with #{capability.absent.inspect}; got #{declined.inspect}"
+            "#{provider}.#{capability_name} must decline with #{capability.decline.inspect}; got #{declined.inspect}"
         end
       end
 

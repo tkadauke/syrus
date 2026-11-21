@@ -5,6 +5,7 @@ module Syrus
     # Resolves, composes, and safely invokes one declared family capability.
     module Dispatch
       class MissingKey < KeyError; end
+      class InvalidResult < TypeError; end
 
       InvocationProvider = Data.define(:provider, :invocation) do
         def key = provider.key
@@ -23,15 +24,10 @@ module Syrus
       RESULT_FINALIZERS = Hash.new { |_modes, _mode| ->(result, _absent) { result } }.merge(
         first_claim: ->(result, absent) { result.nil? ? absent : result }
       ).freeze
-      DECLINE_VALUES = Hash.new { |_modes, _mode| ->(absent) { absent } }.merge(
-        collect: ->(_absent) { [] },
-        broadcast: ->(_absent) { nil },
-        first_claim: ->(_absent) { nil }
-      ).freeze
       EMPTY_PROVIDERS = Hash.new { |_modes, _mode| ->(absent) { [ true, absent ] } }.merge(
         keyed: ->(_absent) { [ false, nil ] }
       ).freeze
-      private_constant :COMPOSITION_ARGUMENTS, :RESULT_FINALIZERS, :DECLINE_VALUES, :EMPTY_PROVIDERS
+      private_constant :COMPOSITION_ARGUMENTS, :RESULT_FINALIZERS, :EMPTY_PROVIDERS
 
       # Providers may raise this for deliberate, caller-visible input errors.
       # It passes through the invocation boundary without affecting health.
@@ -65,7 +61,12 @@ module Syrus
             extension_point: definition.name, provider: implementation,
             operation: contract.name, timeout:, on_decline: decline_value(contract),
           ) do
-            implementation.public_send(contract.name, context, **args)
+            value = implementation.public_send(contract.name, context, **args)
+            unless contract.return_contract.valid?(value)
+              raise InvalidResult,
+                "#{implementation}.#{contract.name} returned #{value.inspect}; expected #{contract.return_contract.description}"
+            end
+            value
           rescue ValidationError => error
             ExpectedValidation.new(error:)
           end
@@ -89,7 +90,7 @@ module Syrus
       private_class_method :absent_value
 
       def decline_value(contract)
-        DECLINE_VALUES[contract.composition].call(absent_value(contract))
+        contract.decline.respond_to?(:call) ? contract.decline.call : contract.decline
       end
       private_class_method :decline_value
     end
