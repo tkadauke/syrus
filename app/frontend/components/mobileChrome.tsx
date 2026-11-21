@@ -2,7 +2,10 @@ import { createContext, useContext } from "react"
 
 export const MOBILE_CHROME_SURFACE_CLASS = "bg-white dark:bg-gray-950"
 export const MOBILE_CHROME_BOTTOM_OVERLAP_CLASS = "shadow-[0_1px_0_0_#fff] dark:shadow-[0_1px_0_0_#030712]"
-export const MOBILE_CHROME_TOP_OVERLAP_CLASS = "before:pointer-events-none before:absolute before:inset-x-0 before:-top-[var(--mobile-chrome-top-overlap-height,0px)] before:h-[var(--mobile-chrome-top-overlap-height,0px)] before:bg-white before:content-[''] dark:before:bg-gray-950"
+export const MOBILE_CHROME_TOP_OVERLAP_CLASS =
+  "before:pointer-events-none before:absolute before:inset-x-0 before:-top-[var(--mobile-chrome-top-overlap-height,0px)] before:h-[var(--mobile-chrome-top-overlap-height,0px)] before:bg-white before:content-[''] dark:before:bg-gray-950"
+export const MOBILE_STATUS_BAR_BACKDROP_CLASS =
+  "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-[env(safe-area-inset-top)] before:bg-gray-950 before:content-['']"
 
 export type MobileChromeControls = {
   autoHideEnabled: boolean
@@ -11,6 +14,7 @@ export type MobileChromeControls = {
   visibleTopInset: number
   hideHeader: () => void
   offset: number
+  offsetTransform: string
   reportScrollDelta: (delta: number) => void
   revealHeader: () => void
   setContentHeight: (height: number) => void
@@ -25,6 +29,7 @@ export const MobileChromeContext = createContext<MobileChromeControls>({
   visibleTopInset: 0,
   hideHeader: noop,
   offset: 0,
+  offsetTransform: "translateY(0px)",
   reportScrollDelta: noop,
   revealHeader: noop,
   setContentHeight: noop

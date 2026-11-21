@@ -934,21 +934,28 @@ function RecentChatsSettingsMenu({
               "none",
               isDesktop
                 ? "z-40 w-64 py-1 text-sm shadow-lg"
-                : "fixed inset-0 z-50 h-dvh w-screen overflow-y-auto !rounded-none !border-0 py-3 text-sm shadow-lg"
+                : "fixed inset-0 z-50 flex h-dvh w-screen flex-col overflow-hidden !rounded-none !border-0 py-0 text-sm shadow-lg"
             )}
             data-testid="recent-chats-settings-menu"
             ref={floatingRefs.setFloating}
             style={isDesktop ? floatingStyles : undefined}
           >
+            <div
+              className={isDesktop ? undefined : "min-h-0 flex-1 overflow-y-auto bg-surface"}
+              data-testid={isDesktop ? undefined : "recent-chats-settings-content"}
+            >
+              {isDesktop ? null : (
+              <div aria-hidden="true" className="h-[env(safe-area-inset-top)] shrink-0 bg-gray-950" data-testid="recent-chats-settings-safe-area" />
+            )}
             {isDesktop ? null : (
-              <div className="mb-2 flex items-center justify-between border-b border-border px-4 pb-3">
+              <div className="mb-2 flex items-center justify-between border-b border-border px-4 pb-3 pt-3">
                 <div className="font-semibold text-text-primary">{t("recent_chats_settings")}</div>
                 <button aria-label={t("recent_chats_settings_close")} className={SIDEBAR_DIALOG_CLOSE_CLASS} onClick={closeMenu} type="button">
                   <CloseIcon />
                 </button>
               </div>
-            )}
-            <div className={isDesktop ? undefined : "mx-auto w-full max-w-md"}>
+              )}
+              <div className={isDesktop ? undefined : "mx-auto w-full max-w-md pb-3"}>
               {submenu === "root" ? (
                 <>
                   <button
@@ -1037,6 +1044,7 @@ function RecentChatsSettingsMenu({
                   value={String(settings.per_group)}
                 />
               ) : null}
+              </div>
             </div>
           </div>
         </FloatingPortal>
