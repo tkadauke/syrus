@@ -51,7 +51,10 @@ export default function ReviewWorkspaceRoute() {
   function exitWorkspace() {
     if (window.history.length > 1) navigate(-1)
     else navigate(withRoutePrefix("/", prefix))
-    window.setTimeout(() => document.querySelector<HTMLElement>('a[href*="/review"]')?.focus(), 0)
+    window.setTimeout(() => {
+      const reviewLink = document.querySelector('a[href*="/review"]') as HTMLElement | null
+      reviewLink?.focus()
+    }, 0)
   }
 
   if (review.isPending)

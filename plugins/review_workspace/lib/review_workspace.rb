@@ -5,6 +5,7 @@ module ReviewWorkspacePlugin
     display_name "Review Workspace"
     category "collaboration"
     author "Thomas Kadauke"
+    icon_url "/plugin-icons/review_workspace.svg"
     description "A focused stack of Jobs on which the signed-in operator can act now."
     long_description "Review Workspace adds a top-level Review destination containing only implemented, non-investigation Jobs the signed-in operator can currently approve. The badge and workspace share the same eligibility query, and no read, unread, or deferred state is stored."
     default_enabled true

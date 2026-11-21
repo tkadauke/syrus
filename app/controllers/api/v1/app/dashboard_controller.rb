@@ -3,7 +3,7 @@ module Api
     module App
       class DashboardController < BaseController
         def show
-          render json: ::App::DashboardPayload.call(user: Current.user, params: params, accessible_jobs_scope: policy_scope(Job.all))
+          render json: ::App::DashboardPayload.call(user: Current.user, params: params, accessible_jobs_scope: policy_scope(Job))
         rescue ::App::DashboardPayload::InvalidScope => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
@@ -14,7 +14,7 @@ module Api
           payload = ::App::DashboardPayload.call(
             user: Current.user,
             params: params.merge(subject: subject, section: "controls"),
-            accessible_jobs_scope: policy_scope(Job.all)
+            accessible_jobs_scope: policy_scope(Job)
           )
           response.headers["Cache-Control"] = "private, max-age=3600"
           fresh_when(etag: payload, public: false)

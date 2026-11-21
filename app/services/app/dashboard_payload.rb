@@ -33,14 +33,14 @@ module App
     WORKFLOW_DONE_STATES = %w[succeeded failed cancelled blocked].freeze
     class InvalidScope < StandardError; end
 
-    def self.call(user:, params:, accessible_jobs_scope: Job.all)
+    def self.call(user:, params:, accessible_jobs_scope: nil)
       new(user: user, params: params, accessible_jobs_scope: accessible_jobs_scope).call
     end
 
-    def initialize(user:, params:, accessible_jobs_scope: Job.all)
+    def initialize(user:, params:, accessible_jobs_scope: nil)
       @user = user
       @params = params
-      @accessible_jobs_scope = accessible_jobs_scope
+      @accessible_jobs_scope = accessible_jobs_scope || Job.visible_to(user)
     end
 
     def call

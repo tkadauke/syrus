@@ -416,6 +416,24 @@ class Job < ApplicationRecord
     approval_blocking_active_run? || approval_blocking_active_work_unit?
   end
 
+  def self.approval_blocking_job_ids(job_ids)
+    ids = Array(job_ids).map(&:to_i).select(&:positive?)
+    return Set.new if ids.empty?
+
+    run_ids = Run.active
+      .where(job_id: ids)
+      .where.not(trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES)
+      .distinct
+      .pluck(:job_id)
+    unit_ids = WorkUnits::Ownership.snapshot_for_job_ids(ids).approval_blocking_job_ids
+
+    Set.new(run_ids).merge(unit_ids)
+  end
+
+  def self.priority_rank(value)
+    PRIORITIES.index(value.to_s) || PRIORITIES.length
+  end
+
   # Materialized rather than a correlated NOT EXISTS — see
   # WorkUnits::Ownership.all_active_job_ids. The subquery form survives on its
   # own, but the Inbox smart folder ORs it together with four more subqueries
