@@ -20,7 +20,6 @@ export type CoworkerDetail = CoworkerSummary & {
   effective_model: string | null
   workspace_repo: string
   about: string | null
-  soul: string | null
   chats: { id: number; link_id: number; role: "main" | "side"; title: string; path: string; unsaved_workspace: UnsavedWorkspace | null }[]
   grants: {
     capability: string
@@ -28,7 +27,6 @@ export type CoworkerDetail = CoworkerSummary & {
     constraints: { confirm_paths?: string[]; max_spawns_per_run?: number; max_spawns_per_day?: number }
     scope?: unknown
   }[]
-  permission_cutover_report: PermissionCutoverReport
   grant_catalog: {
     name: string
     label: string
@@ -59,6 +57,31 @@ export type CoworkerDetail = CoworkerSummary & {
     delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
   }
 }
+export type CoworkerConversation = {
+  id: number
+  title: string
+  path: string
+  main: boolean
+  preview: string | null
+  last_activity_at: string
+  created_at: string
+  archived: boolean
+  unread: boolean
+  active_work: boolean
+  title_match: boolean
+  match_count: number
+  match: { message_id: number; snippet: string } | null
+}
+export type CoworkerConversationIndex = {
+  main_chat: CoworkerConversation | null
+  side_chats: CoworkerConversation[]
+  result_count: number
+  result_count_exact: boolean
+  next_cursor: string | null
+  filter: Record<string, unknown>
+  filter_schema: import("@app/components/FilterBar").FilterSchemaField[]
+  sort: "last_activity" | "title" | "created_at"
+}
 export type UnsavedWorkspace = {
   branch: string
   path: string
@@ -69,15 +92,6 @@ export type UnsavedWorkspace = {
   last_failed_at: string
   attempt_count: number
   retry_exhausted: boolean
-}
-export type PermissionCutoverReport = {
-  ready: boolean
-  legacy_grants: { capability: string; approval_policy: string; effective_policy: "ask" | "allow"; scope: unknown; constraints: Record<string, unknown> }[]
-  recommended_defaults: { capability: string; operation: string; tools: string[]; roles: Record<string, "deny" | "ask" | "allow"> }[]
-  lost_authority: { legacy_capability: string; capability: string; operation: string; role: string; before: string; after: string }[]
-  requestable_replacements: { capability: string; operation: string; tools: string[]; roles: string[] }[]
-  descriptor_gaps: { legacy_capability: string; tools: string[]; reasons: string[] }[]
-  migration_errors: { code: string; message: string; tools: string[] }[]
 }
 export type CoworkerSchedule = {
   id: number
@@ -96,21 +110,60 @@ export type CoworkerSchedule = {
   last_system_result: string | null
   last_system_result_reason: string | null
   journaling_overdue: boolean
-  system_result_history: Array<{ date: string; result: string; reason: string | null; recorded_at?: string }>
+  latest_result: {
+    occurred_at: string | null
+    target_date: string | null
+    outcome: string
+    reason: string | null
+    job: { id: number; slug: string; path: string } | null
+    job_needed: boolean | null
+  }
 }
 export type CoworkerActivityPayload = {
   spend: { week_usd: number; total_usd: number }
-  runs: {
+  jobs: {
     id: number
-    job_id: number
+    slug: string
+    title: string
+    goal_summary: string
+    path: string
     state: string
+    source: string | null
+    schedule_name: string | null
+    created_at: string
     started_at: string | null
     finished_at: string | null
+    duration_seconds: number | null
     tool_calls_count: number
     cost_usd: number
+    outcome_reason: string | null
+    attempts: {
+      id: number
+      slug: string
+      path: string
+      state: string
+      started_at: string | null
+      finished_at: string | null
+      duration_seconds: number | null
+      failure_reason: string | null
+      tool_calls_count: number
+      cost_usd: number
+      runs: {
+        id: number
+        slug: string
+        path: string
+        state: string
+        started_at: string | null
+        finished_at: string | null
+        duration_seconds: number | null
+        tool_calls_count: number
+        cost_usd: number
+      }[]
+    }[]
   }[]
   side_chats: { id: number; title: string | null; path: string; cost_usd: number }[]
-  next_cursors: { runs: string | null; side_chats: string | null }
+  next_cursors: { jobs: string | null; side_chats: string | null }
+  filtered: boolean
   message_traffic: CoworkerDetail["message_traffic"]
 }
 export type CoworkerApproval = {
@@ -143,24 +196,28 @@ export type ProvisioningAttempt = {
   last_error: string | null
   acknowledged_at: string | null
 }
-export type CoworkerMemoryFile = {
-  path: string
-  category: "daily" | "people" | "repos" | "banks"
-  name: string
-  content: string
-  truncated: boolean
-}
-export type CoworkerMemoryPayload = {
-  files: CoworkerMemoryFile[]
-  search: string
-  truncated: boolean
-  partial: boolean
-  search_incomplete: boolean
-}
 export type CoworkerWorkspacePayload = {
   remote: string
   branch: string
-  files: { path: string; type: string }[]
+  files: { path: string; type: string; size: number | null; extension: string; area: string }[]
+  results: {
+    path: string
+    type: string
+    size: number | null
+    extension: string
+    area: string
+    binary?: boolean
+    truncated?: boolean
+    snippet: string | null
+    highlights: { start: number; length: number }[]
+    last_modified_at: string | null
+  }[]
+  total: number
+  page_start: number
+  page_end: number
+  previous_cursor: string | null
+  next_cursor: string | null
+  incomplete_reasons: string[]
   partial: boolean
   selected_file: { path: string; content: string; truncated: boolean; binary: boolean } | null
   commits: { sha: string; message: string; authored_at: string | null; source: "chat" | "run" | "unattributed"; source_id: number | null }[]
@@ -187,20 +244,24 @@ export function fetchCoworker(id: string) {
     `/api/v1/app/coworkers/${id}`
   )
 }
-export function fetchCoworkerTab(id: string, tab: "profile" | "chats" | "capabilities" | "schedules") {
+export function fetchCoworkerTab(id: string, tab: "chats" | "capabilities" | "schedules") {
   return getJson<Partial<CoworkerDetail>>(`/api/v1/app/coworkers/${id}/${tab}`)
 }
-export function fetchCoworkerMemory(id: string, search: string) {
-  return getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
+export function fetchCoworkerConversationIndex(id: string, search = "") {
+  return getJson<CoworkerConversationIndex>(`/api/v1/app/coworkers/${id}/conversation_index${search}`)
 }
-export function fetchCoworkerWorkspace(id: string, path?: string) {
-  return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
+export const renameCoworkerConversation = (chatId: number, title: string) => patchJson(`/api/v1/app/chats/${chatId}/rename`, { name: title })
+export const archiveCoworkerConversation = (chatId: number, archived: boolean) => patchJson(`/api/v1/app/chats/${chatId}/${archived ? "unhide" : "hide"}`)
+export const deleteCoworkerConversation = (chatId: number) => deleteJson(`/api/v1/app/chats/${chatId}`)
+export function fetchCoworkerWorkspace(id: string, search: string) {
+  return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${search}`)
 }
 export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
-export function fetchCoworkerActivity(id: string, cursors?: { runs?: string | null; sideChats?: string | null }) {
-  const query = new URLSearchParams()
+export function fetchCoworkerActivity(id: string, search = "", cursors?: { jobs?: string | null; sideChats?: string | null }) {
+  const query = new URLSearchParams(search)
+  query.delete("tab")
   if (cursors) {
-    query.set("runs_cursor", cursors.runs || "")
+    query.set("jobs_cursor", cursors.jobs || "")
     query.set("side_chats_cursor", cursors.sideChats || "")
   }
   return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity${query.size ? `?${query}` : ""}`)

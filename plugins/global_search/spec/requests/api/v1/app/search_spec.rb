@@ -334,6 +334,38 @@ RSpec.describe "App API unified search", type: :request do
     expect(results).to contain_exactly(include("type" => "epic", "id" => epic.id, "slug" => epic.slug))
   end
 
+  it "returns an accessible chat for its exact slug without exposing it to non-participants" do
+    owner = Factories.user
+    participant = Factories.user
+    stranger = Factories.user
+    chat_session = ChatSession.create!(user: owner, title: "Shared slug chat")
+    chat_session.chat_participants.create!(user: participant, role: "member")
+    message = ChatMessage.create!(
+      chat_session: chat_session,
+      role: "user",
+      content: { "text" => "Transcript text that does not contain the canonical reference" }
+    )
+
+    sign_in_as(participant)
+    get "/api/v1/app/search", params: { query: "chat-#{chat_session.id}", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(
+      include(
+        "type" => "chat",
+        "id" => message.id,
+        "title" => "Shared slug chat",
+        "path" => chat_path(chat_session, message_id: message.id)
+      )
+    )
+
+    sign_in_as(stranger)
+    get "/api/v1/app/search", params: { query: "CHAT-#{chat_session.id}", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to be_empty
+  end
+
   it "groups chat message matches by chat session" do
     chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
     best_message = ChatMessage.create!(chat_session: chat_session, role: "assistant", content: { "text" => "deploy deploy deploy transcript" }, created_at: 5.minutes.ago)

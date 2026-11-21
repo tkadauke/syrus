@@ -9,8 +9,6 @@ features.
 
 The complete installed inventory is available under **Admin → Plugins**. Plugin
 authors should use the engineering plugin-authoring reference (`docs/engineering/conventions/plugins/authoring.md` in the Syrus repository); this page describes behavior that operators and agents need when using plugins.
-Each plugin detail page shows its manifest-declared capability families. The
-same manifest-only inventory is available from `syrus plugin capabilities`.
 
 Enabled, healthy plugins may also declare server-backed CLI commands. The CLI
 catalog exposes nested command paths, summaries, positional arguments, and
@@ -28,36 +26,15 @@ longest command path to the first word for a trusted `syrus-<path>` executable,
 passes it the unmatched arguments, and exposes the configured instance and
 token as `SYRUS_URL` and `SYRUS_TOKEN`.
 
-`syrus plugin validate [DIR]` and `syrus plugin test [DIR]` are built-in local
-SDK commands. They run the plugin in an isolated SQLite test host using the
-release-matched plugin-test container; `test` continues from host validation to
-the plugin's RSpec suite. `--syrus-version` selects a release, `--json` emits
-the stable final summary, and `--checkout PATH` runs the identical entrypoint
-from a contributor checkout. The test container never receives instance
-credentials.
-
-`syrus plugin new NAME` creates a complete external plugin project in `./NAME`
-or the empty directory selected by `--path`. It rejects invalid Ruby namespace
-names and names that collide with installed or CLI-bundled plugins. The
-baseline includes a provider, three matching locales, host-contract specs, and
-CI that runs `syrus plugin test`. `--frontend`, `--model`, and `--cli` add the
-corresponding examples; `--syrus-version` overrides the generated
-`requires_syrus` requirement.
-
-`syrus plugin dev [DIR]` runs one plugin in a throwaway, release-matched Syrus
-container backed by SQLite. It prints the local URL and the seeded sign-in
-(`demo@syrus.local` / `password`), enables the mounted plugin, and reports its
-health. Frontend source changes are rebuilt inside the container; reload the
-browser to fetch the new content-hashed bundle. Ruby, manifest, and locale
-changes restart Syrus and print the resulting health, including load failures.
-Ctrl-C removes the container and its data volume unless `--keep-data` is used,
-which retains the stopped container and prints its name for later inspection.
-
-The development instance supports one plugin and intentionally has no real
-agent provider credentials. Configure a provider from the normal settings UI
-if you want to exercise real agent calls; those credentials remain only in the
-throwaway data volume. This command requires Docker and does not model MySQL or
-a multi-worker deployment.
+The built-in local SDK commands are `syrus plugin new NAME`, `validate [DIR]`,
+`test [DIR]`, and `dev [DIR]`. `new` creates a tested project; `validate` uses
+an isolated, release-matched SQLite host; `test` also runs the plugin's RSpec
+suite; and `dev` starts a disposable, reloadable host. Docker runners receive
+the plugin directory but no instance credentials. Use `--syrus-version` to
+select a release, `--json` for a machine-readable test summary, `--checkout`
+for contributor testing, and `--keep-data` to retain a stopped dev instance.
+The full authoring workflow and option reference live in
+`docs/engineering/conventions/plugins/external.md`.
 
 ## Per-origin Job visibility
 
@@ -505,30 +482,6 @@ instance. The standard distribution includes:
   `draw_image`, `move_element`, `delete_element`, `update_scene`, `save_canvas`,
   `clear_canvas`, and `load_canvas`.
 - `worker_timeline` — default-disabled worker and workflow timeline views.
-
-## Capability families
-
-Capability families group related, optional plugin contributions under one
-contract. A plugin declares a provider class name plus the stable capabilities
-it `implements`; provisional capabilities require a separate, explicit
-`provisional` opt-in. Undeclared capabilities are never invoked. The manifest
-and capability catalog remain readable while plugin code is unloaded, and a
-disabled plugin contributes no capability providers.
-
-Providers are ordered by the plugin's `prepare_priority`. Each capability
-documents its context, stability tier, absent behavior, and one composition
-mode: `collect`, `broadcast`, `first_claim`, or `keyed`.
-The default method contract is one required positional context object. A family
-that declares a different contract uses `parameters:` with Ruby reflection
-tuples such as `[[:req, :context], [:keyreq, :repository], [:key, :job]]`;
-boot conformance checks exact arity and keyword names.
-Providers implementing a `keyed` capability declare the selector with `key:`
-in the manifest, allowing selection without loading candidate classes.
-Enabled providers are checked when plugin health is first resolved after boot.
-Missing core methods, unknown capabilities, and incompatible signatures mark
-the plugin non-conforming and withhold that family's declarations without
-disabling unrelated registrations. Disabled plugins remain unloaded. Admin and
-`syrus plugin capabilities` show declarations and conformance failures.
 
 ## Background jobs
 

@@ -237,6 +237,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/pinnedContextToolCard.tsx
     app/frontend/routes/chat/chatPinToolCard.tsx
     app/frontend/routes/chat/chatHelperToolCard.tsx
+    app/frontend/routes/chat/tool_cards/replace_job_dependency.tsx
+    app/frontend/routes/chat/tool_cards/reset_job.tsx
   ].freeze
 
   # Run with:
@@ -369,6 +371,8 @@ RSpec.describe "Untranslated source strings", type: :unit do
       app/frontend/routes/chat/tool_cards/emergency_land.tsx|user_visible_property|Emergency land requires operator confirmation.
       app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx|user_visible_property|Force landing recheck
       app/frontend/routes/chat/tool_cards/force_landing_recheck.tsx|user_visible_property|One or more Jobs could not be rechecked.
+      app/frontend/routes/chat/tool_cards/replace_job_dependency.tsx|user_visible_property|Dependency replaced
+      app/frontend/routes/chat/tool_cards/reset_job.tsx|user_visible_property|Reset pending confirmation
       app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx|ternary|JOB-
       app/frontend/routes/chat/tool_cards/ingest_pull_request.tsx|ternary|PR #
       app/frontend/routes/chat/tool_cards/mark_ci_repair_noop.tsx|user_visible_property|Workflow is not a CI failure repair. See https://ci.example.test/help/repair-workflows.

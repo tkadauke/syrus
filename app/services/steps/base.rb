@@ -468,7 +468,25 @@ module Steps
         label = "#{record.class.name.downcase} ##{record.id}"
         raise RunEndedExternally, "#{label} no longer exists; stopping before #{phase}" if fresh.nil?
         raise RunEndedExternally, "#{label} is #{fresh.state}; stopping before #{phase}" if fresh.terminal?
+        ensure_still_owned!(fresh, label, phase) if record.is_a?(Run)
       end
+    end
+
+    # A worker that looked dead had its Run requeued, and possibly claimed by
+    # another worker; if this process was only stalled, it must not carry on.
+    # The Run is no longer running, or its execution_attempt moved past the
+    # one this process claimed. Only for a Run this process actually claimed.
+    def ensure_still_owned!(fresh, label, phase)
+      claimed = run.claimed_execution_attempt
+      return if claimed.nil?
+
+      unless fresh.running?
+        raise RunEndedExternally, "#{label} was requeued (#{fresh.state}); stopping before #{phase}"
+      end
+      return if fresh.execution_attempt.to_i == claimed
+
+      raise RunEndedExternally,
+        "#{label} was claimed again (attempt #{fresh.execution_attempt}, this executor holds #{claimed}); stopping before #{phase}"
     end
 
     def authorization_checkpoint_waiting?
@@ -741,12 +759,15 @@ module Steps
     # data that already lives in Run#agent_diff. Mirror the same
     # capture-only pattern head_sha uses below.
     def diff_against_default
-      GitRunner.new.run("-c", "core.quotePath=false", "diff", "#{default_branch_ref}...HEAD",
-                       chdir: workspace.path.to_s)
+      diff_against_ref(default_branch_ref)
     end
 
     def diff_against_sha(sha)
       GitRunner.new.run("-c", "core.quotePath=false", "diff", "#{sha}...HEAD", chdir: workspace.path.to_s)
+    end
+
+    def diff_against_ref(ref)
+      GitRunner.new.run("-c", "core.quotePath=false", "diff", "#{ref}...HEAD", chdir: workspace.path.to_s)
     end
 
     def default_branch_ref
@@ -891,8 +912,34 @@ module Steps
 
     def persist_diff_review_version!(base_sha:, head_sha:, diff:)
       files = DiffReviewVersions::UnifiedDiffFiles.parse(diff)
+      if files.any?
+        DiffReviewVersions::Creator.call(
+          job: job,
+          workflow: workflow,
+          run: run,
+          base_sha: base_sha,
+          head_sha: head_sha,
+          base_ref: job.mergeability_base_ref.presence || job.target_branch.presence || job.base_default_branch,
+          head_ref: job.branch_name,
+          files: files,
+          trigger_kind: workflow.trigger_kind,
+          label: Workflow::TriggerKind.diff_review_version_label_for(workflow.trigger_kind, job: job),
+          reason: workflow.trigger_kind
+        )
+      end
+
+      persist_all_changes_diff_review_version!(head_sha: head_sha)
+    rescue => e
+      log("[#{step.kind}] could not persist diff review version: #{e.class}: #{e.message}", kind: "system")
+    end
+
+    def persist_all_changes_diff_review_version!(head_sha:)
+      base_ref = WorkflowWorkspace.base_ref_for(job, workflow: workflow)
+      full_diff = diff_against_ref(base_ref)
+      files = DiffReviewVersions::UnifiedDiffFiles.parse(full_diff)
       return if files.empty?
 
+      base_sha = GitRunner.new.run("merge-base", base_ref, "HEAD", chdir: workspace.path.to_s).strip
       DiffReviewVersions::Creator.call(
         job: job,
         workflow: workflow,
@@ -903,11 +950,17 @@ module Steps
         head_ref: job.branch_name,
         files: files,
         trigger_kind: workflow.trigger_kind,
-        label: Workflow::TriggerKind.diff_review_version_label_for(workflow.trigger_kind, job: job),
-        reason: workflow.trigger_kind
+        label: "All changes",
+        reason: "source_diff",
+        metadata: { "range_kind" => "all_changes" },
+        source_key: "all_changes"
       )
+    end
+
+    def persist_pushed_all_changes_version!
+      persist_all_changes_diff_review_version!(head_sha: head_sha)
     rescue => e
-      log("[#{step.kind}] could not persist diff review version: #{e.class}: #{e.message}", kind: "system")
+      log("[#{step.kind}] could not persist pushed All changes version: #{e.class}: #{e.message}", kind: "system")
     end
 
     def restore_run_checkpoint_if_needed!(source_run, context:)

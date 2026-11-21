@@ -38,6 +38,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `optionally_depends_on` — Optional plugin names.
 - `prepare_priority` — Ordering priority for prepare contributions.
 - `provides` — Map of extension-point names to implementing class names.
+- `roles` — Process roles in which the plugin may load.
 - `route` — Plugin-owned Rails route (verb, path, controller).
 - `suggests_enabling` — Evidence callback for suggesting a disabled plugin.
 - `tick_interval` — Optional control-plane tick interval.
@@ -126,6 +127,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 ## Public host surface
 
 - `Syrus::Host::AdminController` (since 0.1.16) — Bases admin-token plugin API controllers; core filters and implementation details are not promised. Only the listed members are supported. Supported members: `params`, `render`.
+- `Syrus::Host::AdminPage` (since 0.1.16) — Supplies admin navigation and route metadata; host navigation implementation details are not promised. Only the listed members are supported. Supported members: `admin_pages`.
 - `Syrus::Host::AgentProvider` (since 0.1.16) — Supplies the optional agent-provider class hooks that plugins may override; invocation orchestration and undeclared provider methods are not promised. Only the listed members are supported. Supported members: `availability_evidence_observed_at`, `available_models`, `configured_for_user?`, `credential_attributes`, `evidence_reset_at`, `false_positive_evidence?`, `ignore_model_for_positive_evidence?`, `mcp_tool_name`, `suppress_usage_limit_run?`, `usage_observed_at`, `usage_signal_account_id`, `usage_snapshot`, `usage_status`, `usage_windows`.
 - `Syrus::Host::AppAdminController` (since 0.1.16) — Bases authenticated plugin admin API controllers; core filters are not promised. Only the listed members are supported. Supported members: `params`, `render`.
 - `Syrus::Host::AppController` (since 0.1.16) — Bases authenticated plugin application API controllers; core filters are not promised. Only the listed members are supported. Supported members: `params`, `render`.
@@ -133,6 +135,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `Syrus::Host::BackgroundJob` (since 0.1.16) — Bases plugin-owned Active Job classes; core queue topology and callbacks are not promised. Only the listed members are supported. Supported members: `operational_log_context`, `queue_as`.
 - `Syrus::Host::Callbacks` (since 0.1.16) — Defines plugin lifecycle callbacks; callback scheduling and storage are not promised. Only the listed members are supported. Supported members: `effect`, `on_boot`, `on_disable`, `on_enable`, `on_metrics_scrape`, `on_shutdown`, `on_tick`.
 - `Syrus::Host::ChatSession` (since 0.1.16) — Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised. Supported members: `find`, `id`, `repository`, `title`, `user`.
+- `Syrus::Host::ChatTitles` (since 0.1.16) — Queues automatic title generation for a chat; job implementation and queue details are not promised. Supported members: `enqueue`.
 - `Syrus::Host::CliCommandHandler` (since 0.1.16) — Bases server-backed plugin CLI handlers; transport internals are not promised. Only the listed members are supported. Supported members: `call`, `json`, `raw_text`, `table`, `text`.
 - `Syrus::Host::Current` (since 0.1.16) — Exposes the request-local authenticated user; assignment and other current attributes are not promised. Only the listed members are supported. Supported members: `api_user`, `user`.
 - `Syrus::Host::InvocationResult` (since 0.1.16) — Carries an agent or chat invocation result; invocation-engine internals are not promised. Only the listed members are supported. Supported members: `cost_usd`, `exit_status`, `final_text`, `input_tokens`, `is_error`, `new`, `outcome`, `output_tokens`, `session_id`, `success?`, `timed_out`, `transcript_jsonl`, `transcript_path`, `turns`.
@@ -143,6 +146,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `Syrus::Host::PerformanceLogging` (since 0.1.16) — Times named plugin phases; event storage and thresholds are not promised. Only the listed members are supported. Supported members: `phase`.
 - `Syrus::Host::PermissionProvider` (since 0.1.16) — Declares plugin permission capabilities and scopes; core authorization storage is not promised. Only the listed members are supported. Supported members: `migrate_permission_scope`, `register_authorization_adapter`, `register_capability`, `register_permission_preset`, `register_resource_scope`, `retire_permission_identifier`.
 - `Syrus::Host::PluginApi` (since 0.1.16) — Declares and installs plugin manifests; Definition internals are not promised. Only the listed members are supported. Supported members: `enabled?`, `register!`, `syrus_plugin`, `syrus_plugin_definition`.
+- `Syrus::Host::PluginInvocation` (since 0.1.16) — Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised. Only the listed members are supported. Supported members: `call`.
 - `Syrus::Host::PluginRegistry` (since 0.1.16) — Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported. Supported members: `extension_point?`, `providers_for`, `register`.
 - `Syrus::Host::ProcessRunner` (since 0.1.16) — Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported. Supported members: `capture`, `forwarded_env`, `mounts`, `new`, `run`, `start`.
 - `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `has_many`.
@@ -153,7 +157,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `Syrus::Host::User` (since 0.1.16) — Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised. Supported members: `admin?`, `display_name`, `find`, `handle`, `id`, `jobs`, `repositories`.
 - `Syrus::Host::Workflow` (since 0.1.16) — Reads a workflow's identity, state, job, and runs through find; scheduling, transitions, repair, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `runs`, `state`.
 
-The compatibility scanner also recognizes 477 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
+The compatibility scanner also recognizes 479 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
 ## Packaging and testing
 
@@ -167,4 +171,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 28621 bytes (UTF-8, including this line).
+Size: 29318 bytes (UTF-8, including this line).

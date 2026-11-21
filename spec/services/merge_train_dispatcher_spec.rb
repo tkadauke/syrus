@@ -224,7 +224,7 @@ RSpec.describe MergeTrainDispatcher do
     expect(JobDependency.where(job_id: epic.jobs.select(:id))).to be_empty
     expect(workflow.first_step.runs.count).to eq(1)
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[ merge_train_assemble merge_train_build merge_train_reconcile prepare grader_fanout grader_collect merge_train_land ]
+      %w[ merge_train_assemble merge_train_build prepare merge_train_reconcile grader_fanout grader_collect merge_train_land ]
     )
   end
 

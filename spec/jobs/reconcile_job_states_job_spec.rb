@@ -32,6 +32,56 @@ RSpec.describe ReconcileJobStatesJob do
   # only transitions from :running -- so the Job reads healthy in every
   # surface, "Just failed" included, while nothing works on it. the queued-workflow lifecycle regression sat
   # like that for fifteen hours with three Jobs blocked behind it.
+  # The repair must lift a Job to :running only when starting its latest
+  # Workflow would have: otherwise the reconciler overrides a state the
+  # lifecycle chose on purpose. Production repaired 75 lifecycle-owning
+  # Workflows' Jobs from :queued and 41 implemented Jobs in ~2.5 days.
+  describe "lifting a Job to :running" do
+    it "leaves a lifecycle-owning Workflow's Job where its start left it" do
+      build_workflow(state: "running", trigger_kind: "main_branch_repair", finished_at: nil)
+      job.update!(state: "queued")
+      finish_work_units!
+
+      expect(ReconcileJobStatesJob::Plan.for(job.reload)).to be_nil
+    end
+
+    it "keeps an implemented Job approvable under a non-approval-blocking follow-up" do
+      build_workflow(state: "running", trigger_kind: "visual_diff", finished_at: nil)
+      job.update!(state: "implemented")
+      finish_work_units!
+
+      expect(ReconcileJobStatesJob::Plan.for(job.reload)).to be_nil
+    end
+
+    it "keeps a Job implemented after its running Workflow already opened the PR" do
+      workflow = build_workflow(state: "running", trigger_kind: "initial", finished_at: nil)
+      workflow.steps.create!(kind: "pr_open", position: 3, state: "succeeded", finished_at: 1.minute.ago)
+      workflow.steps.create!(kind: "grader", position: 4, state: "running", started_at: 30.seconds.ago)
+      job.update!(state: "implemented")
+      finish_work_units!
+
+      expect(ReconcileJobStatesJob::Plan.for(job.reload)).to be_nil
+    end
+
+    it "still lifts an implemented Job under an approval-blocking follow-up" do
+      build_workflow(state: "running", trigger_kind: "pr_comment", finished_at: nil)
+      job.update!(state: "implemented")
+      finish_work_units!
+
+      plan = ReconcileJobStatesJob::Plan.for(job.reload)
+
+      expect(plan&.target_state).to eq("running")
+    end
+
+    it "still lifts a queued Job under an ordinary running Workflow" do
+      build_workflow(state: "running", trigger_kind: "initial", finished_at: nil)
+      job.update!(state: "queued")
+      finish_work_units!
+
+      expect(ReconcileJobStatesJob::Plan.for(job.reload)&.target_state).to eq("running")
+    end
+  end
+
   describe "a workflow that failed while the Job never left :queued" do
     it "plans the Job to failed" do
       build_workflow(state: "failed", started_at: nil)

@@ -24,6 +24,7 @@ class Workflow < ApplicationRecord
   SUPERSEDED_BY_REBASE_REASON = "superseded_by_rebase"
   SUPERSEDED_BY_NEWER_WORKFLOW_REASON = "superseded_by_newer_workflow"
   SUPERSEDED_BY_STATE_REPAIR_REASON = "superseded_by_state_repair"
+  SUPERSEDED_BY_RESET_REASON = "operator_job_reset"
   # Written when an operator dismisses a blocked/stuck auxiliary workflow from
   # the Job page. Treated like a superseded cancellation so the Job's own state
   # is left alone: the auxiliary workflow was never what drove it.
@@ -31,6 +32,7 @@ class Workflow < ApplicationRecord
 
   belongs_to :job
   belongs_to :user
+  belongs_to :provider_account, optional: true
   has_many :workflow_warnings, dependent: :destroy
   has_many :workflow_artifact_values, dependent: :destroy, inverse_of: :workflow
   has_many :provider_routing_holds, dependent: :destroy
@@ -59,6 +61,8 @@ class Workflow < ApplicationRecord
   validate :user_matches_job
   validate :job_must_be_open_on_create, on: :create
   before_validation :default_user_from_job, on: :create
+  before_validation :default_provider_account
+  validate :provider_account_matches_execution
   before_save :sync_workflow_admission_override_metadata
 
   # Free-form bag of artifacts produced during this workflow. The
@@ -179,7 +183,7 @@ class Workflow < ApplicationRecord
   end
 
   def planned_execution_requirement
-    PlannedExecutionRequirement.from_record(self)
+    PlannedExecutionRequirement.from_stored_record(self)
   end
 
   def planned_execution_json
@@ -281,7 +285,34 @@ class Workflow < ApplicationRecord
   end
 
   def terminal_cleanup_active_descendants?
-    runs.active.exists? || persisted_active_steps.exists?
+    runs.active.exists? || stale_terminal_steps.exists?
+  end
+
+  # Steps that may not stay active under this terminal Workflow. A failed
+  # Workflow keeps its queued tail on purpose -- Retry-from-failed-step
+  # continues through it -- so only its running Steps are stale, plus an
+  # active publication Step that already failed: cleanup turns that one back
+  # into the failed Step the retry resumes from (see
+  # #preserve_publication_failure_during_terminal_cleanup?). A succeeded or
+  # cancelled Workflow has nothing that may stay active.
+  def stale_terminal_steps
+    return persisted_active_steps unless failed?
+
+    failed_publication = steps.active
+      .where(kind: work_definition.review_publication_step_kinds)
+      .where(id: Run.where(state: "failed").select(:step_id))
+    steps.where(state: "running").or(failed_publication)
+  end
+
+  # Terminal cleanup that respects that tail: on a failed Workflow, live Runs
+  # are cancelled without cascading to their Steps (as #failed! does), and
+  # only running Steps are cancelled.
+  def cancel_stale_terminal_descendants!(reason:)
+    return cancel_active_descendants!(reason: reason) unless failed?
+
+    request_live_process_kill!
+    Run.where(step_id: steps.select(:id)).active.find_each(&:cancel_without_step_cascade!)
+    cancel_active_descendants!(reason: reason, step_scope: stale_terminal_steps)
   end
 
   def live_descendants?
@@ -411,6 +442,7 @@ class Workflow < ApplicationRecord
       SUPERSEDED_BY_REBASE_REASON,
       SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
       SUPERSEDED_BY_STATE_REPAIR_REASON,
+      SUPERSEDED_BY_RESET_REASON,
       DISMISSED_BY_OPERATOR_REASON
     ])
   end
@@ -487,10 +519,10 @@ class Workflow < ApplicationRecord
     end
   end
 
-  def cancel_active_descendants!(reason: "terminal_workflow_active_descendants")
+  def cancel_active_descendants!(reason: "terminal_workflow_active_descendants", step_scope: persisted_active_steps)
     request_live_process_kill!
     Step.suppress_cancel_cascade do
-      active_steps = persisted_active_steps.to_a
+      active_steps = step_scope.to_a
       cancellation_details = active_descendant_cancellation_details(reason)
       attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
       publication_failure_step_ids = active_steps.filter_map do |step|
@@ -670,6 +702,20 @@ class Workflow < ApplicationRecord
     external&.value&.deep_dup
   end
 
+  # Keys this instance staged via `artifacts=` that differ from what it loaded.
+  # Callers that must reload before writing carry these over instead of the
+  # whole bag, so they never write back a stale value another writer replaced.
+  def staged_artifact_changes
+    staged = defined?(@assigned_external_artifacts) ? @assigned_external_artifacts.to_h : {}
+    return staged unless persisted?
+
+    # Compare against the value as read from the database, not the loaded
+    # object: `artifacts` hands out the association's own values, so a caller
+    # mutating one in place would otherwise look unchanged.
+    loaded = workflow_artifact_values.to_h { |entry| [ entry.key, entry.attribute_in_database(:value) ] }
+    staged.reject { |key, value| loaded.key?(key) && loaded[key] == value }
+  end
+
   # Preserve the historical bag-shaped API while keeping growth-bound values
   # out of the frequently updated workflows row.
   def artifacts
@@ -699,6 +745,31 @@ class Workflow < ApplicationRecord
       @assigned_external_artifacts = nil
       @assigned_external_artifact_deletions = nil
     end
+  end
+
+  PENDING_JOB_CLOSURES_ARTIFACT = "pending_job_closures".freeze
+
+  # A Workflow never closes a Job while it is still running: it records the
+  # closure here and JobClosure applies it when the Workflow finishes,
+  # whatever its outcome. Closing the Workflow's own Job also ends the
+  # Workflow after the requesting step (see StepDispatcher), so the close is
+  # always its final act. formal/SyrusModel/JobClosure.lean proves no active
+  # Workflow then ever works on a closed Job.
+  def request_job_closure!(job, reason)
+    self.class.transaction do
+      locked = self.class.lock.find(id)
+      closures = locked.pending_job_closures_by_id.transform_keys(&:to_s).merge(job.id.to_s => reason.to_s)
+      locked.set_artifact!(PENDING_JOB_CLOSURES_ARTIFACT, closures)
+    end
+    workflow_artifact_values.reset
+  end
+
+  def pending_job_closures_by_id
+    artifact(PENDING_JOB_CLOSURES_ARTIFACT).to_h.to_h { |job_id, reason| [ job_id.to_i, reason.to_s ] }
+  end
+
+  def own_job_closure_pending?
+    pending_job_closures_by_id.key?(job_id)
   end
 
   # Append-only artifact write. Inline domain-event subscribers can write
@@ -999,7 +1070,9 @@ class Workflow < ApplicationRecord
   def persist_assigned_external_artifacts
     return unless defined?(@assigned_external_artifacts) && @assigned_external_artifacts
 
-    assigned = @assigned_external_artifacts
+    # Write only keys this instance changed. Rewriting an unchanged key would
+    # revert a value another writer stored after this instance loaded it.
+    assigned = staged_artifact_changes
     # after_save runs inside Active Record's save transaction. Keep the side
     # table replacement in that transaction so a failed artifact write rolls
     # back the workflows row too.
@@ -1061,6 +1134,18 @@ class Workflow < ApplicationRecord
 
   def default_user_from_job
     self.user ||= job&.user
+  end
+
+  def default_provider_account
+    self.provider_account = nil if provider_account && provider_account.provider_key != agent_provider && will_save_change_to_agent_provider?
+    self.provider_account ||= user&.default_provider_account(agent_provider)
+  end
+
+  def provider_account_matches_execution
+    return unless provider_account
+    return if provider_account.user_id == user_id && provider_account.provider_key == agent_provider
+
+    errors.add(:provider_account, I18n.t("server.errors.provider_accounts.workflow_mismatch"))
   end
 
   def user_matches_job

@@ -29,6 +29,17 @@ RSpec.describe McpToolRegistry do
   end
 
   describe ".summaries" do
+    it "registers reset and dependency replacement on their intended chat tiers" do
+      summaries = described_class.summaries(surface: :chat)
+
+      expect(summaries.find { |entry| entry[:tool_name] == "reset_job" }).to include(
+        tier: :essential, admin_only: true, mutation: true
+      )
+      expect(summaries.find { |entry| entry[:tool_name] == "replace_job_dependency" }).to include(
+        tier: :deferred, mutation: true
+      )
+    end
+
     it "registers spawn_chats only on the deferred chat surface" do
       chat_entry = described_class.summaries(surface: :chat).find { |entry| entry[:tool_name] == "spawn_chats" }
 
@@ -238,7 +249,7 @@ RSpec.describe McpToolRegistry do
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
           read_preview_log report_cannot_proceed report_main_concern record_isolated_repro submit_summary submit_test_plan
-          search_jobs list_jobs list_open_prs read_pr list_open_issues
+          search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
           submit_artifact patch_workflow run_target_prepare submit_visual_artifact
           list_artifacts read_artifact
         ]
@@ -277,7 +288,7 @@ RSpec.describe McpToolRegistry do
         *%w[
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log search_jobs list_jobs list_open_prs read_pr list_open_issues
+          read_preview_log search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
           submit_adversarial_review
         ]
       )
@@ -292,7 +303,7 @@ RSpec.describe McpToolRegistry do
         *%w[
           read_live_state
           get_coverage_report read_run_worker_health start_preview stop_preview
-          read_preview_log search_jobs list_jobs list_open_prs read_pr list_open_issues
+          read_preview_log search_jobs list_jobs list_open_prs read_pr list_ci_checks read_ci_log list_open_issues
           submit_visual_review submit_visual_artifact
           list_artifacts read_artifact
         ]

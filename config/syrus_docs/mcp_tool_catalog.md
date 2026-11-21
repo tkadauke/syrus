@@ -75,6 +75,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `remove_job_tag` | chat | deferred | write | no | - | - | - | - | essential |
 | `remove_pinned_context` | chat | deferred | write | no | - | - | - | - | essential |
 | `reopen_job` | chat | deferred | write | no | - | - | - | - | gated (operational) |
+| `replace_job_dependency` | chat | deferred | write | no | - | - | - | - | deniable (material control) |
 | `request_permission` | chat | deferred | write | no | - | - | - | - | essential |
 | `resolve_delivery_policy` | chat | deferred | read | no | - | - | - | - | essential |
 | `resume_landing_queue` | chat | deferred | write | no | - | - | - | - | gated (operational) |
@@ -177,6 +178,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `replace_pr_branch_with_workflow_output` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
 | `repo_info` | chat | essential | read | no | - | - | - | - | essential |
 | `rerun_ci_repair` | chat | essential | write | yes | - | - | - | - | gated (operational) |
+| `reset_job` | chat | essential | write | yes | - | - | - | - | gated (operational, destructive) |
 | `reset_workspace` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` | gated (destructive) |
 | `restack_epic` | chat | essential | write | yes | - | - | - | - | gated (operational, external_write) |
 | `retire_terminal_work_unit` | chat | essential | write | yes | - | - | - | - | deniable (material control) |
@@ -256,6 +258,7 @@ surface (see [Permission authority](permission_authority.md)):
 | `remove_job_tag` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.tags` | - | essential |
 | `remove_pinned_context` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.chat_context` | - | essential |
 | `reopen_job` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | gated (operational) |
+| `replace_job_dependency` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - | deniable (material control) |
 | `request_permission` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
 | `request_permission_revocation` | coworker | deferred | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - | essential |
 | `resolve_delivery_policy` | coworker | deferred | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.job_reads` | - | essential |
@@ -325,12 +328,14 @@ surface (see [Permission authority](permission_authority.md)):
 | `withdraw_pending_action` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.pending_actions` | - | essential |
 | `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - | essential |
+| `list_ci_checks` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `list_jobs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `list_open_issues` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `list_open_prs` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `patch_workflow` | workflow | - | write | no | `workflow:implement`, `workflow:manual` | - | `patch_workflow` | - | deniable (autonomy expansion) |
-| `propose_job` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report` | `propose_job` | - | essential |
+| `propose_job` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan` | `investigate`, `submit_report`, `implement`, `respond`, `analyze_and_fix` | `propose_job` | - | essential |
 | `read_artifact` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - | deniable (confidential cross boundary) |
+| `read_ci_log` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `read_live_state` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `read_pr` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |
 | `read_preview_log` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - | essential |

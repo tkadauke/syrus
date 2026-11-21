@@ -828,6 +828,187 @@ RSpec.describe MainHealthChangedService, :ci_only do
         }.not_to change { repository.jobs.where(kind: "direct").count }
       end
 
+      it "does not immediately replace a conclusive no-change repair for the same SHA under strict policy" do
+        repository.update!(risk_profile: "production")
+        service = described_class.new(repository)
+        ci_fingerprint = service.send(:repair_evidence_fingerprint, "abc123def456", signal: :ci)
+        grader_fingerprint = service.send(:repair_evidence_fingerprint, "abc123def456", signal: :grader)
+        repair = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          issue_body: "Main branch repair\nCommit: abc123def456\n" \
+            "CI evidence fingerprint: #{ci_fingerprint}\nGrader evidence fingerprint: #{grader_fingerprint}",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "closed",
+          closure_reason: "preflight_passed"
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository)
+        }.not_to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }
+
+        expect(repair.reload).to be_closed
+      end
+
+      it "allows a new repair for genuinely new evidence on the same SHA under strict policy" do
+        repository.update!(risk_profile: "production")
+        service = described_class.new(repository)
+        ci_fingerprint = service.send(:repair_evidence_fingerprint, "abc123def456", signal: :ci)
+        grader_fingerprint = service.send(:repair_evidence_fingerprint, "abc123def456", signal: :grader)
+        repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          issue_body: "Main branch repair\nCommit: abc123def456\n" \
+            "CI evidence fingerprint: #{ci_fingerprint}\nGrader evidence fingerprint: #{grader_fingerprint}",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "closed",
+          closure_reason: "preflight_passed"
+        )
+        MainBranchHealthCheck.record_ci_poll(
+          repository: repository,
+          sha: "abc123def456",
+          ci_health: "broken",
+          ci_failed_checks: [ { name: "new failing check", conclusion: "failure" } ]
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository.reload)
+        }.to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }.by(1)
+      end
+
+      it "does not replace a both-signals repair when stale CI reasserts before graders" do
+        repository.update!(risk_profile: "production")
+        settle_main_health!(
+          repository,
+          ci_health: "broken",
+          grader_health: "broken",
+          ci_failed_checks: [ { name: "RSpec", conclusion: "failure" } ],
+          grader_failed_names: [ "rspec-ci" ]
+        )
+        service = described_class.new(repository)
+        ci_fingerprint = service.send(:repair_evidence_fingerprint, "abc123def456", signal: :ci)
+        grader_fingerprint = service.send(:repair_evidence_fingerprint, "abc123def456", signal: :grader)
+        repair = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          issue_body: "Main branch repair\nCommit: abc123def456\n" \
+            "CI evidence fingerprint: #{ci_fingerprint}\nGrader evidence fingerprint: #{grader_fingerprint}",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "closed",
+          closure_reason: "preflight_passed"
+        )
+
+        repository.update!(ci_health: "healthy", grader_health: "healthy")
+        MainBranchHealthCheck.record_grader_workflow(
+          repository: repository,
+          sha: "abc123def456",
+          grader_health: "healthy",
+          grader_failed_names: []
+        )
+        repository.update!(ci_health: "broken", grader_health: "healthy")
+        MainBranchHealthCheck.record_ci_poll(
+          repository: repository,
+          sha: "abc123def456",
+          ci_health: "broken",
+          ci_failed_checks: [ { name: "RSpec", conclusion: "failure" } ]
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository.reload)
+        }.not_to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }
+        expect(repair.reload).to be_closed
+      end
+
+      it "allows a new grader workflow with the same failed names on the same SHA" do
+        repository.update!(risk_profile: "production")
+        original_workflow = Factories.job(repository: repository).latest_workflow
+        settle_main_health!(
+          repository,
+          ci_health: "healthy",
+          grader_health: "broken",
+          grader_failed_names: [ "rspec-ci" ],
+          workflow: original_workflow
+        )
+        service = described_class.new(repository)
+        ci_fingerprint = service.send(:repair_evidence_fingerprint, "abc123def456", signal: :ci)
+        grader_fingerprint = service.send(:repair_evidence_fingerprint, "abc123def456", signal: :grader)
+        repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          issue_body: "Main branch repair\nCommit: abc123def456\n" \
+            "CI evidence fingerprint: #{ci_fingerprint}\nGrader evidence fingerprint: #{grader_fingerprint}",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "closed",
+          closure_reason: "preflight_passed"
+        )
+
+        preflight_workflow = Factories.job(repository: repository).latest_workflow
+        repository.update!(ci_health: "healthy", grader_health: "healthy")
+        MainBranchHealthCheck.record_grader_workflow(
+          repository: repository,
+          workflow: preflight_workflow,
+          sha: "abc123def456",
+          grader_health: "healthy",
+          grader_failed_names: []
+        )
+        repository.update!(grader_health: "broken")
+        MainBranchHealthCheck.record_grader_workflow(
+          repository: repository,
+          workflow: original_workflow,
+          sha: "abc123def456",
+          grader_health: "broken",
+          grader_failed_names: [ "rspec-ci" ]
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository.reload)
+        }.not_to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }
+
+        new_workflow = Factories.job(repository: repository).latest_workflow
+        MainBranchHealthCheck.record_grader_workflow(
+          repository: repository,
+          workflow: new_workflow,
+          sha: "abc123def456",
+          grader_health: "broken",
+          grader_failed_names: [ "rspec-ci" ]
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository.reload)
+        }.to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }.by(1)
+      end
+
+      it "allows a new repair after a conclusive no-change result when main advances" do
+        repository.update!(risk_profile: "production")
+        repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          issue_body: "Main branch repair\nCommit: old123",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "closed",
+          closure_reason: "preflight_passed"
+        )
+
+        expect {
+          described_class.ensure_repair_job!(repository)
+        }.to change { repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).count }.by(1)
+      end
+
       it "marks main healthy instead of spawning a replacement when a repair Job lands" do
         repair = repository.jobs.create!(
           user: user,

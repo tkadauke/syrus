@@ -51,6 +51,7 @@ const HEADER_ACTION_ORDER: Record<string, number> = {
   retry_failed_step: 400,
   retry_with: 410,
   restart: 500,
+  reset_job: 505,
   unapprove: 510,
   reopen: 520,
   mark_valid: 530,
@@ -510,7 +511,7 @@ export function JobFeedbackPanel({
   )
 }
 
-function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"]): HeaderAction[] {
+export function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"]): HeaderAction[] {
   const actions = payload.actions
   const paths = payload.paths
   const available: HeaderAction[] = []
@@ -609,6 +610,27 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
       input: { method: "post", path: paths.app_restart_path, confirm: t("confirm_start_over") },
       tone: "secondary"
     })
+  if (actions.reset_job_action) {
+    const destroys = actions.reset_job_action.destroys || {}
+    const discards = [
+      destroys.open_pr_number ? t("reset_job_pr", { number: destroys.open_pr_number }) : null,
+      destroys.branch ? t("reset_job_branch", { branch: destroys.branch }) : null,
+      destroys.checkpoints ? t("reset_job_checkpoints", { count: destroys.checkpoints }) : null,
+      destroys.active_workflows?.length ? t("reset_job_workflows", { count: destroys.active_workflows.length }) : null
+    ].filter(Boolean)
+    available.push({
+      key: "reset_job",
+      label: t("reset_job"),
+      input: {
+        method: "post",
+        path: actions.reset_job_action.path,
+        confirm: [t("confirm_reset_job"), discards.length ? discards.map((discard) => `• ${discard}`).join("\n") : null, t("confirm_reset_job_kept")]
+          .filter(Boolean)
+          .join("\n\n")
+      },
+      tone: "secondary"
+    })
+  }
   if (actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented")
     available.push({
       key: "approve",

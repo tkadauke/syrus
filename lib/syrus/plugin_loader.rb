@@ -2,6 +2,7 @@ require "pathname"
 require "ripper"
 require "syrus/plugin_host_surface/scanner"
 require "syrus/plugin_boot_safety"
+require "syrus/plugin_host_surface/scanner"
 
 module Syrus
   # Discovers plugin declarations before loading their Ruby entry files. This

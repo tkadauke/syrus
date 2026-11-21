@@ -27,6 +27,11 @@ export type MetricsPanel = {
 export type MetricsPluginTab = {
   id: string
   label: string
+  summary?: {
+    title: string
+    columns: { key: string; label: string }[]
+    rows: { key: string; stale: boolean; values: Record<string, string> }[]
+  }
 }
 
 export type MetricsDashboardPayload = {

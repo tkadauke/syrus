@@ -113,6 +113,9 @@ Rails.application.routes.draw do
             member { get :file }
           end
         end
+        resources :provider_accounts, only: %i[index create update destroy], param: :id do
+          post :test, on: :member
+        end
         get "credentials/provider_routing_rules", to: "provider_routing_rules#index"
         post "credentials/provider_routing_rules", to: "provider_routing_rules#create"
         post "credentials/provider_routing_rules/explain", to: "provider_routing_rules#explain"
@@ -191,6 +194,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/run_again", to: "job_lifecycle#run_again", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/retry_implementation", to: "job_lifecycle#retry_implementation", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/reset", to: "job_lifecycle#reset", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/workflows/:workflow_id/dismiss", to: "job_lifecycle#dismiss_workflow", constraints: { job_id: /[a-zA-Z0-9_-]+/, workflow_id: /\d+/ }
         post "jobs/:job_id/stop_landing", to: "job_lifecycle#stop_landing", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

@@ -73,10 +73,60 @@ class RunHostAdmission
     # far a burst can overshoot a stale sample.
     return admit("resource_guard_not_needed") unless resource_guarded?(run)
     return defer("host_resource_semaphore_busy") if resource_guard_full?
+    return defer("host_resource_semaphore_busy") if whole_host_grader_conflict?
     return defer("host_admission_staggering") if admitted_within_stagger_window?
+    return defer("host_resource_semaphore_busy") unless claim_whole_host_slot!
 
     admit("host_capacity_available")
   end
+
+  # Host-local record of whole-host graders admitted here but not yet
+  # visible as SpawnedProcess rows. A worker pod runs one SolidQueue process
+  # per queue group, and two of them admitted sibling shards within seconds
+  # -- one off the merges queue, one rerouted onto the host's dispatch queue
+  # -- each seeing an empty host. The processes share the pod's filesystem,
+  # so the record is a directory of claims, checked and written under one
+  # file lock.
+  module WholeHostClaims
+    module_function
+
+    def dir
+      Pathname.new(Dir.tmpdir).join("syrus-whole-host-claims#{ENV['TEST_ENV_NUMBER']}")
+    end
+
+    def claim!(run_id)
+      FileUtils.mkdir_p(dir)
+      File.open(dir.join(".lock"), File::RDWR | File::CREAT, 0o644) do |lock|
+        lock.flock(File::LOCK_EX)
+        return true if dir.join(run_id.to_s).exist?
+        return false if live_claims(excluding: run_id).any?
+
+        FileUtils.touch(dir.join(run_id.to_s))
+        true
+      end
+    rescue SystemCallError
+      # A claim registry we cannot use must not stop admission; the
+      # database check above still applies.
+      true
+    end
+
+    def live_claims(excluding:)
+      ids = Dir.children(dir).filter_map { |name| Integer(name, exception: false) } - [ excluding ]
+      return [] if ids.empty?
+
+      live = Run.where(id: ids).where.not(state: Run::TERMINAL_STATES).pluck(:id)
+      (ids - live).each { |id| FileUtils.rm_f(dir.join(id.to_s)) }
+      live
+    rescue SystemCallError
+      []
+    end
+
+    def reset!
+      FileUtils.rm_rf(dir)
+    end
+  end
+
+  def self.reset_whole_host_admissions! = WholeHostClaims.reset!
 
   private
 
@@ -310,6 +360,32 @@ class RunHostAdmission
 
   def compute_capacity_full?
     active_compute_units + candidate_compute_units > capacity_available_to_candidate
+  end
+
+  # A grader that asks for every core (`resources: cpu: all`) scales with
+  # whatever it is granted; two of them on one host just split it. Each such
+  # grader counted as one small unit, so the shards of one suite piled onto
+  # the first worker that claimed them -- three of four on one host -- and
+  # ran no faster than the unsharded suite. Defer a second whole-host grader
+  # so the reroute hands it to another worker; small graders still pack in.
+  def whole_host_grader_conflict?
+    return false unless whole_host_grader?(step)
+
+    active_run_scope.includes(:step).any? { |active_run| whole_host_grader?(active_run.step) }
+  end
+
+  def claim_whole_host_slot!
+    return true unless whole_host_grader?(step)
+
+    WholeHostClaims.claim!(run.id)
+  end
+
+  def whole_host_grader?(candidate_step)
+    return false unless candidate_step&.kind == "grader"
+
+    GraderResourceRequest.from_details(candidate_step.details.to_h["resources"])&.unbounded_cpu? || false
+  rescue ArgumentError
+    false
   end
 
   def resource_guard_binding_terms(reason)
@@ -627,6 +703,12 @@ class RunHostAdmission
   # not reserve compute or memory until stale-Run reconciliation catches up.
   # Provider-bound agent turns have no child command, so their heartbeat is
   # what keeps them counted.
+  # A Run occupies this host when a process it spawned is still running here,
+  # or -- for steps that work in the workflow's shared workspace -- when this
+  # is that workspace's home host. A distributed grader runs from an immutable
+  # checkout on whichever worker claimed it, so the workflow's home host says
+  # nothing about where it executes: counting it there made the home host
+  # refuse work for every grader of its workflow running elsewhere.
   def active_run_scope
     cutoff = LIVENESS_WINDOW.ago
     Run
@@ -637,9 +719,10 @@ class RunHostAdmission
       .where(
         [
           "(spawned_processes.hostname = :hostname AND spawned_processes.finished_at IS NULL)",
-          "(workflows.worker_hostname = :hostname AND (#{fresh_heartbeat_sql} OR #{live_runtime_session_sql}))"
+          "(workflows.worker_hostname = :hostname AND steps.placement_policy <> :distributed_placement " \
+            "AND (#{fresh_heartbeat_sql} OR #{live_runtime_session_sql}))"
         ].join(" OR "),
-        hostname: hostname, cutoff: cutoff
+        hostname: hostname, cutoff: cutoff, distributed_placement: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT
       )
       .distinct
   end

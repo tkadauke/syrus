@@ -8,6 +8,7 @@
   "share_people": "Teilen",
   "mention_add_to_chat": "Zum Chat hinzufügen",
   "unable_to_create_side_chat": "Der Nebenchat konnte nicht erstellt werden.",
+  "unable_to_load_chats": "Chats konnten nicht geladen werden.",
   "mention_add_error": "Dieser Coworker konnte nicht zum Chat hinzugefügt werden.",
   "agent_roster": "Agents in diesem Chat",
   "after_reply_for": "Nachdem {{name}} antwortet",
@@ -1608,6 +1609,7 @@
   "authorization_state_cancelled": "Abgebrochen",
   "authorization_state_non_actionable": "Nicht verfügbar",
   "pending_action_failed": "Ausstehende Aktion fehlgeschlagen.",
+  "pending_action_queued_hint": "Wird bestätigbar, sobald der Job seinen aktuellen Lauf beendet oder blockiert.",
   "pending_action_hide_terminal": "Abgeschlossene Aktion ausblenden",
   "batch_action_failed": "Stapelaktion fehlgeschlagen.",
   "scratchpad_add_error": "Eintrag konnte nicht hinzugefügt werden.",
@@ -3361,5 +3363,9 @@
   "tool_card_repository_list_incomplete_summary": "Unvollständige Liste · {{count}} Pfade",
   "tool_card_repository_list_complete_summary": "Vollständige Liste · {{count}} Pfade",
   "tool_card_repository_list_incomplete": "Die Dateiliste ist unvollständig",
-  "tool_card_repository_list_coverage": "{{returned}} von {{candidates}} Pfaden zurückgegeben"
+  "tool_card_repository_list_coverage": "{{returned}} von {{candidates}} Pfaden zurückgegeben",
+  "tool_card_reset_job": "Job zurücksetzen",
+  "tool_card_reset_requested": "Zurücksetzen angefordert",
+  "tool_card_replace_job_dependency": "Job-Abhängigkeit ersetzen",
+  "tool_card_dependency_replaced": "Abhängigkeit ersetzt"
 }

@@ -49,6 +49,12 @@ class RunQueueResolver
     new(workflow: workflow, step: step).resolve
   end
 
+  # Is a live worker serving `queue` able to satisfy `requirements`? Used to
+  # release a LandingCapabilityHold recorded from an earlier blocked Decision.
+  def self.live_capable_worker?(queue:, requirements:)
+    new.send(:live_capable_worker_for?, queue, WorkerCapabilities.normalize(requirements))
+  end
+
   def initialize(run: nil, workflow: nil, step: nil, ignore_workflow_affinity: false)
     @run = run || Candidate.new(workflow: workflow, step: step, trigger_kind: workflow&.trigger_kind)
     @workflow = workflow || run&.workflow

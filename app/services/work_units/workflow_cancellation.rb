@@ -42,13 +42,16 @@ module WorkUnits
     end
 
     def cancel!
-      merged_artifacts = workflow.artifacts.to_h.merge(artifacts)
+      # Carry over only what this instance changed relative to the database,
+      # not its whole artifact snapshot: writing a stale snapshot back inside
+      # the lock would revert keys another writer set after it was loaded.
+      staged_changes = workflow.staged_artifact_changes
       workflow.reload if workflow.has_changes_to_save?
 
       workflow.with_lock do
         workflow.reload
         if workflow.may_cancel? || workflow.may_dismiss?
-          workflow.artifacts = workflow.artifacts.to_h.merge(merged_artifacts)
+          workflow.artifacts = workflow.artifacts.to_h.merge(staged_changes).merge(artifacts.to_h.deep_stringify_keys)
           # Root-cause event is recorded before cancel! kicks off terminal cleanup.
           Workflows::CancellationAttribution.record!(workflow, reason: reason, cause: cause)
           workflow.finished_at = Time.current

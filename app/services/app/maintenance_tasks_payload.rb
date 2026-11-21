@@ -95,7 +95,6 @@ module App
     end
 
     def self.serialize_task(task, include_documentation:)
-      definition = task.definition
       {
         id: task.id,
         definition_key: task.definition_key,
@@ -123,7 +122,7 @@ module App
         last_error: task.last_error,
         pending_reason: task.metadata["pending_reason"],
         checkpoint: task.checkpoint,
-        documentation: include_documentation ? definition.documentation : nil,
+        documentation: include_documentation ? MaintenanceTasks::Registry.find(task.definition_key)&.documentation : nil,
         paths: {
           admin: "/admin/maintenance_tasks/#{task.id}"
         }

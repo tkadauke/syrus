@@ -18,6 +18,12 @@ function renderDialog(props: Partial<ConfirmDialogProps> = {}) {
 }
 
 describe("ConfirmDialog", () => {
+  it("preserves line breaks in confirmation messages", () => {
+    renderDialog({ message: "This will:\n\n• Close the PR\n• Delete the branch" })
+
+    expect(screen.getByText(/This will:/)).toHaveClass("whitespace-pre-line")
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })

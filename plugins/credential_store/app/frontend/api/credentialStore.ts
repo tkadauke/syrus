@@ -31,6 +31,7 @@ export type CredentialStoreCredential = {
   target_constraints: Record<string, unknown>
   allowed_surfaces: string[]
   allowed_tools: string[]
+  plugin_managed: boolean
   effective_typed_consumers: string[]
   explicit_wrapper_grants: string[]
   expires_at: string | null

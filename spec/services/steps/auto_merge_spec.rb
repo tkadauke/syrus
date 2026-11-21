@@ -66,8 +66,32 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 7, hash_including(merge_method: "rebase", sha: "abc"))
     expect(client).to have_received(:add_issue_comment).with("acme/widgets", 7, include(job.slug))
+    # The close is the Workflow's final act, applied when it finishes.
+    expect(job.reload).to be_landing
+    expect(workflow.reload.pending_job_closures_by_id).to eq(job.id => "pr_merged")
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
+  end
+
+  # The gate passed, then several seconds of settling/mirroring/parity work
+  # followed before the irreversible merge call, and nothing looked again.
+  # Stop Landing (or a Job closure) cancelling the Run in that window still
+  # merged the PR. formal/SyrusModel/MergeFence.lean.
+  it "does not merge when the landing was stopped after the gate passed" do
+    job.approve!(via: "github_review")
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+    allow(client).to receive(:add_issue_comment)
+    handler = described_class.new(run)
+    allow(handler).to receive(:mirror_durable_approval_to_github!) do
+      run.update_columns(state: "cancelled", finished_at: Time.current)
+      workflow.update_columns(state: "cancelled", finished_at: Time.current)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::RunEndedExternally, /before merge/)
+    expect(client).not_to have_received(:merge_pull_request)
   end
 
   it "refuses to merge a head SHA whose validation is inconclusive and names the reason", :real_landing_validation_gate do
@@ -102,6 +126,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     described_class.new(run).call
 
     expect(client).to have_received(:merge_pull_request)
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
   end
 
@@ -185,6 +210,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
       expect { described_class.new(run).call }.not_to raise_error
       expect(LandedCommit.where(landable: job)).to be_empty
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.closure_reason).to eq("pr_merged")
     end
@@ -195,6 +221,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
       expect { described_class.new(run).call }.not_to raise_error
       expect(LandedCommit.where(landable: job)).to be_empty
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
     end
   end
@@ -223,6 +250,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
     described_class.new(run).call
 
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_closed")
   end
@@ -369,6 +397,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 7, hash_including(merge_method: "rebase", sha: "abc"))
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
   end
@@ -454,6 +483,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
     expect(Job::ApprovalPropagator).to have_received(:approve).with(job, user: user)
     expect(client).to have_received(:merge_pull_request)
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(run.job_logs.pluck(:chunk)).to include(include("mirrored Syrus approval to GitHub"))
   end
@@ -492,6 +522,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     described_class.new(run).call
 
     expect(client).to have_received(:merge_pull_request)
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("pr_merged")
   end
@@ -556,6 +587,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     expect(AutoRebase).to have_received(:new).with(job, base_branch: "main", branch_name: "syrus/issue-42-1")
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 7, hash_including(merge_method: "rebase", sha: "new-head"))
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(workflow.reload).to be_running
     expect(workflow.artifact("landing_base_moved_rebase")).to include(
@@ -653,11 +685,24 @@ RSpec.describe Steps::AutoMerge, :ci_only do
       expect(job.reload.branch_deleted_at).to be_present
     end
 
+    it "retargets open stacked child PRs onto the merged base before deleting the branch" do
+      child = Factories.job(user: user, repository: repository, pr_number: 8, branch_name: "syrus/issue-43-1")
+      child.update_columns(parent_job_id: job.id)
+      calls = []
+      allow(client).to receive(:update_pull_request_base) { |_slug, number, base:| calls << [ :retarget, number, base ] }
+      allow(client).to receive(:delete_branch) { |_slug, branch| calls << [ :delete, branch ] }
+
+      described_class.new(run).call
+
+      expect(calls).to eq([ [ :retarget, 8, "main" ], [ :delete, "syrus/issue-42-1" ] ])
+    end
+
     it "does not stamp branch_deleted_at when branch cleanup is left for later" do
       allow(client).to receive(:delete_branch).and_return(false)
 
       described_class.new(run).call
 
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.branch_deleted_at).to be_nil
     end
@@ -668,6 +713,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
       expect { described_class.new(run).call }.not_to raise_error
 
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.closure_reason).to eq("pr_merged")
     end

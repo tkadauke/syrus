@@ -176,12 +176,9 @@ class PollPullRequestJob < ApplicationJob
     return close_merged_pr if reason == "pr_merged"
 
     Rails.logger.info("[PollPullRequestJob] closing #{@job.slug}: #{reason}")
-    @job.runs.active.find_each do |r|
-      r.cancel! if r.may_cancel?
-      r.save!
-    end
     @job.update!(grace_period_expires_at: nil)
-    @job.close_with_reason!(reason)
+    return unless JobClosure.request!(@job, reason) == :closed
+
     StackRebaseCoordinator.parent_closed(@job) if reason == "pr_closed"
 
     if @job.branch_name.present? && @job.branch_deleted_at.nil?
@@ -504,6 +501,8 @@ class PollPullRequestJob < ApplicationJob
     return if active_ci_repair_for_same_base?
 
     enqueue_ci_failure_run(head_sha, repairable_failed_checks(detail[:failed_checks]))
+  rescue *PollingPersistenceRetry::RETRYABLE_ERRORS => e
+    schedule_persistence_contention_catch_up(error: e, boundary: "pr_checks")
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
     # Check-runs requires `Checks: read` (fine-grained) or `repo`
     # (classic). PR-comment polling above doesn't, so we treat
@@ -679,7 +678,11 @@ class PollPullRequestJob < ApplicationJob
   def provider_circuit_open?(trigger_kind)
     return false if @manual
 
-    circuit = ProviderCircuitBreaker.call(@agent_provider.presence || @job.workflow_agent_provider, include_logs: false)
+    provider = @agent_provider.presence || @job.workflow_agent_provider
+    workflow = @job.latest_workflow
+    account = workflow.provider_account if workflow&.agent_provider == provider
+    account ||= @job.user.default_provider_account(provider)
+    circuit = ProviderCircuitBreaker.call(provider, include_logs: false, user: @job.user, provider_account: account)
     return false unless circuit.open?
 
     Rails.logger.info(

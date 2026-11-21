@@ -59,6 +59,7 @@ RSpec.describe Steps::PromotionPublish do
       expect(link.target_ref).to eq("main")
       expect(link.pr_number).to be_nil
       expect(link.metadata).to eq("pr_state" => "merged")
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.closure_reason).to eq("promotion_landed")
     end
@@ -101,6 +102,7 @@ RSpec.describe Steps::PromotionPublish do
       link = job.pr_links.find_by!(role: JobPrLink::ROLE_PROMOTION)
       expect(link.pr_number).to eq(501)
       expect(link.metadata).to eq("pr_state" => "merged")
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
       expect(job.closure_reason).to eq("promotion_landed")
     end
@@ -148,6 +150,7 @@ RSpec.describe Steps::PromotionPublish do
       expect(git).not_to have_received(:run)
       expect(client).not_to have_received(:merge_pull_request)
       expect(job.pr_links.find_by!(role: JobPrLink::ROLE_PROMOTION).metadata).to eq("pr_state" => "merged")
+      apply_pending_job_closures!
       expect(job.reload).to be_closed
     end
 

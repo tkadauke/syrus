@@ -113,19 +113,30 @@ module AgentInsights
 
       # Done here rather than through core's internal step preloader: a plugin
       # may only reach core through the declared host surface.
-      workflows = jobs.flat_map(&:workflows)
-      steps_by_workflow_id = ::Step.where(workflow_id: workflows.map(&:id)).reorder(nil).to_a.group_by(&:workflow_id)
-      workflows.each do |workflow|
+      #
+      # Only each job's latest workflow is summarised, and only by step kind and
+      # run id/state. Loading every workflow's steps (grader output in
+      # `details`) and runs (full prompts) for a hundred jobs -- trains alone
+      # carry hundreds of grader steps each -- ran an insight past its pod's
+      # 16Gi limit within a minute, OOM-killing every run on that worker.
+      latest_workflows = jobs.filter_map(&:latest_workflow)
+      steps_by_workflow_id = ::Step.where(workflow_id: latest_workflows.map(&:id))
+        .select(:id, :workflow_id, :kind, :position).reorder(nil).to_a.group_by(&:workflow_id)
+      latest_workflows.each do |workflow|
         ordered = steps_by_workflow_id.fetch(workflow.id, []).sort_by { |step| [ step.position, step.id ] }
         ordered.each { |step| step.association(:workflow).target = workflow }
         attach!(workflow, :steps, ordered)
       end
-      steps = workflows.flat_map(&:steps)
+      steps = latest_workflows.flat_map(&:steps)
       return if steps.empty?
 
-      runs_by_step_id = Run.where(step_id: steps.map(&:id)).reorder(nil).to_a.group_by(&:step_id)
+      steps_by_id = steps.index_by(&:id)
+      runs_by_step_id = Run.where(step_id: steps_by_id.keys)
+        .select(:id, :step_id, :state, :created_at).reorder(nil).to_a.group_by(&:step_id)
       steps.each do |step|
-        attach!(step, :runs, runs_by_step_id.fetch(step.id, []).sort_by { |run| [ run.created_at, run.id ] })
+        ordered = runs_by_step_id.fetch(step.id, []).sort_by { |run| [ run.created_at, run.id ] }
+        ordered.each { |run| run.association(:step).target = step }
+        attach!(step, :runs, ordered)
       end
     end
 

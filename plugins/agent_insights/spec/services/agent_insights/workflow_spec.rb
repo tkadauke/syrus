@@ -45,13 +45,17 @@ RSpec.describe AgentInsights::Workflow do
       expect(workflow.artifact("prepare_skipped_reason")).to eq("repository_configuration")
     end
 
-    it "closes the anchor Job with the agent_insight closure reason" do
+    it "requests closing the anchor Job with the agent_insight closure reason" do
       workflow = described_class.instantiate(job: job)
       step = workflow.steps.find_by!(kind: "auto_close")
       run = Run.create!(job: job, user: job.user, step: step, trigger_kind: workflow.trigger_kind)
 
       Steps::AutoClose.new(run).call
+      # The Step records the closure; it applies when its Workflow finishes.
+      apply_pending_job_closures!
 
+      expect(workflow.reload.pending_job_closures_by_id).to eq(job.id => "agent_insight")
+      JobClosure.apply_pending!(workflow)
       expect(job.reload.state).to eq("closed")
       expect(job.closure_reason).to eq("agent_insight")
     end

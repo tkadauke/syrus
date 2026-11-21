@@ -3,6 +3,7 @@ class ProviderSession < ApplicationRecord
   include ValidatesAgentProvider
 
   belongs_to :resumable, polymorphic: true
+  belongs_to :provider_account, optional: true
 
   before_validation :mirror_run_id_for_run_resumables
   before_save :sync_transcript_pruned
@@ -15,9 +16,11 @@ class ProviderSession < ApplicationRecord
   validates :resumable, presence: true
 
   before_validation :default_resumable_from_run
+  before_validation :default_provider_account
+  validate :provider_account_matches_resumable
 
   scope :metadata_only, -> {
-    select(:id, :provider, :session_id, :resumable_type, :resumable_id, :run_id, :created_at, :updated_at)
+    select(:id, :provider, :provider_account_id, :session_id, :resumable_type, :resumable_id, :run_id, :created_at, :updated_at)
   }
 
   # Keep captured agent sessions for diagnostics and provider resume
@@ -58,6 +61,15 @@ class ProviderSession < ApplicationRecord
       .where(resumable_type: "Run")
   }
 
+  scope :for_active_runs, -> {
+    for_runs.where(runs: { state: %w[queued running] })
+  }
+
+  scope :for_active_chats, -> {
+    joins("INNER JOIN chat_sessions ON chat_sessions.id = provider_sessions.resumable_id")
+      .where(resumable_type: "ChatSession", chat_sessions: { turn_in_flight: true })
+  }
+
   def self.canonical_path_for(home:, cwd:, session_id:)
     claude_session_paths.canonical_path_for(home: home, cwd: cwd, session_id: session_id)
   end
@@ -83,6 +95,20 @@ class ProviderSession < ApplicationRecord
 
   def default_resumable_from_run
     self.resumable ||= run if run
+  end
+
+  def default_provider_account
+    resumable_account = resumable.provider_account if resumable.respond_to?(:provider_account)
+    self.provider_account ||= resumable_account if resumable_account&.provider_key == provider
+  end
+
+  def provider_account_matches_resumable
+    return unless provider_account
+    account_matches_provider = provider_account.provider_key == provider
+    account_matches_user = !resumable.respond_to?(:user_id) || provider_account.user_id == resumable.user_id
+    return if account_matches_provider && account_matches_user
+
+    errors.add(:provider_account, I18n.t("server.errors.provider_accounts.session_mismatch"))
   end
 
   def sync_transcript_pruned

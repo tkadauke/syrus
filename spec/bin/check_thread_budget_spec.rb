@@ -7,6 +7,20 @@ require "spec_helper"
 RSpec.describe "bin/check-thread-budget", :ci_only do
   let(:root) { File.expand_path("../..", __dir__) }
   let(:script) { File.join(root, "bin/check-thread-budget") }
+  let(:queue_concurrency_env) do
+    %w[
+      CHAT_CONCURRENCY
+      CLEANUP_CONCURRENCY
+      CONTROL_PLANE_CONCURRENCY
+      INDEXING_CONCURRENCY
+      LOW_PRIORITY_MAINTENANCE_CONCURRENCY
+      MERGE_CONCURRENCY
+      OPERATOR_ACTION_CONCURRENCY
+      PLUGIN_JOB_THREADS
+      POLLING_CONCURRENCY
+      VIDEO_CONCURRENCY
+    ].to_h { |key| [ key, nil ] }
+  end
 
   def spawn_clean(env_overrides = {})
     bundler_install_env = ENV.to_h.select do |key, _|
@@ -21,7 +35,18 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
     end
 
     Bundler.with_unbundled_env do
-      env = ENV.to_h.merge(bundler_install_env, "DB_POOL" => nil).merge(env_overrides)
+      # Keep ERB-rendering examples independent of the CI runner's CPU quota
+      # and ambient worker settings. The checker itself still honors explicit
+      # overrides passed by an example.
+      env = ENV.to_h
+        .merge(queue_concurrency_env)
+        .merge(
+          bundler_install_env,
+          "DB_POOL" => nil,
+          "JOB_CONCURRENCY" => "6",
+          "SYRUS_WORKER_CPU_LIMIT" => "4"
+        )
+        .merge(env_overrides)
       Open3.capture3(env, RbConfig.ruby, script, unsetenv_others: true, chdir: root)
     end
   end
@@ -35,6 +60,23 @@ RSpec.describe "bin/check-thread-budget", :ci_only do
     expect(status).to be_success, "expected success, got #{status.exitstatus}: stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
     expect(stdout).to include("[check-thread-budget] ok")
     expect(stderr).to be_empty
+  end
+
+  it "does not inherit queue concurrency overrides from the test runner" do
+    original_merge_concurrency = ENV["MERGE_CONCURRENCY"]
+    ENV["MERGE_CONCURRENCY"] = "20"
+    begin
+      stdout, stderr, status = spawn_clean(
+        "HOME" => ENV.fetch("HOME"),
+        "PATH" => ENV.fetch("PATH")
+      )
+
+      expect(status).to be_success, "expected success, got #{status.exitstatus}: stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(stdout).to include("[check-thread-budget] ok")
+      expect(stderr).to be_empty
+    ensure
+      ENV["MERGE_CONCURRENCY"] = original_merge_concurrency
+    end
   end
 
   it "renders Rails-style database.yml ERB outside Rails in a fresh process" do

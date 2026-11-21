@@ -16,6 +16,13 @@ module StepDispatcherSpecAttachWorkUnit
     repository.update!(distributed_workflow_dag_enabled: true)
   end
 
+  # Grader fan-out admission falls back to this host's CPU-derived capacity
+  # when no worker heartbeat is live. Pin it so sibling-parallelism examples
+  # do not depend on how many cores the machine running the suite has.
+  def stub_grader_fanout_capacity!(host_capacity = 8)
+    allow(RunHostAdmissionCapacity).to receive(:host_compute_capacity).and_return(host_capacity)
+  end
+
   def attach_work_unit(workflow, state: "queued", **options)
     WorkUnit
       .joins(:work_unit_members)
@@ -513,6 +520,46 @@ RSpec.describe StepDispatcher, :ci_only do
         "blocking_workflow_id" => keeper.id,
         "blocking_trigger_kind" => "stack_rebase"
       )
+    end
+
+    # Decided (Epic-wide vs member work): neither preempts the other. An
+    # Epic-wide workflow used to start while a member's own workflow ran, and
+    # the reconciler then cancelled the member's running work.
+    describe "an Epic-wide workflow and running member work" do
+      def epic_with_member(member_state)
+        epic = Factories.epic(user: job.user, repository: job.repository)
+        member_job = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 103)
+        job.update!(epic: epic)
+        member = Workflow.create!(job: member_job, trigger_kind: "initial")
+        member.update_columns(state: member_state, started_at: member_state == "running" ? 1.minute.ago : nil)
+        attach_work_unit(member, state: member_state == "running" ? "running" : "queued", member_jobs: [ member_job ])
+        workflow.update!(trigger_kind: "stack_rebase")
+        member
+      end
+
+      it "waits until no member workflow is running" do
+        member = epic_with_member("running")
+
+        expect {
+          described_class.start_workflow(workflow)
+        }.not_to change { Run.count }
+
+        expect(workflow.reload).to be_queued
+        expect(workflow.artifact("start_blocked_reason")).to eq(StepDispatcher::EPIC_MEMBER_WORK_BLOCK_REASON)
+        expect(workflow.artifact("start_blocked_details")).to include("blocking_workflow_id" => member.id)
+        expect(member.reload).to be_running
+      end
+
+      # Members already wait while Epic-wide work is queued or running; if the
+      # Epic-wide workflow also waited for queued members, the two would wait
+      # for each other forever.
+      it "is not held up by member work that is only queued" do
+        epic_with_member("queued")
+
+        described_class.start_workflow(workflow)
+
+        expect(workflow.reload.artifact("start_blocked_reason")).not_to eq(StepDispatcher::EPIC_MEMBER_WORK_BLOCK_REASON)
+      end
     end
 
     it "cancels a second Epic-wide workflow before it starts" do
@@ -1322,6 +1369,7 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "queues every ready immutable-source sibling under the distributed execution gates" do
+      stub_grader_fanout_capacity!
       enable_distributed_workflow_dag!(job.repository)
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
@@ -1348,7 +1396,29 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(enqueued_jobs.count { |entry| entry[:job] == RunJob } - enqueued_run_jobs_before).to eq(2)
     end
 
+    it "creates exactly one collector Run when the final successful grader handoff repeats" do
+      enable_distributed_workflow_dag!(job.repository)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
+      s2.update!(kind: "grader", state: "succeeded", depends_on_ids: [ s1.id ])
+      s3.update!(kind: "grader", state: "succeeded", depends_on_ids: [ s1.id ])
+      collect = Step.create!(
+        workflow: workflow,
+        kind: "grader_collect",
+        position: 3,
+        placement_policy: Step::PlacementPolicy::CONTROL_PLANE,
+        depends_on_ids: [ s2.id, s3.id ]
+      )
+      s3.update!(next_step_id: collect.id)
+
+      expect {
+        described_class.advance_from(s3)
+        described_class.advance_from(s3)
+      }.to change { collect.runs.count }.by(1)
+    end
+
     it "queues mixed-capability immutable grader siblings independently and keeps collect blocked until both finish" do
+      stub_grader_fanout_capacity!
       clear_live_worker_queues!
       enable_distributed_workflow_dag!(job.repository)
       workflow.update!(
@@ -1439,6 +1509,7 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "does not let per-step admission deferral block another ready immutable sibling" do
+      stub_grader_fanout_capacity!
       enable_distributed_workflow_dag!(job.repository)
       AppSetting.current.update!(
         workflow_admission_policy: "phase_aware"
@@ -1515,6 +1586,7 @@ RSpec.describe StepDispatcher, :ci_only do
     end
 
     it "dispatches parallel immutable siblings that cannot be consumed by the inline RunJob driver" do
+      stub_grader_fanout_capacity!
       enable_distributed_workflow_dag!(job.repository)
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update!(kind: "grader_fanout", placement_policy: Step::PlacementPolicy::CONTROL_PLANE)
@@ -1613,6 +1685,67 @@ RSpec.describe StepDispatcher, :ci_only do
       expect {
         described_class.advance_from(s2)
       }.to change { collect.runs.count }.by(1)
+    end
+
+    # Regression: the reconciler reported a collector as a stranded handoff
+    # every minute because its next_step predecessor (the first grader) had
+    # succeeded while a sibling grader it depends on was still running.
+    it "does not report a collector ready while a grader it depends on is running" do
+      s1.update!(kind: "grader")
+      s2.update!(kind: "grader")
+      s3.update!(kind: "grader_collect", depends_on_ids: [ s1.id, s2.id ])
+      s1.update!(next_step_id: s3.id)
+      s2.update!(next_step_id: nil)
+      s1.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+      s2.update_columns(state: "running", started_at: 2.minutes.ago)
+
+      expect(described_class.deferred_phase_handoff_ready?(s3.reload)).to be(false)
+
+      s2.update_columns(state: "failed", finished_at: Time.current)
+      expect(described_class.deferred_phase_handoff_ready?(s3.reload)).to be(true)
+    end
+
+    it "requires every explicit dependency of a non-collector step to have completed" do
+      s3.update!(depends_on_ids: [ s1.id, s2.id ])
+      s2.update!(next_step_id: s3.id)
+      s1.update_columns(state: "running", started_at: 2.minutes.ago)
+      s2.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+
+      expect(described_class.deferred_phase_handoff_ready?(s3.reload)).to be(false)
+
+      s1.update_columns(state: "succeeded", finished_at: Time.current)
+      expect(described_class.deferred_phase_handoff_ready?(s3.reload)).to be(true)
+    end
+
+    # Regression: a review panel's fanout finished in a second, a later review
+    # loop's template edge still pointed at that fanout, and the ready set
+    # skipped the panel's not-yet-ready collect to start the later loop while
+    # the first panel was still reviewing.
+    it "never starts a later serial step past an earlier serial step that is not ready" do
+      enable_distributed_workflow_dag!(job.repository)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update!(kind: "adversarial_review", details: { "panel_fanout" => true })
+      s2.update!(kind: "review_panel_collect", position: 2, details: { "panel_review_kind" => "adversarial_review" })
+      s3.update!(kind: "security_review", position: 3, depends_on_ids: [ s1.id ])
+      member = Step.create!(workflow: workflow, kind: "adversarial_review", position: 1,
+        details: { "panel_member" => true }, next_step_id: s2.id)
+      s1.update!(next_step_id: member.id)
+      s2.update!(depends_on_ids: [ member.id ])
+      s1.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      member.update_columns(state: "running", started_at: 1.minute.ago)
+
+      expect { described_class.advance_from(s1) }.not_to change { Run.count }
+      expect(s3.reload.runs).to be_empty
+    end
+
+    it "never starts a later serial step while an earlier serial step is running" do
+      enable_distributed_workflow_dag!(job.repository)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s3.update!(depends_on_ids: [ s1.id ])
+      s1.update_columns(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      s2.update_columns(state: "running", started_at: 1.minute.ago)
+
+      expect { described_class.advance_from(s1) }.not_to change { s3.runs.count }
     end
 
     it "skips redundant nodes while finding the distributed ready set" do
@@ -4387,6 +4520,19 @@ RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
     expect(workflow.reload.artifact("start_blocked_reason")).to eq("urgent_job_active")
   end
 
+  # Every start block must clear or have a recheck scheduled. The gate also
+  # releases when the urgent Job stops progressing (UrgentWorkGate), which
+  # wakes nothing -- only closing an urgent Job does -- so without its own
+  # recheck the blocked Workflow waited for the reconciler.
+  it "schedules its own recheck, like the neighbouring gates" do
+    create_urgent_job!
+    clear_enqueued_jobs
+
+    described_class.start_workflow(workflow)
+
+    expect(enqueued_jobs.map { |entry| entry[:job] }).to include(WorkflowPhaseAdmissionJob)
+  end
+
   it "logs a warning when blocked by urgent job" do
     create_urgent_job!
     expect(Rails.logger).to receive(:warn).with(include("urgent_job_active"))
@@ -4529,6 +4675,56 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     expect(second_workflow.reload.artifact("start_blocked_reason")).to be_nil
   end
 
+  # The turn used to be read in two queries ("is a sibling running?", then
+  # "who is the oldest queued?"). A sibling whose RunJob flipped it to running
+  # in between was in neither answer, so both children implemented at once.
+  # formal/SyrusModel/EpicTurn.lean (two_query_race).
+  it "keeps the turn when the winning sibling starts running between the turn's reads" do
+    first_job = epic_job(issue_number: 211)
+    second_job = epic_job(issue_number: 212)
+    first_workflow, = build_workflow(job: first_job, trigger_kind: "initial")
+    second_workflow, = build_workflow(job: second_job, trigger_kind: "initial")
+    flipped = false
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      binds = Array(payload[:type_casted_binds].respond_to?(:call) ? payload[:type_casted_binds].call : payload[:type_casted_binds])
+      mentions_running = payload[:sql].include?("running") || binds.include?("running")
+      next if flipped || !payload[:sql].match?(/FROM [`"]?workflows[`"]?/i) || !mentions_running
+
+      flipped = true
+      first_workflow.update_columns(state: "running", started_at: Time.current)
+    end
+
+    begin
+      expect { described_class.start_workflow(second_workflow) }.not_to change { Run.count }
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+    expect(flipped).to be(true)
+    expect(second_workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
+  end
+
+  # A failed sibling does not hold the turn, so the next child may start; the
+  # step retry used to reopen the failed Workflow and create its Run without
+  # consulting the turn at all. formal/SyrusModel/EpicTurn.lean (retry_bypass).
+  it "does not retry a failed child's step while a sibling is implementing" do
+    failed_job = epic_job(issue_number: 213, state: "failed")
+    running_job = epic_job(issue_number: 214, state: "running")
+    failed_workflow, failed_step = build_workflow(job: failed_job, trigger_kind: "initial")
+    running_workflow, = build_workflow(job: running_job, trigger_kind: "initial")
+    failed_step.update_columns(state: "failed", finished_at: Time.current)
+    failed_step.runs.create!(job: failed_job, trigger_kind: "initial", agent_provider: failed_workflow.agent_provider, state: "failed")
+    failed_workflow.update_columns(state: "failed", finished_at: Time.current)
+    running_workflow.update_columns(state: "running", started_at: 1.minute.ago)
+    allow_any_instance_of(Workflow).to receive(:retry_available?).and_return(true)
+
+    result = nil
+    expect { result = RetryFailedStepEnqueuer.call(workflow: failed_workflow) }.not_to change { Run.count }
+
+    expect(result).not_to be_success
+    expect(result).to be_active_work_lock
+    expect(failed_workflow.reload).to be_failed
+  end
+
   it "blocks an older queued workflow when a newer sibling is already running" do
     queued_job = epic_job(issue_number: 204)
     running_job = epic_job(issue_number: 205, state: "running")
@@ -4578,9 +4774,7 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
 
     candidates = [
       [ "auto_merge", "mergeability_preflight", "landing", {}, "issue" ],
-      [ "merge_train", "merge_train_land", "approved", { "merge_train_id" => 123 }, "issue" ],
       [ "rebase", "auto_rebase", "implemented", {}, "issue" ],
-      [ "stack_rebase", "stack_auto_rebase", "implemented", {}, "issue" ],
       [ "main_grader", "grader_fanout", "queued", {}, "main_grader" ]
     ]
 
@@ -4592,6 +4786,27 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
         described_class.start_workflow(workflow)
       }.to change { step.runs.count }.by(1), "expected #{trigger_kind} to bypass the sibling implementation gate"
       expect(workflow.reload.artifact("start_blocked_reason")).not_to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
+    end
+  end
+
+  # Epic-wide work is not held by the sibling gate either, but it does wait
+  # for running member work in its Epic (neither side preempts the other).
+  it "holds Epic-wide workflows for running member work, not for the sibling gate" do
+    implementing_job = epic_job(issue_number: 204, state: "running")
+    implementing_workflow, = build_workflow(job: implementing_job, trigger_kind: "initial")
+    implementing_workflow.update_columns(state: "running", started_at: 1.minute.ago)
+
+    [
+      [ "merge_train", "merge_train_land", "approved", { "merge_train_id" => 123 } ],
+      [ "stack_rebase", "stack_auto_rebase", "implemented", {} ]
+    ].each_with_index do |(trigger_kind, step_kind, state, artifacts), index|
+      job = epic_job(issue_number: 220 + index, state: state)
+      workflow, step = build_workflow(job: job, trigger_kind: trigger_kind, step_kind: step_kind, artifacts: artifacts)
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { step.runs.count }
+      expect(workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_MEMBER_WORK_BLOCK_REASON)
     end
   end
 end

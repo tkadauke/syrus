@@ -518,12 +518,12 @@ Each user owns their own profile, credentials, agent preferences, and account pr
 | Profile | Display name, name fields, company, location, website, GitHub handle, avatar URL, and bio on `/profile` |
 | Role | User-facing role, either `developer` or `product_owner`; users can set their own role on `/profile`, and admins can override it from `/admin/users` |
 | GitHub token | Used to list issues, read PRs, push branches, open PRs, edit `.github/workflows/*`, and post updates for that user's repositories. Create a classic PAT with `repo` for private-repository use or `public_repo` for intentionally public-only use; add the optional `workflow` scope only when agents must edit GitHub Actions workflow files through the PAT. Fine-grained PATs remain supported through repository-specific validation. Configured on `/credentials` |
-| Agent provider | Default provider for new Jobs, selected from enabled agent-provider plugins such as `claude`, `codex`, `agy`, or `muse`; configured on `/settings/agent`, with ordered routing rules available for user defaults, repository overrides, and Job overrides |
+| Agent provider | Default provider for new Jobs, selected from enabled agent-provider plugins such as `claude`, `codex`, `agy`, or `muse`; configured on `/settings/agent`, with ordered routing rules available for user defaults, repository overrides, and Job overrides. Each provider may have multiple labeled subscriptions with independent credentials, health, usage, enablement, thresholds, and routing weights; routing can select an account automatically or pin one by its opaque identifier. |
 | Agent provider failover | Disabled-by-default ordered list of alternate agent providers plus eligible causes (`usage_exhausted`, `usage_low`, `rate_limited`, `provider_transient`, `auth_error`); configured on `/settings/agent` |
 | Chat provider | Optional provider override for chat turns, selected from enabled chat-provider plugins such as `claude`, `codex`, `agy`, or `muse`; when blank, chat follows the user's default agent provider |
-| Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; configured on `/credentials` |
+| Claude credential | Encrypted long-lived Claude OAuth token from the Claude authorization flow or `claude setup-token`, passed to Claude Code as `CLAUDE_CODE_OAUTH_TOKEN`; first-run setup remains on `/credentials`, while additional subscriptions and per-account reconnect, test, enable, rename, routing, and removal controls are on `/settings/agent` |
 | Generic scoped credential | Encrypted write-only payload owned by the `credential_store` plugin, with safe metadata, target constraints, last-used audit metadata, and user/repository/team/instance scope; default type names include `ssh_private_key`, `token`, `json`, `env`, and `file_blob`, while plugins can add names such as `k8s_cluster.kubeconfig`; managed from Credential Store in the sidebar or Admin > Credential Store |
-| Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; configured on `/credentials` |
+| Codex credential | Encrypted Codex API key or ChatGPT login auth JSON, depending on auth mode; first-run setup remains on `/credentials`, while additional subscriptions and per-account controls are on `/settings/agent` |
 | Antigravity credential | Encrypted Gemini API key shared by Antigravity and Gemini-backed features such as walkthrough-video analysis; configured on `/credentials` |
 | Muse credential | Encrypted Muse API key, passed to Muse Code on stdin for probes and agent runs; created in the Muse developer dashboard and configured on `/credentials` |
 | Agent max turns | Per-run cap for Claude Code tool-use turns; `0` means no `--max-turns` flag; configured on `/settings/agent` |
@@ -819,6 +819,21 @@ Per-user credentials use Active Record Encryption:
 - `codex_auth_json`
 - `api_token`
 
+The experimental Connected Accounts plugin can connect a user-owned hosted
+account through an OAuth 2 authorization-code flow with PKCE. Administrators
+configure the generic provider's HTTPS authorization, token, identity,
+validation, and revocation endpoints, client credentials, offered scopes, and
+the explicit subset allowed for read-only connections, and allowed API origins
+under **Admin > Connected accounts**. Syrus refreshes
+expiring access tokens and probes account health in the background. Disconnect
+attempts provider revocation and always revokes the local stored credential;
+token material is kept out of logs, audit metadata, and agent transcripts.
+Users connect, inspect, restrict to read-only, reauthorize, and disconnect their
+own accounts under **Settings > Connected accounts**. Acting as an account owner
+is a separate administrator opt-in and defaults off. Coworker access also
+requires the default-off **Coworker connected accounts** feature after the
+listed coworker isolation and permission prerequisites are satisfied.
+
 Generic plugin-managed credentials live in the bundled `credential_store`
 plugin, which stores payloads as encrypted blobs and keeps only safe display
 metadata outside the encrypted payload. The plugin also exposes brokered MCP
@@ -830,8 +845,14 @@ tool name. This does not grant command authority: unified permissions still
 evaluate the operation and exact invocation, while raw-materialization wrappers
 remain explicit grants under **Allowed credential wrappers**. Management and
 discovery payloads report inferred typed consumers separately from those raw
-wrapper grants. The SSH editor guides operators through private-key entry,
-destination allowlists, and explicit host-key enrollment. A discovered key is
+wrapper grants. Credential types owned by another plugin are protected from
+those raw wrappers, and their wrapper grants cannot be changed in the generic
+Credential Store UI or API; the owning plugin instead uses its validated typed
+consumer. Plugin refreshes take a database row lock and produce a distinct
+refresh audit event; operator-revoked credentials cannot be refreshed. They do
+not change the human rotation action, which explicitly un-revokes. The SSH editor
+guides operators through private-key entry, destination allowlists, and explicit
+host-key enrollment. A discovered key is
 not proof of server identity: verify its SHA-256 fingerprint through a trusted
 channel before confirming it. SSH execution requires that confirmed entry,
 uses a temporary `0600` known-hosts file with strict checking, and never relies

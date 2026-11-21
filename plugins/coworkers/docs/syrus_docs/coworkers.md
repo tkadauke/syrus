@@ -58,7 +58,13 @@ default disagrees with the effective descriptor default. Run
 `bin/rails syrus:coworker_tool_defaults` to print every coworker tool grouped into
 allow, ask, and deny with the reason.
 
-## Background runs
+## Background jobs
+
+The Activity tab presents one entry per coworker Job, links its canonical Job
+reference and title to Job details, and summarizes the requested goal, outcome,
+timing, spend, and tool usage. Expand a Job's attempts to inspect its Workflows
+and Runs. Filters cover outcome, date, schedule or trigger source, failures,
+and title or goal text; filter state remains in the URL.
 
 When the optional Calendar plugin is enabled, Coworkers contributes planned
 occurrences for schedules attached to a coworker. These occurrences show the
@@ -161,9 +167,15 @@ seven-day catch-up bound. Older dates are recorded as
 is retried at most once per hour and stops after three attempts until the next
 daily window. System schedules stay scheduled rather than being auto-paused. Fire errors
 are retained with their exception reason, and journaling is called out as
-overdue only when it is more than one day behind. The periodically sampled
+overdue only when it is more than one day behind.
 
-`syrus_coworkers_journaling_unhealthy_total` metric counts active coworkers
+The Schedule tab presents one latest-result summary per schedule rather than
+inline result history. It links the exact scheduled Job when one exists and
+offers **View all runs**, which opens the Jobs dashboard filtered by the
+schedule's `scheduled_task_id`. A skipped Journaling occurrence explicitly
+states that no Job was needed; a schedule with no result is shown as never run.
+
+The periodically sampled `syrus_coworkers_journaling_unhealthy_total` metric counts active coworkers
 older than 25 hours without a fire or recorded dormant skip inside that window.
 Successful journaling is also completely
 silent: the only output is the persisted workspace update and
@@ -185,6 +197,16 @@ The initial foundation stores user-owned coworker identities, globally unique
 handles, model preferences, workspace remotes, appearance, explicit capability
 grants, and main or side chat links. Existing chats remain Syrus chats unless a
 coworker chat link explicitly assigns them to a coworker.
+
+The Chat tab keeps the main chat pinned above a paginated side-chat index. Its
+shared FilterBar searches titles and indexed message contents and filters by
+active or archived state, unread state, active work, creation date, and last
+activity. The URL preserves filters and sorting. Results include bounded
+message previews or highlighted search excerpts, match counts, activity and
+unread indicators, and standard rename, archive or restore, and delete actions.
+Hidden mention working sessions are excluded. New side chats receive a normal
+generated title after their first substantive message, while explicit renames
+remain authoritative.
 
 Coworker creation validates and tests the GitHub remote before creating any
 records. It registers a previously unknown remote with polling and PR
@@ -488,7 +510,10 @@ pinned first as the built-in engineer; custom coworkers show their configured
 color and avatar. The creation form collects the workspace remote, appearance,
 model, grants, and optional About text. Uploaded avatars are size-limited and
 resized before Active Storage saves them. Coworker chats are grouped separately
-in the chat sidebar, and assistant messages use the coworker's avatar and color.
+in the chat sidebar. Each coworker's main chat acts as a collapsed folder for
+its side chats; expanding it shows the configured number of chats at first,
+with controls to show more or fewer. Assistant messages use the coworker's
+avatar and color.
 Coworker chats carry a named badge in global search, chat search, and the
 agent-facing chat search tool. The shared chat filter offers each of the
 current user's coworkers plus Syrus, where Syrus means a chat without a
@@ -577,11 +602,15 @@ The Schedule tab uses the shared scheduled-task cadence and lifecycle controls.
 Capabilities remain a coming-later placeholder where its full surface has not
 shipped yet.
 
-The Workspace tab is a read-only view of the coworker's home branch through
-the same cached repository-content providers. It shows the remote and branch,
-the file tree with plain-text or Markdown previews, available commit history,
-and chat branches with unresolved merge conflicts. Partial trees and capped
-files are marked explicitly. The only remote action is **Test push access**,
+Workspace is the single read-only browser for the coworker's identity, memory,
+and other files on its home branch through the same cached repository-content
+providers. Its collapsible folder tree, breadcrumbs, Memory and `SOUL.md`
+shortcuts, and server-side filename/content filters keep large workspaces
+navigable without downloading every file. Search results, bounded history, and
+truncated content say explicitly when they are incomplete. Old Profile and
+Memory links open the corresponding Workspace scope. Workspace also shows the
+remote and branch, available commit history, and chat branches with unresolved
+merge conflicts. The only remote action is **Test push access**,
 which creates and immediately deletes a randomized throwaway ref beneath
 `coworkers/`; file edits and arbitrary pushes are not exposed in the UI.
 
@@ -647,3 +676,21 @@ history is returned in pages of at most 50 runs and 50 side chats; **Load
 more** follows opaque cursors. Memory and workspace browsers return at most
 1,000 files, identify partial results, and cap individual file reads at 256
 KiB.
+
+## Health and spend metrics
+
+When the Coworkers plugin is enabled, `/metrics` publishes handle-scoped
+Prometheus series for journaling state, last-result age and failures; unsaved
+workspace age and retry attempts; workspace push failures; and cumulative chat
+and background-run spend. These series never contain chat, message, Job,
+Workflow, or Run identifiers or content. Sampling runs on the shared metrics
+tick and scrapes only render its cached snapshot.
+
+The Metrics Dashboard includes a **Coworkers** tab grouping journaling age and
+state, unsaved-workspace age, and spend rates by coworker handle. The shipped
+Prometheus rules warn after 36 hours without a journaling result (excluding an
+owner-paused schedule), page after 72 hours or three repeated failures, warn
+after one hour of unsaved workspace state, and page after six hours. They also
+detect sustained push failures and daily spend above the rule file's anomaly
+multiple or absolute cap. Operators can tune these literal thresholds in
+`config/prometheus/syrus-alert-rules.yml`.

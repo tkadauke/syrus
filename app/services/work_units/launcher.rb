@@ -366,7 +366,7 @@ module WorkUnits
     # duplicate-workflow bug , so it must be rejected outright.
     ADVISORY_LOCK_KEY_PREFIX = "epic_feedback:".freeze
 
-    def create_lock!(unit, lock_key)
+    def create_lock!(unit, lock_key, retried: false)
       if (owner = Ownership.active_unit_for_lock_key(lock_key))
         return if Ownership.nonblocking_main_branch_repair_repository_lock?(owner, lock_key)
         return if materialize_behind_active_lock?
@@ -378,7 +378,14 @@ module WorkUnits
       unit.work_unit_locks.create!(lock_key: lock_key)
     rescue ActiveRecord::RecordNotUnique
       owner = Ownership.active_unit_for_lock_key(lock_key)
-      return if owner && materialize_behind_active_lock?
+      # The holder released the key between our insert and the lookup: try
+      # once more, then fail closed instead of returning without a lock.
+      if owner.nil?
+        raise LockConflict.new(lock_key: lock_key, work_unit: nil) if retried
+
+        return create_lock!(unit, lock_key, retried: true)
+      end
+      return if materialize_behind_active_lock?
 
       if owner &&
           enforce_lock_conflict?(lock_key) &&

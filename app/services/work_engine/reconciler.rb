@@ -266,6 +266,7 @@ module WorkEngine
       issues.concat(classify_unsafe_review_barrier_runs)
       issues.concat(classify_succeeded_review_steps_without_required_repair)
       issues.concat(classify_queued_steps_without_runs)
+      issues.concat(classify_reopened_workflows_stranded_by_cleanup)
       issues.concat(classify_workflows)
       issues.concat(classify_waiting_work_intents_with_active_units)
       issues.concat(classify_waiting_work_intents_ready_for_recheck)
@@ -930,7 +931,7 @@ module WorkEngine
         step_runs = runs_for_step_reconciliation(step)
         next if step_runs.empty?
         next if step_runs.any? { |run| run.queued? || run.running? }
-        next if pending_worker_died_step_retry?(step)
+        next if pending_in_place_step_retry?(step)
         next unless step_runs.all?(&:terminal?)
 
         projection = Steps::StateProjection.for(step, runs: step_runs)
@@ -961,6 +962,10 @@ module WorkEngine
         workflow = step.workflow
         next unless workflow&.running?
         next unless step.loop_id.present?
+        # The panel's collect Step decides the loop, exactly as the dispatcher
+        # treats it; a fanout read the previous iteration's verdict while its
+        # members were still reviewing.
+        next if step.review_panel_participant?
         next unless older_than?(step.finished_at || step.updated_at, ORPHAN_RUN_GRACE_PERIOD)
 
         gate = review_gate_for_step(step)
@@ -1053,8 +1058,14 @@ module WorkEngine
           )
         end
 
+        next unless StepDispatcher.deferred_phase_handoff_ready?(step)
+        # A pause (operator or provider availability) holds the next phase on
+        # purpose; resuming it can only be refused (classifier/executor
+        # agreement, formal/SyrusModel/Agreement.lean `Actionable`).
+        next if WorkUnit::PAUSE_BLOCKED_REASONS.include?(workflow.work_unit&.blocked_reason.to_s) && workflow.work_unit&.blocked?
+
         previous = step.previous_step
-        next unless previous&.succeeded?
+        dependencies = step.depends_on_steps
 
         issue(
           kind: :queued_step_without_run,
@@ -1066,12 +1077,14 @@ module WorkEngine
             step_id: step.id,
             step_kind: step.kind,
             step_position: step.position,
-            previous_step_id: previous.id,
-            previous_step_kind: previous.kind,
-            previous_step_state: previous.state,
+            previous_step_id: previous&.id,
+            previous_step_kind: previous&.kind,
+            previous_step_state: previous&.state,
+            dependency_step_ids: dependencies.map(&:id),
+            dependency_step_states: dependencies.index_by { |dependency| dependency.id.to_s }.transform_values(&:state),
             age_seconds: seconds_since(step.created_at)
           ),
-          explanation: "Step ##{step.id} is queued behind succeeded Step ##{previous.id}, but no Run was created for it."
+          explanation: "Step ##{step.id} is ready after its upstream handoff settled, but no Run was created for it."
         )
       end
     end
@@ -1096,9 +1109,54 @@ module WorkEngine
         .detect { |candidate| retry_until_barrier_step_for_reconciliation?(candidate) && !candidate.retry_until_barrier_superseded? }
     end
 
+    # When a workflow fails, cleanup cancels its unfinished Steps. Retrying the
+    # failed Step reopens the workflow, but a cleanup-cancelled Step that had
+    # already started a Run stays cancelled -- and once the retried branch
+    # finishes, nothing is left running and nothing dispatches past it. A Job
+    # sat "running" that way with its visual-review repair cancelled and every
+    # later Step queued. Revive the earliest such Step once the workflow is
+    # idle.
+    def classify_reopened_workflows_stranded_by_cleanup
+      steps.select(&:cancelled?).group_by(&:workflow).filter_map do |workflow, cancelled|
+        next unless workflow&.running?
+
+        stranded = cancelled.select { |step| cleanup_cancelled_and_interrupted?(step, workflow) }
+        next if stranded.empty?
+        next if workflow.runs.active.exists?
+
+        last_finished = workflow.runs.maximum(:finished_at)
+        next unless last_finished.nil? || older_than?(last_finished, ORPHAN_RUN_GRACE_PERIOD)
+
+        step = stranded.min_by { |candidate| [ candidate.position, candidate.id ] }
+        issue(
+          kind: :reopened_workflow_stranded_by_cleanup,
+          severity: :error,
+          affected_ids: ids_for(step),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "revive_cleanup_cancelled_step",
+          evidence: workflow_evidence(workflow).merge(
+            step_id: step.id,
+            step_kind: step.kind,
+            step_position: step.position,
+            stranded_step_ids: stranded.map(&:id)
+          ),
+          explanation: "Workflow ##{workflow.id} is running with nothing in flight, but Step ##{step.id} (#{step.kind}) " \
+                       "is still cancelled from the cleanup of its earlier failure."
+        )
+      end
+    end
+
+    def cleanup_cancelled_and_interrupted?(step, workflow)
+      details = step.details.to_h
+      details["cancelled_by"] == "terminal_workflow_cleanup" &&
+        details["cancelled_workflow_id"] == workflow.id &&
+        step.runs.none? { |run| run.queued? || run.running? || run.succeeded? }
+    end
+
     def classify_terminal_workflows_with_active_descendants
       workflows.select(&:terminal?).filter_map do |workflow|
-        active_step_ids = workflow.persisted_active_step_ids
+        # A failed Workflow's queued tail is kept for Retry-from-failed-step.
+        active_step_ids = workflow.stale_terminal_steps.pluck(:id)
         active_run_ids = workflow.runs.active.pluck(:id)
         next if active_step_ids.empty? && active_run_ids.empty?
 
@@ -1363,6 +1421,11 @@ module WorkEngine
       work_intents.select(&:waiting?).filter_map do |intent|
         active_unit_ids = active_work_unit_ids_for_intent(intent)
         next if active_unit_ids.empty?
+        # A wait whose gates still fail is justified even with an active unit:
+        # JobWakeup parks a dependent Job's intent on its dependency while the
+        # queued Workflow's unit exists. Clearing it would only be undone by the
+        # next wakeup, forever. Only a stale wait is abnormal.
+        next unless intent_gates_pass?(intent)
 
         issue(
           kind: :waiting_work_intent_with_active_unit,
@@ -1626,6 +1689,7 @@ module WorkEngine
       active_children_by_parent = work_units
         .select(&:active?)
         .select { |unit| unit.parent_work_unit&.terminal? }
+        .reject { |unit| validation_prefetch_of_landed_parent?(unit) }
         .group_by(&:parent_work_unit)
 
       active_children_by_parent.map do |parent, children|
@@ -1644,6 +1708,17 @@ module WorkEngine
           explanation: "Terminal WorkUnit ##{parent.id} still has active child WorkUnits; terminal parents cannot keep descendant runtime work alive."
         )
       end
+    end
+
+    # LandingValidationPrefetcher starts these to validate the NEXT landing on
+    # top of this landing's result, for LandingValidationCache to reuse; a
+    # parent that landed is exactly when they pay off, so they may outlive it.
+    # A failed or cancelled parent's base never landed, so its prefetches are
+    # still cancelled.
+    def validation_prefetch_of_landed_parent?(unit)
+      unit.parent_work_unit.succeeded? && unit.definition.landing_validation_child?
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def active_work_unit_ids_for_intent(intent, excluding: nil)
@@ -1987,7 +2062,9 @@ module WorkEngine
     def classify_superseded_active_runtime_work
       jobs.reject(&:closed?).flat_map do |job|
         active = active_runtime_workflows_for_job(job)
-        active = active.reject { |workflow| patient_rebase_waiting_for_active_workflow?(workflow) }
+        active = active.reject do |workflow|
+          patient_rebase_waiting_for_active_workflow?(workflow) || waiting_behind_job_lock?(workflow)
+        end
         next [] if active.size < 2
 
         keeper = active.last
@@ -2008,6 +2085,16 @@ module WorkEngine
           )
         end
       end
+    end
+
+    # ChatFeedback, Rebase and StackRebase materialize behind the Job lock and
+    # wait for it (WorkDefinitions#materialize_behind_active_lock?). Until such
+    # a Workflow starts it is queued work, not a second attempt; treating it as
+    # the "keeper" would cancel the running Workflow it is waiting for.
+    def waiting_behind_job_lock?(workflow)
+      workflow.queued? && workflow.work_definition.materialize_behind_active_lock?
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def patient_rebase_waiting_for_active_workflow?(workflow)
@@ -2922,14 +3009,18 @@ module WorkEngine
       end
     end
 
+    # Only a running Workflow: recover_missing_workspace acts on nothing else.
+    # A failed one awaiting retry used to be flagged too, and its repair was
+    # skipped on every pass; retrying it runs it again, and the running
+    # Workflow is then recovered here.
     def classify_workspace_availability
-      workflows.select { |workflow| workflow.running? || workflow.retry_available? }.filter_map do |workflow|
+      workflows.select(&:running?).filter_map do |workflow|
         next if workflow.job&.closed?
         next if WorkflowWorkspace.remote_owner_may_hold_workspace?(workflow)
 
         path = WorkflowWorkspace.path_for(workflow)
         next if File.directory?(path)
-        next unless workflow.live_descendants? || workflow.retry_available?
+        next unless workflow.live_descendants?
 
         issue(
           kind: :workspace_missing,
@@ -2988,6 +3079,14 @@ module WorkEngine
     def classify_retryable_failures
       runs.select(&:failed?).filter_map do |run|
         next if run.job&.closed?
+        # Every retry this issue can plan refuses an active Workflow, so while
+        # the Workflow is still queued or running (e.g. a grade loop handling
+        # its own failed graders) the plan could only ever be skipped.
+        next if run.workflow&.queued? || run.workflow&.running?
+        # A succeeded Workflow has nothing left to retry: its failed Steps are
+        # history (e.g. an earlier grade round), and every retry this issue can
+        # plan refuses a Workflow that is not failed.
+        next if run.workflow&.succeeded?
         next unless latest_workflow_run?(run) || repair_failure_still_needs_validation?(run)
         next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
@@ -3313,6 +3412,11 @@ module WorkEngine
         scheduled_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_scheduled", count: solid_queue_job_ids.size) do
           solid_queue_job_ids.empty? ? {} : SolidQueue::ScheduledExecution.where(job_id: solid_queue_job_ids).select(:job_id, :scheduled_at).index_by(&:job_id)
         end
+        # RunJob is concurrency-limited per Job: a second Run's job waits here
+        # until the semaphore frees, and SolidQueue's dispatcher promotes it.
+        blocked_job_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_blocked", count: solid_queue_job_ids.size) do
+          solid_queue_job_ids.empty? ? Set.new : SolidQueue::BlockedExecution.where(job_id: solid_queue_job_ids).pluck(:job_id).to_set
+        end
         running_root_run_ids = runs.select(&:running?).map(&:id).to_set
         parsed = PerformanceLogging.phase("work_engine.reconciler.solid_queue_parse") do
           jobs.filter_map do |job|
@@ -3335,6 +3439,7 @@ module WorkEngine
               process_id: claim&.process_id,
               scheduled: scheduled.present?,
               scheduled_at: scheduled&.scheduled_at,
+              blocked: blocked_job_ids.include?(job.id),
               failed: failed_job_ids.include?(job.id),
               error: nil
             }
@@ -3439,6 +3544,7 @@ module WorkEngine
     def queue_job_can_progress?(sq)
       return false if sq[:failed]
       return true if sq[:scheduled] && !dead_worker_queue?(sq[:queue_name])
+      return true if sq[:blocked] && !dead_worker_queue?(sq[:queue_name])
       return true if sq[:ready] && !sq[:claimed] && !dead_worker_queue?(sq[:queue_name])
       return false if wedged_queue_claim?(sq)
       return true if sq[:claimed] && solid_queue_process_live?(sq[:process_id])
@@ -3451,13 +3557,13 @@ module WorkEngine
     end
 
     # An unfinished SolidQueue job carrying no execution row at all -- not
-    # ready, not claimed, not scheduled, not failed -- is invisible to every
+    # ready, not claimed, not scheduled, not blocked, not failed -- is invisible to every
     # worker. Nothing will claim it and nothing will mark it failed, so unlike
     # a stalled claim it is not slow, it is unreachable, and the Run behind it
     # waits forever. Seen in production on two Runs whose jobs had lost their
     # ready rows, one of them queued for twelve and a half hours.
     def orphaned_queue_job?(sq)
-      !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:failed]
+      !sq[:ready] && !sq[:claimed] && !sq[:scheduled] && !sq[:blocked] && !sq[:failed]
     end
 
     def host_admission_deferral_budget_exhausted?(run)
@@ -3557,6 +3663,7 @@ module WorkEngine
         .select(&:failed?)
         .reject(&:superseded_retry_until_failure?)
         .reject(&:superseded_try_branch_failure?)
+        .reject(&:superseded_by_later_loop_iteration?)
       return nil if failed_steps.empty?
       return nil if workflow.live_descendants?
 
@@ -3583,20 +3690,14 @@ module WorkEngine
 
     def step_needs_terminal_run_reconciliation?(step)
       return false unless step&.running? || (step&.queued? && step.workflow&.running?)
-      return false if pending_worker_died_step_retry?(step)
+      return false if pending_in_place_step_retry?(step)
 
       step_runs = runs.select { |run| run.step_id == step.id }
       step_runs.any? && step_runs.all?(&:terminal?)
     end
 
-    def pending_worker_died_step_retry?(step)
-      return false unless step
-
-      AutoRetryAttempt.pending.where(
-        run_id: step.runs.select(:id),
-        retry_kind: "failed_step",
-        failure_classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
-      ).exists?
+    def pending_in_place_step_retry?(step)
+      AutoRetryAttempt.pending_in_place_step_retry_for?(step)
     end
 
     def review_gate_for_step(step)
@@ -3648,7 +3749,19 @@ module WorkEngine
         "stack_dependencies_not_ready"
       ]) &&
         !start_blocked_check_due?(workflow) &&
-        workflow.job.dependencies_satisfied_for_execution?
+        stack_ready_for_start?(workflow)
+    end
+
+    # The dispatcher sets stack blocks from JobStackResolver, which can still
+    # say "not ready" after dependencies are satisfied for execution (a
+    # same-Epic parent approved without a branch to stack on). Judging the block
+    # from dependencies alone made the reconciler start a Workflow the
+    # dispatcher kept refusing. Resolved without a Workflow, so a fan-in stack
+    # never builds a prepared base here; it reads as not ready yet.
+    def stack_ready_for_start?(workflow)
+      return false unless workflow.job.dependencies_satisfied_for_execution?
+
+      JobStackResolver.new(workflow.job).resolve!(apply: false).ready?
     end
 
     # Work that is deliberately waiting its turn behind other work -- an Epic
@@ -3691,7 +3804,7 @@ module WorkEngine
       when StepDispatcher::STACK_BLOCK_REASON,
         StepDispatcher::WITHDRAWN_APPROVAL_BLOCK_REASON,
         "stack_dependencies_not_ready"
-        !workflow.job.dependencies_satisfied_for_execution?
+        !stack_ready_for_start?(workflow)
       when StepDispatcher::DEPENDENCY_FAILED_BLOCK_REASON, "dependency_failed"
         workflow.job.dependencies_failed_for_execution?
       when StepDispatcher::JOB_BLOCK_REASON, "job_not_ready_for_execution"
@@ -3700,6 +3813,8 @@ module WorkEngine
         StepDispatcher.urgent_blocking?(workflow)
       when StepDispatcher::EPIC_WIDE_BLOCK_REASON, "epic_wide_workflow_active"
         active_epic_wide_workflow_for_job?(workflow.job)
+      when StepDispatcher::EPIC_MEMBER_WORK_BLOCK_REASON
+        EpicWorkflowLock.running_member_workflow_for(workflow).present?
       when StepDispatcher::EPIC_SIBLING_BLOCK_REASON, "epic_sibling_implementation_active"
         StepDispatcher.epic_sibling_blocking?(workflow)
       else
@@ -3947,8 +4062,7 @@ module WorkEngine
       @active_runtime_work_for_job ||= {}
       return @active_runtime_work_for_job[job.id] if @active_runtime_work_for_job.key?(job.id)
 
-      WorkUnits::TerminalWorkflowSync.for_job(job) if execute_repairs?
-      job.reload
+      job.reload if execute_repairs? && WorkUnits::TerminalWorkflowSync.for_job(job)
       @active_runtime_work_for_job[job.id] = job.any_active_run? || WorkUnits::Ownership.active_for_job?(job)
     end
 

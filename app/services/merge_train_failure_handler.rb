@@ -298,7 +298,14 @@ class MergeTrainFailureHandler
   def schedule_preserved_train_relaunch!(train)
     failed_step = RetryFailedStepEnqueuer.failed_step_for(@workflow)
     return refuse_preservation("no failed step to resume") unless failed_step
-    return refuse_preservation("the workflow workspace is already cleaned up") unless @workflow.retry_available?
+    # Not `retry_available?`: this runs from the workflow's after_fail hook,
+    # which AASM calls before the `failed` state is applied, so that predicate
+    # was always false here. Every preservation was refused as "workspace
+    # already cleaned up" while the workspace was intact, and a fully graded
+    # train with four rounds of landing fixes was torn down and rebuilt from
+    # its members. Check what the relaunch actually needs.
+    return refuse_preservation("the workflow workspace is already cleaned up") unless @workflow.cleaned_up_at.nil?
+    return refuse_preservation("a newer workflow superseded this one") unless @workflow.latest_for_job?
 
     # The generic reconciler path writes AutoRetryAttempts for this workflow
     # too (that is also how the ladder counts attempts). A pending one already

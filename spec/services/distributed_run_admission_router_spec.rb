@@ -75,6 +75,25 @@ RSpec.describe DistributedRunAdmissionRouter do
     worker(hostname, nil).tap { |payload| payload.delete("worker_storage_key") }
   end
 
+  # Production hosts run one SolidQueue process per queue group, so the
+  # process consuming the Run's queue never also listens on the host's
+  # dispatch queue. Requiring one process to do both found no alternative,
+  # ever, and a refused shard waited on the host that refused it.
+  it "reroutes to a host whose eligible process and dispatch-queue process are separate" do
+    resolver_with(
+      { "hostname" => "worker-b", "worker_storage_key" => "storage-b", "queues" => %w[merges merges-linux-amd64], "eligible" => true },
+      { "hostname" => "worker-b", "worker_storage_key" => "storage-b", "queues" => [ "worker-worker-b" ], "eligible" => false },
+      { "hostname" => "worker-b", "worker_storage_key" => "storage-b", "queues" => [ "resume-storage-b" ], "eligible" => false }
+    )
+    sample("worker-b")
+    dispatch_depths({})
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).to be_reroute
+    expect(decision.queue_name).to eq("worker-worker-b")
+  end
+
   it "reroutes to a worker that has not reported a storage key" do
     resolver_with(anonymous_worker("worker-b"))
     sample("worker-b")
@@ -219,5 +238,22 @@ RSpec.describe DistributedRunAdmissionRouter do
       "excluded_workers" => [],
       "completed_exclusion_cycle" => contain_exactly("worker-a", "worker-b")
     )
+  end
+
+  describe "committed load" do
+    it "counts a distributed grader where its process runs, not on its workflow's home host" do
+      workflow.update!(worker_hostname: "worker-a")
+      sibling = Step.create!(
+        workflow: workflow, kind: "grader", position: 11, state: "running",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, details: { "name" => "rspec-2" }
+      )
+      sibling_run = sibling.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+      sibling_run.spawned_processes.create!(workflow: workflow, kind: "grader", command: "bin/rspec",
+                                            hostname: "worker-b", started_at: 1.minute.ago)
+      router = described_class.new(run: run, admission: admission)
+
+      expect(router.send(:active_compute_runs, "worker-a")).to eq(0)
+      expect(router.send(:active_compute_runs, "worker-b")).to eq(1)
+    end
   end
 end

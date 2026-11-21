@@ -101,7 +101,7 @@ module CredentialStore
         target_constraints: credential.target_constraints || {},
         allowed_surfaces: credential.allowed_surfaces || [],
         allowed_tools: credential.allowed_tools || [],
-        effective_typed_consumers: ConsumerRegistry.typed_for(credential.credential_type).map(&:name),
+        effective_typed_consumers: typed_consumer_names(credential.credential_type),
         explicit_wrapper_grants: explicit_wrapper_grants(credential),
         expires_at: credential.expires_at&.iso8601,
         last_rotated_at: credential.last_rotated_at&.iso8601,
@@ -111,8 +111,18 @@ module CredentialStore
     end
 
     def explicit_wrapper_grants(credential)
-      compatible = ConsumerRegistry.raw_wrappers_for(credential.credential_type).map(&:name)
+      compatible = raw_wrapper_names(credential.credential_type)
       Array(credential.allowed_tools) & compatible
+    end
+
+    def typed_consumer_names(credential_type)
+      @typed_consumer_names ||= {}
+      @typed_consumer_names[credential_type] ||= ConsumerRegistry.typed_for(credential_type).map(&:name)
+    end
+
+    def raw_wrapper_names(credential_type)
+      @raw_wrapper_names ||= {}
+      @raw_wrapper_names[credential_type] ||= ConsumerRegistry.raw_wrappers_for(credential_type).map(&:name)
     end
   end
 end

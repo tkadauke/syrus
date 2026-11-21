@@ -602,6 +602,9 @@ RSpec.describe ChatPendingAction, :ci_only do
 
     workflow.update_columns(state: "failed", finished_at: Time.current)
     step.update_columns(state: "failed", finished_at: Time.current)
+    # A failed Step's Runs are terminal; retry refuses a Step that still has
+    # an active Run (it would become the Step's second one).
+    step.runs.update_all(state: "failed", finished_at: Time.current)
 
     retry_action = admin_session.pending_actions.create!(
       action: "admin_retry_step",

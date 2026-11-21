@@ -1,0 +1,6 @@
+name = "syrus_model"
+version = "0.1.0"
+defaultTargets = ["SyrusModel"]
+
+[[lean_lib]]
+name = "SyrusModel"

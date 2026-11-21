@@ -108,8 +108,17 @@ RSpec.describe "Syrus grader configuration" do
   it "gives every CI-mode RSpec shard enough time to finish its serial examples" do
     shards = RepoGradePlan.for(Rails.root).graders.select { |entry| entry.name.start_with?("rspec-ci-") }
 
-    expect(shards.map(&:name)).to eq(%w[rspec-ci-1-of-4 rspec-ci-2-of-4 rspec-ci-3-of-4 rspec-ci-4-of-4])
+    expect(shards.map(&:name)).to eq(%w[rspec-ci-1-of-4 rspec-ci-2-of-4 rspec-ci-3-of-4 rspec-ci-4-of-4 rspec-ci-serial])
     shards.each { |grader| expect(grader).to have_attributes(phases: [ "ci" ], timeout_minutes: 150) }
+  end
+
+  it "selects the core RSpec suite for plugin boot-time Ruby but not plugin app code" do
+    rspec = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse.grade.steps.find { |step| step.name == "rspec" }
+
+    expect(RepositoryContent::Glob.match?(rspec.when_files_changed, "plugins/scheduled_tasks/lib/scheduled_tasks/filter_extension.rb")).to be(true)
+    expect(RepositoryContent::Glob.match?(rspec.when_files_changed, "plugins/scheduled_tasks/config/routes.rb")).to be(true)
+    expect(RepositoryContent::Glob.match?(rspec.when_files_changed, "plugins/scheduled_tasks/app/services/scheduled_tasks/runner.rb")).to be(false)
+    expect(RepositoryContent::Glob.match?(rspec.when_files_changed, "plugins/scheduled_tasks/app/frontend/routes/Calendar.tsx")).to be(false)
   end
 
   it "gives coverage-enabled CI React tests enough time to finish" do
@@ -441,8 +450,11 @@ RSpec.describe "Syrus grader configuration" do
       website/src/content/docs/generated/**/*.md
       docs/metrics-catalog.md
     ]
-    expect(rspec.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb] + catalog_scope)
-    expect(rspec_focused.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb] + catalog_scope)
+    # Plugin boot-time Ruby registers into core registries the suite asserts.
+    plugin_boot_scope = %w[plugins/*/lib/**/*.rb plugins/*/config/**/*.rb]
+    core_scope = %w[app/**/*.rb lib/**/*.rb spec/**/*.rb] + plugin_boot_scope + catalog_scope
+    expect(rspec.when_files_changed).to eq(core_scope)
+    expect(rspec_focused.when_files_changed).to eq(core_scope)
     expect(grader.when_files_changed).to eq([
       "app/frontend/**/*.js",
       "app/frontend/**/*.jsx",
@@ -556,6 +568,8 @@ RSpec.describe "Syrus grader configuration" do
       if go_dir
         expect(go_tests).not_to be_nil
         expect(go_tests.command).to include("cd plugins/#{project.id}/#{go_dir} && ")
+        expect(go_tests.command).to include("go test ./...")
+        expect(go_tests.command).to include("{ go list ./... >/dev/null 2>&1 || export GOWORK=off; }")
         expect(go_tests.command).to end_with("go test ./...'")
         expect(go_tests.source_scope).to include(
           "plugins/#{project.id}/#{go_dir}/**/*.go",

@@ -272,6 +272,40 @@ RSpec.describe AgentInsights::RunStep do
         expect(prompt).not_to include(jobs[0].slug)
       end
 
+      # Regression: every workflow's steps (grader output in `details`) and
+      # runs (full prompts) were loaded for each candidate job; a hundred jobs
+      # of merge trains ran an insight past its pod's memory limit within a
+      # minute. Only the latest workflow is summarised, by step kind and run
+      # id/state, so that is all that is loaded.
+      it "loads only the latest workflow's step kinds and run states" do
+        recent = completed_job(kind: "direct", issue_number: nil, issue_title: "Two attempts",
+          completed_at: Time.utc(2026, 7, 22, 9, 0, 0), step_kind: "grader")
+        recent.update_columns(state: "queued")
+        older = Workflow.create!(job: recent, trigger_kind: "retry")
+        older.steps.create!(kind: "grader", position: 0, details: { "output" => "x" * 1000 })
+        older.update_columns(state: "failed", created_at: Time.utc(2026, 7, 20), finished_at: Time.utc(2026, 7, 20, 1))
+        recent.update_columns(state: "closed")
+        recent.reload
+        loaded_steps = []
+        allow(::Step).to receive(:where).and_wrap_original do |original, *args, **kwargs|
+          original.call(*args, **kwargs).tap { |relation| loaded_steps << kwargs[:workflow_id] if kwargs.key?(:workflow_id) }
+        end
+        statements = []
+        subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+
+        begin
+          handler.call
+        ensure
+          ActiveSupport::Notifications.unsubscribe(subscriber)
+        end
+
+        expect(loaded_steps.flatten).to eq([ recent.latest_workflow.id ])
+        history_reads = statements.grep(/FROM ["`](steps|runs)["`] WHERE ["`](steps|runs)["`]\.["`](workflow_id|step_id)["`] (IN|=)/i)
+        expect(history_reads).to be_present
+        expect(history_reads).to all(satisfy { |sql| !sql.match?(/SELECT ["`](steps|runs)["`]\.\*/i) })
+        expect(run.reload.prompt).to include("RUN-#{recent.latest_workflow.steps.first.runs.first.id} grader/succeeded")
+      end
+
       it "includes workflow and run identifiers for evidence lookup" do
         direct = completed_job(
           kind: "direct",

@@ -5,6 +5,7 @@ module LandingFailureCode
   MERGE_TRAIN_REBUILD_REQUIRED = "merge_train_rebuild_required".freeze
   LANDING_START_BLOCKED = "landing_start_blocked".freeze
   ATTRIBUTABLE_FAILURE = "attributable_failure".freeze
+  NO_CAPABLE_WORKER = "no_capable_worker".freeze
 
   class Base
     def self.code(value = nil)
@@ -20,6 +21,7 @@ module LandingFailureCode
     def landing_start_blocker? = false
     def merge_train_rebuild_required? = false
     def attributable_failure? = false
+    def capability_hold? = false
   end
 
   class InfrastructureBlocker < Base
@@ -57,6 +59,19 @@ module LandingFailureCode
     def landing_start_blocker? = true
   end
 
+  # A landing step could not be placed on any live worker. The landing fails
+  # rather than parking in flight (which would surrender the landing slot
+  # while still mid-landing), keeps its approval, and is held -- not
+  # re-launched -- until a worker with the recorded capabilities is live
+  # (LandingCapabilityHold). The hold replaces the time-based train cooldown.
+  class NoCapableWorker < Base
+    code NO_CAPABLE_WORKER
+
+    def defer_landing? = true
+    def skip_merge_train_cooldown? = true
+    def capability_hold? = true
+  end
+
   class AttributableFailure < Base
     code ATTRIBUTABLE_FAILURE
 
@@ -69,6 +84,7 @@ module LandingFailureCode
     RebaseCapReached,
     MergeTrainRebuildRequired,
     LandingStartBlocked,
+    NoCapableWorker,
     AttributableFailure
   ].freeze
   BY_CODE = CLASSES.index_by(&:code).freeze
@@ -106,6 +122,7 @@ module LandingFailureCode
   # new callers should pass/read that code instead of depending on prose.
   def legacy_from_reason(reason)
     text = reason.to_s
+    return resolve(NO_CAPABLE_WORKER) if text.start_with?(NO_CAPABLE_WORKER)
     return resolve(MERGE_TRAIN_REBUILD_REQUIRED) if LandingFailureHandler.merge_train_rebuild_required?(text)
     return resolve(LANDING_START_BLOCKED) if LandingQueueReentry.legacy_landing_start_blocker_reason?(text)
     return resolve(INFRASTRUCTURE_BLOCKER) if LandingFailureHandler.infrastructure_blocker?(text)

@@ -17,6 +17,7 @@ RSpec.describe "bin/compose-up" do
         syrus_require_docker_daemon() { return 0; }
         syrus_disable_buildx_attestations() { :; }
         syrus_build_local_base_image() { :; }
+        syrus_git_version_metadata() { printf '%s\n%s\n' v0.0.0 test; }
       BASH
 
       stub_dir = File.join(dir, "stubs")

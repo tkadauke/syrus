@@ -56,6 +56,7 @@ class ChatPendingAction < ApplicationRecord
     reconcile_job_state
     force_state_transition
     cancel_stale_work
+    reset_job
     reenqueue_work
     repair_queue_affinity
     force_landing_recheck
@@ -125,6 +126,7 @@ class ChatPendingAction < ApplicationRecord
     reconcile_job_state
     force_state_transition
     cancel_stale_work
+    reset_job
     reenqueue_work
     repair_queue_affinity
     rerun_ci_repair
@@ -693,6 +695,21 @@ class ChatPendingAction < ApplicationRecord
     end
 
     pending_action
+  end
+
+  def self.anchor_recent_to_tool_call!(chat_session:, pending_action_id:, tool_use_id:)
+    return if pending_action_id.blank? || tool_use_id.blank?
+
+    pending_action = chat_session.pending_actions
+      .where(created_at: TOOL_CALL_ANCHOR_REPAIR_MAX_AGE.ago..)
+      .find_by(id: pending_action_id)
+    return unless pending_action
+
+    anchor_to_tool_call!(
+      chat_session: chat_session,
+      pending_action_id: pending_action.id,
+      tool_use_id: tool_use_id
+    )
   end
 
   def self.pending_action_id_from_tool_result(tool_result_content)

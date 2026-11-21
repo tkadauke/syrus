@@ -61,7 +61,7 @@ module Permissions
         read_file list_files git_diff git_status
       ]).uniq.freeze,
       workflow: (WORKFLOW_OUTPUT + RUN_OBSERVATION + %w[
-        propose_job list_jobs search_jobs read_pr list_open_prs list_open_issues list_artifacts
+        propose_job list_jobs search_jobs read_pr list_ci_checks read_ci_log list_open_prs list_open_issues list_artifacts
         start_preview stop_preview run_target_prepare
       ]).uniq.freeze,
       agent_insight: %w[read_live_state read_run_worker_health].freeze,
@@ -81,7 +81,7 @@ module Permissions
       material_control: %w[
         approve_job unapprove_job close_job_successfully archive_epic move_epic_to_backlog
         update_job update_epic set_job_priority assign_job_to_epic remove_job_from_epic
-        add_epic_dependency remove_epic_dependency add_job_dependency remove_job_dependency
+        add_epic_dependency remove_epic_dependency add_job_dependency remove_job_dependency replace_job_dependency
         select_job_delivery_track mark_ci_repair_noop repair_provider_circuit_evidence
         retire_terminal_work_unit create_coding_job
       ],

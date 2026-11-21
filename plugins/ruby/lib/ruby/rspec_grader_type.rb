@@ -57,7 +57,7 @@ module Ruby
       count = ci_shard_count
       return [ grade_step(name: ci_name, run: ci_command(coverage: coverage), phases: ci_phases, mode: "ci", junit_output: junit_output(ci_name), when_files_changed: configured_scope, coverage: coverage) ] if count <= 1
 
-      (1..count).map do |index|
+      shards = (1..count).map do |index|
         grade_step(
           name: ci_shard_name(index, count),
           run: ci_command(coverage: false, shard: [ index, count ]),
@@ -66,6 +66,36 @@ module Ruby
           shard: { "index" => index, "count" => count }
         )
       end
+      return shards unless serial_shard?
+
+      # The serial paths otherwise ran after the last shard's parallel pass,
+      # making that shard the long pole of every grading round (about twice
+      # the others). As a grader of its own they run beside the shards.
+      shards + [
+        grade_step(
+          name: "#{ci_name}-serial",
+          run: ci_serial_command,
+          phases: ci_phases, mode: "ci", junit_output: extra_junit_output(ci_name, "serial"),
+          when_files_changed: configured_scope, coverage: false,
+          # Without a suffix it read as the unsharded suite running beside
+          # its own shards.
+          label_suffix: "serial"
+        )
+      ]
+    end
+
+    def serial_shard?
+      parallel_config["serial_shard"] == true
+    end
+
+    def ci_serial_command
+      serial_rspec_command(
+        junit_output: extra_junit_output(ci_name, "serial"),
+        json_output: extra_json_output(ci_name, "serial"),
+        coverage: false,
+        env: { "RUN_CI_ONLY_SPECS" => "true" },
+        args: [ *combined_ci_tag_args, *parallel_serial_paths ]
+      )
     end
 
     def ci_shard_name(index, count)
@@ -368,8 +398,9 @@ module Ruby
         exclude_paths: serial_paths,
         pre_command: shard_files_command(index, count, serial_paths),
         guard_empty_shard: true,
-        # The serial paths run once, in the last shard.
-        extra_serial: index == count ? serial : nil
+        # The serial paths run once: in a grader of their own with
+        # `serial_shard`, otherwise in the last shard.
+        extra_serial: index == count && !serial_shard? ? serial : nil
       )
     end
 
@@ -431,6 +462,25 @@ module Ruby
       Array(raw).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
     end
 
+    # Specs that guard repository-wide invariants -- architecture rules,
+    # documentation audiences, i18n debt -- fail on changes that no
+    # changed-file selection maps to them. Left to the CI suite, they surfaced
+    # first on merge trains, where each miss cost a failed grading round and a
+    # landing-fix agent while the landing slot was held.
+    def focused_always_include
+      Array(config["focused_always_include"]).map(&:to_s).map(&:strip).reject(&:empty?).map { |path| project_relative(path) }
+    end
+
+    def focused_always_include_snippet
+      return ":;" if focused_always_include.empty?
+
+      appends = focused_always_include.map do |path|
+        escaped = Shellwords.escape(path)
+        "if [ -e #{escaped} ]; then echo #{escaped} >> .syrus/rspec-focused-files; fi;"
+      end
+      "#{appends.join(' ')} sort -u -o .syrus/rspec-focused-files .syrus/rspec-focused-files;"
+    end
+
     def focused_command(coverage:)
       fallback_command = rspec_command(
         mode: "focused",
@@ -456,12 +506,19 @@ module Ruby
           echo "No changed Ruby files matched this RSpec grader's scope; skipping";
           : > .syrus/rspec-focused-files;
         elif grep -qx '__SYRUS_NO_FOCUSED_SPECS__' .syrus/rspec-focused-files; then
-          echo "No RSpec files cover the changed Ruby files; skipping the focused run (the full RSpec graders cover it before landing)";
           : > .syrus/rspec-focused-files;
+          #{focused_always_include_snippet}
+          if [ -s .syrus/rspec-focused-files ]; then
+            echo "No RSpec files cover the changed Ruby files; running only the always-included specs";
+            #{focused_rspec_command}
+          else
+            echo "No RSpec files cover the changed Ruby files; skipping the focused run (the full RSpec graders cover it before landing)";
+          fi
         elif [ ! -s .syrus/rspec-focused-files ]; then
           echo "No focused RSpec files matched changed Ruby files; falling back to full RSpec suite";
           #{fallback_command}
         else
+          #{focused_always_include_snippet}
           #{focused_rspec_command}
         fi
       BASH
@@ -1019,10 +1076,11 @@ module Ruby
       RUBY
     end
 
-    def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil, shard: nil)
+    def grade_step(name:, run:, phases:, mode:, junit_output:, coverage:, when_files_changed: nil, shard: nil, label_suffix: nil)
+      suffix = label_suffix || (shard && "#{shard['index']}/#{shard['count']}")
       SyrusYml::GradeStep.new(
         name: name,
-        display_name: shard ? "#{display_name_for(mode)} #{shard['index']}/#{shard['count']}" : display_name_for(mode),
+        display_name: [ display_name_for(mode), suffix ].compact.join(" "),
         run: run,
         ci: nil,
         phases: phases,

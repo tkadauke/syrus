@@ -8,6 +8,7 @@
   "share_people": "Communicare",
   "mention_add_to_chat": "Ad colloquium adde",
   "unable_to_create_side_chat": "Colloquium creari non potuit.",
+  "unable_to_load_chats": "Colloquia onerari non potuerunt.",
   "mention_add_error": "Hic collega colloquio addi non potuit.",
   "agent_roster": "Agentes in hoc colloquio",
   "after_reply_for": "Postquam {{name}} respondet",
@@ -1608,6 +1609,7 @@
   "authorization_state_cancelled": "Revocatum",
   "authorization_state_non_actionable": "Non praesto",
   "pending_action_failed": "Actio pendens defecit.",
+  "pending_action_queued_hint": "Confirmari poterit cum Opus cursum praesentem perfecerit aut impeditum fuerit.",
   "pending_action_hide_terminal": "Actionem perfectam cela",
   "batch_action_failed": "Actio fasciculi defecit.",
   "scratchpad_add_error": "Res addi non potuit.",
@@ -3361,5 +3363,9 @@
   "tool_card_repository_list_incomplete_summary": "Index imperfectus · {{count}} viae",
   "tool_card_repository_list_complete_summary": "Index perfectus · {{count}} viae",
   "tool_card_repository_list_incomplete": "Index fasciculorum imperfectus est",
-  "tool_card_repository_list_coverage": "{{returned}} ex {{candidates}} viis redditae"
+  "tool_card_repository_list_coverage": "{{returned}} ex {{candidates}} viis redditae",
+  "tool_card_reset_job": "Job restitue",
+  "tool_card_reset_requested": "Restitutio petita",
+  "tool_card_replace_job_dependency": "Dependentiam Job substitue",
+  "tool_card_dependency_replaced": "Dependentia substituta"
 }

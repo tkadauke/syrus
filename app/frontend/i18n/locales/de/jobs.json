@@ -630,6 +630,7 @@
   "source_error": "Quellbrowser konnte nicht geladen werden.",
   "source_diff_loading": "Diff wird geladen...",
   "source_diff_error": "Diff konnte nicht geladen werden.",
+  "review_step_diff_fallback_notice": "Ein Schritt-Diff wird angezeigt; der vollständige PR-Diff ist nicht verfügbar",
   "source_diff_stale_ref_error": "Dieser Live-Vergleich kann nicht geladen werden, weil {{ref}} nicht mehr auflösbar ist. Wähle stattdessen den gespeicherten Versions-Snapshot.",
   "source_diff_single_file": "Einzeldatei",
   "source_diff_continuous": "Fortlaufend",
@@ -1087,5 +1088,14 @@
   "visual_evidence_unknown_page": "Erfasste Seite",
   "visual_evidence_unknown_viewport": "unbekannter Viewport",
   "visual_evidence_metadata": "Aufnahme {{sequence}} · {{viewport}} · {{timestamp}}",
-  "visual_evidence_submission_failed": "Einreichen fehlgeschlagen; Aufnahme wurde aufbewahrt"
+  "visual_evidence_submission_failed": "Einreichen fehlgeschlagen; Aufnahme wurde aufbewahrt",
+  "reset_job": "Job zurücksetzen",
+  "confirm_reset_job": "Beim Zurücksetzen dieses Jobs wird Folgendes passieren:",
+  "confirm_reset_job_kept": "Der Job startet auf der aktuellen Basis von vorn. Job-ID, Epic-Zugehörigkeit, Abhängigkeiten und Verlauf bleiben erhalten.",
+  "reset_job_pr": "Pull Request #{{number}} schließen",
+  "reset_job_branch": "Branch {{branch}} löschen",
+  "reset_job_checkpoints_one": "{{count}} Checkpoint löschen",
+  "reset_job_checkpoints_other": "{{count}} Checkpoints löschen",
+  "reset_job_workflows_one": "{{count}} aktiven Workflow abbrechen",
+  "reset_job_workflows_other": "{{count}} aktive Workflows abbrechen"
 }

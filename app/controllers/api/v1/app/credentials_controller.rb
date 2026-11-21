@@ -2,6 +2,7 @@ module Api
   module V1
     module App
       class CredentialsController < BaseController
+        include ProviderAccountSerialization
         include ProviderRoutingRuleSerialization
 
         # Classic PATs expose OAuth scopes in response headers. Fine-grained
@@ -112,7 +113,10 @@ module Api
           session[:claude_oauth] = {
             "verifier" => flow.verifier,
             "state" => flow.state,
-            "redirect_uri" => flow.redirect_uri
+            "redirect_uri" => flow.redirect_uri,
+            "provider_account" => ActiveModel::Type::Boolean.new.cast(params[:provider_account]),
+            "provider_account_id" => params[:provider_account_id].presence,
+            "label" => params[:label].presence
           }
           render json: { authorize_url: flow.authorize_url }
         end
@@ -129,6 +133,16 @@ module Api
           oauth = claude_oauth!
 
           if oauth.looks_like_token?(pasted)
+            if provider_account_oauth_requested?(params)
+              account = save_oauth_provider_account!(
+                provider_key: "claude",
+                authentication_kind: "claude_oauth_token",
+                credential_payload: { "claude_oauth_token" => pasted.strip },
+                target: params
+              )
+              session.delete(:claude_oauth)
+              return render_oauth_provider_account(account)
+            end
             Current.user.update!(claude_oauth_token: pasted.strip)
             refresh_affected_provider_availability(Current.user.saved_changes.keys)
             session.delete(:claude_oauth)
@@ -150,6 +164,16 @@ module Api
             state: stash["state"],
             redirect_uri: stash["redirect_uri"]
           )
+          if provider_account_oauth_requested?(stash)
+            account = save_oauth_provider_account!(
+              provider_key: "claude",
+              authentication_kind: "claude_oauth_token",
+              credential_payload: { "claude_oauth_token" => token },
+              target: stash
+            )
+            session.delete(:claude_oauth)
+            return render_oauth_provider_account(account)
+          end
           Current.user.update!(claude_oauth_token: token)
           refresh_affected_provider_availability(Current.user.saved_changes.keys)
           session.delete(:claude_oauth)
@@ -169,7 +193,10 @@ module Api
           session[:codex_oauth] = {
             "verifier" => flow.verifier,
             "state" => flow.state,
-            "redirect_uri" => flow.redirect_uri
+            "redirect_uri" => flow.redirect_uri,
+            "provider_account" => ActiveModel::Type::Boolean.new.cast(params[:provider_account]),
+            "provider_account_id" => params[:provider_account_id].presence,
+            "label" => params[:label].presence
           }
           listener_started = oauth.start_callback_listener(user: Current.user)
           render json: { authorize_url: flow.authorize_url, listener_started: listener_started }
@@ -191,6 +218,16 @@ module Api
             state: stash["state"],
             redirect_uri: stash["redirect_uri"]
           )
+          if provider_account_oauth_requested?(stash)
+            account = save_oauth_provider_account!(
+              provider_key: "codex",
+              authentication_kind: "chatgpt_login",
+              credential_payload: { "codex_auth_mode" => "chatgpt_login", "codex_auth_json" => auth_json },
+              target: stash
+            )
+            session.delete(:codex_oauth)
+            return render_oauth_provider_account(account)
+          end
           Current.user.update!(codex_auth_mode: "chatgpt_login", codex_auth_json: auth_json)
           refresh_affected_provider_availability(Current.user.saved_changes.keys)
           session.delete(:codex_oauth)
@@ -249,7 +286,7 @@ module Api
           ProviderAvailabilityWakeup.call(provider: provider, user: Current.user)
           render json: {
             provider: provider,
-            availability: ::App::ProviderAvailability.for_user(Current.user.reload, provider, cached: false),
+            availability: ::App::ProviderAvailability.for_user(Current.user.reload, provider, cached: false, resolve_default_account: false),
             message: result&.message.presence || I18n.t("api.credentials.availability_rechecked", provider: provider.titleize)
           }
         end
@@ -271,6 +308,37 @@ module Api
 
         private
 
+        def provider_account_oauth_requested?(target)
+          target[:provider_account_id].present? || target["provider_account_id"].present? ||
+            target[:label].present? || target["label"].present? ||
+            ActiveModel::Type::Boolean.new.cast(target[:provider_account] || target["provider_account"])
+        end
+
+        def save_oauth_provider_account!(provider_key:, authentication_kind:, credential_payload:, target:)
+          public_id = target[:provider_account_id].presence || target["provider_account_id"].presence
+          account = if public_id
+            Current.user.provider_accounts.find_by!(public_id: public_id, provider_key: provider_key)
+          else
+            position = (Current.user.provider_accounts.where(provider_key: provider_key).maximum(:position) || -1) + 1
+            Current.user.provider_accounts.build(provider_key: provider_key, position: position)
+          end
+          account.label = target[:label].presence || target["label"].presence if account.new_record?
+          account.authentication_kind = authentication_kind
+          account.credential_payload = credential_payload
+          account.save!
+          account
+        end
+
+        def render_oauth_provider_account(account)
+          result = AgentProviders.for(account.provider_key).refresh_usage!(user: Current.user, provider_account: account, force: true)
+          availability = ::App::ProviderAvailability.for_user(Current.user, account.provider_key, provider_account: account, cached: false)
+          render json: {
+            provider_account: provider_account_json(account, availability: availability),
+            credential_test: { credential: account.authentication_kind, ok: true, message: result.try(:message) || availability&.dig(:message), details: {} },
+            message: result.try(:message) || availability&.dig(:message)
+          }
+        end
+
         def credentials_payload(user)
           credential_state_payload(user).merge(
             github_rate_limit: github_rate_limit_json(user),
@@ -281,7 +349,8 @@ module Api
         def credential_state_payload(user)
           {
             user: user_json(user),
-            credential_status: credential_status_json(user)
+            credential_status: credential_status_json(user),
+            provider_accounts: provider_accounts_json(user.provider_accounts.in_position_order)
           }
         end
 
@@ -385,6 +454,9 @@ module Api
             agent_providers: User.agent_providers,
             agent_provider_labels: User.agent_providers.to_h do |provider|
               [ provider, ::App::Presentation.agent_provider_label(provider) ]
+            end,
+            provider_account_credential_attributes: User.agent_providers.to_h do |provider|
+              [ provider, AgentProviders.for(provider).credential_attributes.map(&:to_s) ]
             end,
             chat_providers: User.chat_providers.select { |provider| user.chat_provider_configured?(provider) },
             chat_provider_labels: User.chat_providers.to_h do |provider|

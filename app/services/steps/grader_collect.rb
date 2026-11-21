@@ -34,9 +34,11 @@ module Steps
       database_capacity
       database_lock
       disk_full
+      git_transport_transient
       grader_cancelled
       silent_timed_out
       timed_out
+      timeout
       worker_died
       worker_died_under_resource_pressure
     ].freeze

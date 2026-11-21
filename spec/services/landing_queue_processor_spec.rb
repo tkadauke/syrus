@@ -127,6 +127,26 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(entry.blocked_reason).to eq({ key: "waiting_epic_merge_train" })
   end
 
+  it "does not re-launch a landing held for a capable worker until one is live" do
+    held = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+    held.update!(landing_failure_code: LandingFailureCode::NO_CAPABLE_WORKER, landing_failure_reason: "#{LandingFailureCode::NO_CAPABLE_WORKER}: no live worker can run prepare")
+    Workflow.create!(
+      job: held,
+      trigger_kind: "auto_merge",
+      state: "failed",
+      failure_reason: "#{LandingFailureCode::NO_CAPABLE_WORKER}: no live worker can run prepare",
+      artifacts: { LandingCapabilityHold::ARTIFACT => { "queue" => "merges-macos-arm64", "requirements" => { "os" => [ "macos" ] } } }
+    )
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(ready)
+    expect(held.reload).to be_approved
+    entry = described_class.entries(Job.where(id: held.id)).first
+    expect(entry.blocked_reason).to eq({ key: "waiting_for_capable_worker" })
+  end
+
   it "skips a landing-start blocker while its retry backoff is active" do
     blocked = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
     ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)

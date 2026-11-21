@@ -60,6 +60,10 @@ module Prompts
           blocking grader result above. GitHub check context is extracted
           from the failing CI log when available; grader excerpts are the
           workflow gate that decides whether this repair loop continues.
+        - If a check's log is missing, truncated, or too generic to act on
+          (for example only "exit code 1"), read it with `read_ci_log`
+          (`list_ci_checks` lists the check names). Do not look for or
+          install the gh CLI or a GitHub token; Syrus reads CI for you.
         - Reproduce the failure locally where possible (run the test,
           run the linter, run the build). The repo is checked out at
           the failing commit.

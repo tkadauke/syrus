@@ -338,7 +338,11 @@ module WorkEngine
           retry_blocker = auto_retry_blocker_for(workflow, retry_kind, source_run)
           return skipped(retry_blocker) if retry_blocker
 
-          circuit = ProviderCircuitBreaker.call(agent_provider, now: now, include_logs: false)
+          account = workflow.provider_account if workflow.agent_provider == agent_provider
+          account ||= workflow.user.default_provider_account(agent_provider)
+          circuit_options = { now: now, include_logs: false }
+          circuit_options.merge!(user: workflow.user, provider_account: account) if account
+          circuit = ProviderCircuitBreaker.call(agent_provider, **circuit_options)
           if respect_provider_circuit && circuit.open?
             retry_at = circuit.retry_after ? " until #{circuit.retry_after.iso8601}" : ""
             return skipped("provider circuit is open for #{agent_provider}#{retry_at}: #{circuit.reason}")
@@ -851,6 +855,34 @@ module WorkEngine
         end
       end
 
+      class ReviveCleanupCancelledStep < Base
+        def perform
+          step = target_step
+          return skipped("Step no longer exists") unless step
+          return skipped("Step is #{step.state}, not cancelled") unless step.cancelled?
+
+          workflow = step.workflow
+          return skipped("Workflow is #{workflow&.state}, not running") unless workflow&.running?
+          return skipped("Workflow has an active Run") if workflow.runs.active.exists?
+          unless step.details.to_h["cancelled_by"] == "terminal_workflow_cleanup" && step.runs.none? { |run| run.queued? || run.running? || run.succeeded? }
+            return skipped("Step was not interrupted by failure cleanup")
+          end
+
+          step.update_columns(
+            state: "queued",
+            started_at: nil,
+            finished_at: nil,
+            cancellation_reason: nil,
+            details: step.details.to_h.except(*Step::CANCELLATION_DETAIL_KEYS),
+            updated_at: Time.current
+          )
+          resume = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id)
+          return success("revived #{step_label(step)} and resumed it with #{run_label(resume.run)}") if resume.run
+
+          skipped(["revived #{step_label(step)}; its resume stayed deferred", resume.status, resume.reason].compact_blank.join(": "))
+        end
+      end
+
       class ResumeQueuedStep < Base
         def perform
           step = target_step
@@ -862,11 +894,16 @@ module WorkEngine
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
 
-          previous = step.previous_step
-          return skipped("Previous Step is not succeeded") unless previous&.succeeded?
+          return skipped("Upstream handoff is not ready") unless StepDispatcher.deferred_phase_handoff_ready?(step)
 
-          run = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id).run
-          run ? success("resumed #{step_label(step)} with #{run_label(run)}") : skipped("queued Step remained deferred")
+          resume = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id)
+          run = resume.run
+          return success("resumed #{step_label(step)} with #{run_label(run)}") if run
+
+          # Say why. A bare "remained deferred" left workflows parked behind a
+          # scheduler gate for weeks with nothing in the activity log naming
+          # the gate.
+          skipped(["queued Step remained deferred", resume.status, resume.reason].compact_blank.join(": "))
         end
       end
 
@@ -1228,6 +1265,7 @@ module WorkEngine
           return skipped("Step no longer exists") unless step
           return skipped("Step is #{step.state}, not active") unless step.running? || step.queued?
           return skipped("Workflow is not running") unless step.workflow&.running?
+          return skipped("Step is waiting for an in-place retry") if AutoRetryAttempt.pending_in_place_step_retry_for?(step)
 
           step_runs = step.runs.to_a
           return skipped("Step has no Runs") if step_runs.empty?
@@ -1384,15 +1422,28 @@ module WorkEngine
         def perform
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
-          return skipped("Workflow is #{workflow.state}, not terminal") unless workflow.terminal?
-          return skipped("Workflow has no active descendants") unless workflow.terminal_cleanup_active_descendants?
 
-          with_transition_reason do
-            workflow.cancel_active_descendants!(reason: plan.action)
+          # Decide under the Job lock: Retry-from-failed-step reopens the
+          # Workflow while holding it, and a reopen between the terminal
+          # check and the cancel had the retry's fresh Runs cancelled.
+          refusal = nil
+          workflow.job.with_lock do
+            workflow.reload
+            refusal = if !workflow.terminal?
+              "Workflow is #{workflow.state}, not terminal"
+            elsif !workflow.terminal_cleanup_active_descendants?
+              "Workflow has no active descendants"
+            end
+            next if refusal
+
+            with_transition_reason do
+              workflow.cancel_stale_terminal_descendants!(reason: plan.action)
+            end
           end
+          return skipped(refusal) if refusal
 
           workflow.reload
-          remaining_steps = workflow.persisted_active_step_ids
+          remaining_steps = workflow.stale_terminal_steps.pluck(:id)
           remaining_runs = workflow.runs.active.pluck(:id)
           if remaining_steps.any? || remaining_runs.any?
             failure("active descendants remain: steps=#{remaining_steps.inspect} runs=#{remaining_runs.inspect}")
@@ -1512,9 +1563,18 @@ module WorkEngine
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
             .pluck(:id)
           return skipped("#{work_intent_label(intent)} no longer has active WorkUnits") if active_unit_ids.empty?
+          return skipped("#{work_intent_label(intent)} still waits on a failing gate") unless intent_gates_pass?(intent)
 
           intent.request!
           success("cleared stale wait on #{work_intent_label(intent)}; active WorkUnits: #{work_unit_id_list_label(active_unit_ids)}")
+        end
+
+        private
+
+        def intent_gates_pass?(intent)
+          intent.definition.intent_gates.all? { |gate| gate.call(intent).pass? }
+        rescue WorkDefinitions::UnknownKind
+          false
         end
       end
 

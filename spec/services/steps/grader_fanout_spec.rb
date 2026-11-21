@@ -1865,6 +1865,16 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
     expect(chunks).to include("target health miss for rspec: target health is unknown [//:grade/rspec]")
     expect(chunks).to include("forced validation for rspec (target health is unknown) [//:grade/rspec]")
+
+    # Regression: copying full per-target fingerprints into the Step row made a
+    # large repository's fan-out Step exceed MySQL's sort buffer, and every
+    # query sorting full step rows failed. The artifact keeps them; the Step's
+    # summary copy does not.
+    details = run.step.reload.details
+    [ Steps::GraderFanout::TARGET_HEALTH_FORCED_ARTIFACT_KEY, Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY ].each do |key|
+      expect(details[key]).to include(include("name" => "rspec", "target_label" => "//:grade/rspec"))
+      expect(details[key]).to all(satisfy { |entry| !entry.key?("target_fingerprints") })
+    end
   end
 
   it "explains a dependency-triggered selection by the dependency's target label" do

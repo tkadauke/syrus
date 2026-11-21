@@ -131,6 +131,77 @@ RSpec.describe RunHostAdmission do
     expect(decision.details.fetch("sample_health")).to include("level" => "warning")
   end
 
+  describe "whole-host graders" do
+    after { described_class.reset_whole_host_admissions! }
+
+    def grader_run(position, resources: { "cpu" => "all", "cpu_min" => 2 })
+      details = { "name" => "rspec-ci-#{position}" }
+      details["resources"] = resources if resources
+      grader_step = Step.create!(workflow: workflow, kind: "grader", position: position, details: details)
+      grader_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+    end
+
+    # A suite split into shards gains nothing if the shards share one host:
+    # each asks for every core and they just split it. They used to pile onto
+    # whichever worker claimed first, three of four on one host.
+    it "defers a second whole-host grader the same worker claims before the first one spawns" do
+      first = grader_run(60)
+      expect(described_class.call(run: first)).to be_admit
+
+      decision = described_class.call(run: grader_run(61))
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+    end
+
+    it "defers a whole-host grader while another one is running on this host" do
+      busy = grader_run(62)
+      busy.update!(state: "running", started_at: 1.minute.ago, last_heartbeat_at: Time.current)
+      busy.spawned_processes.create!(workflow: workflow, kind: "grader", command: "bin/rspec", hostname: "worker-a", started_at: 1.minute.ago)
+
+      expect(described_class.call(run: grader_run(63))).to be_defer
+    end
+
+    # A pod runs one SolidQueue process per queue group: one admitted a
+    # shard off the merges queue while another admitted its sibling off the
+    # host's dispatch queue, and an in-memory record saw neither.
+    it "defers a whole-host grader while another process on this host holds a claim" do
+      first = grader_run(68)
+      described_class.reset_whole_host_admissions!
+      claims = described_class::WholeHostClaims.dir
+      FileUtils.mkdir_p(claims)
+      FileUtils.touch(claims.join(first.id.to_s)) # as the other process records it
+
+      decision = described_class.call(run: grader_run(69))
+
+      expect(decision).to be_defer
+      expect(decision.reason).to eq("host_resource_semaphore_busy")
+    end
+
+    it "does not hold a claim for a whole-host grader it deferred for another reason" do
+      deferred = grader_run(70)
+      admission = described_class.new(run: deferred)
+      allow(admission).to receive(:admitted_within_stagger_window?).and_return(true)
+      expect(admission.call).to be_defer
+
+      expect(described_class.call(run: grader_run(71))).to be_admit
+    end
+
+    it "still packs ordinary graders next to a whole-host one" do
+      expect(described_class.call(run: grader_run(64))).to be_admit
+
+      expect(described_class.call(run: grader_run(65, resources: nil))).to be_admit
+    end
+
+    it "admits a whole-host grader again once the earlier one has finished" do
+      first = grader_run(66)
+      described_class.call(run: first)
+      first.update!(state: "succeeded", finished_at: Time.current)
+
+      expect(described_class.call(run: grader_run(67))).to be_admit
+    end
+  end
+
   it "defers sticky resume work on a pressured host" do
     worker_sample(io_pressure_some: 55.0, io_pressure_full: 51.0)
 
@@ -450,6 +521,43 @@ RSpec.describe RunHostAdmission do
       ActiveSupport::Notifications.unsubscribe(sub)
 
       expect(count).to be <= 4
+    end
+
+    def running_distributed_grader(index, process_host:)
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      repository.update!(distributed_workflow_dag_enabled: true)
+      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 800 + index)
+      other_workflow = Workflow.create!(job: other, trigger_kind: "merge_train", state: "running", worker_hostname: "worker-a")
+      grader = Step.create!(
+        workflow: other_workflow, kind: "grader", position: 10, state: "running",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: { "name" => "rspec-ci-#{index}" }
+      )
+      grader_run = grader.runs.create!(job: other, trigger_kind: "merge_train", state: "running",
+                                       started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+      grader_run.spawned_processes.create!(workflow: other_workflow, kind: "grader", command: "bin/rspec",
+                                           hostname: process_host, started_at: 4.minutes.ago)
+      grader_run
+    end
+
+    it "does not count a distributed grader on its workflow's home host when it runs elsewhere" do
+      running_distributed_grader(1, process_host: "worker-b")
+      local = running_distributed_grader(2, process_host: "worker-a")
+
+      evidence = described_class.new(run: run).send(:active_run_liveness_evidence)
+
+      expect(evidence.map { |entry| entry["run_id"] }).to eq([ local.id ])
+    end
+
+    it "still counts a shared-workspace step on its workflow's home host" do
+      live = running_run_on_worker_a(3, heartbeat: 1.minute.ago)
+
+      evidence = described_class.new(run: run).send(:active_run_liveness_evidence)
+
+      expect(evidence.map { |entry| entry["run_id"] }).to eq([ live.id ])
     end
 
     it "counts a recently started provider-bound Run before its first heartbeat" do

@@ -62,6 +62,9 @@ func (f *fakeStore) Children(context.Context, string, string, string) ([]mirror.
 func (f *fakeStore) Read(context.Context, string, string, string) (mirror.Blob, error) {
 	return mirror.Blob{Bytes: []byte{0xff, 0x00}, ContentID: "oid"}, f.readErr
 }
+func (f *fakeStore) WorkspaceFiles(context.Context, string, string, []string, int, int, bool) (mirror.WorkspaceFiles, error) {
+	return mirror.WorkspaceFiles{Blobs: map[string]mirror.Blob{}}, nil
+}
 func (f *fakeStore) Changes(_ context.Context, _, _, _ string, withPatch bool) ([]mirror.Change, error) {
 	f.withPatch = withPatch
 	return nil, nil

@@ -174,10 +174,12 @@ stdio entry for `bin/syrus-mcp-proxy` instead of `bin/syrus-mcp-sidecar`; the
 proxy forwards JSON-RPC to the worker-local daemon with a short-lived signed
 run token and does not receive Rails/database/storage secrets.
 
-**Usage evidence.** `usage_snapshot`/`usage_status`/`usage_observed_at` read
-straight off `User#codex_usage_snapshot`/`codex_usage_status`/
-`codex_usage_observed_at` (persisted columns, unlike Claude which only lives
-in `ProviderAvailabilityEvidence`). `evidence_reset_at` scans every window in
+**Usage evidence.** Every probe and invocation result is scoped by the
+selected provider account's opaque public id in `ProviderAvailabilityEvidence`.
+The migrated default account continues to mirror its latest Codex snapshot to
+`User#codex_usage_snapshot`/`codex_usage_status`/`codex_usage_observed_at` for
+compatibility; sibling accounts use their account-scoped evidence and never
+overwrite that mirror. `evidence_reset_at` scans every window in
 the snapshot (`primary`, `secondary`, `spend_control.individual_limit`, and
 every entry in `additional_rate_limits`) for the earliest `reset_at` and adds
 `ProviderQuotaReset::RETRY_BUFFER`. `false_positive_evidence?` and
@@ -200,11 +202,13 @@ Two modes, selected by `User#codex_auth_mode`:
 
 Because Codex can silently refresh `auth.json`'s tokens during a run,
 `persist_updated_auth_json` reads the file back afterward and — if it
-changed — writes it back to `User#codex_auth_json` **under a refresh lock**
-(`with_refresh_lock`) so two concurrent Codex runs for the same user don't
-race each other's token refresh. The lock is a real `GET_LOCK`/`RELEASE_LOCK`
-pair on MySQL (`syrus:codex_auth:user:<id>`, 30-minute default timeout) or an
-in-process `Mutex` keyed by user id otherwise (SQLite dev/test, which has no
+changed — writes it back to the selected provider account **under a refresh
+lock** (`with_refresh_lock`) so two concurrent Codex runs for the same account
+don't race each other's token refresh. The migrated default account also
+mirrors refreshed credentials to `User#codex_auth_json`. The lock is a real
+`GET_LOCK`/`RELEASE_LOCK` pair on MySQL (keyed by user and opaque account id,
+with a 30-minute default timeout) or an in-process `Mutex` keyed the same way
+otherwise (SQLite dev/test, which has no
 equivalent cross-connection advisory lock). `stale_prepared_auth?` guards
 against clobbering a *newer* refresh that happened while this invocation was
 still running — if the DB's `codex_auth_json` no longer matches what was
@@ -238,8 +242,8 @@ windows (each normalized with a human `label` such as `5h`/`daily`/`weekly`/
 `rate_limit_reached_type` is present, spend control reports `reached: true`,
 or remaining percent is ≤0%; `warning` at ≤20% remaining
 (`WARNING_REMAINING_PERCENT`); else `ok`. Staleness window is 10 minutes,
-tracked on `User#codex_usage_observed_at` rather than a separate evidence
-table lookup.
+tracked independently from the latest account-scoped usage evidence. The
+migrated default account also updates the legacy `User` usage columns.
 
 ## Session rehydration and transcript rendering
 

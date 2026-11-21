@@ -1119,6 +1119,10 @@ hook returns an explicit result: normalization or provider failures fail closed,
 and lookup deliberately reports the same `not_found` result for an unknown id
 and an id the current principal cannot see. Provider lookups must therefore
 apply ordinary application visibility before returning a resource.
+Schemas may also provide an `authoring:` callback that returns user-scoped
+field options for permission editors. This callback receives the normal
+context and must expose only safe labels and identifiers visible to that user;
+it is presentation metadata and does not replace lookup or validation.
 
 Plugins register reusable authorization contracts through the
 `permission_provider` extension point. Its class includes
@@ -3277,6 +3281,9 @@ class methods `provider_key`, `display_name`, `role` (`:upstream` or
 guard calls it for every repository), and `build(repository:, user:)`, which
 returns an instance or nil. Instances implement `resolve(ref, max_age:)`,
 `tree(revision_id)`, `children(revision_id, path)`, `read(revision_id, path)`, and optionally
+`workspace_files(revision_id, paths:, max_bytes:, last_modified:, history_limit:)`
+(a single bounded provider operation returning `blobs`, `last_modified`, and
+`history_incomplete` for workspace search),
 `changes(base_id, head_id, patch:)` (three-dot: what `head` introduced since
 its merge base with `base`), `refs(pattern:, max_age:)`,
 `relation(base_id, head_id)`, `history(base_id, head_id)`,

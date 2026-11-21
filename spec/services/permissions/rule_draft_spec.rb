@@ -46,6 +46,27 @@ RSpec.describe Permissions::RuleDraft do
 
   def error_codes(preview) = preview.errors.pluck(:code)
 
+  context "when the rule has no resource scope" do
+    let(:schema) do
+      Permissions::ResourceScopeSchema.new(
+        type: :repository,
+        normalize: ->(scope, context:) { scope.to_h.stringify_keys },
+        compare: ->(left, right, context:) { left == right ? :equal : :disjoint },
+        label: ->(scope, context:) { scope.empty? ? nil : "repository ##{scope.fetch('repository_id')}" }
+      )
+    end
+
+    it "words the summary as any resource instead of showing a raw {}" do
+      preview = draft("resource_scope" => {}).preview
+
+      expect(preview).to be_valid
+      expect(preview.draft[:resource_scope_label]).to eq("")
+      expect(preview.summary[:allows].first).to include("on any resource")
+      expect(preview.summary[:allows].first).not_to include("{}")
+      expect(preview.examples.values.flatten.join(" ")).not_to include("{}")
+    end
+  end
+
   it "previews the exact subject, operation, normalized scope and duration with a human summary" do
     preview = draft.preview
 

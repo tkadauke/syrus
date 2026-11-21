@@ -29,6 +29,7 @@ type MaintenanceToolDefinition = {
   showsLiveOutcome?: boolean
   showsUpdate?: boolean
   showsAssignedEpic?: boolean
+  showsDestructionSummary?: boolean
 }
 
 const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
@@ -115,6 +116,18 @@ const DEFINITIONS: Record<string, MaintenanceToolDefinition> = {
     showsAssignedEpic: true
   },
   add_job_dependency: { toolName: "add_job_dependency", subjectKind: "job", actionLabel: "Add Job Dependency", verb: "Dependency added" },
+  replace_job_dependency: { toolName: "replace_job_dependency", subjectKind: "job", actionLabel: "Replace Job Dependency", verb: "Dependency replaced" },
+  reset_job: {
+    toolName: "reset_job",
+    subjectKind: "job",
+    actionLabel: "Reset Job",
+    verb: "Reset requested",
+    pendingVerb: "Reset requested",
+    showsReasonMarkdown: true,
+    warningMessage: true,
+    recoversTargetFromMessage: true,
+    showsDestructionSummary: true
+  },
   remove_job_dependency: {
     toolName: "remove_job_dependency",
     subjectKind: "job",
@@ -412,6 +425,14 @@ function buildRows(context: ToolCardContext, definition: MaintenanceToolDefiniti
   pushRow(rows, "Removed from", removedFromEpicReference(result))
   if (definition.showsAssignedEpic) pushRow(rows, "Epic", assignedEpicReference(context, result))
   if (!definition.showsReasonMarkdown) pushRow(rows, "Reason", result.reason)
+  if (definition.showsDestructionSummary) {
+    const destroys = isPlainObject(result.destroys) ? result.destroys : {}
+    const activeWorkflows = compactList(destroys.active_workflows).map((id) => `WF-${id}`)
+    pushRow(rows, "Open pull request", firstValue(destroys.open_pr_number) ? `PR #${firstValue(destroys.open_pr_number)}` : null)
+    pushRow(rows, "Remote branch", destroys.branch)
+    pushRow(rows, "Stored checkpoints", destroys.checkpoints)
+    pushRow(rows, "Active Workflows", activeWorkflows.join(", "))
+  }
   return rows
 }
 
@@ -492,6 +513,7 @@ export function parseJobEpicMaintenanceResult(context: ToolCardContext): Mainten
     "dependencies",
     "removed_from_epic_id",
     "removed_from_epic_title",
+    "destroys",
     "error"
   ].some((key) => result[key] !== undefined)
 

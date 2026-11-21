@@ -9,12 +9,12 @@
 # migrations use external dependencies or application code.
 #
 # It's strongly recommended that you check this file into your version control system.
-#
+
 # Syrus uses this dump for SQLite development and test databases. Production
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_004334) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -1098,6 +1098,57 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.index ["run_id", "sequence"], name: "index_command_spans_on_run_id_and_sequence", unique: true
     t.index ["spawned_process_id"], name: "index_command_spans_on_spawned_process_id"
     t.index ["workflow_id", "step_id"], name: "index_command_spans_on_workflow_id_and_step_id"
+  end
+
+  create_table "connected_accounts_accounts", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "display_label", null: false
+    t.json "granted_scopes", null: false
+    t.string "status", null: false
+    t.boolean "read_only", null: false
+    t.json "scope_ceiling"
+    t.json "acting_modes", null: false
+    t.integer "owner_user_id", null: false
+    t.integer "credential_store_credential_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["credential_store_credential_id"], name: "idx_on_credential_store_credential_id_7b6d26bf18"
+    t.index ["owner_user_id", "provider"], name: "idx_connected_accounts_owner_provider"
+    t.index ["owner_user_id"], name: "index_connected_accounts_accounts_on_owner_user_id"
+  end
+
+  create_table "connected_accounts_oauth_states", force: :cascade do |t|
+    t.string "digest", null: false
+    t.string "session_digest", null: false
+    t.text "code_verifier", null: false
+    t.json "requested_scopes", null: false
+    t.boolean "read_only", null: false
+    t.string "provider", null: false
+    t.integer "user_id", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "used_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["digest"], name: "idx_connected_accounts_oauth_state_digest", unique: true
+    t.index ["user_id"], name: "index_connected_accounts_oauth_states_on_user_id"
+  end
+
+  create_table "connected_accounts_provider_configs", force: :cascade do |t|
+    t.string "provider_key", null: false
+    t.string "authorize_url", null: false
+    t.string "token_url", null: false
+    t.string "revoke_url"
+    t.string "identity_url", null: false
+    t.string "validate_url"
+    t.string "client_id", null: false
+    t.text "client_secret", null: false
+    t.json "scope_catalog", null: false
+    t.json "read_only_scopes", null: false
+    t.json "api_origins", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "allow_as_owner", default: false, null: false
+    t.index ["provider_key"], name: "idx_connected_accounts_provider_key", unique: true
   end
 
   create_table "coverage_snapshots", force: :cascade do |t|
@@ -3235,6 +3286,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.index ["state"], name: "index_preview_panels_on_state"
   end
 
+  create_table "provider_accounts", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "public_id", limit: 36, null: false
+    t.string "provider_key", limit: 64, null: false
+    t.string "label", limit: 100
+    t.string "authentication_kind", limit: 64, null: false
+    t.text "credential_payload", null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.decimal "weight", precision: 8, scale: 3
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "proactive_pause_threshold", precision: 5, scale: 2
+    t.index ["public_id"], name: "index_provider_accounts_on_public_id", unique: true
+    t.index ["user_id", "provider_key", "enabled", "position"], name: "idx_provider_accounts_enabled_order"
+    t.index ["user_id", "provider_key", "label"], name: "idx_provider_accounts_user_provider_label", unique: true
+    t.index ["user_id", "provider_key", "position"], name: "idx_provider_accounts_user_provider_position", unique: true
+    t.index ["user_id"], name: "index_provider_accounts_on_user_id"
+  end
+
   create_table "provider_availability_evidences", force: :cascade do |t|
     t.integer "user_id", null: false
     t.integer "run_id"
@@ -3324,7 +3395,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.datetime "updated_at", null: false
     t.json "normalized_messages"
     t.boolean "transcript_pruned", default: false, null: false
+    t.integer "provider_account_id"
     t.index ["created_at"], name: "index_provider_sessions_on_created_at"
+    t.index ["provider_account_id"], name: "index_provider_sessions_on_provider_account_id"
     t.index ["resumable_type", "resumable_id"], name: "index_provider_sessions_on_resumable", unique: true
     t.index ["resumable_type", "updated_at", "resumable_id"], name: "index_provider_sessions_on_resumable_type_updated_at"
     t.index ["run_id"], name: "index_provider_sessions_on_run_id", unique: true
@@ -3733,6 +3806,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.string "effort_level"
     t.bigint "entity_revision", default: 0, null: false
     t.datetime "coworker_wake_enqueued_at"
+    t.integer "provider_account_id"
+    t.json "artifacts"
+    t.integer "execution_attempt", default: 0, null: false
     t.index ["agent_provider", "cost_usd"], name: "idx_runs_spending_provider_cost"
     t.index ["agent_provider", "created_at", "cost_usd"], name: "idx_runs_spending_provider_window"
     t.index ["agent_provider", "state", "finished_at"], name: "idx_runs_provider_state_finished"
@@ -3748,6 +3824,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.index ["job_id", "state"], name: "index_runs_on_job_id_and_state"
     t.index ["job_id"], name: "index_runs_on_job_id"
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
+    t.index ["provider_account_id"], name: "index_runs_on_provider_account_id"
     t.index ["started_at", "id"], name: "idx_runs_started_latest"
     t.index ["state", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_provider_failed_recent"
     t.index ["state", "finished_at", "step_id"], name: "idx_runs_throughput_state_finished"
@@ -4858,6 +4935,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.string "workspace_lifecycle_state"
     t.string "last_workspace_hostname"
     t.string "last_workspace_storage_key"
+    t.integer "provider_account_id"
     t.index ["cleaned_up_at"], name: "index_workflows_on_cleaned_up_at"
     t.index ["job_id", "created_at"], name: "index_workflows_on_job_id_and_created_at"
     t.index ["job_id", "finished_at", "id"], name: "idx_workflows_job_finished_latest"
@@ -4866,6 +4944,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.index ["job_id", "trigger_kind", "created_at", "id"], name: "idx_workflows_job_trigger_created_id"
     t.index ["job_id"], name: "index_workflows_on_job_id"
     t.index ["last_workspace_storage_key"], name: "index_workflows_on_last_workspace_storage_key"
+    t.index ["provider_account_id"], name: "index_workflows_on_provider_account_id"
     t.index ["state", "created_at", "id"], name: "idx_workflows_state_created_at"
     t.index ["state", "finished_at", "job_id"], name: "idx_workflows_state_finished_job"
     t.index ["state", "started_at", "id"], name: "idx_workflows_state_started_at"

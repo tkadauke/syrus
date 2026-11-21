@@ -25,6 +25,7 @@ export type ProviderRoutingCandidate = {
   effort_level?: string | null
   reviewer_target?: ProviderRoutingReviewerTarget | null
   weight?: number | null
+  account_id?: string | null
 }
 
 export type ProviderRoutingReviewerTarget = {
@@ -115,6 +116,7 @@ export type ProviderRoutingRegistryOptions = {
 }
 
 export type ProviderRoutingOptions = {
+  provider_accounts?: Array<{ id: string; provider: string; label: string }>
   agent_providers: AgentProviderOption[]
   effort_levels: EffortLevelOption[]
   reviewer_targets?: ProviderRoutingReviewerTarget[]

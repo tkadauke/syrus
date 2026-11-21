@@ -1049,8 +1049,40 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     get "/api/v1/app/jobs/#{job.id}/tabs/review"
     expect(response).to have_http_status(:ok)
-    expect(parse_body.keys).to include("typed_artifacts", "visual_evidence", "review_contributions")
-    expect(parse_body.keys).not_to include("summary", "feedback_history")
+    expect(parse_body.keys).to include(
+      "summary", "test_plan", "review_artifacts", "typed_artifacts", "visual_evidence", "review_contributions"
+    )
+    expect(parse_body.keys).not_to include("feedback_history", "workflows")
+  end
+
+  it "returns canonical Review content without the detailed workflow graph" do
+    implementation = job.workflows.first
+    implementation.update!(
+      state: "succeeded",
+      finished_at: 2.hours.ago,
+      artifacts: {
+        "test_plan" => { "steps" => [ "Run the focused request and frontend specs" ], "notes" => "Verify Review." },
+        "adversarial_review_iterations" => [ { "iteration" => 1, "verdict" => "approved", "critique" => "No regressions found." } ],
+        "security_review_iterations" => [ { "iteration" => 1, "verdict" => "approved", "critique" => "No security findings." } ],
+        "visual_review_iterations" => [ { "iteration" => 1, "verdict" => "approved", "critique" => "Screenshots match." } ]
+      }
+    )
+    job.initial_run.update!(agent_summary: "Restored the Review payload.", finished_at: 2.hours.ago)
+    Workflow.create!(job: job, trigger_kind: "rebase", state: "succeeded", finished_at: 1.hour.ago, artifacts: {})
+
+    get "/api/v1/app/jobs/#{job.id}/tabs/review"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.fetch("summary")).to include("text" => "Restored the Review payload.")
+    expect(body.fetch("test_plan")).to include("steps" => [ "Run the focused request and frontend specs" ])
+    expect(body.fetch("review_artifacts")).to eq([
+      "Verify Review.",
+      "Adversarial review 1: approved - No regressions found.",
+      "Security review 1: approved - No security findings.",
+      "Visual review 1: approved - Screenshots match."
+    ])
+    expect(body).not_to have_key("workflows")
   end
 
   it "does not load blank historical workflow artifacts on the default job detail payload" do

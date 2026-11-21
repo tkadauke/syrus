@@ -12,10 +12,23 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(26)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(26)
+    expect(Syrus::Host.apis.size).to eq(30)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(30)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
+    expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
+  end
+
+  it "queues chat title generation without exposing the job to plugins" do
+    expect {
+      Syrus::Host::ChatTitles.enqueue(chat_id: 12, message_id: 34)
+    }.to have_enqueued_job(ChatTitleJob).with(12, 34)
+  end
+
+  it "requires admin page providers to implement their declared metadata" do
+    provider = Class.new { include Syrus::Host::AdminPage }
+
+    expect { provider.admin_pages }.to raise_error(NotImplementedError, /implement \.admin_pages/)
   end
 
   it "resolves alias targets again instead of retaining an earlier class generation" do

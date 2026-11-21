@@ -78,7 +78,7 @@ module Workflows
       sha = reviewed_head_sha(workflow)
       return if sha.blank?
 
-      Step.where(workflow_id: workflow.id).find_each do |candidate|
+      review_steps(workflow).reorder(nil).find_each do |candidate|
         next unless effective_review_kind(candidate)
         reviewed_sha = candidate.details.to_h["reviewed_head_sha"]
         next if reviewed_sha.blank? || reviewed_sha == sha
@@ -142,7 +142,7 @@ module Workflows
             evidence = terminal_evidence(workflow, kind, sha)
             next if reacted_without_head_change?(workflow, evidence, kind, sha)
 
-            fresh = workflow.steps.where(state: Step::ACTIVE_STATES).reorder(position: :desc, id: :desc).detect do |candidate|
+            fresh = review_steps(workflow).where(state: Step::ACTIVE_STATES).reorder(position: :desc, id: :desc).detect do |candidate|
               effective_review_kind(candidate) == kind &&
                 candidate.details.to_h["reviewed_head_sha"].in?([ nil, sha ])
             end
@@ -151,7 +151,7 @@ module Workflows
               next
             end
 
-            previous = workflow.steps.reorder(position: :desc, id: :desc).detect do |candidate|
+            previous = review_steps(workflow).reorder(position: :desc, id: :desc).detect do |candidate|
               effective_review_kind(candidate) == kind && candidate.loop_id.present?
             end
             next unless previous
@@ -173,12 +173,26 @@ module Workflows
               }
             )
             repair_step.update!(next_step: step)
+            StepDispatcher.wire_inserted_step_dependencies!(
+              previous: repair_step, new_steps: [ step ], continuation: continuation
+            )
             continuation = step
             created << step
           end
         end
       end
       created
+    end
+
+    # Only reviewer steps and review-panel collectors carry an effective
+    # review kind. Every barrier lookup used to load all of a workflow's
+    # steps -- full rows, JSON details included -- and filter in Ruby, once per
+    # required review, on every readiness check of every queued step. On a
+    # workflow with hundreds of steps and large grader fan-out rows that meant
+    # gigabytes per dispatcher or reconciler pass, and a reconciler pass that
+    # never finished. Filter in SQL instead.
+    def self.review_steps(workflow)
+      workflow.steps.where(kind: Step::Kind.review_gate_kinds + [ "review_panel_collect" ])
     end
 
     def self.effective_review_kind(step)
@@ -197,7 +211,7 @@ module Workflows
       Array(workflow.artifact("review_gate_contributions")).select do |snapshot|
         next false unless snapshot.fetch("required", true) == true
 
-        latest_explicit = workflow.steps.reorder(position: :desc, id: :desc).detect do |step|
+        latest_explicit = review_steps(workflow).reorder(position: :desc, id: :desc).detect do |step|
           effective_review_kind(step) == snapshot["step_kind"] && step.details.to_h.key?("required")
         end
         latest_explicit.nil? || latest_explicit.details.to_h["required"] != false
@@ -205,7 +219,7 @@ module Workflows
     end
 
     def self.terminal_evidence(workflow, kind, sha)
-      workflow.steps.reorder(position: :desc, id: :desc).detect do |candidate|
+      review_steps(workflow).reorder(position: :desc, id: :desc).detect do |candidate|
         effective_review_kind(candidate) == kind &&
           !candidate.details.to_h["panel_fanout"] &&
           !candidate.details.to_h["panel_member"] &&

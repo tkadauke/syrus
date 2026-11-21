@@ -1,0 +1,25 @@
+de:
+  connected_accounts:
+    plugin:
+      display_name: "Verbundene Konten"
+      description: "Vermittle Zugriff auf benutzereigene externe Konten, ohne langlebige Zugangsdaten offenzulegen."
+      long_description: "Verbundene Konten verwaltet sichere Kontometadaten und vermittelt kurzlebigen, autorisierten OAuth-Zugriff über den Zugangsdaten-Speicher."
+    oauth:
+      connected: "Konto verbunden."
+      denied: "Der Anbieter hat den Zugriff abgelehnt."
+      invalid_state: "Diese Verbindungsanfrage ist abgelaufen oder wurde bereits verwendet."
+      invalid_request: "Die Verbindungsanfrage ist ungültig."
+      failed: "Der Anbieter konnte das Konto nicht verbinden."
+    settings:
+      saved: "Anbieterkonfiguration gespeichert."
+      read_only_scopes_not_in_catalog: "müssen auch im Berechtigungskatalog enthalten sein"
+    errors:
+      array_of_strings: "muss ein Array aus Zeichenketten sein"
+      scope_ceiling_subset: "muss eine Teilmenge der gewährten Berechtigungen sein"
+      unsupported_modes: "enthält nicht unterstützte Modi: %{modes}"
+      oauth_material: "muss OAuth-Daten eines verbundenen Kontos enthalten"
+      same_owner: "muss denselben Eigentümer haben"
+      broker_pinned: "muss an den Vermittler für verbundene Konten gebunden sein"
+      origins_pinned: "muss an die API-Ursprünge des Anbieters gebunden sein"
+      https_urls: "Anbieter-URLs müssen HTTPS verwenden"
+      invalid_url: "Anbieter-URL ist ungültig"

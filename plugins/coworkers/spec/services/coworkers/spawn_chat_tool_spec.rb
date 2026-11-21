@@ -54,6 +54,22 @@ RSpec.describe Coworkers::SpawnChatTool do
     expect(ChatSessions::Creator).to have_received(:enqueue_turn).with(spawned, spawned.messages.first)
   end
 
+  it "queues normal title generation when the coworker does not provide a title" do
+    allow(Syrus::Host::ChatTitles).to receive(:enqueue)
+    response = described_class.call(prompt: "Investigate the flaky test", server_context: context)
+    action = chat.pending_actions.find(payload(response).fetch("pending_action_id"))
+    operation = action.authorization_items.find_by!(kind: "operation")
+    Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
+      .call(decision: "approved")
+    clear_enqueued_jobs
+
+    action.execute_confirmation!(raise_on_error: true)
+
+    spawned = coworker.coworker_chats.find_by!(role: "side").chat_session
+    expect(spawned.title).to be_nil
+    expect(Syrus::Host::ChatTitles).to have_received(:enqueue).with(chat_id: spawned.id, message_id: spawned.messages.first.id)
+  end
+
   it "refuses another coworker handle" do
     coworker.permission_rules.update!(capability: "coworker.spawn_chat", approval_policy: "confirm", actor: owner)
     response = described_class.call(prompt: "Nope", handle: "someone-else", server_context: context)

@@ -22,7 +22,7 @@ module Steps
       existing = existing_pr(canonical)
       if existing.state == :merged
         record_upstream_export_link!(canonical: canonical, target_branch: target_branch, pr_number: existing.number, pr_state: "merged")
-        job.close_with_reason!("pr_merged") if job.may_close?
+        workflow.request_job_closure!(job, "pr_merged") if job.may_close?
         return
       end
 

@@ -88,6 +88,10 @@ class RunJob < ApplicationJob
   FRESH_RUNNING_REENTRY_THRESHOLD = Run::STALE_HEARTBEAT_THRESHOLD
 
   def perform(run_id)
+    # Captured before any early return: the ensure below hands back only Runs
+    # this perform held, and restores an enclosing perform's list untouched.
+    prior_held_run_ids = Thread.current[::Run::INLINE_HELD_RUN_IDS]
+    Thread.current[::Run::INLINE_HELD_RUN_IDS] = []
     Thread.current[:syrus_current_queue_role] = queue_name.to_s
 
     if AppSetting.runs_paused?
@@ -120,9 +124,10 @@ class RunJob < ApplicationJob
       break if defer_for_macos_worker_drain?
       perform_step
       next_run = next_inline_run
+      release_inline_held_runs!(except: @shutdown_requested ? nil : next_run)
       break unless next_run
       if @shutdown_requested
-        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} will be re-enqueued by reaper")
+        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} handed back to the queue")
         break
       end
       @run = next_run
@@ -152,6 +157,8 @@ class RunJob < ApplicationJob
     end
   ensure
     Signal.trap("TERM", prior_trap) if prior_trap
+    release_inline_held_runs!(on_exit: true)
+    Thread.current[::Run::INLINE_HELD_RUN_IDS] = prior_held_run_ids
     Thread.current[:syrus_current_run] = nil
     Thread.current[:syrus_in_run_job] = nil
     Thread.current[:syrus_current_queue_role] = nil
@@ -406,9 +413,7 @@ class RunJob < ApplicationJob
     @workflow.reload
     return true if @run.terminal? || @step.terminal? || @workflow.terminal?
 
-    succeed_run!(@run)
-    @step.succeed!
-    @step.save!
+    commit_run_and_step_success!
     log("step #{@step.kind} done (#{@workflow.slug})")
     true
   end
@@ -432,6 +437,17 @@ class RunJob < ApplicationJob
       log("#{@workflow.slug} already terminal (#{@workflow.state}); abandoning run")
       @run.cancel! if @run.may_cancel?
       @run.save!
+      return
+    end
+
+    if StepDispatcher.job_closed_for_execution?(@workflow)
+      log("#{@job.slug} is closed; cancelling #{@workflow.slug} instead of running #{@step.kind}")
+      StepDispatcher.cancel_unstartable_closed_job_workflow!(@workflow)
+      @run.reload
+      if @run.may_cancel?
+        @run.cancel!
+        @run.save!
+      end
       return
     end
 
@@ -613,9 +629,25 @@ class RunJob < ApplicationJob
       return if @workflow.terminal? || @step.terminal?
       return if @run.terminal? && !@run.succeeded?
 
-      succeed_run!(@run)
+      commit_run_and_step_success!
+    end
+  end
+
+  # One commit for both: separately, the Run's after-commit propagation ran
+  # -- and the reconciler could observe -- a running Step whose Runs were all
+  # terminal. A lock error rolls both back, and the retry reloads.
+  #
+  # The AASM bang events persist. Do not add a trailing `save!` here: inside
+  # one transaction a no-op save clears `saved_changes`, and the
+  # `saved_change_to_state` conditions on the commit callbacks -- the Step's
+  # chain advance among them -- would then never fire.
+  def commit_run_and_step_success!
+    ActiveRecord::Base.transaction do
+      unless @run.succeeded?
+        @run.agent_outcome = nil if @run.agent_outcome == "worker_died"
+        @run.succeed!
+      end
       @step.succeed! if @step.may_succeed?
-      @step.save!
     end
   end
 
@@ -661,8 +693,12 @@ class RunJob < ApplicationJob
           @workflow.save!
           @step.start! if @step.may_start?
           @step.save!
+          # Fencing token: a stalled earlier executor of this Run sees the
+          # counter move at its next ensure_run_still_active! and stops.
+          @run.execution_attempt = @run.execution_attempt.to_i + 1
           @run.start!
           @run.save!
+          @run.claimed_execution_attempt = @run.execution_attempt
           @job.update!(started_at: Time.current) if @job.started_at.nil?
           acquired = true
         end
@@ -940,13 +976,35 @@ class RunJob < ApplicationJob
     next_inline_run.present?
   end
 
+  # Runs created while this job drove the Workflow were not enqueued, on the
+  # promise that this job would run them. It runs at most one: `except`.
+  # Every other one goes back to the queue now, rather than sitting without a
+  # queue job until the reconciler notices (production: ~15 a day, each
+  # stalled about two minutes). The list is emptied either way, so the Run
+  # this job does drive is never enqueued a second time later.
+  def release_inline_held_runs!(except: nil, on_exit: false)
+    ids = Array(Thread.current[::Run::INLINE_HELD_RUN_IDS]).uniq
+    Thread.current[::Run::INLINE_HELD_RUN_IDS] = [] unless Thread.current[::Run::INLINE_HELD_RUN_IDS].nil?
+    ids.delete(except.id) if except
+    return if ids.empty?
+
+    ::Run.where(id: ids, state: "queued").find_each(&:reenqueue!)
+  rescue StandardError => e
+    raise unless on_exit
+
+    # Never mask the exception that ended the job; the reconciler still
+    # re-enqueues a queued Run without a queue claim.
+    Rails.logger.warn("[RunJob] could not hand back inline-held Runs #{ids.inspect}: #{e.class}: #{e.message}")
+  end
+
   def continue_inline_after_controlled_failure
     loop do
       break if @shutdown_requested
       next_run = next_inline_run
+      release_inline_held_runs!(except: @shutdown_requested ? nil : next_run)
       break unless next_run
       if @shutdown_requested
-        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} will be re-enqueued by reaper")
+        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} handed back to the queue")
         break
       end
 

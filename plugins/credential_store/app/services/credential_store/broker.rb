@@ -16,6 +16,7 @@ module CredentialStore
       end
     end
     class ExecutionError < Error; end
+    class InvalidPayload < Error; end
 
     class << self
       def with_credential_file(context:, credential:, type:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
@@ -26,6 +27,11 @@ module CredentialStore
       def with_credential_env(context:, credential:, type:, env_key:, purpose:, tool_name: nil, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
         new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata)
           .with_env(env_key: env_key) { |env, metadata| yield env, metadata }
+      end
+
+      def with_credential_payload(context:, credential:, type:, purpose:, tool_name:, target: {}, expires_in: DEFAULT_LEASE_TTL, credential_validator: nil, attempt_metadata: {})
+        new(context: context, credential_ref: credential, type: type, purpose: purpose, tool_name: tool_name, target: target, expires_in: expires_in, credential_validator: credential_validator, attempt_metadata: attempt_metadata)
+          .with_payload { |payload, metadata| yield payload, metadata }
       end
 
       def redact(value, credentials: [], extra_secrets: [])
@@ -57,6 +63,37 @@ module CredentialStore
       def surface_allowed?(credential, surface:)
         allowed = Array(credential.allowed_surfaces).map(&:to_s)
         allowed.empty? || allowed.include?(surface.to_s)
+      end
+
+      def refresh_credential!(credential:, plugin_name:, purpose:, user: nil, metadata: {})
+        credential_id = credential.respond_to?(:id) ? credential.id : credential
+        Credential.transaction do
+          locked = Credential.lock.find(credential_id)
+          owner = Syrus::PluginRegistry.credential_type_owner(locked.credential_type)
+          raise Denied, "credential type is not managed by #{plugin_name}" unless owner == plugin_name.to_s
+          raise Denied, "credential revoked" if locked.revoked?
+
+          previous_payload = locked.payload
+          replacement = yield previous_payload
+          raise ArgumentError, "refreshed credential payload cannot be blank" if replacement.blank?
+
+          locked.update!(payload: replacement, last_rotated_at: Time.current)
+          CredentialAccessEvent.record!(
+            credential: locked,
+            user: user,
+            surface: "api",
+            tool_name: plugin_name.to_s,
+            action: "refresh",
+            purpose: purpose.to_s.presence,
+            result: "allowed",
+            metadata: Redaction.scrub_object(
+              metadata.to_h.merge(payload_replaced: true),
+              credentials: [ locked ],
+              extra_secrets: [ previous_payload, replacement ]
+            )
+          )
+          locked
+        end
       end
 
       private
@@ -102,6 +139,16 @@ module CredentialStore
       yield_with_redaction(credential) { yield env, metadata_for(credential, lease) }
     ensure
       env&.clear
+    end
+
+    def with_payload
+      credential = authorized_credential!
+      lease = lease_for(credential)
+      lease_event = record_event!(credential, result: "allowed", metadata: lease.metadata)
+
+      yield_with_redaction(credential) { yield credential.payload.dup, metadata_for(credential, lease) }
+    ensure
+      record_release_event!(credential, lease, lease_event) if credential && lease && lease_event
     end
 
     private
@@ -164,6 +211,8 @@ module CredentialStore
       return legacy_tool_denial_reason(credential) unless consumer
       return "incompatible credential type" unless consumer.compatible_with?(credential.credential_type)
       return if consumer.kind == :typed
+
+      return "plugin-managed credential cannot use raw wrappers" if ConsumerRegistry.plugin_managed_type?(credential.credential_type)
 
       allowed = Array(credential.allowed_tools).map(&:to_s)
       "raw-wrapper opt-in missing" if allowed.exclude?(tool_name)
@@ -234,6 +283,25 @@ module CredentialStore
         denial_reason: denial_reason,
         metadata: sanitized_metadata(credential, metadata),
         lease_id: result == "allowed" ? metadata[:lease_id] : nil
+      )
+    end
+
+    def record_release_event!(credential, lease, lease_event)
+      CredentialAccessEvent.record!(
+        credential: credential,
+        user: context.user,
+        repository: context.repository,
+        job: context.job,
+        workflow: context.workflow,
+        run: context.run,
+        chat_session: context.chat_session,
+        surface: event_surface,
+        tool_name: tool_name,
+        action: "revoke",
+        purpose: purpose,
+        result: "allowed",
+        metadata: sanitized_metadata(credential, lease.metadata.merge(released: true)),
+        completion_of_event: lease_event
       )
     end
 

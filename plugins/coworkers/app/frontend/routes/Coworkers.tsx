@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { FormEvent, useEffect, useState } from "react"
+import { FormEvent, type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { Avatar } from "@app/components/Avatar"
 import { AvatarPicker } from "@app/components/AvatarPicker"
@@ -10,8 +10,10 @@ import { Select } from "@app/components/Select"
 import { Textarea } from "@app/components/Textarea"
 import { PageHeading } from "@app/components/Heading"
 import { PanelMessage } from "@app/components/PanelMessage"
+import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { ToolApprovalDetails } from "@app/components/ToolApprovalDetails"
 import { FilterBar, type FilterLinkBuilder, type FilterTree } from "@app/components/FilterBar"
+import { encodeFilterTree } from "@app/components/filterBar/helpers"
 import { Page } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { Markdown } from "@app/lib/Markdown"
@@ -24,11 +26,14 @@ import {
   createCoworker,
   createSideChat,
   fetchCoworker,
+  fetchCoworkerConversationIndex,
+  renameCoworkerConversation,
+  archiveCoworkerConversation,
+  deleteCoworkerConversation,
   fetchCoworkerOptions,
   fetchCoworkerTab,
   fetchCoworkerActivity,
   fetchCoworkerApprovals,
-  fetchCoworkerMemory,
   fetchCoworkerWorkspace,
   fetchCoworkers,
   retryCoworkerWorkspaceSave,
@@ -39,8 +44,9 @@ import {
   updateCoworker,
   updateCoworkerGrant,
   type CoworkerDetail,
+  type CoworkerConversation,
   type CoworkerSchedule,
-  type CoworkerMemoryFile,
+  type CoworkerWorkspacePayload,
   type CoworkerSummary
 } from "../api/coworkers"
 
@@ -439,11 +445,18 @@ function CoworkerPage({ id }: { id: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const requestedTab = new URLSearchParams(location.search).get("tab")
-  const [tab, setTab] = useState(id === "syrus" ? "chats" : requestedTab || "chat")
+  const legacyTab = requestedTab === "profile" || requestedTab === "memory" ? "workspace" : requestedTab
+  const [tab, setTab] = useState(id === "syrus" ? "chats" : legacyTab || "chat")
+  useEffect(() => {
+    if (requestedTab !== "profile" && requestedTab !== "memory") return
+    const params = new URLSearchParams(location.search)
+    params.set("tab", "workspace")
+    if (requestedTab === "profile") params.set("path", "SOUL.md")
+    if (requestedTab === "memory") params.set("path_prefix", "memory")
+    navigate({ search: `?${params}` }, { replace: true })
+  }, [location.search, navigate, requestedTab])
   const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id), enabled: id !== "syrus" })
-  const detailTab = ({ chat: "chats", profile: "profile", capabilities: "capabilities", schedule: "schedules" } as const)[
-    tab as "chat" | "profile" | "capabilities" | "schedule"
-  ]
+  const detailTab = ({ chat: "chats", capabilities: "capabilities", schedule: "schedules" } as const)[tab as "chat" | "capabilities" | "schedule"]
   const tabQuery = useQuery({
     queryKey: ["coworkers", id, detailTab],
     queryFn: () => fetchCoworkerTab(id, detailTab!),
@@ -452,7 +465,11 @@ function CoworkerPage({ id }: { id: string }) {
   const sideChat = useMutation({
     mutationFn: () => createSideChat(Number(id)),
     onSuccess: async (data) => {
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }), queryClient.invalidateQueries({ queryKey: ["chats"] })])
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["coworkers", id, "chats"] }),
+        queryClient.invalidateQueries({ queryKey: ["coworkers", id, "conversation-index"] }),
+        queryClient.invalidateQueries({ queryKey: ["chats"] })
+      ])
       navigate(withRoutePrefix(data.chat_path, prefix))
     }
   })
@@ -478,43 +495,258 @@ function CoworkerPage({ id }: { id: string }) {
           </Link>
         </div>
       </Page.Header>
-      <Tabs active={tab} setActive={setTab} labels={["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"]} />
-      {tab === "chat" ? (
-        <section className="space-y-3">
-          <button className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60" disabled={sideChat.isPending} onClick={() => sideChat.mutate()}>
-            {sideChat.isPending ? t("detail.creating_side_chat") : t("detail.new_side_chat")}
-          </button>
-          {sideChat.isError ? <PanelMessage>{sideChat.error.message}</PanelMessage> : null}
-          {coworker.chats.map((chat) => (
-            <Link className="block rounded border border-border bg-surface p-3 text-brand" key={chat.id} to={withRoutePrefix(chat.path, prefix)}>
-              {chat.role === "main" ? t("detail.main_chat") : chat.title}
-            </Link>
-          ))}
-        </section>
-      ) : null}
-      {tab === "profile" ? (
-        <section className="space-y-4 rounded border border-border bg-surface p-5">
-          <dl>
-            <dt>{t("fields.model")}</dt>
-            <dd>{coworker.effective_model || t("detail.account_default")}</dd>
-            <dt>{t("fields.remote")}</dt>
-            <dd>{coworker.workspace_repo}</dd>
-          </dl>
-          <h2 className="font-semibold">{t("detail.soul_heading")}</h2>
-          <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
-        </section>
-      ) : null}
+      <Tabs active={tab} setActive={setTab} labels={["chat", "capabilities", "approvals", "schedule", "workspace", "activity"]} />
+      {tab === "chat" ? <CoworkerConversationIndex id={id} create={sideChat} legacyChats={coworker.chats} prefix={prefix} /> : null}
       {tab === "capabilities" ? <CoworkerCapabilities coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
       {tab === "approvals" ? <CoworkerApprovals id={id} /> : null}
       {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
-      {tab === "memory" ? <CoworkerMemory id={id} /> : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
       {tab === "activity" ? <CoworkerActivity id={id} /> : null}
-      {!["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"].includes(tab) ? (
-        <PanelMessage>{t("coming_later")}</PanelMessage>
-      ) : null}
+      {!["chat", "capabilities", "approvals", "schedule", "workspace", "activity"].includes(tab) ? <PanelMessage>{t("coming_later")}</PanelMessage> : null}
     </Page.Root>
   )
+}
+
+function CoworkerConversationIndex({
+  id,
+  prefix,
+  create,
+  legacyChats
+}: {
+  id: string
+  prefix: string
+  create: { isPending: boolean; isError: boolean; error: Error | null; mutate: () => void }
+  legacyChats: CoworkerDetail["chats"]
+}) {
+  const { t } = useT("coworkers")
+  const location = useLocation()
+  const navigate = useNavigate()
+  const querySearch = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    params.delete("tab")
+    const value = params.toString()
+    return value ? `?${value}` : ""
+  }, [location.search])
+  const query = useQuery({
+    queryKey: ["coworkers", id, "conversation-index", querySearch],
+    queryFn: () => fetchCoworkerConversationIndex(id, querySearch),
+    placeholderData: (previous) => previous
+  })
+  const [older, setOlder] = useState<CoworkerConversation[]>([])
+  const [cursor, setCursor] = useState<string | null>(null)
+  const loadMore = useMutation({
+    mutationFn: () => {
+      const params = new URLSearchParams(querySearch)
+      if (cursor) params.set("cursor", cursor)
+      return fetchCoworkerConversationIndex(id, `?${params}`)
+    },
+    onSuccess: (page) => {
+      setOlder((current) => [...current, ...page.side_chats])
+      setCursor(page.next_cursor)
+    }
+  })
+  useEffect(() => {
+    setOlder([])
+    setCursor(query.data?.next_cursor || null)
+  }, [query.data, querySearch])
+
+  function setSort(event: React.ChangeEvent<HTMLSelectElement>) {
+    const params = new URLSearchParams(location.search)
+    if (event.target.value === "last_activity") params.delete("sort")
+    else params.set("sort", event.target.value)
+    params.delete("cursor")
+    navigate(`${location.pathname}?${params}`)
+  }
+
+  if (query.isPending) return <PanelMessage>{t("conversations.loading")}</PanelMessage>
+  if (query.isError || !query.data) return <PanelMessage>{t("conversations.error")}</PanelMessage>
+  const payload = Array.isArray(query.data.side_chats) && Array.isArray(query.data.filter_schema) ? query.data : legacyConversationPayload(legacyChats)
+  const sideChats = [...payload.side_chats, ...older]
+  return (
+    <section className="space-y-5" aria-label={t("conversations.index_label")}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">{t("conversations.heading")}</h2>
+          <p className="text-sm text-text-secondary">{t("conversations.description")}</p>
+        </div>
+        <button
+          className="shrink-0 rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-60"
+          disabled={create.isPending}
+          onClick={() => create.mutate()}
+        >
+          {create.isPending ? t("detail.creating_side_chat") : t("detail.new_side_chat")}
+        </button>
+      </div>
+      {create.isError && create.error ? <PanelMessage>{create.error.message}</PanelMessage> : null}
+      {payload.main_chat ? (
+        <div>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("conversations.pinned")}</h3>
+          <ConversationRow chat={payload.main_chat} coworkerId={id} prefix={prefix} />
+        </div>
+      ) : null}
+      <div className="space-y-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="font-semibold">{t("activity.side_chats")}</h3>
+            <p className="text-sm text-text-secondary">
+              {t(payload.result_count_exact ? "conversations.result_count" : "conversations.result_count_limited", { count: payload.result_count })}
+            </p>
+          </div>
+          <label className="w-full text-sm font-medium sm:w-auto">
+            {t("conversations.sort")}
+            <Select className="mt-1 max-w-full sm:ml-2 sm:mt-0" onChange={setSort} value={payload.sort}>
+              <option value="last_activity">{t("conversations.sort_last_activity")}</option>
+              <option value="title">{t("conversations.sort_title")}</option>
+              <option value="created_at">{t("conversations.sort_created")}</option>
+            </Select>
+          </label>
+        </div>
+        <div className="rounded border border-border bg-surface p-3">
+          <FilterBar filter={payload.filter} filterSchema={payload.filter_schema} pathname={location.pathname} search={location.search} />
+        </div>
+        {sideChats.length ? (
+          <ul className="divide-y divide-border rounded border border-border bg-surface">
+            {sideChats.map((chat) => (
+              <li key={chat.id}>
+                <ConversationRow chat={chat} coworkerId={id} prefix={prefix} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <PanelMessage>
+            {payload.result_count === 0 && !hasConversationFilters(payload.filter) ? t("activity.no_side_chats") : t("conversations.no_matches")}
+          </PanelMessage>
+        )}
+        {cursor ? (
+          <button
+            className="rounded border border-border px-3 py-2 text-sm disabled:opacity-60"
+            disabled={loadMore.isPending}
+            onClick={() => loadMore.mutate()}
+          >
+            {loadMore.isPending ? t("conversations.loading_more") : t("activity.load_more")}
+          </button>
+        ) : null}
+        {loadMore.isError ? <PanelMessage>{t("conversations.error")}</PanelMessage> : null}
+      </div>
+    </section>
+  )
+}
+
+function legacyConversationPayload(chats: CoworkerDetail["chats"]): Awaited<ReturnType<typeof fetchCoworkerConversationIndex>> {
+  const row = (chat: CoworkerDetail["chats"][number]): CoworkerConversation => ({
+    id: chat.id,
+    title: chat.title,
+    path: chat.path,
+    main: chat.role === "main",
+    preview: null,
+    last_activity_at: "",
+    created_at: "",
+    archived: false,
+    unread: false,
+    active_work: false,
+    title_match: false,
+    match_count: 0,
+    match: null
+  })
+  return {
+    main_chat: chats.find((chat) => chat.role === "main") ? row(chats.find((chat) => chat.role === "main")!) : null,
+    side_chats: chats.filter((chat) => chat.role === "side").map(row),
+    result_count: chats.filter((chat) => chat.role === "side").length,
+    result_count_exact: true,
+    next_cursor: null,
+    filter: { and: [] },
+    filter_schema: [],
+    sort: "last_activity"
+  }
+}
+
+function hasConversationFilters(filter: Record<string, unknown>) {
+  return Array.isArray(filter.and) && filter.and.length > 0
+}
+
+function ConversationRow({ chat, coworkerId, prefix }: { chat: CoworkerConversation; coworkerId: string; prefix: string }) {
+  const { t } = useT("coworkers")
+  const queryClient = useQueryClient()
+  const action = useMutation({
+    mutationFn: async (kind: "rename" | "archive" | "delete") => {
+      if (kind === "rename") {
+        const title = window.prompt(t("conversations.rename_prompt"), chat.title)?.trim()
+        if (title) await renameCoworkerConversation(chat.id, title)
+      } else if (kind === "archive") {
+        await archiveCoworkerConversation(chat.id, chat.archived)
+      } else if (window.confirm(t("conversations.delete_confirm", { title: chat.title }))) {
+        await deleteCoworkerConversation(chat.id)
+      }
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["coworkers", coworkerId, "conversation-index"] })
+  })
+  const destination = `${withRoutePrefix(chat.path, prefix)}${chat.match ? `#message-${chat.match.message_id}` : ""}`
+  return (
+    <article className={`flex min-w-0 items-start gap-3 p-4 ${chat.main ? "rounded border border-brand/30 bg-brand/5" : ""}`}>
+      <Link className="min-w-0 flex-1" to={destination}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-brand">{chat.main ? t("detail.main_chat") : chat.title_match ? <mark>{chat.title}</mark> : chat.title}</span>
+          {chat.unread ? <span className="rounded-full bg-brand px-2 py-0.5 text-xs text-white">{t("conversations.unread")}</span> : null}
+          {chat.active_work ? <span className="rounded-full bg-warning-subtle px-2 py-0.5 text-xs">{t("conversations.active_work")}</span> : null}
+          {chat.archived ? <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs">{t("conversations.archived")}</span> : null}
+          {chat.match_count > 0 ? <span className="text-xs text-text-secondary">{t("conversations.matches", { count: chat.match_count })}</span> : null}
+        </div>
+        {chat.match ? (
+          <p className="mt-1 line-clamp-2 text-sm text-text-secondary" dangerouslySetInnerHTML={{ __html: safeMatchSnippet(chat.match.snippet) }} />
+        ) : chat.preview ? (
+          <p className="mt-1 line-clamp-2 text-sm text-text-secondary">{chat.preview}</p>
+        ) : null}
+        {chat.last_activity_at ? <RelativeTimestamp value={chat.last_activity_at} /> : null}
+      </Link>
+      {!chat.main ? (
+        <details className="relative shrink-0">
+          <summary aria-label={t("conversations.actions", { title: chat.title })} className="cursor-pointer list-none rounded px-2 py-1 text-text-secondary">
+            •••
+          </summary>
+          <div className="absolute right-0 z-10 mt-1 min-w-32 rounded border border-border bg-surface p-1 shadow-lg">
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("rename")}
+            >
+              {t("conversations.rename")}
+            </button>
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("archive")}
+            >
+              {t(chat.archived ? "conversations.restore" : "conversations.archive")}
+            </button>
+            <button
+              className="block w-full rounded px-3 py-2 text-left text-sm text-danger-text hover:bg-surface-muted"
+              disabled={action.isPending}
+              onClick={() => action.mutate("delete")}
+            >
+              {t("conversations.delete")}
+            </button>
+          </div>
+        </details>
+      ) : null}
+    </article>
+  )
+}
+
+function safeMatchSnippet(html: string) {
+  const template = document.createElement("template")
+  template.innerHTML = html
+  const output = document.createElement("span")
+  const clean = (node: Node, parent: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) return parent.appendChild(document.createTextNode(node.textContent || ""))
+    if (node instanceof HTMLElement && node.tagName.toLowerCase() === "mark") {
+      const mark = document.createElement("mark")
+      node.childNodes.forEach((child) => clean(child, mark))
+      return parent.appendChild(mark)
+    }
+    node.childNodes.forEach((child) => clean(child, parent))
+  }
+  template.content.childNodes.forEach((child) => clean(child, output))
+  return output.innerHTML
 }
 
 function CoworkerApprovals({ id }: { id: string }) {
@@ -644,7 +876,6 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
 
   return (
     <section className="space-y-5">
-      <PermissionCutoverReport report={coworker.permission_cutover_report} />
       <div className="divide-y divide-border rounded border border-border bg-surface">
         {coworker.grant_catalog.map((descriptor) => {
           const capability = descriptor.name
@@ -764,76 +995,6 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
   )
 }
 
-function PermissionCutoverReport({ report }: { report: CoworkerDetail["permission_cutover_report"] }) {
-  const { t } = useT("coworkers")
-  return (
-    <section className="rounded border border-border bg-surface p-4" aria-labelledby="permission-cutover-heading">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold" id="permission-cutover-heading">
-          {t("cutover.title")}
-        </h2>
-        <span
-          className={`rounded px-2 py-1 text-xs font-medium ${report.ready ? "bg-success-surface text-success-text" : "bg-danger-surface text-danger-text"}`}
-        >
-          {t(report.ready ? "cutover.ready" : "cutover.blocked")}
-        </span>
-      </div>
-      <p className="mt-1 text-sm text-text-secondary">{t("cutover.description")}</p>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <CutoverList
-          title={t("cutover.legacy_grants")}
-          empty={t("cutover.none")}
-          items={report.legacy_grants.map((grant) => `${grant.capability}: ${grant.approval_policy}`)}
-        />
-        <CutoverList
-          title={t("cutover.recommended_defaults")}
-          empty={t("cutover.none")}
-          items={report.recommended_defaults.map(
-            (item) =>
-              `${item.operation}: ${Object.entries(item.roles)
-                .map(([role, policy]) => `${role}=${policy}`)
-                .join(", ")}`
-          )}
-        />
-        <CutoverList
-          title={t("cutover.lost_authority")}
-          empty={t("cutover.none")}
-          items={report.lost_authority.map((item) => `${item.operation} (${item.role}): ${item.before} → ${item.after}`)}
-        />
-        <CutoverList
-          title={t("cutover.requestable_replacements")}
-          empty={t("cutover.none")}
-          items={report.requestable_replacements.map((item) => `${item.operation}: ${item.roles.join(", ")}`)}
-        />
-        <CutoverList
-          title={t("cutover.descriptor_gaps")}
-          empty={t("cutover.none")}
-          items={report.descriptor_gaps.map((gap) => `${gap.legacy_capability}: ${gap.reasons.join(", ")}`)}
-          danger
-        />
-        <CutoverList title={t("cutover.migration_errors")} empty={t("cutover.none")} items={report.migration_errors.map((error) => error.message)} danger />
-      </div>
-    </section>
-  )
-}
-
-function CutoverList({ title, items, empty, danger = false }: { title: string; items: string[]; empty: string; danger?: boolean }) {
-  return (
-    <div>
-      <h3 className="text-sm font-medium">{title}</h3>
-      {items.length ? (
-        <ul className={`mt-1 list-disc space-y-1 pl-5 text-sm ${danger ? "text-danger-text" : "text-text-secondary"}`}>
-          {items.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-1 text-sm text-text-secondary">{empty}</p>
-      )}
-    </div>
-  )
-}
-
 function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
   const { t } = useT("coworkers")
   const [kind, setKind] = useState("cron")
@@ -916,26 +1077,13 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
                         })}
                       </div>
                     ) : null}
-                    <div className="text-sm text-text-secondary">
-                      {schedule.state === "paused"
-                        ? t("schedule.journaling_paused")
-                        : t("schedule.last_result", {
-                            result: schedule.last_system_result || t("schedule.never_run"),
-                            date: schedule.last_journaled_on || "—"
-                          })}
-                    </div>
-                    {schedule.system_result_history
-                      .slice(-7)
-                      .reverse()
-                      .map((entry) => (
-                        <div className="text-xs text-text-secondary" key={entry.date}>
-                          {entry.date}: {entry.result}
-                          {entry.reason ? ` (${entry.reason})` : ""}
-                        </div>
-                      ))}
                     <SystemScheduleTime coworkerId={String(coworker.id)} onChanged={onChanged} schedule={schedule} />
                   </>
                 ) : null}
+                <LatestScheduleResult result={schedule.latest_result} />
+                <Link className="text-sm text-brand hover:underline" to={`/dashboard/jobs?q=${scheduleFilter(schedule.id)}`}>
+                  {t("schedule.view_all_runs")}
+                </Link>
               </div>
               <div className="flex gap-2">
                 {schedule.state === "scheduled" ? (
@@ -974,6 +1122,33 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
   )
 }
 
+function scheduleFilter(id: number) {
+  return encodeFilterTree({ and: [{ field: "scheduled_task_id", op: "is", value: String(id) }] })
+}
+
+function LatestScheduleResult({ result }: { result: CoworkerSchedule["latest_result"] }) {
+  const { t } = useT("coworkers")
+  const failure = ["failed", "blocked", "cancelled"].includes(result.outcome)
+  return (
+    <div className={`mt-2 text-sm ${failure ? "font-medium text-danger-text" : "text-text-secondary"}`} role={failure ? "alert" : undefined}>
+      <span>
+        {t("schedule.latest_result")}: {t(`schedule.outcomes.${result.outcome}`, { defaultValue: result.outcome })}
+      </span>
+      {result.target_date || result.occurred_at ? <span> · {result.target_date || new Date(result.occurred_at!).toLocaleString()}</span> : null}
+      {result.job ? (
+        <>
+          {" · "}
+          <Link className="underline" to={result.job.path}>
+            {result.job.slug}
+          </Link>
+        </>
+      ) : null}
+      {result.job_needed === false ? <span> · {t("schedule.no_job_needed")}</span> : null}
+      {result.reason ? <div>{result.reason}</div> : null}
+    </div>
+  )
+}
+
 function SystemScheduleTime({ coworkerId, schedule, onChanged }: { coworkerId: string; schedule: CoworkerSchedule; onChanged: () => void }) {
   const { t } = useT("coworkers")
   const [cadence, setCadence] = useState(schedule.schedule_input || "")
@@ -997,17 +1172,28 @@ function SystemScheduleTime({ coworkerId, schedule, onChanged }: { coworkerId: s
 
 function CoworkerActivity({ id }: { id: string }) {
   const { t } = useT("coworkers")
-  const query = useQuery({ queryKey: ["coworkers", id, "activity"], queryFn: () => fetchCoworkerActivity(id) })
-  const [olderRuns, setOlderRuns] = useState<Awaited<ReturnType<typeof fetchCoworkerActivity>>["runs"]>([])
+  const location = useLocation()
+  const prefix = usePrefix()
+  const activitySearch = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    params.delete("tab")
+    return params.toString()
+  }, [location.search])
+  const query = useQuery({ queryKey: ["coworkers", id, "activity", activitySearch], queryFn: () => fetchCoworkerActivity(id, activitySearch) })
+  const [olderJobs, setOlderJobs] = useState<Awaited<ReturnType<typeof fetchCoworkerActivity>>["jobs"]>([])
   const [olderChats, setOlderChats] = useState<Awaited<ReturnType<typeof fetchCoworkerActivity>>["side_chats"]>([])
-  const [nextCursors, setNextCursors] = useState<{ runs: string | null; side_chats: string | null }>({ runs: null, side_chats: null })
+  const [nextCursors, setNextCursors] = useState<{ jobs: string | null; side_chats: string | null }>({ jobs: null, side_chats: null })
   useEffect(() => {
-    if (query.data) setNextCursors(query.data.next_cursors)
+    if (query.data) {
+      setOlderJobs([])
+      setOlderChats([])
+      setNextCursors(query.data.next_cursors)
+    }
   }, [query.data])
   const loadMore = useMutation({
-    mutationFn: () => fetchCoworkerActivity(id, { runs: nextCursors.runs, sideChats: nextCursors.side_chats }),
+    mutationFn: () => fetchCoworkerActivity(id, activitySearch, { jobs: nextCursors.jobs, sideChats: nextCursors.side_chats }),
     onSuccess: (page) => {
-      setOlderRuns((current) => [...current, ...page.runs])
+      setOlderJobs((current) => [...current, ...page.jobs])
       setOlderChats((current) => [...current, ...page.side_chats])
       setNextCursors(page.next_cursors)
     }
@@ -1015,7 +1201,7 @@ function CoworkerActivity({ id }: { id: string }) {
   if (query.isPending) return <PanelMessage>{t("activity.loading")}</PanelMessage>
   if (query.isError || !query.data) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
   const activity = query.data
-  const runs = [...activity.runs, ...olderRuns]
+  const jobs = [...activity.jobs, ...olderJobs]
   const sideChats = [...activity.side_chats, ...olderChats]
   const traffic = activity.message_traffic
   return (
@@ -1035,20 +1221,105 @@ function CoworkerActivity({ id }: { id: string }) {
         </dl>
       </div>
       <div>
-        <h2 className="font-semibold">{t("activity.runs")}</h2>
-        {runs.length ? (
-          <ul className="mt-3 divide-y divide-border rounded border border-border">
-            {runs.map((run) => (
-              <li className="grid gap-2 p-3 text-sm sm:grid-cols-4" key={run.id}>
-                <span>{t("activity.run_label", { id: run.id })}</span>
-                <span>{t(`activity.status.${run.state}`, { defaultValue: run.state })}</span>
-                <span>{t("activity.tool_calls", { count: run.tool_calls_count })}</span>
-                <span className="sm:text-right">${run.cost_usd.toFixed(2)}</span>
+        <h2 className="font-semibold">{t("activity.jobs")}</h2>
+        <div className="mt-3 rounded border border-border bg-surface-subtle p-3">
+          <FilterBar
+            buildLink={activityFilterLink}
+            filter={activityFilterTree(location.search)}
+            filterSchema={activityFilterSchema(t)}
+            legacyFilterKeys={["query", "state", "source", "failures_only", "created_after", "created_before"]}
+            pathname={location.pathname}
+            search={location.search}
+          />
+        </div>
+        {jobs.length ? (
+          <ul className="mt-3 space-y-3">
+            {jobs.map((job) => (
+              <li className={`rounded border p-4 ${job.outcome_reason ? "border-danger" : "border-border"}`} key={job.id}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link className="font-semibold text-brand" to={withRoutePrefix(job.path, prefix)}>
+                      {job.slug} · {job.title}
+                    </Link>
+                    <p className="mt-1 text-sm text-text-secondary">{job.goal_summary}</p>
+                  </div>
+                  <span className="rounded-full bg-surface-subtle px-2 py-1 text-xs font-medium">
+                    {t(`activity.status.${job.state}`, { defaultValue: job.state })}
+                  </span>
+                </div>
+                <dl className="mt-3 grid gap-2 text-xs text-text-secondary sm:grid-cols-2 lg:grid-cols-3">
+                  <div>
+                    <dt className="font-medium">{t("activity.source")}</dt>
+                    <dd>{job.schedule_name || job.source || t("activity.unknown")}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.created")}</dt>
+                    <dd>
+                      <time dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.started")}</dt>
+                    <dd>{job.started_at ? <time dateTime={job.started_at}>{new Date(job.started_at).toLocaleString()}</time> : "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.completed")}</dt>
+                    <dd>{job.finished_at ? <time dateTime={job.finished_at}>{new Date(job.finished_at).toLocaleString()}</time> : "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.duration")}</dt>
+                    <dd>{formatDuration(job.duration_seconds)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium">{t("activity.usage")}</dt>
+                    <dd>
+                      {t("activity.tool_calls", { count: job.tool_calls_count })} · ${job.cost_usd.toFixed(2)}
+                    </dd>
+                  </div>
+                </dl>
+                {job.outcome_reason ? (
+                  <p className="mt-3 rounded bg-danger/10 p-2 text-sm text-danger">
+                    {job.outcome_reason} ·{" "}
+                    <Link className="underline" to={withRoutePrefix(job.path, prefix)}>
+                      {t("activity.view_job")}
+                    </Link>
+                  </p>
+                ) : null}
+                {job.attempts.length ? (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm font-medium">{t("activity.attempts", { count: job.attempts.length })}</summary>
+                    <ul className="mt-2 space-y-2 border-l border-border pl-3">
+                      {job.attempts.map((attempt) => (
+                        <li className="text-sm" key={attempt.id}>
+                          <Link className="text-brand" to={withRoutePrefix(attempt.path, prefix)}>
+                            {attempt.slug}
+                          </Link>{" "}
+                          · {attempt.state} · {formatDuration(attempt.duration_seconds)} · {t("activity.tool_calls", { count: attempt.tool_calls_count })} · $
+                          {attempt.cost_usd.toFixed(2)}
+                          {attempt.failure_reason ? <p className="text-danger">{attempt.failure_reason}</p> : null}
+                          {attempt.runs.length ? (
+                            <ul className="ml-4 mt-1 list-disc">
+                              {attempt.runs.map((run) => (
+                                <li key={run.id}>
+                                  <Link className="text-brand" to={withRoutePrefix(run.path, prefix)}>
+                                    {run.slug}
+                                  </Link>{" "}
+                                  · {run.state} · {formatDuration(run.duration_seconds)} · {t("activity.tool_calls", { count: run.tool_calls_count })} · $
+                                  {run.cost_usd.toFixed(2)}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-sm text-text-secondary">{t("activity.no_runs")}</p>
+          <p className="mt-2 text-sm text-text-secondary">{t(activity.filtered ? "activity.no_matching_jobs" : "activity.no_jobs")}</p>
         )}
       </div>
       <div>
@@ -1068,7 +1339,7 @@ function CoworkerActivity({ id }: { id: string }) {
           <p className="mt-2 text-sm text-text-secondary">{t("activity.no_side_chats")}</p>
         )}
       </div>
-      {nextCursors.runs || nextCursors.side_chats ? (
+      {nextCursors.jobs || nextCursors.side_chats ? (
         <button className="rounded border border-border px-3 py-2 text-sm" disabled={loadMore.isPending} onClick={() => loadMore.mutate()} type="button">
           {t("activity.load_more")}
         </button>
@@ -1109,12 +1380,113 @@ function CoworkerActivity({ id }: { id: string }) {
   )
 }
 
+function formatDuration(seconds: number | null) {
+  if (seconds === null) return "—"
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  return minutes < 60 ? `${minutes}m ${seconds % 60}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
+function activityFilterTree(search: string): FilterTree {
+  const params = new URLSearchParams(search)
+  const children = [
+    params.get("query") && { field: "query", op: "contains", value: params.get("query")! },
+    params.get("state") && { field: "state", op: "is", value: params.get("state")! },
+    params.get("source") && { field: "source", op: "is", value: params.get("source")! },
+    params.get("failures_only") === "true" && { field: "failures_only", op: "is", value: "true" },
+    params.get("created_after") && { field: "created_after", op: "after", value: params.get("created_after")! },
+    params.get("created_before") && { field: "created_before", op: "before", value: params.get("created_before")! }
+  ].filter(Boolean) as NonNullable<FilterTree["and"]>
+  return { and: children }
+}
+
+function activityFilterSchema(t: ReturnType<typeof useT>["t"]) {
+  return [
+    { field: "query", label: t("activity.filter_text"), bucket: "text", operators: ["contains"], values: [], free_text_search: true },
+    {
+      field: "state",
+      label: t("activity.filter_state"),
+      bucket: "select",
+      operators: ["is"],
+      values: [
+        "backlog",
+        "needs_triage",
+        "triaging",
+        "blocked_by_epic",
+        "queued",
+        "running",
+        "implemented",
+        "coding",
+        "failed",
+        "no_change_needed",
+        "approved",
+        "landing",
+        "closed"
+      ].map((value) => ({ value, label: t(`activity.status.${value}`, { defaultValue: value }) }))
+    },
+    { field: "source", label: t("activity.filter_source"), bucket: "text", operators: ["is"], values: [] },
+    {
+      field: "failures_only",
+      label: t("activity.failures_only"),
+      bucket: "select",
+      operators: ["is"],
+      values: [{ value: "true", label: t("activity.failures_only") }]
+    },
+    { field: "created_after", label: t("activity.created_after"), bucket: "date", operators: ["after"], values: [] },
+    { field: "created_before", label: t("activity.created_before"), bucket: "date", operators: ["before"], values: [] }
+  ]
+}
+
+const activityFilterLink: FilterLinkBuilder = (path, search, updates) => {
+  const params = new URLSearchParams(search)
+  const fields = ["query", "state", "source", "failures_only", "created_after", "created_before"]
+  if (typeof updates.q === "string" && updates.q) {
+    try {
+      const tree = JSON.parse(atob(updates.q.replace(/-/g, "+").replace(/_/g, "/"))) as { and?: Array<{ field?: string; value?: unknown }> }
+      fields.forEach((field) => {
+        const value = tree.and?.find((chip) => chip.field === field)?.value
+        typeof value === "string" && value.trim() ? params.set(field, value.trim()) : params.delete(field)
+      })
+    } catch {
+      fields.forEach((field) => params.delete(field))
+    }
+  } else if (updates.q == null) fields.forEach((field) => params.delete(field))
+  params.delete("jobs_cursor")
+  const query = params.toString()
+  return query ? `${path}?${query}` : path
+}
+
 function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
   const { t } = useT("coworkers")
-  const [selectedPath, setSelectedPath] = useState<string | undefined>()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = new URLSearchParams(location.search)
+  const selectedPath = params.get("path") || undefined
+  const workspaceSearch = useMemo(() => {
+    const query = new URLSearchParams(location.search)
+    query.delete("tab")
+    query.delete("expanded")
+    return query.size ? `?${query}` : ""
+  }, [location.search])
+  const selectPath = (path: string) => {
+    const query = new URLSearchParams(location.search)
+    query.set("tab", "workspace")
+    query.set("path", path)
+    navigate({ search: `?${query}` })
+  }
+  const setCursor = (cursor: string | null) => {
+    const query = new URLSearchParams(location.search)
+    cursor ? query.set("cursor", cursor) : query.delete("cursor")
+    navigate({ search: `?${query}` })
+  }
+  const setExpandedPaths = (paths: Set<string>) => {
+    const query = new URLSearchParams(location.search)
+    paths.size ? query.set("expanded", [...paths].sort().join(",")) : query.delete("expanded")
+    navigate({ search: `?${query}` }, { replace: true })
+  }
   const query = useQuery({
-    queryKey: ["coworkers", id, "workspace", selectedPath],
-    queryFn: () => fetchCoworkerWorkspace(id, selectedPath)
+    queryKey: ["coworkers", id, "workspace", workspaceSearch],
+    queryFn: () => fetchCoworkerWorkspace(id, workspaceSearch)
   })
   const pushTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
   const coworkerQuery = useQuery({ queryKey: ["coworkers", id, "chats"], queryFn: () => fetchCoworkerTab(id, "chats") })
@@ -1154,6 +1526,8 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
       </section>
     )
   const workspace = query.data
+  const results = workspace.results || []
+  const pathParts = selectedPath?.split("/") || []
   return (
     <section className="space-y-4">
       {unsavedAlerts}
@@ -1174,29 +1548,49 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
         </div>
       </div>
       {workspace.partial ? <PanelMessage>{t("workspace.partial")}</PanelMessage> : null}
+      {workspace.incomplete_reasons?.length ? <PanelMessage>{t("workspace.incomplete")}</PanelMessage> : null}
       {workspace.conflicts.map((conflict) => (
         <PanelMessage key={conflict.branch}>
           {t("workspace.conflict", { branch: conflict.branch })} {conflict.files.join(", ")}
         </PanelMessage>
       ))}
       <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[18rem_minmax(0,1fr)]">
-        <nav aria-label={t("workspace.files")} className="border-b border-border p-3 md:border-b-0 md:border-r">
-          {workspace.files
-            .filter((file) => file.type !== "directory")
-            .map((file) => (
-              <button
-                className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
-                key={file.path}
-                onClick={() => setSelectedPath(file.path)}
-                type="button"
-              >
-                {file.path}
-              </button>
-            ))}
-        </nav>
+        <div className="border-b border-border p-3 md:border-b-0 md:border-r">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <WorkspaceScope label={t("workspace.all")} location={location} navigate={navigate} />
+            <WorkspaceScope label={t("workspace.memory")} location={location} navigate={navigate} prefix="memory" />
+            <button className="rounded-full border border-border px-3 py-1 text-xs" onClick={() => selectPath("SOUL.md")} type="button">
+              SOUL.md
+            </button>
+          </div>
+          <FilterBar
+            buildLink={workspaceFilterLink}
+            filter={workspaceFilterTree(location.search)}
+            filterSchema={workspaceFilterSchema(t)}
+            legacyFilterKeys={["search", "extension", "path_prefix", "filename", "area"]}
+            pathname={location.pathname}
+            search={location.search}
+          />
+          <WorkspaceTree
+            expandedPaths={new Set(params.get("expanded")?.split(",").filter(Boolean) || ["memory"])}
+            files={workspace.files}
+            label={t("workspace.files")}
+            onExpandedChange={setExpandedPaths}
+            onSelect={selectPath}
+            selectedPath={selectedPath}
+          />
+        </div>
         <article className="min-w-0 p-5">
           {workspace.selected_file ? (
             <>
+              <nav aria-label={t("workspace.breadcrumbs")} className="mb-3 flex flex-wrap gap-1 text-sm text-text-muted">
+                {pathParts.map((part, index) => (
+                  <span key={`${part}-${index}`}>
+                    {index ? " / " : ""}
+                    {part}
+                  </span>
+                ))}
+              </nav>
               <h2 className="mb-3 font-semibold">{workspace.selected_file.path}</h2>
               {workspace.selected_file.truncated ? <PanelMessage>{t("workspace.truncated")}</PanelMessage> : null}
               {workspace.selected_file.binary ? (
@@ -1208,7 +1602,43 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
               )}
             </>
           ) : (
-            <PanelMessage>{t("workspace.choose_file")}</PanelMessage>
+            <div>
+              <PanelMessage>{results.length ? t("workspace.choose_file") : t("workspace.no_results")}</PanelMessage>
+              {results.map((result) => (
+                <button
+                  className="mt-2 block w-full rounded border border-border p-3 text-left text-sm"
+                  key={result.path}
+                  onClick={() => selectPath(result.path)}
+                  type="button"
+                >
+                  <span className="font-medium">{result.path}</span>
+                  {result.snippet ? <HighlightedSnippet highlights={result.highlights} snippet={result.snippet} /> : null}
+                </button>
+              ))}
+              {workspace.total > 0 ? (
+                <div className="mt-4 flex items-center justify-between text-sm text-text-muted">
+                  <span>{t("workspace.showing", { first: workspace.page_start, last: workspace.page_end, total: workspace.total })}</span>
+                  <div className="flex gap-2">
+                    <button
+                      className="rounded border border-border px-3 py-1 disabled:opacity-40"
+                      disabled={!workspace.previous_cursor}
+                      onClick={() => setCursor(workspace.previous_cursor)}
+                      type="button"
+                    >
+                      {t("workspace.previous")}
+                    </button>
+                    <button
+                      className="rounded border border-border px-3 py-1 disabled:opacity-40"
+                      disabled={!workspace.next_cursor}
+                      onClick={() => setCursor(workspace.next_cursor)}
+                      type="button"
+                    >
+                      {t("workspace.next")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           )}
         </article>
       </div>
@@ -1228,118 +1658,250 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
   )
 }
 
-const memoryFilterSchema = (label: string) => [{ field: "search", label, bucket: "text", operators: ["contains"], values: [], free_text_search: true }]
-
-function memoryFilterTree(search: string): FilterTree {
-  const value = new URLSearchParams(search).get("search")?.trim()
-  return { and: value ? [{ field: "search", op: "contains", value }] : [] }
+function WorkspaceScope({
+  label,
+  prefix,
+  location,
+  navigate
+}: {
+  label: string
+  prefix?: string
+  location: ReturnType<typeof useLocation>
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  return (
+    <button
+      className="rounded-full border border-border px-3 py-1 text-xs"
+      onClick={() => {
+        const query = new URLSearchParams(location.search)
+        prefix ? query.set("path_prefix", prefix) : query.delete("path_prefix")
+        query.delete("path")
+        query.delete("cursor")
+        navigate({ search: `?${query}` })
+      }}
+      type="button"
+    >
+      {label}
+    </button>
+  )
 }
 
-const memoryFilterLink: FilterLinkBuilder = (path, search, updates) => {
+type WorkspaceTreeNode = { name: string; path: string; file: boolean; children: WorkspaceTreeNode[] }
+
+function workspaceTreeNodes(files: CoworkerWorkspacePayload["files"]): WorkspaceTreeNode[] {
+  const root: WorkspaceTreeNode = { name: "", path: "", file: false, children: [] }
+  files
+    .filter((file) => file.type === "file")
+    .forEach((file) => {
+      let parent = root
+      file.path.split("/").forEach((name, index, parts) => {
+        const path = parts.slice(0, index + 1).join("/")
+        let node = parent.children.find((child) => child.name === name)
+        if (!node) {
+          node = { name, path, file: index === parts.length - 1, children: [] }
+          parent.children.push(node)
+        }
+        parent = node
+      })
+    })
+  const sort = (nodes: WorkspaceTreeNode[]) =>
+    nodes.sort((a, b) => Number(a.file) - Number(b.file) || a.name.localeCompare(b.name)).forEach((node) => sort(node.children))
+  sort(root.children)
+  return root.children
+}
+
+function WorkspaceTree({
+  files,
+  selectedPath,
+  onSelect,
+  label,
+  expandedPaths,
+  onExpandedChange
+}: {
+  files: CoworkerWorkspacePayload["files"]
+  selectedPath?: string
+  onSelect: (path: string) => void
+  label: string
+  expandedPaths: Set<string>
+  onExpandedChange: (paths: Set<string>) => void
+}) {
+  const treeRef = useRef<HTMLElement>(null)
+  const nodes = workspaceTreeNodes(files)
+  const [activePath, setActivePath] = useState(selectedPath)
+  const visiblePaths = (treeNodes: WorkspaceTreeNode[]): string[] =>
+    treeNodes.flatMap((node) => [node.path, ...(!node.file && expandedPaths.has(node.path) ? visiblePaths(node.children) : [])])
+  const tabStopPath = activePath && visiblePaths(nodes).includes(activePath) ? activePath : visiblePaths(nodes)[0]
+  const toggle = (path: string, expand?: boolean) => {
+    const next = new Set(expandedPaths)
+    const shouldExpand = expand ?? !next.has(path)
+    shouldExpand ? next.add(path) : next.delete(path)
+    onExpandedChange(next)
+  }
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, node: WorkspaceTreeNode) => {
+    const items = [...(treeRef.current?.querySelectorAll<HTMLButtonElement>("[role=treeitem]") || [])]
+    const index = items.indexOf(event.currentTarget)
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") items[index + (event.key === "ArrowDown" ? 1 : -1)]?.focus()
+    else if (event.key === "Home") items[0]?.focus()
+    else if (event.key === "End") items.at(-1)?.focus()
+    else if (event.key === "ArrowRight" && !node.file) expandedPaths.has(node.path) ? items[index + 1]?.focus() : toggle(node.path, true)
+    else if (event.key === "ArrowLeft") {
+      if (!node.file && expandedPaths.has(node.path)) toggle(node.path, false)
+      else event.currentTarget.closest("[role=group]")?.parentElement?.querySelector<HTMLButtonElement>(":scope > [role=treeitem]")?.focus()
+    } else return
+    event.preventDefault()
+  }
+  const renderNodes = (nodes: WorkspaceTreeNode[]): ReactNode =>
+    nodes.map((node) => (
+      <li key={node.path} role="none">
+        <button
+          aria-current={node.file && selectedPath === node.path ? "page" : undefined}
+          aria-expanded={node.file ? undefined : expandedPaths.has(node.path)}
+          className={`block w-full rounded px-2 py-1 text-left text-sm ${node.file ? "hover:bg-surface-subtle" : "font-medium"}`}
+          onClick={() => (node.file ? onSelect(node.path) : toggle(node.path))}
+          onFocus={() => setActivePath(node.path)}
+          onKeyDown={(event) => onKeyDown(event, node)}
+          role="treeitem"
+          tabIndex={node.path === tabStopPath ? 0 : -1}
+          type="button"
+        >
+          {node.file ? null : expandedPaths.has(node.path) ? "▾ " : "▸ "}
+          {node.name}
+        </button>
+        {!node.file && expandedPaths.has(node.path) ? (
+          <ul className="pl-3" role="group">
+            {renderNodes(node.children)}
+          </ul>
+        ) : null}
+      </li>
+    ))
+  return (
+    <nav aria-label={label} className="mt-3 max-h-96 overflow-auto" ref={treeRef} role="tree">
+      <ul role="none">{renderNodes(nodes)}</ul>
+    </nav>
+  )
+}
+
+function HighlightedSnippet({ snippet, highlights }: { snippet: string; highlights: { start: number; length: number }[] }) {
+  const highlight = highlights[0]
+  if (!highlight) return <span className="mt-1 block text-text-muted">{snippet}</span>
+  return (
+    <span className="mt-1 block text-text-muted">
+      {snippet.slice(0, highlight.start)}
+      <mark>{snippet.slice(highlight.start, highlight.start + highlight.length)}</mark>
+      {snippet.slice(highlight.start + highlight.length)}
+    </span>
+  )
+}
+
+const workspaceFilterSchema = (t: (key: string) => string) => [
+  { field: "search", label: t("workspace.search"), bucket: "text", operators: ["contains"], values: [], free_text_search: true },
+  { field: "extension", label: t("workspace.extension"), bucket: "text", operators: ["is"], values: [] },
+  { field: "path_prefix", label: t("workspace.folder"), bucket: "text", operators: ["is"], values: [] },
+  { field: "folder", label: t("workspace.exact_folder"), bucket: "text", operators: ["is"], values: [] },
+  { field: "filename", label: t("workspace.filename"), bucket: "text", operators: ["contains"], values: [] },
+  { field: "filename_exact", label: t("workspace.filename_exact"), bucket: "text", operators: ["is"], values: [] },
+  { field: "area", label: t("workspace.area"), bucket: "text", operators: ["is"], values: [] },
+  { field: "min_size", label: t("workspace.min_size"), bucket: "number", operators: ["is"], values: [] },
+  { field: "max_size", label: t("workspace.max_size"), bucket: "number", operators: ["is"], values: [] },
+  { field: "modified_after", label: t("workspace.modified_after"), bucket: "date", operators: ["after"], values: [] },
+  { field: "modified_before", label: t("workspace.modified_before"), bucket: "date", operators: ["before"], values: [] },
+  {
+    field: "content_kind",
+    label: t("workspace.content_kind"),
+    bucket: "select",
+    operators: ["is"],
+    values: [
+      { value: "text", label: t("workspace.text") },
+      { value: "binary", label: t("workspace.binary_kind") }
+    ]
+  },
+  {
+    field: "sort",
+    label: t("workspace.sort"),
+    bucket: "select",
+    operators: ["is"],
+    values: [
+      { value: "path", label: t("workspace.sort_path") },
+      { value: "size", label: t("workspace.sort_size") },
+      { value: "modified", label: t("workspace.sort_modified") }
+    ]
+  }
+]
+
+function workspaceFilterTree(search: string): FilterTree {
+  const params = new URLSearchParams(search)
+  return {
+    and: [
+      "search",
+      "extension",
+      "folder",
+      "path_prefix",
+      "filename",
+      "filename_exact",
+      "area",
+      "content_kind",
+      "min_size",
+      "max_size",
+      "modified_after",
+      "modified_before",
+      "sort"
+    ].flatMap((field) => {
+      const value = params.get(field)?.trim()
+      const op = field === "search" || field === "filename" ? "contains" : field === "modified_after" ? "after" : field === "modified_before" ? "before" : "is"
+      return value ? [{ field, op, value }] : []
+    })
+  }
+}
+
+const workspaceFilterLink: FilterLinkBuilder = (path, search, updates) => {
   const params = new URLSearchParams(search)
   if (typeof updates.q === "string" && updates.q) {
     try {
       const encoded = updates.q.replace(/-/g, "+").replace(/_/g, "/")
       const tree = JSON.parse(atob(encoded)) as { and?: Array<{ field?: string; value?: unknown }> }
-      const value = tree.and?.find((chip) => chip.field === "search")?.value
-      if (typeof value === "string" && value.trim()) params.set("search", value.trim())
-      else params.delete("search")
+      const fields = [
+        "search",
+        "extension",
+        "folder",
+        "path_prefix",
+        "filename",
+        "filename_exact",
+        "area",
+        "content_kind",
+        "min_size",
+        "max_size",
+        "modified_after",
+        "modified_before",
+        "sort"
+      ]
+      fields.forEach((field) => {
+        const value = tree.and?.find((chip) => chip.field === field)?.value
+        if (typeof value === "string" && value.trim()) params.set(field, value.trim())
+        else params.delete(field)
+      })
     } catch {
       params.delete("search")
     }
-  } else if (updates.q == null) params.delete("search")
+  } else if (updates.q == null)
+    [
+      "search",
+      "extension",
+      "folder",
+      "path_prefix",
+      "filename",
+      "filename_exact",
+      "area",
+      "content_kind",
+      "min_size",
+      "max_size",
+      "modified_after",
+      "modified_before",
+      "sort"
+    ].forEach((field) => params.delete(field))
+  params.delete("path")
+  params.delete("cursor")
   const query = params.toString()
   return query ? `${path}?${query}` : path
-}
-
-function CoworkerMemory({ id }: { id: string }) {
-  const { t } = useT("coworkers")
-  const location = useLocation()
-  const prefix = usePrefix()
-  const searchValue = new URLSearchParams(location.search).get("search")?.trim() || ""
-  const queryString = searchValue ? `?search=${encodeURIComponent(searchValue)}` : ""
-  const query = useQuery({ queryKey: ["coworkers", id, "memory", searchValue], queryFn: () => fetchCoworkerMemory(id, queryString) })
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const files = query.data?.files || []
-  const selected = files.find((file) => file.path === selectedPath) || files[0]
-
-  useEffect(() => {
-    if (files.length > 0 && !files.some((file) => file.path === selectedPath)) setSelectedPath(files[0].path)
-  }, [files, selectedPath])
-
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <FilterBar
-          buildLink={memoryFilterLink}
-          filter={memoryFilterTree(location.search)}
-          filterSchema={memoryFilterSchema(t("memory.search"))}
-          legacyFilterKeys={["search"]}
-          pathname={location.pathname}
-          search={location.search}
-        />
-        <Link className="shrink-0 text-sm text-brand underline" to={`${prefix}/memories`}>
-          {t("memory.owner_memories")}
-        </Link>
-      </div>
-      {query.isPending ? <PanelMessage>{t("memory.loading")}</PanelMessage> : null}
-      {query.isError ? <PanelMessage>{t("memory.unavailable")}</PanelMessage> : null}
-      {query.data?.search_incomplete ? <PanelMessage>{t("memory.search_incomplete")}</PanelMessage> : null}
-      {query.data?.partial && !query.data.search_incomplete ? <PanelMessage>{t("memory.partial")}</PanelMessage> : null}
-      {query.isSuccess && files.length === 0 && !query.data.search_incomplete ? (
-        <PanelMessage>{searchValue ? t("memory.no_results") : t("memory.empty")}</PanelMessage>
-      ) : null}
-      {query.isSuccess && files.length > 0 ? (
-        <div className="grid min-h-96 overflow-hidden rounded border border-border bg-surface md:grid-cols-[15rem_minmax(0,1fr)]">
-          <MemoryFileList files={files} selectedPath={selected?.path} setSelectedPath={setSelectedPath} />
-          <article className="min-w-0 border-t border-border p-5 md:border-l md:border-t-0">
-            <div className="mb-4 border-b border-border pb-3">
-              <h2 className="font-semibold text-text-primary">{selected?.name}</h2>
-              <p className="text-xs text-text-muted">{selected?.path}</p>
-            </div>
-            {selected?.truncated ? <p className="mb-3 text-sm text-warning">{t("memory.truncated")}</p> : null}
-            <Markdown className="chat-prose text-sm text-text-primary" text={selected?.content || ""} />
-          </article>
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
-function MemoryFileList({
-  files,
-  selectedPath,
-  setSelectedPath
-}: {
-  files: CoworkerMemoryFile[]
-  selectedPath?: string
-  setSelectedPath: (path: string) => void
-}) {
-  const { t } = useT("coworkers")
-  const categories = ["daily", "people", "repos", "banks"] as const
-  return (
-    <nav aria-label={t("memory.files")} className="p-3">
-      {categories.map((category) => {
-        const categoryFiles = files.filter((file) => file.category === category)
-        if (categoryFiles.length === 0) return null
-        return (
-          <div className="mb-4" key={category}>
-            <h3 className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t(`memory.categories.${category}`)}</h3>
-            {categoryFiles.map((file) => (
-              <button
-                className={`block w-full rounded px-2 py-1.5 text-left text-sm ${selectedPath === file.path ? "bg-brand-soft text-brand" : "text-text-secondary hover:bg-surface-subtle"}`}
-                key={file.path}
-                onClick={() => setSelectedPath(file.path)}
-                type="button"
-              >
-                {file.name}
-              </button>
-            ))}
-          </div>
-        )
-      })}
-    </nav>
-  )
 }
 
 function Tabs({ active, setActive, labels }: { active: string; setActive: (value: string) => void; labels: string[] }) {

@@ -432,6 +432,10 @@ Providers apply the caller's normal resource visibility during lookup; hidden
 and unknown identifiers receive the same result. Syrus canonicalizes and
 validates normalized scopes and treats any lookup or normalization failure as
 a closed authorization outcome.
+Resource schemas may additionally return user-scoped authoring choices so the
+Permissions Hub can offer visible resources by safe label instead of asking
+for database identifiers. Those choices are presentation only; lookup and
+validation still enforce visibility when authority is saved or used.
 
 Plugin authors can expose reusable permission metadata through a
 `permission_provider`. The provider registers typed resource scopes and
@@ -536,11 +540,80 @@ Syrus checks the last two by actually removing a plugin: `bin/plugin-boundary-au
 on it, and runs a command of your choosing — a boot check by default, or the
 full test suite — against what is left.
 
+### Connected account providers
+
+Service plugins can contribute an account connection through the hosted
+`connected_accounts:provider` extension point. The provider declaration owns
+its stable key and display name, callback route, read-only support, capability
+list, and scope catalog. Each scope declares its provider key, human label,
+risk (`low`, `medium`, `high`, or `critical`), and the Syrus capabilities it
+enables.
+
+```ruby
+provides "connected_accounts:provider" => [
+  {
+    provider: "ExampleService::AccountProvider",
+    key: "example",
+    display_name: "Example Service",
+    capabilities: %w[authorization exchange_code refresh revoke identity validate events],
+    callback_route: "/connected_accounts/callback/example",
+    supports_read_only: true,
+    scopes: [
+      {
+        key: "records.read",
+        label: "Read records",
+        risk: "low",
+        syrus_capabilities: [ "records.read@v1" ]
+      }
+    ]
+  }
+]
+```
+
+Every provider capability is a class method taking one context object. The
+required methods and their result contracts are:
+
+| Capability | Context fields | Result |
+| --- | --- | --- |
+| `authorization` | `redirect_uri`, opaque `state`, `requested_scopes`, `read_only` | `authorize_url` |
+| `exchange_code` | callback `code`, original `redirect_uri` | Token hash with `access_token`, plus `refresh_token` and `expires_in` when supplied |
+| `refresh` | current `tokens` hash | Replacement token hash with `access_token` |
+| `revoke` | current `tokens` hash | Boolean `revoked` |
+| `identity` | `access_token` | Human-readable external identity `label` |
+| `validate` | `access_token` | Boolean `healthy` and a safe, non-secret `message` |
+| `events` (optional, provisional) | request `headers`, raw request `body` | Verified `event_id`, `event_type`, and normalized `data` |
+
+`authorization`, `exchange_code`, `refresh`, `revoke`, `identity`, and
+`validate` are required. API-key and password providers use the same contract
+with a trivial `authorization` implementation. Providers that declare
+`events` must verify authenticity and fail closed before normalizing a push.
+Token-bearing `exchange_code` and `refresh` results are returned only to the
+Connected Accounts broker. Providers must not log token material or include it
+in exceptions, user-visible output, or other external results.
+
+Syrus rejects malformed declarations and providers with missing or invalid
+method signatures at load time, with the reason visible in plugin health.
+Provider authors can require `connected_accounts/provider_test_kit` and run
+the shared `"a connected accounts provider"` RSpec examples. The bundled fake
+provider is the reference implementation used by development and tests.
+
+Service plugins register concept-level capabilities such as `mail.read@v1`,
+not provider endpoint names, and keep acting identity explicit in the
+`connected_account` resource scope. Split authority at least into read/search,
+draft or private creation, actions that affect other people, delete, and
+administration. Send/share/invite and similar outward operations default to
+asking for exact-invocation authority. Service-specific mailboxes, calendars,
+drives, channels, or comparable selectors belong in the scope's typed
+`sub_resources` object rather than in the capability name.
+
 Data removal is a separate, explicit operation after uninstall. Operators can
 preview it with `bin/rails 'plugin:data[name]'` and confirm it with
 `bin/rails 'plugin:purge[name]'`. Purge removes declared plugin tables,
 plugin-owned rows and fields stored on shared tables, and contributed external
 resources; disabling or uninstalling alone retains all of them.
+Credential Store contributes cleanup for credentials in the purged plugin's
+type namespace and their access-audit rows, even after that plugin's code has
+been removed.
 
 Bundled plugins can also declare `config/plugin_ownership.yml`, covering their
 configuration keys, workflow vocabulary, routes, data, tools, frontend

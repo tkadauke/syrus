@@ -123,6 +123,12 @@ const config: ViteUserConfigFnPromise = async ({ mode }: ConfigEnv) => {
     },
     test: {
       environment: "jsdom",
+      // Date and time formatting depends on the host time zone, and a number
+      // of suites assert the operator's zone ("EST", "America/New_York").
+      // Pin it so the suite gives the same answer everywhere: GitHub's runners
+      // are on UTC and failed those suites on every run, while a developer
+      // machine on Eastern passed them.
+      env: { TZ: "America/New_York" },
       testTimeout: 15000,
       maxWorkers: 4,
       setupFiles: ["app/frontend/test/setup.ts"],

@@ -5,6 +5,15 @@ class Run < ApplicationRecord
   # notice the same gap also recover on the same cadence.
   CAPABILITY_BLOCK_BACKOFF = 5.minutes
 
+  # The execution_attempt this process claimed (RunJob#acquire_run_execution!).
+  # Not persisted: it is what this executor believes it owns, compared with the
+  # row by Steps::Base#ensure_run_still_active!. Nil when the Run was not
+  # claimed by a RunJob in this process.
+  attr_accessor :claimed_execution_attempt
+  # Thread-local list of Runs created while a RunJob drives their Workflow
+  # inline, and therefore not enqueued (see #enqueue_run_job).
+  INLINE_HELD_RUN_IDS = :syrus_inline_held_run_ids
+
   include AASM
   include RecordsStateTransitions
   include Revisionable
@@ -14,6 +23,7 @@ class Run < ApplicationRecord
 
   belongs_to :job
   belongs_to :user
+  belongs_to :provider_account, optional: true
   # Step is optional during the migration window: existing Runs
   # (and the existing direct-create paths in Job#after_create_commit
   # and the polling jobs) still link to Job. Once those code paths
@@ -84,6 +94,8 @@ class Run < ApplicationRecord
   validates_agent_provider
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create
+  before_validation :default_provider_account
+  validate :provider_account_matches_execution
   before_validation :set_effective_at
   after_create :ensure_agent_record!
 
@@ -325,6 +337,29 @@ class Run < ApplicationRecord
   # SolidQueue::Job (e.g. an inline-drive successor orphaned when the
   # worker died before picking it up — see ReapStaleRunsJob). Reuses
   # the same queue + priority logic as the create-commit enqueue.
+  # Cancels this Run without its commit-time cascade to the Step (a cancelled
+  # Run otherwise cancels its Step, and through it the Workflow), while still
+  # recording the transition with the current StateTransition source and
+  # reason -- the reconciler reads that marker to see past an administrative
+  # cancellation to the failure that still explains the Step. Used where the
+  # Step must stay as it is: a failed Workflow's queued tail.
+  def cancel_without_step_cascade!
+    return false unless state.in?(ACTIVE_STATES)
+
+    from = state
+    update_columns(state: "cancelled", finished_at: Time.current)
+    metadata = StateTransition.transition_metadata_for(self)
+    reason_key = StateTransition.reason_key_for(self)
+    metadata["reason_key"] = reason_key if reason_key.present?
+    StateTransition.create!(
+      subject: self, from_state: from, to_state: "cancelled", event_name: "cancel",
+      source: StateTransition.current_source, user_id: StateTransition.current_user&.id,
+      run_id: StateTransition.current_run_id, metadata: metadata
+    )
+    RunResourceSummary.refresh_for(reload)
+    true
+  end
+
   def reenqueue!(ignore_workflow_affinity: false)
     enqueue_run_job(force: true, ignore_workflow_affinity: ignore_workflow_affinity)
   end
@@ -367,6 +402,20 @@ class Run < ApplicationRecord
     self.user ||= job&.user
   end
 
+  def default_provider_account
+    self.provider_account = nil if provider_account && provider_account.provider_key != agent_provider && will_save_change_to_agent_provider?
+    workflow_account = workflow&.provider_account
+    workflow_account = nil unless workflow_account&.provider_key == agent_provider
+    self.provider_account ||= workflow_account || user&.default_provider_account(agent_provider)
+  end
+
+  def provider_account_matches_execution
+    return unless provider_account
+    return if provider_account.user_id == user_id && provider_account.provider_key == agent_provider
+
+    errors.add(:provider_account, I18n.t("server.errors.provider_accounts.run_mismatch"))
+  end
+
   def user_matches_execution_graph
     errors.add(:user, "must match the Job owner") if user_id.present? && job.present? && user_id != job.user_id
 
@@ -396,8 +445,14 @@ class Run < ApplicationRecord
     # the first queued sibling inline.
     unless force
       current_workflow_id = Thread.current[:syrus_current_run]&.workflow_id
-      return if current_workflow_id && current_workflow_id == workflow_id && !distributed_parallel_run?
+      if current_workflow_id && current_workflow_id == workflow_id && !distributed_parallel_run?
+        # Recorded so the driving RunJob can hand back every Run it does not
+        # pick up itself (RunJob#release_inline_held_runs!).
+        (Thread.current[INLINE_HELD_RUN_IDS] ||= []) << id
+        return
+      end
     end
+    Thread.current[INLINE_HELD_RUN_IDS]&.delete(id)
 
     decision = RunQueueResolver.resolve(run: self, ignore_workflow_affinity: ignore_workflow_affinity)
     return block_for_missing_capable_worker!(decision) if decision.blocked?

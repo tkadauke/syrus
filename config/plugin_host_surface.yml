@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 477
+legacy_baseline: 479
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -51,7 +51,6 @@ constants:
 - name: Appearance::ColorPalette
 - name: Appearance::ColorPalette::HEX_PATTERN
 - name: ApplicationCable::Channel
-- name: ApplicationJob
 - name: ApplicationPolicy
 - name: ApplicationPolicy::Scope
 - name: ApplicationRecord
@@ -152,6 +151,7 @@ constants:
 - name: Filters::SmartFolderResolution::PRESET_FIELD
 - name: Filters::UnknownFilterField
 - name: FtsQueryParser
+- name: GitMergeDrivers
 - name: GitRunner
 - name: GitRunner::GitError
 - name: GithubApiUsageRollup
@@ -194,6 +194,7 @@ constants:
 - name: LandedCommit
 - name: LandingFailureHandler
 - name: MaintenanceTasks::Definitions::Base::Result
+- name: Mcp::CoworkerToolExposure
 - name: Mcp::Pagination
 - name: Mcp::Tools
 - name: Mcp::Tools::AdminPendingActionToolSupport
@@ -264,6 +265,8 @@ constants:
 - name: PlatformIdentity::PlatformConfig::Base
 - name: PlatformPollingJob
 - name: PluginDataCleanup
+- name: PluginJob
+- name: PluginJob::DEFAULT_ATTEMPTS
 - name: PluginRecord
 - name: PrReviewComment
 - name: PreviewCommandSource
@@ -304,7 +307,6 @@ constants:
 - name: RepositoryContent::Divergence
 - name: RepositoryContent::Entry
 - name: RepositoryContent::Error
-- name: RepositoryContent::Glob
 - name: RepositoryContent::NotFound
 - name: RepositoryContent::Ref
 - name: RepositoryContent::Revision

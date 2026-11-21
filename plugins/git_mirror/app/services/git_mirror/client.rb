@@ -74,6 +74,12 @@ module GitMirror
       [ response.body.to_s.b, response["X-Content-Id"] ]
     end
 
+    def workspace_files(id, revision, paths:, max_bytes:, last_modified:, history_limit:)
+      json(request(Net::HTTP::Post, "/v1/repositories/#{id}/workspace-files", body: {
+        revision: revision, paths: paths, max_bytes: max_bytes, last_modified: last_modified, history_limit: history_limit
+      }.to_json))
+    end
+
     def changes(id, base, head, patch: false)
       query = { base: base, head: head }
       query[:patch] = 1 if patch

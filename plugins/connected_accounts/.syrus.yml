@@ -1,0 +1,10 @@
+project:
+  id: connected_accounts
+  label: "connected_accounts plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest

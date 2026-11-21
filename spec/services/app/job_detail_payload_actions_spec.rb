@@ -1276,4 +1276,29 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(breakdown["telemetry_absent"]).to be(true)
     end
   end
+
+  describe "reset_job_action" do
+    it "is exposed for a writable failed Job with a preview of what is destroyed" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed", pr_number: 8, branch_name: "syrus/x")
+
+      expect(payload_for(job).fetch(:actions)[:reset_job_action]).to include(
+        path: "/api/v1/app/jobs/#{job.id}/reset",
+        destroys: include(open_pr_number: 8, branch: "syrus/x")
+      )
+    end
+
+    it "is absent for non-failed, ineligible, or read-only viewers" do
+      implemented = Factories.job_record(user: user, repository: repo, state: "implemented", issue_number: 51)
+      expect(payload_for(implemented).fetch(:actions)[:reset_job_action]).to be_nil
+
+      parent = Factories.job_record(user: user, repository: repo, state: "failed", issue_number: 52)
+      Factories.job_record(user: user, repository: repo, state: "running", issue_number: 53, parent_job_id: parent.id, branch_name: "syrus/c")
+      expect(payload_for(parent).fetch(:actions)[:reset_job_action]).to be_nil
+
+      failed = Factories.job_record(user: user, repository: repo, state: "failed", issue_number: 54)
+      reader = Factories.user
+      repo.repository_memberships.create!(user: reader, role: "read")
+      expect(described_class.build(job: failed, user: reader).fetch(:actions)[:reset_job_action]).to be_nil
+    end
+  end
 end

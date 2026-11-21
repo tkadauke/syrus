@@ -109,6 +109,7 @@ class LandingFailureHandler
   end
 
   def classified_reason_code
+    return LandingFailureCode.fetch(LandingFailureCode::NO_CAPABLE_WORKER) if reason.start_with?(LandingFailureCode::NO_CAPABLE_WORKER)
     return LandingFailureCode.fetch(LandingFailureCode::MERGE_TRAIN_REBUILD_REQUIRED) if merge_train_rebuild_required?
     return LandingFailureCode.fetch(LandingFailureCode::LANDING_START_BLOCKED) if landing_start_blocker?
     return LandingFailureCode.fetch(LandingFailureCode::INFRASTRUCTURE_BLOCKER) if infrastructure_blocker?

@@ -5,6 +5,15 @@ RSpec.describe GithubClient do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
+  describe "#close_pull_request" do
+    it "is idempotent when GitHub reports that the PR is already closed or gone" do
+      stub_request(:patch, "https://api.github.com/repos/acme/widgets/pulls/12")
+        .to_return(status: 422, headers: { "Content-Type" => "application/json" }, body: { message: "Validation Failed" }.to_json)
+
+      expect(described_class.new(user).close_pull_request(repository.slug, 12)).to be(true)
+    end
+  end
+
   it "raises when the user has no github_token" do
     bare = Factories.user
     expect { GithubClient.new(bare) }.to raise_error(ArgumentError)
@@ -552,6 +561,41 @@ RSpec.describe GithubClient do
       summary = client.main_branch_check_runs_summary_for("acme/widgets", "abc123")
 
       expect(summary).to include(any?: true, any_failed?: true, all_passed?: false)
+    end
+  end
+
+  describe "#ci_checks_for and #ci_job_log" do
+    before do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/abc123/check-runs")
+        .with(query: hash_including({}))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+          check_runs: [
+            { name: "rspec", status: "completed", conclusion: "failure",
+              html_url: "https://github.com/acme/widgets/actions/runs/111/job/222", output: { summary: "1 failure", text: nil } },
+            { name: "codecov", status: "completed", conclusion: "failure",
+              html_url: "https://codecov.io/gh/acme/widgets", output: { summary: nil, text: "coverage dropped" } }
+          ]
+        }.to_json)
+    end
+
+    it "lists every check with its Actions job id and output text, without fetching logs" do
+      checks = described_class.new(user).ci_checks_for("acme/widgets", "abc123")
+
+      expect(checks).to contain_exactly(
+        include(name: "rspec", conclusion: "failure", summary: "1 failure", actions_job_id: 222),
+        include(name: "codecov", output_text: "coverage dropped")
+      )
+      expect(checks.find { |check| check[:name] == "codecov" }).not_to have_key(:actions_job_id)
+      expect(a_request(:get, %r{/actions/jobs/})).not_to have_been_made
+    end
+
+    it "reads one Actions job log on demand" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222/logs")
+        .to_return(status: 302, headers: { "Location" => "https://productionresultssa3.blob.core.windows.net/actions-results/logs.txt?sig=abc" })
+      stub_request(:get, "https://productionresultssa3.blob.core.windows.net/actions-results/logs.txt?sig=abc")
+        .to_return(status: 200, body: "rspec failed: 1 example, 1 failure")
+
+      expect(described_class.new(user).ci_job_log("acme/widgets", 222)).to eq("rspec failed: 1 example, 1 failure")
     end
   end
 
@@ -1293,6 +1337,36 @@ RSpec.describe GithubClient do
 
       client.linked_open_pr_for_issue("acme/widgets", 42)
       expect(stub).to have_been_requested
+    end
+  end
+
+  describe "#workspace_files" do
+    it "fetches all blobs and path histories in one GraphQL request" do
+      client = GithubClient.for(repository: repository, user: user)
+      request = stub_request(:post, "https://api.github.com/graphql")
+        .with(body: hash_including("variables" => hash_including("expression0" => "#{'a' * 40}:a.md", "path0" => "a.md")))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { data: { repository: {
+          blob0: { byteSize: 5, isBinary: false, isTruncated: false, oid: "blob", text: "hello" },
+          revision: { history0: { nodes: [ { authoredDate: "2026-01-02T03:04:05Z" } ] } }
+        } } }.to_json)
+
+      result = client.workspace_files("acme/widgets", "a" * 40, [ "a.md" ], include_last_modified: true)
+
+      expect(result.dig("a.md", :blob, :text)).to eq("hello")
+      expect(result.dig("a.md", :authored_at)).to eq("2026-01-02T03:04:05Z")
+      expect(request).to have_been_requested.once
+    end
+
+    it "omits commit history when only content is requested" do
+      client = GithubClient.for(repository: repository, user: user)
+      request = stub_request(:post, "https://api.github.com/graphql")
+        .with { |call| !JSON.parse(call.body).fetch("query").include?("history(") }
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: { data: { repository: {
+          blob0: { byteSize: 5, isBinary: false, isTruncated: false, oid: "blob", text: "hello" }
+        } } }.to_json)
+
+      expect(client.workspace_files("acme/widgets", "a" * 40, [ "a.md" ], include_last_modified: false).dig("a.md", :blob, :text)).to eq("hello")
+      expect(request).to have_been_requested.once
     end
   end
 

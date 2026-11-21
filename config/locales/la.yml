@@ -40,6 +40,12 @@ la:
       search_database_rebuild:
         complete: "Reconstructiones selectae datorum quaestionis perfectae sunt."
     errors:
+      provider_accounts:
+        unregistered_provider: "provisor agentis descriptus non est"
+        invalid_credential_payload: "obiectum esse debet"
+        session_mismatch: "ad usorem rei resumendae et provisorem sessionis pertinere debet"
+        run_mismatch: "ad usorem et provisorem cursus pertinere debet"
+        workflow_mismatch: "ad usorem et provisorem cursus operis pertinere debet"
       invalid_request: "Petitio invalida est."
       unavailable: "Haec actio ad tempus praesto non est."
       plugin_installation:
@@ -124,6 +130,7 @@ la:
       entry_must_be_object: "elementum %{index} obiectum cum clave provisoris esse debet"
       entry_missing_provider: "elemento %{index} provisor deest"
       entry_unknown_provider: "elementum %{index} provisorem ignotum %{provider} habet"
+      entry_unknown_account: "elementum %{index} rationem ignotam huius provisoris habet"
       entry_weight_not_positive: "pondus elementi %{index} positivum esse debet"
       entry_unknown_model: "elementum %{index} exemplar %{model} inter exemplaria nota provisoris %{provider} non habet"
       candidates_must_be_array: "candidati series esse debent"
@@ -236,6 +243,13 @@ la:
       registration_failed: "Relatio GitHub App defecit: %{error}"
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
+  reset_jobs:
+    refusals:
+      landing: "%{slug} nunc terram capit; terram captionem cessa vel perfice antequam Job reponas."
+      merged: "%{slug} coniunctum est nec reponi potest; novum Job crea."
+      merge_train: "%{slug} in agmine coniunctionis activo est; agmen cessa antequam Job reponas."
+      stacked_children: "Filii Job strati vivi ab hoc ramo pendent: %{slugs}; eos prius repone vel terrae affer."
+      state: "%{slug} ex statu %{state} reponi non potest; prius iterum conare vel reaperi."
   api:
     cli_commands:
       errors:
@@ -289,6 +303,7 @@ la:
           allow: "Permittit %{subject} %{operation} in %{resource} exsequi, %{duration}."
           ask: "Semper rogat antequam %{subject} %{operation} in %{resource} exsequitur."
           deny: "Semper negat %{subject} %{operation} in %{resource} exsequi."
+        any_resource: "quaelibet res"
         only_when: "Solum cum %{constraints}."
         excludes:
           other_operations: "Omnem aliam operationem et facultatem excludit."
@@ -301,7 +316,8 @@ la:
           job: "pro hoc opere"
           permanent: "donec revocetur"
         subjects:
-          agent: "collega %{id}"
+          agent: "%{id}"
+          agent_unnamed: "collega %{id}"
           interactive_chat: "colloquia interactiva"
           coding_chat: "colloquia codicis"
           local_chat: "colloquia localia"
@@ -674,6 +690,11 @@ la:
       availability_rechecked: "Disponibilitas %{provider} iterum examinata est."
       availability_override_enabled: "Exceptio disponibilitatis praebitoris %{provider} habilitata est."
       unknown_provider: "Praebitor agentis ignotus est."
+    provider_accounts:
+      created: "Ratio praebitoris coniuncta est."
+      updated: "Ratio praebitoris renovata est."
+      removed: "Ratio praebitoris remota est."
+      in_use: "Haec ratio ab opere activo vel sessione resumenda adhibetur et removeri non potest. Eam inhabile fac ut novae attributiones sistantur."
 
     filters:
       unsupported_operator: "Operator campi %{field} non sustinetur."
@@ -915,6 +936,12 @@ la:
         minimum: "requires_syrus a %{declared} incipit, infra minimum deductum %{derived}"
       quarantine_not_locally_clearable: "Haec segregatio apud fontem suum tollenda est."
       route_failed: "Plugin %{plugin} hanc petitionem perficere non potuit."
+      host_surface:
+        scan_failed: "Inspectio API hospitis defecit: %{error}"
+        unsupported: "%{count} relatio API hospitis non sustentata"
+        legacy: "%{count} relatio API hospitis non publica"
+        dynamic: "%{count} relatio dynamica API hospitis non publica"
+        minimum: "requires_syrus a %{declared} incipit, infra minimum deductum %{derived}"
 
     job_lifecycle:
       direct_only: "Sola opera directa manu incipi possunt."
@@ -936,6 +963,9 @@ la:
       retry_enqueued: "Fluxus iterationis in ordinem positus est."
       retry_enqueued_with_provider: "Fluxus iterationis cum %{provider} in ordinem positus est."
       started_over: "Ab initio inceptum est - novus ramus et PR creabuntur."
+      reset_failed_only: "%{slug} solum reponi potest dum Job defecit."
+      reset_reason: "A %{user} in pagina Job repositum."
+      reset_done: "%{slug} repositum est et in basi currenti de novo incipit."
       already_closed: "Opus iam clausum est."
       cancellation_requested: "Petitio cassationis missa est."
       workflow_not_found: "Workflow non inventum est."

@@ -466,6 +466,9 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
                 ))}
               </ul>
             ) : null}
+            <RuntimeCircuits plugin={plugin} />
+            <RuntimeFailures plugin={plugin} />
+            <PluginJobHealth plugin={plugin} />
             {showHostSurfaceDetails && hostSurface ? (
               <div className="mt-3 max-w-3xl rounded border border-amber-300 p-3 text-sm dark:border-amber-700">
                 <div className="font-medium">{t("plugins.host_surface_details")}</div>
@@ -483,9 +486,6 @@ function PluginDetailView({ plugin, betaModeEnabled }: { plugin: AdminPlugin; be
                 </ul>
               </div>
             ) : null}
-            <RuntimeCircuits plugin={plugin} />
-            <RuntimeFailures plugin={plugin} />
-            <PluginJobHealth plugin={plugin} />
             {description ? <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-700 dark:text-gray-200">{description}</p> : null}
             {longDescription ? (
               <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{longDescription}</p>

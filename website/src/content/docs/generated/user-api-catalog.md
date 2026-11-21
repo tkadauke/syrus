@@ -281,6 +281,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/reject_triage` | `api/v1/app/job_lifecycle#reject_triage` |
 | core | POST | `/api/v1/app/jobs/:job_id/release_from_backlog` | `api/v1/app/job_lifecycle#release_from_backlog` |
 | core | POST | `/api/v1/app/jobs/:job_id/reopen` | `api/v1/app/job_lifecycle#reopen` |
+| core | POST | `/api/v1/app/jobs/:job_id/reset` | `api/v1/app/job_lifecycle#reset` |
 | core | POST | `/api/v1/app/jobs/:job_id/restart` | `api/v1/app/job_lifecycle#restart` |
 | core | POST | `/api/v1/app/jobs/:job_id/resume` | `api/v1/app/job_run_commands#resume` |
 | core | POST | `/api/v1/app/jobs/:job_id/retry_implementation` | `api/v1/app/job_lifecycle#retry_implementation` |
@@ -364,6 +365,12 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/preview_panels/:id/export` | `api/v1/app/preview_panels#export` |
 | core | GET | `/api/v1/app/preview_panels/:id/files/*path` | `api/v1/app/preview_panels#file` |
 | core | POST | `/api/v1/app/preview_panels/:id/token` | `api/v1/app/preview_panels#token` |
+| core | GET | `/api/v1/app/provider_accounts` | `api/v1/app/provider_accounts#index` |
+| core | POST | `/api/v1/app/provider_accounts` | `api/v1/app/provider_accounts#create` |
+| core | DELETE | `/api/v1/app/provider_accounts/:id` | `api/v1/app/provider_accounts#destroy` |
+| core | PATCH | `/api/v1/app/provider_accounts/:id` | `api/v1/app/provider_accounts#update` |
+| core | PUT | `/api/v1/app/provider_accounts/:id` | `api/v1/app/provider_accounts#update` |
+| core | POST | `/api/v1/app/provider_accounts/:id/test` | `api/v1/app/provider_accounts#test` |
 | core | POST | `/api/v1/app/report_issue` | `api/v1/app/report_issue#create` |
 | core | GET | `/api/v1/app/repositories` | `api/v1/app/repositories#index` |
 | core | POST | `/api/v1/app/repositories` | `api/v1/app/repositories#create` |

@@ -346,7 +346,21 @@ function taskColumns({
     {
       key: "schedule",
       header: t("scheduled_tasks.schedule"),
-      render: (task) => task.schedule_label || t("scheduled_tasks.none"),
+      className: "min-w-72",
+      render: (task) => (
+        <div>
+          <div className="whitespace-nowrap">{task.schedule_label || t("scheduled_tasks.none")}</div>
+          <div className="whitespace-nowrap text-xs text-text-secondary">
+            {task.next_fire_at ? (
+              <>
+                {t("scheduled_tasks.next_run")}: <RelativeTimestamp value={task.next_fire_at} />
+              </>
+            ) : (
+              t("scheduled_tasks.no_upcoming_run")
+            )}
+          </div>
+        </div>
+      ),
       sort: "schedule",
       sortValue: (task) => task.schedule_label || ""
     },
@@ -799,6 +813,7 @@ function updateScheduledTaskIndex(queryClient: ReturnType<typeof useQueryClient>
       repository_slug: task.repository.slug,
       repository_path: task.repository.repository_path,
       schedule_label: task.schedule_label,
+      next_fire_at: task.next_fire_at,
       last_fired_at: task.last_fired_at,
       system_key: task.system_key,
       scheduled_task_path: task.scheduled_task_path

@@ -242,6 +242,24 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(train.reload).not_to be_terminal
     end
 
+    # Regression: the handler runs from the workflow's after_fail hook, which
+    # AASM calls before the failed state is applied. Gating on
+    # retry_available? there refused every preservation, so the specs above --
+    # which call the handler on an already-failed workflow -- passed while no
+    # production train was ever preserved.
+    it "preserves the train when the workflow fails through its lifecycle hook" do
+      AppSetting.current.update!(merge_train_failure_policy: "keep_assembly")
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = build_workflow(train, a, state: "running")
+      record_non_retryable_failure!(workflow, a, step_kind: "merge_train_assemble")
+
+      workflow.fail!
+
+      expect(workflow.auto_retry_attempts.sole.retry_kind).to eq(AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND)
+      expect(train.reload).not_to be_terminal
+    end
+
     # Without the override the merge-train retry policy answers `rebuild_unit`
     # for assemble, reconcile and land, and the rebuild asks the dispatcher for
     # a replacement train -- which refuses while this one is still active. The

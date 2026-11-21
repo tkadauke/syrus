@@ -4,7 +4,7 @@ module CredentialStore
 
     SURFACES = %w[workflow chat admin api].freeze
     RESULTS = %w[allowed denied failed].freeze
-    ACTIONS = %w[create update read lease use test rotate revoke].freeze
+    ACTIONS = %w[create update read lease use test rotate refresh revoke].freeze
     TOOL_NAME_PATTERN = /\A[a-z][a-z0-9_.:-]*\z/
 
     belongs_to :credential, class_name: "CredentialStore::Credential", inverse_of: :access_events, optional: true

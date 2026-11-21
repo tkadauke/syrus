@@ -25,6 +25,8 @@ module Permissions
       "list_jobs" => Operation.new(SOURCE, "list_jobs", CONFIDENTIAL_READ, :low, false),
       "list_open_prs" => Operation.new(SOURCE, "list_open_pull_requests", %i[network_read], :low, false),
       "read_pr" => Operation.new(SOURCE, "read_pull_request", %i[network_read], :low, false),
+      "list_ci_checks" => Operation.new(SOURCE, "list_ci_checks", %i[network_read], :low, false),
+      "read_ci_log" => Operation.new(SOURCE, "read_ci_log", %i[network_read], :low, false),
       "list_open_issues" => Operation.new(SOURCE, "list_open_issues", %i[network_read], :low, false),
       "list_artifacts" => Operation.new(SOURCE, "list_artifacts", READ, :low, false),
       "read_artifact" => Operation.new(SOURCE, "read_artifact", CONFIDENTIAL_READ, :medium, false),

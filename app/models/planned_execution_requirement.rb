@@ -19,6 +19,23 @@ class PlannedExecutionRequirement
     )
   end
 
+  # Reading what a record already stores, as opposed to normalizing what it is
+  # about to save. Records written before only `os` was permitted can still
+  # carry keys such as `arch`; raising on them turned their job page into a
+  # 500. Writes stay strict through from_record (see
+  # NormalizesPlannedExecutionRequirements); reads drop what is no longer
+  # permitted.
+  def self.from_stored_record(record)
+    capabilities = record.planned_execution_capabilities
+    capabilities = capabilities.to_h.stringify_keys.slice(*PERMITTED_CAPABILITY_KEYS) if capabilities.is_a?(Hash)
+    new(
+      project_label: record.planned_execution_project_label,
+      target_label: record.planned_execution_target_label,
+      capabilities: capabilities,
+      source: record.planned_execution_source
+    )
+  end
+
   def self.from_attributes(attributes)
     return default if attributes.blank?
     unless attributes.respond_to?(:to_h)
@@ -32,7 +49,7 @@ class PlannedExecutionRequirement
   def self.for_workflow(job:, override: nil)
     return from_attributes(override) if override.present?
 
-    from_record(job)
+    from_stored_record(job)
   end
 
   def self.normalize_capabilities(value)

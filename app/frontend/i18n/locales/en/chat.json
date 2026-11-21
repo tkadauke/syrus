@@ -8,6 +8,7 @@
   "share_people": "Share",
   "mention_add_to_chat": "Add to chat",
   "unable_to_create_side_chat": "Unable to create the side chat.",
+  "unable_to_load_chats": "Unable to load chats.",
   "mention_add_error": "Could not add this coworker to the chat.",
   "agent_roster": "Agents in this chat",
   "after_reply_for": "After {{name}} replies",
@@ -235,6 +236,7 @@
   "authorization_state_cancelled": "Cancelled",
   "authorization_state_non_actionable": "Unavailable",
   "pending_action_failed": "Pending action failed.",
+  "pending_action_queued_hint": "Becomes confirmable when the Job finishes or blocks its current run.",
   "pending_action_hide_terminal": "Hide completed action",
   "batch_action_failed": "Batch action failed.",
   "scratchpad_add_error": "Could not add item.",
@@ -3361,5 +3363,9 @@
   "tool_card_repository_list_incomplete_summary": "Incomplete listing · {{count}} paths",
   "tool_card_repository_list_complete_summary": "Complete listing · {{count}} paths",
   "tool_card_repository_list_incomplete": "File listing is incomplete",
-  "tool_card_repository_list_coverage": "Returned {{returned}} of {{candidates}} paths"
+  "tool_card_repository_list_coverage": "Returned {{returned}} of {{candidates}} paths",
+  "tool_card_reset_job": "Reset Job",
+  "tool_card_reset_requested": "Reset requested",
+  "tool_card_replace_job_dependency": "Replace Job Dependency",
+  "tool_card_dependency_replaced": "Dependency replaced"
 }

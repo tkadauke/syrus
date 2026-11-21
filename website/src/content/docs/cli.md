@@ -27,9 +27,7 @@ optional examples. `syrus plugin validate` and `syrus plugin test` exercise a
 project against a release-matched Syrus test host. `syrus plugin dev [DIR]`
 starts a throwaway SQLite host, watches one mounted plugin, rebuilds frontend
 edits inside the container, and restarts Syrus for Ruby, manifest, or locale
-edits. It discards its data on Ctrl-C unless `--keep-data` is set. Run
-`syrus plugin capabilities` to list the connected instance's manifest-declared
-capability families, providers, keys, tiers, and priorities.
+edits. It discards its data on Ctrl-C unless `--keep-data` is set.
 
 For commands that need local behavior, the CLI next searches `PATH` for an
 executable named after the command path. For example, `syrus acme scan ./src`

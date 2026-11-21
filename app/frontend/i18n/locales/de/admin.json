@@ -547,9 +547,9 @@
       "skipped_dependency": "Übersprungen — Abhängigkeit fehlgeschlagen",
       "skipped_role": "Übersprungen — Prozessrolle nicht ausgewählt",
       "degraded": "Beeinträchtigt",
+      "circuit_open": "Schutzschaltung offen",
       "cycle": "Abhängigkeitszyklus",
       "non_conforming": "Nicht konform",
-      "circuit_open": "Schutzschaltung offen",
       "warning": "Warnung"
     },
     "host_surface_details": "Host-API-Befunde",

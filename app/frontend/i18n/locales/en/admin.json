@@ -713,9 +713,9 @@
       "skipped_dependency": "Skipped — dependency failed",
       "skipped_role": "Skipped — process role not selected",
       "degraded": "Degraded",
+      "circuit_open": "Circuit open",
       "cycle": "Dependency cycle",
       "non_conforming": "Non-conforming",
-      "circuit_open": "Circuit open",
       "warning": "Warning"
     },
     "host_surface_details": "Host API findings",

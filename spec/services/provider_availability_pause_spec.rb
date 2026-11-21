@@ -8,16 +8,17 @@ RSpec.describe ProviderAvailabilityPause do
   describe "#call for the claude provider" do
     it "refreshes a stale Claude usage probe before computing availability" do
       workflow # force Job/Workflow creation (which itself opportunistically probes) before stubbing
-      allow(ClaudeUsageProbe).to receive(:stale?).with(user, now: anything).and_return(true)
-      allow(ClaudeUsageProbe).to receive(:refresh_for).with(user: user)
+      account = workflow.provider_account
+      allow(ClaudeUsageProbe).to receive(:stale?).with(user, provider_account: account, now: anything).and_return(true)
+      allow(ClaudeUsageProbe).to receive(:refresh_for).with(user: user, provider_account: account)
 
       described_class.call(workflow: workflow)
 
-      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user).once
+      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user, provider_account: account).once
     end
 
     it "does not refresh when the last Claude probe evidence is still fresh" do
-      allow(ClaudeUsageProbe).to receive(:stale?).with(user, now: anything).and_return(false)
+      allow(ClaudeUsageProbe).to receive(:stale?).with(user, provider_account: kind_of(ProviderAccount), now: anything).and_return(false)
       allow(ClaudeUsageProbe).to receive(:refresh_for)
 
       described_class.call(workflow: workflow)
@@ -45,7 +46,7 @@ RSpec.describe ProviderAvailabilityPause do
 
     it "pauses when provider availability reports a rate limit" do
       retry_at = 15.minutes.from_now
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: workflow.provider_account, now: anything).and_return(
         {
           state: "rate_limited",
           open: true,
@@ -68,7 +69,7 @@ RSpec.describe ProviderAvailabilityPause do
 
     it "still pauses on a rate limit when the user has disabled proactive pause for this provider and no ProviderRoutingRule is configured" do
       user.update!(provider_availability_pause_thresholds: { "claude" => 0 })
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: workflow.provider_account, now: anything).and_return(
         { state: "rate_limited", open: true, retry_after: 15.minutes.from_now.iso8601 }
       )
 
@@ -80,7 +81,7 @@ RSpec.describe ProviderAvailabilityPause do
 
     it "still pauses on an exhausted/auth_error/open provider when pause opt-in is off and no ProviderRoutingRule is configured" do
       user.update!(provider_availability_pause_thresholds: { "claude" => 0 })
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: workflow.provider_account, now: anything).and_return(
         { state: "auth_error", open: true }
       )
 
@@ -108,7 +109,7 @@ RSpec.describe ProviderAvailabilityPause do
         ]
       )
       observed_at = 1.minute.ago
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: workflow.provider_account, now: anything).and_return(
         {
           state: "open",
           open: true,
@@ -133,6 +134,37 @@ RSpec.describe ProviderAvailabilityPause do
       )
     end
 
+    it "selects a healthy sibling account before falling back to another provider" do
+      workflow.runs.delete_all
+      original_account = workflow.provider_account
+      sibling = ProviderAccount.create!(
+        user: user,
+        provider_key: "claude",
+        authentication_kind: "claude_oauth_token",
+        credential_payload: { "claude_oauth_token" => "second-token" },
+        position: 1
+      )
+      ProviderRoutingRule.create!(
+        scope_type: "repository",
+        scope_id: job.repository_id,
+        task_key: workflow.trigger_kind,
+        candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ]
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: original_account, now: anything).and_return(
+        { state: "open", open: true }
+      )
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: sibling, now: anything).and_return(
+        { state: "available" }
+      )
+
+      decision = described_class.call(workflow: workflow)
+
+      expect(decision).not_to be_pause
+      expect(decision.failover.provider_account).to eq(sibling)
+      expect(decision.failover.selected_provider).to eq("claude")
+      expect(workflow.reload.provider_account).to eq(sibling)
+    end
+
     it "uses structured step triggers when selecting failover" do
       workflow.runs.delete_all
       user.update!(
@@ -154,7 +186,7 @@ RSpec.describe ProviderAvailabilityPause do
           ]
         }
       )
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: workflow.provider_account, now: anything).and_return(
         { state: "open", open: true, retry_after: 10.minutes.from_now.iso8601 }
       )
       allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
@@ -187,7 +219,7 @@ RSpec.describe ProviderAvailabilityPause do
         ]
       )
       workflow.first_step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind, agent_provider: "claude")
-      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", now: anything).and_return(
+      allow(App::ProviderAvailability).to receive(:for_user).with(user, "claude", provider_account: workflow.provider_account, now: anything).and_return(
         { state: "open", open: true, retry_after: 10.minutes.from_now.iso8601 }
       )
       allow(App::ProviderAvailability).to receive(:for_user).with(user, "codex", now: anything).and_return(nil)
@@ -197,6 +229,32 @@ RSpec.describe ProviderAvailabilityPause do
       expect(decision).to be_pause
       expect(decision).not_to be_failover
       expect(App::ProviderAvailability).not_to have_received(:for_user).with(user, "codex", now: anything)
+    end
+
+    it "does not pause a healthy account when a sibling account is exhausted" do
+      first = workflow.provider_account
+      second = ProviderAccount.create!(
+        user: user,
+        provider_key: "claude",
+        authentication_kind: "claude_oauth_token",
+        credential_payload: { "claude_oauth_token" => "second-token" },
+        position: 1
+      )
+      workflow.update!(provider_account: second)
+      ProviderAvailabilityEvidence.create!(
+        user: user,
+        provider: "claude",
+        account_id: first.public_id,
+        status: "exhausted",
+        source: "usage_probe",
+        observed_at: Time.current,
+        details: { "snapshot" => { "remaining_percent" => 0 } }
+      )
+      allow(ClaudeUsageProbe).to receive(:stale?).with(user, provider_account: second, now: anything).and_return(false)
+
+      decision = described_class.call(workflow: workflow)
+
+      expect(decision).not_to be_pause
     end
   end
 end

@@ -689,6 +689,7 @@ RSpec.describe Steps::Base, :ci_only do
       allow(handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
       allow(handler).to receive(:diff_against_sha).and_return(step_diff)
       allow(handler).to receive(:head_sha).and_return("abc123")
+      allow(handler).to receive(:persist_all_changes_diff_review_version!)
       allow(RunCheckpointPublisher).to receive(:publish!)
     end
 
@@ -772,6 +773,44 @@ RSpec.describe Steps::Base, :ci_only do
       expect(run.head_sha).to be_nil
       expect(run.base_sha).to be_nil
       expect(run.step_agent_diff).to be_nil
+    end
+  end
+
+  describe "#persist_diff_review_version!" do
+    let(:fake_ws) { instance_double(WorkflowWorkspace, path: Rails.root) }
+    let(:full_diff) do
+      <<~DIFF
+        diff --git a/app/models/widget.rb b/app/models/widget.rb
+        index 1111111..2222222 100644
+        --- a/app/models/widget.rb
+        +++ b/app/models/widget.rb
+        @@ -1 +1,2 @@
+         old
+        +new
+      DIFF
+    end
+
+    before do
+      allow(handler).to receive(:workspace).and_return(fake_ws)
+      allow(handler).to receive(:diff_against_ref).with("origin/main").and_return(full_diff)
+      allow_any_instance_of(GitRunner).to receive(:run)
+        .with("merge-base", "origin/main", "HEAD", chdir: Rails.root.to_s)
+        .and_return("merge-base-sha\n")
+    end
+
+    it "persists one All changes version per full base and head range" do
+      2.times do
+        handler.send(:persist_diff_review_version!, base_sha: "step-base", head_sha: "branch-head", diff: full_diff)
+      end
+
+      all_changes = job.diff_review_versions.where(reason: "source_diff")
+      expect(all_changes.count).to eq(1)
+      expect(all_changes.first).to have_attributes(
+        base_sha: "merge-base-sha",
+        head_sha: "branch-head",
+        label: "All changes",
+        metadata: { "range_kind" => "all_changes" }
+      )
     end
   end
 

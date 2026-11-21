@@ -89,6 +89,14 @@ class ReconcileJobStatesJob < ApplicationJob
         # workflow.reopen fires on a :succeeded → :failed → :running
         # cycle and Job had already advanced to :implemented from
         # the original success.
+        #
+        # Not drift when starting this Workflow would not have lifted the
+        # Job, or when the Workflow already published its PR: Steps::PrOpen
+        # marks the Job implemented while the rest of the chain (reviews,
+        # graders) still runs, so :implemented is the lifecycle's own answer.
+        return nil unless Workflows::JobLifecyclePropagation.lifts_job_on_start?(latest_wf, job)
+        return nil if workflow_published_review_pr?(latest_wf)
+
         new(job, target_state: "running",
                   reason: "latest workflow :running but Job stuck at :implemented",
                   steps: %i[ start_running! ])
@@ -167,7 +175,10 @@ class ReconcileJobStatesJob < ApplicationJob
         # Workflow#start normally transitions queued Jobs to running.
         # If that callback is interrupted or bypassed, the Job remains
         # invisible as actively progressing even though its latest
-        # workflow owns live work.
+        # workflow owns live work. A Workflow whose start deliberately leaves
+        # the Job alone (it owns the Job's lifecycle) is not that case.
+        return nil unless Workflows::JobLifecyclePropagation.lifts_job_on_start?(latest_wf, job)
+
         new(job, target_state: "running",
                   reason: "latest workflow :running but Job stuck at :queued",
                   steps: %i[ start_running! ])
@@ -235,6 +246,13 @@ class ReconcileJobStatesJob < ApplicationJob
       return true if job.pr_checks_state == "passing"
 
       successful_publication_for_branch?(job, latest_wf)
+    end
+
+    def self.workflow_published_review_pr?(workflow)
+      kinds = workflow.work_definition.review_publication_step_kinds.presence || %w[pr_open]
+      workflow.steps.where(kind: kinds, state: "succeeded").exists?
+    rescue WorkDefinitions::UnknownKind
+      workflow.steps.where(kind: "pr_open", state: "succeeded").exists?
     end
 
     def self.workflow_published_ready_pr?(job, workflow)

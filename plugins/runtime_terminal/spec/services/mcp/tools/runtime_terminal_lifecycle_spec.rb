@@ -1,8 +1,20 @@
 require "rails_helper"
 require_relative "../../../fixtures/terminal_app_transcripts"
 
-RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
+# Calls the runtime_* tools as the chat sidecar does: through the authorization
+# dispatch, with the coding chat owner holding Full access. The dispatch is
+# prepended lazily (Mcp::Sidecar.authorize_tool) the first time any sidecar
+# tool list is built in the process, so calling the bare classes made this spec
+# order-dependent -- ungated alone, but gated (and asking for permission) after
+# any chat turn had run earlier in the same process.
+RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools", full_chat_access: :all do
   include ActiveJob::TestHelper
+
+  RUNTIME_TOOLS = [
+    Mcp::Tools::RuntimeAcquireControlTool, Mcp::Tools::RuntimeCaptureArtifactTool, Mcp::Tools::RuntimeInputTool,
+    Mcp::Tools::RuntimeInspectTool, Mcp::Tools::RuntimeReleaseControlTool, Mcp::Tools::RuntimeStartTool,
+    Mcp::Tools::RuntimeStopTool
+  ].freeze
 
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
@@ -12,6 +24,7 @@ RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
     enable_coding_mode!
     PluginRecord.find_or_create_by!(name: "terminal").update!(enabled: true, disableable: true)
     PluginRecord.find_or_create_by!(name: "runtime_terminal").update!(enabled: true, disableable: true)
+    RUNTIME_TOOLS.each { |tool| Mcp::Sidecar.authorize_tool(tool) }
   end
 
   after { Syrus::PluginRegistry.reset! }

@@ -21,6 +21,12 @@ RSpec.describe Prompts::PrFeedback do
     )
   end
 
+  it "tells the agent that PR metadata and follow-up work are not reasons to block" do
+    out = described_class.new(issue: issue, comments: [ conversation ]).to_s
+
+    Prompts::FeedbackScopeDirectives::LINES.each { |line| expect(out).to include(line) }
+  end
+
   it "frames the issue, then each comment block, then the closing instruction" do
     out = described_class.new(issue: issue, comments: [ conversation, inline ]).to_s
 

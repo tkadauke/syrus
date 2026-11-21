@@ -1,0 +1,253 @@
+<title>Engine Proof Coverage</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single reading column of priority tiers; each tier is a list of rows that expand to evidence. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #1b2330;
+  --muted: #5b6676;
+  --rule: #dfe3ea;
+  --accent: #23607a;
+  --accent-soft: #e3eef3;
+  --ok: #2f7a4a; --ok-soft: #e4f2e9;
+  --warn: #9a6512; --warn-soft: #f7eddb;
+  --crit: #a3362c; --crit-soft: #f6e3e0;
+  --info: #4c5a99; --info-soft: #e8eaf6;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161c; --surface: #1a2028; --fg: #e4e8ee; --muted: #9aa5b4; --rule: #2c3440;
+  --accent: #6fb3cf; --accent-soft: #1d3340;
+  --ok: #7cc996; --ok-soft: #1c3226; --warn: #e2b061; --warn-soft: #3a2e18;
+  --crit: #ef8a7f; --crit-soft: #3d221f; --info: #a3adea; --info-soft: #252a45; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161c; --surface: #1a2028; --fg: #e4e8ee; --muted: #9aa5b4; --rule: #2c3440;
+  --accent: #6fb3cf; --accent-soft: #1d3340;
+  --ok: #7cc996; --ok-soft: #1c3226; --warn: #e2b061; --warn-soft: #3a2e18;
+  --crit: #ef8a7f; --crit-soft: #3d221f; --info: #a3adea; --info-soft: #252a45; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: 2rem; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 1.3rem; font-weight: 600; }
+.lede { color: var(--muted); max-width: 68ch; margin: 8px 0 0; }
+code, .mono { font-family: var(--font-mono); font-size: 0.85em; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 0.85rem; margin-top: 12px; }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 24px 0; }
+.stat { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; }
+.stat b { display: block; font-family: var(--font-display); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+@media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+.legend div { font-size: 0.88rem; color: var(--muted); min-width: 0; }
+.legend strong { color: var(--fg); display: block; margin-bottom: 2px; }
+@media (max-width: 720px) { .legend { grid-template-columns: 1fr; } }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 0; position: sticky; top: env(safe-area-inset-top, 0px);
+  background: var(--bg); z-index: 5; border-bottom: 1px solid var(--rule); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.filters label { font-size: 0.8rem; color: var(--muted); }
+select, input[type="search"] { font: inherit; font-size: 0.9rem; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--surface); color: var(--fg); }
+input[type="search"] { flex: 1 1 200px; min-width: 0; }
+select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.count { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+
+section.tier { margin-top: 32px; }
+.tier-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.tier-head .why { color: var(--muted); font-size: 0.9rem; flex-basis: 100%; max-width: 72ch; }
+.tier-tag { font-family: var(--font-mono); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+
+ol.items { list-style: none; padding: 0; margin: 12px 0 0; border-top: 1px solid var(--rule); }
+ol.items > li { border-bottom: 1px solid var(--rule); }
+details > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 4px; }
+details > summary::-webkit-details-marker { display: none; }
+.idx { font-family: var(--font-mono); color: var(--muted); font-size: 0.8rem; padding-top: 2px; font-variant-numeric: tabular-nums; }
+.ttl { min-width: 0; }
+.ttl .t { font-weight: 500; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chip { font-size: 0.72rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--rule); color: var(--muted); white-space: nowrap; }
+.chip.prod { border-color: transparent; background: var(--warn-soft); color: var(--warn); font-variant-numeric: tabular-nums; }
+.pill { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.s-open { background: var(--crit-soft); color: var(--crit); }
+.s-partial { background: var(--warn-soft); color: var(--warn); }
+.s-done { background: var(--ok-soft); color: var(--ok); }
+.s-by-design { background: var(--info-soft); color: var(--info); }
+.body { padding: 0 4px 14px calc(2.2em + 14px); font-size: 0.9rem; display: grid; gap: 8px; }
+.body p { margin: 0; max-width: 72ch; }
+.kv { display: grid; grid-template-columns: 9em minmax(0, 1fr); gap: 4px 12px; }
+.kv dt { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 2px; }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 560px) { .kv { grid-template-columns: 1fr; } .body { padding-left: 4px; } }
+
+.needs { margin: 0 0 28px; background: var(--surface); border: 1px solid var(--warn); border-radius: 8px; padding: 16px 18px; display: grid; gap: 10px; }
+.needs .why { color: var(--muted); font-size: 0.9rem; margin: 0; max-width: 72ch; }
+.q { border-top: 1px solid var(--rule); padding-top: 12px; display: grid; gap: 6px; }
+.q h3 { font-size: 1.05rem; font-weight: 600; }
+.q .ref { font-family: var(--font-mono); font-size: 0.75rem; color: var(--warn); }
+.q p, .q li { margin: 0; max-width: 72ch; font-size: 0.92rem; }
+.q ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.q .rec { color: var(--fg); }
+.q .rec b { color: var(--accent); }
+.later { margin-top: 40px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; }
+.later ul { margin: 8px 0 0; padding-left: 1.2em; }
+.later li { margin: 4px 0; max-width: 72ch; }
+.empty { color: var(--muted); font-size: 0.9rem; padding: 10px 4px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Engine Proof Coverage</h1>
+    <p class="lede">Every abnormal state the workflow engine's reconciler repairs today, every property the simulator defends, and the promises in the engineering docs, ranked by what to model and prove in Lean next. The goal for each one: prove the engine can never enter the state, rather than rely on the repair.</p>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <section class="needs" id="needs" hidden>
+    <h2>Needs you</h2>
+    <p class="why">Design or intent questions found while working the list. The loop keeps going on other items; these wait for a decision.</p>
+    <div id="needs-list"></div>
+  </section>
+
+  <div class="legend">
+    <div><strong>Preventable (class a)</strong>Some code path wrongly produces the state. Model it, find the path, fix it, prove it unreachable.</div>
+    <div><strong>Lag (class b)</strong>Legitimately transient. Prove it always resolves, under stated fairness assumptions.</div>
+    <div><strong>External fault (class c)</strong>Worker death, lost queue jobs, disk loss. Recover only: model the fault as an assumption and prove recovery is bounded and safe.</div>
+  </div>
+
+  <div class="filters" role="search">
+    <label for="f-area">Area</label>
+    <select id="f-area"><option value="">All areas</option></select>
+    <label for="f-status">Status</label>
+    <select id="f-status">
+      <option value="">Any</option><option value="open">Open</option><option value="partial">Partial</option>
+      <option value="done">Done</option><option value="by-design">By design</option>
+    </select>
+    <input id="f-q" type="search" placeholder="Search titles, issue kinds, classifiers" aria-label="Search">
+    <span class="count" id="f-count"></span>
+  </div>
+
+  <main id="tiers"></main>
+
+  <aside class="later">
+    <h2>Next scope, after the engine and reconciler</h2>
+    <ul>
+      <li><strong>Main branch repair</strong>: health detection, repair Jobs, the landing pause it imposes, and how it lifts.</li>
+      <li><strong>Landing queue</strong>: ordering, bundling, re-entry after failure, override semantics, beyond what the reconciler sees.</li>
+      <li><strong>Diff reviews</strong>: review versions, comment threads across HEAD changes, and submission as feedback.</li>
+      <li><strong>Plugin system</strong>: registry, enable/disable mid-flight (unknown Workflow kinds), contribution contracts, boot safety.</li>
+    </ul>
+  </aside>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById("data").textContent);
+  var TIERS = [
+    { id: "p1", title: "P1 · Safety: wrong code lands or runs", why: "A violation means unreviewed code merges, work runs in parallel where it must not, or a Job lands nothing. Highest value, and the code shows concrete suspicions for several." },
+    { id: "p2", title: "P2 · What production shows breaking", why: "Repairs that fire or get refused every day, and the agreement properties behind them. Fixing these removes most reconciler noise." },
+    { id: "p3", title: "P3 · Other preventable states", why: "Abnormal states some code path can produce. Each becomes a reachability proof, or a counterexample and a fix." },
+    { id: "p4", title: "P4 · Lag that must always resolve", why: "Transient by design. The proof obligation is liveness under explicit fairness assumptions." },
+    { id: "p5", title: "P5 · External faults", why: "Not preventable. Model the fault as an assumption and prove recovery is bounded and never runs work twice." },
+    { id: "done", title: "Done", why: "Modelled in Lean, reproduced by a failing Ruby spec, fixed, and on main. Details in formal/FINDINGS.md." },
+    { id: "design", title: "By design", why: "Counterexamples that describe intended behavior. The model records them so they are not re-discovered." }
+  ];
+  var areaTitle = {};
+  D.areas.forEach(function (a) { areaTitle[a.id] = a.title; });
+  var statusLabel = { "open": "Open", "partial": "Partial", "done": "Done", "by-design": "By design" };
+  var classLabel = { a: "preventable", b: "lag", c: "external fault", "n/a": "n/a" };
+
+  var areaSel = document.getElementById("f-area");
+  D.areas.forEach(function (a) {
+    var o = document.createElement("option"); o.value = a.id; o.textContent = a.title; areaSel.appendChild(o);
+  });
+
+  var by = function (k) { var c = {}; D.items.forEach(function (i) { c[i[k]] = (c[i[k]] || 0) + 1; }); return c; };
+  var st = by("status");
+  document.getElementById("stats").innerHTML = [
+    ["Items", D.items.length], ["Open", st.open || 0], ["Partial", st.partial || 0], ["Done", st.done || 0]
+  ].map(function (p) { return '<div class="stat"><b>' + p[1] + '</b><span>' + p[0] + '</span></div>'; }).join("");
+  document.getElementById("meta").innerHTML =
+    '<span>Scope: workflow engine and reconciler</span>' +
+    '<span>Covers all 62 reconciler classifiers and 83 issue kinds, and all 99 simulator scenarios</span>' +
+    '<span>Code at <code>' + esc(D.commit || "") + '</code></span>' +
+    '<span>Production counts: repairs over about 9 hours on 2026-11-20</span>';
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function list(a) { return a && a.length ? a.map(function (x) { return "<code>" + esc(x) + "</code>"; }).join(", ") : "—"; }
+
+  function row(it, n) {
+    var prod = (it.prod_applied || it.prod_skipped)
+      ? '<span class="chip prod">prod ' + it.prod_applied + ' applied / ' + it.prod_skipped + ' skipped</span>' : "";
+    return '<li><details><summary>' +
+      '<span class="idx">' + n + '</span>' +
+      '<span class="ttl"><span class="t">' + esc(it.title) + '</span><span class="chips">' +
+        '<span class="chip">' + esc(areaTitle[it.area] || it.area) + '</span>' +
+        '<span class="chip">' + esc(classLabel[it.class] || it.class) + '</span>' +
+        '<span class="chip">' + esc(it.safety_or_liveness) + '</span>' + prod +
+        (it.simulator && it.simulator.length ? '<span class="chip">' + it.simulator.length + ' scenario' + (it.simulator.length > 1 ? "s" : "") + '</span>' : "") +
+      '</span></span>' +
+      '<span class="pill s-' + it.status + '">' + statusLabel[it.status] + (it.done_by ? " · " + esc(it.done_by) : "") + '</span>' +
+      '</summary><div class="body">' +
+        (it.notes ? '<p>' + esc(it.notes) + '</p>' : "") +
+        '<dl class="kv">' +
+          '<dt>Likely producer</dt><dd>' + esc(it.producer || "unknown") + '</dd>' +
+          '<dt>Issue kinds</dt><dd>' + list(it.issue_kinds) + '</dd>' +
+          '<dt>Classifiers</dt><dd>' + list(it.classifiers) + '</dd>' +
+          '<dt>Scenarios</dt><dd>' + list(it.simulator) + '</dd>' +
+        '</dl></div></details></li>';
+  }
+
+  function render() {
+    var area = areaSel.value, status = document.getElementById("f-status").value,
+        q = document.getElementById("f-q").value.trim().toLowerCase();
+    var shown = 0, html = "";
+    TIERS.forEach(function (t) {
+      var items = D.items.filter(function (i) {
+        if (i.tier !== t.id) return false;
+        if (area && i.area !== area) return false;
+        if (status && i.status !== status) return false;
+        if (q) {
+          var hay = [i.title, i.notes, i.producer].concat(i.issue_kinds || [], i.classifiers || [], i.simulator || []).join(" ").toLowerCase();
+          if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+      }).sort(function (a, b) {
+        return (a.order - b.order) || ((b.prod_applied + b.prod_skipped) - (a.prod_applied + a.prod_skipped)) || a.title.localeCompare(b.title);
+      });
+      shown += items.length;
+      html += '<section class="tier" id="' + t.id + '"><div class="tier-head"><h2>' + esc(t.title) + '</h2>' +
+        '<span class="tier-tag">' + items.length + '</span><p class="why">' + esc(t.why) + '</p></div>' +
+        (items.length ? '<ol class="items">' + items.map(function (it, k) { return row(it, k + 1); }).join("") + '</ol>'
+                      : '<p class="empty">Nothing matches the current filters.</p>') + '</section>';
+    });
+    document.getElementById("tiers").innerHTML = html;
+    document.getElementById("f-count").textContent = shown + " of " + D.items.length;
+  }
+  var NY = D.needs_you || [];
+  if (NY.length) {
+    document.getElementById("needs").hidden = false;
+    document.getElementById("needs-list").innerHTML = NY.map(function (q) {
+      return '<div class="q"><span class="ref">' + esc(q.id) + ' · ' + esc(q.item) + '</span><h3>' + esc(q.title) + '</h3>' +
+        '<p>' + esc(q.context) + '</p><ul>' + (q.options || []).map(function (o) { return '<li>' + esc(o) + '</li>'; }).join("") + '</ul>' +
+        (q.recommendation ? '<p class="rec"><b>Recommendation:</b> ' + esc(q.recommendation) + '</p>' : "") +
+        (q.decision ? '<p class="rec"><b>Decided:</b> ' + esc(q.decision) + '</p>' : "") + '</div>';
+    }).join("");
+  }
+  ["f-area", "f-status", "f-q"].forEach(function (id) { document.getElementById(id).addEventListener("input", render); });
+  render();
+})();
+</script>

@@ -729,6 +729,17 @@ class Job < ApplicationRecord
       transitions from: :blocked_by_epic, to: :queued, guard: :ready_for_execution?, after: :create_initial_run_if_needed
     end
 
+    event :reset_from_scratch do
+      # Cancellation may move the Job to queued before the reset's destructive
+      # cleanup finishes. Preflight still rejects an operator request that
+      # starts in queued; this source only lets an already-admitted reset
+      # complete atomically after cancelling compatibility runtime records.
+      transitions from: %i[queued running failed implemented approved no_change_needed], to: :blocked_by_epic,
+                  guard: :reset_requires_dependency_block?
+      transitions from: %i[queued running failed implemented approved no_change_needed], to: :queued,
+                  after: :create_initial_run_if_needed
+    end
+
     # Fired by Workflow#start's after-callback when a workflow
     # (initial / retry / pr_comment / ci_failure / rebase, but NOT
     # auto_merge — landing has its own state) begins executing.
@@ -1125,6 +1136,10 @@ class Job < ApplicationRecord
     return false if epic.releases_jobs_for_execution?
 
     true
+  end
+
+  def reset_requires_dependency_block?
+    blocked_by_epic_before_execution? || !dependencies_satisfied_for_execution?
   end
 
   def prepare_skip_reason
@@ -1645,6 +1660,7 @@ class Job < ApplicationRecord
   private
 
   def repin_provider_paused_unstarted_workflows!(from:, to:)
+    provider_account_id = user.default_provider_account(to)&.id
     workflows
       .joins(:work_unit)
       .where(state: %w[queued running], agent_provider: from)
@@ -1655,7 +1671,7 @@ class Job < ApplicationRecord
       .where.not(
         id: Workflow.joins(steps: :runs).select("workflows.id")
       )
-      .update_all(agent_provider: to, updated_at: Time.current)
+      .update_all(agent_provider: to, provider_account_id: provider_account_id, updated_at: Time.current)
   end
 
   def finish_stale_work_units_after_close
@@ -1932,7 +1948,7 @@ class Job < ApplicationRecord
   public
 
   def planned_execution_requirement
-    PlannedExecutionRequirement.from_record(self)
+    PlannedExecutionRequirement.from_stored_record(self)
   end
 
   def planned_execution_json
@@ -1972,7 +1988,10 @@ class Job < ApplicationRecord
     workflow = WorkUnits::Launcher.instantiate(
       kind: initial_work_kind,
       job: self,
-      artifacts: skill_launch? ? skill_workflow_artifacts : nil
+      artifacts: skill_launch? ? skill_workflow_artifacts : nil,
+      agent_provider: job_provider_setting_default? ? nil : workflow_agent_provider,
+      model: model,
+      effort_level: effort_level
     )
     prompt = if direct? && !skill_launch? && !investigation_launch?
       Prompts::DirectJob.new(

@@ -59,6 +59,41 @@ RSpec.describe AppEvents do
     expect(other_user_sequences).to eq([ 1 ])
   end
 
+  # Regression: the per-user sequence is a counter on the user's row. A
+  # broadcast inside a caller's transaction held that row lock until the outer
+  # transaction committed, so one slow transaction made every other broadcast
+  # for the same user time out and fail unrelated Runs.
+  describe "inside a transaction" do
+    let(:user) { Factories.user }
+
+    before { allow(AppUserChannel).to receive(:broadcast_to) }
+
+    it "neither touches the user's sequence nor delivers until the transaction commits" do
+      user.update_columns(app_event_sequence: 4)
+
+      expect {
+        ActiveRecord::Base.transaction do
+          described_class.broadcast(user: user, type: "updated", resource: "job", id: 1)
+
+          expect(user.reload.app_event_sequence).to eq(4)
+          expect(AppUserChannel).not_to have_received(:broadcast_to)
+        end
+      }.not_to raise_error
+
+      expect(user.reload.app_event_sequence).to eq(5)
+      expect(AppUserChannel).to have_received(:broadcast_to).with(user, hash_including("sequence" => 5)).once
+    end
+
+    it "delivers nothing for a change that rolls back" do
+      ActiveRecord::Base.transaction do
+        described_class.broadcast(user: user, type: "updated", resource: "job", id: 1)
+        raise ActiveRecord::Rollback
+      end
+
+      expect(AppUserChannel).not_to have_received(:broadcast_to)
+    end
+  end
+
   describe ".broadcast_job_resource" do
     it "broadcasts a sequence-less event envelope to the job-scoped stream, never to the user channel" do
       occurred_at = Time.zone.local(2026, 5, 30, 12, 0, 1, 123_000)

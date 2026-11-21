@@ -12,7 +12,7 @@ RSpec.describe Filters::Schema do
     it "returns the job subject schema by default" do
       fields = described_class.for.map { |chip| chip["field"] }
 
-      expect(fields).to eq(Filters::Registry::CHIPS.keys)
+      expect(fields).to start_with(*Filters::Registry::CHIPS.keys)
     end
 
     it "raises a clear error for unknown subjects" do

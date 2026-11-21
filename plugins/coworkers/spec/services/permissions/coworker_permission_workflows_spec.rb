@@ -212,6 +212,32 @@ RSpec.describe "coworker permission requests and self-surrender" do
       expect(audit_events("coworker_permission_granted").sole.params).to include("coworker_id" => coworker.id)
     end
 
+    it "reconciles a covered permission request with the existing rule and grant audit" do
+      request = ChatPendingAction.find(body(request_permission(duration: "permanent", constraints: { "table" => "orders" })).fetch(:pending_action_id))
+      sibling = request.dup
+      sibling.deduplication_key = "#{request.deduplication_key}:sibling"
+      sibling.save!
+      sibling_item = request.authorization_items.sole.dup
+      sibling_item.chat_pending_action = sibling
+      sibling_item.invocation_fingerprint = "#{sibling_item.invocation_fingerprint}:sibling"
+      sibling_item.save!
+
+      approve(request, "permanent")
+
+      rule = PermissionRule.sole
+      expect(sibling.reload).to have_attributes(state: "confirmed", confirmed_at: be_present)
+      expect(sibling.authorization_items.sole).to have_attributes(
+        state: "approved", selected_duration: "permanent", resulting_authority: rule
+      )
+      expect(AuthorizedInvocation.where(pending_action_item: sibling.authorization_items.sole)).to be_empty
+      expect(audit_events("coworker_permission_granted").count).to eq(2)
+      expect(audit_events("coworker_permission_granted").last.params).to include(
+        "coworker_id" => coworker.id, "authorization_request_id" => sibling.id,
+        "authority" => Permissions::SmartDecision.authority_reference(sibling.authorization_items.sole).deep_stringify_keys,
+        "duration" => "permanent"
+      )
+    end
+
     it "refuses a bare approval and the generic approval path for a permission request" do
       request = ChatPendingAction.find(body(request_permission).fetch(:pending_action_id))
 

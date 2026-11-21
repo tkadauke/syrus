@@ -84,6 +84,23 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, EPIC_WIDE_BLOCK_REASON)
 
+    if (member = EpicWorkflowLock.running_member_workflow_for(workflow))
+      record_start_blocked!(
+        workflow,
+        EPIC_MEMBER_WORK_BLOCK_REASON,
+        backoff: START_BLOCKED_BACKOFF,
+        details: {
+          "blocking_workflow_id" => member.id,
+          "blocking_workflow_slug" => member.slug,
+          "blocking_trigger_kind" => member.trigger_kind
+        }
+      )
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
+      warn_if_stuck_queued(workflow, "#{EPIC_MEMBER_WORK_BLOCK_REASON}: #{member.slug}")
+      return
+    end
+    clear_start_blocked!(workflow, EPIC_MEMBER_WORK_BLOCK_REASON)
+
     if epic_sibling_blocking?(workflow)
       reason = EPIC_SIBLING_BLOCK_REASON
       return if start_blocked_backoff_active?(workflow, reason)
@@ -177,6 +194,11 @@ class StepDispatcher
       return if start_blocked_backoff_active?(workflow, reason)
 
       record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF)
+      # The gate also releases when the urgent Job stops progressing
+      # (UrgentWorkGate), which wakes nothing; only closing one does
+      # (UrgentJobClosedJob). Look again on our own backoff, as the
+      # main-health gate above does.
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
       warn_if_stuck_queued(workflow, reason)
       return
     end
@@ -186,11 +208,24 @@ class StepDispatcher
     run_provider_candidate = run_provider_candidate_for(first, workflow)
     return if run_provider_candidate.nil?
 
-    provider_pause = ProviderAvailabilityPause.call(
-      workflow: workflow,
-      task_key: provider_task_key_for(first, workflow),
-      candidate: run_provider_candidate
-    )
+    provider_pause = if routed_failover_already_admitted?(workflow, run_provider_candidate)
+      ProviderAvailabilityPause::Decision.new(
+        pause: false,
+        reason: nil,
+        provider: run_provider_candidate.provider,
+        threshold_percent: nil,
+        remaining_percent: nil,
+        retry_at: nil,
+        availability: nil,
+        failover: nil
+      )
+    else
+      ProviderAvailabilityPause.call(
+        workflow: workflow,
+        task_key: provider_task_key_for(first, workflow),
+        candidate: run_provider_candidate
+      )
+    end
     apply_provider_failover!(workflow, provider_pause) if provider_pause.failover? && !step_specific_provider_task_key?(first, workflow)
     if provider_pause.pause?
       backoff = provider_pause.retry_at ? provider_pause.retry_at - Time.current : START_BLOCKED_BACKOFF
@@ -257,6 +292,11 @@ class StepDispatcher
     run
   end
 
+  def self.routed_failover_already_admitted?(workflow, candidate)
+    decision = workflow.artifact("provider_failover_decision").to_h
+    decision["selected_provider"] == candidate.provider && decision["exhausted"] != true
+  end
+
   def self.provider_routing_held?(workflow)
     workflow.provider_routing_holds.active.exists?
   end
@@ -283,6 +323,7 @@ class StepDispatcher
   ADMISSION_BLOCK_REASON = "workflow_admission_budget"
   PROVIDER_AVAILABILITY_BLOCK_REASON = "provider_availability"
   EPIC_WIDE_BLOCK_REASON = EpicWorkflowLock::BLOCK_REASON
+  EPIC_MEMBER_WORK_BLOCK_REASON = "epic_member_work_running"
   EPIC_SIBLING_BLOCK_REASON = "epic_sibling_implementation_active"
   PAUSE_REASON_ADMISSION = ADMISSION_BLOCK_REASON
   PAUSE_REASON_RESOURCE_SAFETY = "resource_safety"
@@ -344,25 +385,41 @@ class StepDispatcher
     UrgentWorkGate.progressing(blocking_jobs.to_a).any?
   end
 
+  # A linear Epic's implementation turn. Read from one snapshot: reading
+  # "running" and "queued" in separate queries let a sibling whose RunJob
+  # started in between fall out of both answers, and both children
+  # implemented at once (formal/SyrusModel/EpicTurn.lean, two_query_race).
   def self.epic_sibling_blocking?(workflow)
-    epic = workflow.job.epic
-    return false unless epic&.resolved_epic_dependency_policy == "linear"
-    return false unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(workflow.trigger_kind)
+    active = epic_implementation_workflows(workflow)
+    return false unless active
 
-    implementation_workflows = Workflow
-      .where(job_id: epic.jobs.select(:id))
-      .where(trigger_kind: WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS)
+    return true if active.any? { |candidate| candidate.running? && candidate.job_id != workflow.job_id }
+    return false if active.any? { |candidate| candidate.running? && candidate.job_id == workflow.job_id }
 
-    return true if implementation_workflows.running.where.not(job_id: workflow.job_id).exists?
-    return false if implementation_workflows.running.where(job_id: workflow.job_id).exists?
-
-    queued = implementation_workflows
-      .where(state: "queued")
-      .order(:created_at, :id)
-      .to_a
+    queued = active.select(&:queued?).sort_by { |candidate| [ candidate.created_at, candidate.id ] }
     winner = epic_sibling_turn_winner(queued)
 
     winner.present? && winner.job_id != workflow.job_id
+  end
+
+  # A sibling implementation Workflow already running in this Workflow's
+  # linear Epic, if any. Paths that restart implementation without going
+  # through start_workflow (step retries) must not run alongside it.
+  def self.epic_sibling_implementation_running(workflow)
+    epic_implementation_workflows(workflow)&.find { |candidate| candidate.running? && candidate.job_id != workflow.job_id }
+  end
+
+  def self.epic_implementation_workflows(workflow)
+    epic = workflow.job.epic
+    return nil unless epic&.resolved_epic_dependency_policy == "linear"
+    return nil unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(workflow.trigger_kind)
+
+    Workflow
+      .where(job_id: epic.jobs.select(:id))
+      .where(trigger_kind: WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS)
+      .where(state: %w[queued running])
+      .select(:id, :job_id, :state, :created_at)
+      .to_a
   end
 
   # The oldest queued implementation workflow takes the Epic's turn -- unless
@@ -467,6 +524,14 @@ class StepDispatcher
   # once its Job is closed.
   def self.redeploy_on_closed_job?(workflow)
     workflow.trigger_kind == "deploy" && workflow.job.landed_sha.present?
+  end
+
+  # Reads the Job row fresh: a closer in another process must be seen.
+  def self.job_closed_for_execution?(workflow)
+    return false unless workflow.job_id
+    return false unless Job.where(id: workflow.job_id, state: "closed").exists?
+
+    !redeploy_on_closed_job?(workflow)
   end
 
   def self.cancel_unstartable_closed_job_workflow!(workflow)
@@ -662,10 +727,20 @@ class StepDispatcher
           return nil
         end
 
+        run_provider_account = if run_provider_candidate.account_id.present?
+          workflow.user.provider_accounts.find_by(
+            provider_key: run_provider_candidate.provider,
+            public_id: run_provider_candidate.account_id
+          )
+        elsif workflow.agent_provider == run_provider_candidate.provider
+          workflow.provider_account
+        end
+
         step.runs.create!(
           job: workflow.job,
           trigger_kind: workflow.trigger_kind,
           agent_provider: run_provider_candidate.provider,
+          provider_account: run_provider_account,
           model: run_provider_candidate.model,
           effort_level: run_provider_candidate.effort_level,
           iteration: step.iteration,
@@ -704,15 +779,14 @@ class StepDispatcher
       effort_level: workflow.effort_level
     )
     task_key = workflow.trigger_kind
-    routed_selection = if ProviderRouting::Resolver.rule_configured?(job: workflow.job.reload, task_key: task_key)
-      ProviderRouting::AvailabilitySelector.call(
-        job: workflow.job,
-        task_key: task_key,
-        workflow_trigger_kind: workflow.trigger_kind,
-        original_candidate: current_candidate,
-        released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
-      )
-    end
+    routed_selection = ProviderRouting::AvailabilitySelector.call(
+      job: workflow.job.reload,
+      task_key: task_key,
+      workflow_trigger_kind: workflow.trigger_kind,
+      original_candidate: current_candidate,
+      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids"),
+      workflow: workflow
+    )
     desired_candidate = routed_selection&.candidate ||
       ProviderRouting::AvailabilitySelector.candidate(
         provider: workflow.job.workflow_agent_provider.presence,
@@ -731,6 +805,7 @@ class StepDispatcher
       "agent_provider_resolved" => desired_candidate.provider
     )
     artifacts["agent_provider_routing_decision"] = routed_selection.artifact if routed_selection
+    artifacts["provider_failover_decision"] = routed_selection.artifact if routed_selection&.failover?
     workflow.update!(
       agent_provider: desired_candidate.provider,
       model: desired_candidate.model,
@@ -750,7 +825,8 @@ class StepDispatcher
       return ProviderRouting::AvailabilitySelector.candidate(
         provider: step.details["provider"],
         model: step.details["model"],
-        effort_level: step.details["effort_level"], reviewer_target: reviewer_target
+        effort_level: step.details["effort_level"], reviewer_target: reviewer_target,
+        account_id: step.details["account_id"]
       )
     end
     if (panel_execution = step.details.to_h["panel_execution"])
@@ -760,7 +836,8 @@ class StepDispatcher
         reviewer_target = reauthorized_reviewer_target(step, member["reviewer_target"])
         step.update!(details: step.details.to_h.merge("reviewer_target" => reviewer_target).compact)
         return ProviderRouting::AvailabilitySelector.candidate(
-          provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: reviewer_target
+          provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: reviewer_target,
+          account_id: member["account_id"]
         )
       end
 
@@ -786,7 +863,8 @@ class StepDispatcher
       end
 
       return ProviderRouting::AvailabilitySelector.candidate(
-        provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: member["reviewer_target"]
+        provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: member["reviewer_target"],
+        account_id: member["account_id"]
       )
     end
 
@@ -796,7 +874,8 @@ class StepDispatcher
       trigger: provider_invocation_for(step),
       workflow_trigger_kind: workflow.trigger_kind,
       original_candidate: current_candidate,
-      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids")
+      released_hold_rule_ids: workflow.artifact("released_provider_routing_hold_rule_ids"),
+      workflow: workflow
     )
     if selection.held?
       workflow.update!(
@@ -922,6 +1001,20 @@ class StepDispatcher
       "phase_step_kind" => step.kind,
       "phase_step_position" => step.position
     )
+    # A landing never parks in flight: parking gives up the landing slot while
+    # the landing is still mid-way. Fail it and hold it until a capable worker
+    # is live (LandingCapabilityHold); it keeps its approval.
+    if workflow.landing_workflow?
+      LandingCapabilityHold.record!(workflow, decision)
+      fail_unstartable_landing_workflow!(
+        workflow,
+        "#{LandingFailureCode::NO_CAPABLE_WORKER}: no live worker can run #{step.kind} " \
+          "(requires #{decision.requirements.to_h.to_json})",
+        details: details
+      )
+      return true
+    end
+
     if start_blocked_backoff_active?(workflow, RunQueueResolver::BLOCKED_OUTCOME)
       return true
     end
@@ -1146,6 +1239,15 @@ class StepDispatcher
     previous = step.previous_step
     if step.id == workflow.first_step&.id
       start_workflow(workflow)
+    elsif distributed_parallel_grader_candidate?(workflow, step)
+      # Re-enter the ready-set dispatcher so a timed capacity recheck cannot
+      # bypass GraderFanoutAdmission by creating this one Run directly.
+      dependency = step.depends_on_steps.max_by { |candidate| [ candidate.position, candidate.id ] }
+      new(
+        workflow,
+        advancing_from: dependency || step.previous_step,
+        check_phase_admission: check_phase_admission
+      ).send(:enqueue_next_runnable_steps!)
     elsif step_id && new(workflow).send(:ready?, step)
       create_run_and_enqueue(step, workflow, check_phase_admission: check_phase_admission)
     elsif distributed_deferred_resume_ready?(workflow, step)
@@ -1169,8 +1271,41 @@ class StepDispatcher
     new(workflow).send(:ready?, step)
   end
 
+  def self.distributed_parallel_grader_candidate?(workflow, step)
+    step.kind.in?(%w[grader preflight_grader]) &&
+      step.placement_policy == Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT &&
+      Feature.distributed_workflow_dag_enabled?(workflow.job.repository)
+  end
+
   def self.completed_predecessor?(step)
     step&.succeeded? || step&.skipped?
+  end
+
+  # Explicit dependency edges are authoritative when a Step has them: a
+  # collector's next_step predecessor is only the last grader in the chain,
+  # and treating its completion as readiness reported the collector as a
+  # stranded handoff every minute while sibling graders were still running.
+  def self.deferred_phase_handoff_ready?(step)
+    return false unless step&.queued?
+
+    dependencies = step.depends_on_steps
+    return handed_off_predecessor?(step.previous_step) if dependencies.empty?
+    return step.dependencies_settled? if step.kind.in?(%w[grader_collect preflight_grader_collect])
+
+    dependencies.all? { |dependency| handed_off_predecessor?(dependency) }
+  end
+
+  # The immutable-HEAD barrier cancels an in-flight review it superseded
+  # without cascading, precisely so the chain behind it continues. Treat that
+  # cancellation as a handoff: otherwise the next panel member waited forever
+  # behind it, invisible to the reconciler, while every later Step stayed
+  # queued -- several Jobs sat "running" for a day with nothing running.
+  def self.handed_off_predecessor?(step)
+    completed_predecessor?(step) || superseded_review_cancellation?(step)
+  end
+
+  def self.superseded_review_cancellation?(step)
+    step&.cancelled? && step.details.to_h["review_evidence_superseded"] == true
   end
 
   def self.retry_until_continuation_after_failed_check?(workflow, step, previous)
@@ -1256,7 +1391,19 @@ class StepDispatcher
   end
 
   def enqueue_next_runnable_steps!
+    # A step that asked to close this Workflow's own Job was its final act:
+    # skip the rest and finish, so the closure is applied on completion.
+    return finish_after_own_job_closure! if @workflow.own_job_closure_pending?
+
     next_steps = find_next_runnables
+
+    # Never start a step for a closed Job (the start-time guard in
+    # .start_workflow, applied at every step boundary). A Workflow with
+    # nothing left to start still finishes normally below.
+    if next_steps.any? && self.class.job_closed_for_execution?(@workflow)
+      self.class.cancel_unstartable_closed_job_workflow!(@workflow)
+      return nil
+    end
 
     if next_steps.any?
       # Idempotency: failure propagation fires fail_from twice
@@ -1269,9 +1416,15 @@ class StepDispatcher
       return if runnable_steps.any? { |step| manually_paused_before_next_step?(step) }
       return if runnable_steps.any? { |step| landing_queue_paused_before_next_step?(step) }
 
-      created_runs = runnable_steps.filter_map do |step|
-        create_run_or_defer_on_lock_conflict(step)
+      created_runs = if runnable_steps.all? { |step| parallel_grader_step?(step) }
+        create_admitted_parallel_grader_runs(runnable_steps)
+      else
+        runnable_steps.filter_map do |step|
+          create_run_or_defer_on_lock_conflict(step)
+        end
       end
+      return if created_runs.empty?
+
       dispatch_parallel_inline_runs!(created_runs)
       created_runs.first
     elsif downstream_work_pending?
@@ -1457,7 +1610,7 @@ class StepDispatcher
     loop_node = loop_node_for(@from_step)
     return false unless loop_node&.fetch("type") == "loop"
     return false unless loop_step_kinds(loop_node).last == effective_review_kind
-    return false if @from_step.details.to_h["panel_fanout"] || @from_step.details.to_h["panel_member"]
+    return false if @from_step.review_panel_participant?
 
     if review_loop_exit?(gate.fetch(:artifact_key), gate.fetch(:exit_verdicts))
       exit_review_loop!(loop_node, cancellation_reason: gate.fetch(:cancellation_reason))
@@ -2034,6 +2187,15 @@ class StepDispatcher
   end
 
   def wire_inserted_step_dependencies!(previous:, new_steps:, continuation:)
+    self.class.wire_inserted_step_dependencies!(previous: previous, new_steps: new_steps, continuation: continuation)
+  end
+
+  # Template steps carry an explicit depends_on edge to their template
+  # predecessor, and the distributed ready set trusts that edge. Every runtime
+  # insertion between a step and its continuation must therefore move the
+  # continuation's edge onto the last inserted step; re-pointing next_step
+  # alone left the continuation "ready" while the inserted work still ran.
+  def self.wire_inserted_step_dependencies!(previous:, new_steps:, continuation:)
     return if new_steps.empty?
 
     ([ previous ] + new_steps).each_cons(2) do |dependency, dependent|
@@ -2171,13 +2333,27 @@ class StepDispatcher
     first_serial_step = nil
     parallel_steps = []
 
-    each_downstream_queued_step do |step|
+    each_downstream_active_step do |step|
+      # Serial steps share the mutable workspace and run in chain order. The
+      # first active serial step is a barrier whether or not it is ready:
+      # skipping past it once started a later review loop -- and then its
+      # repair -- while an earlier loop was still reviewing and repairing.
+      if step.running?
+        next if parallel_runnable_step?(step)
+
+        break
+      end
+
       if skippable_queued_step?(step)
         skip_queued_step!(step)
         next
       end
 
-      next unless ready?(step)
+      unless ready?(step)
+        next if parallel_runnable_step?(step)
+
+        break
+      end
 
       if parallel_runnable_step?(step)
         parallel_steps << step
@@ -2190,10 +2366,10 @@ class StepDispatcher
     parallel_steps.presence || Array(first_serial_step)
   end
 
-  def each_downstream_queued_step
+  def each_downstream_active_step
     scope = @workflow.steps.order(:position, :id)
     scope = scope.where("position > ?", @from_step.position) if @from_step
-    scope.each { |step| yield step if step.queued? }
+    scope.each { |step| yield step if step.queued? || step.running? }
   end
 
   def distributed_ready_set_enabled?
@@ -2225,6 +2401,51 @@ class StepDispatcher
     return unless Thread.current[:syrus_current_run]&.workflow_id == @workflow.id
 
     created_runs.drop(1).reject(&:distributed_parallel_run?).each(&:reenqueue!)
+  end
+
+  def create_admitted_parallel_grader_runs(runnable_steps)
+    GraderFanoutAdmission.synchronize(workflow: @workflow, steps: runnable_steps) do |decision|
+      record_grader_fanout_admission!(decision, runnable_steps.size)
+      if decision.steps.size < runnable_steps.size
+        WorkflowPhaseAdmissionJob.enqueue_once(
+          @workflow.id,
+          wait: GraderFanoutAdmission::RECHECK_DELAY,
+          priority: @workflow.solid_queue_priority
+        )
+      end
+      decision.steps.filter_map do |step|
+        create_run_or_defer_on_lock_conflict(step)
+      end
+    end
+  end
+
+  def parallel_grader_step?(step)
+    step.kind.in?(%w[grader preflight_grader]) && parallel_runnable_step?(step)
+  end
+
+  def record_grader_fanout_admission!(decision, ready_count)
+    previous = @workflow.artifact("grader_fanout_admission").to_h
+    deferred = decision.steps.size < ready_count
+    deferred_at = if deferred && decision.steps.any?
+      Time.current.iso8601
+    elsif deferred
+      previous["deferred_at"] || Time.current.iso8601
+    end
+    entry = {
+      "reason" => decision.reason,
+      "ready_count" => ready_count,
+      "released_count" => decision.steps.size,
+      "available_slots" => decision.available_slots,
+      "capacity" => decision.capacity,
+      "active_runs" => decision.active_runs,
+      "decided_at" => Time.current.iso8601,
+      "deferred_at" => deferred_at
+    }.compact
+    current = @workflow.artifacts.to_h
+    @workflow.update!(artifacts: current.merge(
+      "grader_fanout_admission" => entry,
+      "grader_fanout_admission_history" => (Array(current["grader_fanout_admission_history"]) + [ entry ]).last(50)
+    ))
   end
 
   # Empty edges mean "just my predecessor", so a Step materialized before A5 --
@@ -2344,6 +2565,19 @@ class StepDispatcher
     StackRebaseCoordinator.parent_amended(@workflow.job) if pushed_workflow? && @workflow.trigger_kind != "stack_rebase"
     schedule_mergeability_recheck
     schedule_auto_merge_recheck
+  end
+
+  def finish_after_own_job_closure!
+    @workflow.steps.where(state: "queued").find_each do |step|
+      next if step.runs.active.exists?
+
+      step.skip!
+      step.save!
+    end
+    return nil if downstream_work_pending?
+
+    finish_workflow!
+    nil
   end
 
   def fail_for_cancelled_tail!

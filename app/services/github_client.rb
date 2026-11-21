@@ -238,6 +238,9 @@ class GithubClient
   # button uses.
   def close_pull_request(repo_slug, pr_number)
     @client.update_pull_request(repo_slug, pr_number, state: "closed")
+    true
+  rescue Octokit::NotFound, Octokit::UnprocessableEntity
+    true
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited closing #{repo_slug}##{pr_number}: #{e.message}")
     raise
@@ -306,6 +309,13 @@ class GithubClient
       Rails.logger.warn("[GithubClient] #{@user&.email_address} could not delete #{repo_slug}@#{branch_name} after transient GitHub failures (suppressed): #{e.message}")
       false
     end
+  end
+
+  def delete_ref(repo_slug, ref)
+    track_rate_limits { @client.delete_ref(repo_slug, ref.delete_prefix("refs/")) }
+    true
+  rescue Octokit::NotFound, Octokit::UnprocessableEntity
+    true
   end
 
   def merge_pull_request(repo_slug, pr_number, commit_title:, merge_method:, sha: nil)
@@ -587,6 +597,26 @@ class GithubClient
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{sha} check_runs: #{e.message}")
     raise
+  end
+
+  # Every check run on +sha+, without fetching any logs. Each entry carries
+  # the GitHub Actions job id when the check is an Actions job -- the handle
+  # #ci_job_log needs -- and the check's own output text, which is the only
+  # log a non-Actions check app publishes.
+  def ci_checks_for(repo_slug, sha)
+    runs = Array(track_rate_limits { @client.check_runs_for_ref(repo_slug, sha) }.check_runs)
+    runs.map do |check_run|
+      normalized_check_run(check_run).merge(
+        actions_job_id: actions_job_id_from_url(check_run.html_url),
+        output_text: check_run.output&.text.to_s.presence
+      ).compact
+    end
+  end
+
+  # The raw log of one GitHub Actions job, capped at ACTIONS_JOB_LOG_MAX_BYTES,
+  # or nil when GitHub has none (expired, never produced, or unreadable).
+  def ci_job_log(repo_slug, actions_job_id)
+    actions_job_log_for(repo_slug, actions_job_id)
   end
 
   # Fetches all check runs for a SHA in one API call and returns both a summary
@@ -949,6 +979,41 @@ class GithubClient
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited listing commits on #{repo_slug} at #{ref}: #{e.message}")
     raise
+  end
+
+  def workspace_files(repo_slug, revision, paths, include_last_modified:)
+    owner, name = repo_slug.split("/", 2)
+    variables = { owner: owner, name: name }
+    blob_fields = paths.each_with_index.map do |path, index|
+      variables[:"expression#{index}"] = "#{revision}:#{path}"
+      "blob#{index}: object(expression: $expression#{index}) { ... on Blob { byteSize isBinary isTruncated oid text } }"
+    end.join("\n")
+    history_fields = if include_last_modified
+      variables[:revision] = revision
+      paths.each_with_index.map do |path, index|
+        variables[:"path#{index}"] = path
+        "history#{index}: history(first: 1, path: $path#{index}) { nodes { authoredDate } }"
+      end.join("\n")
+    end
+    declarations = paths.each_index.flat_map do |index|
+      [ "$expression#{index}: String!", ("$path#{index}: String!" if include_last_modified) ]
+    end.compact.join(", ")
+    revision_declaration = include_last_modified ? ", $revision: GitObjectID!" : ""
+    history_query = include_last_modified ? "revision: object(oid: $revision) { ... on Commit { #{history_fields} } }" : ""
+    query = <<~GQL
+      query($owner: String!, $name: String!#{revision_declaration}, #{declarations}) {
+        repository(owner: $owner, name: $name) {
+          #{blob_fields}
+          #{history_query}
+        }
+      }
+    GQL
+    result = track_rate_limits { @client.post("/graphql", { query: query, variables: variables }.to_json) }
+    repository = result.to_h.dig(:data, :repository) || {}
+    commit = repository.dig(:revision) || {}
+    paths.each_with_index.to_h do |path, index|
+      [ path, { blob: repository[:"blob#{index}"], authored_at: commit.dig(:"history#{index}", :nodes, 0, :authoredDate) } ]
+    end
   end
 
   # The commit SHA `ref` (a branch, tag, or SHA) points at. Raises

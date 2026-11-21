@@ -40,6 +40,12 @@ de:
       search_database_rebuild:
         complete: "Die ausgewählten Neuerstellungen der Suchdatenbank sind abgeschlossen."
     errors:
+      provider_accounts:
+        unregistered_provider: "ist kein registrierter Agentenanbieter"
+        invalid_credential_payload: "muss ein Objekt sein"
+        session_mismatch: "muss zum Benutzer des fortsetzbaren Vorgangs und zum Sitzungsanbieter gehören"
+        run_mismatch: "muss zum Benutzer und Anbieter des Laufs gehören"
+        workflow_mismatch: "muss zum Benutzer und Anbieter des Workflows gehören"
       invalid_request: "Die Anfrage ist ungültig."
       unavailable: "Diese Aktion ist vorübergehend nicht verfügbar."
       plugin_installation:
@@ -124,6 +130,7 @@ de:
       entry_must_be_object: "Eintrag %{index} muss ein Objekt mit Anbieterschlüssel sein"
       entry_missing_provider: "Eintrag %{index} enthält keinen Anbieter"
       entry_unknown_provider: "Eintrag %{index} enthält den unbekannten Anbieter %{provider}"
+      entry_unknown_account: "Eintrag %{index} enthält ein unbekanntes Konto für diesen Anbieter"
       entry_weight_not_positive: "Gewicht von Eintrag %{index} muss positiv sein"
       entry_unknown_model: "Eintrag %{index} enthält das Modell %{model}, das nicht zu den bekannten Modellen von %{provider} gehört"
       candidates_must_be_array: "Kandidaten müssen ein Array sein"
@@ -236,6 +243,13 @@ de:
       registration_failed: "GitHub-App-Registrierung fehlgeschlagen: %{error}"
       invalid_link: "Dieser GitHub-App-Registrierungslink ist ungültig oder abgelaufen."
 
+  reset_jobs:
+    refusals:
+      landing: "%{slug} wird gerade gelandet; brich das Landen ab oder schließe es ab, bevor du den Job zurücksetzt."
+      merged: "%{slug} wurde gemergt und kann nicht zurückgesetzt werden; erstelle stattdessen einen neuen Job."
+      merge_train: "%{slug} ist in einem aktiven Merge Train; brich den Merge Train ab, bevor du den Job zurücksetzt."
+      stacked_children: "Aktive gestapelte Kind-Jobs hängen von diesem Branch ab: %{slugs}; setze sie zurück oder lande sie zuerst."
+      state: "%{slug} kann im Status %{state} nicht zurückgesetzt werden; wiederhole oder öffne ihn zuerst erneut."
   api:
     cli_commands:
       errors:
@@ -289,6 +303,7 @@ de:
           allow: "Erlaubt %{subject}, %{operation} auf %{resource} auszuführen, %{duration}."
           ask: "Fragt immer nach, bevor %{subject} %{operation} auf %{resource} ausführt."
           deny: "Verweigert %{subject} immer die Ausführung von %{operation} auf %{resource}."
+        any_resource: "jede Ressource"
         only_when: "Nur wenn %{constraints}."
         excludes:
           other_operations: "Schließt jede andere Operation und Fähigkeit aus."
@@ -301,7 +316,8 @@ de:
           job: "für diesen Job"
           permanent: "bis zum Widerruf"
         subjects:
-          agent: "Coworker %{id}"
+          agent: "%{id}"
+          agent_unnamed: "Coworker %{id}"
           interactive_chat: "interaktive Chats"
           coding_chat: "Coding-Chats"
           local_chat: "lokale Chats"
@@ -674,6 +690,11 @@ de:
       availability_rechecked: "Verfügbarkeit von %{provider} erneut geprüft."
       availability_override_enabled: "Verfügbarkeitsausnahme für den Anbieter %{provider} aktiviert."
       unknown_provider: "Unbekannter Agentenanbieter."
+    provider_accounts:
+      created: "Anbieterkonto verbunden."
+      updated: "Anbieterkonto aktualisiert."
+      removed: "Anbieterkonto entfernt."
+      in_use: "Dieses Konto wird von einem aktiven Workflow oder einer fortsetzbaren Sitzung verwendet und kann nicht entfernt werden. Deaktiviere es, um neue Zuweisungen zu stoppen."
 
     filters:
       unsupported_operator: "Der Operator für %{field} wird nicht unterstützt."
@@ -915,6 +936,12 @@ de:
         minimum: "requires_syrus beginnt bei %{declared} und liegt unter dem abgeleiteten Minimum %{derived}"
       quarantine_not_locally_clearable: "Diese Quarantäne muss an ihrer Quelle aufgehoben werden."
       route_failed: "Das Plugin %{plugin} konnte diese Anfrage nicht abschließen."
+      host_surface:
+        scan_failed: "Host-API-Prüfung fehlgeschlagen: %{error}"
+        unsupported: "%{count} nicht unterstützte Host-API-Referenz(en)"
+        legacy: "%{count} nicht öffentliche Host-API-Referenz(en)"
+        dynamic: "%{count} dynamische, nicht öffentliche Host-API-Referenz(en)"
+        minimum: "requires_syrus beginnt bei %{declared} und liegt unter dem abgeleiteten Minimum %{derived}"
 
     job_lifecycle:
       direct_only: "Nur direkte Jobs können manuell gestartet werden."
@@ -936,6 +963,9 @@ de:
       retry_enqueued: "Wiederholungs-Workflow eingereiht."
       retry_enqueued_with_provider: "Wiederholungs-Workflow mit %{provider} eingereiht."
       started_over: "Neu gestartet — ein neuer Branch und PR werden erstellt."
+      reset_failed_only: "%{slug} kann nur zurückgesetzt werden, solange der Job fehlgeschlagen ist."
+      reset_reason: "Von %{user} auf der Job-Seite zurückgesetzt."
+      reset_done: "%{slug} wurde zurückgesetzt und startet auf der aktuellen Basis neu."
       already_closed: "Job ist bereits geschlossen."
       cancellation_requested: "Abbruch angefordert."
       workflow_not_found: "Workflow nicht gefunden."

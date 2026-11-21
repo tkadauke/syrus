@@ -16,7 +16,8 @@ RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
       name: "syrus-chat-sidecar",
       tools: [
         Mcp::Tools::AddJobDependencyTool,
-        Mcp::Tools::RemoveJobDependencyTool
+        Mcp::Tools::RemoveJobDependencyTool,
+        Mcp::Tools::ReplaceJobDependencyTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -412,6 +413,82 @@ RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
 
       expect(response.dig(:result, :isError)).to be true
       expect(error_text(response)).to include("exactly one of depends_on_job_id or depends_on_epic_id")
+    end
+  end
+
+  describe "replace_job_dependency" do
+    it "atomically replaces an edge and preserves its satisfaction mode" do
+      job = Factories.job_record(user: user, repository: repository)
+      old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      new_dependency = Factories.job_record(user: user, repository: repository, issue_number: 44)
+      JobDependency.create!(job:, depends_on_job: old_dependency, satisfaction_mode: "closed", source: "manual")
+
+      response = call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: new_dependency.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(job.reload.dependencies.sole).to have_attributes(depends_on_job: new_dependency, satisfaction_mode: "closed")
+    end
+
+    it "rolls back removal when the replacement is invalid" do
+      job = Factories.job_record(user: user, repository: repository)
+      old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      JobDependency.create!(job:, depends_on_job: old_dependency, source: "manual")
+
+      response = call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(job.reload.depends_on_jobs).to contain_exactly(old_dependency)
+    end
+
+    it "rejects a replacement that creates a multi-Job cycle and keeps the old edge" do
+      job = Factories.job_record(user: user, repository: repository)
+      old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      middle = Factories.job_record(user: user, repository: repository, issue_number: 44)
+      leaf = Factories.job_record(user: user, repository: repository, issue_number: 45)
+      JobDependency.create!(job:, depends_on_job: old_dependency, source: "manual")
+      JobDependency.create!(job: middle, depends_on_job: job, source: "manual")
+      JobDependency.create!(job: leaf, depends_on_job: middle, source: "manual")
+
+      response = call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: leaf.id)
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("cycle")
+      expect(job.reload.depends_on_jobs).to contain_exactly(old_dependency)
+    end
+
+    it "rejects a replacement from another repository and keeps the old edge" do
+      job = Factories.job_record(user: user, repository: repository)
+      old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      replacement = Factories.job_record(user: user, repository: Factories.repository(user: user), issue_number: 44)
+      JobDependency.create!(job:, depends_on_job: old_dependency, source: "manual")
+
+      response = call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: replacement.id)
+
+      expect(response.dig(:result, :isError)).to be true
+      expect(error_text(response)).to include("same repository")
+      expect(job.reload.depends_on_jobs).to contain_exactly(old_dependency)
+    end
+
+    it "does not run dependency wakeups until the final edge set commits" do
+      job = Factories.job_record(user: user, repository: repository)
+      old_dependency = Factories.job_record(user: user, repository: repository, issue_number: 43)
+      new_dependency = Factories.job_record(user: user, repository: repository, issue_number: 44)
+      JobDependency.create!(job:, depends_on_job: old_dependency, source: "manual")
+      observed_edges = []
+      allow_any_instance_of(Job).to receive(:recheck_queued_workflow_start_blocks!) do |callback_job|
+        observed_edges << callback_job.dependencies.reload.pluck(:depends_on_job_id) if callback_job.id == job.id
+      end
+
+      call_tool("replace_job_dependency", job_id: job.id,
+        remove_dependency_job_id: old_dependency.id, add_dependency_job_id: new_dependency.id)
+
+      expect(observed_edges).not_to be_empty
+      expect(observed_edges).to all(eq([ new_dependency.id ]))
+      expect(job.reload.depends_on_jobs).to contain_exactly(new_dependency)
     end
   end
 end

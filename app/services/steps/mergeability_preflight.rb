@@ -77,7 +77,7 @@ module Steps
     def close_job_for_closed_pull_request!(pr, client)
       return unless job.may_close?
 
-      job.close_with_reason!(ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
+      workflow.request_job_closure!(job, ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
     end
 
     def landing_validation_decision(pr_repo, pr)
@@ -97,7 +97,7 @@ module Steps
       return unless job.may_close?
 
       reason = pr.merged ? "external_pr_merged" : "external_pr_closed"
-      job.close_with_reason!(reason)
+      workflow.request_job_closure!(job, reason)
     end
 
     def record_external_pr_head!(pr)

@@ -101,14 +101,14 @@ RSpec.describe Ruby::RspecGraderType do
   # on one worker while the rest of the fan-out had finished. Shards split it
   # into disjoint slices that run on different workers at once.
   describe "CI grader shards" do
-    def sharded_steps(shards: 3, serial_paths: [ "spec/migrations/" ])
+    def sharded_steps(shards: 3, serial_paths: [ "spec/migrations/" ], serial_shard: nil)
       described_class.grade_steps(
         config: {
           "tags" => { "ci" => { "include" => [ "ci_only" ] } },
           "parallel_rspec" => {
             "enabled" => true, "rspec_modes" => [ "ci" ], "exec_args" => "bin/rspec-worker",
-            "serial_paths" => serial_paths, "shards" => shards
-          }
+            "serial_paths" => serial_paths, "shards" => shards, "serial_shard" => serial_shard
+          }.compact
         },
         default_failures: "strict"
       ).select { |step| step.name.start_with?("rspec-ci") }
@@ -163,6 +163,21 @@ RSpec.describe Ruby::RspecGraderType do
 
       expect(first.run).not_to match(%r{bundle exec rspec [^;]* spec/migrations/})
       expect(last.run).to match(%r{RUN_CI_ONLY_SPECS=true bundle exec rspec [^;]* spec/migrations/})
+    end
+
+    it "runs the serial paths in a grader of their own with serial_shard" do
+      steps = sharded_steps(serial_shard: true)
+
+      expect(steps.map(&:name)).to eq(%w[rspec-ci-1-of-3 rspec-ci-2-of-3 rspec-ci-3-of-3 rspec-ci-serial])
+      expect(steps.map(&:display_name)).to eq([ "RSpec (CI) 1/3", "RSpec (CI) 2/3", "RSpec (CI) 3/3", "RSpec (CI) serial" ])
+      steps.first(3).each do |shard|
+        expect(shard.run).not_to match(%r{bundle exec rspec [^;]* spec/migrations/})
+      end
+      serial = steps.last
+      expect(serial.run).to match(%r{RUN_CI_ONLY_SPECS=true bundle exec rspec [^;]* spec/migrations/})
+      expect(serial.run).not_to include("parallel_rspec")
+      expect(serial.metadata).to include("supersedes" => "rspec", "grader_mode" => "ci")
+      expect(serial.phases).to eq(%w[ci])
     end
 
     it "passes an empty shard without running the whole default suite" do
@@ -368,6 +383,44 @@ RSpec.describe Ruby::RspecGraderType do
 
       expect(status).to be_success, stderr
       expect(stdout.lines.map(&:strip)).to eq([ "spec/services/caller_spec.rb" ])
+    end
+  end
+
+  describe "focused_always_include" do
+    def focused_args_for(referencing_spec: nil)
+      command = described_class.grade_steps(
+        config: { "focused_always_include" => [ "spec/architecture/", "spec/missing/" ] },
+        default_failures: "strict"
+      ).second.run
+      args_file = Tempfile.new("focused-rspec-args")
+      stdout, stderr, status = run_generated_rspec_command(command, parallel_status: 0, serial_status: 0,
+        extra_env: { "SYRUS_BASE_REF" => "main" }) do |dir|
+        commit_uncovered_change(dir, referencing_spec: referencing_spec)
+        FileUtils.mkdir_p(File.join(dir, "spec/architecture"))
+        File.write(File.join(dir, "spec/architecture/layers_spec.rb"), "RSpec.describe(:layers) {}\n")
+        File.write(File.join(dir, "bin/rspec"), "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" > #{args_file.path}\nexit 0\n")
+      end
+      expect(status).to be_success, stderr
+      [ stdout, File.read(args_file.path) ]
+    ensure
+      args_file&.close!
+    end
+
+    # Repository-wide invariant specs fail on changes no changed-file
+    # selection maps to them, so they surfaced first on merge trains.
+    it "adds the configured paths that exist to the selected focused specs" do
+      _stdout, args = focused_args_for(referencing_spec: "RSpec.describe(Billing::InvoiceMailer) {}\n")
+
+      expect(args).to include("spec/services/caller_spec.rb", "spec/architecture/")
+      expect(args).not_to include("spec/missing/")
+    end
+
+    it "runs only the configured paths when no spec covers the change" do
+      stdout, args = focused_args_for
+
+      expect(stdout).to include("running only the always-included specs")
+      expect(args).to include("spec/architecture/")
+      expect(args).not_to include("unrelated_spec.rb")
     end
   end
 

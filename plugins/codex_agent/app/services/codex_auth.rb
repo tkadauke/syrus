@@ -5,32 +5,44 @@ class CodexAuth
   class Error < AgentProviders::ConfigurationError; end
 
   DEFAULT_REFRESH_LOCK_TIMEOUT_SECONDS = 30.minutes.to_i
+  # MySQL rejects user-level lock names longer than 64 characters. Spelled
+  # out, a provider account's UUID pushed the name to 70, and every Codex run
+  # that had to refresh a ChatGPT login failed before invoking the agent. A
+  # digest keeps the lock per user and account at a fixed length.
+  REFRESH_LOCK_PREFIX = "syrus:codex_auth:".freeze
+  MYSQL_LOCK_NAME_LIMIT = 64
 
   Result = Data.define(:api_key)
 
   class << self
-    def with_refresh_lock(user:, timeout: DEFAULT_REFRESH_LOCK_TIMEOUT_SECONDS)
-      return yield unless refreshing_login?(user)
+    def with_refresh_lock(user:, provider_account: nil, timeout: DEFAULT_REFRESH_LOCK_TIMEOUT_SECONDS)
+      return yield unless refreshing_login?(user, provider_account)
 
       if mysql?
-        with_mysql_refresh_lock(user, timeout: timeout) { yield }
+        with_mysql_refresh_lock(user, provider_account, timeout: timeout) { yield }
       else
-        with_local_refresh_lock(user) { yield }
+        with_local_refresh_lock(user, provider_account) { yield }
       end
+    end
+
+    def refresh_lock_name(user, provider_account)
+      identity = "#{user.id}:#{provider_account&.public_id || 'legacy'}"
+      "#{REFRESH_LOCK_PREFIX}#{Digest::SHA256.hexdigest(identity).first(40)}"
     end
 
     private
 
-    def refreshing_login?(user)
-      Modes::REGISTRY.fetch(user.codex_auth_mode.to_s, nil)&.refreshes_login? || false
+    def refreshing_login?(user, provider_account)
+      mode = provider_account&.credential(:codex_auth_mode) || user.codex_auth_mode
+      Modes::REGISTRY.fetch(mode.to_s, nil)&.refreshes_login? || false
     end
 
     def mysql?
       ActiveRecord::Base.connection.adapter_name.match?(/mysql/i)
     end
 
-    def with_mysql_refresh_lock(user, timeout:)
-      lock_name = "syrus:codex_auth:user:#{user.id}"
+    def with_mysql_refresh_lock(user, provider_account, timeout:)
+      lock_name = refresh_lock_name(user, provider_account)
 
       ActiveRecord::Base.connection_pool.with_connection do |connection|
         quoted_name = connection.quote(lock_name)
@@ -48,9 +60,10 @@ class CodexAuth
       end
     end
 
-    def with_local_refresh_lock(user)
-      local_refresh_mutex_for(user.id).synchronize do
+    def with_local_refresh_lock(user, provider_account)
+      local_refresh_mutex_for([ user.id, provider_account&.public_id ]).synchronize do
         user.reload
+        provider_account&.reload
         yield
       end
     end
@@ -64,22 +77,25 @@ class CodexAuth
     end
   end
 
-  def initialize(user:, codex_home:, runner: nil)
+  def initialize(user:, codex_home:, provider_account: nil, runner: nil)
     @user = user
+    @provider_account = provider_account
     @codex_home = codex_home.to_s
     @runner = runner || method(:default_runner)
   end
 
   def prepare!
-    Modes.for(@user.codex_auth_mode).prepare(self)
+    Modes.for(credential(:codex_auth_mode)).prepare(self)
   end
 
   def persist_updated_auth_json
-    return unless Modes.for(@user.codex_auth_mode).refreshes_login?
+    return unless Modes.for(credential(:codex_auth_mode)).refreshes_login?
     return unless File.exist?(auth_path)
 
     auth_json = normalized_auth_json(File.read(auth_path))
-    self.class.with_refresh_lock(user: @user) do
+    lock_options = { user: @user }
+    lock_options[:provider_account] = @provider_account if @provider_account
+    self.class.with_refresh_lock(**lock_options) do
       if stale_prepared_auth?
         Rails.logger.info(
           "Skipped persisting refreshed Codex auth.json for user #{@user.id}: stored credential changed during invocation"
@@ -87,7 +103,13 @@ class CodexAuth
         return
       end
 
-      @user.update!(codex_auth_json: auth_json) if @user.codex_auth_json != auth_json
+      if @provider_account
+        payload = @provider_account.credential_payload.to_h.merge("codex_auth_json" => auth_json)
+        @provider_account.update!(credential_payload: payload) if credential(:codex_auth_json) != auth_json
+        @user.update!(codex_auth_json: auth_json) if @provider_account.default? && @user.codex_auth_json != auth_json
+      elsif @user.codex_auth_json != auth_json
+        @user.update!(codex_auth_json: auth_json)
+      end
     end
   rescue StandardError => e
     Rails.logger.warn(
@@ -98,15 +120,15 @@ class CodexAuth
   private
 
   def prepare_api_key
-    raise Error, "Codex API key is not configured" if @user.codex_api_key.blank?
+    raise Error, "Codex API key is not configured" if credential(:codex_api_key).blank?
 
-    Result.new(api_key: @user.codex_api_key)
+    Result.new(api_key: credential(:codex_api_key))
   end
 
   def prepare_chatgpt_login
-    raise Error, "Codex auth.json is not configured" if @user.codex_auth_json.blank?
+    raise Error, "Codex auth.json is not configured" if credential(:codex_auth_json).blank?
 
-    auth_json = normalized_auth_json(@user.codex_auth_json)
+    auth_json = normalized_auth_json(credential(:codex_auth_json))
     @prepared_auth_json = auth_json
     FileUtils.mkdir_p(@codex_home)
     @runner.call(
@@ -149,9 +171,13 @@ class CodexAuth
     File.join(@codex_home, "auth.json")
   end
 
+  def credential(name)
+    @provider_account ? @provider_account.credential(name) : @user.public_send(name)
+  end
+
   def stale_prepared_auth?
     @prepared_auth_json.present? &&
-      @user.codex_auth_json.present? &&
-      normalized_auth_json(@user.codex_auth_json) != @prepared_auth_json
+      credential(:codex_auth_json).present? &&
+      normalized_auth_json(credential(:codex_auth_json)) != @prepared_auth_json
   end
 end

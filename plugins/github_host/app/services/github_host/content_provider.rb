@@ -133,6 +133,24 @@ module GithubHost
       RepositoryContent::Blob.new(path: path, bytes: file[:bytes], size: file[:size], content_id: file[:sha])
     end
 
+    def workspace_files(revision_id, paths:, max_bytes:, last_modified:, history_limit:)
+      result = translate(unknown_revision: "unknown revision #{revision_id}") do
+        client.workspace_files(slug, revision_id, paths, include_last_modified: last_modified)
+      end
+      blobs = result.filter_map do |path, item|
+        next unless (blob = item[:blob])
+
+        binary = blob[:isBinary]
+        bytes = binary ? "\0".b : blob[:text].to_s.b.safe_byteslice(0, max_bytes)
+        [ path, RepositoryContent::Blob.new(path: path, bytes: bytes, size: blob[:byteSize],
+          truncated: blob[:isTruncated] || blob[:byteSize].to_i > max_bytes, content_id: blob[:oid]) ]
+      end.to_h
+      dates = result.filter_map do |path, item|
+        [ path, Time.zone.parse(item[:authored_at].to_s) ] if item[:authored_at].present?
+      end.to_h
+      { blobs: blobs, last_modified: dates, history_incomplete: false }
+    end
+
     def changes(base_id, head_id, patch: false)
       result = translate(unknown_revision: "unknown revision #{base_id}...#{head_id}") { client.compare_file_changes(slug, base_id, head_id) }
       # GitHub lists at most 300 files per comparison. Returning the first

@@ -51,6 +51,17 @@ describe("pluginToolCards", () => {
     expect(pluginToolCardRendererFor("emergency_land")).not.toBeNull()
   })
 
+  it("discovers and renders reset and dependency-replacement maintenance cards", () => {
+    for (const toolName of ["reset_job", "replace_job_dependency"]) {
+      expect(pluginToolCardRendererKeys()).toContain(toolName)
+      const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === toolName)
+      expect(entry?.examples.length).toBeGreaterThan(0)
+      const cardContext = toolCardContextForExample(toolName, entry!.examples[0])
+      expect(pluginToolCardCollapsedSummary(cardContext)).not.toBeNull()
+      expect(pluginToolCardExpandedBody(cardContext)).not.toBeNull()
+    }
+  })
+
   it("returns null for a tool no plugin or core card claims, so it keeps using the generic renderer", () => {
     expect(pluginToolCardRendererFor("totally_unknown_tool")).toBeNull()
     expect(pluginToolCardCollapsedSummary(context({ toolName: "totally_unknown_tool" }))).toBeNull()

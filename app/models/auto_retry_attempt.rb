@@ -110,6 +110,20 @@ class AutoRetryAttempt < ApplicationRecord
     where(workflow: workflow).retry_workflow.unskipped.exists?
   end
 
+  # A failed Run whose in-place step retry is still to come leaves its Step
+  # running on purpose (Runs::LifecyclePropagation#scheduled_in_place_step_retry?).
+  # Every in-place classification counts, not only worker_died: finishing the
+  # Step from the failed Run throws the retry away.
+  def self.pending_in_place_step_retry_for?(step)
+    return false unless step
+
+    pending.where(
+      run_id: step.runs.select(:id),
+      retry_kind: "failed_step",
+      failure_classification: IN_PLACE_STEP_CLASSIFICATIONS
+    ).exists?
+  end
+
   def self.retry_budget_limit_for(classification)
     classification == WORKER_DIED_CLASSIFICATION ? MAX_WORKER_DIED_ATTEMPTS : MAX_ATTEMPTS
   end
@@ -135,6 +149,7 @@ class AutoRetryAttempt < ApplicationRecord
     return "job is terminal" if job&.state.in?(Job::TERMINAL_STATES)
     return "source workflow was already superseded by a successful workflow" if superseded_by_successful_workflow?
     return "source step already recovered" if run&.step&.state.in?(%w[succeeded skipped])
+    return "source step superseded by a later loop iteration" if run&.step&.superseded_by_later_loop_iteration?
     return BRANCH_REWRITTEN_SKIP_REASON if branch_head_moved?
 
     nil

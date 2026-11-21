@@ -615,6 +615,15 @@ grade:
       ci:
         include:
           - ci_only
+    # Repository-wide invariants (architecture rules, documentation
+    # audiences, i18n debt, plugin documentation) fail on changes that no
+    # changed-file selection maps to them, and were the most common merge
+    # train failure. They take about 35 seconds, so every focused review
+    # round runs them.
+    focused_always_include:
+      - spec/architecture/
+      - spec/i18n/
+      - spec/lib/syrus/plugin_documentation_spec.rb
     parallel_rspec:
       enabled: true
       rspec_modes: [full, focused, ci]
@@ -627,6 +636,10 @@ grade:
       # pass (median an hour, up to two) on one worker while the rest of the
       # fan-out had finished. Four shards run it on four workers at once.
       shards: 4
+      # The serial paths below added about ten minutes to the last shard,
+      # which made it the long pole of every grading round. Run them as a
+      # grader of their own, beside the shards.
+      serial_shard: true
       # The CI grader runs CI-only examples in the parallel pass (each worker
       # has its own database); only these stay in a serial pass of their own:
       # migration specs that change the schema in-process, subprocess-heavy
@@ -646,6 +659,15 @@ grade:
       - "app/**/*.rb"
       - "lib/**/*.rb"
       - "spec/**/*.rb"
+      # Core specs boot every bundled plugin and assert on registries plugins
+      # contribute to at boot -- filter chips, routes, surface catalogs. A
+      # plugin's lib/ and config/ Ruby is that boot-time surface, so a change
+      # there can break core specs without touching core: a plugin-only
+      # filter chip once left main red while every grading round skipped this
+      # grader as unaffected. Plugin app/ code stays with the plugin's own
+      # rspec grader.
+      - "plugins/*/lib/**/*.rb"
+      - "plugins/*/config/**/*.rb"
       # Generated catalogs are inputs to the suite, not just output of it:
       # spec/docs/surface_catalogs_spec.rb and spec/docs/metrics_catalog_spec.rb
       # read these files and fail on drift. Without them here a docs-only diff

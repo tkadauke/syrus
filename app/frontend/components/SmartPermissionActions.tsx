@@ -6,9 +6,9 @@ import { previewRuleDraftFromRequest } from "../api/permissionRuleDrafts"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Input } from "./Input"
-import { Select } from "./Select"
 import { Modal } from "./Modal"
 import { hubRuleLink, PermissionRuleEditor } from "./PermissionRuleEditor"
+import { Select } from "./Select"
 
 const BUTTON = "min-w-[7rem] flex-1 rounded-md px-3 py-1.5 text-sm font-semibold disabled:opacity-60 sm:flex-none motion-reduce:transition-none"
 
@@ -272,8 +272,9 @@ export function SmartPermissionActions({
           <label className="flex min-w-0 flex-col gap-1" htmlFor={durationSelectId}>
             <span className="font-medium text-text-muted">{t("permission_smart.choose_duration")}</span>
             <Select
-              fullWidth={false}
+              className="px-2 text-sm"
               disabled={busy}
+              fullWidth={false}
               id={durationSelectId}
               onChange={(event) => setChosenDuration(event.target.value as SmartPermissionOption["duration"])}
               value={duration}
@@ -288,8 +289,9 @@ export function SmartPermissionActions({
           <label className="flex min-w-0 flex-col gap-1" htmlFor={breadthSelectId}>
             <span className="font-medium text-text-muted">{t("permission_smart.choose_breadth")}</span>
             <Select
-              fullWidth={false}
+              className="px-2 text-sm"
               disabled={busy}
+              fullWidth={false}
               id={breadthSelectId}
               onChange={(event) => setChosenBreadth(event.target.value as SmartPermissionBreadth)}
               value={breadth}

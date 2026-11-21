@@ -115,6 +115,13 @@ class MainHealthChangedService
       )
       return
     end
+    if !force && (job = conclusive_no_change_fix_job_for_current_sha)
+      Rails.logger.warn(
+        "[MainHealthChangedService] #{@repository.slug} not spawning main repair job; " \
+        "conclusive no-change repair #{job.slug} already covers #{checked_sha}"
+      )
+      return
+    end
     return if !force && suppressed_by_recent_closed_repair?
 
     # The stale-SHA guard keeps AUTOMATIC repairs from firing on a health signal
@@ -516,6 +523,26 @@ class MainHealthChangedService
       .first
   end
 
+  def conclusive_no_change_fix_job_for_current_sha
+    sha = checked_sha
+    return if sha == "unknown"
+
+    candidates = repair_jobs
+      .where(state: "closed", closure_reason: "preflight_passed")
+      .where("jobs.issue_body LIKE ?", "%Commit: #{Job.sanitize_sql_like(sha)}%")
+
+    if @repository.ci_health_broken?
+      fingerprint = repair_evidence_fingerprint(sha, signal: :ci)
+      candidates = candidates.where("jobs.issue_body LIKE ?", "%CI evidence fingerprint: #{fingerprint}%")
+    end
+    if @repository.grader_health_broken?
+      fingerprint = repair_evidence_fingerprint(sha, signal: :grader)
+      candidates = candidates.where("jobs.issue_body LIKE ?", "%Grader evidence fingerprint: #{fingerprint}%")
+    end
+
+    candidates.order(updated_at: :desc, id: :desc).first
+  end
+
   def recent_open_failed_fix_jobs
     open_failed_fix_jobs.order(updated_at: :desc, id: :desc).limit(MAX_OPEN_FAILED_FIX_JOBS)
   end
@@ -585,6 +612,41 @@ class MainHealthChangedService
       .recent
       .limit(20)
       .to_a
+  end
+
+  # CI and grader signals are polled independently and update different parts
+  # of the same health row. Fingerprinting them independently means a stale CI
+  # reassertion remains covered even if the clean preflight has already reset
+  # the grader half (and vice versa), while genuinely changed evidence for the
+  # currently broken signal remains eligible immediately.
+  def repair_evidence_fingerprint(sha, signal:)
+    checks = health_checks_for(sha)
+    evidence = if signal == :ci
+      checks.select { |check| check.ci_health == "broken" }
+        .flat_map { |check| Array(check.ci_failed_checks) }
+        .map { |entry| canonical_repair_evidence(entry) }
+        .sort_by { |entry| JSON.generate(entry) }
+    else
+      checks.select { |check| check.grader_health == "broken" }
+        .map do |check|
+          {
+            "workflow_id" => check.workflow_id,
+            "failed_names" => Array(check.grader_failed_names).map(&:to_s).uniq.sort
+          }
+        end
+        .sort_by { |entry| JSON.generate(entry) }
+    end
+
+    Digest::SHA256.hexdigest(JSON.generate(evidence))
+  end
+
+  def canonical_repair_evidence(value)
+    if value.is_a?(Hash)
+      return value.keys.sort_by(&:to_s).to_h { |key| [ key.to_s, canonical_repair_evidence(value[key]) ] }
+    end
+    return value.map { |entry| canonical_repair_evidence(entry) } if value.is_a?(Array)
+
+    value
   end
 
   def repair_evidence_ready?

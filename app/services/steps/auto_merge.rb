@@ -86,8 +86,11 @@ module Steps
 
       comment = "Merged automatically by Syrus after approval and green checks. #{job.slug}: #{job_url}"
       add_merge_comment(client, comment)
-      job.close_with_reason!("pr_merged") if job.may_close?
+      workflow.request_job_closure!(job, "pr_merged") if job.may_close?
       if job.branch_name.present?
+        StackChildPullRequestRetargeter.call(
+          client: client, parent: job, base: job.effective_base_branch, log: ->(message) { log("auto_merge: #{message}") }
+        )
         job.update_column(:branch_deleted_at, Time.current) if client.delete_branch(repository.slug, job.branch_name)
       end
       log("auto_merge: merged PR ##{job.pr_number}")
@@ -175,7 +178,7 @@ module Steps
     def close_job_for_closed_pull_request!(pr, client)
       return unless job.may_close?
 
-      job.close_with_reason!(ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
+      workflow.request_job_closure!(job, ClosedPullRequestResolution.reason(job: job, pr: pr, client: client))
     end
 
     def mirror_durable_approval_to_github!(client, pr)
@@ -217,6 +220,9 @@ module Steps
     end
 
     def merge_pull_request(client, gate)
+      # The merge cannot be undone: stop if the landing was stopped or the Job
+      # closed since the gate passed (formal/SyrusModel/MergeFence.lean).
+      ensure_run_still_active!("merge")
       PullRequestMerger.new(repository, client: client).merge(
         pr_number: job.pr_number,
         commit_title: "Merge #{repository.slug}##{job.pr_number} via Syrus",

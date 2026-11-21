@@ -82,6 +82,14 @@ describe("PermissionsSettingsRoute", () => {
     expect(screen.queryByRole("heading", { name: "Inherited policy" })).not.toBeInTheDocument()
   })
 
+  it("shows every authority subject in the resource view", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload())))
+    renderRoute("/settings/permissions?view=resources")
+
+    expect(await screen.findByRole("heading", { name: "Resource access" })).toBeInTheDocument()
+    expect(await screen.findByText("Interactive chat")).toBeInTheDocument()
+  })
+
   it("renders the shared history filter bar and requests the next server page", async () => {
     const history = historyPayload()
     history.history_pagination = { page: 1, per_page: 25, total: 26, total_pages: 2, has_more: true }

@@ -43,6 +43,34 @@ RSpec.describe "maintenance task definitions" do
     end
   end
 
+  describe MaintenanceTasks::Definitions::GraderFanoutDetailsCompaction do
+    let(:definition) { described_class.new }
+    let(:workflow) { Factories.job.workflows.last }
+    let(:entry) do
+      { "name" => "rspec", "target_label" => "//:grade/rspec", "reason" => "changed", "required" => true,
+        "capabilities" => { "os" => [ "linux" ] }, "target_fingerprints" => { "metadata" => { "source_file_count" => 10_000 } } }
+    end
+
+    it "drops per-target fingerprints from fan-out step details and leaves other steps alone" do
+      fanout = workflow.steps.create!(kind: "grader_fanout", position: 10, details: {
+        "grader_target_selections" => [ entry ], "target_health_skipped_targets" => [ entry ], "restarted_from_loop_id" => "loop"
+      })
+      grader = workflow.steps.create!(kind: "grader", position: 11, details: { "target_fingerprints" => { "kept" => true } })
+      task = MaintenanceTask.new
+
+      expect(definition.estimate_total_units).to eq(1)
+      result = definition.perform_batch(task)
+
+      expect(result).to have_attributes(done: true, processed: 1)
+      details = fanout.reload.details
+      expect(details["grader_target_selections"]).to eq([ entry.except("target_fingerprints") ])
+      expect(details["target_health_skipped_targets"]).to eq([ entry.except("target_fingerprints") ])
+      expect(details["restarted_from_loop_id"]).to eq("loop")
+      expect(grader.reload.details).to eq("target_fingerprints" => { "kept" => true })
+      expect(definition.estimate_total_units).to eq(0)
+    end
+  end
+
   describe MaintenanceTasks::Definitions::AgentsBackfill do
     let(:definition) { described_class.new }
     let(:user) { Factories.user }

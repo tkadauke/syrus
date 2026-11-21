@@ -50,6 +50,11 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
     allow(SyrusVersion).to receive(:hostname) { Thread.current[:syrus_test_worker_hostname] || "worker-main" }
     allow(WorkerStorageIdentity).to receive(:queue_key) { Thread.current[:syrus_test_worker_storage_key] || "storage-main" }
     allow(InstanceVersion).to receive(:worker_queue_live?).and_return(true)
+    # Grader fan-out admission falls back to this host's CPU- and
+    # memory-derived capacity when no worker heartbeat is live. A small host
+    # admits one grader and defers the other, so pin room for both: this
+    # example is about the two overlapping, not about admission.
+    allow(RunHostAdmissionCapacity).to receive(:host_compute_capacity).and_return(8)
   end
 
   it "runs materialized legacy grader projections with overlapping wall-clock windows across simulated workers" do
@@ -158,13 +163,22 @@ RSpec.describe "RunJob distributed legacy grader projections", :ci_only do
     <<~RUBY.squish
       ruby -e 'path, name = ARGV;
       File.open(path, "a") { |file| file.puts "\#{name} start \#{Time.now.to_f}" };
-      sleep 0.75;
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10;
+      until File.readlines(path).count { |line| line.include?(" start ") } >= 2;
+        raise "timed out waiting for concurrent grader" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline;
+        sleep 0.05;
+      end;
+      sleep 0.25;
       File.open(path, "a") { |file| file.puts "\#{name} finish \#{Time.now.to_f}" };
       puts "\#{name} passed"' #{Shellwords.escape(timing_log_path)} #{Shellwords.escape(name)}
     RUBY
   end
 
   def clear_persisted_records!
+    # The graders really run, so their spawned-process rows (which belong to
+    # no user) would otherwise outlive this non-transactional example and
+    # leak into every later spec that lists processes.
+    SpawnedProcess.delete_all
     User.destroy_all
     Feature.where(slug: "distributed_workflow_dag").delete_all
     AppSetting.delete_all

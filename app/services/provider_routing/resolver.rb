@@ -7,8 +7,8 @@ module ProviderRouting
   class Resolver
     PanelResolutionRequired = Class.new(StandardError)
 
-    Candidate = Data.define(:provider, :model, :effort_level, :reviewer_target) do
-      def initialize(provider:, model:, effort_level:, reviewer_target: nil)
+    Candidate = Data.define(:provider, :model, :effort_level, :reviewer_target, :account_id) do
+      def initialize(provider:, model:, effort_level:, reviewer_target: nil, account_id: nil)
         super
       end
 
@@ -99,7 +99,7 @@ module ProviderRouting
       end
     end
 
-    HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil, reviewer_target: nil) ].freeze
+    HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil, reviewer_target: nil, account_id: nil) ].freeze
 
     def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
       resolution = resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind)
@@ -161,7 +161,7 @@ module ProviderRouting
       # here. switch_job_provider_setting! keeps agent_provider in sync for
       # presentation and legacy callers, but the setting remains the source of
       # truth for explicit pins.
-      [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level, reviewer_target: nil) ]
+      [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level, reviewer_target: nil, account_id: nil) ]
     end
 
     def job_override_resolution
@@ -192,7 +192,7 @@ module ProviderRouting
       provider = effective_user&.agent_provider
       return nil if provider.blank?
 
-      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level, reviewer_target: nil) ]
+      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level, reviewer_target: nil, account_id: nil) ]
     end
 
     def default_provider_resolution
@@ -264,7 +264,7 @@ module ProviderRouting
       target = hash["reviewer_target"]&.then do |payload|
         ReviewerTargets.snapshot(payload, owner: effective_user, repository: job.repository)
       end
-      Candidate.new(provider: hash["provider"], model: hash["model"], effort_level: hash["effort_level"], reviewer_target: target)
+      Candidate.new(provider: hash["provider"], model: hash["model"], effort_level: hash["effort_level"], reviewer_target: target, account_id: hash["account_id"])
     end
 
     def repository_id

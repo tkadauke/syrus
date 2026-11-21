@@ -88,13 +88,25 @@ class DistributedRunAdmissionRouter
   # dispatch queue and keys the load bookkeeping. Dropping an anonymous worker
   # here keeps the `fetch("hostname")` calls below honest rather than letting a
   # compacted-away hostname raise out of the middle of a routing decision.
+  #
+  # A host runs several SolidQueue processes, one per queue group: the one
+  # that consumes this Run's queue is not the one listening on the host's
+  # dispatch queue. Judging each process alone required one process to be
+  # both, which none ever was, so no alternative was ever found and a
+  # deferred Run kept bouncing back to the host that refused it. A host
+  # qualifies when any of its processes is eligible and any listens on its
+  # dispatch queue.
   def eligible_workers
     workers = Array(RunQueueResolver.resolve(run: run).details["live_workers"])
-    workers.select do |worker|
-      next false if worker["hostname"].blank?
+    workers.reject { |worker| worker["hostname"].blank? }.group_by { |worker| worker["hostname"] }.filter_map do |hostname, processes|
+      eligible = processes.find { |worker| worker["eligible"] }
+      next unless eligible
 
-      dispatch_queue = WorkerStorageIdentity.dispatch_queue_name(hostname: worker["hostname"])
-      worker["eligible"] && Array(worker["queues"]).include?(dispatch_queue)
+      dispatch_queue = WorkerStorageIdentity.dispatch_queue_name(hostname: hostname)
+      queues = processes.flat_map { |worker| Array(worker["queues"]) }.uniq
+      next unless queues.include?(dispatch_queue)
+
+      eligible.merge("queues" => queues)
     end
   end
 
@@ -153,14 +165,16 @@ class DistributedRunAdmissionRouter
     0
   end
 
+  # Same placement rule as RunHostAdmission#active_run_scope: a distributed
+  # grader counts where its processes run, not on its workflow's home host.
   def active_compute_runs(hostname)
     Run.where(state: "running")
       .joins(step: :workflow)
       .left_outer_joins(:spawned_processes)
       .where(
-        "workflows.worker_hostname = :hostname OR " \
+        "(workflows.worker_hostname = :hostname AND steps.placement_policy <> :distributed_placement) OR " \
           "(spawned_processes.hostname = :hostname AND spawned_processes.finished_at IS NULL)",
-        hostname: hostname
+        hostname: hostname, distributed_placement: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT
       )
       .distinct
       .count

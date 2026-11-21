@@ -216,7 +216,7 @@ a fix.
 
 **When it fires:** All open child Jobs of an Epic are approved.
 
-**Step chain:** `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land`
+**Step chain:** `merge_train_assemble → merge_train_build → prepare → merge_train_reconcile → retry_until(graders, repair: landing_fix) → merge_train_land`
 
 Atomically lands all Epic child PRs through a single integration branch. If the
 base branch moves during landing, the workflow dynamically inserts

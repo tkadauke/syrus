@@ -957,7 +957,10 @@ function TabNav({
   // the built-ins; a plugin decides for itself whether a Job warrants one.
   for (const pluginTab of pluginTabs ?? []) {
     if (!pluginTab.key) continue
-    tabs.push({ id: pluginTab.key, label: pluginTab.label_key ? t(pluginTab.label_key) : (pluginTab.label ?? pluginTab.key) })
+    tabs.push({
+      id: pluginTab.key,
+      label: pluginTab.label_key ? t(pluginTab.label_key, { defaultValue: pluginTab.label ?? pluginTab.key }) : (pluginTab.label ?? pluginTab.key)
+    })
   }
 
   return (

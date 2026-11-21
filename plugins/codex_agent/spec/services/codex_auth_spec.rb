@@ -26,6 +26,47 @@ RSpec.describe CodexAuth do
     end
   end
 
+  # Regression: the lock name spelled out a provider account's UUID (70
+  # characters), MySQL rejects user-level lock names over 64, and every Codex
+  # run refreshing a ChatGPT login failed before the agent started.
+  describe ".refresh_lock_name" do
+    it "fits MySQL's user-level lock name limit and stays distinct per account" do
+      account_id = "c5495c2f-9f01-4eeb-9f6b-96cce0bcaf8d"
+      account = instance_double(ProviderAccount, public_id: account_id)
+      other = instance_double(ProviderAccount, public_id: "0a806db2-2f02-455d-9e1d-4e1fd6e1a3b2")
+      long_user = instance_double(User, id: 9_999_999_999)
+
+      name = described_class.refresh_lock_name(long_user, account)
+
+      expect(name.length).to be <= CodexAuth::MYSQL_LOCK_NAME_LIMIT
+      expect(name).to start_with("syrus:codex_auth:")
+      expect(name).not_to eq(described_class.refresh_lock_name(long_user, other))
+      expect(name).not_to eq(described_class.refresh_lock_name(long_user, nil))
+      expect(described_class.refresh_lock_name(long_user, account)).to eq(name)
+    end
+
+    it "takes the MySQL refresh lock under that name" do
+      user.update!(codex_auth_mode: "chatgpt_login")
+      account = instance_double(ProviderAccount, public_id: "c5495c2f-9f01-4eeb-9f6b-96cce0bcaf8d",
+        reload: nil)
+      allow(account).to receive(:credential).with(:codex_auth_mode).and_return("chatgpt_login")
+      allow(described_class).to receive(:mysql?).and_return(true)
+      statements = []
+      allow(ActiveRecord::Base.connection).to receive(:select_value).and_wrap_original do |original, sql, *rest|
+        next(statements << sql; 1) if sql.include?("GET_LOCK") || sql.include?("RELEASE_LOCK")
+
+        original.call(sql, *rest)
+      end
+
+      described_class.with_refresh_lock(user: user, provider_account: account) { :ok }
+
+      lock_sql = statements.find { |sql| sql.include?("GET_LOCK") }
+      name = lock_sql[/GET_LOCK\('([^']+)'/, 1]
+      expect(name).to eq(described_class.refresh_lock_name(user, account))
+      expect(name.length).to be <= 64
+    end
+  end
+
   describe "#prepare!" do
     it "returns the API key and does not run login in api_key mode" do
       called = false

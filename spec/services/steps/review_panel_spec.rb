@@ -178,6 +178,22 @@ RSpec.describe "serial review panels" do
     end
   end
 
+  it "moves the continuation's dependency edge from the fanout onto the collector" do
+    review = Step.create!(workflow: workflow, kind: "adversarial_review", position: 100, iteration: 1, loop_id: "review-loop")
+    continuation = Step.create!(workflow: workflow, kind: "security_review", position: 101, depends_on_ids: [ review.id ])
+    review.update!(next_step_id: continuation.id)
+    run = Run.create!(job: job, step: review, trigger_kind: workflow.trigger_kind)
+    handler = Steps::AdversarialReview.new(run)
+    allow(handler).to receive(:review_config).and_return(nil)
+    StepDispatcher.run_provider_candidate_for(review, workflow)
+
+    handler.send(:materialize_review_panel!)
+
+    collect = workflow.steps.find_by!(kind: "review_panel_collect", loop_id: "review-loop")
+    expect(continuation.reload.depends_on_step_ids).to eq([ collect.id ])
+    expect(collect.next_step_id).to eq(continuation.id)
+  end
+
   it "collects member votes as the final aggregate artifact" do
     collect = Step.create!(
       workflow: workflow, kind: "review_panel_collect", position: 100, iteration: 2, loop_id: "review-loop",

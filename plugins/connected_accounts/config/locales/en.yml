@@ -1,0 +1,25 @@
+en:
+  connected_accounts:
+    plugin:
+      display_name: "Connected accounts"
+      description: "Broker access to user-owned external accounts without exposing long-lived credentials."
+      long_description: "Connected Accounts owns external account metadata and brokers short-lived, authorized OAuth access through Credential Store."
+    oauth:
+      connected: "Account connected."
+      denied: "The provider denied access."
+      invalid_state: "This connection request expired or was already used."
+      invalid_request: "The connection request is invalid."
+      failed: "The provider could not connect the account."
+    settings:
+      saved: "Provider configuration saved."
+      read_only_scopes_not_in_catalog: "must also be present in the scope catalog"
+    errors:
+      array_of_strings: "must be an array of strings"
+      scope_ceiling_subset: "must be a subset of granted scopes"
+      unsupported_modes: "contains unsupported modes: %{modes}"
+      oauth_material: "must contain connected account OAuth material"
+      same_owner: "must have the same owner"
+      broker_pinned: "must be pinned to the connected account broker"
+      origins_pinned: "must be pinned to provider API origins"
+      https_urls: "Provider URLs must use HTTPS"
+      invalid_url: "Provider URL is invalid"

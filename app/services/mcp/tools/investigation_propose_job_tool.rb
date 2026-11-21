@@ -5,15 +5,25 @@ module Mcp::Tools
     extend ProposalToolSupport
 
     MAX_PROPOSALS_PER_WORKFLOW = 10
+    # Implementation, feedback and CI repair agents should rarely need this:
+    # most of what they find belongs in the Job they are working on.
+    MAX_IMPLEMENTATION_PROPOSALS_PER_WORKFLOW = 3
+    INVESTIGATION_STEP_KINDS = %w[investigate submit_report].freeze
 
     tool_name "propose_job"
 
     description <<~DESC
-      Propose one follow-up Job from an investigation workflow. The Job is
-      created immediately in triaging with triaging_reason=proposed_job; it
-      does not start until an operator accepts it from the Job page. Use this
-      only for concrete implementation work found during the investigation,
-      not for Epics or additional investigations.
+      Propose one follow-up Job for work you found that is outside the
+      current Job. The Job is created immediately in triaging with
+      triaging_reason=proposed_job; it does not start until an operator
+      accepts it from the Job page. Use it only for concrete work, not for
+      Epics or additional investigations.
+
+      Never use it to hand off part of the current Job: anything its
+      description or acceptance criteria ask for must be done here.
+      Reviewers see every follow-up you propose and treat one that belongs
+      in this Job as unfinished work. Proposing the same title twice from
+      this Job returns the existing proposal.
 
       planned_execution.capabilities is REQUIRED. #{ProposeJobTool::REQUIRED_PLACEMENT_MESSAGE}
     DESC
@@ -52,9 +62,15 @@ module Mcp::Tools
 
         workflow = run.workflow
         source_job = run.job
+        investigation = run.step&.kind.in?(INVESTIGATION_STEP_KINDS)
+        existing = previously_proposed_job(source_job, title)
+        return success_response(existing, source_job, already_proposed: true) if existing
+
         proposed_ids = Array(workflow.artifact("proposed_job_ids")).filter_map { |id| Integer(id, exception: false) }
-        if proposed_ids.size >= MAX_PROPOSALS_PER_WORKFLOW
-          return Mcp::Tools.invalid("an investigation workflow may propose at most #{MAX_PROPOSALS_PER_WORKFLOW} Jobs")
+        limit = investigation ? MAX_PROPOSALS_PER_WORKFLOW : MAX_IMPLEMENTATION_PROPOSALS_PER_WORKFLOW
+        if proposed_ids.size >= limit
+          scope = investigation ? "an investigation workflow" : "a workflow"
+          return Mcp::Tools.invalid("#{scope} may propose at most #{limit} Jobs")
         end
 
         job = nil
@@ -64,7 +80,7 @@ module Mcp::Tools
             kind: "direct",
             issue_number: nil,
             issue_title: title,
-            issue_body: body_with_source(description, source_job),
+            issue_body: body_with_source(description, source_job, investigation:),
             job_provider_setting: source_job.job_provider_setting,
             agent_provider: source_job.workflow_agent_provider,
             priority: source_job.priority.presence || "medium",
@@ -76,19 +92,7 @@ module Mcp::Tools
         end
 
         Mcp::Tools.write_log(run, "[mcp] propose_job created #{job.slug} awaiting triage")
-        Mcp::Tools.success(
-          id: job.id,
-          slug: job.slug,
-          title: job.issue_title,
-          state: job.state,
-          triaging_reason: job.triaging_reason,
-          planned_execution: job.planned_execution_json,
-          source_job: {
-            id: source_job.id,
-            slug: source_job.slug,
-            title: source_job.issue_title
-          }
-        )
+        success_response(job, source_job)
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       rescue ArgumentError => e
@@ -111,13 +115,43 @@ module Mcp::Tools
         ProposeJobTool::REQUIRED_PLACEMENT_MESSAGE
       end
 
-      def body_with_source(description, source_job)
+      def success_response(job, source_job, already_proposed: false)
+        Mcp::Tools.success(
+          id: job.id,
+          slug: job.slug,
+          title: job.issue_title,
+          state: job.state,
+          triaging_reason: job.triaging_reason,
+          planned_execution: job.planned_execution_json,
+          already_proposed: already_proposed,
+          source_job: {
+            id: source_job.id,
+            slug: source_job.slug,
+            title: source_job.issue_title
+          }
+        )
+      end
+
+      # Retries and review rounds re-run the same agent over the same Job; a
+      # follow-up it already proposed and the operator has not yet triaged is
+      # the same proposal, not a new one.
+      def previously_proposed_job(source_job, title)
+        ids = source_job.workflows.flat_map { |workflow| Array(workflow.artifact("proposed_job_ids")) }
+          .filter_map { |id| Integer(id, exception: false) }
+        return nil if ids.empty?
+
+        Job.where(id: ids, state: "triaging", triaging_reason: "proposed_job")
+          .find { |job| job.issue_title.to_s.strip.casecmp?(title) }
+      end
+
+      def body_with_source(description, source_job, investigation:)
+        origin = investigation ? "Proposed by investigation" : "Proposed during work on"
         <<~MARKDOWN.strip
           #{description}
 
           ---
 
-          Proposed by investigation [#{source_job.slug}](/jobs/#{source_job.id}): #{source_job.issue_title}
+          #{origin} [#{source_job.slug}](/jobs/#{source_job.id}): #{source_job.issue_title}
         MARKDOWN
       end
     end

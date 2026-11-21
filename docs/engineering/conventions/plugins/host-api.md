@@ -18,6 +18,16 @@ Supported members:
 - `params`
 - `render`
 
+### `Syrus::Host::AdminPage`
+
+Since: `0.1.16`
+
+Supplies admin navigation and route metadata; host navigation implementation details are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `admin_pages`
+
 ### `Syrus::Host::AgentProvider`
 
 Since: `0.1.16`
@@ -115,6 +125,16 @@ Supported members:
 - `repository`
 - `title`
 - `user`
+
+### `Syrus::Host::ChatTitles`
+
+Since: `0.1.16`
+
+Queues automatic title generation for a chat; job implementation and queue details are not promised.
+
+Supported members:
+
+- `enqueue`
 
 ### `Syrus::Host::CliCommandHandler`
 
@@ -253,6 +273,16 @@ Supported members:
 - `register!`
 - `syrus_plugin`
 - `syrus_plugin_definition`
+
+### `Syrus::Host::PluginInvocation`
+
+Since: `0.1.16`
+
+Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `call`
 
 ### `Syrus::Host::PluginRegistry`
 
@@ -453,7 +483,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Appearance::ColorPalette`
 - `Appearance::ColorPalette::HEX_PATTERN`
 - `ApplicationCable::Channel`
-- `ApplicationJob`
 - `ApplicationPolicy`
 - `ApplicationPolicy::Scope`
 - `ApplicationRecord`
@@ -554,6 +583,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Filters::SmartFolderResolution::PRESET_FIELD`
 - `Filters::UnknownFilterField`
 - `FtsQueryParser`
+- `GitMergeDrivers`
 - `GitRunner`
 - `GitRunner::GitError`
 - `GithubApiUsageRollup`
@@ -596,6 +626,7 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `LandedCommit`
 - `LandingFailureHandler`
 - `MaintenanceTasks::Definitions::Base::Result`
+- `Mcp::CoworkerToolExposure`
 - `Mcp::Pagination`
 - `Mcp::Tools`
 - `Mcp::Tools::AdminPendingActionToolSupport`
@@ -666,6 +697,8 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `PlatformIdentity::PlatformConfig::Base`
 - `PlatformPollingJob`
 - `PluginDataCleanup`
+- `PluginJob`
+- `PluginJob::DEFAULT_ATTEMPTS`
 - `PluginRecord`
 - `PrReviewComment`
 - `PreviewCommandSource`
@@ -706,7 +739,6 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `RepositoryContent::Divergence`
 - `RepositoryContent::Entry`
 - `RepositoryContent::Error`
-- `RepositoryContent::Glob`
 - `RepositoryContent::NotFound`
 - `RepositoryContent::Ref`
 - `RepositoryContent::Revision`

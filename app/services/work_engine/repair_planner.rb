@@ -492,6 +492,18 @@ module WorkEngine
         end
       end
 
+      class ReopenedWorkflowStrandedByCleanup < Base
+        def plan
+          automatic_plan(
+            "revive_cleanup_cancelled_step",
+            primary_step,
+            "The workflow was reopened after a failure, but a Step its failure cleanup cancelled mid-run was never revived, so revive it and resume the workflow from it.",
+            execution_steps: [ "Step#update_columns (revive)", "WorkUnits::DeferredPhaseResume.call" ],
+            preconditions: { workflow_state: "running", step_state: "cancelled", no_active_runs: true }
+          )
+        end
+      end
+
       class QueuedStepWithoutRun < Base
         def plan
           # The resume immediately needs the workflow's workspace, so resuming
@@ -522,7 +534,7 @@ module WorkEngine
               workflow_state: "running",
               step_state: "queued",
               step_has_no_runs: true,
-              previous_step_state: "succeeded"
+              upstream_handoff_ready: true
             }
           )
         end

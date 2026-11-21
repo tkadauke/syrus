@@ -54,7 +54,7 @@ module Steps
       merged = merge_result.respond_to?(:merged) ? merge_result.merged : merge_result[:merged]
       raise StepFailed, "external_pr_merge: GitHub did not report PR ##{job.external_pr_number} as merged" unless merged
 
-      job.close_with_reason!("external_pr_merged") if job.may_close?
+      workflow.request_job_closure!(job, "external_pr_merged") if job.may_close?
       log("external_pr_merge: merged external PR ##{job.external_pr_number}")
     end
 
@@ -162,6 +162,9 @@ module Steps
     end
 
     def merge_pull_request(client, expected_sha)
+      # The merge cannot be undone: stop if the landing was stopped or the Job
+      # closed since the gate passed (formal/SyrusModel/MergeFence.lean).
+      ensure_run_still_active!("merge")
       client.merge_pull_request(
         repository.slug,
         job.external_pr_number,
@@ -198,7 +201,7 @@ module Steps
       return unless job.may_close?
 
       reason = pr.merged ? "external_pr_merged" : "external_pr_closed"
-      job.close_with_reason!(reason)
+      workflow.request_job_closure!(job, reason)
     end
 
     def cancel_closed_workflow!

@@ -6,13 +6,7 @@ module CredentialStore
       end
     end
 
-    CONSUMERS = [
-      Consumer.new(
-        name: "credential_store_ssh_exec",
-        kind: :typed,
-        credential_types: %w[ssh_private_key],
-        description: "Execute a permission-authorized SSH command without exposing the private key."
-      ),
+    BUILT_IN_CONSUMERS = [
       Consumer.new(
         name: "credential.exec",
         kind: :raw_wrapper,
@@ -28,7 +22,30 @@ module CredentialStore
     ].index_by(&:name).freeze
 
     class << self
-      def find(name) = CONSUMERS[name.to_s]
+      def find(name) = consumers[name.to_s]
+
+      def consumers
+        plugin_consumers = Syrus::PluginRegistry.credential_types.filter_map do |declaration|
+          consumer = declaration["typed_consumer"]
+          next unless consumer
+
+          Consumer.new(
+            name: consumer.fetch("name"),
+            kind: :typed,
+            credential_types: [ declaration.fetch("name") ].freeze,
+            description: consumer.fetch("description")
+          )
+        end.index_by(&:name)
+        duplicates = BUILT_IN_CONSUMERS.keys & plugin_consumers.keys
+        raise ArgumentError, "duplicate credential consumer(s): #{duplicates.join(', ')}" if duplicates.any?
+
+        BUILT_IN_CONSUMERS.merge(plugin_consumers).freeze
+      end
+
+      def plugin_managed_type?(credential_type)
+        owner = Syrus::PluginRegistry.credential_type_owner(credential_type)
+        owner.present? && owner != "credential_store"
+      end
 
       def typed_for(credential_type)
         compatible_for(credential_type, kind: :typed)
@@ -41,7 +58,7 @@ module CredentialStore
       private
 
       def compatible_for(credential_type, kind:)
-        CONSUMERS.values.select { |consumer| consumer.kind == kind && consumer.compatible_with?(credential_type) }
+        consumers.values.select { |consumer| consumer.kind == kind && consumer.compatible_with?(credential_type) }
       end
     end
   end

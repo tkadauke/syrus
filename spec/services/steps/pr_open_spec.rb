@@ -449,6 +449,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     handler.call
 
+    apply_pending_job_closures!
     expect(direct_job.reload).to be_closed
     expect(direct_job.closure_reason).to eq("no_changes")
     expect(direct_workflow.reload.artifact("no_pr_reason")).to include(
@@ -527,6 +528,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     handler.call
 
+    apply_pending_job_closures!
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("no_changes")
     expect(workflow.reload.artifact("pr_open_force_pushed_unopened_branch")).to include(
@@ -1546,6 +1548,32 @@ RSpec.describe Steps::PrOpen, :ci_only do
             expect(e.problem.code).to eq("awaiting_stable_base")
           }
         expect(workflow.reload.artifact("awaiting_stable_base")).to include("live_sha" => "c" * 40, "reason" => "awaiting_stable_base")
+      end
+
+      # It used to run every required grader of every phase serially inside
+      # pr_open -- the full landing suite included, about 35 minutes per
+      # attempt, repeated while a stacked parent kept moving.
+      it "validates a rebased tree with the required review-phase graders only" do
+        grader = ->(name, phases, required: true) {
+          RepoGradePlan::Grader.new(name: name, display_name: name, command: "run-#{name}", phases: phases, description: nil,
+            required: required, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: nil,
+            base_retry: nil, deps: [], metadata: {}, capabilities: {}, resources: nil)
+        }
+        plan = instance_double(RepoGradePlan::Result, graders: [
+          grader.call("lint", %w[review landing ci]), grader.call("rspec-focused", %w[review]),
+          grader.call("rspec", %w[landing]), grader.call("rspec-ci", %w[ci]),
+          grader.call("optional-review", %w[review], required: false)
+        ])
+        allow(RepoGradePlan).to receive(:for).and_return(plan)
+        commands = []
+        allow(ProcessRunner).to receive(:new) do |command:, **|
+          commands << command.last
+          instance_double(ProcessRunner, run: Struct.new(:timed_out, :exit_status).new(false, 0))
+        end
+        allow(handler).to receive(:workspace_dependency_env).and_return({})
+
+        expect(handler.send(:post_rebase_validation_passed?)).to be(true)
+        expect(commands).to eq(%w[run-lint run-rspec-focused])
       end
 
       it "surfaces post-rebase validation failure as awaiting-stable-base" do

@@ -1,0 +1,104 @@
+class ProviderAccount < ApplicationRecord
+  # Transitional import only. Remove this entry point together with the
+  # provider credential columns once every credential consumer accepts an
+  # account explicitly.
+  def self.sync_legacy_defaults_for!(user)
+    User.agent_providers.each do |provider_key|
+      provider = AgentProviders.for(provider_key)
+      attributes = provider.credential_attributes
+      payload = attributes.index_with { |attribute| user.public_send(attribute) }.compact
+      account = user.provider_accounts.find_by(provider_key: provider_key, position: 0)
+
+      unless provider.configured_for_user?(user)
+        account&.destroy!
+        next
+      end
+
+      authentication_kind = payload["codex_auth_mode"] || payload[:codex_auth_mode]
+      authentication_kind ||= attributes.find { |attribute| payload[attribute].present? }.to_s
+      account ||= user.provider_accounts.build(provider_key: provider_key, position: 0)
+      account.assign_attributes(
+        authentication_kind: authentication_kind,
+        credential_payload: payload.stringify_keys,
+        enabled: true
+      )
+      account.save!
+    end
+  end
+
+  belongs_to :user
+  has_many :workflows
+  has_many :provider_sessions
+
+  encrypts :credential_payload
+  serialize :credential_payload, coder: JSON
+
+  before_validation :assign_public_id, on: :create
+
+  scope :enabled, -> { where(enabled: true) }
+  scope :in_position_order, -> { order(:position, :id) }
+
+  def self.actively_referenced_ids(accounts)
+    account_ids = Array(accounts).map(&:id)
+    return Set.new if account_ids.empty?
+
+    workflow_ids = Workflow.where(provider_account_id: account_ids, state: %w[queued running]).distinct.pluck(:provider_account_id)
+    run_session_ids = ProviderSession.where(provider_account_id: account_ids).for_active_runs.distinct.pluck(:provider_account_id)
+    chat_session_ids = ProviderSession.where(provider_account_id: account_ids).for_active_chats.distinct.pluck(:provider_account_id)
+
+    (workflow_ids + run_session_ids + chat_session_ids).to_set
+  end
+
+  validates :public_id, presence: true, uniqueness: true
+  validates :provider_key, presence: true, length: { maximum: 64 }
+  validates :authentication_kind, presence: true, length: { maximum: 64 }
+  validates :label, length: { maximum: 100 }, allow_nil: true
+  validates :label, uniqueness: { scope: %i[user_id provider_key], case_sensitive: false }, allow_nil: true
+  validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :position, uniqueness: { scope: %i[user_id provider_key] }
+  validates :weight, numericality: { greater_than: 0 }, allow_nil: true
+  validates :proactive_pause_threshold,
+    numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 },
+    allow_nil: true
+  validate :provider_is_registered
+  validate :credential_payload_is_an_object
+
+  def default? = position.zero?
+
+  def credential(name) = credential_payload.to_h[name.to_s]
+
+  def safe_reference
+    { id: public_id, label: display_label }
+  end
+
+  def display_label
+    label.presence || "#{App::Presentation.agent_provider_label(provider_key)} #{position + 1}"
+  end
+
+  def actively_referenced?
+    self.class.actively_referenced_ids([ self ]).include?(id)
+  end
+
+  def effective_proactive_pause_threshold
+    return proactive_pause_threshold.to_f if proactive_pause_threshold.present?
+
+    user.provider_availability_pause_threshold_for(provider_key)
+  end
+  private
+
+  def assign_public_id
+    self.public_id ||= SecureRandom.uuid
+  end
+
+  def provider_is_registered
+    return if provider_key.blank? || provider_key.in?(User.agent_providers)
+
+    errors.add(:provider_key, I18n.t("server.errors.provider_accounts.unregistered_provider"))
+  end
+
+  def credential_payload_is_an_object
+    return if credential_payload.is_a?(Hash)
+
+    errors.add(:credential_payload, I18n.t("server.errors.provider_accounts.invalid_credential_payload"))
+  end
+end

@@ -99,6 +99,21 @@ RSpec.describe "Coworkers plugin" do
     expect(coworkers.reload.enabled?).to be(true)
   end
 
+  it "declares metrics and its sampler only while enabled" do
+    coworkers = PluginRecord.find_or_create_by!(name: "coworkers")
+    coworkers.update!(enabled: true)
+    Syrus::Installer.sync!
+
+    expect(Syrus::Metrics.registry.declared?(:syrus_coworkers_journaling_state)).to be(true)
+    expect(Syrus::Metrics.samplers).to include(Coworkers::MetricsSampler)
+
+    coworkers.update!(enabled: false)
+    Syrus::Installer.sync!
+
+    expect(Syrus::Metrics.registry.declared?(:syrus_coworkers_journaling_state)).to be(false)
+    expect(Syrus::Metrics.samplers).not_to include(Coworkers::MetricsSampler)
+  end
+
   it "keeps its capability compatibility baseline aligned with its chat tool inventory" do
     registrations = Permissions::CapabilityRegistryValidator.send(
       :plugin_registrations, Coworkers::ChatToolSet, :chat_mcp_tool_set

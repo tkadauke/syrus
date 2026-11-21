@@ -11,6 +11,7 @@ import { ConfirmDialog } from "./ConfirmDialog"
 import { Input } from "./Input"
 import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 import { NoticeToast } from "./NoticeToast"
+import { Notice } from "./ui/Notice"
 import { errorMessage } from "../lib/errorMessage"
 import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
 import { formatBytes } from "../lib/format"
@@ -45,6 +46,7 @@ type BugReportContext = {
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
 const MAX_EXTRA_ATTACHMENTS = 9
 const OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS = 300
+const VIEWPORT_CAPTURE_TIMEOUT_MS = 5_000
 const ACCEPTED_ATTACHMENT_TYPES = [
   "text/plain",
   "text/markdown",
@@ -204,9 +206,10 @@ export const BugReportButton = forwardRef<
     return Object.values(captures).some((capture) => (capture?.shapes?.length ?? 0) > 0)
   }
 
-  async function openDialog(options: BugReportOpenOptions = {}) {
+  function openDialog(options: BugReportOpenOptions = {}) {
     if (capturing || open) return
     dialogGenerationRef.current += 1
+    const generation = dialogGenerationRef.current
     const mergedOptionalAttachments = mergeOptionalAttachments(pageAttachments, options.optionalAttachments)
     bugReport.reset()
     bugReportChat.reset()
@@ -227,20 +230,37 @@ export const BugReportButton = forwardRef<
     setBugContext(collectContext(chatId, featureFlags))
     setIsDragOver(false)
     setCapturing(true)
+    setOpen(true)
+    void captureInitialViewport(generation)
+  }
+
+  async function captureInitialViewport(generation: number) {
+    let timedOut = false
+    const timeout = window.setTimeout(() => {
+      if (dialogGenerationRef.current !== generation) return
+      timedOut = true
+      setCapturing(false)
+      setScreenshotChoice("none")
+      setCaptureError(t("bug_report.screenshot_failed"))
+    }, VIEWPORT_CAPTURE_TIMEOUT_MS)
 
     try {
       const html2canvas = await loadHtml2Canvas()
       const viewportCanvas = await captureViewport(html2canvas)
       const viewport = await canvasToCapture(viewportCanvas, "bug-report-viewport.png")
-
+      if (dialogGenerationRef.current !== generation || timedOut) {
+        revokeCaptures({ viewport })
+        return
+      }
       setCaptures({ viewport })
     } catch (error) {
+      if (dialogGenerationRef.current !== generation || timedOut) return
       console.error(error)
       setScreenshotChoice("none")
       setCaptureError(t("bug_report.screenshot_failed"))
     } finally {
-      setCapturing(false)
-      setOpen(true)
+      window.clearTimeout(timeout)
+      if (dialogGenerationRef.current === generation && !timedOut) setCapturing(false)
     }
   }
 
@@ -258,7 +278,10 @@ export const BugReportButton = forwardRef<
       const html2canvas = await loadHtml2Canvas()
       const fullPageCanvas = await captureFullPage(html2canvas)
       const fullPage = await canvasToCapture(fullPageCanvas, "bug-report-full-page.png")
-      if (dialogGenerationRef.current !== generation) return
+      if (dialogGenerationRef.current !== generation) {
+        revokeCaptures({ fullPage })
+        return
+      }
       setCaptures((current) => ({ ...current, fullPage }))
     } catch (error) {
       console.error(error)
@@ -278,6 +301,7 @@ export const BugReportButton = forwardRef<
     setCaptures({})
     setAnnotatingChoice(null)
     setCaptureError(null)
+    setCapturing(false)
     setCapturingFullPage(false)
     setAttachments([])
     setAttachmentError(null)
@@ -298,6 +322,7 @@ export const BugReportButton = forwardRef<
     setAnnotatingChoice(null)
     setScreenshotChoice("viewport")
     setCaptureError(null)
+    setCapturing(false)
     setCapturingFullPage(false)
     setAttachments([])
     setAttachmentError(null)
@@ -498,6 +523,8 @@ export const BugReportButton = forwardRef<
                   <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
                     {captureError}
                   </p>
+                ) : capturing ? (
+                  <Notice role="status">{t("bug_report.capturing")}</Notice>
                 ) : null}
                 <div className="grid gap-3 sm:grid-cols-3">
                   <ScreenshotOption

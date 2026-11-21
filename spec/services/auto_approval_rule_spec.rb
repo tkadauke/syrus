@@ -84,6 +84,39 @@ RSpec.describe AutoApprovalRule do
     expect(job.workflows.where(trigger_kind: "merge_train").count).to eq(1)
   end
 
+  # In the initial Workflow the grade loop runs before pr_open. Approving
+  # there marked the Job implemented and approved with no PR; when pr_open
+  # then failed, failure propagation skipped the approved Job and it waited on
+  # a PR that would never exist. formal/SyrusModel/AutoApproval.lean.
+  it "does not approve a Job that has no pull request yet" do
+    repository.update!(auto_approve_mode: "if_graders_pass")
+    job = approvable_job(pr_number: nil, state: "running")
+    step = build_grade_context(job)
+
+    result = described_class.for(job).apply_after_grader_success!(step)
+
+    expect(result).not_to be_approved
+    expect(result.reason).to eq("pull_request_missing")
+    expect(job.reload.state).to eq("running")
+  end
+
+  it "approves when the initial Workflow succeeds after opening the pull request" do
+    repository.update!(auto_approve_mode: "if_graders_pass")
+    job = approvable_job(pr_number: nil, state: "running")
+    step = build_grade_context(job)
+    workflow = step.workflow
+    workflow.update_columns(state: "running", finished_at: nil)
+    described_class.for(job).apply_after_grader_success!(step)
+    job.update!(pr_number: 4242)
+
+    workflow.reload.succeed!
+    workflow.save!
+
+    expect(job.reload.state).to be_in(%w[approved landing])
+    expect(job.approved_via).to eq("auto_rule")
+    expect(job.approval_evidence).to include("grader_step_id" => step.id)
+  end
+
   it "auto-approves cron jobs from the originating ScheduledTasks::Task rule" do
     task = ScheduledTasks::Task.create!(
       user: user,

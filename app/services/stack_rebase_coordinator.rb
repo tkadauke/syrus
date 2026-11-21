@@ -30,6 +30,8 @@ class StackRebaseCoordinator
       child.update!(parent_job: nil)
       retarget_child_pull_request(child)
       refresh_stack_footers(@parent, child)
+      next if landed_with_parent?(child)
+
       if child.branch_name.present? && child.pr_number.present?
         enqueue_rebase(child)
       else
@@ -43,6 +45,14 @@ class StackRebaseCoordinator
   end
 
   private
+
+  # A merge train lands a whole stack at once: the parent closes as merged a
+  # few seconds before the child does. A child merged by the same train as
+  # its parent has nothing left to rebase onto.
+  def landed_with_parent?(child)
+    parent_train_ids = MergeTrainMember.where(job: @parent, state: "merged").select(:merge_train_id)
+    MergeTrainMember.where(job: child, state: "merged", merge_train_id: parent_train_ids).exists?
+  end
 
   def stack_children_for_rebase
     @parent.stack_children.order(id: :desc).to_a

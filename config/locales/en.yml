@@ -73,6 +73,12 @@ en:
     errors:
       invalid_request: "The request is invalid."
       unavailable: "This action is temporarily unavailable."
+      provider_accounts:
+        unregistered_provider: "is not a registered agent provider"
+        invalid_credential_payload: "must be an object"
+        session_mismatch: "must belong to the resumable user and match the session provider"
+        run_mismatch: "must belong to the Run user and provider"
+        workflow_mismatch: "must belong to the Workflow user and provider"
       plugin_installation:
         release_name_mismatch: "must match the release name"
         invalid_roles_shape: "must be an array of non-empty names"
@@ -154,6 +160,7 @@ en:
       entry_must_be_object: "entry %{index} must be an object with a provider key"
       entry_missing_provider: "entry %{index} is missing a provider"
       entry_unknown_provider: "entry %{index} has unknown provider %{provider}"
+      entry_unknown_account: "entry %{index} has an unknown account for this provider"
       entry_weight_not_positive: "entry %{index} weight must be positive"
       entry_unknown_model: "entry %{index} has model %{model} not in %{provider}'s known models"
       candidates_must_be_array: "candidates must be an array"
@@ -270,6 +277,13 @@ en:
       invalid_link: "This GitHub App registration link is invalid or has expired."
 
   # API messages
+  reset_jobs:
+    refusals:
+      landing: "%{slug} is landing; cancel or finish landing before reset_job."
+      merged: "%{slug} was merged and cannot be reset; create a new Job instead."
+      merge_train: "%{slug} is in an active merge train; cancel the merge train before reset_job."
+      stacked_children: "Live stacked children depend on this branch: %{slugs}; reset or land them first."
+      state: "%{slug} cannot be reset from %{state}; retry or reopen it first."
   api:
     cli_commands:
       errors:
@@ -323,6 +337,7 @@ en:
           allow: "Allows %{subject} to run %{operation} on %{resource} %{duration}."
           ask: "Always asks before %{subject} runs %{operation} on %{resource}."
           deny: "Always denies %{subject} running %{operation} on %{resource}."
+        any_resource: "any resource"
         only_when: "Only when %{constraints}."
         excludes:
           other_operations: "Excludes every other operation and capability."
@@ -335,7 +350,8 @@ en:
           job: "for this job"
           permanent: "until revoked"
         subjects:
-          agent: "coworker %{id}"
+          agent: "%{id}"
+          agent_unnamed: "coworker %{id}"
           interactive_chat: "interactive chats"
           coding_chat: "coding chats"
           local_chat: "local chats"
@@ -734,6 +750,11 @@ en:
       availability_rechecked: "%{provider} availability rechecked."
       availability_override_enabled: "%{provider} provider availability override enabled."
       unknown_provider: "Unknown agent provider."
+    provider_accounts:
+      created: "Provider account connected."
+      updated: "Provider account updated."
+      removed: "Provider account removed."
+      in_use: "This account is referenced by an active Workflow or resumable session and cannot be removed. Disable it to stop new assignments."
 
     filters:
       unsupported_operator: "%{field} operator is not supported."
@@ -975,6 +996,12 @@ en:
         minimum: "requires_syrus starts at %{declared}, below the derived minimum %{derived}"
       quarantine_not_locally_clearable: "This quarantine must be cleared at its source."
       route_failed: "The %{plugin} plugin could not complete this request."
+      host_surface:
+        scan_failed: "Host API scan failed: %{error}"
+        unsupported: "%{count} unsupported host API reference(s)"
+        legacy: "%{count} non-public host API reference(s)"
+        dynamic: "%{count} dynamic non-public host API reference(s)"
+        minimum: "requires_syrus starts at %{declared}, below the derived minimum %{derived}"
 
     job_lifecycle:
       direct_only: "Only direct Jobs can be started manually."
@@ -996,6 +1023,9 @@ en:
       retry_enqueued: "Retry workflow enqueued."
       retry_enqueued_with_provider: "Retry workflow enqueued with %{provider}."
       started_over: "Started over - new branch and PR will be created."
+      reset_failed_only: "%{slug} can only be reset while it is failed."
+      reset_reason: "Reset from the Job page by %{user}."
+      reset_done: "%{slug} was reset and restarts on the current base."
       already_closed: "Job is already closed."
       cancellation_requested: "Cancellation requested."
       workflow_not_found: "Workflow not found."

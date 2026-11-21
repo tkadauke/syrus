@@ -46,6 +46,18 @@ jobs:
             name: lint
           run:
             state: queued
+        - key: frontend_lint
+          kind: grader
+          state: queued
+          iteration: 1
+          loop_id: grade-loop
+          depends_on:
+            - fanout
+          next_step: collect
+          details:
+            name: frontend-lint
+          run:
+            state: queued
         - key: rspec
           kind: grader
           state: queued
@@ -65,6 +77,7 @@ jobs:
           loop_id: grade-loop
           depends_on:
             - lint
+            - frontend_lint
             - rspec
         - key: summarize
           kind: summarize
@@ -77,12 +90,17 @@ jobs:
 runtime:
   step_workers:
     grader:lint: worker-lost
+    grader:frontend-lint: worker-ok
     grader:rspec: worker-ok
 outcomes:
   default: success
   steps:
     grader:lint:
       - status: pending
+      - status: success
+    grader:frontend-lint:
+      - status: failure
+        error_message: "frontend lint found a semantic failure"
       - status: success
     grader_collect:
       - status: failure

@@ -1,0 +1,52 @@
+# Checks the Lean models in formal/: every proof and every decide-checked
+# counterexample. Independent of the Rails app; see formal/README.md.
+name: Formal CI
+
+on:
+  pull_request:
+    paths:
+      - "formal/**"
+      - ".github/workflows/formal-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "formal/**"
+      - ".github/workflows/formal-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: formal
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Lean toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('formal/lean-toolchain') }}
+
+      - name: Install elan
+        # The toolchain itself is pinned by formal/lean-toolchain and fetched
+        # on first use; elan only needs to be on PATH.
+        run: |
+          if [ ! -x "$HOME/.elan/bin/elan" ]; then
+            curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Check every proof
+        run: lake build
+
+      - name: No unfinished proofs
+        # A `sorry` compiles with a warning; the gate must not pass on one.
+        run: |
+          if grep -rnw --include='*.lean' -e 'sorry' -e 'admit' SyrusModel SyrusModel.lean; then
+            echo "Unfinished proof found" >&2
+            exit 1
+          fi

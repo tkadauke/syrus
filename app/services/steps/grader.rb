@@ -799,12 +799,15 @@ module Steps
     # directory component is opened with O_NOFOLLOW and retained until the
     # leaf is open, so replacing an ancestor pathname cannot redirect an
     # operation outside the workspace between validation and use.
-    def open_workspace_grade_log(relative_path, flags, mode = nil, create_directories: false)
+    def open_workspace_grade_log(relative_path, flags, mode = nil, create_directories: false, &block)
       raise Errno::ENOTSUP unless File.const_defined?(:NOFOLLOW)
-      raise Errno::ENOTSUP unless File.directory?("/proc/self/fd")
 
       components = Pathname.new(relative_path.to_s).each_filename.to_a
       raise Errno::ELOOP if components.empty? || components.any? { |component| component == ".." }
+
+      unless File.directory?("/proc/self/fd")
+        return open_workspace_grade_log_by_path(components, flags, mode, create_directories: create_directories, &block)
+      end
 
       directories = [ open_grade_log_directory(workspace.path) ]
       components[0...-1].each do |component|
@@ -831,6 +834,52 @@ module Steps
       opener.call { |file| yield file }
     ensure
       directories&.reverse_each(&:close)
+    end
+
+    # Hosts without /proc/self/fd (macOS workers) cannot walk the log path
+    # through directory descriptors. Refuse every ancestor that is not a real
+    # directory, open the leaf without following a symlink, and then confirm
+    # that the opened file is the one inside the workspace -- an ancestor
+    # swapped for a symlink between the walk and the open resolves elsewhere.
+    # Falling back to /dev/null instead silently dropped every grader log on
+    # those hosts.
+    def open_workspace_grade_log_by_path(components, flags, mode, create_directories:)
+      root = workspace.path
+      open_grade_log_directory(root).close
+      current = Pathname.new(root)
+      components[0...-1].each do |component|
+        current = current.join(component)
+        stat = begin
+          File.lstat(current)
+        rescue Errno::ENOENT
+          raise unless create_directories
+
+          Dir.mkdir(current, 0o700)
+          File.lstat(current)
+        end
+        raise Errno::ELOOP unless stat.directory?
+      end
+
+      leaf = current.join(components.last)
+      file = mode ? File.open(leaf, flags, mode) : File.open(leaf, flags)
+      begin
+        expected_parent = File.join(File.realpath(root), *components[0...-1])
+        leaf_stat = File.lstat(leaf)
+        unless File.realpath(current) == expected_parent && !leaf_stat.symlink? &&
+            [ leaf_stat.dev, leaf_stat.ino ] == [ file.stat.dev, file.stat.ino ]
+          raise Errno::ELOOP
+        end
+      rescue StandardError
+        file.close
+        raise
+      end
+      return file unless block_given?
+
+      begin
+        yield file
+      ensure
+        file.close
+      end
     end
 
     def open_grade_log_directory(path)

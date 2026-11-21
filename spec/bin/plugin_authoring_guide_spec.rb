@@ -41,5 +41,9 @@ RSpec.describe "external plugin authoring guide" do
       '{"version":1,"mode":"validate","plugin":"weather_tools","validation":"passed","tests":"not_run","exit_code":0}',
       '{"version":1,"mode":"test","plugin":"weather_tools","validation":"passed","tests":"passed","exit_code":0}'
     )
+    expect(guide).to include(
+      "the host-surface scanner inspects Ruby\nwithout executing it",
+      "the validation command later boots the plugin"
+    )
   end
 end

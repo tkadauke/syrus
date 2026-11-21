@@ -237,7 +237,7 @@ module Admin
       circuits = runtime.circuits(plugin: manifest.name).map(&:to_h)
       state = if circuits.any?
         "circuit_open"
-      elsif failures.any? && (status.nil? || status.ok?)
+      elsif failures.any? && (status.nil? || status.healthy?)
         "degraded"
       else
         status&.state&.to_s || "ok"
@@ -292,7 +292,7 @@ module Admin
         Array(providers).map do |provider|
           {
             extension_point: extension_point.to_s,
-            class_name: provider.name || provider.to_s,
+            class_name: provider_class_name(provider),
             availability: availability_for(extension_point, provider)
           }
         end
@@ -312,6 +312,12 @@ module Admin
           }
         end
       end
+    end
+
+    def provider_class_name(provider)
+      return provider.name || provider.to_s if provider.respond_to?(:name)
+
+      provider.to_h.with_indifferent_access[:provider].presence || provider.to_s
     end
 
     def availability_for(extension_point, provider)

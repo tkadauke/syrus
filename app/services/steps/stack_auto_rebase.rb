@@ -54,8 +54,8 @@ module Steps
       base_branch = entry["base_branch"].presence || stack_job.effective_base_branch
 
       if stack_job.may_close?
-        stack_job.close_with_reason!("pr_merged")
-        log("stack_auto_rebase: #{stack_job.slug} closed as pr_merged - #{result.note}")
+        workflow.request_job_closure!(stack_job, "pr_merged")
+        log("stack_auto_rebase: #{stack_job.slug} will close as pr_merged - #{result.note}")
       else
         log("stack_auto_rebase: #{stack_job.slug} is #{stack_job.state} and was left as-is - #{result.note}")
       end

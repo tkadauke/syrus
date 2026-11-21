@@ -1088,6 +1088,7 @@ export type JobActions = {
   retry_failed_step_action?: JobRetryAction | null
   retry_implementation_action?: JobRetryAction | null
   can_restart: boolean
+  reset_job_action?: JobResetAction | null
   can_cancel: boolean
   can_stop_landing: boolean
   can_approve: boolean
@@ -1119,6 +1120,11 @@ export type JobActions = {
   feedback_agent_options: string[]
   rebase_agent_options: string[]
   retry_agent_options: string[]
+}
+
+export type JobResetAction = {
+  path: string
+  destroys: { open_pr_number?: number; branch?: string; checkpoints?: number; active_workflows?: number[] }
 }
 
 export type JobRetryAction = {
@@ -1287,6 +1293,7 @@ export type JobDetailPayload = {
   attachments_count?: number
   pr_links: JobPrLink[]
   typed_artifacts: TypedArtifact[]
+  review_artifacts?: string[]
   review_contributions?: import("../pluginReviewContributions").ReviewContribution[]
   visual_evidence?: JobVisualEvidenceGallery
   coverage: { workflow_id: number; coverage: CoverageArtifact } | null
@@ -1576,11 +1583,15 @@ export type JobSourceDiffPayload = {
     deletions: number
     patch?: string | null
     is_image?: boolean
+    generated?: boolean
+    generated_reason?: string | null
+    generated_source?: string | null
     patch_status?: "binary" | "oversized" | null
     patch_bytes?: number | null
   }>
   truncated: boolean
   diff_error: string | null
+  step_diff_fallback?: boolean
   version: DiffReviewVersion | null
   /** @deprecated Accepted by older fixtures/responses; versions are loaded from diff_review_versions. */
   versions?: DiffReviewVersion[]

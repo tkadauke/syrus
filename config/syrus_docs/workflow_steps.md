@@ -175,6 +175,16 @@ A repository with no repository rules follows the user's rules. Workflow creatio
 candidate in `agent_provider_routing_decision`, including a
 `routing_resolution` payload with the matched rule, source scope, condition
 results, and final action.
+After choosing a provider, Syrus selects from that user's enabled accounts for
+the provider. Disabled, uncredentialed, authentication-failed, rate-limited,
+exhausted, and below-threshold accounts are skipped. Selection balances active
+Workflows, remaining capacity, and optional account weights; when usage is
+unknown it rotates fairly by weighted assignment history. The selected account
+is pinned before the first Run and is retained by retries and resumable
+sessions. An advanced rule candidate may set `account_id` to pin one account;
+otherwise the candidate represents the whole provider pool. Account-specific
+proactive thresholds override the provider default, and zero disables only
+proactive pausing, not hard-unavailability checks.
 When that action is a hold, Syrus also creates a durable
 `ProviderRoutingHold` before workflow admission. The record captures the
 matched rule and scope, condition evidence, operator-facing reason, resumption
@@ -221,8 +231,15 @@ Operators edit default routing rules from the credentials/account settings
 surfaces and repository-specific rules from the Automation section of repository
 settings. Account rules apply to Jobs that use the user's defaults; repository
 rules override matching account rules for that repository and are gated by the
-same repository-admin permissions as other repository automation settings. Job
-detail surfaces can also edit Job-scoped overrides, gated by the same write
+same repository-admin permissions as other repository automation settings.
+
+Agent Settings also manages multiple subscriptions for one provider. Each
+subscription has an optional label, independent credentials and health, an
+enabled state, an exhaustion threshold, and a routing weight. Disabling an
+account prevents new assignments without removing its history. Routing rules
+may leave account selection automatic or pin an enabled account by its opaque
+identifier; active resumable sessions and Workflows prevent account removal.
+Job detail surfaces can also edit Job-scoped overrides, gated by the same write
 permission used for Job mutation actions. The app API exposes scoped
 collections at
 `/api/v1/app/credentials/provider_routing_rules`,
@@ -418,10 +435,18 @@ create concrete follow-up implementation work. This is not the chat proposal
 card path: it creates a real Job immediately in `triaging` with
 `triaging_reason: proposed_job`, records a link back to the investigation in
 the Job body, and waits for an operator to Accept or Reject it on the Job page
-before anything starts. The tool is available only on `investigate` and
-`submit_report` steps, caps one investigation workflow at ten proposals, and
-requires explicit `planned_execution.capabilities` using the same placement
-rule as chat proposals.
+before anything starts. It requires explicit `planned_execution.capabilities`
+using the same placement rule as chat proposals.
+
+The same tool is available on `implement`, `respond` and `analyze_and_fix`
+steps, for work an agent finds that is outside the Job it is working on. It is
+not a way to defer part of the current Job: the adversarial review prompt lists
+every follow-up the workflow proposed and tells the reviewer to return
+`needs_work` when one covers something the Job asks for. An investigation
+workflow may propose up to ten Jobs and any other workflow up to three.
+Proposing the same title again from the same Job -- for example from a rerun
+or a later review round -- returns the existing untriaged proposal instead of
+creating a duplicate, and the proposal's body links back to the source Job.
 
 ### submit_report
 
@@ -454,6 +479,10 @@ waits for the operator to review the report and close it.
 ### respond
 
 Agentic. Addresses PR review feedback or chat feedback. Reads the new comments and makes the requested changes.
+Feedback that asks to retitle the PR, rewrite its description or restate the
+Job is handled by the later `refresh_job_metadata` step, so the respond agent
+only changes code (or makes no commit when none is needed). Separate follow-up
+work the feedback asks for is filed with `propose_job`.
 
 ### analyze_and_fix
 
@@ -466,6 +495,15 @@ If GitHub Actions reports that a job failed before repository tests ran
 (for example runner setup or action-download infrastructure failures), Syrus
 records the CI infrastructure reason and does not start an agentic repair
 workflow for that signal.
+
+Syrus prefetches each failing GitHub Actions job's log into the repair prompt.
+When that log is missing, truncated, or too generic to act on, the agent reads
+CI itself with the read-only `list_ci_checks` and `read_ci_log` tools, which
+use Syrus's own GitHub access for the Job's repository -- the agent never
+needs the gh CLI or a GitHub token. `read_ci_log` returns a log's tail or only
+the lines matching a search term, with secrets redacted. Every workflow agent
+step has both tools, so an implementation or review agent can check CI on its
+own pull request too.
 
 ### coding_handoff_fix
 
@@ -1145,7 +1183,7 @@ Resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_rep
 
 ### preflight_grader
 
-Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files.
+Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files. Main-repair preflight graders stay in the mutable workflow checkout so a successful formatter-like grader can leave a source repair for the implementing agent instead of losing it with a temporary checkout.
 
 Preflight graders use the same command-span instrumentation as normal graders. Each one runs with its own test database namespace (`TEST_ENV_NUMBER=pf<step id>` and a matching `SEARCH_DATABASE_PATH`) so concurrent database-using graders never share mutable state; the files of that namespace are removed when the grader ends, pass or fail.
 
@@ -1155,12 +1193,20 @@ Preflight graders use the same command-span instrumentation as normal graders. E
 
 Non-agentic. Aggregates preflight grader results using the `GraderOutcome` taxonomy (the latest attempt per grader wins). Outcomes:
 
-- **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository's `grader_health` **and** `ci_health` healthy (a preflight pass is conclusive for both, since it re-ran the same `:ci`-phase graders that mark `ci_health` broken) without the agent ever running.
-- **A required grader is `infrastructure_failed`** (worker death, lost result, database lock timeout, ...): the collector inserts a fresh `preflight_grader` Step for just that grader (new Step and Run, new checkout and database namespace; `infrastructure_retry_attempt`, `retry_of_step_id`, `previous_worker` recorded) plus a replacement collector, and finishes. The budget is `PreflightGraderPolicy.retry_budget` (2) per grader. Only that grader is affected; the Workflow does not fail. Genuine `test_failed` results are never retried as infrastructure.
+- **All required graders passed and the tracked checkout is unchanged:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository's `grader_health` **and** `ci_health` healthy (a preflight pass is conclusive for both, since it re-ran the same `:ci`-phase graders that mark `ci_health` broken) without the agent ever running.
+- **All required graders passed but changed tracked source files:** Stores the changed paths in `preflight_source_changes` and continues to `implement`, preserving the formatter-produced diff in the workflow checkout. Untracked, ignored, and `.syrus/` output does not count as a source repair.
+- **A required grader is `infrastructure_failed`** (worker death, lost result, database lock timeout, ...): the collector inserts a fresh `preflight_grader` Step and Run for just that grader (`infrastructure_retry_attempt`, `retry_of_step_id`, `previous_worker` recorded) plus a replacement collector, and finishes. The budget is `PreflightGraderPolicy.retry_budget` (2) per grader. Only that grader is affected; the Workflow does not fail. Genuine `test_failed` results are never retried as infrastructure.
 - **Every non-passing required grader reproducibly failed (`test_failed`):** Stores `preflight_failures` with only the reproducible failures: exact command, outcome, exit metadata, named failing examples (from Test Insights evidence when available), source SHA, Step/Run ids, and the log/JUnit/JSON references. The chain continues to `implement`.
 - **Any required grader lacks a conclusive result, even if another reproducibly failed** (infrastructure retries exhausted, inconclusive, cancelled, blocked, skipped): sets `preflight_inconclusive` and skips downstream steps. `Workflows::MainBranchRepair#after_success` then marks `grader_health` and `ci_health` inconclusive, notifies the operator through the main-inconclusive notification, and closes the anchor Job with `preflight_inconclusive`. No coding repair is spawned from missing execution evidence.
 
 Unlike `grader_collect`, this step never raises `StepFailed`.
+
+A conclusive no-change repair records separate CI and grader evidence
+fingerprints. Strict-policy polling suppresses an identical reasserted signal
+for the same commit, including when CI and grader results return at different
+times, but changed CI checks or grader failures on that commit remain eligible
+for a new repair immediately. A later grader workflow is new evidence even
+when it reports the same failed grader names.
 
 The next `main_branch_repair` `implement` prompt includes `preflight_failures`
 and tells the agent to reproduce the exact failed command(s), run focused

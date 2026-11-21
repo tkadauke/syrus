@@ -171,6 +171,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(offenders).to be_empty
   end
 
+  it "does not reload every Job while checking active runtime work" do
+    scoped_jobs = [ job, Factories.job(issue_number: 103), Factories.job(issue_number: 104) ]
+    scoped_jobs.each do |owning_job|
+      owning_job.latest_workflow.update!(state: "failed", finished_at: 2.minutes.ago)
+    end
+
+    statements = []
+    subscriber = lambda do |*, payload|
+      statements << payload[:sql] unless payload[:cached] || payload[:name] == "SCHEMA"
+    end
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { reconcile }
+
+    individual_job_loads = statements.grep(
+      /SELECT [`"]jobs[`"]\.\* FROM [`"]jobs[`"] WHERE [`"]jobs[`"]\.[`"]id[`"] =/i
+    )
+    expect(individual_job_loads.size).to be <= scoped_jobs.size
+  end
+
   # Regression: finding a queued Step's latest retry_until barrier selected the
   # loop's whole steps rows ordered by position. With loop_id in the WHERE no
   # index serves that order, grader output in `details` filled the sort
@@ -785,6 +803,28 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   # failed, so it is unreachable rather than slow -- one had been queued for
   # twelve and a half hours. Every other queued-Run branch looks for a ready
   # row, a failed row, or a claim, so none of them matched it.
+  # RunJob is concurrency-limited per Job, so a second Run of the same Job
+  # waits as a SolidQueue blocked execution until the semaphore frees. That is
+  # a sixth execution state, not "no execution row": treating it as orphaned
+  # deleted and re-enqueued a job that was simply waiting its turn.
+  it "does not treat a RunJob blocked on its concurrency semaphore as orphaned" do
+    run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
+    workflow.update_columns(state: "running", started_at: 3.hours.ago)
+    queue_job = solid_queue_run_job(run, created_at: 3.hours.ago)
+    SolidQueue::ReadyExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ClaimedExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::ScheduledExecution.where(job_id: queue_job.id).delete_all
+    SolidQueue::FailedExecution.where(job_id: queue_job.id).delete_all
+    # Execution rows copy their concurrency key from the job, as in production.
+    queue_job.update_columns(concurrency_key: "RunJob/job-#{run.job_id}")
+    SolidQueue::BlockedExecution.create!(job: queue_job.reload, expires_at: 1.minute.from_now)
+    expect(SolidQueue::BlockedExecution.where(job_id: queue_job.id)).to exist
+
+    result = reconcile(run_id: run.id)
+
+    expect(result.issues.map(&:kind)).not_to include("queued_run_with_orphaned_queue_job")
+  end
+
   it "classifies a queued Run whose SolidQueue job has no execution row" do
     run.update_columns(state: "queued", created_at: 3.hours.ago, updated_at: 3.hours.ago, started_at: nil)
     workflow.update_columns(state: "running", started_at: 3.hours.ago, worker_storage_key: "storage-orphan")
@@ -1940,6 +1980,46 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(lock.reload).not_to be_active
   end
 
+  # A finished auto_merge parent with a running landing_validation prefetch
+  # child, as LandingValidationPrefetcher leaves them.
+  def terminal_parent_with_prefetch_child(parent_state)
+    target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 452)
+    parent_intent = WorkIntent.create!(
+      kind: "auto_merge", state: "requested", repository: target.repository,
+      scope_type: "job", scope_id: target.id, actor: target.user, source_type: "spec"
+    )
+    parent = WorkUnit.create!(
+      work_intent: parent_intent, kind: "auto_merge", state: parent_state,
+      repository: target.repository, scope_type: "job", scope_id: target.id, finished_at: 5.minutes.ago
+    )
+    child_intent = WorkIntent.create!(
+      kind: "landing_validation", state: "requested", repository: target.repository,
+      scope_type: "job", scope_id: target.id, actor: target.user, source_type: "spec"
+    )
+    child_workflow = Workflow.create!(job: target, trigger_kind: "landing_validation", state: "running")
+    child = WorkUnit.create!(
+      work_intent: child_intent, kind: "landing_validation", state: "running",
+      repository: target.repository, scope_type: "job", scope_id: target.id,
+      workflow: child_workflow, parent_work_unit: parent
+    )
+    child.work_unit_members.create!(job: target, role: "primary")
+    [ target, parent, child ]
+  end
+
+  # Decided (validation prefetches): LandingValidationPrefetcher starts these
+  # to validate the next landing on top of this one's result; a parent that
+  # landed is exactly when the next landing reuses them. In production 6 of
+  # the 7 cancellations were of this kind.
+  it "leaves a landed parent's validation prefetch running" do
+    target, parent, child = terminal_parent_with_prefetch_child("succeeded")
+
+    result = reconcile_and_execute(job_id: target.id)
+
+    expect(kind(result, :terminal_work_unit_active_children)).to be_nil
+    expect(child.reload).to be_running
+    expect(parent.reload).to be_succeeded
+  end
+
   it "cancels active child WorkUnits left behind by terminal parents" do
     target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 451)
     parent_intent = WorkIntent.create!(
@@ -1954,7 +2034,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     parent = WorkUnit.create!(
       work_intent: parent_intent,
       kind: "auto_merge",
-      state: "succeeded",
+      state: "failed",
       repository: target.repository,
       scope_type: "job",
       scope_id: target.id,
@@ -1995,7 +2075,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_id: parent.id
     )
     expect(result.repair_executions.map(&:message)).to include("cancelled 1 active child WorkUnit(s) for terminal parent #{parent.slug}")
-    expect(parent.reload).to be_succeeded
+    expect(parent.reload).to be_failed
     expect(child.reload).to be_cancelled
     expect(child_workflow.reload).to be_cancelled
   end
@@ -2183,6 +2263,88 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
     expect(result.repair_executions.map(&:message)).to include("cleared stale wait on #{intent.slug}; active WorkUnits: [\"#{unit.slug}\"]")
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil, wait_details: {})
+  end
+
+  # The dispatcher sets the stack block from JobStackResolver, which can still
+  # say "not ready" after the Job's dependencies are satisfied for execution
+  # (a same-Epic parent approved but without a branch to stack on). The
+  # reconciler judged the block stale from dependencies alone and kept starting
+  # a Workflow the dispatcher kept refusing (~200 refusals in 9 hours).
+  it "keeps a stack start block while the stack resolver still says not ready" do
+    stacked_job = Factories.job_record(state: "queued")
+    stacked = WorkUnits::Launcher.instantiate(kind: "initial", job: stacked_job)
+    stacked.update_columns(created_at: 2.hours.ago, updated_at: 2.hours.ago)
+    StepDispatcher.record_start_blocked!(stacked, StepDispatcher::STACK_BLOCK_REASON, backoff: StepDispatcher::START_BLOCKED_BACKOFF)
+    stacked.update!(artifacts: stacked.artifacts.except("start_blocked_next_check_at"))
+    allow_any_instance_of(Job).to receive(:dependencies_satisfied_for_execution?).and_return(true)
+    allow_any_instance_of(JobStackResolver).to receive(:resolve!).and_return(
+      JobStackResolver::Result.new(ready: false, reason: JobStackResolver::STACK_BLOCK_REASON, parent: nil, blocker: {}, artifacts: {})
+    )
+
+    result = reconcile(job_id: stacked_job.id)
+
+    kinds = result.issues.map(&:kind)
+    expect(kinds).not_to include("stale_dependency_start_block")
+    first_run = result.issues.find { |issue| issue.kind == "queued_workflow_without_first_run" }
+    expect(first_run&.recommended_repair_action).not_to eq("start_workflow")
+  end
+
+  # An operator pause holds the next phase on purpose. Flagging the held Step
+  # as "queued without a Run" produced a resume the executor refused on every
+  # reconcile pass (production: one paused rebase, ~500 refusals in 9 hours).
+  it "does not flag a queued Step held by a manual pause" do
+    paused_job = Factories.job_record(state: "running")
+    paused = WorkUnits::Launcher.instantiate(kind: "initial", job: paused_job)
+    paused.update_columns(state: "running", started_at: 2.hours.ago)
+    first, second = paused.steps.order(:position).first(2)
+    first.update_columns(state: "succeeded", started_at: 2.hours.ago, finished_at: 1.hour.ago)
+    second.update_columns(state: "queued", created_at: 2.hours.ago, updated_at: 2.hours.ago)
+    paused.work_unit.block!(reason: "manual_pause", details: { "phase_step_id" => second.id })
+
+    result = reconcile(job_id: paused_job.id)
+
+    expect(result.issues.map(&:kind)).not_to include("queued_step_without_run")
+  end
+
+  # ChatFeedback, Rebase and StackRebase deliberately materialize behind the
+  # Job lock (materialize_behind_active_lock?) and wait their turn. That is two
+  # active Workflows by design; the newer one is waiting, not superseding.
+  it "does not cancel a running Workflow for feedback queued behind its Job lock" do
+    feedback_job = Factories.job_record(state: "running")
+    running = WorkUnits::Launcher.instantiate(kind: "initial", job: feedback_job)
+    running.update_columns(state: "running", started_at: 5.minutes.ago)
+    running.work_unit.mark_running!
+    queued_feedback = WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: feedback_job)
+    expect(queued_feedback).to be_queued
+    expect(queued_feedback.work_unit).to be_active
+
+    result = reconcile_and_execute(job_id: feedback_job.id)
+
+    expect(result.issues.map(&:kind)).not_to include("superseded_active_runtime_work")
+    expect(running.reload).to be_running
+  end
+
+  # JobWakeup deliberately parks a dependent Job's intent as waiting on its
+  # dependency while the queued Workflow's WorkUnit already exists. Clearing
+  # that justified wait made the reconciler and JobWakeup undo each other on
+  # every periodic pass. formal/SyrusModel/Agreement.lean proves the fixed
+  # classifier agrees with JobWakeup and converges.
+  it "leaves a justified dependency wait alone when the intent already has an active WorkUnit" do
+    blocker = Factories.job_record(user: job.user, repository: job.repository, state: "queued")
+    dependent = Factories.job_record(user: job.user, repository: job.repository, state: "queued")
+    JobDependency.create!(job: dependent, depends_on_job: blocker, source: "manual")
+    dependent_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: dependent)
+    intent = dependent_workflow.work_unit.work_intent
+    WorkIntents::JobWakeup.call(dependent)
+    expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
+    expect(dependent_workflow.work_unit.reload).to be_active
+
+    result = reconcile_and_execute
+
+    expect(result.issues.map(&:kind)).not_to include("waiting_work_intent_with_active_unit")
+    expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
+
+    expect { WorkIntents::JobWakeup.call(dependent) }.not_to change { intent.reload.attributes.except("updated_at") }
   end
 
   it "relaunches provider-blocked WorkUnits when the Job now resolves to another provider" do
@@ -4307,7 +4469,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     run.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
     failed_step.update_columns(state: "failed", started_at: 8.minutes.ago, finished_at: 7.minutes.ago)
     queued_tail.update_columns(state: "queued", started_at: nil, finished_at: nil)
-    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 6.minutes.ago)
+    # A cancelled Workflow: a failed one keeps its queued tail (see below).
+    workflow.update_columns(state: "cancelled", started_at: 10.minutes.ago, finished_at: 6.minutes.ago)
 
     result = reconcile_and_execute(workflow_id: workflow.id)
 
@@ -4320,10 +4483,49 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       "cancelled_by" => "terminal_workflow_cleanup",
       "cancelled_reason" => "cancel_terminal_workflow_active_descendants",
       "cancelled_workflow_id" => workflow.id,
-      "cancelled_workflow_state" => "failed",
+      "cancelled_workflow_state" => "cancelled",
       "cancelled_source_step_id" => failed_step.id,
       "cancelled_source_step_kind" => "grader_collect"
     )
+  end
+
+  # Decided (failed Workflow tails): Workflow#fail! keeps the queued tail so
+  # Retry-from-failed-step can continue through it. The reconciler used to
+  # cancel it a minute later (~127 repairs a week), and a tail Step that had
+  # a Run could then not be revived by the retry.
+  describe "a failed Workflow's queued tail" do
+    def failed_workflow_with_tail
+      failed_step = Step.create!(workflow: workflow, kind: "grader_collect", position: 2)
+      tail = Step.create!(workflow: workflow, kind: "summarize", position: 3)
+      step.update!(next_step: failed_step)
+      failed_step.update!(next_step: tail)
+      step.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+      run.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+      failed_step.update_columns(state: "failed", started_at: 8.minutes.ago, finished_at: 7.minutes.ago)
+      tail.update_columns(state: "queued", started_at: nil, finished_at: nil)
+      workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 6.minutes.ago)
+      tail
+    end
+
+    it "is left for Retry-from-failed-step" do
+      tail = failed_workflow_with_tail
+
+      result = reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(kind(result, :cleanup_blocked_by_active_descendants)).to be_nil
+      expect(tail.reload).to be_queued
+    end
+
+    it "loses a live Run but keeps its queued Step" do
+      tail = failed_workflow_with_tail
+      tail_run = tail.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+      result = reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(kind(result, :cleanup_blocked_by_active_descendants)).to be_present
+      expect(tail_run.reload).to be_cancelled
+      expect(tail.reload).to be_queued
+    end
   end
 
   it "cancels a persisted running Step under a terminal Workflow even when its latest Run is already terminal" do
@@ -4550,6 +4752,44 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(next_step.reload).to be_queued
     expect(next_step.runs.last).to have_attributes(state: "queued", job_id: job.id)
     expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to failed from #{run.slug}")
+  end
+
+  # Regression: a burst of grader Runs on a merge train failed with
+  # git_transport_transient. Each scheduled an in-place step retry (5 minute
+  # backoff) and left its Step running to wait for it; the reconciler failed
+  # every one of those Steps within a minute because only worker_died retries
+  # were exempt, throwing the retries away.
+  it "leaves a running Step alone while an in-place git_transport_transient retry is pending" do
+    next_step = Step.create!(workflow: workflow, kind: "grader", position: 1)
+    step.update!(kind: "grader", next_step: next_step)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    step.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+    next_step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    run.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "git_transport_transient",
+      retryable: true,
+      confidence: 0.95,
+      reason: "early EOF",
+      classified_at: 1.minute.ago
+    )
+    AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      agent_provider: "claude",
+      failure_classification: "git_transport_transient",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 4.minutes.from_now
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_step_with_terminal_runs)).to be_nil
+    expect(step.reload).to be_running
+    expect(next_step.reload.runs).to be_empty
   end
 
   it "retries a queued Step whose Run failed retryably before the Step could start" do
@@ -4958,6 +5198,144 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.repair_executions.map(&:message)).to include("resumed #{prepare.slug} with #{prepare.runs.last.slug}")
   end
 
+  # Regression: a repair moved HEAD while an optional review panel was
+  # mid-review; the barrier cancelled the in-flight member as superseded
+  # without cascading, and the next member waited behind it forever. Three
+  # Jobs sat "running" for a day with nothing running and nothing reported.
+  it "resumes the panel member queued behind a review the barrier superseded" do
+    workflow.update_columns(state: "running", started_at: 2.hours.ago)
+    workflow.steps.destroy_all
+    create = lambda do |kind, position, state, details = {}|
+      workflow.steps.create!(kind: kind, position: position, state: state, details: details, created_at: 2.hours.ago)
+    end
+    repair = create.call("implement", 0, "succeeded")
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded", head_sha: "b" * 40, finished_at: 1.hour.ago)
+    fanout = create.call("security_review", 1, "succeeded",
+      { "panel_fanout" => true, "panel_id" => "panel", "review_evidence_superseded" => true })
+    superseded = create.call("security_review", 2, "cancelled",
+      { "panel_member" => true, "panel_id" => "panel", "provider" => "claude", "review_evidence_superseded" => true })
+    superseded.update_columns(cancellation_reason: "implementation_head_changed")
+    waiting = create.call("security_review", 3, "queued",
+      { "panel_member" => true, "panel_id" => "panel", "provider" => "claude" })
+    collect = create.call("review_panel_collect", 4, "queued",
+      { "panel_review_kind" => "security_review", "panel_id" => "panel", "reviewed_head_sha" => "b" * 40 })
+    [ repair, fanout, superseded, waiting, collect ].each_cons(2) { |left, right| left.update!(next_step_id: right.id) }
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :queued_step_without_run)).to be_present
+    expect(plan(result, :resume_queued_step)).to have_attributes(auto_executable: true, target_id: waiting.id)
+    expect(waiting.reload.runs.last).to be_present
+  end
+
+  # Regression: a failed workflow's cleanup cancelled a review loop's repair
+  # mid-run; retrying the failed reviewer reopened the workflow but left that
+  # repair cancelled, and once the retried branch finished nothing ran again.
+  it "revives a step its failure cleanup cancelled once the reopened workflow goes idle" do
+    workflow.update_columns(state: "running", started_at: 3.hours.ago)
+    workflow.steps.destroy_all
+    create = lambda do |kind, position, state, details = {}|
+      workflow.steps.create!(kind: kind, position: position, state: state, details: details, created_at: 3.hours.ago)
+    end
+    review = create.call("visual_review", 0, "succeeded")
+    review.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "succeeded",
+      started_at: 2.hours.ago, finished_at: 2.hours.ago)
+    repair = create.call("implement", 1, "cancelled", {
+      "cancelled_by" => "terminal_workflow_cleanup", "cancelled_workflow_id" => workflow.id,
+      "cancelled_reason" => "cancel_terminal_workflow_active_descendants"
+    })
+    repair.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "cancelled",
+      started_at: 2.hours.ago, finished_at: 2.hours.ago)
+    next_review = create.call("visual_review", 2, "queued")
+    [ review, repair, next_review ].each_cons(2) { |left, right| left.update!(next_step_id: right.id) }
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :reopened_workflow_stranded_by_cleanup)).to be_present
+    expect(plan(result, :revive_cleanup_cancelled_step)).to have_attributes(auto_executable: true, target_id: repair.id)
+    expect(repair.reload).to be_queued
+    expect(repair.details).not_to include("cancelled_by")
+    expect(repair.runs.where(state: "queued")).to exist
+    expect(next_review.reload.runs).to be_empty
+  end
+
+  it "leaves a cleanup-cancelled step alone while the workflow still has work in flight" do
+    workflow.update_columns(state: "running", started_at: 3.hours.ago)
+    workflow.steps.destroy_all
+    repair = workflow.steps.create!(kind: "implement", position: 1, state: "cancelled", created_at: 3.hours.ago, details: {
+      "cancelled_by" => "terminal_workflow_cleanup", "cancelled_workflow_id" => workflow.id
+    })
+    active = workflow.steps.create!(kind: "adversarial_review", position: 0, state: "running", created_at: 3.hours.ago)
+    active.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", started_at: 1.minute.ago,
+      last_heartbeat_at: Time.current)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :reopened_workflow_stranded_by_cleanup)).to be_nil
+    expect(repair.reload).to be_cancelled
+  end
+
+  it "names the gate when a queued step without a run stays deferred" do
+    prepare = workflow.steps.order(:position).second
+    step.update!(next_step: prepare)
+    job.update_columns(state: "landing", started_at: 30.minutes.ago)
+    workflow.update_columns(trigger_kind: "auto_merge", state: "running", started_at: 30.minutes.ago)
+    step.update_columns(kind: "mergeability_preflight", state: "succeeded", started_at: 30.minutes.ago, finished_at: 29.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 30.minutes.ago, finished_at: 29.minutes.ago)
+    prepare.runs.delete_all
+    prepare.update_columns(state: "queued", started_at: nil, finished_at: nil, created_at: 30.minutes.ago)
+    allow(WorkUnits::DeferredPhaseResume).to receive(:call).and_return(
+      WorkUnits::DeferredPhaseResume::Result.new(
+        workflow: workflow, run: nil, work_unit: nil, status: "blocked", reason: "landing_slot_held"
+      )
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(result.repair_executions.map(&:message)).to include("queued Step remained deferred: blocked: landing_slot_held")
+  end
+
+  it "resumes a grader collector after a semantic failure and a replacement grader success" do
+    workflow.steps.destroy_all
+    fanout = Step.create!(workflow: workflow, kind: "grader_fanout", position: 0, state: "succeeded")
+    semantic_failure = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 1,
+      state: "failed",
+      details: { "name" => "frontend-lint", "required" => true },
+      depends_on_ids: [ fanout.id ]
+    )
+    replacement_success = Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 2,
+      state: "succeeded",
+      details: { "name" => "rspec", "required" => true },
+      depends_on_ids: [ fanout.id ]
+    )
+    collect = Step.create!(
+      workflow: workflow,
+      kind: "grader_collect",
+      position: 3,
+      state: "queued",
+      created_at: 30.minutes.ago,
+      depends_on_ids: [ semantic_failure.id, replacement_success.id ]
+    )
+    fanout.update!(next_step: semantic_failure)
+    semantic_failure.update!(next_step: collect)
+    replacement_success.update!(next_step: collect)
+    workflow.update_columns(state: "running", started_at: 30.minutes.ago)
+    attach_work_unit(workflow, state: "running") unless workflow.work_unit
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :queued_step_without_run)).to be_present
+    expect(plan(result, :resume_queued_step)).to have_attributes(auto_executable: true, target_id: collect.id)
+    expect(collect.reload.runs.count).to eq(1)
+    expect(semantic_failure.reload).to be_failed
+  end
+
   # A resume creates a Run that immediately needs the workspace, so resuming
   # into one this pass just reported missing can only fail. When a power cut
   # took three compute nodes down, this plan fired every ~30 seconds for four
@@ -4992,6 +5370,43 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :resume_queued_step)).to be_nil
     expect(plan(result, :recover_missing_workspace)).to have_attributes(auto_executable: true)
     expect(prepare.reload.runs).to be_empty
+  end
+
+  # Regression: a review panel's fanout Step succeeds as soon as it has spawned
+  # its members; the Workflow's latest verdict is still the previous
+  # iteration's "needs_work". The dispatcher leaves the loop decision to the
+  # panel's collect Step, but the reconciler flagged the fanout every minute
+  # while the members were still reviewing, and every repair was skipped.
+  it "leaves a review-panel fanout to its collect Step" do
+    panel_job = Factories.job_record(user: job.user, repository: job.repository, state: "running", started_at: 30.minutes.ago)
+    panel_workflow = Workflow.create!(
+      job: panel_job, trigger_kind: "initial", state: "running", started_at: 30.minutes.ago,
+      chain_template: [
+        { "type" => "step", "kind" => "implement" },
+        { "type" => "loop", "max_iterations" => 2, "steps" => %w[ implement adversarial_review ] }
+      ],
+      artifacts: {
+        "adversarial_review_iterations" => [
+          { "iteration" => 1, "critique" => "Missing edge-case coverage.", "verdict" => "needs_work" }
+        ]
+      }
+    )
+    implement = Step.create!(workflow: panel_workflow, kind: "implement", position: 0, iteration: 2,
+                             loop_id: "review-loop", state: "succeeded", finished_at: 20.minutes.ago)
+    fanout = Step.create!(workflow: panel_workflow, kind: "adversarial_review", position: 1, iteration: 2,
+                          loop_id: "review-loop", state: "succeeded", finished_at: 19.minutes.ago,
+                          details: { "panel_fanout" => true })
+    member = Step.create!(workflow: panel_workflow, kind: "adversarial_review", position: 2, iteration: 2,
+                          loop_id: "review-loop", state: "running", started_at: 19.minutes.ago,
+                          details: { "panel_member" => true })
+    implement.update!(next_step: fanout)
+    fanout.update!(next_step: member)
+    member.runs.create!(job: panel_job, trigger_kind: "initial", agent_provider: panel_workflow.agent_provider,
+                        state: "running", started_at: 19.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+
+    result = reconcile(workflow_id: panel_workflow.id)
+
+    expect(kind(result, :succeeded_review_loop_needs_work_without_repair)).to be_nil
   end
 
   it "materializes a mandatory adversarial review repair when success propagation was interrupted" do
@@ -6612,6 +7027,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
   end
 
+  # Regression: a failed latest Workflow (retry_available?) with no workspace
+  # was flagged critical on every pass, but recover_missing_workspace only acts
+  # on a queued or running Workflow, so every repair was skipped ("Workflow is
+  # no longer active") -- 113 of the last 150. A retry of that Workflow runs
+  # again, and the running Workflow is then recovered through the usual path.
+  it "does not flag a failed Workflow's missing workspace the repair cannot act on" do
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago, worker_hostname: nil)
+    step.update_columns(state: "failed", finished_at: 5.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 5.minutes.ago)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(workflow.reload).to be_retry_available
+    expect(kind(result, :workspace_missing)).to be_nil
+  end
+
   it "classifies missing workspaces for active workflows" do
     workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: nil)
     step.update_columns(state: "running", started_at: 5.minutes.ago)
@@ -6815,6 +7248,29 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :retry_workflow)).to be_nil
   end
 
+  # Every retry action this issue can plan refuses a Workflow that is still
+  # queued or running (step retry and rebuild need it failed; resume refuses
+  # active runtime work; whole-Workflow retry needs it finished). Flagging a
+  # failed grader inside a running merge-train grade loop only produced a
+  # refused repair on every pass until the loop finished.
+  it "does not plan a retry for a failed Run while its Workflow is still running" do
+    run.update_columns(state: "failed", finished_at: Time.current)
+    step.update_columns(state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "grader_failure",
+      retryable: true,
+      confidence: 0.9,
+      reason: "grader failed inside a running grade loop",
+      classified_at: Time.current
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+  end
+
   it "plans retryable rate-limit failures for the reset time instead of immediate retry" do
     reset_at = 12.minutes.from_now
     job.user.update!(gh_rate_limit_reset_at: reset_at)
@@ -7016,6 +7472,45 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       classification: "git_state_corrupt",
       retryable: false
     )
+  end
+
+  # Regression: a grader loop's failed first iteration was followed by a passing
+  # one and the chain moved on; between two later Steps the reconciler saw "a
+  # failed Step and nothing live" and planned to continue the loop from that
+  # old failure.
+  it "does not treat a failed loop iteration a later one superseded as orphaned" do
+    workflow.update_columns(state: "running", started_at: 60.minutes.ago)
+    step.update_columns(kind: "grader_collect", loop_id: "grade", iteration: 1, position: 10,
+                        state: "failed", finished_at: 30.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 30.minutes.ago)
+    later = workflow.steps.create!(kind: "grader_collect", loop_id: "grade", iteration: 2, position: 20,
+                                   state: "succeeded", finished_at: 10.minutes.ago)
+    later.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+                       state: "succeeded", finished_at: 10.minutes.ago)
+    workflow.steps.create!(kind: "summarize", position: 30, state: "queued")
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :running_workflow_with_failed_step)).to be_nil
+  end
+
+  # Regression: two merge trains landed and succeeded while failed grader
+  # Steps from an earlier grade round were still on them. The reconciler
+  # planned rebuild_merge_train for those Runs on every pass -- 115 skips
+  # ("Workflow is not in a failed state") in 13 hours. Nothing is left to
+  # retry once the Workflow has succeeded.
+  it "does not plan a retry for a failed Run on a succeeded Workflow" do
+    workflow.update_columns(state: "succeeded", started_at: 60.minutes.ago, finished_at: 5.minutes.ago)
+    step.update_columns(kind: "grader", state: "failed", finished_at: 40.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 40.minutes.ago)
+    RunFailureClassification.create!(
+      run: run, classification: "git_transport_transient", retryable: true,
+      confidence: 0.95, reason: "early EOF", classified_at: 40.minutes.ago
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
   end
 
   it "ignores retryable failed Runs that were superseded by a later successful Run on the same Step" do
@@ -8059,7 +8554,9 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :operator_review_nonretryable_failure)).to be_nil
   end
 
-  it "cancels stale queued descendants inside a terminal failed Workflow" do
+  # A failed Workflow keeps its queued tail for Retry-from-failed-step; only
+  # the live Run under it is stale.
+  it "cancels a stale queued Run inside a terminal failed Workflow and keeps its Step" do
     queued_tail = workflow.steps.where(state: "queued").where.not(id: step.id).first ||
       Step.create!(workflow: workflow, kind: "summarize", position: 99, state: "queued")
     queued_tail_run = queued_tail.runs.create!(
@@ -8090,7 +8587,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
     expect(result.repair_executions.map(&:message)).to include("cancelled active descendants for terminal #{workflow.slug}")
     expect(workflow.reload).to be_failed
-    expect(queued_tail.reload).to be_cancelled
+    expect(queued_tail.reload).to be_queued
     expect(queued_tail_run.reload).to be_cancelled
   end
 

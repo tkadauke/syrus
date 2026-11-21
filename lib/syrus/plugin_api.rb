@@ -186,10 +186,9 @@ module Syrus
       end
 
       # Declares credential type names that credential-management plugins may
-      # discover. This is deliberately metadata-only: storage, encryption,
-      # parsing, authorization, broker materialization, and redaction remain
-      # owned by the credential-management implementation, not by the declaring
-      # plugin.
+      # discover. Storage, encryption, parsing, authorization, broker
+      # materialization, and redaction remain owned by the credential-management
+      # implementation. A declaration may name its single typed broker consumer.
       def credential_type_names(*names)
         return @credential_types.map { |entry| entry.fetch(:name) } if names.empty?
 
@@ -204,7 +203,8 @@ module Syrus
           @credential_types << {
             name: attrs.fetch(:name).to_s,
             label: attrs[:label],
-            description: attrs[:description]
+            description: attrs[:description],
+            typed_consumer: attrs[:typed_consumer]
           }.compact
         end
       end

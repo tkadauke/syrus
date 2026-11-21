@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, expect, it, vi } from "vitest"
 import CoworkersRoute from "./Coworkers"
+import type { CoworkerActivityPayload } from "../api/coworkers"
 
 const grantCatalog = [
   "chat.message_owner",
@@ -74,20 +75,10 @@ const detailPayload = {
     chat_model: "gpt-6.1-sol",
     effective_model: "gpt-6.1-sol",
     workspace_repo: "https://github.com/acme/workspace.git",
-    soul: "role: Researcher\n\nCurious and concise.",
     spend_usd: 1.25,
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
-    permission_cutover_report: {
-      ready: false,
-      legacy_grants: [{ capability: "workspace.files", approval_policy: "auto", effective_policy: "allow", scope: null, constraints: {} }],
-      recommended_defaults: [],
-      lost_authority: [],
-      requestable_replacements: [],
-      descriptor_gaps: [{ legacy_capability: "workspace.files", tools: [], reasons: ["missing explicit descriptors"] }],
-      migration_errors: []
-    },
     grant_catalog: grantCatalog,
     schedules: [
       {
@@ -101,7 +92,8 @@ const detailPayload = {
         fire_at: null,
         next_fire_at: "2026-10-30T09:00:00Z",
         last_fired_at: null,
-        after_run: "wake"
+        after_run: "wake",
+        latest_result: { occurred_at: null, target_date: null, outcome: "never_run", reason: null, job: null, job_needed: null }
       },
       {
         id: 32,
@@ -114,7 +106,15 @@ const detailPayload = {
         fire_at: "2026-10-29T09:00:00Z",
         next_fire_at: null,
         last_fired_at: "2026-10-29T09:00:00Z",
-        after_run: "quiet"
+        after_run: "quiet",
+        latest_result: {
+          occurred_at: "2026-10-29T09:00:00Z",
+          target_date: null,
+          outcome: "succeeded",
+          reason: null,
+          job: { id: 42, slug: "JOB-42", path: "/jobs/42" },
+          job_needed: true
+        }
       }
     ],
     message_traffic: {
@@ -130,9 +130,10 @@ Object.assign(detailPayload, detailPayload.coworker)
 
 const activityPayload = {
   spend: { week_usd: 0.75, total_usd: 1.25 },
-  runs: [],
+  jobs: [],
   side_chats: [],
-  next_cursors: { runs: null, side_chats: null },
+  next_cursors: { jobs: null, side_chats: null },
+  filtered: false,
   message_traffic: detailPayload.coworker.message_traffic
 }
 
@@ -194,7 +195,14 @@ it("shows overdue journaling with the durable failure reason", async () => {
     last_system_result: "failed",
     last_system_result_reason: "RuntimeError: workspace locked",
     journaling_overdue: true,
-    system_result_history: []
+    latest_result: {
+      occurred_at: "2026-11-06T00:30:00Z",
+      target_date: "2026-11-05",
+      outcome: "failed",
+      reason: "RuntimeError: workspace locked",
+      job: { id: 43, slug: "JOB-43", path: "/jobs/43" },
+      job_needed: true
+    }
   } as never)
   vi.stubGlobal(
     "fetch",
@@ -205,6 +213,9 @@ it("shows overdue journaling with the durable failure reason", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: "Schedule" }))
   expect(await screen.findByRole("status")).toHaveTextContent("Journaling overdue / failed: RuntimeError: workspace locked")
+  expect(screen.getByRole("alert")).toHaveTextContent("Latest result: Failed")
+  expect(screen.getByRole("alert")).toHaveTextContent("RuntimeError: workspace locked")
+  expect(screen.getByRole("link", { name: "JOB-43" })).toHaveAttribute("href", "/jobs/43")
 })
 
 it("tests the remote and submits appearance, upload, grants, and About", async () => {
@@ -344,16 +355,16 @@ it("loads older activity through the returned cursors", async () => {
     if (path.endsWith("/chats")) {
       return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
     }
-    if (path.includes("runs_cursor=")) {
+    if (path.includes("jobs_cursor=")) {
       return jsonResponse({
         ...activityPayload,
-        runs: [{ id: 1, job_id: 1, state: "succeeded", started_at: null, finished_at: null, tool_calls_count: 0, cost_usd: 0 }]
+        jobs: [activityJob(1)]
       })
     }
     return jsonResponse({
       ...activityPayload,
-      runs: [{ id: 51, job_id: 51, state: "succeeded", started_at: null, finished_at: null, tool_calls_count: 0, cost_usd: 0 }],
-      next_cursors: { runs: "NTE", side_chats: null }
+      jobs: [activityJob(51)],
+      next_cursors: { jobs: "NTE", side_chats: null }
     })
   })
   vi.stubGlobal("fetch", fetchSpy)
@@ -362,11 +373,87 @@ it("loads older activity through the returned cursors", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
   fireEvent.click(await screen.findByRole("button", { name: "Load more" }))
 
-  expect(await screen.findByText("RUN-1")).toBeInTheDocument()
-  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("runs_cursor=NTE"))).toBe(true)
+  expect(await screen.findByText(/JOB-1/)).toBeInTheDocument()
+  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("jobs_cursor=NTE"))).toBe(true)
 })
 
-it("renders the custom profile, editable capabilities, and creates side chats", async () => {
+it("renders Job-centered activity with linked attempts and a bounded failure reason", async () => {
+  const job = activityJob(42)
+  job.state = "failed"
+  job.outcome_reason = "The source service was unavailable"
+  job.tool_calls_count = 3
+  job.cost_usd = 1.5
+  job.attempts = [
+    {
+      id: 9,
+      slug: "WF-9",
+      path: "/jobs/42?tab=workflows#workflow-9",
+      state: "failed",
+      started_at: "2026-10-29T10:00:00Z",
+      finished_at: "2026-10-29T10:01:00Z",
+      duration_seconds: 60,
+      failure_reason: "The source service was unavailable",
+      tool_calls_count: 3,
+      cost_usd: 1.5,
+      runs: [
+        {
+          id: 11,
+          slug: "RUN-11",
+          path: "/jobs/42?tab=workflows#workflow-9",
+          state: "failed",
+          started_at: null,
+          finished_at: null,
+          duration_seconds: 60,
+          tool_calls_count: 3,
+          cost_usd: 1.5
+        }
+      ]
+    }
+  ]
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/activity") ? jsonResponse({ ...activityPayload, jobs: [job] }) : jsonResponse(detailPayload)
+    )
+  )
+  renderRoute("/coworkers/7")
+
+  fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
+
+  const jobLinks = await screen.findAllByRole("link", { name: /JOB-42.*Prepare the report/ })
+  expect(jobLinks.some((link) => link.getAttribute("href") === "/jobs/42")).toBe(true)
+  expect(screen.getByText("Prepare the report.")).toBeInTheDocument()
+  expect(screen.getAllByText(/3 tool calls.*\$1.50/).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(/The source service was unavailable/).length).toBeGreaterThan(0)
+  fireEvent.click(screen.getByText("1 attempt"))
+  expect(screen.getByRole("link", { name: "WF-9" })).toBeInTheDocument()
+  const runLink = screen.getByRole("link", { name: "RUN-11" })
+  expect(runLink).toBeInTheDocument()
+  expect(runLink.closest("li")).toHaveTextContent("RUN-11 · failed · 1m 0s · 3 tool calls · $1.50")
+})
+
+function activityJob(id: number): CoworkerActivityPayload["jobs"][number] {
+  return {
+    id,
+    slug: `JOB-${id}`,
+    title: "Prepare the report",
+    goal_summary: "Prepare the report.",
+    path: `/jobs/${id}`,
+    state: "succeeded",
+    source: "coworker_run",
+    schedule_name: null,
+    created_at: "2026-10-29T10:00:00Z",
+    started_at: "2026-10-29T10:00:00Z",
+    finished_at: "2026-10-29T10:01:00Z",
+    duration_seconds: 60,
+    tool_calls_count: 0,
+    cost_usd: 0,
+    outcome_reason: null,
+    attempts: []
+  }
+}
+
+it("keeps metadata in Edit, renders capabilities, and creates side chats", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -378,21 +465,88 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   const invalidateQueries = vi.spyOn(client, "invalidateQueries")
   expect(await screen.findByRole("heading", { name: "Maya" })).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Main chat" })).toHaveAttribute("href", "/chats/12")
-  fireEvent.click(screen.getByRole("button", { name: "Profile" }))
-  expect(await screen.findByText("gpt-6.1-sol")).toBeInTheDocument()
-  expect(screen.getByText(/Curious and concise/)).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/coworkers/7/edit")
+  expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(await screen.findByRole("heading", { name: "Permission cutover report" })).toBeInTheDocument()
-  expect(screen.getByText("Blocked")).toBeInTheDocument()
-  expect(screen.getByText(/workspace.files: missing explicit descriptors/)).toBeInTheDocument()
-  expect(screen.getByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
+  expect(await screen.findByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
+  expect(screen.queryByRole("heading", { name: "Permission cutover report" })).not.toBeInTheDocument()
   expect(screen.getByText("Gmail")).toBeInTheDocument()
   expect(screen.getAllByText("Coming later")).toHaveLength(2)
   fireEvent.click(screen.getByRole("button", { name: "Chat" }))
   fireEvent.click(screen.getByRole("button", { name: "New side chat" }))
   expect(await screen.findByText("Chat destination")).toBeInTheDocument()
   expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["coworkers", "7", "chats"] })
+  expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["coworkers", "7", "conversation-index"] })
   expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["chats"] })
+})
+
+it("renders the pinned conversation index and keeps sorting in the URL", async () => {
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path.includes("conversation_index")) {
+      return jsonResponse({
+        main_chat: {
+          id: 12,
+          title: "Maya",
+          path: "/chats/12",
+          main: true,
+          preview: "Main thread",
+          last_activity_at: "2026-11-18T10:00:00Z",
+          created_at: "2026-11-01T10:00:00Z",
+          archived: false,
+          unread: false,
+          active_work: false,
+          title_match: false,
+          match_count: 0,
+          match: null
+        },
+        side_chats: [
+          {
+            id: 44,
+            title: "Release research",
+            path: "/chats/44",
+            main: false,
+            preview: "Compare the release notes",
+            last_activity_at: "2026-11-18T11:00:00Z",
+            created_at: "2026-11-17T10:00:00Z",
+            archived: false,
+            unread: true,
+            active_work: true,
+            title_match: false,
+            match_count: 2,
+            match: { message_id: 91, snippet: "Compare the <mark>release</mark> notes" }
+          }
+        ],
+        result_count: 1,
+        result_count_exact: false,
+        next_cursor: null,
+        filter: { and: [] },
+        filter_schema: [{ field: "search", label: "Search", bucket: "text", operators: ["contains"], values: [], free_text_search: true }],
+        sort: path.includes("sort=title") ? "title" : "last_activity"
+      })
+    }
+    if (path.endsWith("/chats")) return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7?tab=chat")
+
+  expect(await screen.findByRole("link", { name: /Release research/ })).toHaveAttribute("href", "/chats/44#message-91")
+  expect(screen.getByText("Unread")).toBeInTheDocument()
+  expect(screen.getByText("Active work")).toBeInTheDocument()
+  expect(screen.getByText("2 matches")).toBeInTheDocument()
+  expect(screen.getByText("First 1 matching side chats")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: /Add filter/ })).toBeInTheDocument()
+  expect(screen.getByText("release", { selector: "mark" })).toBeInTheDocument()
+  expect(screen.getByLabelText("Actions for Release research")).toBeInTheDocument()
+
+  const sort = screen.getByRole("combobox", { name: "Sort" })
+  expect(sort).toHaveClass("mt-1", "max-w-full", "sm:ml-2", "sm:mt-0")
+  expect(sort.parentElement).toHaveClass("w-full", "sm:w-auto")
+  expect(sort.parentElement?.parentElement).toHaveClass("flex-col", "items-stretch", "sm:flex-row", "sm:items-end")
+
+  fireEvent.change(sort, { target: { value: "title" } })
+  await waitFor(() => expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("conversation_index?sort=title"))).toBe(true))
 })
 
 it("prevents duplicate side-chat submissions and shows API failures", async () => {
@@ -695,79 +849,147 @@ it("shows pending approvals with the originating run and tool input and allows r
   await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["sidebar_badge", "coworkers.index"] }))
 })
 
-it("browses, searches, and renders coworker memory without write controls", async () => {
+it("redirects old profile and memory links into scoped Workspace views", async () => {
+  const requests: string[] = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      requests.push(String(input))
+      if (String(input).includes("/workspace"))
+        return jsonResponse({
+          remote: "remote",
+          branch: "coworkers/maya",
+          files: [],
+          results: [],
+          total: 0,
+          next_cursor: null,
+          incomplete_reasons: [],
+          partial: false,
+          selected_file: null,
+          commits: [],
+          conflicts: [],
+          branch_counts: { home: 1, chat: 0, run: 0 }
+        })
+      return jsonResponse(detailPayload)
+    })
+  )
+  const profile = renderRoute("/coworkers/7?tab=profile")
+  expect(await screen.findByRole("button", { name: "Workspace" })).toHaveClass("font-semibold")
+  await waitFor(() => expect(requests.some((path) => path.includes("path=SOUL.md"))).toBe(true))
+  profile.unmount()
+
+  renderRoute("/coworkers/7?tab=memory")
+  expect(await screen.findByRole("button", { name: "Workspace" })).toHaveClass("font-semibold")
+  await waitFor(() => expect(requests.some((path) => path.includes("path_prefix=memory"))).toBe(true))
+  expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument()
+})
+
+it("navigates the accessible workspace tree, scopes paths, and renders breadcrumbs", async () => {
   const requests: string[] = []
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
       requests.push(path)
-      if (path.includes("/memory")) {
-        const matches = path.includes("search=evidence")
-          ? [{ path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Thomas likes **evidence**.", truncated: false }]
-          : [
-              { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\nShipped it.", truncated: false },
-              { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Thomas likes **evidence**.", truncated: false }
-            ]
-        return jsonResponse({ files: matches, search: "", truncated: false, partial: false, search_incomplete: false })
+      if (path.includes("/workspace")) {
+        const selected = new URL(path, "http://example.test").searchParams.get("path")
+        return jsonResponse({
+          remote: "https://github.com/acme/workspace.git",
+          branch: "coworkers/maya",
+          files: [
+            { path: "memory/today.md", type: "file", size: 5, extension: "md", area: "memory" },
+            { path: "projects/deep/note.md", type: "file", size: 6, extension: "md", area: "projects" }
+          ],
+          results: [],
+          total: 0,
+          page_start: 0,
+          page_end: 0,
+          previous_cursor: null,
+          next_cursor: null,
+          incomplete_reasons: [],
+          partial: false,
+          selected_file: selected ? { path: selected, content: "# Nested", truncated: false, binary: false } : null,
+          commits: [],
+          conflicts: [],
+          branch_counts: { home: 1, chat: 0, run: 0 }
+        })
       }
       return jsonResponse(detailPayload)
     })
   )
-  renderRoute("/coworkers/7")
-  await screen.findByRole("heading", { name: "Maya" })
-  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
-  expect(await screen.findByRole("heading", { name: "2026-10-29" })).toBeInTheDocument()
-  expect(screen.getByRole("heading", { name: "Today" })).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "Open your Syrus memories" })).toHaveAttribute("href", "/memories")
-  expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
+  renderRoute("/coworkers/7?tab=workspace")
 
-  fireEvent.click(screen.getByRole("button", { name: /add filter/i }))
-  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "evidence" } })
-  fireEvent.click(screen.getByRole("button", { name: "Search for evidence" }))
-  expect(await screen.findByRole("heading", { name: "thomas" })).toBeInTheDocument()
-  expect(requests.some((path) => path.includes("search=evidence"))).toBe(true)
+  const projects = await screen.findByRole("treeitem", { name: "▸ projects" })
+  expect(screen.getAllByRole("treeitem").filter((item) => item.tabIndex === 0)).toHaveLength(1)
+  expect(projects).toHaveAttribute("aria-expanded", "false")
+  fireEvent.keyDown(projects, { key: "ArrowRight" })
+  expect(projects).toHaveAttribute("aria-expanded", "true")
+  expect(projects.closest("li")?.querySelector("[role=group]")).toContainElement(screen.getByRole("treeitem", { name: "▸ deep" }))
+  const deep = screen.getByRole("treeitem", { name: "▸ deep" })
+  fireEvent.click(deep)
+  const note = screen.getByRole("treeitem", { name: "note.md" })
+  fireEvent.keyDown(deep, { key: "ArrowRight" })
+  expect(note).toHaveFocus()
+  fireEvent.click(note)
+  expect(await screen.findByRole("navigation", { name: "Selected file path" })).toHaveTextContent("projects / deep / note.md")
+  expect(requests.some((request) => request.includes("path=projects%2Fdeep%2Fnote.md"))).toBe(true)
+
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+  await waitFor(() => expect(requests.some((request) => request.includes("path_prefix=memory"))).toBe(true))
+  fireEvent.click(await screen.findByRole("button", { name: "All files" }))
+  await waitFor(() => expect(requests.at(-1)).not.toContain("path_prefix=memory"))
 })
 
-it("shows clear empty and unreachable memory states", async () => {
-  let unavailable = false
+it("highlights workspace matches, paginates, and warns about bounded results", async () => {
+  const requests: string[] = []
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes("/memory"))
-        return unavailable
-          ? jsonResponse({ error: { message: "offline" } }, 503)
-          : jsonResponse({ files: [], search: "", truncated: false, partial: false, search_incomplete: false })
+      const path = String(input)
+      requests.push(path)
+      if (path.includes("/workspace"))
+        return jsonResponse({
+          remote: "remote",
+          branch: "coworkers/maya",
+          files: [],
+          results: [
+            {
+              path: "notes.md",
+              type: "file",
+              size: 20,
+              extension: "md",
+              area: "notes.md",
+              binary: false,
+              truncated: false,
+              snippet: "before needle after",
+              highlights: [{ start: 7, length: 6 }],
+              last_modified_at: null
+            }
+          ],
+          total: 101,
+          page_start: path.includes("cursor=") ? 101 : 1,
+          page_end: path.includes("cursor=") ? 101 : 100,
+          previous_cursor: path.includes("cursor=") ? "MA" : null,
+          next_cursor: path.includes("cursor=") ? null : "MTAw",
+          incomplete_reasons: ["search_limit"],
+          partial: true,
+          selected_file: null,
+          commits: [],
+          conflicts: [],
+          branch_counts: { home: 1, chat: 0, run: 0 }
+        })
       return jsonResponse(detailPayload)
     })
   )
-  const view = renderRoute("/coworkers/7")
-  await screen.findByRole("heading", { name: "Maya" })
-  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
-  expect(await screen.findByText("This coworker has no memory yet.")).toBeInTheDocument()
+  const view = renderRoute("/coworkers/7?tab=workspace&search=needle")
 
-  unavailable = true
-  view.unmount()
-  renderRoute("/coworkers/7")
-  await screen.findByRole("heading", { name: "Maya" })
-  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
-  expect(await screen.findByText("This coworker's memory cannot be reached right now.")).toBeInTheDocument()
-})
-
-it("does not claim that an incomplete search has no matches", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes("/memory")) return jsonResponse({ files: [], search: "needle", truncated: true, partial: true, search_incomplete: true })
-      return jsonResponse(detailPayload)
-    })
-  )
-  renderRoute("/coworkers/7?search=needle")
-  await screen.findByRole("heading", { name: "Maya" })
-  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
-
-  expect(await screen.findByText("Some memory content could not be searched. These results may be incomplete.")).toBeInTheDocument()
-  expect(screen.queryByText("No memory files match this search.")).not.toBeInTheDocument()
+  expect(await screen.findByText("Some results may be missing because repository content or history exceeded a safe search bound.")).toBeInTheDocument()
+  expect(view.container.querySelector("mark")).toHaveTextContent("needle")
+  expect(screen.getByText("Showing 1–100 of 101")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Next" }))
+  await waitFor(() => expect(requests.some((request) => request.includes("cursor=MTAw"))).toBe(true))
+  expect(await screen.findByText("Showing 101–101 of 101")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled()
 })
 
 it("warns when the workspace tree and selected file are truncated", async () => {
@@ -779,7 +1001,14 @@ it("warns when the workspace tree and selected file are truncated", async () => 
         return jsonResponse({
           remote: "https://github.com/acme/workspace.git",
           branch: "coworkers/maya",
-          files: [{ path: "README.md", type: "file" }],
+          files: [{ path: "README.md", type: "file", size: 10, extension: "md", area: "README.md" }],
+          results: [],
+          total: 0,
+          page_start: 0,
+          page_end: 0,
+          previous_cursor: null,
+          next_cursor: null,
+          incomplete_reasons: [],
           partial: true,
           selected_file: path.includes("path=") ? { path: "README.md", content: "# Partial", truncated: true, binary: false } : null,
           commits: [],
@@ -795,7 +1024,7 @@ it("warns when the workspace tree and selected file are truncated", async () => 
 
   expect(await screen.findByText("This workspace tree is incomplete. Only the available files are shown.")).toBeInTheDocument()
   expect(screen.getByText("Branches: 1 home · 4 chat · 2 run")).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "README.md" }))
+  fireEvent.click(screen.getByRole("treeitem", { name: "README.md" }))
   expect(await screen.findByText("This large file is shown in part.")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
 })
@@ -913,6 +1142,12 @@ it("lists and manages schedules on the coworker page", async () => {
   expect(await screen.findByText("Morning briefing")).toBeInTheDocument()
   expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "After each run" })).toHaveValue("wake")
+  expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+  const historyLink = screen.getAllByRole("link", { name: "View all runs" })[0]
+  const encoded = new URL(historyLink.getAttribute("href")!, "https://example.test").searchParams.get("q")!
+  const standard = encoded.replace(/-/g, "+").replace(/_/g, "/")
+  const decoded = JSON.parse(decodeURIComponent(escape(atob(standard.padEnd(Math.ceil(standard.length / 4) * 4, "=")))))
+  expect(decoded).toEqual({ and: [{ field: "scheduled_task_id", op: "is", value: "31" }] })
   const firedRow = screen.getByText("Completed one-shot").closest("li")
   expect(firedRow).not.toBeNull()
   expect(within(firedRow!).queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()

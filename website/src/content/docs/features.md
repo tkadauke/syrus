@@ -625,6 +625,12 @@ and After side by side (stacked on narrow screens), while added or removed
 files show only the side that exists. Either side can temporarily expand to
 the full diff width without opening a modal.
 
+The Review tab defaults to **All changes**, the full PR diff from the Job's
+merge base to its current branch head. Individual implementation, feedback,
+and repair step ranges remain available in the version selector. If the full
+PR range cannot be loaded or recovered, Syrus labels the displayed fallback
+as a step diff instead of presenting it as the complete PR diff.
+
 The review tab also shows a PR-level review-note debt rollup for the
 selected diff version: total flagged ranges, open/unacknowledged notes,
 acknowledged notes, dismissed notes, and a zero-note state when the reviewer
@@ -955,7 +961,10 @@ New tasks can be created from a repository's Schedules tab, or from the
 top-level Schedules page's "New scheduled task" button. The top-level entry
 point isn't scoped to a repository, so it asks the operator to pick one
 first; after that, the rest of the form is identical to the repository-scoped
-flow.
+flow. On the top-level Schedules page, each task's schedule shows its cadence
+in the task's stored time zone and the next run as a relative time. Hover over
+the relative time to see the absolute date and time in your configured time
+zone. Paused, fired, and otherwise unscheduled tasks show **No upcoming run**.
 
 ## Chats
 
@@ -991,9 +1000,19 @@ the coworker's read access to that source chat.
 
 Coworker detail tabs load independently, so opening a coworker does not fetch
 remote profile content, chat rosters, permissions, schedules, and activity all
-at once. Activity initially shows the 50 newest runs and side chats and offers
+at once. Activity initially shows the 50 newest Jobs and side chats and offers
 **Load more** for older entries. Memory and workspace file listings are capped
 at 1,000 entries and clearly identify partial results.
+
+The coworker Chat tab pins the main chat above a paginated side-chat index.
+The index uses the shared FilterBar to search titles and message contents and
+to filter by active or archived state, unread state, active work, creation
+date, and last activity. Filters and sorting remain in the URL. Search results
+show bounded highlighted excerpts and match counts, while each side chat offers
+rename, archive or restore, and delete actions. A new side chat initially uses
+the coworker's name for orientation, then adopts the normal generated chat
+title after its first substantive message; an explicit rename is never
+overwritten.
 
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
@@ -1326,8 +1345,13 @@ a concrete enabled provider for later feedback, rebase, and retry workflows on
 that Job. The same page exposes job-specific routing rules and a resolved
 provider explanation, including the matched scope or rule, so operators can see
 why future work will use a provider before starting another workflow. Rules can
-be enabled inline, duplicated, edited, deleted, and reordered without disabled
-rules losing their ordered position. The rules editor's Test button runs the
+name a specific provider account; candidates without an account select from the
+user's healthy enabled account pool. Syrus weighs remaining capacity, active
+Workflow assignments, and account weights, then pins the selected account for
+the Workflow before its first Run. Unavailable accounts are skipped before
+cross-provider fallback, while resumable work stays on its original account.
+Routing rules can be enabled inline, duplicated, edited, deleted, and reordered
+without disabled rules losing their ordered position. The rules editor's Test button runs the
 rule set against any Job you can see for a chosen step or chat role and shows
 which rule wins and why each other rule was skipped. Disabled rules remain visible but muted,
 are skipped during evaluation, and the first enabled matching rule wins. A rule
@@ -2258,19 +2282,15 @@ About text already written to its identity files, it greets the owner in its
 own voice, summarizes its understanding of the role, and asks a few concrete
 questions about anything unclear or missing—or asks what to work on first when
 nothing needs clarification. The identity files and first conversation include
-the coworker's configured name and its owner's display name. Each coworker's
-Capabilities tab also shows a read-only unified-permission cutover report. It
-compares legacy grants with recommended defaults, calls out removed authority
-and requestable replacements, and blocks migration when capability descriptors
-or registry validation are incomplete. Viewing the report never converts a
-legacy grant into active authority.
-The Memory tab is a read-only, searchable browser for the daily, people, repository,
-and bank Markdown files on its home branch. It shows recent daily files first, links to
-the owner's existing Syrus memories, and reports empty and unreachable remotes
-separately. Large or provider-truncated trees remain browseable with an explicit
-partial-results warning, including when a content search cannot be complete.
-The Workspace tab similarly browses the home branch without edit controls. It
-shows the remote and branch, file previews (including rendered Markdown),
+the coworker's configured name and its owner's display name. The Capabilities
+tab shows current effective permission rules, scopes, approval policies, and
+actionable availability errors.
+Workspace is the unified read-only browser for identity files, memory, and all
+other files on the coworker's home branch. It provides a collapsible folder
+tree, breadcrumbs, `SOUL.md` and Memory shortcuts, and server-side filename and
+content filtering with explicit bounded-result notices. Old Profile and Memory
+links open their corresponding Workspace scope. It shows the remote and branch,
+file previews (including rendered Markdown),
 available commit attribution, and unmerged chat branches holding conflicts.
 Incomplete trees and capped files are labeled. **Test push access** verifies
 credentials with a randomized throwaway `coworkers/` ref that is deleted
@@ -2317,6 +2337,10 @@ merge and conflict reporting as chat turns; failed runs also count toward
 schedule auto-pause and close their internal Jobs. Coworker
 pushes are restricted to that coworker's home, chat, run, and archive refs as
 a navigation guard, not as a security boundary.
+Each schedule card shows only its latest result, including a failure or skip
+reason when useful. A linked Job opens directly, while **View all runs** opens
+the Jobs dashboard with an exact schedule filter. Journaling occurrences that
+needed no Job are distinct from schedules that have never run.
 Coworkers have no product-code access by default. An owner can grant
 `code.read` for selected accessible repositories or all repositories they can
 read. The grant unlocks read-only checkout attachment in chats, capped and
@@ -2384,8 +2408,10 @@ thread, and the other chat must be an ordinary, non-coworker chat belonging to
 that owner. Replies retain the
 bridge's hop limit and automatic closure. The coworker must call the reply tool;
 plain text written only in its own chat is not relayed to the owner chat.
-Coworker conversations are kept
-in a separate chat-list group and carry the coworker's avatar and color. Search
+Coworker conversations are kept in a separate chat-list group. Each coworker's
+main chat acts as a collapsed folder for its side chats; expanding it initially
+shows the configured number of chats, with controls to show more or fewer.
+Conversations carry the coworker's avatar and color. Search
 labels these conversations and offers a coworker filter alongside the built-in
 Syrus option. Messages between coworkers show the other coworker's name,
 avatar, and accent color in both the sender's and receiver's chats. A chat owner
@@ -2415,8 +2441,11 @@ Disabling the plugin removes its page, chat grouping, and other runtime contribu
 preserving stored records for later re-enablement.
 
 Coworker cards show current-week spend. Each coworker's Activity tab combines
-weekly and total chat and background-Run spend with Run status, tool-call
-counts, side-chat costs, and coworker-message traffic. These figures are
+weekly and total chat and background-Job spend with Job status, timing,
+tool-call counts, and cost. Workflow and Run attempts remain available as
+expandable technical detail. The history uses shared filters for state, date,
+schedule or trigger source, failures, and title or goal text. Side-chat costs
+and coworker-message traffic remain separate sections. These figures are
 informational and do not impose a budget or add coworker data to the instance
 Spending page.
 

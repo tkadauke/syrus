@@ -52,6 +52,7 @@ RSpec.describe Steps::Push do
     workflow.set_artifact!("job_metadata_applied", { "changed" => true })
 
     expect(handler).not_to receive(:update_managed_pr_footers)
+    expect(handler).to receive(:persist_pushed_all_changes_version!)
 
     handler.call
   end

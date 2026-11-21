@@ -17,15 +17,17 @@ RSpec.describe Workflows::MergeTrain do
   context "without coverage configured" do
     before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(nil) }
 
-    it "materializes the assemble → build → reconcile → prepare → graders → land chain" do
+    it "materializes the assemble → build → prepare → reconcile → graders → land chain" do
       train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
       workflow = described_class.instantiate(job: tip, artifacts: { "merge_train_id" => train.id })
 
       ordered_kinds = workflow.steps.order(:position).pluck(:kind)
       expect(ordered_kinds).to eq(
-        %w[ merge_train_assemble merge_train_build merge_train_reconcile prepare grader_fanout grader_collect merge_train_land ]
+        %w[ merge_train_assemble merge_train_build prepare merge_train_reconcile grader_fanout grader_collect merge_train_land ]
       )
-      expect(ordered_kinds.index("merge_train_reconcile")).to be < ordered_kinds.index("prepare")
+      # The reconcile agent runs the integrated suite, so dependencies are
+      # installed before it rather than by it.
+      expect(ordered_kinds.index("prepare")).to be < ordered_kinds.index("merge_train_reconcile")
       expect(ordered_kinds.index("merge_train_reconcile")).to be < ordered_kinds.index("grader_fanout")
       expect(Step::Kind.fetch("merge_train_reconcile").agentic).to be(true)
       expect(Step::Kind.fetch("merge_train_agent").agentic).to be(true)
@@ -60,7 +62,7 @@ RSpec.describe Workflows::MergeTrain do
       workflow = described_class.instantiate(job: tip, artifacts: { "merge_train_id" => train.id })
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ merge_train_assemble merge_train_build merge_train_reconcile prepare grader_fanout grader_collect merge_train_land ]
+        %w[ merge_train_assemble merge_train_build prepare merge_train_reconcile grader_fanout grader_collect merge_train_land ]
       )
     end
   end

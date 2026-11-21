@@ -97,6 +97,13 @@ class MergeTrainDispatcher
       return "#{landing_job.slug} is already landing for #{@epic.repository.slug}"
     end
 
+    # Not a cooldown, so bypass_cooldown does not skip it: the last train could
+    # not place a step on any live worker and stays held until one is back.
+    held_job_ids = @epic.jobs.where(landing_failure_code: LandingFailureCode::NO_CAPABLE_WORKER).pluck(:id)
+    if held_job_ids.any? && (hold = LandingCapabilityHold.active_for(@epic.jobs.pluck(:id)))
+      return hold.reason
+    end
+
     if !@bypass_cooldown && (failed_train = cooling_down_failure)
       return cooldown_reason(failed_train)
     end

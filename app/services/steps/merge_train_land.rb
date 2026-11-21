@@ -52,7 +52,8 @@ module Steps
       merged = merge.respond_to?(:merged) ? merge.merged : merge[:merged]
       raise StepFailed, "merge_train: GitHub did not report the integration PR as merged" unless merged
 
-      integration_sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
+      integration_sha = (merge.respond_to?(:sha) ? merge.sha : merge[:sha]).presence ||
+        merged_pr_merge_commit_sha(client, pr)
       record_integration_merge_commit!(train, integration_sha)
       delete_branch_after_landing(client, train.integration_branch)
       unverified_members = reconcile_members_after_landing!(train, client, pr, integration_sha: integration_sha)
@@ -296,15 +297,47 @@ module Steps
       state.to_s == "open"
     end
 
+    # GitHub answers a merge with 405 "Base branch was modified. Review and try
+    # the merge again" while it is still recomputing mergeability -- for
+    # example right after the integration branch was pushed -- even when the
+    # base has not moved. Treating that as a conflict closed a fully graded
+    # train's integration PR and threw away four rounds of landing fixes.
+    BASE_MODIFIED_RETRY_DELAYS = [ 2, 5, 10 ].freeze
+    class_attribute :merge_retry_sleeper, default: ->(seconds) { sleep(seconds) }
+
     def merge_integration_pr(train, client, pr, expected_sha:)
-      client.merge_pull_request(
-        repository.slug,
-        pr.number,
-        commit_title: "Merge #{train.label} via Syrus merge-train",
-        merge_method: "merge",
-        sha: expected_sha
-      )
-    rescue Octokit::MethodNotAllowed => e
+      attempts = 0
+      begin
+        # The merge cannot be undone: stop if the landing was stopped or the Job
+        # closed since the gate passed (formal/SyrusModel/MergeFence.lean).
+        # Inside the retry, so a retry after a sleep re-checks too.
+        ensure_run_still_active!("merge")
+        client.merge_pull_request(
+          repository.slug,
+          pr.number,
+          commit_title: "Merge #{train.label} via Syrus merge-train",
+          merge_method: "merge",
+          sha: expected_sha
+        )
+      rescue Octokit::MethodNotAllowed => e
+        if transient_base_modified?(e) && attempts < BASE_MODIFIED_RETRY_DELAYS.size &&
+            fetch_current_base_sha(train, client) == workflow.artifact(BASE_SHA_ARTIFACT).to_s.presence
+          delay = BASE_MODIFIED_RETRY_DELAYS[attempts]
+          attempts += 1
+          log("merge_train: GitHub reported the base as modified while it is unchanged; retrying the merge in #{delay}s (#{attempts}/#{BASE_MODIFIED_RETRY_DELAYS.size})")
+          self.class.merge_retry_sleeper.call(delay)
+          retry
+        end
+
+        handle_refused_integration_merge(train, client, pr, e)
+      end
+    end
+
+    def transient_base_modified?(error)
+      error.message.to_s.match?(/base branch was modified/i)
+    end
+
+    def handle_refused_integration_merge(train, client, pr, e)
       built_base_sha = workflow.artifact(BASE_SHA_ARTIFACT).to_s.presence
       current_base_sha = fetch_current_base_sha(train, client)
 
@@ -360,6 +393,16 @@ module Steps
       nil
     end
 
+    # GitHub's merge response normally carries the merge commit SHA; when it
+    # does not, the merged PR's own record does.
+    def merged_pr_merge_commit_sha(client, pr)
+      merged_pr = client.pull_request(repository.slug, pr.number)
+      (merged_pr.respond_to?(:merge_commit_sha) ? merged_pr.merge_commit_sha : merged_pr[:merge_commit_sha]).presence
+    rescue Octokit::Error, Faraday::Error => e
+      log("merge_train: could not read merge commit for integration PR ##{pr.number} (#{e.class}); members stay unverified", kind: "system")
+      nil
+    end
+
     def reconcile_members!(train, client, integration_pr, integration_sha: nil)
       ensure_landed_history_fetched!(train, integration_sha) if integration_sha.present?
       unverified_members = []
@@ -367,7 +410,9 @@ module Steps
       train.members.includes(:job).each do |member|
         member_job = member.job
 
-        if integration_sha.present? && !member_landed?(member_job, integration_sha, train: train, client: client)
+        # No integration SHA means no evidence: never mark a member merged
+        # (and close its Job) without verifying its work reached the base.
+        unless integration_sha.present? && member_landed?(member_job, integration_sha, train: train, client: client)
           handle_unverified_member!(member, member_job, integration_sha)
           unverified_members << member
           next
@@ -376,9 +421,13 @@ module Steps
         reconcile_member_pull_request_after_landing(client, member_job, integration_pr)
         if member_job.may_close?
           member_job.update_column(:landed_sha, integration_sha) if integration_sha.present?
-          member_job.close_with_reason!("pr_merged")
+          workflow.request_job_closure!(member_job, "pr_merged")
         end
         if member_job.branch_name.present?
+          StackChildPullRequestRetargeter.call(
+            client: client, parent: member_job, base: train.base_branch,
+            skip_job_ids: train.members.map(&:job_id), log: ->(message) { log("merge_train: #{message}") }
+          )
           member_job.update_column(:branch_deleted_at, Time.current) if delete_branch_after_landing(client, member_job.branch_name)
         end
         member.update!(state: "merged")
@@ -462,7 +511,9 @@ module Steps
 
       case ancestor_of_integration(last_row.sha, integration_sha)
       when :ancestor then true
-      when :not_ancestor then patch_equivalent_on_landed_base?(member_job, train, client)
+      when :not_ancestor
+        rebased_into_integration?(member_job, last_row.sha, integration_sha) ||
+          patch_equivalent_on_landed_base?(member_job, train, client)
       when :indeterminate then trust_recent_build_evidence?(member_job, last_row) || patch_equivalent_on_landed_base?(member_job, train, client)
       end
     end
@@ -479,6 +530,47 @@ module Steps
     # reached once ancestry has already said no or could not say -- this is a
     # fallback, not a replacement, because it costs a full clone of the base
     # branch.
+    # merge_train_rebase replays the whole integration branch onto a moved
+    # base, which gives every member's integrated commit a new SHA, while the
+    # member's LandedCommit rows (written by merge_train_build) keep the old
+    # ones. Ancestry then says "no" for every member of every rebased train.
+    # A clean rebase preserves each commit's patch-id, so the member landed if
+    # a commit with the same patch-id is in what this train integrated on top
+    # of the new base. Checked against the integration itself, not the base
+    # branch: a landing fix changes the member's content relative to its own
+    # branch, which defeats patch_equivalent_on_landed_base?.
+    def rebased_into_integration?(member_job, recorded_sha, integration_sha)
+      new_base = workflow.artifact("merge_train_rebase_new_base_sha").presence
+      return false unless new_base
+
+      chdir = workspace.path.to_s
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      target = patch_id_for(git, recorded_sha, chdir)
+      return false if target.blank?
+
+      candidates = git.run("rev-list", "#{new_base}..#{integration_sha}", chdir: chdir).to_s.split("\n").map(&:strip).reject(&:empty?)
+      match = candidates.find { |sha| patch_id_for(git, sha, chdir) == target }
+      if match
+        log(
+          "merge_train: #{member_job.slug}'s recorded commit #{recorded_sha.to_s.first(9)} was rewritten by the " \
+          "integration rebase; #{match.to_s.first(9)} carries the same patch into what landed",
+          kind: "system"
+        )
+      end
+      match.present?
+    rescue GitRunner::GitError => e
+      log("merge_train: rebased-integration check for #{member_job.slug} failed: #{e.class}: #{e.message}", kind: "system")
+      false
+    end
+
+    def patch_id_for(git, sha, chdir)
+      @patch_ids ||= {}
+      return @patch_ids[sha] if @patch_ids.key?(sha)
+
+      diff = git.run("diff-tree", "-p", "--no-color", sha, chdir: chdir).to_s
+      @patch_ids[sha] = diff.blank? ? nil : git.run("patch-id", "--stable", chdir: chdir, stdin_data: diff).to_s.split.first.presence
+    end
+
     def patch_equivalent_on_landed_base?(member_job, train, client)
       return false if member_job.branch_name.blank?
 

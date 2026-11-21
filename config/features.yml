@@ -107,6 +107,12 @@ features:
     description: "Checks local ProcessRunner executions against declared mount and network requests before container execution backends depend on that contract."
     experimental: true
     default: false
+  - slug: coworker_connected_accounts
+    category: "Labs"
+    name: "Coworker connected accounts"
+    description: "Allows coworkers to use explicitly authorized connected accounts. Enable only after coworker sandboxing, confirmation for standing-instruction edits, and unified permission enforcement for coworkers are in place."
+    experimental: true
+    default: false
   - slug: unlanding
     category: "Labs"
     name: "Unlanding"

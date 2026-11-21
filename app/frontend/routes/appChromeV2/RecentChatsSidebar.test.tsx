@@ -127,6 +127,86 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     expect(screen.getAllByRole("button", { name: "New side chat with Maya" })).toHaveLength(1)
   })
 
+  it("lazily loads named side chats under their coworker and uses the per-section limit", async () => {
+    const appearance = {
+      name: "Maya",
+      accent_hex: "#B6492E",
+      avatar_key: null,
+      avatar_url: null,
+      coworker_id: 7,
+      side_chat_action_path: "/api/v1/app/coworkers/7/chats"
+    }
+    const fetchSpy = vi.fn(async () =>
+      jsonResponse({
+        chats: [
+          { id: 1, role: "main", title: "Maya", path: "/chats/1" },
+          ...Array.from({ length: 11 }, (_, index) => ({ id: index + 2, role: "side", title: `Research ${index + 1}`, path: `/chats/${index + 2}` }))
+        ]
+      })
+    )
+    vi.stubGlobal("fetch", fetchSpy)
+    const mainChat = chatNav({ id: 1, title: "Maya", agent_appearance: { ...appearance, coworker_chat_role: "main" } })
+    renderSidebar([], { groups: [chatGroup({ chats: [mainChat], has_more: true })] })
+
+    expect(screen.queryByText("Research 1")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Expand chats with Maya" }))
+    await waitFor(() => expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(10))
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/chats", expect.any(Object))
+    expect(screen.queryByText("Research 11")).not.toBeInTheDocument()
+
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    const showMoreSideChats = screen.getByRole("button", { name: "Show more chats with Maya" })
+    expect(showMoreSideChats).toHaveTextContent("More chats")
+    expect(showMoreSideChats).toHaveClass("whitespace-nowrap")
+    fireEvent.click(showMoreSideChats)
+    expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(11)
+    const showFewerSideChats = screen.getByRole("button", { name: "Show fewer chats with Maya" })
+    expect(showFewerSideChats).toHaveTextContent("Fewer chats")
+    expect(showFewerSideChats).toHaveClass("whitespace-nowrap")
+    fireEvent.click(showFewerSideChats)
+    expect(screen.getAllByTestId("coworker-side-chat-row")).toHaveLength(10)
+  })
+
+  it("replaces a lazily loaded pending title with the refreshed sidebar title", async () => {
+    const appearance = {
+      name: "Maya",
+      accent_hex: "#B6492E",
+      avatar_key: null,
+      avatar_url: null,
+      coworker_id: 7,
+      side_chat_action_path: "/api/v1/app/coworkers/7/chats"
+    }
+    const mainChat = chatNav({ id: 1, title: "Maya", agent_appearance: { ...appearance, coworker_chat_role: "main" } })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({
+          chats: [
+            { id: 1, role: "main", title: "Maya", path: "/chats/1" },
+            { id: 2, role: "side", title: null, path: "/chats/2" }
+          ]
+        })
+      )
+    )
+    const { queryClient } = renderSidebar([mainChat])
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand chats with Maya" }))
+    expect(await screen.findByRole("link", { name: "New chat" })).toBeInTheDocument()
+
+    const titledSideChat = chatNav({
+      id: 2,
+      title: "Investigate flaky tests",
+      chat_path: "/chats/2",
+      agent_appearance: { ...appearance, coworker_chat_role: "side" }
+    })
+    act(() => {
+      queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({ groups: [chatGroup({ chats: [mainChat, titledSideChat] })] }))
+    })
+
+    expect(await screen.findByRole("link", { name: "Investigate flaky tests" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
+  })
+
   it("reports side-chat creation errors and restores the action", async () => {
     const onNotice = vi.fn()
     vi.stubGlobal(

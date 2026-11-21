@@ -2,6 +2,10 @@
 
 Syrus uses feature flags to gate experimental and operational behaviors. Flags are declared in `config/features.yml`, parsed through `FeatureRegistry`, and toggled in the admin UI under the Features tab (or via Rails console: `Feature.find_by(slug: 'slug').update(enabled: true)`).
 
+## Coworker connected accounts
+
+`coworker_connected_accounts` is off by default and must be enabled before a coworker can be bound to or use a connected account. Enable it only after coworker sandboxing, confirmation for edits to standing instruction files, and unified permission enforcement for coworkers are in place. Connected-account credential access checks the flag at use time.
+
 All flags are typed booleans. A declaration can also set `experimental: true`
 to mark a beta/experimental capability. Those flags stay visible in Admin →
 Features and carry a Beta/Experimental badge, but admins cannot enable them

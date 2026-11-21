@@ -15,6 +15,14 @@ RSpec.describe Prompts::ChatFeedback do
     expect(out).to include("Make commits to the current branch.")
   end
 
+  it "tells the agent that PR metadata and follow-up work are not reasons to block" do
+    out = described_class.new(issue: issue, feedback: "Retitle the PR and file the API part separately.").to_s
+
+    Prompts::FeedbackScopeDirectives::LINES.each { |line| expect(out).to include(line) }
+    expect(out).to include("refresh_job_metadata")
+    expect(out).to include("propose_job")
+  end
+
   it "renders prior agent summaries when supplied" do
     out = described_class.new(
       issue: issue,

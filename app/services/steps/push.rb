@@ -27,6 +27,7 @@ module Steps
         end
       end
       record_accepted_push!
+      persist_pushed_all_changes_version!
       apply_job_metadata_refresh
       update_managed_pr_footers unless refreshed_job_metadata_applied?
     end

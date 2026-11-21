@@ -176,6 +176,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     queryFn: () => fetchDiffReviewVersion(jobId, activeVersionId!)
   })
   const selectedVersion = versions.find((version) => version.id === activeVersionId) ?? sourceDiff.data?.version ?? null
+  const showStepDiffFallbackNotice = sourceDiff.data?.step_diff_fallback === true && selectedVersion != null && !isAllChangesVersion(selectedVersion)
   const activeDiff = useMemo(() => {
     if (!sourceDiff.data) return null
     if (selectedRange && rangeDiff.data) return rangeDiff.data
@@ -226,7 +227,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     surface: SURFACE,
     versions
   })
-  const reviewArtifacts = reviewArtifactSummaries(payload.workflows)
+  const reviewArtifacts = payload.review_artifacts ?? reviewArtifactSummaries(payload.workflows)
   const coverageMetricProviders = useMemo(
     () => coverageDiffLineMetricProviders(activeDiff?.coverage_annotations, commonT),
     [activeDiff?.coverage_annotations, commonT]
@@ -390,6 +391,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
 
   return (
     <>
+      {showStepDiffFallbackNotice ? <PanelMessage tone="muted">{t("review_step_diff_fallback_notice")}</PanelMessage> : null}
       {diffMetricCandidates.length > 0 ? (
         <ReviewMetricGutterShortcut
           activeMetricGutterId={activeMetricGutterId}
@@ -934,10 +936,11 @@ function preferredReviewVersionId(
   const payloadVersion = payload?.version ?? null
   const canonicalVersions = canonicalReviewVersions(versions)
   const allChangesVersion = canonicalVersions.find(isAllChangesVersion)
+  if (allChangesVersion) return allChangesVersion.id
   if (payloadVersion && payloadVersion.base_sha === payload?.base_sha && payloadVersion.head_sha === payload?.head_sha) {
     return payloadVersion.id
   }
-  return allChangesVersion?.id ?? payloadVersion?.id ?? canonicalVersions[0]?.id ?? versions[versions.length - 1]?.id ?? null
+  return payloadVersion?.id ?? canonicalVersions[0]?.id ?? versions[versions.length - 1]?.id ?? null
 }
 
 function isAllChangesVersion(version: DiffReviewVersion) {

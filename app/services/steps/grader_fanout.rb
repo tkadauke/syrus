@@ -259,7 +259,7 @@ module Steps
         }
       end
       workflow.set_artifact!(TARGET_SELECTIONS_ARTIFACT_KEY, entries)
-      step.update!(details: step.details.to_h.merge(TARGET_SELECTIONS_ARTIFACT_KEY => entries))
+      step.update!(details: step.details.to_h.merge(TARGET_SELECTIONS_ARTIFACT_KEY => step_detail_entries(entries)))
     end
 
     # Explains each SELECTED grader by name and target label, then collapses
@@ -750,7 +750,7 @@ module Steps
         log("[grader_fanout] skipped #{entry['name']} (#{entry['reason']} from #{commit}) [#{entry['target_label']}]")
       end
       combined = append_artifact_entries(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, entries)
-      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_SKIPS_ARTIFACT_KEY => combined))
+      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_SKIPS_ARTIFACT_KEY => step_detail_entries(combined)))
     end
 
     def record_target_health_forced!(entries)
@@ -758,7 +758,20 @@ module Steps
         log("[grader_fanout] forced validation for #{entry['name']} (#{entry['reason']}) [#{entry['target_label']}]")
       end
       combined = append_artifact_entries(TARGET_HEALTH_FORCED_ARTIFACT_KEY, entries)
-      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_FORCED_ARTIFACT_KEY => combined))
+      step.update!(details: step.details.to_h.merge(TARGET_HEALTH_FORCED_ARTIFACT_KEY => step_detail_entries(combined)))
+    end
+
+    # The full entries live in the workflow artifact, which is what every
+    # server-side reader uses. The Step's details copy only feeds the job
+    # page's summary, so it drops the per-target fingerprints: repeated for
+    # every grader, they made a fan-out Step row of
+    # a large repository exceed 256KB, and MySQL then refused any query that
+    # sorted full step rows ("Out of sort memory") -- the job page, bulk job
+    # actions and restarting the grade loop all failed with a 500.
+    STEP_DETAIL_OMITTED_ENTRY_KEYS = %w[target_fingerprints].freeze
+
+    def step_detail_entries(entries)
+      Array(entries).map { |entry| entry.to_h.stringify_keys.except(*STEP_DETAIL_OMITTED_ENTRY_KEYS) }
     end
 
     def append_artifact_entries(key, entries)

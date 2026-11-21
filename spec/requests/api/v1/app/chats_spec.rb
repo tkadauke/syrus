@@ -7218,6 +7218,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:unprocessable_content)
   end
 
+  it "lets the operator cancel feedback still queued behind the job's current run" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository)
+    action = chat.pending_actions.create!(
+      action: "submit_chat_feedback", state: "queued",
+      payload: { "job_id" => job.id, "feedback" => "Proceed without the cluster drills." }, requested_by: "agent"
+    )
+
+    delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action cancelled.")
+    expect(action.reload).to be_cancelled
+  end
+
   it "lets the operator dismiss a confirmation whose worker stopped without recording an outcome" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -7340,6 +7356,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     message = parse_body.fetch("messages").find { |m| m["id"] == anchor.id }
     expect(message["pending_action"]).to be_nil
     expect(message["pending_action_retired"]).to be(true)
+    expect(message["pending_action_retirement_hides_message"]).to be(false)
+    expect(message["text"]).to eq("needs permission")
   end
 
   it "retires terminal pending actions after their durable outcome exists, including after reload" do

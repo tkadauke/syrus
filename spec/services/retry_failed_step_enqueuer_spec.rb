@@ -87,6 +87,25 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(failed_step.runs.sole).to eq(first_result.run)
   end
 
+  # Run creation in the dispatcher refuses a Step that already has an active
+  # Run; the retry path did not. A Step marked failed while its Run is still
+  # live (e.g. reconciled from a terminal run record) got a second active Run.
+  # formal/SyrusModel/StepRuns.lean.
+  it "does not add a second active Run to a failed Step whose Run is still live" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    failed_step = Step.create!(workflow: workflow, kind: "implement", position: 1)
+    failed_step.update_columns(state: "failed", started_at: 9.minutes.ago, finished_at: 8.minutes.ago)
+    live = failed_step.runs.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider)
+    live.update_columns(state: "running", started_at: 9.minutes.ago)
+
+    result = described_class.call(workflow: workflow, failed_step: failed_step)
+
+    expect(result).not_to be_success
+    expect(failed_step.runs.active.pluck(:id)).to eq([ live.id ])
+  end
+
   it "does not retry a tail step in place across a failed retry-until barrier" do
     job = Factories.job_record(state: "failed")
     workflow = Workflow.create!(job: job, trigger_kind: "initial")

@@ -131,6 +131,7 @@ module WorkEngine
           ProviderAvailabilityEvidence.create!(
             user: user,
             provider: provider,
+            account_id: user.default_provider_account(provider)&.public_id,
             status: "available",
             source: ProviderAvailabilityEvidence::PROBE_SOURCES.first,
             observed_at: Time.current

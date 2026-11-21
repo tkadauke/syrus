@@ -31,32 +31,31 @@ module Api
           render json: { coworker: base_detail_json(coworker) }
         end
 
-        def profile
-          coworker = authorized_coworker
-          render json: {
-            chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
-            effective_model: coworker.chat_model, workspace_repo: coworker.workspace_repo,
-            soul: soul_for(coworker)
-          }
-        end
-
         def chats
           coworker = authorized_coworker
           render json: { chats: chats_json(coworker), available_chats: available_chats_json(coworker) }
+        end
+
+        def conversation_index
+          coworker = authorized_coworker
+          render json: Coworkers::ConversationIndex.new(
+            coworker: coworker, user: Current.user, filter: params[:q], sort: params[:sort], cursor: params[:cursor]
+          ).call
+        rescue Coworkers::ConversationIndex::InvalidCursor => error
+          render_error("invalid_cursor", error.message, status: :bad_request)
         end
 
         def capabilities
           coworker = authorized_coworker
           render json: {
             grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
-            permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
             grant_catalog: grant_catalog_json
           }
         end
 
         def schedules
           coworker = authorized_coworker
-          render json: { schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) } }
+          render json: { schedules: schedules_json(coworker) }
         end
 
         def review_context
@@ -231,27 +230,16 @@ module Api
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
 
-        def memory
-          coworker = find_coworker
-          authorize coworker, :show?, policy_class: CoworkerPolicy
-          begin
-            payload = Coworkers::MemoryBrowser.new(
-              coworker: coworker, repository: workspace_repository(coworker), user: Current.user
-            ).call(search: params[:search])
-            render json: payload
-          rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
-            Rails.logger.info("[Coworkers::MemoryBrowser] memory unavailable: #{error.class}: #{error.message}")
-            render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
-          end
-        end
-
         def workspace
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
           payload = Coworkers::WorkspaceBrowser.new(
             coworker: coworker, repository: workspace_repository(coworker), user: Current.user
-          ).call(path: params[:path])
+          ).call(path: params[:path], filters: params.permit(:search, :extension, :folder, :path_prefix, :filename,
+            :filename_exact, :area, :content_kind, :min_size, :max_size, :modified_after, :modified_before, :sort, :cursor).to_h.symbolize_keys)
           render json: payload
+        rescue Coworkers::WorkspaceBrowser::InvalidCursor => error
+          render_error("invalid_cursor", error.message, status: :bad_request)
         rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
           Rails.logger.info("[Coworkers::WorkspaceBrowser] workspace unavailable: #{error.class}: #{error.message}")
           render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
@@ -271,7 +259,8 @@ module Api
           authorize coworker, :show?, policy_class: CoworkerPolicy
           render json: Coworkers::Activity.new(
             coworker: coworker, user: Current.user,
-            runs_cursor: params[:runs_cursor], side_chats_cursor: params[:side_chats_cursor]
+            jobs_cursor: params[:jobs_cursor], side_chats_cursor: params[:side_chats_cursor],
+            filters: params.permit(:state, :created_after, :created_before, :source, :failures_only, :query).to_h.symbolize_keys
           ).call.merge(message_traffic: message_traffic_json(coworker))
         rescue Coworkers::Activity::InvalidCursor => error
           render_error("invalid_cursor", error.message, status: :bad_request)
@@ -481,17 +470,12 @@ module Api
         end
 
         def detail_json(coworker)
-          base_detail_json(coworker).merge(profile_payload(coworker), chats: chats_json(coworker),
+          base_detail_json(coworker).merge(chats: chats_json(coworker),
             available_chats: available_chats_json(coworker),
             grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
-            permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
             grant_catalog: grant_catalog_json,
-            schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
+            schedules: schedules_json(coworker),
             message_traffic: message_traffic_json(coworker))
-        end
-
-        def profile_payload(coworker)
-          { soul: soul_for(coworker) }
         end
 
         def chats_json(coworker)
@@ -501,7 +485,14 @@ module Api
           end
         end
 
-        def schedule_json(task)
+        def schedules_json(coworker)
+          tasks = coworker.schedules.alive.order(:created_at).to_a
+          results = Coworkers::ScheduleLatestResults.new(tasks:, user: Current.user).call
+          tasks.map { |task| schedule_json(task, latest_result: results.fetch(task)) }
+        end
+
+        def schedule_json(task, latest_result: nil)
+          latest_result ||= Coworkers::ScheduleLatestResults.new(tasks: [ task ], user: Current.user).call.fetch(task)
           journaling_overdue = task.system_key == Coworkers::SystemSchedules::JOURNALING &&
             Coworkers::Prompts::Journaling.new.attention_required?(task:, now: Time.current)
           {
@@ -509,7 +500,7 @@ module Api
             system_key: task.system_key, last_journaled_on: task.last_journaled_on&.iso8601,
             last_system_result: task.last_system_result, last_system_result_reason: task.last_system_result_reason,
             journaling_overdue: journaling_overdue,
-            system_result_history: Array(task.system_result_history),
+            latest_result: latest_result,
             after_run: task.after_run,
             schedule_input: task.schedule_input, schedule_explanation: task.schedule_explanation,
             fire_at: task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601,
@@ -546,14 +537,6 @@ module Api
               reason: message.extract_text_from_content, occurred_at: message.created_at.iso8601 }
           end
           { sent: sent, received: received, window_days: 30, delivery_events: events }
-        end
-
-        def soul_for(coworker)
-          repository = workspace_repository(coworker)
-          content = RepositoryContent.for(repository, user: Current.user)
-          content.read_if_present(content.resolve("coworkers/#{coworker.handle}"), "SOUL.md")&.text
-        rescue ActiveRecord::RecordNotFound, RepositoryContent::Error
-          nil
         end
 
         def available_chats_json(coworker)

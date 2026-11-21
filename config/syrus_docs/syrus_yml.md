@@ -589,6 +589,21 @@ grade:
         include: [ci_only]
 ```
 
+Set `focused_always_include` on a `type: rspec` grader to add spec paths to
+every focused review run, on top of the specs selected from the changed files.
+Use it for specs that guard repository-wide rules, such as architecture or
+documentation checks, which fail on changes that no changed-file selection
+would pick them for. Paths that do not exist are ignored. When no spec covers
+the changed files, the focused run executes only these paths instead of
+skipping.
+
+```yaml
+grade:
+  - type: rspec
+    focused_always_include:
+      - spec/architecture/
+```
+
 `parallel_rspec` is opt-in because repositories differ in database setup and
 result-shard merging. A repository can ask the Ruby plugin to use
 `parallel_rspec` for selected RSpec modes (`full`, `focused`, `ci`) and, when
@@ -648,6 +663,12 @@ split from the checkout alone. The `serial_paths` pass runs once, in the last
 shard. Each shard is a required grader in its own right; any one failing fails
 the CI suite, and each shard supersedes the plain RSpec grader in landing the
 same way the unsharded CI grader does.
+
+Set `parallel_rspec.serial_shard: true` to run the `serial_paths` pass as a
+grader of its own, `rspec-ci-serial`, beside the shards instead of after the
+last shard's parallel pass. That keeps the last shard from being the slowest
+CI grader whenever the serial paths take a while. The serial grader is
+required and supersedes the plain RSpec grader like the shards do.
 
 Sharding needs the combined CI pass: `serial_paths`, CI tags, and `exec_args`
 must be set, and Syrus rejects `shards` on any other CI shape. Shards run
