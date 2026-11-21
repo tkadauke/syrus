@@ -985,6 +985,53 @@ check-then-act on a stale snapshot.
 
 ---
 
+## F34. The reconciler cancelled the Epic waits F30 introduced — fixed
+
+**Property.** The reconciler leaves every state the decided Epic start rule
+(NY2) reaches alone, and still repairs every violation of exclusivity
+(`EpicWide.recon_after_agrees`, `recon_after_restores_exclusive`).
+
+**Gap.** `EpicWorkflowLock::ConflictDetector` kept the oldest active
+Epic-wide unit and reported *every* other active member unit as a conflict.
+It did this whether the member was queued or running, and even when the
+keeper itself was only queued. Under NY2 both are deliberate waits:
+
+- A member queued behind an Epic-wide Workflow is start-blocked
+  (`epic_wide_workflow_active`). The reconciler cancelled it
+  (`recon_before_cancels_queued_member`).
+- An Epic-wide Workflow queued behind a running member is start-blocked
+  (`epic_member_work_running`). The reconciler made it the keeper and
+  cancelled the *running* member (`recon_before_preempts_running_member`).
+  That is exactly the preemption NY2 rejected, so F30's half of the rule was
+  undone by the reconciler.
+
+**Evidence (production, read-only).** Of 13 applied `epic_workflow_conflict`
+cancellations, 11 hit members that had never started. One pass cancelled six
+queued `initial` Workflows of one Epic behind a `stack_rebase`. For JOB-9430
+the queued-job repair relaunched the member, and the next pass cancelled it
+again, once a minute until the `stack_rebase` finished. The Job meanwhile
+went `failed` and was dragged back to `queued`, which was one of the two
+untraced `failed → queued` Job-state repairs.
+
+**Fix.** A second Epic-wide Workflow is still always a conflict (the
+dispatcher cancels one that cannot start). A member conflicts only while
+both it and the keeper are running. The executor
+(`CancelEpicWorkflowConflict`) re-checks the same rule under the Workflow
+lock instead of only "both active".
+
+**Spec.** `epic_workflow_lock_spec.rb` "conflicts agree with the Epic start
+waits": a queued member and a running member under a queued keeper are left
+alone (both red before), while running-vs-running and a second Epic-wide
+Workflow are still reported. `repair_executor_spec.rb`
+"cancel_epic_workflow_conflict": a waiting member is skipped (red with the
+guard removed), and a running one is cancelled.
+
+**Correction.** The coverage note for `epic-wide-workflow-conflict` said
+that after F30 the reconciler's cancellation remained only as a backstop for
+a race. That was wrong, and it is corrected there.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

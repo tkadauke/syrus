@@ -1871,6 +1871,11 @@ module WorkEngine
             return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
             return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper.queued? || keeper.running?
+            # The classifier's rule (EpicWorkflowLock::ConflictDetector): a
+            # member is only a conflict while both it and the keeper run.
+            unless workflow.epic_wide? || (workflow.running? && keeper.running?)
+              return skipped("#{workflow_label(workflow)} is waiting on the Epic, not running alongside #{workflow_label(keeper)}")
+            end
 
             with_transition_reason do
               workflow.artifacts = (workflow.artifacts || {}).merge(

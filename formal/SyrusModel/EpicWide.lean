@@ -129,5 +129,49 @@ theorem queued_epic_wide_starts_when_members_idle (s : Q) (h : s.ewQueued = true
     (hm : s.mRunning = 0) : startEWOk s = true := by
   simp [startEWOk, h, hm]
 
+/-! ## The reconciler has to agree with the waits
+
+`EpicWorkflowLock::ConflictDetector` (behind `classify_epic_workflow_conflicts`)
+kept the oldest active Epic-wide unit and cancelled *every* other active member
+unit, queued or running, even when that keeper was itself only queued. Under the
+decided rule both are deliberate waits: a queued member waits for the Epic-wide
+Workflow, and a queued Epic-wide Workflow waits for the running member. The
+reconciler cancelled them anyway. Production: of 13 applied cancellations, 11
+victims had never started, and one pass cancelled six queued members at once.
+Each victim was then relaunched or stranded, so the waits turned into a
+cancel/relaunch loop.
+
+After the fix a member is a conflict only when it is running *and* the Epic-wide
+keeper is running, which is exactly a violation of `QExclusive`. -/
+
+def reconBefore (s : Q) : Q :=
+  if s.ewQueued || s.ewRunning then { s with mQueued := 0, mRunning := 0 } else s
+
+def reconAfter (s : Q) : Q :=
+  if s.ewRunning && s.mRunning > 0 then { s with mRunning := 0 } else s
+
+/-- Counterexample 1: a member queued behind a queued Epic-wide Workflow is cancelled. -/
+theorem recon_before_cancels_queued_member :
+    reconBefore (qrun startEWOk [.enqueueEW, .enqueueMember] q0)
+      ≠ qrun startEWOk [.enqueueEW, .enqueueMember] q0 := by decide
+
+/-- Counterexample 2: the running member a queued Epic-wide Workflow is waiting
+    for is preempted, which NY2 rejected. -/
+theorem recon_before_preempts_running_member :
+    reconBefore (qrun startEWOk [.enqueueMember, .startMember, .enqueueEW] q0)
+      ≠ qrun startEWOk [.enqueueMember, .startMember, .enqueueEW] q0 := by decide
+
+/-- After the fix the reconciler leaves every state the decided rule reaches
+    alone (every interleaving of up to 6 operations from idle)... -/
+theorem recon_after_agrees :
+    (qseqs 6).all (fun os => reconAfter (qrun startEWOk os q0) == qrun startEWOk os q0) = true := by
+  native_decide
+
+/-- ...and it still repairs every violation of exclusivity. -/
+theorem recon_after_restores_exclusive (s : Q) : QExclusive (reconAfter s) = true := by
+  cases s with
+  | mk mQueued mRunning ewQueued ewRunning =>
+    cases ewRunning <;> cases mRunning <;> simp [reconAfter, QExclusive]
+
 end EpicWide
 end SyrusModel
