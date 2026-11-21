@@ -45,12 +45,6 @@ export function DiffReviewVersionSelector({
     null
   const rangeBaseSha = selectedRange?.baseSha || selected?.base_sha || ordered[0]?.base_sha || ""
   const rangeHeadSha = selectedRange?.headSha || selected?.head_sha || ordered[ordered.length - 1]?.head_sha || ""
-  // These feed selectEndpoint's clamp math (orderedEndpointRange), which needs
-  // the real non-"All changes" version bordering rangeBaseSha/rangeHeadSha —
-  // not necessarily the currently selected version's own row (e.g. "All
-  // changes" is selected but its high version_index must not be treated as
-  // the current FROM/TO reference point). Keep using the plain cross-row
-  // lookup for this, independent of the highlighting reconciliation below.
   const fromEndpointVersion = findEndpointVersion(ordered, "from", rangeBaseSha)
   const toEndpointVersion = findEndpointVersion(ordered, "to", rangeHeadSha)
   // Highlighting must never disagree with which single version (if any) is
@@ -110,15 +104,7 @@ export function DiffReviewVersionSelector({
     // silently discards whichever endpoint the operator picked first. A
     // matching version is still used for a nicer display label (see
     // selectedRangeLabel), just never to override the range itself.
-    const nextEndpoints = orderedEndpointRange({
-      endpoint,
-      fromVersion: fromEndpointVersion,
-      orderedVersions: ordered,
-      selectedVersion: version,
-      toVersion: toEndpointVersion,
-      fallbackBaseSha: rangeBaseSha,
-      fallbackHeadSha: rangeHeadSha
-    })
+    const nextEndpoints = endpointRange(endpoint, version, rangeBaseSha, rangeHeadSha)
     setOpen(false)
     onRangeChange?.({ baseSha: nextEndpoints.baseSha, headSha: nextEndpoints.headSha, versionId: null })
     buttonRef.current?.focus()
@@ -286,54 +272,10 @@ function runRangeKey(version: DiffReviewVersion) {
   return [version.run_id, version.base_sha, version.head_sha].join(":")
 }
 
-function orderedEndpointRange({
-  endpoint,
-  fallbackBaseSha,
-  fallbackHeadSha,
-  fromVersion,
-  orderedVersions,
-  selectedVersion,
-  toVersion
-}: {
-  endpoint: "from" | "to"
-  fallbackBaseSha: string
-  fallbackHeadSha: string
-  fromVersion: DiffReviewVersion | null
-  orderedVersions: DiffReviewVersion[]
-  selectedVersion: DiffReviewVersion
-  toVersion: DiffReviewVersion | null
-}) {
-  if (endpoint === "from") {
-    const mustClampTo = toVersion && selectedVersion.version_index > toVersion.version_index
-    const crossesBaseEpoch = !mustClampTo && !canReachBase(orderedVersions, selectedVersion, fallbackBaseSha)
-    return {
-      baseSha: selectedVersion.base_sha,
-      headSha: mustClampTo || crossesBaseEpoch ? selectedVersion.head_sha : fallbackHeadSha
-    }
-  }
-
-  const mustClampFrom = fromVersion && selectedVersion.version_index < fromVersion.version_index
-  const crossesBaseEpoch = !mustClampFrom && !canReachBase(orderedVersions, selectedVersion, fallbackBaseSha)
-  return {
-    baseSha: mustClampFrom || crossesBaseEpoch ? selectedVersion.base_sha : fallbackBaseSha,
-    headSha: selectedVersion.head_sha
-  }
-}
-
-function canReachBase(versions: DiffReviewVersion[], selectedVersion: DiffReviewVersion, targetBaseSha: string) {
-  if (selectedVersion.base_sha === targetBaseSha) return true
-
-  let currentBaseSha = selectedVersion.base_sha
-  for (const version of reviewRangeVersionsBefore(versions, selectedVersion)) {
-    if (version.head_sha !== currentBaseSha) continue
-    currentBaseSha = version.base_sha
-    if (currentBaseSha === targetBaseSha) return true
-  }
-  return false
-}
-
-function reviewRangeVersionsBefore(versions: DiffReviewVersion[], selectedVersion: DiffReviewVersion) {
-  return versions.filter((version) => !isAllChangesVersion(version) && compareVersions(version, selectedVersion) < 0).reverse()
+function endpointRange(endpoint: "from" | "to", selectedVersion: DiffReviewVersion, baseSha: string, headSha: string) {
+  return endpoint === "from"
+    ? { baseSha: selectedVersion.base_sha, headSha }
+    : { baseSha, headSha: selectedVersion.head_sha }
 }
 
 function RangeRow({
