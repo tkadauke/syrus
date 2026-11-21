@@ -68,7 +68,7 @@ RSpec.describe Ruby::Engine do
     end
 
     it "does not detect a repo without a Gemfile" do
-      expect(described_class.detect_prepare(repo_context)).to eq([])
+      expect(described_class.detect_prepare(repo_context).sole.detected?).to be false
     end
 
     it "contributes bundle install" do

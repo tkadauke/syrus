@@ -55,7 +55,7 @@ gem "my_plugin", path: "plugins/my_plugin"
 | `:chat_identity_provider` | `Syrus::Plugin::ChatIdentityProvider` | Generic identity, grouping, search ownership, historical presentation, and status contributions for plugin-owned chat participants |
 | `:repository_filter` | `Syrus::Plugin::RepositoryFilter` | `.apply(scope:, user:)` returning a narrowed repository relation for general discovery surfaces |
 | `:source_control_provider` | `Syrus::Plugin::SourceControlProvider` | `.provider_key`, `.display_name`, `.available_for?(repository)`, `.client_for(repository:, user:)` |
-| `:grader_augmentor` | `Syrus::Plugin::GraderAugmentor`    | `.augment_grader_failure(name:, command:, workspace_path:)` → `Array<String>\|nil` |
+| `ecosystem` | Capability family | Language and toolchain detection, grading, review, autofix, audit, test, coverage, CI-log, and target-graph contributions |
 | `:speech_to_text_provider` | `Syrus::Plugin::SpeechToTextProvider` | `.provider_key`, `.display_name`, `.available?`, `.build(user:)`; instances inherit the `ChatSpeechToText::Providers::Base` batch/streaming contract |
 
 Agent-callable tool definitions must include an explicit

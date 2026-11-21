@@ -7,9 +7,6 @@ module Syrus
       mcp_tool_set
       mcp_run_context_contributor
       input_source
-      prompt_injector
-      coverage_analyzer
-      ci_log_parser
       preview_provider
       admin_page
       repo_page_tab
@@ -26,22 +23,12 @@ module Syrus
       adjudicator
       source_control_provider
       artifact_renderer
-      grader_augmentor
       grader_failure_summarizer
       callbacks
       platform_delivery
-      prepare_detector
-      grade_detector
-      grader_type
       grader_input_materializer
-      review_criteria_provider
       post_implementation_review_provider
       diff_review_annotation_provider
-      autofix_command
-      dependency_audit_command
-      diff_review_file_pattern_provider
-      affected_test_analyzer
-      focused_test_command
       workspace_tab
       ui_slot
       domain_subscriber
@@ -59,7 +46,6 @@ module Syrus
       test_evidence
       runtime_session_provider
       worker_capability_probe
-      build_system_graph_provider
       retention_policy
       repository_content_provider
       execution_backend
@@ -90,9 +76,6 @@ module Syrus
       mcp_tool_set: "Adds MCP tools available to workflow agents, subject to the host's run context and authorization checks.",
       mcp_run_context_contributor: "Adds bounded plugin-owned context to the MCP sidecar environment for a workflow run.",
       input_source: "Polls an external system for new work and converts stable source records into Syrus inputs.",
-      prompt_injector: "Contributes bounded instructions or context to workflow-agent prompts at documented prompt locations.",
-      coverage_analyzer: "Reads test coverage artifacts and returns normalized coverage evidence for grading and reporting.",
-      ci_log_parser: "Recognizes provider-specific CI logs and extracts normalized failures and diagnostic evidence.",
       preview_provider: "Starts, inspects, and stops a repository preview using the provider's supported runtime.",
       admin_page: "Registers a plugin-owned page in the administrative SPA and its navigation metadata.",
       repo_page_tab: "Registers a plugin-owned tab on repository detail pages, scoped to the current repository and user.",
@@ -109,22 +92,12 @@ module Syrus
       adjudicator: "Evaluates competing implementation or review evidence and returns a normalized adjudication decision.",
       source_control_provider: "Implements repository-host operations such as issues, pull requests, reviews, and credentials for one source-control service.",
       artifact_renderer: "Turns a supported workflow artifact into a bounded human-readable representation.",
-      grader_augmentor: "Adds plugin-owned context, files, or checks to a grader invocation without replacing the grader.",
       grader_failure_summarizer: "Converts provider-specific grader failures into concise normalized explanations.",
       callbacks: "Receives documented plugin lifecycle callbacks for boot, shutdown, enablement, ticks, metrics, and reversible effects.",
       platform_delivery: "Publishes or deploys built artifacts through a plugin-owned delivery platform.",
-      prepare_detector: "Inspects repository content and proposes deterministic dependency-preparation commands.",
-      grade_detector: "Inspects repository content and proposes grader definitions appropriate to its frameworks and tooling.",
-      grader_type: "Defines validation and execution behavior for a named custom grader type.",
       grader_input_materializer: "Materializes additional immutable inputs required by distributed grader execution.",
-      review_criteria_provider: "Adds repository- or workflow-specific criteria that review agents must evaluate.",
       post_implementation_review_provider: "Adds a post-implementation review step and its provider-specific invocation policy.",
       diff_review_annotation_provider: "Produces structured annotations attached to files or lines in a reviewed diff.",
-      autofix_command: "Provides a deterministic command that can repair a recognized validation failure.",
-      dependency_audit_command: "Provides a deterministic command for auditing a project's dependency declarations or lockfiles.",
-      diff_review_file_pattern_provider: "Adds file patterns that select or classify files for specialized diff review.",
-      affected_test_analyzer: "Maps changed files to the tests most likely to exercise those changes.",
-      focused_test_command: "Builds the narrow test command for a selected test file or example in a supported framework.",
       workspace_tab: "Registers a plugin-owned tab in the live workflow workspace UI.",
       ui_slot: "Registers a plugin-owned component for one of the host's named UI insertion slots.",
       domain_subscriber: "Subscribes plugin handlers to documented domain events emitted by the host.",
@@ -142,7 +115,6 @@ module Syrus
       test_evidence: "Extracts normalized test results and evidence from a supported test runner or artifact.",
       runtime_session_provider: "Creates and manages a long-lived plugin-owned runtime session used by agent work.",
       worker_capability_probe: "Detects a worker capability and reports normalized values used for placement decisions.",
-      build_system_graph_provider: "Builds a repository target graph from a supported build system's declarations.",
       retention_policy: "Contributes expiry and cleanup policy for a plugin-owned or extensible host record type.",
       repository_content_provider: "Resolves immutable repository revisions and reads trees, files, changes, refs, and history from one backend.",
       execution_backend: "Claims eligible command executions and runs them with provider-specific isolation or remote infrastructure.",
@@ -171,9 +143,6 @@ module Syrus
       mcp_tool_set:            -> { Syrus::Plugin::McpToolSet },
       mcp_run_context_contributor: -> { Syrus::Plugin::McpRunContextContributor },
       input_source:            -> { Syrus::Plugin::InputSource },
-      prompt_injector:         -> { Syrus::Plugin::PromptInjector },
-      coverage_analyzer:       -> { Syrus::Plugin::CoverageAnalyzer },
-      ci_log_parser:           -> { Syrus::Plugin::CiLogParser },
       preview_provider:        -> { Syrus::Plugin::PreviewProvider },
       admin_page:              -> { Syrus::Plugin::AdminPage },
       repo_page_tab:           -> { Syrus::Plugin::RepoPageTab },
@@ -190,22 +159,12 @@ module Syrus
       adjudicator:             -> { Syrus::Plugin::Adjudicator },
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },
-      grader_augmentor:        -> { Syrus::Plugin::GraderAugmentor },
       grader_failure_summarizer: -> { Syrus::Plugin::GraderFailureSummarizer },
       callbacks:               -> { Syrus::Plugin::Callbacks },
       platform_delivery:       -> { Syrus::Plugin::PlatformDelivery },
-      prepare_detector:        -> { Syrus::Plugin::PrepareDetector },
-      grade_detector:          -> { Syrus::Plugin::GradeDetector },
-      grader_type:             -> { Syrus::Plugin::GraderType },
       grader_input_materializer: -> { Syrus::Plugin::GraderInputMaterializer },
-      review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider },
       post_implementation_review_provider: -> { Syrus::Plugin::PostImplementationReviewProvider },
       diff_review_annotation_provider: -> { Syrus::Plugin::DiffReviewAnnotationProvider },
-      autofix_command:         -> { Syrus::Plugin::AutofixCommand },
-      dependency_audit_command: -> { Syrus::Plugin::DependencyAuditCommand },
-      diff_review_file_pattern_provider: -> { Syrus::Plugin::DiffReviewFilePatternProvider },
-      affected_test_analyzer:  -> { Syrus::Plugin::AffectedTestAnalyzer },
-      focused_test_command:    -> { Syrus::Plugin::FocusedTestCommand },
       workspace_tab:           -> { Syrus::Plugin::WorkspaceTab },
       ui_slot:                 -> { Syrus::Plugin::UiSlot },
       domain_subscriber:       -> { Syrus::Plugin::DomainSubscriber },
@@ -223,7 +182,6 @@ module Syrus
       memory_store:            -> { Syrus::Plugin::MemoryStore },
       runtime_session_provider: -> { Syrus::Plugin::RuntimeSessionProvider },
       worker_capability_probe: -> { Syrus::Plugin::WorkerCapabilityProbe },
-      build_system_graph_provider: -> { Syrus::Plugin::BuildSystemGraphProvider },
       retention_policy:        -> { Syrus::Plugin::RetentionPolicy },
       repository_content_provider: -> { Syrus::Plugin::RepositoryContentProvider },
       execution_backend:      -> { Syrus::Plugin::ExecutionBackend },
@@ -261,8 +219,8 @@ module Syrus
       #   register(name:, version:, provides: {}, ...)
       #
       # Direct form — registers a provider instance for a lightweight extension
-      # point (e.g. :prompt_injector) without a full gem manifest:
-      #   register(:prompt_injector, provider_instance)
+      # point (e.g. :agent_provider) without a full gem manifest:
+      #   register(:agent_provider, provider_instance)
       def register(*args, name: nil, version: nil, provides: {}, family_provides: [], display_name: nil, display_name_i18n_key: nil, description: nil, description_i18n_key: nil, long_description: nil, long_description_i18n_key: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, experimental: false, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], optionally_depends_on: [], conflicts_with: [], links: [], metrics: [], credential_types: [], credential_type_names: [], prepare_priority: 100, hosts: [], events: {}, requires_syrus: nil, external: nil, loaded: true, plugin_root: nil, cli_commands: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])

@@ -2,7 +2,6 @@ require "shellwords"
 
 module Ios
   class BaseGraderType
-    include Syrus::Plugin::GraderType
 
     DEFAULT_CAPABILITIES = {
       "os" => "macos",

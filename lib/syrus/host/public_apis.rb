@@ -47,6 +47,7 @@ module Syrus
         PluginRegistry: "Syrus::PluginRegistry",
         PluginInvocation: "Syrus::PluginInvocation",
         CapabilityValidationError: "Syrus::Plugin::Dispatch::ValidationError",
+        EcosystemGraderCoverage: "Syrus::Plugin::Ecosystem::GraderCoverage",
         EcosystemPreparePlan: "Syrus::Plugin::Ecosystem::PreparePlan",
         EcosystemDependencyAuditPlan: "Syrus::Plugin::Ecosystem::DependencyAuditPlan"
       }.freeze
@@ -82,6 +83,7 @@ module Syrus
         PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register providers_for capability_providers extension_point?] ],
         PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ],
         CapabilityValidationError: [ "Reports a deliberate caller-visible capability validation problem without counting it as a provider crash.", %w[new code details message] ],
+        EcosystemGraderCoverage: [ "Shares the supported coverage-phase decision used by Ecosystem grader-type providers.", %w[coverage_for_phases?] ],
         EcosystemPreparePlan: [ "Carries one ecosystem's immutable repository detection and preparation answer.", %w[new detected detected? commands version_file span_labels label] ],
         EcosystemDependencyAuditPlan: [ "Carries one ecosystem's immutable dependency-audit lockfiles and command.", %w[new lockfiles command label] ]
       }.freeze

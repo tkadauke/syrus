@@ -2064,16 +2064,19 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(chunks).to include("all graders skipped")
   end
 
-  # --- :affected_test_analyzer  ---------------------------------
+  # --- Ecosystem affected_tests ---------------------------------
 
-  describe ":affected_test_analyzer" do
+  describe "Ecosystem affected_tests" do
     after { Syrus::PluginRegistry.reset! }
 
     def register_analyzer(&block)
       analyzer = Class.new do
-        define_singleton_method(:affected_files, &block)
+        define_singleton_method(:affected_tests) do |context|
+          block.call(repo_path: context.workspace_path, changed_files: context.changed_files)
+        end
       end
-      Syrus::PluginRegistry.register(:affected_test_analyzer, analyzer)
+      register_ecosystem_provider(name: "affected-tests-#{analyzer.object_id}", provider: analyzer,
+        provisional: %i[affected_tests])
       analyzer
     end
 
@@ -2166,8 +2169,6 @@ RSpec.describe Steps::GraderFanout, :ci_only do
 
       grader_steps = workflow.steps.where(kind: "grader").order(:position)
       expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
-      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-      expect(chunks).to include("AffectedTestAnalyzer").and include("falling back to glob-only")
     end
 
     it "does not use analyzer-expanded files for the recorded changed-files fingerprint" do

@@ -49,7 +49,7 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "does not detect a repo with no recognized lockfile" do
-      expect(described_class.detect_prepare(repo_context)).to eq([])
+      expect(described_class.detect_prepare(repo_context).sole.detected?).to be false
     end
 
     it "yarn.lock wins over pnpm-lock.yaml, package-lock.json, and package.json" do

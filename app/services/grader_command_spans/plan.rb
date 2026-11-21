@@ -88,7 +88,7 @@ module GraderCommandSpans
     # contributed labels take precedence over CORE_LABELS in the same
     # relative order existing callers already depend on.
     def plugin_span_labels
-      context = Syrus::Plugin::Context::RepoContext.new(repo_path: nil)
+      context = Syrus::Plugin::Context::RepoContext.new(repo_path: Pathname.pwd.to_s)
       @plugin_span_labels ||= Syrus::Plugin::Dispatch.call(:ecosystem, :detect_prepare, context)
         .flat_map(&:span_labels)
     end

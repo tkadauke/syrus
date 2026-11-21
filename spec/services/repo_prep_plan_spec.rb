@@ -151,16 +151,17 @@ RSpec.describe RepoPrepPlan do
 
     def register_detector(plugin_name:, file:, command:, prepare_priority: 100)
       detector = Class.new do
-        include Syrus::Plugin::PrepareDetector
+        def self.key = :fixture
+        def self.display_name = name
       end
       detector.define_singleton_method(:name) { plugin_name.to_s.capitalize + "PrepareDetector" }
-      detector.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, file)) }
-      detector.define_singleton_method(:prepare_commands) { |_repo_path| [ command ] }
+      detector.define_singleton_method(:detect_prepare) do |context|
+        next [] unless File.exist?(File.join(context.repo_path, file))
+        [ Syrus::Host::EcosystemPreparePlan.new(detected: true, commands: [ command ], label: name) ]
+      end
 
-      Syrus::PluginRegistry.register(
-        name: plugin_name, version: "1.0.0", prepare_priority: prepare_priority,
-        provides: { prepare_detector: detector }
-      )
+      register_ecosystem_provider(name: plugin_name, provider: detector,
+        implements: %i[detect_prepare], prepare_priority:)
       detector
     end
 

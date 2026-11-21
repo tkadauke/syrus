@@ -5,13 +5,14 @@ module Ios
       def display_name = "iOS"
 
       def detect_prepare(context)
-        return [] unless context.repo_path && PrepareDetector.detect?(context.repo_path)
+        return [] unless context.repo_path
+        detected = PrepareDetector.detect?(context.repo_path)
 
         [ Syrus::Host::EcosystemPreparePlan.new(
-          detected: true,
-          commands: PrepareDetector.prepare_commands(context.repo_path),
-          version_file: PrepareDetector.mise_version_file,
-          span_labels: PrepareDetector.span_labels,
+          detected:,
+          commands: detected ? PrepareDetector.prepare_commands(context.repo_path) : [],
+          version_file: nil,
+          span_labels: [],
           label: display_name
         ) ]
       end

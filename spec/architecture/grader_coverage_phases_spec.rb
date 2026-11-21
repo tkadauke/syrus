@@ -7,7 +7,7 @@ require "rails_helper"
 # landing that cost comes out of the per-grader timeout that decides whether a
 # merge train lands at all. Dropping it once in a plugin is not enough: the next
 # grader type would reintroduce it, so the rule is asserted over every
-# registered `:grader_type` provider.
+# registered Ecosystem `grader_types` provider.
 RSpec.describe "grader coverage phases" do
   # A config generous enough that every bundled grader type can synthesize
   # from it. Types that need more than this are reported rather than skipped.
@@ -23,20 +23,21 @@ RSpec.describe "grader coverage phases" do
   end
 
   def grade_steps_for(provider)
-    Array(provider.grade_steps(config: coverage_config, default_failures: "strict"))
+    context = Syrus::Plugin::Context::GraderContext.new(config: coverage_config, default_failures: "strict")
+    Array(provider.invoke { |implementation| implementation.grader_types(context) })
   rescue StandardError => e
     raise "#{provider}.grade_steps raised #{e.class}: #{e.message} -- extend #coverage_config so this type stays covered"
   end
 
   it "keeps coverage instrumentation out of every phase but review" do
-    offenders = Syrus::PluginRegistry.providers_for(:grader_type).flat_map do |provider|
+    offenders = Syrus::PluginRegistry.capability_providers(:ecosystem, :grader_types).flat_map do |provider|
       grade_steps_for(provider).filter_map do |step|
         next if Array(step.metadata["coverage_outputs"]).empty?
 
-        unreadable = step.phases.map(&:to_s) - Syrus::Plugin::GraderType::COVERAGE_PHASES
+        unreadable = step.phases.map(&:to_s) - Syrus::Plugin::Ecosystem::GraderCoverage::COVERAGE_PHASES
         next if unreadable.empty?
 
-        "#{provider.type_name}/#{step.name} declares coverage_outputs for #{unreadable.join(', ')}"
+        "#{provider.key}/#{step.name} declares coverage_outputs for #{unreadable.join(', ')}"
       end
     end
 
@@ -44,10 +45,10 @@ RSpec.describe "grader coverage phases" do
   end
 
   it "still instruments the review entry, so the rule narrows coverage rather than removing it" do
-    instrumented = Syrus::PluginRegistry.providers_for(:grader_type).flat_map do |provider|
+    instrumented = Syrus::PluginRegistry.capability_providers(:ecosystem, :grader_types).flat_map do |provider|
       grade_steps_for(provider)
         .select { |step| Array(step.metadata["coverage_outputs"]).any? }
-        .map { |step| "#{provider.type_name}/#{step.name}" }
+        .map { |step| "#{provider.key}/#{step.name}" }
     end
 
     # Guards the first example against passing vacuously: rspec and vitest are

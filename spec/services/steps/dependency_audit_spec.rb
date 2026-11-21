@@ -45,10 +45,12 @@ RSpec.describe Steps::DependencyAudit do
   end
 
   def register_provider(lockfiles:, command:)
-    provider = Class.new { include Syrus::Plugin::DependencyAuditCommand }
-    provider.define_singleton_method(:lockfiles) { lockfiles }
-    provider.define_singleton_method(:audit_command) { |workspace_path:| command }
-    Syrus::PluginRegistry.register(:dependency_audit_command, provider)
+    provider = Class.new
+    provider.define_singleton_method(:dependency_audit) do |_context|
+      Syrus::Host::EcosystemDependencyAuditPlan.new(lockfiles:, command:, label: "Fixture")
+    end
+    register_ecosystem_provider(name: "dependency-audit-#{provider.object_id}", provider:,
+      implements: %i[dependency_audit])
     provider
   end
 
@@ -74,10 +76,7 @@ RSpec.describe Steps::DependencyAudit do
 
   it "no-ops when the matching provider declines to return a command" do
     stub_changed_files("Gemfile.lock")
-    provider = Class.new { include Syrus::Plugin::DependencyAuditCommand }
-    provider.define_singleton_method(:lockfiles) { [ "Gemfile.lock" ] }
-    provider.define_singleton_method(:audit_command) { |workspace_path:| nil }
-    Syrus::PluginRegistry.register(:dependency_audit_command, provider)
+    register_provider(lockfiles: [ "Gemfile.lock" ], command: nil)
 
     expect { handler.call }.not_to raise_error
 

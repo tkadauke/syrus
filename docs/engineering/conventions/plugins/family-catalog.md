@@ -39,4 +39,22 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|
-| - | - | - | - | - |
+| `go` | `Go::Ecosystem` | - | `detect_prepare`, `review_criteria`, `autofix`, `dependency_audit`, `analyze_coverage` | - |
+| `go` | `Go::TestEcosystem` | `go_test` | `grader_types` | - |
+| `ios` | `Ios::Ecosystem` | - | `detect_prepare` | - |
+| `ios` | `Ios::SwiftpmEcosystem` | `swiftpm` | `grader_types` | - |
+| `ios` | `Ios::XcodebuildEcosystem` | `xcodebuild` | `grader_types` | - |
+| `java` | `Java::Ecosystem` | - | `detect_prepare`, `prompt_context`, `review_criteria` | - |
+| `java` | `Java::GradleEcosystem` | `gradle` | `grader_types` | - |
+| `java` | `Java::MavenEcosystem` | `maven` | `grader_types` | - |
+| `javascript` | `JavaScript::Ecosystem` | - | `detect_prepare`, `grade_candidates`, `grader_diagnostics`, `review_criteria`, `autofix`, `dependency_audit`, `focused_tests` | - |
+| `javascript` | `JavaScript::PrettierEcosystem` | - | `autofix` | - |
+| `javascript` | `JavaScript::VitestEcosystem` | `vitest` | `grader_types` | - |
+| `kotlin` | `Kotlin::Ecosystem` | - | `detect_prepare`, `prompt_context`, `review_criteria` | - |
+| `python` | `Python::BlackEcosystem` | - | `autofix` | - |
+| `python` | `Python::Ecosystem` | - | `detect_prepare`, `grader_diagnostics`, `review_criteria`, `prompt_context`, `dependency_audit` | - |
+| `python` | `Python::RuffEcosystem` | - | `autofix` | - |
+| `ruby` | `Ruby::Ecosystem` | - | `detect_prepare`, `grade_candidates`, `grader_diagnostics`, `review_criteria`, `autofix`, `dependency_audit`, `focused_tests`, `analyze_coverage` | `affected_tests` |
+| `ruby` | `Ruby::MinitestEcosystem` | `minitest` | `grader_types` | - |
+| `ruby` | `Ruby::RspecEcosystem` | `rspec` | `grader_types` | - |
+| `syrus-rails` | `SyrusRails::Ecosystem` | - | `prompt_context` | - |

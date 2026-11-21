@@ -98,7 +98,7 @@ module Syrus
             raise ArgumentError,
               "Family #{name.inspect} language-support capability must use Syrus::Plugin::Context::RepoContext"
           end
-          if definition.unmapped_legacy_points.any?
+          if !definition.migrated? && definition.unmapped_legacy_points.any?
             raise ArgumentError, "Family #{name.inspect} is missing legacy mappings for #{definition.unmapped_legacy_points.join(', ')}"
           end
           raise ArgumentError, "Family #{name.inspect} is already defined" if @definitions.key?(definition.name)

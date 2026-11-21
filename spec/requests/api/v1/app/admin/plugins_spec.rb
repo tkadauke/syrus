@@ -830,12 +830,12 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
 
   describe "plugin health" do
     it "reports an open runtime circuit" do
-      provider = Class.new { include Syrus::Plugin::CiLogParser }
+      provider = Class.new { include Syrus::Plugin::Callbacks }
       Syrus::PluginRegistry.register(
-        name: "runtime-failure-plugin", version: "1.0.0", provides: { ci_log_parser: provider }
+        name: "runtime-failure-plugin", version: "1.0.0", provides: { callbacks: provider }
       )
       Syrus::PluginInvocation.call(
-        extension_point: :ci_log_parser, provider: provider, operation: :call,
+        extension_point: :callbacks, provider: provider, operation: :call,
         failure_threshold: 1, cooldown: 75, on_decline: nil
       ) { raise "provider unavailable" }
       admin = Factories.user(admin: true)
@@ -847,7 +847,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(entry.dig("health", "state")).to eq("circuit_open")
       circuit = entry.dig("health", "circuits", 0)
       expect(circuit).to include(
-        "extension_point" => "ci_log_parser", "state" => "open", "failure_count" => 1
+        "extension_point" => "callbacks", "state" => "open", "failure_count" => 1
       )
       expect(Time.iso8601(circuit.fetch("retry_at")) - Time.iso8601(circuit.fetch("opened_at"))).to eq(75)
     ensure
@@ -891,16 +891,16 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     end
 
     it "reports runtime failures as degraded when the host API scan also warns" do
-      provider = Class.new { include Syrus::Plugin::CiLogParser }
+      provider = Class.new { include Syrus::Plugin::Callbacks }
       finding = Syrus::PluginHostSurface::Scanner::Finding.new(
         constant: "InternalService", tier: "unlisted", path: "lib/external.rb", line: 7
       )
       scan = Syrus::PluginHostSurface::Scanner::Result.new(public: [], legacy: [], unlisted: [ finding ], dynamic: [],
         minimum_syrus_version: nil, content_hash: "digest", error: nil)
       Syrus::PluginRegistry.register(name: "external_runtime_failure", version: "1.0.0", external: true,
-        provides: { ci_log_parser: provider }, plugin_host_surface_scan: scan)
+        provides: { callbacks: provider }, plugin_host_surface_scan: scan)
       Syrus::PluginInvocation.call(
-        extension_point: :ci_log_parser, provider: provider, operation: :call,
+        extension_point: :callbacks, provider: provider, operation: :call,
         failure_threshold: 2, cooldown: 75, on_decline: nil
       ) { raise "provider unavailable" }
       sign_in_as(Factories.user(admin: true))
@@ -912,7 +912,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
         "constant" => "InternalService"
       )
       expect(response.parsed_body.dig("plugin", "health", "failures", 0)).to include(
-        "extension_point" => "ci_log_parser", "message" => "provider unavailable"
+        "extension_point" => "callbacks", "message" => "provider unavailable"
       )
     ensure
       Syrus::PluginInvocation.runtime_health.reset!
@@ -925,7 +925,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       end
       namespace = Object.const_set(:HealthPayloadSpec, Module.new)
       provider = namespace.const_set(:Provider, Class.new do
-        include Syrus::Plugin::CiLogParser
+        include Syrus::Plugin::Callbacks
         def self.key = :health_payload
         def self.display_name = "Health payload"
       end)
@@ -933,11 +933,11 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
         family: :health_payload_spec, provider: "HealthPayloadSpec::Provider", implements: %i[detect]
       )
       Syrus::PluginRegistry.register(
-        name: "combined-health-plugin", version: "1.0.0", provides: { ci_log_parser: provider },
+        name: "combined-health-plugin", version: "1.0.0", provides: { callbacks: provider },
         family_provides: [ declaration ]
       )
       Syrus::PluginInvocation.call(
-        extension_point: :ci_log_parser, provider:, operation: :call, on_decline: nil
+        extension_point: :callbacks, provider:, operation: :call, on_decline: nil
       ) { raise "runtime failure" }
       sign_in_as(Factories.user(admin: true))
 
@@ -948,7 +948,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       expect(health.fetch("reasons")).to include("HealthPayloadSpec::Provider does not define required method detect")
       expect(health.fetch("failures").sole).to include(
         "source" => "runtime", "code" => "runtime_failure",
-        "extension_point" => "ci_log_parser", "operation" => "call", "message" => "runtime failure"
+          "extension_point" => "callbacks", "operation" => "call", "message" => "runtime failure"
       )
     ensure
       Syrus::PluginInvocation.runtime_health.reset!

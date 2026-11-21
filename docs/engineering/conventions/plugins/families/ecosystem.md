@@ -133,8 +133,24 @@ Use `it_behaves_like "a valid ecosystem provider"` from `syrus/plugin/test_kit`,
 - Context: `Syrus::Plugin::Context::RepoContext`
 - Return shape: `Object`
 
-## Legacy compatibility notes
+## Migration from legacy extension points
 
-The legacy `prepare_detector` methods `mise_version_file` and `span_labels` do not receive a repository path. Their bridge calls `detect_prepare` with a repository context whose `repo_path` is `nil` and reads the plan metadata independently of `detected?`, matching the existing call sites.
+Ecosystem is shipped and the former per-operation extension points are no longer registered. External language plugins must replace their legacy `provides` entries with one family declaration and implement context-based capability methods.
+
+Before:
+
+```ruby
+provides prepare_detector: "AcmeLang::PrepareDetector"
+```
+
+After:
+
+```ruby
+provides ecosystem: "AcmeLang::Ecosystem", implements: %i[detect_prepare]
+```
+
+`AcmeLang::Ecosystem.detect_prepare(context)` receives a `RepoContext` and returns `EcosystemPreparePlan` values. Declare stable capabilities in `implements:` and provisional capabilities in `provisional:`.
+
+`affected_tests` remains provisional because it has one in-tree implementation. `parse_ci_log`, `review_file_patterns`, and `target_graph` remain provisional because core calls them but no bundled plugin implements them yet; the contract kit supplies reference fakes until real implementations prove the contracts.
 
 For keyed capabilities, the absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
