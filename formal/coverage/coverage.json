@@ -1028,7 +1028,7 @@
       ],
       "status": "open",
       "done_by": null,
-      "notes": "Invariant: job in {running, landing} -> an active first-class unit exists. Pair with job-state-matches-latest-workflow; this catches what Plan.for cannot decide."
+      "notes": "Invariant: job in {running, landing} -> an active first-class unit exists. Pair with job-state-matches-latest-workflow; this catches what Plan.for cannot decide. Production (read-only): no running_job_without_active_runtime_work repairs; 3 landing_job_without_active_runtime_work executions, all skipped because the Job had already left landing."
     },
     {
       "id": "stale-workflow-fails-job",
@@ -1332,7 +1332,7 @@
       ],
       "status": "open",
       "done_by": null,
-      "notes": "The executor comment records a production loop where the requested intent re-materialized retries. AutoRetryJob/launch should check supersession atomically."
+      "notes": "The executor comment records a production loop where the requested intent re-materialized retries. AutoRetryJob/launch should check supersession atomically. Production (read-only): 1 applied repair over the reconciler's retained history; the AutoRetryJob stale check (F27) already covers the success-before-perform race."
     },
     {
       "id": "auto-retry-bounded",
@@ -1821,7 +1821,7 @@
       ],
       "status": "open",
       "done_by": null,
-      "notes": "Missed wakeup; better to make blocked_by_epic a derived predicate so it cannot drift."
+      "notes": "Missed wakeup; better to make blocked_by_epic a derived predicate so it cannot drift. Production (read-only): no releasable_epic_blocked_job repairs in the retained history."
     },
     {
       "id": "epic-linear-children",
@@ -1875,7 +1875,7 @@
       ],
       "status": "partial",
       "done_by": "reviewed",
-      "notes": "Safety holds at the start funnel: StepDispatcher.start_workflow refuses a Job whose dependencies failed (landings fail closed, rebases are cancelled, others start-block), whose stack is not ready (JobStackResolver), or which is not ready for execution. Liveness is event-driven by design: the dependency and stack branches record a start block but schedule no WorkflowPhaseAdmissionJob recheck (unlike the Epic-sibling and admission branches), so starting relies on the satisfying event waking the dependent, with stale_dependency_start_block as the reconciler safety net. Periodic rechecks for every blocked dependent would add churn for large Epics, so not changed. Open edge: a step retry of a failed dependent does not re-check dependencies (rare; would change retry semantics). No Lean model yet: the safety half is a single guard."
+      "notes": "Safety holds at the start funnel: StepDispatcher.start_workflow refuses a Job whose dependencies failed (landings fail closed, rebases are cancelled, others start-block), whose stack is not ready (JobStackResolver), or which is not ready for execution. Liveness is event-driven by design: the dependency and stack branches record a start block but schedule no WorkflowPhaseAdmissionJob recheck (unlike the Epic-sibling and admission branches), so starting relies on the satisfying event waking the dependent, with stale_dependency_start_block as the reconciler safety net. Periodic rechecks for every blocked dependent would add churn for large Epics, so not changed. Open edge, queued as NY8: a step retry (RetryFailedStepEnqueuer reopening a failed Workflow in place) skips the start funnel, so a dependent whose dependency has since failed or lost approval is retried on that base. No Lean model yet: the safety half is a single guard."
     },
     {
       "id": "queued-workflow-without-first-run",
@@ -2249,7 +2249,7 @@
       ],
       "status": "open",
       "done_by": null,
-      "notes": "Invariant: infra Job with a terminal latest workflow is closed; F6's apply-on-finish closure path is the natural place to make it atomic."
+      "notes": "Invariant: infra Job with a terminal latest workflow is closed; F6's apply-on-finish closure path is the natural place to make it atomic. Production (read-only): 2 executions, both skipped 'Job is already closed' (the Job closed itself before the repair ran) -- no stuck infra Jobs."
     },
     {
       "id": "stuck-main-branch-repair",
@@ -2407,6 +2407,18 @@
         "C. Keep the current behaviour."
       ],
       "recommendation": "A. It replaces the allowlist that has starved production three times with a structural rule, and it costs nothing in mutual exclusion because resume already re-acquires; losing queue position while blocked matches how the queue already treats blocked Jobs (they do not hold it either)."
+    },
+    {
+      "id": "NY8",
+      "item": "dependencies-respected",
+      "title": "Should retrying a failed dependent re-check its dependencies first?",
+      "context": "A Job only starts when its dependencies are satisfied for execution: StepDispatcher.start_workflow start-blocks it with dependency_failed (or dependency_approval_withdrawn) otherwise. A retry of a failed step reopens the existing Workflow in place (RetryFailedStepEnqueuer, used by AutoRetryJob, the Retry button and the reconciler) and never passes through start_workflow. So if dependency A was approved when dependent D started, D then failed, and A's approval was withdrawn or A failed, D's retry runs on the base the start funnel would now refuse. Rare, and not observed in production.",
+      "options": [
+        "A. Re-check: RetryFailedStepEnqueuer refuses with the same dependency result the start funnel uses (reported as a wait, so auto-retry reschedules instead of giving up), and the operator's override still bypasses it.",
+        "B. Keep: a retry continues an attempt that already started legitimately; dependency regressions are handled when the dependent lands (the landing queue checks dependencies again).",
+        "C. Re-check only for automatic retries; an operator's explicit Retry proceeds."
+      ],
+      "recommendation": "B, narrowly. The landing queue re-checks dependencies before anything merges, so the worst case is wasted work on a base that may come back, not a wrong merge; A changes retry semantics for a case not seen in production. Revisit if it shows up."
     }
   ]
 }
