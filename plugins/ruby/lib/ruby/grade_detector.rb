@@ -2,7 +2,6 @@ require "pathname"
 
 module Ruby
   class GradeDetector
-
     def self.grade_candidates(repo_path)
       new(repo_path).grade_candidates
     end

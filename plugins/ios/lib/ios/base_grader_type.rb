@@ -2,7 +2,6 @@ require "shellwords"
 
 module Ios
   class BaseGraderType
-
     DEFAULT_CAPABILITIES = {
       "os" => "macos",
       "arch" => "arm64",

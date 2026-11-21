@@ -2,7 +2,6 @@ require "shellwords"
 
 module Go
   class TestGraderType
-
     DEFAULT_TIMEOUT_MINUTES = 5
     DEFAULT_CHANGED_FILES = [
       "**/*.go",
