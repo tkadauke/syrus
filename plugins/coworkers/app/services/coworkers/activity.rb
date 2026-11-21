@@ -2,7 +2,12 @@ require "base64"
 
 class Coworkers::Activity
   PAGE_SIZE = 50
+  WORKFLOWS_PER_JOB_PAGE = 10
   FAILURE_STATES = %w[failed cancelled blocked].freeze
+  SUCCESSFUL_CLOSURE_REASONS = %w[
+    pr_merged external_pr_merged pr_approved no_changes promotion_landed
+    hotfix_sync_landed investigation_reported emergency_landed
+  ].freeze
   class InvalidCursor < StandardError; end
 
   def self.weekly_spend_by_coworker(coworkers:, user:, now: Time.current)
@@ -64,7 +69,7 @@ class Coworkers::Activity
     relation = relation.where(id: Workflow.where(trigger_kind: @filters[:source]).select(:job_id)) if @filters[:source].present?
     if @filters[:failures_only] == "true"
       unsuccessful = relation.where(state: FAILURE_STATES)
-      closed = relation.where.not(closure_reason: [ nil, "", *Job::SUCCESSFUL_CLOSURE_REASONS ])
+      closed = relation.where.not(closure_reason: [ nil, "", *SUCCESSFUL_CLOSURE_REASONS ])
       relation = unsuccessful.or(closed)
     end
     if @filters[:query].present?
@@ -106,7 +111,7 @@ class Coworkers::Activity
   end
 
   def workflow_json(workflow, runs, counts, index:, total:)
-    page = ((total - index - 1) / App::WorkflowNavigation::PER_PAGE) + 1
+    page = ((total - index - 1) / WORKFLOWS_PER_JOB_PAGE) + 1
     query = { tab: "workflows" }
     query[:workflows_page] = page if page > 1
     path = "/jobs/#{workflow.job_id}?#{query.to_query}#workflow-#{workflow.id}"
@@ -132,7 +137,7 @@ class Coworkers::Activity
   def duration(started, finished) = started && (((finished || @now) - started).round)
 
   def outcome_reason(job, workflows)
-    unsuccessful_closure = job.closed? && !job.closure_reason.in?([ nil, "", *Job::SUCCESSFUL_CLOSURE_REASONS ])
+    unsuccessful_closure = job.closed? && !job.closure_reason.in?([ nil, "", *SUCCESSFUL_CLOSURE_REASONS ])
     return unless job.failed? || unsuccessful_closure
 
     reason = job.landing_failure_reason.presence || workflows.reverse.find { |workflow| workflow.failure_reason.present? }&.failure_reason || job.closure_reason
