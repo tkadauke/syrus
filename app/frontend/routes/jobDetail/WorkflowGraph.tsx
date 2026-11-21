@@ -2,6 +2,7 @@ import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
 import { PluginUiSlot, pluginUiSlotComponentFor, type UiSlotPanel } from "../../pluginUiSlots"
 import { matchingReviewContribution, renderReviewContribution, type ReviewContribution } from "../../pluginReviewContributions"
@@ -660,44 +661,54 @@ function WorkflowMobileControls({
   }, [triggerRef])
   const pluginActions = renderableWorkflowActions(payload.ui_workflow_actions, workflow.id)
   const hasCommands = Boolean(pluginActions.length || workflow.retry_available || (workflow.state === "failed" && !workflow.cleaned_up_at))
+  const menuPosition = workflowMenuPosition(triggerRef.current)
 
   return (
     <div className="flex shrink-0 items-center gap-1">
       {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
       {hasCommands ? (
-        <div className="relative">
+        <div>
           <Button
             aria-expanded={menuOpen}
+            aria-haspopup="menu"
             aria-label={t("workflow_actions")}
-            className="h-11 w-11 px-0 text-lg"
+            className="h-11 min-w-11 text-lg"
             disabled={command.isPending}
             onClick={() => setMenuOpen((value) => !value)}
             ref={triggerRef}
-            size="icon"
             variant="secondary"
           >
             ⋯
           </Button>
-          {menuOpen ? (
-            <div
-              className="absolute right-0 z-20 mt-1 flex w-[min(18rem,calc(100vw-2rem))] flex-col gap-1 rounded border border-border bg-surface p-2 shadow-lg"
-              aria-label={t("workflow_actions")}
-              ref={menuRef}
-              role="group"
-            >
-              <PluginUiSlot panels={pluginActions} props={{ prefix, workflow }} />
-              {workflow.retry_available ? (
-                <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
-                  {t("retry_failed_step")}
-                </CommandButton>
-              ) : null}
-              {workflow.state === "failed" && !workflow.cleaned_up_at ? (
-                <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
-                  {t("push_commits")}
-                </CommandButton>
-              ) : null}
-            </div>
-          ) : null}
+          {menuOpen && menuPosition
+            ? createPortal(
+                <div
+                  className={surfaceClasses(
+                    "raised",
+                    "none",
+                    "fixed z-20 w-56 py-1 [&_button]:!flex [&_button]:!h-11 [&_button]:!w-full [&_button]:!justify-start [&_button]:!rounded-none [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!px-4 [&_button]:!py-2 [&_button]:!text-left [&_button]:!text-sm [&_button]:hover:!bg-surface-raised [&>div]:!w-full [&>div]:!max-w-none"
+                  )}
+                  aria-label={t("workflow_actions")}
+                  onClick={() => setMenuOpen(false)}
+                  ref={menuRef}
+                  role="menu"
+                  style={menuPosition}
+                >
+                  <PluginUiSlot panels={pluginActions} props={{ prefix, workflow }} />
+                  {workflow.retry_available ? (
+                    <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
+                      {t("retry_failed_step")}
+                    </CommandButton>
+                  ) : null}
+                  {workflow.state === "failed" && !workflow.cleaned_up_at ? (
+                    <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
+                      {t("push_commits")}
+                    </CommandButton>
+                  ) : null}
+                </div>,
+                document.body
+              )
+            : null}
         </div>
       ) : null}
       {showDisclosure ? (
@@ -714,6 +725,16 @@ function WorkflowMobileControls({
       ) : null}
     </div>
   )
+}
+
+function workflowMenuPosition(trigger: HTMLButtonElement | null) {
+  const rect = trigger?.getBoundingClientRect()
+  if (!rect) return null
+
+  const menuWidth = 224
+  const viewportPadding = 16
+  const left = Math.min(Math.max(viewportPadding, rect.right - menuWidth), window.innerWidth - menuWidth - viewportPadding)
+  return { left, top: rect.bottom + 4 }
 }
 
 function renderableWorkflowActions(panels: UiSlotPanel[] | undefined, workflowId: number) {
