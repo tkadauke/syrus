@@ -16,7 +16,7 @@ module Admin
     end
 
     def as_json(*)
-      rows = relation.offset((page - 1) * per_page).limit(per_page).to_a
+      rows = page_rows
       provider_context = provider_context_for(rows)
       {
         intents: rows.map { |intent| intent_json(intent, provider_context: provider_context) },
@@ -45,13 +45,31 @@ module Admin
 
     def relation
       @relation ||= begin
-        scope = WorkIntent
-          .includes(:repository, :source_repository, :target_repository, :actor)
-          .preload(work_units: [ :repository, :source_repository, :target_repository, { workflow: :user }, { work_unit_members: { job: :repository } } ])
+        scope = WorkIntent.all
         scope = filter_definition.apply(scope, params)
         scope = scope.distinct if joined_filter?
         sorted_scope(scope)
       end
+    end
+
+    def page_rows
+      ids = page_relation.map(&:id)
+      return [] if ids.empty?
+
+      rows_by_id = WorkIntent
+        .includes(:repository, :source_repository, :target_repository, :actor)
+        .preload(work_units: [ :repository, :source_repository, :target_repository, { workflow: :user }, { work_unit_members: { job: :repository } } ])
+        .where(id: ids)
+        .index_by(&:id)
+      ids.filter_map { |id| rows_by_id[id] }
+    end
+
+    def page_relation
+      selected_columns = ([ "work_intents.id" ] + SORTS.fetch(sort)).uniq
+      relation
+        .reselect(Arel.sql(selected_columns.join(", ")))
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     end
 
     def total
