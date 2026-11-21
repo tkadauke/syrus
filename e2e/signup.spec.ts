@@ -16,7 +16,7 @@ test("invitation token signup creates a usable account", async ({ page }) => {
   await expect(page).toHaveURL(/\/onboarding$/)
   await expect(page.getByRole("heading", { name: "Set up Syrus" })).toBeVisible()
 
-  await signOut(page, INVITED_USER.email)
+  await signOut(page)
   await signIn(page, INVITED_USER)
   await expect(page).toHaveURL(/\/onboarding$/)
 })

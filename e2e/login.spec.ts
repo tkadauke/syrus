@@ -6,6 +6,6 @@ test("demo user can sign in, reach the dashboard, and sign out", async ({ page }
 
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible()
 
-  await signOut(page, "demo@syrus.local")
+  await signOut(page)
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible()
 })

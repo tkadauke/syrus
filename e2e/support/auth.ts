@@ -34,8 +34,16 @@ export async function signInAsDemo(page: Page) {
   await signIn(page, DEMO_USER)
 }
 
-export async function signOut(page: Page, email: string) {
-  await page.getByRole("button", { name: email }).click()
+// The account control is labelled with the user's display name, which is not
+// something a spec should have to know (it used to be the email address, and
+// every spec that located it by email broke when that changed). Reach it
+// through its landmark instead.
+export async function openAccountMenu(page: Page) {
+  await page.getByRole("navigation", { name: "Account" }).getByRole("button", { expanded: false }).first().click()
+}
+
+export async function signOut(page: Page) {
+  await openAccountMenu(page)
   await page.getByRole("button", { name: "Sign out" }).click()
   await expect(page).toHaveURL(/\/session\/new$/)
 }

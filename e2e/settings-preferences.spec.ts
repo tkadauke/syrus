@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test"
 import { execFileSync } from "node:child_process"
-import { DEMO_USER, signInAsDemo } from "./support/auth"
+import { DEMO_USER, openAccountMenu, signInAsDemo } from "./support/auth"
 
 test.slow()
 
@@ -79,7 +79,7 @@ test("edits settings, provider defaults, locale, and theme preferences", async (
 })
 
 async function selectThemeMode(page: Page, mode: "Light" | "Dark" | "System") {
-  await page.getByRole("button", { name: DEMO_USER.email }).click()
+  await openAccountMenu(page)
   const saved = page.waitForResponse((response) =>
     response.url().includes("/api/v1/app/theme") && response.request().method() === "PATCH" && response.ok()
   )
@@ -90,7 +90,7 @@ async function selectThemeMode(page: Page, mode: "Light" | "Dark" | "System") {
 }
 
 async function selectColorTheme(page: Page, name: "Ocean") {
-  await page.getByRole("button", { name: DEMO_USER.email }).click()
+  await openAccountMenu(page)
   await page.getByRole("button", { name: /Color theme:/ }).click()
   const saved = page.waitForResponse((response) =>
     response.url().includes("/api/v1/app/theme") && response.request().method() === "PATCH" && response.ok()

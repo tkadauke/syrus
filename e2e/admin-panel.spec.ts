@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test"
 import { execFileSync } from "node:child_process"
-import { NON_ADMIN_USER, signIn, signInAsDemo } from "./support/auth"
+import { NON_ADMIN_USER, openAccountMenu, signIn, signInAsDemo } from "./support/auth"
 
 test.slow()
 
@@ -71,7 +71,7 @@ test("admin renders queue, stuck jobs, plugin registry, and process inventory", 
 test("admin surfaces are hidden and inaccessible for a non-admin user", async ({ page }) => {
   await signIn(page, NON_ADMIN_USER)
 
-  await page.getByRole("button", { name: NON_ADMIN_USER.email }).click()
+  await openAccountMenu(page)
   await expect(page.getByRole("link", { name: "Admin", exact: true })).toHaveCount(0)
 
   for (const path of ["/admin/queue", "/admin/stuck", "/admin/plugins", "/admin/processes"]) {
