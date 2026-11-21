@@ -1562,9 +1562,9 @@
         "urgent_landing_preempts_blocked_epic_train",
         "stalled_urgent_job_does_not_starve_repository"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Generalise: a blocked unit that has not started holds no repository landing lock, for every block reason."
+      "status": "partial",
+      "done_by": "PrestartSlot.lean · NY7",
+      "notes": "Generalised and modelled: WorkUnit#block! surrenders the repository landing slot only for EXTERNALLY_CLEARED_BLOCKED_REASONS and urgent_job_active before the first Run. A landing unit takes the landing lock at instantiation, before start! runs its gates, and every definition's gates include ManualPause, so an operator pause of a Job whose landing Workflow has not yet run holds the repository-wide slot for as long as the pause lasts (PrestartSlot.today_starves_on_manual_pause). Option A (every pre-start block surrenders; resume already re-acquires) never starves (option_a_never_starves). Decision queued as NY7."
     },
     {
       "id": "stranded-landing-job",
@@ -1990,9 +1990,9 @@
         "obsolete_visual_diff_does_not_block_job_bundle",
         "agent_insight_sweep_does_not_block_job_bundle"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats again, in tension with landing-slot-exact."
+      "status": "partial",
+      "done_by": "PrestartSlot.lean · NY7",
+      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats. PrestartSlot.lean states the structural rule (a landing blocked before its first Run never holds the slot) that would end the allowlist; decision queued as NY7."
     },
     {
       "id": "provider-pause-readmits",
@@ -2395,6 +2395,18 @@
         "C. A new resting state (e.g. stopped) for an operator-stopped attempt."
       ],
       "recommendation": "A. failed already means 'needs an operator decision', which is exactly the situation after a deliberate stop, and the deliberate-reason list it reuses already exists for the relaunch repair. B makes queued ambiguous, and C is a new state for a rare case."
+    },
+    {
+      "id": "NY7",
+      "item": "urgent-blocked-landing-slot",
+      "title": "Should a landing that is blocked before its first Run ever hold the repository landing slot?",
+      "context": "The repository landing slot is the mutex every landing path checks. A landing WorkUnit takes it at creation, before its gates run. WorkUnit#block! gives it back only for an allowlist (no_capable_worker, ci_repair_disabled, and urgent_job_active before the first Run). Any other pre-start block keeps it. A manual pause is the clear case: pausing a Job whose landing Workflow has not run yet holds the slot for the whole repository until someone unpauses it. The coverage history records three production starvations, each fixed by adding one more reason to the list. Resume already re-acquires a surrendered slot before the unit can start, so surrendering never breaks mutual exclusion; the cost is that the surrendering landing can be overtaken in the queue.",
+      "options": [
+        "A. Never: any block before the first Run surrenders the slot; resume re-acquires it (queue order then decides who lands first).",
+        "B. Keep the allowlist and add manual_pause and provider_availability (the indefinite ones).",
+        "C. Keep the current behaviour."
+      ],
+      "recommendation": "A. It replaces the allowlist that has starved production three times with a structural rule, and it costs nothing in mutual exclusion because resume already re-acquires; losing queue position while blocked matches how the queue already treats blocked Jobs (they do not hold it either)."
     }
   ]
 }
