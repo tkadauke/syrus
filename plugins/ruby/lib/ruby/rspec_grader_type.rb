@@ -407,14 +407,21 @@ module Ruby
     SHARD_FILES_VARIABLE = "SYRUS_RSPEC_SHARD_FILES".freeze
     SHARD_FILES_EXPANSION = "$#{SHARD_FILES_VARIABLE}".freeze
 
-    # Every shard computes the same partition from the checkout alone: spec
-    # files under the RSpec paths (minus the serial paths), balanced by file
-    # size with a deterministic longest-first assignment. A recorded runtime
-    # profile would balance better, but profiles are kept per grader name, so
-    # shards would see different ones and could drop or double-run files.
+    def shard_runtime_profile_path
+      ".syrus/shard_runtime_#{artifact_name(ci_name)}.log"
+    end
+
+    # Every shard computes the same partition: spec files under the RSpec
+    # paths (minus the serial paths), assigned longest-first to the lightest
+    # shard. A file's weight is its recorded runtime from the suite-wide
+    # profile when one was materialized (one snapshot per round, identical for
+    # every shard); files without history are weighted by size, scaled to
+    # seconds by the profiled files' runtime per byte. Without a profile the
+    # split is by file size alone. Balancing by size left shards between six
+    # and seventeen minutes apart, and the round waits for the slowest.
     def shard_files_command(index, count, excluded)
       script = Base64.strict_encode64(<<~'RUBY')
-        index, count = Integer(ARGV.shift), Integer(ARGV.shift)
+        index, count, profile = Integer(ARGV.shift), Integer(ARGV.shift), ARGV.shift
         paths, excluded = ARGV.join("\0").split("\0--\0", 2).map { |part| part.to_s.split("\0") }
         excluded = Array(excluded).map { |path| path.delete_prefix("./") }
         files = Array(paths).flat_map do |path|
@@ -424,16 +431,28 @@ module Ruby
           else []
           end
         end.uniq.reject { |file| excluded.any? { |prefix| file.start_with?(prefix) } }
-        loads = Array.new(count, 0)
+        runtimes = {}
+        if File.file?(profile)
+          File.foreach(profile) do |line|
+            path, _, seconds = line.strip.rpartition(":")
+            value = Float(seconds, exception: false)
+            runtimes[path.delete_prefix("./")] = value if !path.empty? && value && value.positive?
+          end
+        end
+        profiled = files.select { |file| runtimes.key?(file) }
+        profiled_bytes = profiled.sum { |file| File.size(file) }
+        rate = profiled_bytes.positive? ? profiled.sum { |file| runtimes[file] } / profiled_bytes : nil
+        weight = ->(file) { runtimes.fetch(file) { rate ? File.size(file) * rate : File.size(file).to_f } }
+        loads = Array.new(count, 0.0)
         buckets = Array.new(count) { [] }
-        files.sort_by { |file| [ -File.size(file), file ] }.each do |file|
+        files.sort_by { |file| [ -weight.call(file), file ] }.each do |file|
           target = loads.each_with_index.min_by { |load, position| [ load, position ] }.last
           buckets[target] << file
-          loads[target] += File.size(file)
+          loads[target] += weight.call(file)
         end
         puts buckets.fetch(index - 1).sort.join(" ")
       RUBY
-      args = Shellwords.join([ index.to_s, count.to_s, *rspec_paths, "--", *excluded ])
+      args = Shellwords.join([ index.to_s, count.to_s, shard_runtime_profile_path, *rspec_paths, "--", *excluded ])
       <<~BASH.squish
         #{SHARD_FILES_VARIABLE}="$(ruby -rbase64 -e 'eval(Base64.strict_decode64(ARGV.shift))' #{script} #{args})" ||
         { echo "[rspec] could not compute shard #{index}/#{count}'s spec files"; exit 1; };
@@ -1110,7 +1129,13 @@ module Ruby
             "coverage" => coverage
           }
         }.merge(mode == "ci" ? { "supersedes" => full_name } : {})
-         .merge(shard ? { "shard" => shard } : {})
+         .merge(shard ? {
+           "shard" => shard,
+           # Every shard of a round reads the same suite-wide runtime profile
+           # (see shard_files_command); a grader input materializer writes it.
+           "shard_runtime_profile_destination" => shard_runtime_profile_path,
+           "shard_runtime_profile_key" => ci_name
+         } : {})
       )
     end
   end

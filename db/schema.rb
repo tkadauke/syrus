@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_004334) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_060207) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -4405,6 +4405,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_004334) do
     t.index ["repository_id"], name: "index_test_insight_runtime_summaries_on_repository_id"
     t.index ["test_identity_id", "grader_name", "window"], name: "idx_test_runtime_summary_identity_grader_window", unique: true
     t.index ["test_identity_id"], name: "index_test_insight_runtime_summaries_on_test_identity_id"
+  end
+
+  create_table "test_insight_shard_runtime_snapshots", force: :cascade do |t|
+    t.integer "repository_id", null: false
+    t.string "grader_key", limit: 191, null: false
+    t.bigint "source_snapshot_id", null: false
+    t.text "profile", limit: 16777215, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at", "id"], name: "idx_shard_runtime_snapshots_retention"
+    t.index ["repository_id", "grader_key", "source_snapshot_id"], name: "idx_test_insight_shard_runtime_snapshot_key", unique: true
   end
 
   create_table "themes", force: :cascade do |t|

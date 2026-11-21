@@ -658,8 +658,12 @@ Set `parallel_rspec.shards` to split the CI grader across workers. With
 `rspec-ci-4-of-4`. Each one runs a disjoint slice of the spec files, so the
 slices run on different workers at the same time instead of the whole suite
 running on one. Each shard still uses `parallel_rspec` across its own worker's
-CPUs. Syrus splits the files by file size, so every shard computes the same
-split from the checkout alone. The `serial_paths` pass runs once, in the last
+CPUs. Syrus splits the files by their recorded runtimes so the shards finish
+at about the same time: every shard of one grading round reads the same
+runtime profile, captured once for that round from recent test results, and
+computes the same split from it. Files with no recorded runtime are weighted by
+size, and without any runtime history the split is by file size alone. The
+`serial_paths` pass runs once, in the last
 shard. Each shard is a required grader in its own right; any one failing fails
 the CI suite, and each shard supersedes the plain RSpec grader in landing the
 same way the unsharded CI grader does.

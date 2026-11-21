@@ -92,4 +92,68 @@ RSpec.describe TestInsights::GraderRuntimeProfileProvider do
 
     expect(@workspace_path.join(".syrus/parallel_runtime_rspec.log")).not_to exist
   end
+
+  describe "suite-wide shard profile" do
+    let(:shard_definition) do
+      {
+        "grader_framework" => "rspec",
+        "shard_runtime_profile_destination" => ".syrus/shard_runtime_rspec-ci.log",
+        "shard_runtime_profile_key" => "rspec-ci"
+      }
+    end
+
+    def shard_context(snapshot_id: 77, workspace: @workspace_path)
+      step.update!(details: step.details.merge("source_snapshot_id" => snapshot_id))
+      GraderInputMaterialization::Context.new(
+        repository: repository, workflow: workflow, step: step, run: run,
+        grader_name: "rspec-ci-2-of-4", grader_definition: shard_definition,
+        workspace_path: workspace, destination_path: nil
+      )
+    end
+
+    def shard_profile(workspace = @workspace_path)
+      workspace.join(".syrus/shard_runtime_rspec-ci.log").read
+    end
+
+    it "writes every file's runtime across graders, not only this shard's" do
+      summary!(identity: identity!(file_path: "spec/models/a_spec.rb", name: "a"), avg_duration_ms: 2_000, grader_name: TestInsights::RuntimeSummary::ALL_GRADERS)
+      summary!(identity: identity!(file_path: "spec/jobs/b_spec.rb", name: "b"), avg_duration_ms: 40_000, grader_name: TestInsights::RuntimeSummary::ALL_GRADERS)
+
+      described_class.materialize_grader_inputs(shard_context)
+
+      expect(shard_profile).to eq("spec/jobs/b_spec.rb:40.00\nspec/models/a_spec.rb:2.00\n")
+    end
+
+    it "gives every shard of a round the same profile even after runtimes change" do
+      identity = identity!(file_path: "spec/models/a_spec.rb", name: "a")
+      summary = summary!(identity: identity, avg_duration_ms: 2_000, grader_name: TestInsights::RuntimeSummary::ALL_GRADERS)
+      described_class.materialize_grader_inputs(shard_context)
+      first = shard_profile
+
+      # A shard that finished first updated the live summaries.
+      summary.update!(avg_duration_ms: 9_000)
+      Dir.mktmpdir("second-shard") do |dir|
+        described_class.materialize_grader_inputs(shard_context(workspace: Pathname.new(dir)))
+
+        expect(shard_profile(Pathname.new(dir))).to eq(first)
+      end
+      expect(TestInsights::ShardRuntimeSnapshot.count).to eq(1)
+    end
+
+    it "takes a fresh profile for the next round's source snapshot" do
+      summary = summary!(identity: identity!(file_path: "spec/models/a_spec.rb", name: "a"), avg_duration_ms: 2_000, grader_name: TestInsights::RuntimeSummary::ALL_GRADERS)
+      described_class.materialize_grader_inputs(shard_context(snapshot_id: 77))
+      summary.update!(avg_duration_ms: 9_000)
+
+      described_class.materialize_grader_inputs(shard_context(snapshot_id: 78))
+
+      expect(shard_profile).to eq("spec/models/a_spec.rb:9.00\n")
+    end
+
+    it "writes nothing without a source snapshot to key the round by" do
+      described_class.materialize_grader_inputs(shard_context(snapshot_id: nil))
+
+      expect(@workspace_path.join(".syrus/shard_runtime_rspec-ci.log")).not_to exist
+    end
+  end
 end

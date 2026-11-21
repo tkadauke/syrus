@@ -158,6 +158,53 @@ RSpec.describe Ruby::RspecGraderType do
       expect(sizes.max - sizes.min).to be <= spec_tree.fetch("spec/models/b_spec.rb")
     end
 
+    it "names one suite-wide runtime profile every shard reads" do
+      steps = sharded_steps
+
+      expect(steps.map { |step| step.metadata["shard_runtime_profile_destination"] }.uniq).to eq([ ".syrus/shard_runtime_rspec-ci.log" ])
+      expect(steps.map { |step| step.metadata["shard_runtime_profile_key"] }.uniq).to eq([ "rspec-ci" ])
+    end
+
+    describe "with a materialized runtime profile" do
+      # Runtimes deliberately disagree with file sizes: the smallest files are
+      # the slowest, as request and system specs often are.
+      let(:runtimes) do
+        {
+          "spec/models/a_spec.rb" => 2.0, "spec/models/b_spec.rb" => 2.0, "spec/services/c_spec.rb" => 3.0,
+          "spec/services/d_spec.rb" => 4.0, "spec/jobs/e_spec.rb" => 40.0, "spec/jobs/f_spec.rb" => 45.0
+        }
+      end
+
+      def files_run_with_profile(step, profile)
+        _out, err, status, parallel_args = run_generated_rspec_command(step.run, parallel_status: 0) do |dir|
+          write_specs(dir, spec_tree)
+          path = File.join(dir, step.metadata.fetch("shard_runtime_profile_destination"))
+          FileUtils.mkdir_p(File.dirname(path))
+          File.write(path, profile.map { |file, seconds| "#{file}:#{seconds}" }.join("\n") + "\n")
+        end
+        expect(status).to be_success, err
+        parallel_args.split.select { |arg| arg.end_with?("_spec.rb") }
+      end
+
+      it "balances shards by recorded runtime and still runs every file exactly once" do
+        slices = sharded_steps.map { |step| files_run_with_profile(step, runtimes) }
+        spec_files = spec_tree.keys.select { |path| path.end_with?("_spec.rb") } - [ "spec/migrations/serial_spec.rb" ]
+
+        expect(slices.flatten).to match_array(spec_files)
+        expect(slices.flatten.uniq.size).to eq(slices.flatten.size)
+        # The two slow files land on different shards instead of together.
+        expect(slices.map { |slice| (slice & %w[spec/jobs/e_spec.rb spec/jobs/f_spec.rb]).size }.max).to eq(1)
+      end
+
+      it "weights a file missing from the profile by size at the profiled rate" do
+        partial = runtimes.except("spec/requests/g_spec.rb")
+        slices = sharded_steps.map { |step| files_run_with_profile(step, partial) }
+
+        expect(slices.flatten).to include("spec/requests/g_spec.rb")
+        expect(slices.flatten.uniq.size).to eq(slices.flatten.size)
+      end
+    end
+
     it "runs the serial paths once, in the last shard" do
       first, *, last = sharded_steps
 
