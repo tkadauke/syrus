@@ -571,8 +571,8 @@
         "grader_fanout_worker_loss_stays_in_loop"
       ],
       "status": "open",
-      "done_by": null,
-      "notes": "Production (77 executions, 6 days, read-only): 56 'skipped: worker_died failure already created active replacement work'. Not a classifier/executor disagreement: the repair did mark the Run worker_died, and that failure's own propagation queued the replacement, so the repair rightly declined to add a second retry. The audit labels the step 'skipped' on purpose (reconciler_spec asserts the warn-severity skip), which hides that a repair was applied; reading skip counts for this kind needs that caveat. No code change."
+      "done_by": "F52",
+      "notes": "Production (77 executions, 6 days, read-only): 56 'skipped: worker_died failure already created active replacement work'. Not a classifier/executor disagreement: the repair did mark the Run worker_died, and that failure's own propagation queued the replacement, so the repair rightly declined to add a second retry. The audit labels the step 'skipped' on purpose (reconciler_spec asserts the warn-severity skip), which hides that a repair was applied; reading skip counts for this kind needs that caveat. No code change. F52 / WorkerEvidence.lean: the live-claim guard now attributes an inline-chained Run's worker (the finished root Run's RunJob) to it (after_complete) without borrowing a running sibling's claim (after_ignores_running_siblings)."
     },
     {
       "id": "runs-paused",

@@ -1565,6 +1565,55 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(issue&.recommended_repair_action).not_to eq("fail_run_as_worker_died")
   end
 
+  # Regression (formal/SyrusModel/WorkerEvidence.lean): an inline-chained Run
+  # executes inside an earlier Run's RunJob, so its worker's claim is a
+  # workflow-mate's. The orphan guard above read only the Run's own claim, so
+  # the same orphaned helper still failed a healthy chained Run.
+  it "does not fail an inline-chained run as worker-died while the chain's worker still holds the claim" do
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 12.minutes.ago)
+    step.update_columns(state: "succeeded", started_at: 11.minutes.ago, finished_at: 10.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 11.minutes.ago, finished_at: 10.minutes.ago)
+    chained_step = workflow.steps.where.not(id: step.id).order(:position, :id).first
+    chained_step.update_columns(state: "running", started_at: 10.minutes.ago)
+    chained = chained_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "claude",
+                                        state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 158.seconds.ago)
+    solid_queue_run_job(run, claimed: true, created_at: 1.minute.ago)
+    SpawnedProcess.create!(
+      run: chained, workflow: workflow, kind: "grader", command: "bundle exec rspec", hostname: "worker-1",
+      pid: 4243, pgid: 4243, started_at: 9.minutes.ago, last_chunk_at: 8.minutes.ago,
+      finished_at: 7.minutes.ago, outcome: "orphaned"
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(job_id: job.id)
+
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to be_nil
+    issue = kind(result, :running_run_without_live_worker_evidence)
+    expect(issue&.recommended_repair_action).not_to eq("fail_run_as_worker_died")
+  end
+
+  it "does not treat an inline-chained run as detached while the chain's worker still holds the claim" do
+    job.update_columns(state: "running")
+    workflow.update_columns(state: "running", started_at: 12.minutes.ago)
+    step.update_columns(state: "succeeded", started_at: 11.minutes.ago, finished_at: 10.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 11.minutes.ago, finished_at: 10.minutes.ago)
+    chained_step = workflow.steps.where.not(id: step.id).order(:position, :id).first
+    chained_step.update_columns(state: "running", started_at: 10.minutes.ago)
+    chained_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "claude",
+                              state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 4.minutes.ago)
+    solid_queue_run_job(run, claimed: true, created_at: 1.minute.ago)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(job_id: job.id)
+
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to be_nil
+    issue = kind(result, :running_run_without_live_worker_evidence)
+    expect(issue&.recommended_repair_action).not_to eq("fail_run_as_worker_died")
+  end
+
   it "ignores replay workflows without WorkUnits on closed jobs" do
     closed = Factories.job_record(
       user: job.user,
