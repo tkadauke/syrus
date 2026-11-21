@@ -14,9 +14,10 @@ ahead (`fail_open_on_error`). DOC-44: "Landing success implies an applicable
 validation manifest for the content actually merged". The merge-train path
 already fails closed on the same question (`ensure_base_unchanged!`).
 
-A missing *validated* base (`validated = none`) still proceeds in both
-versions: it is queued as a design question (NY10), since the preflight
-always records the PR's base before the landing graders run.
+A missing *validated* base (`validated = none`) proceeded in both versions
+at first. NY10 (decided A): it defers too, so the next preflight records it.
+`afterNY10` is the current rule: every merge had a validated base, read and
+unchanged (`afterNY10_merge_confirmed`).
 -/
 
 namespace SyrusModel
@@ -91,6 +92,25 @@ theorem after_differs_only_when_unread (i : Input) (h : after i ≠ before i) :
 theorem after_never_adds_merges (i : Input) (h : after i = .merge) : before i = .merge := by
   obtain ⟨val, obs⟩ := i
   cases val <;> cases obs <;> simp_all [after, before]
+
+/-- NY10 (A): no recorded validated base defers as well. -/
+def afterNY10 (i : Input) : Decision :=
+  match i.validated with
+  | none => .defer
+  | some _ => after i
+
+/-- Every merge had a validated base that was read and equal to it. -/
+theorem afterNY10_merge_confirmed (i : Input) (h : afterNY10 i = .merge) :
+    ∃ v, i.validated = some v ∧ i.observed = .sha v := by
+  obtain ⟨val, obs⟩ := i
+  cases val with
+  | none => simp [afterNY10] at h
+  | some v =>
+    exact ⟨v, rfl, after_merge_confirms_base ⟨some v, obs⟩ (by simpa [afterNY10] using h) v rfl⟩
+
+theorem afterNY10_never_adds_merges (i : Input) (h : afterNY10 i = .merge) : after i = .merge := by
+  obtain ⟨val, obs⟩ := i
+  cases val <;> simp_all [afterNY10]
 
 end LandingBase
 end SyrusModel

@@ -1355,7 +1355,7 @@
       ],
       "status": "partial",
       "done_by": "F44, F45 · Agreement.planned_retry_never_skipped",
-      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop. RetryBudget.lean: in-place attempts count against the reconciler's job-wide budget (reconciler_respects_in_place, job_bound), but the in-place path budgets per Step (in_place_per_step), so one outage can take MAX_ATTEMPTS retries on every Step; bounded per Step (step_bound). NY11."
+      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop. RetryBudget.lean: in-place attempts count against the reconciler's job-wide budget (reconciler_respects_in_place, job_bound), but the in-place path budgets per Step (in_place_per_step), so one outage can take MAX_ATTEMPTS retries on every Step; bounded per Step (step_bound). NY11 decided A: per-Step budget kept."
     },
     {
       "id": "resumable-agent-session",
@@ -2332,7 +2332,7 @@
       "simulator": [],
       "status": "done",
       "done_by": "F49",
-      "notes": "LandingBase.lean: after_merge_confirms_base (a merge with a validated base had it read and equal), after_differs_only_when_unread. Before: an error or blank read of the live base merged anyway. A blank validated base still proceeds (NY10)."
+      "notes": "LandingBase.lean: after_merge_confirms_base (a merge with a validated base had it read and equal), after_differs_only_when_unread. Before: an error or blank read of the live base merged anyway. NY10 (A): a blank validated base defers too (afterNY10_merge_confirmed)."
     },
     {
       "id": "landing-repair-reuse-current",
@@ -2498,7 +2498,7 @@
         "C. Compare with the manifest's base_sha instead of the Job column, and fail closed when both are blank."
       ],
       "recommendation": "A. It closes the last path in the check that merges without knowing the base, at the cost of one deferral in a state that should not occur. C is better long-term but changes which record is authoritative.",
-      "decision": null
+      "decision": "A (2026-11-21): a blank recorded validated base defers landing for a re-check, like an unreadable live base."
     },
     {
       "id": "NY11",
@@ -2511,7 +2511,7 @@
         "C. Per Job for both, matching the reconciler."
       ],
       "recommendation": "B. A transport outage is one event, and the job-wide count already exists (budget_scope_for); worker_died keeps its higher per-Step limit, where independence is real.",
-      "decision": null
+      "decision": "A (2026-11-21): keep the per-Step in-place budget. Infrastructure failures should fail work as rarely as possible while runaway loops stay bounded; each Step's budget is bounded (step_bound) and in-place attempts still count against the job-wide reconciler budget."
     }
   ]
 }

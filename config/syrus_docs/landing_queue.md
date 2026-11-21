@@ -179,7 +179,7 @@ the normal landing queue path intact.
 
 After graders pass, Syrus pushes any repair commits and calls the GitHub merge API. The merge method (merge, squash, or rebase) is configured per-repository.
 
-Immediately before merging, Syrus reads the base branch head again and compares it with the base the landing graders validated. If the base moved, Syrus rebases and continues (with `trust_clean_rebase_grade`) or defers. If the base cannot be read (a GitHub error or an empty answer), Syrus defers too, keeping the approval, and re-checks shortly; it never merges onto a base it could not confirm.
+Immediately before merging, Syrus reads the base branch head again and compares it with the base the landing graders validated. If the base moved, Syrus rebases and continues (with `trust_clean_rebase_grade`) or defers. If the base cannot be read (a GitHub error or an empty answer), or no validated base was recorded for the landing, Syrus defers too, keeping the approval, and re-checks shortly; it never merges onto a base it could not confirm.
 
 ### Transient failures
 
