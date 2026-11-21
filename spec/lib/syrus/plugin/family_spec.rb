@@ -76,6 +76,25 @@ RSpec.describe Syrus::Plugin::Family do
     end.to raise_error(ArgumentError, /missing legacy mappings for prepare_detector/)
   end
 
+  it "records and validates the capability that indicates language support" do
+    family = described_class.define(:language) do
+      shape :facet
+      indicates_language_support capability: :detect_prepare
+      capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: String
+    end
+
+    expect(family).to be_indicates_language_support
+    expect(family.language_support_capability).to eq(:detect_prepare)
+
+    expect do
+      described_class.define(:invalid_language) do
+        shape :facet
+        indicates_language_support capability: :missing
+        capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: String
+      end
+    end.to raise_error(ArgumentError, /unknown language-support capability :missing/)
+  end
+
   it "requires manifest keys for keyed capabilities" do
     described_class.define(:resolver) do
       shape :facet

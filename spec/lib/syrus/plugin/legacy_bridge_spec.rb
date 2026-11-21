@@ -11,7 +11,6 @@ RSpec.describe Syrus::Plugin::LegacyBridge, :reset_plugin_registry do
     end
     Syrus::Plugin::Family.define(:ecosystem_bridge_spec) do
       shape :facet
-      indicates_language_support
       capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: String, returns: Array
       legacy :prepare_detector, capability: :detect_prepare, adapter:
     end
