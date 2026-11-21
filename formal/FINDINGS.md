@@ -4052,6 +4052,44 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M46. Main commits through `2bfca771f5` — unread-only chat sidebar, invariant holds
+
+Four frontend commits after `31254a466c` stop the recent-chats sidebar from
+refetching, and from resetting its loaded sections, on every navigation in
+unread-only mode. The route's chat id leaves the query key. The open chat is
+tracked in a module-level `openRecentChatId`. On navigation, the previously
+open chat is dropped locally. A mark-read response is now applied even after
+the route has moved on (`updateChatUnread`, not a refetch).
+
+**Relied-on invariant:** in unread-only mode, the list shows exactly the
+unread chats plus the open one.
+
+**Checked:**
+
+- **The mark-read response lands before navigation.** The chat stays while
+  open (`openRecentChatId === id`). Leaving it finds it read in the cache, so
+  it is dropped.
+- **The response lands after navigation.** The navigation effect still sees it
+  unread and keeps it. The late `updateChatUnread` then drops it, because it is
+  no longer the open chat and no longer in the query key.
+- **The open chat came only from "show more".** It is not in the query cache
+  at all. The navigation effect reads "not unread in the cache" and drops it
+  from the loaded sections, so it cannot linger as read.
+- **The sidebar unmounts while a chat is open.** `openRecentChatId` goes to
+  `null`. A later mark-read removes the open chat from the unread-only cache,
+  which is correct for the next mount.
+
+**Lead L5 (not fixed, self-healing).** The navigation effect decides "still
+unread" from the query cache alone, and `updateChatUnread` never patches the
+loaded sections. A chat reached only through "show more" whose mark-read
+*failed* is dropped on navigation although it is still unread. It reappears on
+the next refetch (30-second stale time, or window focus). Deciding from the
+loaded sections as well would need `updateChatUnread` to reach them first.
+Otherwise a successfully read chat from a loaded section would be kept as
+unread.
+
+---
+
 ## M45. Main commits through `31254a466c` — the plugin capability-family epic
 
 Forty-one commits landed on main after `d9be256158`:
@@ -4984,7 +5022,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `31254a466c`. Each loop iteration continues from there:
+Checked through main `2bfca771f5`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
