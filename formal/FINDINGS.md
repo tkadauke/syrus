@@ -1584,6 +1584,38 @@ claim" (both failed it before); the sibling spec still passes.
 
 ---
 
+## F53. Feedback on a blocked CI repair restarted implementation from the base — fixed
+
+**Found by** deriving the invariant behind a recent main commit ("Rerun
+feedback, not implementation, when a feedback workflow is blocked") and checking
+the kinds it did not cover (`BlockedFeedback.lean`).
+
+**Property.** Operator feedback on blocked work rebuilds from the base only when
+the blocked work was an implementation attempt
+(`after_retries_implementation`). Work that lives on the implemented branch is
+continued there (`after_keeps_branch`).
+
+**Gap.** `BlockedImplementationFeedback.retry!` asked "is the blocked Workflow a
+feedback kind". A blocked CI repair (`ci_failure`), whose `analyze_and_fix`
+agent can report `cannot_proceed`, is not a feedback kind, so the feedback
+started an implementation retry from the base, abandoning the PR it was
+repairing, or was refused while other mutation work was active
+(`ci_repair_restarts_from_base`). Rebases and visual reviews never reach this
+path (`blocked_workflow` excludes non-approval-blocking kinds), and neither do
+landing kinds.
+
+**Fix.** An explicit `Workflow::TriggerKind` field, `builds_from_base`, marks
+the implementation attempts (`initial`, `retry`, `base_refresh_retry`). Blocked
+work of any other kind, on a Job that has a branch, is retired and the feedback
+runs as `chat_feedback` on that branch. Feedback kinds are decided exactly as
+before (`after_feedback_unchanged`).
+
+**Spec.** `submit_chat_feedback_tool_spec.rb` "keeps the implemented branch
+when the blocked workflow is a CI repair" (refused before);
+`trigger_kind_spec.rb` `.builds_from_base?`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
