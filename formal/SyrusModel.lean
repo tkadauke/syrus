@@ -11,6 +11,7 @@ import SyrusModel.LandingBase
 import SyrusModel.ValidationGate
 import SyrusModel.RepairReuse
 import SyrusModel.RetryBudget
+import SyrusModel.RepairLift
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

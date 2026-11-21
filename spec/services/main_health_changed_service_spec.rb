@@ -1919,6 +1919,27 @@ RSpec.describe MainHealthChangedService, :ci_only do
       expect(Notification.last).to have_attributes(user: user, kind: "main_recovered")
     end
 
+    # Regression (formal/SyrusModel/RepairLift.lean): the landed repair proves
+    # only its own merge result healthy. A commit that reached main after it
+    # was declared healthy without being graded, and the strict pause lifted.
+    it "does not declare a later, ungraded main head healthy or lift the pause" do
+      settle_main_health!(repository, sha: "broken123", ci_health: "broken", grader_health: "broken")
+      repository.update!(landing_paused: true)
+      allow(github_client).to receive(:branch_head_sha).and_return("later789")
+      repair = repository.jobs.create!(
+        user: user, kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "landed repair", issue_body: "fixing main", agent_provider: "claude", priority: "high"
+      )
+      repair.update_columns(state: "closed", closure_reason: "pr_merged", finished_at: Time.current, landed_sha: "fixed456")
+
+      expect {
+        described_class.repair_landed!(repository, job: repair)
+      }.to have_enqueued_job(PollMainBranchHealthJob).with(repository.id)
+
+      expect(repository.reload).to have_attributes(landing_paused: true, ci_health: "broken", grader_health: "broken")
+      expect(MainBranchHealthCheck.where(repository: repository, sha: "later789", grader_health: "healthy")).not_to exist
+    end
+
     it "keeps repositories without CI configured as no-CI healthy" do
       settle_main_health!(repository, sha: "broken123", ci_health: "not_configured", grader_health: "broken")
       allow(github_client).to receive(:branch_head_sha).and_return("fixed456")

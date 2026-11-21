@@ -1522,6 +1522,33 @@ dependency's sources changed outside the repair's own diff" (kept before).
 
 ---
 
+## F51. A landed main repair declared later, ungraded commits healthy — fixed
+
+**Found by** DOC-44 Phase 3, main-branch repair (`RepairLift.lean`).
+
+**Property.** When a main-branch repair lands, only the commit its landing
+validated (`job.landed_sha`) is declared healthy, and the strict-policy pause
+lifts only on that evidence (`after_declares_only_landed`).
+
+**Gap.** `MainHealthChangedService#repair_landed!` (called when the repair Job
+closes as merged) recorded CI and grader health as healthy for the *live*
+default-branch head, then called `recovered!`, which lifts the landing pause and
+releases held work. If anything reached main after the repair, through an
+isolation-policy landing or a manual push, that commit was declared healthy
+without being graded, and the pause lifted on stale evidence
+(`later_commit_declared_healthy`).
+
+**Fix.** When main has already moved past the repair's landed commit,
+`repair_landed!` enqueues a health poll for the live head instead. The pause
+stays until that grade comes back. The fix only withholds declarations
+(`after_declare_was_before`). A repair with no recorded landed SHA keeps the
+old behaviour.
+
+**Spec.** `main_health_changed_service_spec.rb` "does not declare a later,
+ungraded main head healthy or lift the pause" (lifted it before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
