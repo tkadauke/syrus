@@ -8,6 +8,6 @@ Selecting **Review** opens a full-screen, distraction-free workspace with the el
 
 The workspace stores no inbox, read/unread, or durable deferred state. Defer only removes a Job for the current workspace session. A deep link selects a Job only while it remains eligible; otherwise the workspace safely selects the first current item or shows its caught-up state. Approval and feedback use the normal Job lifecycle endpoints and recheck authorization and the current PR state. Successful actions remove the item and advance the stack.
 
-Keyboard controls mirror visible controls: J/K selects Jobs, left/right navigates visual evidence, A starts approval, F opens feedback, and Escape exits. Exiting returns to the previous application view.
+On mobile, one Job is presented at a time. Swipe vertically on the Job to move through the stack, swipe right to open (but not complete) approval confirmation, swipe left to defer for the session, or long-press for details. Screenshot gestures remain inside the canonical evidence carousel, and gestures beginning at the browser edge do not claim rightward navigation. Visible controls and keyboard controls mirror every gesture: J/K selects Jobs, left/right navigates visual evidence, A starts approval, F opens feedback, and Escape exits. Reduced-motion preferences disable gesture transforms. Exiting returns to the previous application view.
 
 Disabling the plugin removes its routes, sidebar entry, badge, and frontend contribution without changing Jobs or approval records.
