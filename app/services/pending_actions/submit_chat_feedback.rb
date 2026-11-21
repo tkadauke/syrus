@@ -5,6 +5,11 @@ module PendingActions
 
     def execute
       job = action_job
+      if BlockedImplementationFeedback.applicable?(job)
+        progress!("Retrying #{job.slug}'s blocked implementation with this feedback...")
+        return BlockedImplementationFeedback.retry!(job, feedback: payload.fetch("feedback"))
+      end
+
       progress!("Creating feedback workflow for #{job.slug}...")
       result = ChatFeedbackSubmission.call(
         job: job,

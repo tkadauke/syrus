@@ -41,7 +41,8 @@ module Mcp::Tools
 
         job = find_job!(job_id)
 
-        if job.running? || job.queued?
+        blocked_implementation = BlockedImplementationFeedback.applicable?(job)
+        if (job.running? || job.queued?) && !blocked_implementation
           pending_action = chat_session.pending_actions.create!(
             action: "submit_chat_feedback",
             state: "queued",
@@ -57,7 +58,9 @@ module Mcp::Tools
           )
         end
 
-        return Mcp::Tools.invalid("#{job.state} jobs are not actionable for chat feedback; the job must be implemented or approved.") unless actionable?(job)
+        unless actionable?(job) || blocked_implementation
+          return Mcp::Tools.invalid("#{job.state} jobs are not actionable for chat feedback; the job must be implemented or approved, or its implementation blocked.")
+        end
         if active_chat_feedback_workflow?(job)
           return Mcp::Tools.invalid("a chat_feedback workflow is already queued or running for this job")
         end

@@ -72,6 +72,9 @@ module Workflows
       end
       JobClosure.apply_pending!(workflow)
       workflow.job.set_needs_attention!(reason: "agent_cannot_proceed") unless workflow.job.closed?
+      # Feedback queued "until the current run finishes" is exactly what can
+      # unblock this; the run will not finish on its own, so offer it now.
+      ChatPendingAction.promote_queued_for_job!(workflow.job) unless workflow.job.closed?
       workflow.cleanup_workspace!
     end
 

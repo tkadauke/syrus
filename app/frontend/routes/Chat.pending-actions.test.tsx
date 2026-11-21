@@ -273,7 +273,7 @@ describe("App chat pending actions", () => {
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
     // Queued feedback can sit behind a run that never finishes (a blocked
     // implementation), so the operator must always be able to withdraw it.
-    expect(screen.getByText("Becomes confirmable when the Job finishes its current run.")).toBeInTheDocument()
+    expect(screen.getByText("Becomes confirmable when the Job finishes or blocks its current run.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
   })
 

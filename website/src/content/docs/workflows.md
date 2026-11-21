@@ -91,7 +91,12 @@ The agent receives the agreed chat feedback as structured workflow input
 and commits follow-up changes on the existing branch. Submitting feedback
 on an approved Job unapproves it so the updated PR returns to review before
 landing. Feedback proposed while the Job is queued or running is held as a
-queued pending action and becomes confirmable once the Job is implemented.
+queued pending action that can be cancelled while it waits, and becomes
+confirmable once the Job is implemented or its implementation blocks. When the
+implementing agent has reported that it cannot proceed, feedback is
+confirmable right away, and confirming it starts a fresh implementation
+attempt with the feedback as operator context instead of a `chat_feedback`
+Workflow -- the same retry as the Job page's "Retry implementation".
 Confirmed feedback on an implemented or approved Job can also wait behind
 unrelated active work, such as visual review; Syrus only rejects it when a
 `chat_feedback` Workflow is already queued or running for the same Job.

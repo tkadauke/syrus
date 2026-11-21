@@ -167,6 +167,55 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     )
   end
 
+  describe "on a Job whose implementation is blocked" do
+    let(:blocked_job) do
+      job = Factories.job(user: user, repository: repository)
+      workflow = job.workflows.first
+      workflow.update_columns(state: "blocked", finished_at: Time.current)
+      workflow.set_artifact!("cannot_proceed", { "reason" => "Compose and Kubernetes are unavailable on this worker" })
+      job.update_columns(state: "running")
+      job.reload
+    end
+
+    it "asks for confirmation right away instead of queueing behind a run that will never finish" do
+      response = call_tool(job_id: blocked_job.id, feedback: "Drop the cluster drills from the acceptance criteria.")
+      pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(pending_action).to be_pending
+    end
+
+    it "retries the implementation with the feedback as operator context once confirmed" do
+      blocked_workflow = blocked_job.workflows.first
+      response = call_tool(job_id: blocked_job.id, feedback: "Drop the cluster drills from the acceptance criteria.")
+      pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
+
+      pending_action.confirm!(user: user)
+
+      retry_workflow = pending_action.reload.result
+      expect(pending_action).to be_confirmed
+      expect(retry_workflow).to have_attributes(trigger_kind: "retry")
+      expect(retry_workflow.artifact("implementation_retry")).to be(true)
+      expect(retry_workflow.artifact("replay_context")).to include("Drop the cluster drills from the acceptance criteria.")
+      expect(blocked_workflow.reload).to be_cancelled
+      expect(blocked_job.workflows.where(trigger_kind: "chat_feedback")).to be_empty
+    end
+
+    it "offers feedback queued earlier as soon as the implementation blocks" do
+      job = Factories.job_record(repository: repository, state: "running")
+      pending_action = chat_session.pending_actions.find(
+        payload(call_tool(job_id: job.id, feedback: "Narrow the scope."))[:pending_action_id]
+      )
+      expect(pending_action).to be_queued
+      workflow = Workflows::Initial.instantiate(job: job)
+      workflow.update_columns(state: "blocked")
+
+      Workflows::LifecyclePropagation.new(workflow).blocked!
+
+      expect(pending_action.reload).to be_pending
+    end
+  end
+
   it "accepts jobs outside the chat repository when they belong to the chat user" do
     other_job = Factories.job_record(repository: Factories.repository(user: user), state: "implemented")
 
