@@ -1905,6 +1905,53 @@ degraded now disposes its effects and does not reinstall them.
 
 ---
 
+## F63. Plugin CLI command collisions were decided by plugin names — fixed
+
+**Found by** DOC-44 plugin host semantics, "Plugin CLI command collisions fail
+deterministically" (`CliCollisions.lean`).
+
+**Property.** No offered CLI command collides with another plugin's command,
+so every offered command is reachable, whatever order the plugins are mounted
+in (`all_offered_reachable`, checked over every set of commands on two plugins
+with paths of up to two words).
+
+**Gap.**
+
+- `CliCommand.normalize_all` rejected duplicate paths only within one plugin.
+- The Go CLI (`registerPluginCommands`) mounts catalog commands at their bare
+  path, first entry wins. A later command is skipped when its path already
+  holds a command, or a group made for a longer path.
+- `PluginCliCommands.catalog` sorts by plugin name.
+
+So when two enabled plugins declared the same path, the plugin whose name
+sorted first owned it, and the other's command silently vanished. A rename
+flipped the owner (`owner_follows_names`). The same held when one plugin's path
+was a prefix of another's: if `beta`'s `docs list` sorted first, `docs` became
+a group and `alpha`'s runnable `docs` vanished (`prefix_vanishes`). No health
+signal said so.
+
+**Fix.**
+
+- `CliCommand.collisions` treats two commands of different plugins as
+  colliding when one path equals, or is a prefix of, the other.
+  `PluginCliCommands.catalog` withholds every command in a collision.
+- `PluginHealth#warn_cli_collisions` adds a `:warning` to both plugins ("CLI
+  command `docs list` collides with beta's `docs`; neither is offered"). It
+  uses the same enabled-and-healthy set the catalog draws from, and a warning
+  never changes health.
+- A plugin's own nested commands never collide. Built-in commands still win,
+  as before (`TestCompiledCommandWinsOverCatalogCollision`).
+- No bundled plugin collides (20 commands checked), so nothing changes for the
+  default install. Documented in `docs/engineering/conventions/plugins.md`.
+
+**Spec.** `spec/services/plugin_cli_commands_spec.rb`:
+
+- same path and prefix collisions were both offered before the fix;
+- the health warning was `:ok`;
+- a disabled plugin does not take a path away.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

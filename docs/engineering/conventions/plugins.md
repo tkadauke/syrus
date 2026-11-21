@@ -149,7 +149,11 @@ The currently registered contribution kinds are:
   return `self.class.table(columns:, rows:)`, `self.class.text(value)`, or
   `self.class.json(value)`. Commands cannot stream or prompt interactively.
   Invalid declarations degrade the plugin in plugin health and withhold its
-  commands instead of preventing Syrus from booting.
+  commands instead of preventing Syrus from booting. The CLI mounts paths bare,
+  so a path that equals, or is a prefix of, another enabled plugin's path is a
+  collision: every command in it is withheld from the catalog and both plugins
+  carry a health warning, rather than whichever sorts first winning. Built-in
+  CLI commands always win over catalog commands.
 
   Commands that need local files, interactive prompts, agents, or child
   processes use a separately distributed `syrus-<name>` executable discovered

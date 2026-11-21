@@ -35,6 +35,20 @@ module Syrus
         commands.freeze
       end
 
+      # Commands of different plugins collide when one path equals or is a
+      # prefix of the other: the CLI mounts paths bare, so either would decide
+      # by catalog order which of them is reachable. Returns command => the
+      # other plugins' commands it collides with. A plugin's own nested
+      # commands (`docs` and `docs list`) never collide.
+      def self.collisions(commands)
+        commands.each_with_object({}) do |command, found|
+          others = commands.select do |other|
+            other.plugin != command.plugin && (other.path.first(command.path.length) == command.path || command.path.first(other.path.length) == other.path)
+          end
+          found[command] = others if others.any?
+        end
+      end
+
       def initialize(plugin:, declaration:)
         entry = declaration.to_h.deep_symbolize_keys
         @plugin = plugin.to_s

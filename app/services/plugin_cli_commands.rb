@@ -3,8 +3,13 @@
 class PluginCliCommands
   Error = Data.define(:code, :message, :status)
 
+  # A command that collides with another plugin's (same path, or one a prefix
+  # of the other) is withheld together with the other one, so which plugin
+  # owns a path never depends on catalog order. PluginHealth reports it.
   def self.catalog
-    healthy_manifests.flat_map(&:cli_commands).sort_by { |command| [ command.plugin, command.path ] }
+    commands = healthy_manifests.flat_map(&:cli_commands)
+    colliding = Syrus::Plugin::CliCommand.collisions(commands)
+    commands.reject { |command| colliding.key?(command) }.sort_by { |command| [ command.plugin, command.path ] }
   end
 
   def self.find(plugin:, path:)

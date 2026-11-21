@@ -38,7 +38,7 @@ module Syrus
     end
 
     def statuses
-      @statuses ||= propagate_unhealthy_dependencies(@manifests.to_h { |manifest| [ manifest.name, status_for(manifest) ] })
+      @statuses ||= warn_cli_collisions(propagate_unhealthy_dependencies(@manifests.to_h { |manifest| [ manifest.name, status_for(manifest) ] }))
     end
 
     def status(name) = statuses[name]
@@ -94,6 +94,20 @@ module Syrus
         end
         return statuses unless changed
       end
+    end
+
+    # Over the same set PluginCliCommands.catalog draws from (enabled and
+    # healthy), so a warning here is exactly a command withheld there. Only
+    # adds a :warning, which never changes health.
+    def warn_cli_collisions(statuses)
+      live = @manifests.select { |manifest| @enabled_names.include?(manifest.name) && statuses[manifest.name]&.healthy? }
+      Syrus::Plugin::CliCommand.collisions(live.flat_map { |manifest| Array(manifest.cli_commands) }).each do |command, others|
+        status = statuses.fetch(command.plugin)
+        reasons = others.map { |other| "CLI command `#{command.key}` collides with #{other.plugin}'s `#{other.key}`; neither is offered" }
+        statuses[command.plugin] = Status.new(name: status.name, state: status.state == :ok ? :warning : status.state,
+          reasons: status.reasons + reasons)
+      end
+      statuses
     end
 
     def status_for(manifest)
