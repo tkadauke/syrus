@@ -1,0 +1,146 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+require "open3"
+require_relative "../plugins/local_backups/lib/local_backups/recovery"
+
+class StandaloneRecoveryProcess
+  def capture(command, workdir:)
+    output, status = Open3.capture2e(*command, chdir: workdir)
+    [output, status.success?]
+  end
+
+  def run(command, environment:, workdir:)
+    system(environment, command.to_s, chdir: workdir)
+  end
+end
+
+recovery_process = StandaloneRecoveryProcess.new
+
+options = {
+  root: ENV["SYRUS_BACKUP_ROOT"], max_bytes: Integer(ENV.fetch("SYRUS_RECOVERY_MAX_BYTES", LocalBackups::Recovery::DEFAULT_MAX_BYTES)),
+  max_files: Integer(ENV.fetch("SYRUS_RECOVERY_MAX_FILES", LocalBackups::Recovery::DEFAULT_MAX_FILES))
+}
+parser = OptionParser.new do |opts|
+  opts.banner = "usage: bin/disaster-recovery COMMAND [BUNDLE] [options]"
+  opts.on("--root PATH") { |value| options[:root] = value }
+  opts.on("--destination PATH") { |value| options[:destination] = value }
+  opts.on("--installation-id ID") { |value| options[:installation_id] = value }
+  opts.on("--database-adapter NAME") { |value| options[:database_adapter] = value }
+  opts.on("--database-version VERSION") { |value| options[:database_version] = value }
+  opts.on("--application-version VERSION") { |value| options[:application_version] = value }
+  opts.on("--plugin NAME") { |value| (options[:plugins] ||= []) << value }
+  opts.on("--encryption-fingerprints JSON") { |value| options[:encryption_fingerprints] = JSON.parse(value) }
+  opts.on("--in-flight COUNT", Integer) { |value| options[:in_flight] = value }
+  opts.on("--token TOKEN") { |value| options[:token] = value }
+  opts.on("--database-destination PATH") { |value| options[:database_destination] = value }
+  opts.on("--objects-destination PATH") { |value| options[:objects_destination] = value }
+  opts.on("--safety-root PATH") { |value| options[:safety_root] = value }
+  opts.on("--maintenance-marker PATH") { |value| options[:maintenance_marker] = value }
+  opts.on("--enter-maintenance-command COMMAND") { |value| options[:enter] = value }
+  opts.on("--drain-command COMMAND") { |value| options[:drain] = value }
+  opts.on("--verify-drained-command COMMAND") { |value| options[:verify_drained] = value }
+  opts.on("--safety-backup-command COMMAND") { |value| options[:safety_backup] = value }
+  opts.on("--migrate-command COMMAND") { |value| options[:migrate] = value }
+  opts.on("--rebuild-command COMMAND") { |value| options[:rebuild] = value }
+  opts.on("--reconcile-command COMMAND") { |value| options[:reconcile] = value }
+  opts.on("--health-check-command COMMAND") { |value| options[:health_check] = value }
+  opts.on("--resume-command COMMAND") { |value| options[:resume] = value }
+  opts.on("--mysql-stage-command COMMAND") { |value| options[:mysql_stage_command] = value }
+  opts.on("--mysql-promote-command COMMAND") { |value| options[:mysql_promote_command] = value }
+  opts.on("--mysql-rollback-command COMMAND") { |value| options[:mysql_rollback_command] = value }
+  opts.on("--object-stage-command COMMAND") { |value| options[:object_stage_command] = value }
+  opts.on("--object-promote-command COMMAND") { |value| options[:object_promote_command] = value }
+  opts.on("--object-rollback-command COMMAND") { |value| options[:object_rollback_command] = value }
+  opts.on("--break-glass-no-safety-backup") { options[:break_glass] = true }
+  opts.on("--max-bytes BYTES", Integer) { |value| options[:max_bytes] = value }
+  opts.on("--max-files COUNT", Integer) { |value| options[:max_files] = value }
+  opts.on("--stdin") { options[:stdin] = true }
+end
+
+command = ARGV.shift
+parser.parse!(ARGV)
+bundle_argument = ARGV.shift
+
+def open_bundle(argument, options)
+  return LocalBackups::Recovery::Bundle.materialize($stdin.binmode, max_bytes: options[:max_bytes], max_files: options[:max_files]) if options[:stdin]
+  raise LocalBackups::Recovery::Error, "a bundle path is required" if argument.to_s.empty?
+  path = Pathname.new(argument)
+  return LocalBackups::Recovery::Bundle.new(path, max_bytes: options[:max_bytes], max_files: options[:max_files]) if path.directory?
+  path.open("rb") { |input| LocalBackups::Recovery::Bundle.materialize(input, max_bytes: options[:max_bytes], max_files: options[:max_files]) }
+end
+
+begin
+case command
+when "list"
+  raise LocalBackups::Recovery::Error, "--root is required" if options[:root].to_s.empty?
+  Pathname.new(options[:root]).children.select(&:directory?).sort.each do |path|
+    begin
+      bundle = LocalBackups::Recovery::Bundle.new(path, max_bytes: options[:max_bytes], max_files: options[:max_files])
+      puts [bundle.manifest["backup_id"], bundle.manifest["completed_at"], path].join("\t")
+    rescue LocalBackups::Recovery::Error
+      next
+    end
+  end
+when "inspect"
+  puts JSON.pretty_generate(open_bundle(bundle_argument, options).manifest)
+when "validate"
+  bundle = open_bundle(bundle_argument, options).validate!
+  puts JSON.generate(status: "valid", artifact_checksum: bundle.checksum)
+when "copy"
+  bundle = open_bundle(bundle_argument, options).validate!
+  raise LocalBackups::Recovery::Error, "--destination is required" if options[:destination].to_s.empty?
+  destination = Pathname.new(options[:destination])
+  raise LocalBackups::Recovery::Error, "destination already exists" if destination.exist?
+  FileUtils.copy_entry(bundle.path, destination, false, false, true)
+  puts destination
+when "import"
+  raise LocalBackups::Recovery::Error, "--root is required" if options[:root].to_s.empty?
+  puts LocalBackups::Recovery::Importer.new(root: options[:root], max_bytes: options[:max_bytes], max_files: options[:max_files]).import(open_bundle(bundle_argument, options))
+when "preflight"
+  bundle = open_bundle(bundle_argument, options)
+  destination = options[:destination] || ENV["SYRUS_DATA_ROOT"]
+  raise LocalBackups::Recovery::Error, "--destination or SYRUS_DATA_ROOT is required" if destination.to_s.empty?
+  report = LocalBackups::Recovery::Preflight.new(
+    bundle:, destination:, installation_id: options[:installation_id] || ENV["SYRUS_INSTALLATION_ID"],
+    token_secret: ENV["SYRUS_RECOVERY_TOKEN_SECRET"], process: recovery_process,
+    current: options.slice(:database_adapter, :database_version, :application_version, :plugins, :encryption_fingerprints, :in_flight)
+  ).call
+  puts JSON.pretty_generate(report)
+  exit 2 if report[:status] == "blocked"
+when "verify-token"
+  token = ARGV.shift
+  raise LocalBackups::Recovery::Error, "a token is required" if token.to_s.empty?
+  bundle = open_bundle(bundle_argument, options).validate!
+  installation_id = options[:installation_id] || ENV["SYRUS_INSTALLATION_ID"]
+  valid = LocalBackups::Recovery::Token.valid?(
+    token, secret: ENV["SYRUS_RECOVERY_TOKEN_SECRET"], artifact_checksum: bundle.identity_checksum, installation_id:
+  )
+  raise LocalBackups::Recovery::Error, "preflight token is stale or belongs to another artifact or installation" unless valid
+  puts JSON.generate(status: "valid", artifact_checksum: bundle.identity_checksum, installation_id:)
+when "restore"
+  bundle = open_bundle(bundle_argument, options)
+  destination = options[:destination] || ENV["SYRUS_DATA_ROOT"]
+  required = %i[token database_destination objects_destination safety_root maintenance_marker enter drain verify_drained rebuild reconcile health_check resume]
+  missing = required.select { |key| options[key].to_s.empty? }
+  raise LocalBackups::Recovery::Error, "missing restore options: #{missing.join(', ')}" if destination.to_s.empty? || missing.any?
+  result = LocalBackups::Recovery::Restore.new(
+    bundle:, token: options[:token], token_secret: ENV["SYRUS_RECOVERY_TOKEN_SECRET"],
+    installation_id: options[:installation_id] || ENV["SYRUS_INSTALLATION_ID"], destination:,
+    database_destination: options[:database_destination], objects_destination: options[:objects_destination],
+    safety_root: options[:safety_root], maintenance_marker: options[:maintenance_marker], break_glass: options[:break_glass],
+    process: recovery_process,
+    commands: options.slice(:enter, :drain, :verify_drained, :safety_backup, :migrate, :rebuild, :reconcile,
+      :health_check, :resume, :mysql_stage_command, :mysql_promote_command, :mysql_rollback_command,
+      :object_stage_command, :object_promote_command, :object_rollback_command)
+  ).call
+  puts JSON.generate(result.to_h)
+else
+  warn parser
+  exit 64
+end
+rescue LocalBackups::Recovery::Error, Errno::EACCES, Gem::Package::TarInvalidError => error
+  warn "recovery error: #{error.message}"
+  exit 1
+end

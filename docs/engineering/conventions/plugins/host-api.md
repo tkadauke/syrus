@@ -96,6 +96,36 @@ Supported members:
 - `operational_log_context`
 - `queue_as`
 
+### `Syrus::Host::BackupArtifactSource`
+
+Since: `0.1.16`
+
+Defines the sealed backup-artifact source operations plugins may provide; replication orchestration is not promised. Only the listed members are supported.
+
+Supported members:
+
+- `checksum`
+- `describe`
+- `list`
+- `open`
+- `pin`
+- `record_replication`
+- `release_pin`
+
+### `Syrus::Host::BackupDestination`
+
+Since: `0.1.16`
+
+Defines offsite backup destination operations plugins may provide; credential storage and replication orchestration are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `delete`
+- `health`
+- `materialize_local`
+- `upload`
+- `verify`
+
 ### `Syrus::Host::Callbacks`
 
 Since: `0.1.16`
@@ -160,6 +190,16 @@ Supported members:
 
 - `api_user`
 - `user`
+
+### `Syrus::Host::DiskUsage`
+
+Since: `0.1.16`
+
+Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.
+
+Supported members:
+
+- `read`
 
 ### `Syrus::Host::InvocationResult`
 
@@ -378,6 +418,26 @@ Supported members:
 - `job`
 - `state`
 - `workflow`
+
+### `Syrus::Host::SystemAlert`
+
+Since: `0.1.16`
+
+Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.
+
+Supported members:
+
+- `build`
+
+### `Syrus::Host::SystemAlertProvider`
+
+Since: `0.1.16`
+
+Defines the system-alert contribution plugins may provide; alert aggregation and delivery are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `system_alerts`
 
 ### `Syrus::Host::ToolContext`
 

@@ -1,0 +1,23 @@
+localBackups:
+  enabled: true
+  topology: rwo-owner
+  persistence:
+    capacity: 100Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  construction:
+    objectConcurrency: 4
+    minimumFreeBytes: 1073741824
+    minimumFreePercent: 10
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+  authenticatedOperations:
+    construction: true
+    inventory: true
+    validation: true
+    import: true
+    download: true

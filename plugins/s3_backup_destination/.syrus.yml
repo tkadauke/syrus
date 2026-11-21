@@ -1,0 +1,9 @@
+project:
+  id: s3_backup_destination
+  label: "s3_backup_destination plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"

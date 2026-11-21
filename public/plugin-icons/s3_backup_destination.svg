@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="S3 backup destination">
+  <path d="M20 49h29a11 11 0 0 0 1-22 18 18 0 0 0-34-4A13 13 0 0 0 20 49z" fill="#0f766e"/>
+  <path d="M32 18v22m-8-8 8 8 8-8" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

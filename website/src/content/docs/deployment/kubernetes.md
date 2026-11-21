@@ -223,10 +223,38 @@ Back up three things:
   files needed by active or recently completed Workflows.
 - **`syrus-search` PVC**: the dedicated SQLite FTS5 chat search database.
 
-For MySQL, use the backup mechanism that belongs to your MySQL strategy:
-managed snapshots, operator backups, or scheduled `mysqldump`. For the
-PVC, use your cluster storage snapshot mechanism or a volume backup tool
-such as Velero with CSI snapshots.
+The Local Backups plugin creates portable recovery bundles from MySQL with a
+transactionally consistent, compressed logical dump and exports referenced
+Active Storage objects through the configured service, including
+S3-compatible services. It rejects non-InnoDB tables because they cannot honor
+the same snapshot guarantee. Keep database-operator snapshots or managed
+snapshots as an additional infrastructure recovery layer.
+
+Give recovery bundles their own PVC and set `SYRUS_BACKUP_ROOT` to its mount.
+For k3s, use one backup-owner worker and a `ReadWriteOnce` claim; use a
+`Recreate` rollout so two pods never contend for the claim. An optional
+`ReadWriteMany` topology is suitable only when the storage class provides
+reliable shared-volume semantics. Configure the PVC capacity and storage
+class, `SYRUS_BACKUP_MIN_FREE_BYTES`, `SYRUS_BACKUP_MIN_FREE_PERCENT`, and
+`SYRUS_BACKUP_OBJECT_CONCURRENCY` in Helm values. Run the owner as UID/GID
+1000, drop Linux capabilities, disable privilege escalation, and mount the
+claim read-only in web pods. The plugin's capacity admission blocks new
+construction before the configured reserve is consumed.
+
+Disaster recovery must scale or route every mutating web and worker workload
+out of service and verify the drain before `bin/disaster-recovery restore`
+promotes anything. Run the CLI from the matching Syrus image with access to the
+backup PVC. MySQL and S3-compatible restores use deployment-specific commands
+to create isolated staging schemas, buckets, or prefixes, validate them,
+promote them, and roll them back. The CLI retains its maintenance marker and
+prints the pinned safety-bundle and rollback steps on any failure. Resume
+workloads only after migration, index rebuild, work reconciliation, and boot
+health commands all succeed. Recovery is like-for-like; the existence of both
+backup drivers does not make SQLite-to-MySQL or Disk-to-S3 conversion a
+supported restore path.
+
+For the data-root PVC, use your cluster storage snapshot mechanism or a volume
+backup tool such as Velero with CSI snapshots.
 
 The data-root and search PVC mounts must be writable by the container's
 `rails` user (`1000:1000`) where writes happen. Both web and worker pods mount

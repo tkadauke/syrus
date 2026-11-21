@@ -510,6 +510,20 @@ run_docker() {
   fi
   chmod 600 .env
 
+  # Compose does not create bind-mount parents with predictable ownership or
+  # permissions. Provision the operator-selected host directory before setup
+  # chowns its contents for the container user. Keep this separate from the
+  # installer's pre-upgrade safety archives under ./backups.
+  backup_host_path="$(sed -n 's/^SYRUS_BACKUP_HOST_PATH=//p' .env | tail -1)"
+  case "$backup_host_path" in
+    \"*\") backup_host_path="${backup_host_path#\"}"; backup_host_path="${backup_host_path%\"}" ;;
+    \'*\') backup_host_path="${backup_host_path#\'}"; backup_host_path="${backup_host_path%\'}" ;;
+  esac
+  backup_host_path="${backup_host_path:-./local-backups}"
+  mkdir -p "$backup_host_path"
+  chmod 700 "$backup_host_path"
+  info "Prepared local backup storage at $backup_host_path."
+
   # Plugin Runtime arrived after many installs already had a .env. Fill in
   # its keys where missing (or still the template placeholder) without
   # touching anything else; an operator's own values always win. The runtime

@@ -67,6 +67,7 @@ RSpec.describe "frontend table conventions" do
     "plugins/agent_insights/app/frontend/agentInsightToolCard.tsx#root1" => "compact chat tool-card result summary",
     "plugins/agent_memory/app/frontend/memoryToolCard.tsx#root1" => "compact chat tool-card result summary",
     "plugins/k8s_cluster/app/frontend/kubernetesToolCard.tsx#root1" => "compact chat tool-card result summary",
+    "plugins/local_backups/app/frontend/routes/AdminLocalBackups.tsx#root1" => "backup inventory has fixed recovery-safety and action columns",
     "plugins/metrics_dashboard/app/frontend/routes/MetricsDashboard.tsx#root1" => "plugin-provided dashboard summary with a fixed schema",
     "plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx#root1" => "schema-detail column table has database-defined columns",
     "plugins/plugin_runtime/app/frontend/routes/AdminPluginServices.tsx#root1" => "service-detail diagnostic table is shaped by the selected service",

@@ -1,5 +1,10 @@
 require "syrus/host"
+require "syrus/host/backup_artifact_source"
+require "syrus/host/backup_destination"
 require "syrus/host/chat_titles"
+require "syrus/host/disk_usage"
+require "syrus/host/system_alert"
+require "syrus/host/system_alert_provider"
 %w[
   agent_provider callbacks permission_provider repository_content_provider
   cli_command_handler
@@ -18,6 +23,9 @@ module Syrus
         PermissionProvider: "Syrus::Plugin::PermissionProvider",
         RepositoryContentProvider: "Syrus::Plugin::RepositoryContentProvider",
         CliCommandHandler: "Syrus::Plugin::CliCommandHandler",
+        BackupArtifactSource: "Syrus::Plugin::BackupArtifactSource",
+        BackupDestination: "Syrus::Plugin::BackupDestination",
+        SystemAlertProvider: "Syrus::Plugin::SystemAlertProvider",
         InvocationResult: "AgentInvocation::Result",
         ToolContext: "McpToolContext",
         Current: "Current",
@@ -43,6 +51,9 @@ module Syrus
         PermissionProvider: [ "Declares plugin permission capabilities and scopes; core authorization storage is not promised.", %w[register_authorization_adapter register_resource_scope register_capability register_permission_preset migrate_permission_scope retire_permission_identifier] ],
         RepositoryContentProvider: [ "Supplies the immutable repository-content provider contract; cache and fallback orchestration are not promised.", %w[provider_key display_name role available_for? build resolve tree children read changes refs relation history commits tree_sha divergence] ],
         CliCommandHandler: [ "Bases server-backed plugin CLI handlers; transport internals are not promised.", %w[call table text raw_text json] ],
+        BackupArtifactSource: [ "Defines the sealed backup-artifact source operations plugins may provide; replication orchestration is not promised.", %w[list describe open checksum pin release_pin record_replication] ],
+        BackupDestination: [ "Defines offsite backup destination operations plugins may provide; credential storage and replication orchestration are not promised.", %w[upload verify delete materialize_local health] ],
+        SystemAlertProvider: [ "Defines the system-alert contribution plugins may provide; alert aggregation and delivery are not promised.", %w[system_alerts] ],
         InvocationResult: [ "Carries an agent or chat invocation result; invocation-engine internals are not promised.", %w[new turns exit_status timed_out is_error outcome final_text session_id transcript_jsonl transcript_path cost_usd input_tokens output_tokens success?] ],
         ToolContext: [ "Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised.", %w[surface role user repository job workflow run chat_session run? chat? interactive] ],
         Current: [ "Exposes the request-local authenticated user; assignment and other current attributes are not promised.", %w[user api_user] ],
@@ -70,7 +81,9 @@ module Syrus
       }.freeze
 
       SERVICE_CONTRACTS = {
-        ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ]
+        ChatTitles: [ "Queues automatic title generation for a chat; job implementation and queue details are not promised.", %w[enqueue] ],
+        DiskUsage: [ "Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised.", %w[read] ],
+        SystemAlert: [ "Builds a host-compatible system alert value; aggregation, persistence, and delivery are not promised.", %w[build] ]
       }.freeze
 
       STATIC_CONTRACTS = {
