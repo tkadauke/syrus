@@ -2,7 +2,13 @@ require "mcp"
 
 module PersistentMcpDaemon::WorkflowToolDispatch
   class << self
+    # Installs the capability authorization layer first, as the stdio sidecar
+    # and ChatToolDispatch do, so it sits inside this wrapper and sees the
+    # resolved run context. Without it a permission-gated workflow-only tool
+    # (patch_workflow, read_artifact) never reached ScheduledAuthorization in
+    # persistent mode, so a scheduled run skipped the owner's rules.
     def wrap(tool)
+      Mcp::Sidecar.authorize_tool(tool)
       tool.singleton_class.prepend(Dispatch) unless tool.singleton_class < Dispatch
       tool
     end

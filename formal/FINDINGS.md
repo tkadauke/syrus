@@ -1369,6 +1369,40 @@ order (Coworkers specs, then the daemon spec) passes: 982 examples.
 
 ---
 
+## F47. Scheduled runs skipped permission rules in persistent MCP mode — fixed (Lead L3)
+
+**Gap.** The capability authorization layer
+(`Mcp::Tools::AuthorizationSupport::ToolDispatch`) is installed on a tool
+class lazily, by `Mcp::Sidecar.authorize_tool`. The stdio sidecar installs it
+on every tool it serves, and so does `ChatToolDispatch.wrap`.
+`WorkflowToolDispatch.wrap`, used by the persistent daemon's workflow route,
+did not. The persistent sidecar is on by default
+(`Feature.persistent_mcp_sidecar_enabled?`). So a permission-gated tool served
+only on the workflow route reached its body without
+`Permissions::ScheduledAuthorization` running, and a scheduled (cron) run
+skipped the owner's deny and approval rules for it. That held unless some
+other path in the same daemon process had already wrapped that class. A
+probe in a fresh process found the two gated workflow-only tools,
+`patch_workflow` and `read_artifact`, unwrapped
+(`DispatchOrder.workflow_only_tool_unauthorized_before`).
+
+**Fix.** `WorkflowToolDispatch.wrap` installs the authorization layer first,
+as the chat wrapper does, so the layer sits inside the route wrapper and sees
+the resolved run context (`served_tool_authorized_after`).
+
+**Spec.** `persistent_mcp_daemon_spec.rb` "runs the capability authorization
+layer for a gated workflow-only tool". Red before: `ScheduledAuthorization`
+was consulted 0 times.
+
+**Lead L3 after F46 and F47.** Both daemon routes now install authorization
+on first wrap, and the wrappers no longer depend on order. Authorization is
+still installed lazily by prepend, so a class that some path serves without
+going through one of the three wrappers is still unguarded. Making it
+structural (install on registration in `McpToolRegistry`) would close the
+lead.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -1550,7 +1584,7 @@ session.
 tools with `authorize_tool` and opts into `full_chat_access: :all`. It passes
 alone and after the polluting example.
 
-## Lead L3: whether a tool call is gated depends on process history (one instance fixed as F46)
+## Lead L3: whether a tool call is gated depends on process history (instances fixed as F46, F47)
 
 The same mechanism has a production side. Sidecar and daemon dispatch wrap a
 tool before calling it, so real agent tool calls are gated. But any in-process
