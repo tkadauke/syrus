@@ -80,7 +80,8 @@ RSpec.describe Syrus::Plugin::Family do
     family = described_class.define(:language) do
       shape :facet
       indicates_language_support capability: :detect_prepare
-      capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: String
+      capability :detect_prepare, composition: :collect, absent: [], tier: :stable,
+        context: Syrus::Plugin::Context::RepoContext
     end
 
     expect(family).to be_indicates_language_support
@@ -90,9 +91,18 @@ RSpec.describe Syrus::Plugin::Family do
       described_class.define(:invalid_language) do
         shape :facet
         indicates_language_support capability: :missing
-        capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: String
+        capability :detect_prepare, composition: :collect, absent: [], tier: :stable,
+          context: Syrus::Plugin::Context::RepoContext
       end
     end.to raise_error(ArgumentError, /unknown language-support capability :missing/)
+
+    expect do
+      described_class.define(:invalid_language_context) do
+        shape :facet
+        indicates_language_support capability: :detect_prepare
+        capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: String
+      end
+    end.to raise_error(ArgumentError, /must use Syrus::Plugin::Context::RepoContext/)
   end
 
   it "requires manifest keys for keyed capabilities" do

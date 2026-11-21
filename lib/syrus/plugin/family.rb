@@ -49,6 +49,10 @@ module Syrus
         def shape(value = nil) = value ? @shape = value.to_sym : @shape
         def indicates_language_support(capability:) = @language_support_capability = capability.to_sym
         def indicates_language_support? = !language_support_capability.nil?
+        def language_support_context_name
+          context = capabilities.fetch(language_support_capability).context
+          context.respond_to?(:name) ? context.name : context.to_s
+        end
         def migrated(value = true) = @migrated = value
         def migrated? = @migrated
         def absorbs(*extension_points) = @absorbed_legacy_points.concat(extension_points.flatten.map(&:to_sym)).uniq!
@@ -82,6 +86,10 @@ module Syrus
           if definition.indicates_language_support? && !definition.capabilities.key?(definition.language_support_capability)
             raise ArgumentError,
               "Family #{name.inspect} declares unknown language-support capability #{definition.language_support_capability.inspect}"
+          end
+          if definition.indicates_language_support? && definition.language_support_context_name != "Syrus::Plugin::Context::RepoContext"
+            raise ArgumentError,
+              "Family #{name.inspect} language-support capability must use Syrus::Plugin::Context::RepoContext"
           end
           if definition.unmapped_legacy_points.any?
             raise ArgumentError, "Family #{name.inspect} is missing legacy mappings for #{definition.unmapped_legacy_points.join(', ')}"
