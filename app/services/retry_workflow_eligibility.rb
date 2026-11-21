@@ -97,8 +97,16 @@ class RetryWorkflowEligibility
       job.pr_checks_state == "passing"
   end
 
+  # The workflow a Job opened with. Most Jobs open with `initial`, but a
+  # main-branch repair Job opens with its own `main_branch_repair` workflow and
+  # never has an `initial` one, so every automatic retry of a failed repair was
+  # refused as "initial_not_run" and rescheduled an hour later, forever -- and
+  # since no new repair is spawned for a main SHA a failed repair already
+  # covers, one failed repair left main broken until main moved.
+  OPENING_TRIGGER_KINDS = %w[ initial main_branch_repair ].freeze
+
   def initial_workflow_ran?
-    initial = job.workflows.where(trigger_kind: "initial").order(:created_at, :id).first
+    initial = job.workflows.where(trigger_kind: OPENING_TRIGGER_KINDS).order(:created_at, :id).first
     return false unless initial
     return true if initial.started_at.present? || initial.finished_at.present?
     return true if initial.running? || initial.terminal?

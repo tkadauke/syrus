@@ -186,6 +186,16 @@ RSpec.describe RetryWorkflowEligibility do
       expect(result.code).to eq("initial_not_run")
     end
 
+    it "counts a main-branch repair Job's own opening workflow as its initial attempt" do
+      job = make_job
+      Workflow.create!(job: job, trigger_kind: "main_branch_repair", state: "failed",
+        started_at: 2.hours.ago, finished_at: 1.hour.ago)
+
+      result = described_class.call(job: job)
+
+      expect(result.code).not_to eq("initial_not_run")
+    end
+
     it "is ineligible when there is no initial workflow at all" do
       job = make_job
 

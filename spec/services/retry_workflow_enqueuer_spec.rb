@@ -633,6 +633,22 @@ RSpec.describe RetryWorkflowEnqueuer do
       described_class.call(job: job)
     end
 
+    # Regression: a real main-branch repair Job opens with its main_branch_repair
+    # workflow and has no initial one, so its automatic retry was refused as
+    # "initial_not_run" and rescheduled hourly while main stayed broken.
+    it "automatically retries a main-branch repair Job that never had an initial workflow" do
+      repair_job = Factories.job_record(user: job.user, repository: job.repository, state: "failed", issue_title: "Fix broken main branch")
+      Workflow.create!(job: repair_job, user: repair_job.user, trigger_kind: "main_branch_repair",
+        state: "failed", started_at: 2.hours.ago, finished_at: 1.hour.ago)
+
+      expect(WorkUnits::Launcher).to receive(:instantiate)
+        .with(hash_including(kind: "main_branch_repair")).and_call_original
+
+      result = described_class.call(job: repair_job, automatic: true, provider_validation: :none)
+
+      expect(result.error).not_to include("initial workflow has not run") if result.error
+    end
+
     # auto_merge and merge_train own job lifecycle and have their own retry
     # paths, so they must still fall through to the initial-chain retry.
     it "still uses the initial-chain retry for a failed auto_merge" do
