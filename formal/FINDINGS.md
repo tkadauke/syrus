@@ -1150,10 +1150,22 @@ Workflow's own path, since F18/F36 no longer see a pending attempt
 Workflow when an in-place retry is skipped" (red before). The existing skip
 example now uses a failed Workflow, which is the case it describes.
 
-**Remaining.** `DeferredPhaseResume#reactivate_terminal_unit_for_active_workflow!`
-lets a `LockConflict` from `mark_running!` escape, and
-`WorkflowPhaseAdmissionJob` retries only deadlocks and lock-wait timeouts.
-That phase-boundary deferral then has no recheck (deferral-schedules-recheck).
+**Remaining.** Fixed as F39.
+
+---
+
+## F39. A lock-blocked phase resume had no recheck — fixed
+
+Same property as F32: every wait wakes on an event or has its own recheck.
+`DeferredPhaseResume#reactivate_terminal_unit_for_active_workflow!` lets a
+`LockConflict` from `mark_running!` (another unit holds a lock this Workflow
+needs) escape. `WorkflowPhaseAdmissionJob` retries only database lock errors,
+so the job failed and nothing rechecked the deferred phase. The
+`JobManualPause` resume and the reconciler's resume repairs raised the same
+way. Now the conflict is reported as `blocked` / `active_work_lock` and
+schedules a phase-admission recheck. Spec: `deferred_phase_resume_spec.rb`
+"reports a lock-blocked reactivation and schedules its own recheck" (red
+before: the exception escaped).
 
 ---
 

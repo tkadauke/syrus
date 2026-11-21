@@ -19,7 +19,15 @@ module WorkUnits
 
     def call
       return result("terminal") unless workflow.queued? || workflow.running?
-      reactivate_terminal_unit_for_active_workflow!
+      begin
+        reactivate_terminal_unit_for_active_workflow!
+      rescue WorkUnits::Launcher::LockConflict
+        # Another unit holds a lock this Workflow needs. That is a wait like
+        # any other gate, and it needs its own recheck: the admission job
+        # retries only database lock errors.
+        WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: StepDispatcher::START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
+        return result("blocked", reason: RetryFailedStepEnqueuer::ACTIVE_WORK_LOCK_ERROR)
+      end
       return result("unowned") unless work_unit&.active?
 
       step = target_step
