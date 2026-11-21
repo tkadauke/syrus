@@ -38,6 +38,7 @@ import SyrusModel.CliCollisions
 import SyrusModel.RuleAliases
 import SyrusModel.LifecycleOrder
 import SyrusModel.EventSequence
+import SyrusModel.EntityMerge
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet
