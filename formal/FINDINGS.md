@@ -3908,6 +3908,40 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M40. A requested WorkIntent without a unit is dormant, not stuck — audited, no bug
+
+**Scope.** DOC-44 ownership, the partial coverage item
+`requested-intent-without-unit`. F42 found that both of its classifiers return
+nothing unless the Reconciler is invoked with a `work_intent_id`, and no
+production caller passes one, so the state is never detected. The question
+here is whether that matters.
+
+**Nothing acts on such an intent by itself.** The production readers of
+`requested` intents are the repair executor's guards and
+`WorkUnit#reactivate_work_intent!`. No background process scans requested
+intents and launches work from them. "Materializing" one only means
+`Launcher#find_or_create_intent!` reusing it when a later launch passes the
+*same* idempotency key (the rebase, merge-state and stale-branch pollers,
+and auto-retry). That launch then creates the unit under the intent lock
+(`intent.lock!` when a key is present), so the reuse is serialized.
+
+**So the record is dormant.** A requested intent with no unit:
+
+- holds no lock, since locks belong to units;
+- blocks nothing, since admission gates key on units and Jobs;
+- is either reused by the next keyed launch for the same work, or stays inert.
+
+Whatever work it stood for is still observed where it matters: through the
+Job and Workflow states that the Job-level classifiers check, including a
+running Job with no work (F88), a queued Workflow with no first Run, and a
+stalled intake.
+
+The undetectable classifier is therefore a monitoring gap, not a liveness
+gap. Wiring a `work_intent_id` into a production Reconciler caller would make
+the count visible, but no Job waits on these records.
+
+---
+
 ## M39. No WorkUnit state write bypasses the lock release — audited, pinned
 
 **Scope.** DOC-44 ownership, the partial coverage item

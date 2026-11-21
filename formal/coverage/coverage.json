@@ -167,9 +167,9 @@
         "requested_intent_without_active_unit",
         "stale_initial_intent_after_successful_retry"
       ],
-      "status": "partial",
-      "done_by": "F42",
-      "notes": "Both classifiers return [] unless the Reconciler is invoked with work_intent_id, and no production caller passes one, so this state is never detected in production. Modelled as requestedWithoutActiveUnit in Reconciler.lean. Production (read-only): 87 of 92 requested intents had only cancelled units; for finished work these are now cancelled with the unit (F42). Remaining: Epic-conflict victims rely on the Job-level retry repair, and the generic relaunch classifier still never runs without a work_intent_id."
+      "status": "done",
+      "done_by": "F42 · M40",
+      "notes": "Both classifiers return [] unless the Reconciler is invoked with work_intent_id, and no production caller passes one, so this state is never detected in production. Modelled as requestedWithoutActiveUnit in Reconciler.lean. Production (read-only): 87 of 92 requested intents had only cancelled units; for finished work these are now cancelled with the unit (F42). Remaining: Epic-conflict victims rely on the Job-level retry repair, and the generic relaunch classifier still never runs without a work_intent_id. M40: nothing launches from a requested intent except a later launch with the same idempotency key (serialized by intent.lock!); the record holds no lock and blocks nothing, so the unreachable classifier is a visibility gap, not a liveness one."
     },
     {
       "id": "active-unit-without-workflow",
