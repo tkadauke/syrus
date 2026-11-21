@@ -443,13 +443,24 @@ module Steps
       target_graph.affected(target.label, changed_files: files).affected
     end
 
+    # The input fingerprint hashes the files in the target's and its
+    # dependencies' source scopes (the whole repository only when none has
+    # one), so it is compared whenever any scope exists. That covers changes
+    # the repair's own diff does not show, such as format and generate
+    # commits later in the same iteration (formal/SyrusModel/RepairReuse.lean).
     def reusable_repair_fingerprints?(grader, prior, current)
       return false if prior.blank?
 
       target = target_graph.target(target_label_for(grader))
       keys = %w[command_fingerprint environment_fingerprint]
-      keys << "input_fingerprint" if target.source_scope.any?
+      keys << "input_fingerprint" if scoped_closure?(target)
       keys.all? { |key| prior[key] == current[key] }
+    end
+
+    def scoped_closure?(target)
+      return true if target.source_scope.any?
+
+      target_graph.dependency_closure_for(target.label).any? { |label| target_graph.target(label)&.source_scope&.any? }
     end
 
     def deduplicate_equivalent_failed_variants(graders)

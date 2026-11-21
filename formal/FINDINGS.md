@@ -1490,6 +1490,38 @@ reading the base before the merge" and "...when GitHub returns no SHA..."
 
 ---
 
+## F50. A landing repair kept a repo-wide grader's pass after its dependency changed — fixed
+
+**Found by** DOC-44 Phase 3, following M3's trust boundary into the reuse
+decision (`RepairReuse.lean`).
+
+**Property.** After a code-changing landing repair, an earlier pass is kept
+only if no file the grader reads changed anywhere in the iteration
+(`keepAfter_nothing_read_changed`). This holds whenever the grader reads a
+scoped set of files at all. A kept pass becomes a `carried_forward` manifest
+result, which the landing gate accepts on fingerprints alone (M3).
+
+**Gap.** `Steps::GraderFanout#partition_evidence_driven_repair_graders` checks
+the repair Run's own diff against the target's scope (or its dependencies'
+scopes, for a repo-wide target). It compared the input fingerprint only for a
+target with its own scope. But `format` and `generate` run after the repair and
+commit too. A repo-wide grader depending on a scoped target (say generated
+code under `lib/**`) kept its earlier pass after `generate` rewrote that code,
+so the landing could merge code the grader never ran on
+(`kept_after_generated_change`).
+
+**Fix.** The input fingerprint (the hash of every file in the target's and its
+dependencies' scopes) is also compared when only a dependency has a scope
+(`scoped_closure?`). The fix only reruns more (`keepAfter_implies_keepBefore`),
+and only for that shape of target (`keep_differs_only_for_scoped_dependencies`).
+A repo-wide target with no scoped dependency is still kept after a narrow
+repair, as documented (`metadata.always_rerun` opts out).
+
+**Spec.** `grader_fanout_spec.rb` "reruns a repo-wide grader when its
+dependency's sources changed outside the repair's own diff" (kept before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -1547,7 +1579,7 @@ Trust boundary (`reused_not_sha_checked`): carried-forward and target-health
 results have no source SHA, so the gate accepts them on fingerprints alone.
 Their applicability is decided upstream by `Steps::GraderFanout`, which reuses a
 result only when the target's fingerprints or health record still match. That
-reuse decision is the next thing to model.
+reuse decision is modelled in `RepairReuse.lean` (F50).
 
 ---
 
