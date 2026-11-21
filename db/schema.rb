@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_110811) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2263,6 +2263,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_194656) do
     t.datetime "verified_at"
     t.string "remote_checksum"
     t.text "failure_summary"
+    t.string "lease_token"
+    t.datetime "lease_expires_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["backup_id", "destination_identity"], name: "idx_local_backup_replications_identity", unique: true
