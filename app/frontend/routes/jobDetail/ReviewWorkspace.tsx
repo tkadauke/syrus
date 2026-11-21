@@ -175,11 +175,7 @@ export function ReviewWorkspace({
     clampWidth: clampReviewCommentsWidth
   })
   const versions =
-    versionsQuery.data?.job_id === jobId
-      ? versionsQuery.data.versions
-      : sourceDiff.data?.job_id === jobId
-        ? (sourceDiff.data.versions ?? [])
-        : []
+    versionsQuery.data?.job_id === jobId ? versionsQuery.data.versions : sourceDiff.data?.job_id === jobId ? (sourceDiff.data.versions ?? []) : []
   const payloadVersionId = sourceDiff.data?.version?.id ?? null
   const defaultVersionId = preferredReviewVersionId(sourceDiff.data ?? null, versions)
   const rangeSearch = selectedRange ? `?${new URLSearchParams({ base: selectedRange.baseSha, head: selectedRange.headSha }).toString()}` : ""

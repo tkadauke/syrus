@@ -304,9 +304,7 @@ describe("ReviewWorkspace", () => {
         : sourceDiffPayload({ job_id: 43, version: secondVersion, versions: [secondVersion] })
     )
     vi.mocked(fetchDiffReviewVersions).mockImplementation(async (jobId) =>
-      Number(jobId) === 42
-        ? { job_id: 42, versions: firstVersions, latest_version_id: 200 }
-        : { job_id: 43, versions: [secondVersion], latest_version_id: 300 }
+      Number(jobId) === 42 ? { job_id: 42, versions: firstVersions, latest_version_id: 200 } : { job_id: 43, versions: [secondVersion], latest_version_id: 300 }
     )
     vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
       ...firstVersions[1],
@@ -335,9 +333,7 @@ describe("ReviewWorkspace", () => {
   it("falls back to the current canonical version when a selected historical version is missing", async () => {
     const currentVersion = version({ id: 100, label: "Current version", version_index: 1 })
     const missingVersion = version({ id: 200, label: "Missing version", version_index: 2, run_id: 22 })
-    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
-      sourceDiffPayload({ version: currentVersion, versions: [currentVersion, missingVersion] })
-    )
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload({ version: currentVersion, versions: [currentVersion, missingVersion] }))
     vi.mocked(fetchDiffReviewVersions).mockResolvedValue({
       job_id: 42,
       versions: [currentVersion, missingVersion],
