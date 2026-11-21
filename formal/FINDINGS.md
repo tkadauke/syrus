@@ -3303,6 +3303,56 @@ Also run and green:
 
 ---
 
+## F92. A started landing whose agent could not proceed kept the repository landing slot — fixed
+
+**Found by** DOC-44 scheduling, coverage item `gates-starvation-free`. The
+note there warns that the landing-slot release uses an allowlist, so any
+reason that clears only from outside but is missing from the list keeps the
+slot.
+
+**Gap.** `WorkUnit#block!` gives back the repository `landing:` lock in two
+cases:
+
+- the reason is in `EXTERNALLY_CLEARED_BLOCKED_REASONS`, defined as "reasons
+  that cannot clear by waiting";
+- the landing had not started its first Run (NY7, `PrestartSlot.lean`).
+
+When an approval-blocking Workflow is blocked because its agent reported it
+cannot proceed, `Workflows::LifecyclePropagation#blocked!` blocks the unit with
+`agent_cannot_proceed`. The landing Workflows (`auto_merge`, `merge_train`)
+run a `landing_fix` repair agent, and that agent can report it cannot proceed.
+`agent_cannot_proceed` clears only when a person or the agent acts. It meets
+the list's own definition, but it was missing from the list. So a *started*
+landing that ended up there kept the repository's landing slot, and every
+other approved Job in the repository waited behind a Job nobody was working
+on, with nothing marked failed.
+
+Production (read-only): no blocked unit currently holds a landing lock, and no
+landing Workflow has ever been `blocked`. The path is reachable, but has not
+been taken.
+
+**Fix.** `agent_cannot_proceed` joins `EXTERNALLY_CLEARED_BLOCKED_REASONS`.
+Every reader of the list then treats it consistently:
+
+- `block!` gives back the landing slot, and only that slot: the Job and Epic
+  locks stay;
+- the `externally_blocked_landing_slot` repair releases slots that units
+  parked on it before this change still hold;
+- `stranded_landing_job` returns such a Job to `approved` (M42).
+
+**Spec.** `work_unit_spec.rb` "surrenders the landing slot when a started
+landing's agent cannot proceed" was red before (the slot stayed held).
+
+Also run and green:
+
+- `spec/models/work_unit_spec.rb`, `spec/services/workflows` and the
+  cannot-proceed tool spec;
+- the CI-only reconciler, executor and resilience specs;
+- the `stranded_landing_job_without_lock_returns_to_approved` and
+  `externally_blocked_landing_slot_released` simulations.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

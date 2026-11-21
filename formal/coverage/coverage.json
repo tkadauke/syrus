@@ -2017,7 +2017,7 @@
       ],
       "status": "partial",
       "done_by": "PrestartSlot.lean · NY7 (A)",
-      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats. PrestartSlot.lean states the structural rule (a landing blocked before its first Run never holds the slot) that would end the allowlist; decision queued as NY7. NY7 implemented: a pre-start landing block surrenders the slot for every reason, so a new block reason can no longer squat it before the first Run. In-flight (post-first-Run) blocks still keep it unless externally cleared."
+      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats. PrestartSlot.lean states the structural rule (a landing blocked before its first Run never holds the slot) that would end the allowlist; decision queued as NY7. NY7 implemented: a pre-start landing block surrenders the slot for every reason, so a new block reason can no longer squat it before the first Run. In-flight (post-first-Run) blocks still keep it unless externally cleared. F92: agent_cannot_proceed was an externally cleared reason missing from the allowlist, so a started landing blocked on it kept the repository slot; added."
     },
     {
       "id": "provider-pause-readmits",

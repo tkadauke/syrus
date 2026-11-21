@@ -231,6 +231,24 @@ RSpec.describe WorkUnit do
       expect(job_lock.reload.released_at).to be_nil
     end
 
+    # A started landing whose repair agent reports it cannot proceed blocks its
+    # unit on `agent_cannot_proceed` (Workflows::LifecyclePropagation#blocked!).
+    # That clears only when a person or the agent acts, never by waiting -- the
+    # same class as no_capable_worker -- but it was not in the allowlist, so the
+    # unit kept `landing:repository:<id>` and every other landing in the
+    # repository waited behind a Job nobody was working on.
+    it "surrenders the landing slot when a started landing's agent cannot proceed" do
+      unit = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running",
+                                     scope_type: "job", scope_id: 123)
+      landing = unit.work_unit_locks.create!(lock_key: "landing:repository:7")
+      job_lock = unit.work_unit_locks.create!(lock_key: "job:123")
+
+      unit.block!(reason: "agent_cannot_proceed")
+
+      expect(landing.reload.released_at).to be_present
+      expect(job_lock.reload.released_at).to be_nil
+    end
+
     it "keeps the landing slot for reasons that clear on their own" do
       unit = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running",
                                      scope_type: "job", scope_id: 123)

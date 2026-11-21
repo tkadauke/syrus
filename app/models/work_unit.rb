@@ -54,7 +54,11 @@ class WorkUnit < ApplicationRecord
   # lock contention, dependencies finishing) keep their locks, because they
   # genuinely are about to run and releasing would let a later landing cut
   # ahead of them.
+  # `agent_cannot_proceed` belongs here too: a started landing whose repair
+  # agent reported it cannot proceed waits for a person or the agent to act,
+  # never for time to pass.
   EXTERNALLY_CLEARED_BLOCKED_REASONS = %w[
+    agent_cannot_proceed
     ci_repair_disabled
     no_capable_worker
   ].freeze
