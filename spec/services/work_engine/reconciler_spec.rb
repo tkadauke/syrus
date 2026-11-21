@@ -3704,6 +3704,27 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(newer.reload).to be_cancelled
   end
 
+  # AutoRetryJob skips an attempt whose source Run's workspace the PR branch
+  # has moved past ("job branch was rewritten"), a budget-exempt reason that
+  # also requests a reconciliation. The planner did not check the same thing,
+  # so every pass scheduled another attempt from the same Run, without end
+  # (Agreement.rewritten_before_loops).
+  it "does not keep scheduling retries from a Run whose branch was rewritten" do
+    job.update!(state: "failed", pr_number: 77, branch_name: "syrus/issue-42-#{job.id}")
+    workflow.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    step.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 10.minutes.ago, agent_provider: "claude", head_sha: "a" * 40)
+    run.create_run_failure_classification!(classification: "timeout", retryable: true, confidence: 0.9, reason: "timed out", classified_at: 10.minutes.ago)
+    job.update_columns(mergeability_head_sha: "b" * 40, mergeability_checked_at: 1.minute.ago)
+
+    3.times do
+      reconcile_and_execute(workflow_id: workflow.id)
+      AutoRetryAttempt.pending.each { |attempt| AutoRetryJob.perform_now(attempt.id) }
+    end
+
+    expect(AutoRetryAttempt.where(run: run).count).to be <= 1
+  end
+
   it "plans a fresh retry from the current PR branch for the latest failed branch divergence" do
     job.update!(
       state: "failed",

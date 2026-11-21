@@ -3071,6 +3071,7 @@ module WorkEngine
         next if try_branch_failure_superseded_by_recovery?(run)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
+        next if AutoRetryAttempt.branch_rewritten_since?(run.job, run)
         next if repeated_failure_circuit_open?(run)
         definition = work_definition_for(run.workflow)
         next if definition&.suppresses_layered_auto_repair?
