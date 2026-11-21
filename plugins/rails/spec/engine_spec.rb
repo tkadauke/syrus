@@ -16,13 +16,14 @@ RSpec.describe SyrusRails::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides all 4 extension point keys" do
+    it "registers its Ecosystem provider and keeps its unrelated extension points" do
       expect(registration.provides.keys).to contain_exactly(
         :mcp_tool_set,
         :artifact_renderer,
-        :prompt_injector,
         :preview_provider
       )
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] })
+        .to eq([ [ "SyrusRails::Ecosystem", %i[prompt_context] ] ])
     end
 
     it "registers both artifact renderers as an array under :artifact_renderer" do

@@ -334,6 +334,7 @@ Registers manifests and reads extension providers; reset, health, and cache inte
 
 Supported members:
 
+- `capability_providers`
 - `extension_point?`
 - `providers_for`
 - `register`
