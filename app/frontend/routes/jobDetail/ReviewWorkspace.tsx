@@ -401,7 +401,25 @@ export function ReviewWorkspace({
   if (historicalVersionSelected && historicalVersion.isError)
     return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
   if (selectedRange && rangeDiff.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
-  if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{staleRangeErrorMessage(rangeDiff.error, t)}</PanelMessage>
+  if (selectedRange && rangeDiff.isError) {
+    return (
+      <div className="space-y-4">
+        <Section.Root>
+          <SectionHeading>{t("review_summary_title")}</SectionHeading>
+          <div className="mt-3 text-xs">
+            <DiffReviewVersionSelector
+              onChange={selectVersion}
+              onRangeChange={selectRange}
+              selectedRange={selectedRange}
+              selectedVersionId={activeVersionId}
+              versions={versions.length > 0 ? versions : selectedVersion ? [selectedVersion] : []}
+            />
+          </div>
+        </Section.Root>
+        <PanelMessage tone="error">{staleRangeErrorMessage(rangeDiff.error, t)}</PanelMessage>
+      </div>
+    )
+  }
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>
 
   return (
