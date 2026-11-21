@@ -45,6 +45,7 @@ RSpec.describe Django::Engine do
 
     it "provides exactly the :preview_provider extension point" do
       expect(registration.provides.keys).to contain_exactly(:preview_provider)
+      expect(registration.family_provides).to be_empty
     end
 
     it "registers PreviewProvider as the :preview_provider" do

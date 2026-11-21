@@ -7,29 +7,6 @@ RSpec.describe Java::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "java" }
     end
 
-    before do
-      # The after_initialize block runs once at boot; plugin_registry.rb resets
-      # the in-memory registry in test mode. Re-register here so examples see
-      # the manifest. Interface modules were included during after_initialize
-      # and are permanent on the classes.
-      unless Syrus::PluginRegistry.registered_names.include?("java")
-        Syrus::PluginRegistry.register(
-          name:             "java",
-          version:          Syrus::PluginApi.default_version,
-          description:      "Java/JVM-generic intelligence: Gradle/Maven wrapper-aware prepare detection, JDK prompt guidance, and JVM review criteria",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 45,
-          provides: {
-            prepare_detector:         Java::PrepareDetector,
-            prompt_injector:          Java::PromptContext,
-            review_criteria_provider: Java::ReviewCriteriaProvider,
-            grader_type:              [ Java::GradleGraderType, Java::MavenGraderType ]
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end
@@ -44,30 +21,13 @@ RSpec.describe Java::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides exactly the expected extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(
-        :prepare_detector,
-        :prompt_injector,
-        :review_criteria_provider,
-        :grader_type
+    it "registers its Ecosystem providers and none of the absorbed legacy points" do
+      expect(registration.provides).to be_empty
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] }).to contain_exactly(
+        [ "Java::Ecosystem", %i[detect_prepare prompt_context review_criteria] ],
+        [ "Java::GradleEcosystem", %i[grader_types] ],
+        [ "Java::MavenEcosystem", %i[grader_types] ]
       )
-    end
-
-    it "registers PrepareDetector as the :prepare_detector" do
-      expect(registration.provides[:prepare_detector]).to eq(Java::PrepareDetector)
-    end
-
-    it "registers PromptContext as the :prompt_injector" do
-      expect(registration.provides[:prompt_injector]).to eq(Java::PromptContext)
-    end
-
-    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
-      expect(registration.provides[:review_criteria_provider]).to eq(Java::ReviewCriteriaProvider)
-    end
-
-    it "registers GradleGraderType and MavenGraderType as :grader_type providers" do
-      expect(registration.provides[:grader_type]).to eq([ Java::GradleGraderType, Java::MavenGraderType ])
-      expect(Syrus::PluginRegistry.providers_for(:grader_type)).to include(Java::GradleGraderType, Java::MavenGraderType)
     end
   end
 

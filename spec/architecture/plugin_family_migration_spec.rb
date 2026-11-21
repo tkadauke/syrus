@@ -8,23 +8,6 @@ RSpec.describe "Plugin family migration architecture" do
     build_system_graph_provider
   ].freeze
 
-  # Existing registrations may shrink as plugins migrate. New files must never
-  # be added here; new implementations use the family declaration instead.
-  LEGACY_REGISTRATION_ALLOWLIST = {
-    prepare_detector: %w[java kotlin],
-    grade_detector: [],
-    grader_type: %w[java],
-    grader_augmentor: [],
-    review_criteria_provider: %w[java kotlin],
-    autofix_command: [],
-    dependency_audit_command: [],
-    focused_test_command: [],
-    coverage_analyzer: [],
-    affected_test_analyzer: [],
-    ci_log_parser: [], prompt_injector: %w[java kotlin rails],
-    diff_review_file_pattern_provider: [], build_system_graph_provider: []
-  }.freeze
-
   # Add a family only after all core callers use Dispatch; entries map the
   # family to every absorbed point so the assertion cannot silently narrow.
   DISPATCHED_FAMILIES = { ecosystem: ECOSYSTEM_POINTS }.freeze
@@ -55,7 +38,7 @@ RSpec.describe "Plugin family migration architecture" do
     end
   end
 
-  it "allows no new legacy registrations for points absorbed by Ecosystem" do
+  it "allows no bundled plugin to register a legacy point absorbed by Ecosystem" do
     actual = ECOSYSTEM_POINTS.to_h do |point|
       plugins = Dir["plugins/*/lib/*.rb"].filter_map do |path|
         File.basename(File.dirname(File.dirname(path))) if registrations_in(File.read(path), point).positive?
@@ -63,7 +46,7 @@ RSpec.describe "Plugin family migration architecture" do
       [ point, plugins.sort ]
     end
 
-    expect(actual).to eq(LEGACY_REGISTRATION_ALLOWLIST.transform_values(&:sort))
+    expect(actual).to eq(ECOSYSTEM_POINTS.index_with { [] })
   end
 
   it "marks Ecosystem as migrating with a complete legacy bridge" do
@@ -74,10 +57,10 @@ RSpec.describe "Plugin family migration architecture" do
     expect(definition).not_to be_migrated
   end
 
-  it "demonstrates that a new legacy-registration fixture fails the allowlist" do
+  it "detects a legacy registration in a manifest fixture" do
     fixture = "provides prepare_detector: NewLanguage::Prepare"
     expect(registrations_in(fixture, :prepare_detector)).to eq(1)
-    expect(LEGACY_REGISTRATION_ALLOWLIST[:prepare_detector]).not_to include("new_language")
+    expect(ECOSYSTEM_POINTS).to include(:prepare_detector)
   end
 
   it "keeps dispatched-family core callers off legacy registry lookups" do
