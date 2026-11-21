@@ -39,6 +39,18 @@ RSpec.describe LocalBackups::Retention do
     expect(result.blocked).to eq([unreplicated.uuid])
   end
 
+  it "never deletes an artifact while a destination is uploading it" do
+    backup(at: 1.hour.ago)
+    uploading = backup(at: 2.hours.ago)
+    uploading.replications.create!(destination_identity: "s3:v1", state: "uploading")
+
+    result = described_class.new(root: @root, keep_count: 1, keep_days: 30).call
+
+    expect(result.blocked).to include(uploading.uuid)
+    expect(uploading.reload.state).to eq("completed")
+    expect(@root.path.join(uploading.artifact_relative_path)).to exist
+  end
+
   it "rechecks replication under lock after the sweep selected its candidate" do
     backup(at: 1.hour.ago)
     candidate = backup(at: 2.hours.ago, replicated: true)
