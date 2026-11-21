@@ -1192,7 +1192,7 @@ Resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_rep
 
 ### preflight_grader
 
-Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files. Main-repair preflight graders stay in the mutable workflow checkout so a successful formatter-like grader can leave a source repair for the implementing agent instead of losing it with a temporary checkout.
+Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files. Preflight graders run like any other grader: from the workflow's immutable source snapshot, in parallel across workers when distributed grading is enabled. A grader declared with `metadata: { preflight_mutates_source: true }` (a formatter, for example) instead runs in the mutable workflow checkout, so a source repair it makes is kept for the implementing agent rather than lost with a temporary checkout.
 
 Preflight graders use the same command-span instrumentation as normal graders. Each one runs with its own test database namespace (`TEST_ENV_NUMBER` and `SYRUS_TEST_DB_NAMESPACE` set to `pf<step id>`, which parallel RSpec workers extend to `pf<step id>-<n>`) so concurrent database-using graders never share mutable state; the files of that namespace are removed when the grader ends, pass or fail.
 

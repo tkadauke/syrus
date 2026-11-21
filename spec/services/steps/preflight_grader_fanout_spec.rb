@@ -215,7 +215,35 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(workflow.source_snapshots).to be_empty
   end
 
-  it "keeps repair preflight graders in the mutable checkout when distributed workflows are enabled" do
+  # Regression: pinning every preflight grader to the one mutable checkout
+  # serialized a 130-grader main-branch repair on one worker, let concurrent
+  # shards lock each other's test databases, and made a worker restart
+  # unrecoverable. Only a grader that rewrites source needs that checkout.
+  it "runs reporting preflight graders from the immutable snapshot and pins only source-mutating ones" do
+    Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
+    job.repository.update!(distributed_workflow_dag_enabled: true)
+    write_grade_config(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+        - name: format
+          run: bin/format
+          metadata:
+            preflight_mutates_source: true
+    YAML
+    record_prepared_workspace!
+
+    handler.call
+
+    placements = workflow.steps.where(kind: "preflight_grader").to_h { |grader| [ grader.details["name"], grader.placement_policy ] }
+    expect(placements).to eq(
+      "tests" => Step::Kind.fetch("preflight_grader").placement_policy_for(job.repository),
+      "format" => Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+    )
+    expect(placements["tests"]).not_to eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
+  end
+
+  it "publishes the source snapshot repair preflight graders run from when distributed workflows are enabled" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
     write_grade_config(<<~YAML)
@@ -229,7 +257,6 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     grader_step = workflow.steps.find_by!(kind: "preflight_grader")
     snapshot = workflow.source_snapshots.sole
-    expect(grader_step.placement_policy).to eq(Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
     expect(grader_step.details).to include(
       "projected_target_label" => "//:grade/tests",
       "barrier_labels" => [ "preflight_grader_collect" ],

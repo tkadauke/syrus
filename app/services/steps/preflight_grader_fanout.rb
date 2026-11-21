@@ -101,7 +101,7 @@ module Steps
               kind: "preflight_grader",
               position: insertion_position + index,
               iteration: step.iteration,
-              placement_policy: grader_placement_policy,
+              placement_policy: grader_placement_policy(grader),
               details: grader_details(grader, prepare_targets: prepare_targets, target_fingerprints: target_fingerprints)
                 .merge(distributed_grader_details(grader, source_snapshot: source_snapshot, target_fingerprints: target_fingerprints))
                 .merge(
@@ -297,12 +297,30 @@ module Steps
       distributed_grader_projection_enabled?
     end
 
-    def grader_placement_policy
-      # Main-repair preflight is allowed to run formatter-like graders. Their
-      # tracked edits are a repair result, not disposable validation output,
-      # so keep them in the mutable workflow checkout for the collector and
-      # implementing agent to inspect.
-      Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE
+    # A grader declared to rewrite tracked source (`metadata:
+    # { preflight_mutates_source: true }`, e.g. a formatter) runs in the
+    # mutable workflow checkout: its edits are a repair result the collector
+    # and the implementing agent must see. Every other grader only reports,
+    # and runs from the workflow's immutable source snapshot like any grader.
+    #
+    # Pinning all of them to the one mutable checkout made a main-branch repair
+    # run its 130-plus graders against a single worker and a single set of test
+    # databases: RSpec shards took 30-plus minutes instead of 7, e2e timed out,
+    # concurrent shards locked each other's SQLite files, and a worker restart
+    # left the repair unrecoverable ("active preflight_grader Run may mutate
+    # state and cannot be replayed safely").
+    MUTATES_SOURCE_METADATA_KEY = "preflight_mutates_source".freeze
+
+    def grader_placement_policy(grader)
+      return Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE unless distributed_grader_projection_enabled?
+      return Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE if mutates_source?(grader)
+
+      Step::Kind.fetch("preflight_grader").placement_policy_for(repository)
+    end
+
+    def mutates_source?(grader)
+      metadata = grader.respond_to?(:metadata) ? grader.metadata.to_h : {}
+      ActiveModel::Type::Boolean.new.cast(metadata[MUTATES_SOURCE_METADATA_KEY]) == true
     end
 
     def current_head_sha

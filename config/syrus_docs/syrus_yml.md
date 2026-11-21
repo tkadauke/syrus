@@ -805,6 +805,12 @@ grade:
       landing_parity: false
 ```
 
+`metadata: { preflight_mutates_source: true }` marks a grader that rewrites
+tracked source files, such as a formatter run in fix mode. In a main-branch
+repair's preflight, such a grader runs in the repair's own checkout so its edits
+reach the implementing agent; every other preflight grader runs from an
+immutable snapshot of the source, in parallel when distributed grading is on.
+
 `strict` is the default and means any required failure blocks the workflow.
 `allow_inherited` lets Syrus compare the candidate failure with failed
 base-revision evidence. A JUnit grader that opts into `base_retry` parses its
