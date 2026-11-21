@@ -112,6 +112,15 @@ RSpec.describe "Syrus grader configuration" do
     shards.each { |grader| expect(grader).to have_attributes(phases: [ "ci" ], timeout_minutes: 150) }
   end
 
+  it "selects the core RSpec suite for plugin boot-time Ruby but not plugin app code" do
+    rspec = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse.grade.steps.find { |step| step.name == "rspec" }
+
+    expect(RepositoryContent::Glob.match?(rspec.when_files_changed, "plugins/scheduled_tasks/lib/scheduled_tasks/filter_extension.rb")).to be(true)
+    expect(RepositoryContent::Glob.match?(rspec.when_files_changed, "plugins/scheduled_tasks/config/routes.rb")).to be(true)
+    expect(RepositoryContent::Glob.match?(rspec.when_files_changed, "plugins/scheduled_tasks/app/services/scheduled_tasks/runner.rb")).to be(false)
+    expect(RepositoryContent::Glob.match?(rspec.when_files_changed, "plugins/scheduled_tasks/app/frontend/routes/Calendar.tsx")).to be(false)
+  end
+
   it "gives coverage-enabled CI React tests enough time to finish" do
     grader = RepoGradePlan.for(Rails.root).graders.find { |entry| entry.name == "react-tests-ci" }
 
@@ -441,8 +450,11 @@ RSpec.describe "Syrus grader configuration" do
       website/src/content/docs/generated/**/*.md
       docs/metrics-catalog.md
     ]
-    expect(rspec.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb] + catalog_scope)
-    expect(rspec_focused.when_files_changed).to eq(%w[app/**/*.rb lib/**/*.rb spec/**/*.rb] + catalog_scope)
+    # Plugin boot-time Ruby registers into core registries the suite asserts.
+    plugin_boot_scope = %w[plugins/*/lib/**/*.rb plugins/*/config/**/*.rb]
+    core_scope = %w[app/**/*.rb lib/**/*.rb spec/**/*.rb] + plugin_boot_scope + catalog_scope
+    expect(rspec.when_files_changed).to eq(core_scope)
+    expect(rspec_focused.when_files_changed).to eq(core_scope)
     expect(grader.when_files_changed).to eq([
       "app/frontend/**/*.js",
       "app/frontend/**/*.jsx",
