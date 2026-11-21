@@ -3,13 +3,13 @@
 require "rails_helper"
 
 RSpec.describe Syrus::PluginInvocation do
-  Provider = Class.new { include Syrus::Plugin::CiLogParser }
+  Provider = Class.new { include Syrus::Plugin::Callbacks }
   let(:clock) { Struct.new(:now).new(Time.utc(2026, 1, 1)) }
   let(:health) { Syrus::PluginRuntimeHealth.new(clock: -> { clock.now }) }
 
   before do
     described_class.runtime_health = health
-    Syrus::PluginRegistry.register(name: "invocation_spec", version: "1.0", provides: { ci_log_parser: Provider })
+    Syrus::PluginRegistry.register(name: "invocation_spec", version: "1.0", provides: { callbacks: Provider })
   end
 
   after do
@@ -18,7 +18,7 @@ RSpec.describe Syrus::PluginInvocation do
 
   def invoke(**options, &block)
     described_class.call(
-      extension_point: :ci_log_parser, provider: Provider, operation: :call,
+      extension_point: :callbacks, provider: Provider, operation: :call,
       failure_threshold: 2, failure_window: 10, cooldown: 20, on_decline: [],
       **options, &block
     )
@@ -26,7 +26,7 @@ RSpec.describe Syrus::PluginInvocation do
 
   it "returns successful values and preserves plugin-call telemetry" do
     expect(PerformanceLogging).to receive(:plugin_call)
-      .with(extension_point: :ci_log_parser, provider: Provider, operation: :call)
+      .with(extension_point: :callbacks, provider: Provider, operation: :call)
       .and_yield
 
     expect(invoke { [ "parsed" ] }).to eq([ "parsed" ])
@@ -44,7 +44,7 @@ RSpec.describe Syrus::PluginInvocation do
 
     expect(result).to have_attributes(value: [], exception_class: "ArgumentError", message: "bad provider", reason: :failed)
     expect(health.failures.first).to have_attributes(
-      plugin: "invocation_spec", extension_point: "ci_log_parser", operation: "call",
+      plugin: "invocation_spec", extension_point: "callbacks", operation: "call",
       exception_class: "ArgumentError", message: "bad provider", count: 1, last_at: clock.now
     )
   end

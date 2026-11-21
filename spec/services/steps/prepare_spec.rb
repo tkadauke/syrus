@@ -187,7 +187,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     handler.call
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("source: auto-detect (Ruby::PrepareDetector)")
+    expect(chunks).to include("source: auto-detect (Ruby)")
     expect(chunks).to include("[stub-ran] bundle install")
   end
 
@@ -342,7 +342,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(step.reload.details["prepare_failure"]).to eq(failure)
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("source: auto-detect (Ruby::PrepareDetector)")
+    expect(chunks).to include("source: auto-detect (Ruby)")
     expect(chunks).to include("WARNING (guessed command, non-fatal)")
     expect(chunks).to include("handing off to the agent without it")
     # The success line must NOT print — setup did not complete.

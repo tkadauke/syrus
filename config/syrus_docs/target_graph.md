@@ -369,7 +369,7 @@ target_graph:
         query: //...
 ```
 
-`provider` is the registered `:build_system_graph_provider` key. `config` is a
+`provider` is the key of an Ecosystem provider implementing `target_graph`. `config` is a
 free-form mapping passed to that provider so the repository, not Syrus core,
 declares what should be imported. Syrus merges imports before its own targets
 and validates

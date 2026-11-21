@@ -4,7 +4,7 @@ require "syrus/plugin/test_kit"
 RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
   let(:definition) { Syrus::Plugin::Family.fetch(:ecosystem) }
 
-  it "defines all ecosystem contracts, tiers, contexts, and legacy mappings" do
+  it "defines all ecosystem contracts, shipped tiers, and contexts" do
     expect(definition.capabilities.transform_values { |capability|
       [ capability.composition, capability.absent, capability.tier, capability.context ]
     }).to eq(
@@ -23,12 +23,8 @@ RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
       review_file_patterns: [ :collect, [], :provisional, Syrus::Plugin::Context::RepoContext ],
       target_graph: [ :keyed, :configuration_error, :provisional, Syrus::Plugin::Context::RepoContext ]
     )
-    expect(definition.legacy_mappings.keys).to match_array(%i[
-      prepare_detector grade_detector grader_type grader_augmentor review_criteria_provider
-      autofix_command dependency_audit_command focused_test_command coverage_analyzer
-      affected_test_analyzer ci_log_parser prompt_injector diff_review_file_pattern_provider
-      build_system_graph_provider
-    ])
+    expect(definition.legacy_mappings).to be_empty
+    expect(definition).to be_migrated
   end
 
   it "dispatches every capability with its declared composition and decline behavior" do
@@ -99,30 +95,6 @@ RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
       expect(error.exception_class).to eq("RuntimeError")
       expect(error.reason).to eq(:failed)
     end
-  end
-
-  it "answers a legacy prepare lookup from a family provider with the merged plan" do
-    Syrus::PluginRegistry.reset!
-    provider = Class.new do
-      def self.key = :fixture
-      def self.display_name = "Fixture"
-      def self.detect_prepare(context)
-        [ Syrus::Plugin::Ecosystem::PreparePlan.new(detected: context.repo_path == "/repo",
-          commands: [ "bundle install" ], version_file: ".ruby-version", span_labels: [ [ /rspec/, "rspec" ] ]) ]
-      end
-    end
-    stub_const("EcosystemLegacyFixture", provider)
-    declaration = Syrus::Plugin::FamilyDeclaration.build(family: :ecosystem, provider: provider.name,
-      implements: %i[detect_prepare])
-    Syrus::PluginRegistry.register(name: "ecosystem_fixture", version: "1", family_provides: [ declaration ])
-
-    legacy = Syrus::PluginRegistry.providers_for(:prepare_detector).find do |candidate|
-      candidate.is_a?(Syrus::Plugin::LegacyBridge::Provider)
-    end
-    expect(legacy.detect?("/repo")).to be(true)
-    expect(legacy.prepare_commands("/repo")).to eq([ "bundle install" ])
-    expect(legacy.mise_version_file).to eq(".ruby-version")
-    expect(legacy.span_labels).to eq([ [ /rspec/, "rspec" ] ])
   end
 
   it "passes autofix and focused-test fields through typed contexts without reflecting on provider signatures" do

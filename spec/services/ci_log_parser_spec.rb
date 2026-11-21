@@ -185,10 +185,14 @@ RSpec.describe CiLogParser do
 
     def ci_log_parser_provider(double)
       Class.new do
-        include Syrus::Plugin::CiLogParser
-
-        define_singleton_method(:call) { |text:, step_name: nil| double.call(text: text, step_name: step_name) }
+        def self.key = :fixture
+        def self.display_name = "Fixture"
+        define_singleton_method(:parse_ci_log) { |context| double.call(text: context.text, step_name: context.step_name) }
       end
+    end
+
+    def register_parser(name, provider)
+      register_ecosystem_provider(name:, provider:, provisional: %i[parse_ci_log])
     end
 
     it "tries a registered plugin before any built-in parser" do
@@ -197,10 +201,7 @@ RSpec.describe CiLogParser do
         parser: "python", error_summary: "3 pytest failure(s)", error_block: "traceback...",
         failing_tests: [ "test_foo" ]
       )
-      Syrus::PluginRegistry.register(
-        name: "python_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
-      )
+      register_parser("python_ci_log_plugin", ci_log_parser_provider(plugin))
 
       result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
 
@@ -214,10 +215,7 @@ RSpec.describe CiLogParser do
     it "falls through to the built-in parsers when the plugin returns nil" do
       plugin = double("ci_log_parser_plugin")
       allow(plugin).to receive(:call).and_return(nil)
-      Syrus::PluginRegistry.register(
-        name: "nil_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
-      )
+      register_parser("nil_ci_log_plugin", ci_log_parser_provider(plugin))
 
       result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
 
@@ -229,10 +227,7 @@ RSpec.describe CiLogParser do
     it "skips a disabled plugin's parser and falls through to the built-in parsers" do
       plugin = double("ci_log_parser_plugin")
       allow(plugin).to receive(:call)
-      Syrus::PluginRegistry.register(
-        name: "disabled_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
-      )
+      register_parser("disabled_ci_log_plugin", ci_log_parser_provider(plugin))
       PluginRecord.find_by!(name: "disabled_ci_log_plugin").update!(enabled: false)
 
       result = described_class.new(fixture_log("rubocop_failure"), step_name: "rubocop").parse
@@ -248,14 +243,8 @@ RSpec.describe CiLogParser do
       allow(second_plugin).to receive(:call).and_return(
         parser: "go", error_summary: "1 test failure", error_block: "--- FAIL: TestFoo"
       )
-      Syrus::PluginRegistry.register(
-        name: "first_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(first_plugin) }
-      )
-      Syrus::PluginRegistry.register(
-        name: "second_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(second_plugin) }
-      )
+      register_parser("first_ci_log_plugin", ci_log_parser_provider(first_plugin))
+      register_parser("second_ci_log_plugin", ci_log_parser_provider(second_plugin))
 
       result = described_class.new(fixture_log("rspec_failure"), step_name: "test").parse
 
@@ -267,10 +256,7 @@ RSpec.describe CiLogParser do
     it "treats a plugin that raises as a non-match and falls through to the built-in parsers" do
       plugin = double("ci_log_parser_plugin")
       allow(plugin).to receive(:call).and_raise(StandardError, "boom")
-      Syrus::PluginRegistry.register(
-        name: "raising_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
-      )
+      register_parser("raising_ci_log_plugin", ci_log_parser_provider(plugin))
 
       result = nil
       expect { result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse }
@@ -282,10 +268,7 @@ RSpec.describe CiLogParser do
     it "treats a plugin result missing required keys as a non-match" do
       plugin = double("ci_log_parser_plugin")
       allow(plugin).to receive(:call).and_return(failing_tests: [ "test_foo" ])
-      Syrus::PluginRegistry.register(
-        name: "incomplete_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
-      )
+      register_parser("incomplete_ci_log_plugin", ci_log_parser_provider(plugin))
 
       result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
 
@@ -295,10 +278,7 @@ RSpec.describe CiLogParser do
     it "treats a non-Hash plugin result as a non-match" do
       plugin = double("ci_log_parser_plugin")
       allow(plugin).to receive(:call).and_return("not a hash")
-      Syrus::PluginRegistry.register(
-        name: "malformed_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
-      )
+      register_parser("malformed_ci_log_plugin", ci_log_parser_provider(plugin))
 
       result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
 
@@ -310,10 +290,7 @@ RSpec.describe CiLogParser do
       allow(plugin).to receive(:call).and_return(
         "parser" => "go", "error_summary" => "1 test failure", "error_block" => "--- FAIL: TestFoo"
       )
-      Syrus::PluginRegistry.register(
-        name: "string_keyed_ci_log_plugin", version: "1.0.0",
-        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
-      )
+      register_parser("string_keyed_ci_log_plugin", ci_log_parser_provider(plugin))
 
       result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
 
@@ -322,7 +299,7 @@ RSpec.describe CiLogParser do
     end
 
     it "leaves built-in Ruby/JS parser output unchanged when no plugins are registered" do
-      expect(Syrus::PluginRegistry.providers_for(:ci_log_parser)).to be_empty
+      expect(Syrus::PluginRegistry.capability_providers(:ecosystem, :parse_ci_log)).to be_empty
 
       rspec_result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
       expect(rspec_result[:parser]).to eq("rspec")

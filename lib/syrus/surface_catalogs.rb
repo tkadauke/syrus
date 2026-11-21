@@ -143,7 +143,7 @@ module Syrus
 
           | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
           |---|---|---|---|---|
-          #{provider_rows.presence || "| - | - | - | - | - |"}
+          #{provider_rows.any? ? provider_rows.join("\n") : "| - | - | - | - | - |"}
         MD
       end
       <<~MD

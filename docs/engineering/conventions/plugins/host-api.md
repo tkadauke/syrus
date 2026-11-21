@@ -227,6 +227,16 @@ Supported members:
 - `lockfiles`
 - `new`
 
+### `Syrus::Host::EcosystemGraderCoverage`
+
+Since: `0.1.16`
+
+Shares the supported coverage-phase decision used by Ecosystem grader-type providers. Only the listed members are supported.
+
+Supported members:
+
+- `coverage_for_phases?`
+
 ### `Syrus::Host::EcosystemPreparePlan`
 
 Since: `0.1.16`
@@ -924,11 +934,8 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Plugin::DiffReviewAnnotationProvider`
 - `Syrus::Plugin::DomainSubscriber`
 - `Syrus::Plugin::ExecutionBackend`
-- `Syrus::Plugin::FocusedTestCommand`
 - `Syrus::Plugin::GatedToolSet`
-- `Syrus::Plugin::GradeDetector`
 - `Syrus::Plugin::GraderFailureSummarizer`
-- `Syrus::Plugin::GraderType`
 - `Syrus::Plugin::InputSource`
 - `Syrus::Plugin::JobOrigin`
 - `Syrus::Plugin::JobVisibilityRestriction`

@@ -5,14 +5,15 @@ module Kotlin
       def display_name = "Kotlin"
 
       def detect_prepare(context)
-        return [] unless context.repo_path && PrepareDetector.detect?(context.repo_path)
+        return [] unless context.repo_path
+        detected = PrepareDetector.detect?(context.repo_path)
 
         java_plan = java_provider(:detect_prepare)&.invoke do |provider|
           Array(provider.detect_prepare(context)).first
         end
         [ Syrus::Host::EcosystemPreparePlan.new(
-          detected: true,
-          commands: java_plan&.commands || [],
+          detected:,
+          commands: detected ? java_plan&.commands || [] : [],
           version_file: java_plan&.version_file || ".java-version",
           span_labels: java_plan&.span_labels || [],
           label: display_name
