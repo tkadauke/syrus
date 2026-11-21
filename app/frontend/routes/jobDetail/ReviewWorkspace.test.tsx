@@ -3014,6 +3014,10 @@ describe("ReviewWorkspace", () => {
     expect(
       await screen.findByText("Unable to load this live comparison because syrus/stale-branch no longer resolves. Select the stored version snapshot instead.")
     ).toBeInTheDocument()
+    expect(screen.getByLabelText("Version")).toHaveTextContent("v2 to v3")
+
+    fireEvent.click(screen.getByLabelText("Version"))
+    expect(screen.getByRole("button", { name: "From v2 RUN-22" })).toHaveClass("bg-brand")
   })
 
   it("keeps a FROM/TO endpoint pick as an explicit range even when it coincides with a stored version's own base/head", async () => {
@@ -3109,7 +3113,7 @@ describe("ReviewWorkspace", () => {
     expect(within(listbox).queryByRole("button", { name: "v6 RUN-321" })).not.toBeInTheDocument()
   })
 
-  it("clamps From endpoint selections so From cannot be newer than To", async () => {
+  it("submits a newer From with the independently selected older To", async () => {
     const versions = orderedRangeVersions()
     const initial = sourceDiffPayload({
       version: versions[4],
@@ -3145,12 +3149,12 @@ describe("ReviewWorkspace", () => {
         }
       ]
     })
-    const clampedRange = sourceDiffPayload({
+    const crossedRange = sourceDiffPayload({
       version: version({
         id: 700,
         version_index: 7,
         base_sha: "third-head",
-        head_sha: "fourth-head",
+        head_sha: "second-head",
         label: null,
         reason: "source_diff_selection",
         metadata: { range_kind: "explicit_selection" }
@@ -3166,7 +3170,7 @@ describe("ReviewWorkspace", () => {
         }
       ]
     })
-    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(firstRange).mockResolvedValueOnce(clampedRange)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(firstRange).mockResolvedValueOnce(crossedRange)
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 500))
 
     renderWorkspace()
@@ -3180,17 +3184,15 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(await screen.findByLabelText("Version"))
     fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "From v4 RUN-44" }))
 
-    // FROM v4 is newer than the current TO (v2), so it clamps TO forward to
-    // v4's own head instead of producing an invalid inverted range -- the
-    // clamp still lands on an explicit range request, never a single-version
-    // fetch that would discard which endpoint the operator actually picked.
+    // Comparability belongs to git resolution, not persisted row ordering.
+    // Selecting FROM must retain the operator's existing TO even when the
+    // version indices appear inverted.
     expect(await screen.findByTitle("app/models/fourth_range.rb")).toBeInTheDocument()
-    expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=third-head&head=fourth-head")
+    expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=third-head&head=second-head")
     expect(fetchDiffReviewVersion).not.toHaveBeenCalled()
-    expect(fetchJobSourceDiff).not.toHaveBeenCalledWith("42", "?base=third-head&head=second-head")
   })
 
-  it("clamps To endpoint selections so To cannot be older than From", async () => {
+  it("submits an older To with the independently selected newer From", async () => {
     const versions = orderedRangeVersions()
     const initial = sourceDiffPayload({
       version: versions[4],
@@ -3226,11 +3228,11 @@ describe("ReviewWorkspace", () => {
         }
       ]
     })
-    const clampedRange = sourceDiffPayload({
+    const crossedRange = sourceDiffPayload({
       version: version({
         id: 700,
         version_index: 7,
-        base_sha: "first-head",
+        base_sha: "second-head",
         head_sha: "second-head",
         label: null,
         reason: "source_diff_selection",
@@ -3247,7 +3249,7 @@ describe("ReviewWorkspace", () => {
         }
       ]
     })
-    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(firstRange).mockResolvedValueOnce(clampedRange)
+    vi.mocked(fetchJobSourceDiff).mockResolvedValueOnce(initial).mockResolvedValueOnce(firstRange).mockResolvedValueOnce(crossedRange)
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([], 500))
 
     renderWorkspace()
@@ -3261,14 +3263,10 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(await screen.findByLabelText("Version"))
     fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "To v2 RUN-22" }))
 
-    // TO v2 is older than the current FROM (v3), so it clamps FROM back to
-    // v2's own base instead of producing an invalid inverted range -- the
-    // clamp still lands on an explicit range request, never a single-version
-    // fetch that would discard which endpoint the operator actually picked.
+    // Selecting TO likewise preserves FROM and submits the exact pair.
     expect(await screen.findByTitle("app/models/second_range.rb")).toBeInTheDocument()
-    expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=first-head&head=second-head")
+    expect(fetchJobSourceDiff).toHaveBeenLastCalledWith("42", "?base=second-head&head=second-head")
     expect(fetchDiffReviewVersion).not.toHaveBeenCalled()
-    expect(fetchJobSourceDiff).not.toHaveBeenCalledWith("42", "?base=second-head&head=second-head")
   })
 
   it("does not keep the previous explicit range visible while a new range loads", async () => {
