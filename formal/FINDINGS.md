@@ -1549,6 +1549,41 @@ ungraded main head healthy or lift the pause" (lifted it before).
 
 ---
 
+## F52. Inline-chained Runs were declared dead while their worker was alive — fixed
+
+**Found by** deriving the invariant behind a recent main commit ("Do not
+declare a worker dead over one orphaned helper process") and checking where
+it fails (`WorkerEvidence.lean`).
+
+**Property.** A Run that a live queue claim is executing is recognised as live
+(`after_complete`), so neither an orphaned helper process nor a missing queue
+job of its own gets it failed as `worker_died`. A running sibling's claim is
+still never borrowed (`after_ignores_running_siblings`, the existing rule
+pinned by "does not treat a live sibling Run queue execution as evidence for a
+detached Run").
+
+**Gap.** That commit guarded the orphan evidence with
+`solid_queue_execution_live?(run)`, which counted only a queue job whose root is
+the Run itself. `RunJob` drives a sequential Workflow depth-first, though: every
+Run after the first in an inline chain executes inside the first Run's job and
+has none of its own (`chained_run_unprotected`). For those Runs the guard never
+fired, so the production failure the commit fixed (a healthy Run failed and
+retried in parallel over one orphaned helper) could still happen to any chained
+Step. The same Runs also counted as "detached" (no queue job) after a
+three-minute heartbeat gap, with their worker alive.
+
+**Fix.** `solid_queue_execution_live?` also counts a live claim whose root is a
+workflow-mate that has already finished, which is the RunJob driving the
+chain. It never counts a still-running root or attributes anything to a
+distributed parallel Run. A chained Run with that claim is not "detached".
+
+**Spec.** `reconciler_spec.rb` "does not fail an inline-chained run as
+worker-died while the chain's worker still holds the claim" and "does not treat
+an inline-chained run as detached while the chain's worker still holds the
+claim" (both failed it before); the sibling spec still passes.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

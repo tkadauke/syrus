@@ -881,7 +881,9 @@ module WorkEngine
         terminal_orphan_ready = terminal_orphan_process_ready?(terminal_orphan_process) &&
           !(queue_execution_live && !heartbeat_stale)
         last_activity_at = run.last_heartbeat_at || run.started_at
-        detached = detached_running_run?(sq, live_process)
+        # An inline-chained Run has no queue job of its own; a live claim on
+        # the chain's job is its worker, so it is not detached.
+        detached = detached_running_run?(sq, live_process) && !queue_execution_live
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
         non_agentic_no_process = non_agentic_run_without_live_process?(run, live_process)
         non_agentic_no_process_ready = non_agentic_no_process && older_than?(last_activity_at, NON_AGENTIC_NO_PROCESS_GRACE)
@@ -3466,14 +3468,26 @@ module WorkEngine
       solid_queue[:jobs].find { |job| job[:root_run_id] == run.id }
     end
 
+    # Whether a live worker holds a queue claim executing this Run. Besides
+    # the Run's own job, an inline-chained Run executes inside the RunJob of
+    # the workflow-mate that finished before it (RunJob drives the chain
+    # depth-first), so a live claim whose root Run has already finished is
+    # this Run's worker. A root Run that is still running is executing
+    # itself, not this Run: a running sibling's claim never counts, and a
+    # distributed parallel Run only ever runs in its own job
+    # (formal/SyrusModel/WorkerEvidence.lean).
     def solid_queue_execution_live?(run)
       return false unless solid_queue[:available]
 
-      solid_queue[:jobs].any? do |sq|
-        next false unless sq[:root_run_id] == run.id
+      live = ->(sq) { sq[:claimed] && !sq[:failed] && solid_queue_process_live?(sq[:process_id]) }
+      direct = solid_queue[:jobs].select { |sq| sq[:root_run_id] == run.id }
+      return true if direct.any?(&live)
+      return false if run.distributed_parallel_run?
 
-        sq[:claimed] && !sq[:failed] && solid_queue_process_live?(sq[:process_id])
-      end
+      driving = (solid_queue_jobs_for_run(run) - direct).select(&live)
+      return false if driving.empty?
+
+      Run.where(id: driving.map { |sq| sq[:root_run_id] }).where.not(state: %w[queued running]).exists?
     end
 
     # A sequential chain can execute a later Step's Run inside an earlier
