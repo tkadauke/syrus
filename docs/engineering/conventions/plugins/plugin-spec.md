@@ -180,4 +180,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 31261 bytes (UTF-8, including this line).
+Size: 31525 bytes (UTF-8, including this line).
