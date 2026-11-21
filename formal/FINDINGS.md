@@ -1481,8 +1481,9 @@ merge-train path already fails closed on the same question
 **Fix.** An unreadable live base defers landing for a re-check (approval kept,
 artifact `landing_base_moved` with reason `base_unverified_before_merge`). The
 fix only turns merges into deferrals, and only when the base could not be read
-(`after_never_adds_merges`, `after_differs_only_when_unread`). A blank
-*recorded* base still merges: NY10.
+(`after_never_adds_merges`, `after_differs_only_when_unread`). NY10 (decided
+A): a blank *recorded* base defers too (`validated_base_not_recorded`), so every
+merge had its validated base read and unchanged (`afterNY10_merge_confirmed`).
 
 **Spec.** `auto_merge_spec.rb` "defers instead of merging when GitHub errors
 reading the base before the merge" and "...when GitHub returns no SHA..."
@@ -1717,8 +1718,9 @@ does not bypass the budget.
 The in-place path's own budget is per Step (`in_place_per_step`), so a Job can
 take `MAX_ATTEMPTS` in-place retries of one classification on every Step, each
 Step bounded (`step_bound`). `run_spec.rb` "gives each Step its own in-place
-budget for transient Git transport failures" pins that. Whether one transport
-outage should spend a budget per Step is NY11.
+budget for transient Git transport failures" pins that. NY11 (decided A):
+kept per Step. Infrastructure failures should fail work as rarely as possible
+while runaway loops stay bounded, and each Step's budget is.
 
 ---
 

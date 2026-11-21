@@ -50,7 +50,9 @@ module Steps
     def defer_if_base_moved_since_validation!(client, pr, context:, branch_name: nil)
       validated_base_sha = job.mergeability_base_sha.to_s.presence
       base_ref = MergeabilityRecorder.base_ref(pr).presence || job.mergeability_base_ref.presence || repository.default_branch
-      return false if validated_base_sha.blank? || base_ref.blank?
+      # No recorded validated base means nothing proves which base the graders
+      # ran on: defer so the next preflight records it (NY10: A).
+      return defer_unverified_base!(context: context, validated_base_sha: nil, base_ref: base_ref) if validated_base_sha.blank? || base_ref.blank?
 
       # A base that cannot be read is not a base that stayed put: merging
       # would let GitHub land the head onto whatever the base now is, which no
@@ -94,14 +96,16 @@ module Steps
           "validated_base_sha" => validated_base_sha,
           "current_base_sha" => nil,
           "base_ref" => base_ref,
-          "reason" => "base_unverified_before_merge",
+          "reason" => validated_base_sha ? "base_unverified_before_merge" : "validated_base_not_recorded",
           "detected_at" => Time.current.iso8601
         }
       )
-      defer_landing_for_retry!(
-        context: context,
-        reason: "could not read #{base_ref} to confirm it is still #{validated_base_sha.first(12)}; re-checking before merging"
-      )
+      reason = if validated_base_sha
+        "could not read #{base_ref} to confirm it is still #{validated_base_sha.first(12)}; re-checking before merging"
+      else
+        "no validated base was recorded for this landing; re-checking before merging"
+      end
+      defer_landing_for_retry!(context: context, reason: reason)
       true
     end
 

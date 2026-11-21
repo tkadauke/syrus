@@ -47,6 +47,10 @@ RSpec.describe Steps::ExternalPrMerge do
 
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:pull_request).and_return(pr)
+    # The mergeability preflight records the base the landing graders ran on;
+    # the merge step refuses to merge without it (NY10).
+    job.update_columns(mergeability_base_sha: "base")
+    allow(client).to receive(:branch_head_sha).and_return("base")
     workflow.set_artifact!("external_pr_head_sha", "abc123")
   end
 

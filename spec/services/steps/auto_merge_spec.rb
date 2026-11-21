@@ -48,6 +48,9 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     allow(client).to receive(:pr_commits).and_return([])
     allow(client).to receive(:branch_head_sha).and_return("base")
     allow(client).to receive(:delete_branch).and_return(true)
+    # The mergeability preflight records the base the landing graders ran on;
+    # the merge step refuses to merge without it (NY10).
+    job.update_columns(mergeability_base_sha: "base")
   end
 
   def octokit_error(error_class, status:, message:)
@@ -159,6 +162,7 @@ RSpec.describe Steps::AutoMerge, :ci_only do
       job.approve!(via: "github_review")
       job.start_landing!
       job.save!
+      job.update_columns(mergeability_base_sha: "base-before-merge")
       allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "tip-sha"))
       allow(client).to receive(:add_issue_comment)
     end
@@ -171,7 +175,8 @@ RSpec.describe Steps::AutoMerge, :ci_only do
 
       described_class.new(run).call
 
-      expect(client).to have_received(:branch_head_sha).with("acme/widgets", "main").ordered
+      # Read twice before merging: the base-moved check, then the base tip capture.
+      expect(client).to have_received(:branch_head_sha).with("acme/widgets", "main").twice.ordered
       expect(client).to have_received(:merge_pull_request).ordered
       rows = LandedCommit.where(landable: job).order(:position)
       expect(rows.pluck(:sha, :kind, :position)).to eq([
@@ -553,6 +558,25 @@ RSpec.describe Steps::AutoMerge, :ci_only do
   # Regression (formal/SyrusModel/LandingBase.lean): a base that could not be
   # read used to count as unchanged, so GitHub's rebase merge could land
   # commits onto a base no grader ran on.
+  # NY10 (A): with no recorded validated base nothing proves which base the
+  # graders ran on, so the merge waits for a preflight to record one.
+  it "defers instead of merging when no validated base was recorded" do
+    job.approve!(via: "github_review")
+    job.update_columns(mergeability_base_sha: nil)
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:merge_pull_request)
+
+    expect {
+      described_class.new(run).call
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+      .at(be_within(3.seconds).of(LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY.from_now))
+
+    expect(client).not_to have_received(:merge_pull_request)
+    expect(job.reload).to be_approved
+    expect(workflow.reload.artifact("landing_base_moved")).to include("reason" => "validated_base_not_recorded")
+  end
+
   {
     "GitHub errors" => -> { raise Octokit::ServiceUnavailable },
     "GitHub returns no SHA" => -> { nil }
