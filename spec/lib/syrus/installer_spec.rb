@@ -107,6 +107,46 @@ RSpec.describe Syrus::Installer, :reset_plugin_registry do
     expect(log).to eq([ :installed ])
   end
 
+  # A while_enabled effect is a contribution (a chat session rehydrator, a
+  # credential probe, a chat extension) and follows the same rule as
+  # providers_for: enabled is not enough, the plugin must also be healthy.
+  describe "unhealthy plugins" do
+    def effect_log_for(plugin)
+      log = []
+      described_class.define("#{plugin} effect", plugin: plugin) do |scope|
+        scope.effect("x") { log << :install; -> { log << :dispose } }
+      end
+      described_class.sync!
+      log
+    end
+
+    it "does not install a degraded plugin's while_enabled effects" do
+      Syrus::PluginRegistry.register(name: "effect_base", version: "1.0.0")
+      Syrus::PluginRegistry.register(name: "effect_dependent", version: "1.0.0", depends_on: [ "effect_base" ])
+      PluginRecord.find_by!(name: "effect_base").update!(enabled: false)
+
+      expect(effect_log_for("effect_dependent")).to eq([])
+    end
+
+    it "does not install the effects of a plugin that failed to load" do
+      Syrus::PluginRegistry.record_load_failure(name: "effect_broken", state: :failed, message: "boot block raised")
+      PluginRecord.find_or_create_by!(name: "effect_broken").update!(enabled: true)
+
+      expect(effect_log_for("effect_broken")).to eq([])
+    end
+
+    it "installs a healthy enabled plugin's effects and disposes them when it turns degraded" do
+      Syrus::PluginRegistry.register(name: "effect_base", version: "1.0.0")
+      Syrus::PluginRegistry.register(name: "effect_dependent", version: "1.0.0", depends_on: [ "effect_base" ])
+      log = effect_log_for("effect_dependent")
+
+      PluginRecord.find_by!(name: "effect_base").update!(enabled: false)
+      described_class.sync!
+
+      expect(log).to eq([ :install, :dispose ])
+    end
+  end
+
   it "disposes everything on reset!" do
     log = []
     described_class.define("probe") { |scope| scope.effect("x") { -> { log << :disposed } } }
