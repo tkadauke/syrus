@@ -2419,6 +2419,18 @@
         "C. Re-check only for automatic retries; an operator's explicit Retry proceeds."
       ],
       "recommendation": "B, narrowly. The landing queue re-checks dependencies before anything merges, so the worst case is wasted work on a base that may come back, not a wrong merge; A changes retry semantics for a case not seen in production. Revisit if it shows up."
+    },
+    {
+      "id": "NY9",
+      "item": "classifier-executor-agreement",
+      "title": "Should every registered MCP tool carry the authorization layer from registration, instead of from whichever path first serves it?",
+      "context": "Capability authorization (Mcp::Tools::AuthorizationSupport::ToolDispatch, which runs ScheduledAuthorization, coworker approval and actor approval) is prepended onto a tool class lazily by Mcp::Sidecar.authorize_tool, called separately by the stdio sidecar, the daemon's chat route and now (F47) the daemon's workflow route. F47 was a permission bypass because one of those paths forgot it: scheduled runs skipped the owner's rules for patch_workflow and read_artifact in persistent mode, the default. F46 was the same lazy-prepend design making wrapper order depend on process history. Any future path that serves a tool without one of the three wrappers reopens the hole silently.",
+      "options": [
+        "A. Install at registration: McpToolRegistry applies authorize_tool when a tool is registered (core and plugin providers), and an architecture spec asserts every registered tool class carries the layer; the per-path calls become no-ops.",
+        "B. Keep per-path installation and add an architecture spec that every serving path (stdio sidecar, daemon chat, daemon workflow, plugin tool sets) calls authorize_tool.",
+        "C. Keep as is after F47."
+      ],
+      "recommendation": "A. It makes the guarantee structural instead of a convention every new serving path must remember, which is exactly how F47 happened; the layer is already idempotent and context-driven, so tools that need no gating pass straight through."
     }
   ]
 }
