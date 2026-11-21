@@ -13,7 +13,7 @@ RSpec.describe Syrus::Plugin::Family do
   def define_family
     described_class.define(:ecosystem) do
       shape :facet
-      capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: "PrepareContext"
+      capability :detect_prepare, composition: :collect, absent: [], tier: :stable, context: "PrepareContext", returns: Array
       capability :prompt_context, composition: :first_claim, absent: nil, tier: :provisional, context: "PromptContext"
     end
   end
@@ -23,7 +23,8 @@ RSpec.describe Syrus::Plugin::Family do
     expect(family.required_core).to eq(%i[key display_name])
     expect(family.capabilities.fetch(:detect_prepare)).to have_attributes(
       composition: :collect, absent: [], tier: :stable, context: "PrepareContext",
-      method_contract: have_attributes(required_positionals: 1, required_keywords: [], optional_keywords: [])
+      method_contract: have_attributes(required_positionals: 1, required_keywords: [], optional_keywords: []),
+      return_contract: have_attributes(description: "Array")
     )
     expect(family.core_method_contract(:key)).to have_attributes(required_positionals: 0)
   end
