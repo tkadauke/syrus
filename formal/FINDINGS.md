@@ -1694,6 +1694,35 @@ outage should spend a budget per Step is NY11.
 
 ---
 
+## M5. Invariants derived from recent main commits
+
+At the operator's request, each recent main commit that touches engine
+behaviour was read for the invariant it restores, then checked for places that
+invariant still fails.
+
+- "Do not declare a worker dead over one orphaned helper process": a Run that a
+  live claim is executing is never failed as `worker_died`. **Violated for
+  inline-chained Runs: F52.**
+- "Rerun feedback, not implementation, when a feedback workflow is blocked":
+  feedback on blocked work never abandons an implemented branch. **Violated for
+  blocked CI repairs: F53.**
+- "Make the chaos simulation's stranded step genuinely resumable": a queued
+  Step resumes only once every dependency edge is settled (not its
+  linked-list predecessor). Holds; it is what `ReadySet.lean` and the dispatch
+  order model state. The commit fixed the test's topology, not the engine.
+- Review workspace ("Harden Review workspace freshness"): an approval or
+  feedback from the workspace applies only to the Job revision the operator
+  reviewed. Holds: both send `expected_revision` and the app API rejects a
+  mismatch (`reject_stale_job_revision?`); `entity_revision` bumps on every Job
+  save, and every change to the reviewable diff passes through a Workflow whose
+  state transitions save the Job. The callback-skipping `update_column` writes
+  touch only post-landing fields (`landed_sha`, `branch_deleted_at`).
+
+The remaining commits (UI, syntax highlighting, spec speed-ups, CI sharding,
+admin query counts) state no engine invariant.
+
+---
+
 ## Open questions for review
 
 - **Q1 — resolved as F7** (fail and hold instead of parking).
