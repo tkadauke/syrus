@@ -643,5 +643,35 @@ theorem train_before_fails_owned :
 /-- After: one predicate (`MergeTrainOwnership#owned?`) on both sides. -/
 theorem train_after_agrees (t : TrainOwners) : ownedClassifier t = ownedClassifier t := rfl
 
+/-! ## Instance: a retry from a Run whose branch was rewritten (F44)
+
+`AutoRetryJob` skips an attempt whose source Run's workspace the PR branch has
+moved past. The skip is budget-exempt and requests a reconciliation. The
+planner (`classify_retryable_failures`) did not ask the same question, so each
+pass scheduled a new attempt from the same Run: an unbounded sequence, since
+neither the budget nor the per-Run dedup (which ignores skipped attempts)
+advances. -/
+
+/-- One reconciler pass: plan if the planner allows, then the attempt is
+    skipped (exempt) when the branch moved. Returns attempts created. -/
+def passAttempts (plannerChecksRewrite : Bool) (rewritten : Bool) : Nat :=
+  if plannerChecksRewrite && rewritten then 0 else 1
+
+def totalAttempts (checks rewritten : Bool) : Nat → Nat
+  | 0 => 0
+  | n + 1 => totalAttempts checks rewritten n + passAttempts checks rewritten
+
+/-- Before: attempts grow with every pass. -/
+theorem rewritten_before_loops (n : Nat) : totalAttempts false true n = n := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [totalAttempts, passAttempts, ih]
+
+/-- After: none are planned from a rewritten Run. -/
+theorem rewritten_after_bounded (n : Nat) : totalAttempts true true n = 0 := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [totalAttempts, passAttempts, ih]
+
 end Agreement
 end SyrusModel

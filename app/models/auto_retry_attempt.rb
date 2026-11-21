@@ -141,6 +141,23 @@ class AutoRetryAttempt < ApplicationRecord
     classification == WORKER_DIED_CLASSIFICATION ? MAX_WORKER_DIED_ATTEMPTS : MAX_ATTEMPTS
   end
 
+  # Shared with the reconciler's retry planner: a retry from a Run whose
+  # workspace the PR branch has moved past is skipped here as budget-exempt,
+  # so planning one anyway repeats forever (formal/SyrusModel/Agreement.lean).
+  def self.branch_rewritten_since?(job, run)
+    return false unless job && run
+    return false if run.finished_at.blank? || job.mergeability_checked_at.blank?
+    return false if job.mergeability_checked_at <= run.finished_at
+
+    sha_moved?(run.head_sha, job.mergeability_head_sha) ||
+      sha_moved?(run.base_sha, job.mergeability_base_sha)
+  end
+
+  def self.sha_moved?(recorded, current)
+    recorded.present? && current.present? && recorded != current
+  end
+  private_class_method :sha_moved?
+
   def self.prune_stale_pending!(limit: 1_000)
     count = 0
 
@@ -181,16 +198,7 @@ class AutoRetryAttempt < ApplicationRecord
   # that check happened after the source run finished; otherwise the two SHAs
   # are simply from different moments and a difference proves nothing.
   def branch_head_moved?
-    return false unless job && run
-    return false if run.finished_at.blank? || job.mergeability_checked_at.blank?
-    return false if job.mergeability_checked_at <= run.finished_at
-
-    sha_moved?(run.head_sha, job.mergeability_head_sha) ||
-      sha_moved?(run.base_sha, job.mergeability_base_sha)
-  end
-
-  def sha_moved?(recorded, current)
-    recorded.present? && current.present? && recorded != current
+    self.class.branch_rewritten_since?(job, run)
   end
 
   def request_reconciliation

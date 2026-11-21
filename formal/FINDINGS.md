@@ -1278,6 +1278,32 @@ executor: it applied the repair.
 
 ---
 
+## F44. Retries from a rewritten branch were planned forever — fixed
+
+**Property.** Auto-retry terminates. The budget is cumulative per (Job,
+provider, failure classification), so new Workflows don't reset it. Every
+skip reason the budget exempts must describe something transient.
+
+**Gap.** `AutoRetryJob` skips an attempt whose source Run's workspace the PR
+branch has since moved past (`job branch was rewritten…`). That reason is
+budget-exempt, and the skip requests a reconciliation. The retry planner
+(`classify_retryable_failures`) never checked the same condition. The per-Run
+dedup ignores skipped attempts, so every pass scheduled another attempt from
+the same Run, and the skip immediately triggered the next pass. While the
+branch stays moved, nothing ends it (`Agreement.rewritten_before_loops`). A
+probe showed attempts #1, #2, #3 in three passes, all skipped for the same
+reason.
+
+**Fix.** `AutoRetryAttempt.branch_rewritten_since?(job, run)`, shared by the
+pre-start skip and the planner. A Job whose branch moved stays `failed`, and
+the branch-divergence repairs or the operator take it from there
+(`rewritten_after_bounded`).
+
+**Spec.** `reconciler_spec.rb` "does not keep scheduling retries from a Run
+whose branch was rewritten" (red before: 3 attempts in 3 passes).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
