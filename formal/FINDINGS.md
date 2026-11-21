@@ -1101,6 +1101,23 @@ which are terminal and so are not classified, and
 
 ---
 
+## F37. The admin work-units listing failed on deep pages — fixed (found in passing)
+
+Not an engine finding: it turned up while scanning production for
+Workflows with two WorkUnits (read-only). `GET
+/api/v1/app/admin/work_units?page=30` returned 500 with `Mysql2::Error: Out
+of sort memory`. At a deep offset MySQL chose a filesort over the
+`(requested_at, id)` index and sorted whole `work_intents` rows, JSON columns
+included, so every page past roughly the thirtieth was unreachable. The
+payload now pages over the id and sort columns only and then loads that
+page's records by id, keeping the order. It selects instead of plucking,
+because a joined filter adds `DISTINCT` and MySQL rejects ORDER BY columns
+missing from the select. Spec: `work_units_spec.rb` "pages over narrow rows
+and keeps the requested order" (red before: the paging query selected
+`"work_intents".*`).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
