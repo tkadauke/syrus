@@ -3,12 +3,17 @@ module ResetJobs
     RESETTABLE_STATES = %w[running failed implemented approved no_change_needed].freeze
 
     def self.preflight(job)
-      return "#{job.slug} is landing; cancel or finish landing before reset_job." if job.landing?
-      return "#{job.slug} was merged and cannot be reset; create a new Job instead." if job.closed? && job.closure_reason == "pr_merged"
-      return "#{job.slug} is in an active merge train; cancel the merge train before reset_job." if MergeTrain.active.joins(:members).exists?(merge_train_members: { job_id: job.id })
+      return refusal(:landing, slug: job.slug) if job.landing?
+      return refusal(:merged, slug: job.slug) if job.closed? && job.closure_reason == "pr_merged"
+      return refusal(:merge_train, slug: job.slug) if MergeTrain.active.joins(:members).exists?(merge_train_members: { job_id: job.id })
       children = job.stack_children.where.not(state: Job::TERMINAL_STATES).where("pr_number IS NOT NULL OR branch_name IS NOT NULL")
-      return "Live stacked children depend on this branch: #{children.map(&:slug).join(', ')}; reset or land them first." if children.any?
-      "#{job.slug} cannot be reset from #{job.state}; retry or reopen it first." unless RESETTABLE_STATES.include?(job.state)
+      return refusal(:stacked_children, slugs: children.map(&:slug).join(", ")) if children.any?
+      refusal(:state, slug: job.slug, state: job.state) unless RESETTABLE_STATES.include?(job.state)
+    end
+
+    # Refusals are shown to operators in their own language (UI and chat).
+    def self.refusal(key, **options)
+      I18n.t("reset_jobs.refusals.#{key}", **options)
     end
 
     def self.destruction_summary(job)
@@ -27,7 +32,7 @@ module ResetJobs
       Workflow.where(id: direct_ids | owned_ids).order(:created_at, :id)
     end
 
-    def initialize(job:, user:, reason:, pending_action:)
+    def initialize(job:, user:, reason:, pending_action: nil)
       @job, @user, @reason, @pending_action = job, user, reason, pending_action
     end
 
@@ -90,7 +95,7 @@ module ResetJobs
       { "superseded_by_reset_at" => Time.current.iso8601, "cancelled_reason" => Workflow::SUPERSEDED_BY_RESET_REASON,
         "reset_reason" => reason,
         "reset_actor_type" => user.class.polymorphic_name, "reset_actor_id" => user.id,
-        "reset_pending_action_id" => pending_action.id }
+        "reset_pending_action_id" => pending_action&.id }.compact
     end
   end
 end

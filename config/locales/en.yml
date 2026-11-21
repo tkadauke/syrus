@@ -277,6 +277,13 @@ en:
       invalid_link: "This GitHub App registration link is invalid or has expired."
 
   # API messages
+  reset_jobs:
+    refusals:
+      landing: "%{slug} is landing; cancel or finish landing before reset_job."
+      merged: "%{slug} was merged and cannot be reset; create a new Job instead."
+      merge_train: "%{slug} is in an active merge train; cancel the merge train before reset_job."
+      stacked_children: "Live stacked children depend on this branch: %{slugs}; reset or land them first."
+      state: "%{slug} cannot be reset from %{state}; retry or reopen it first."
   api:
     cli_commands:
       errors:
@@ -1010,6 +1017,9 @@ en:
       retry_enqueued: "Retry workflow enqueued."
       retry_enqueued_with_provider: "Retry workflow enqueued with %{provider}."
       started_over: "Started over - new branch and PR will be created."
+      reset_failed_only: "%{slug} can only be reset while it is failed."
+      reset_reason: "Reset from the Job page by %{user}."
+      reset_done: "%{slug} was reset and restarts on the current base."
       already_closed: "Job is already closed."
       cancellation_requested: "Cancellation requested."
       workflow_not_found: "Workflow not found."

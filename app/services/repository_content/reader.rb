@@ -133,6 +133,16 @@ module RepositoryContent
       entries.to_h { |entry| [ entry.path, read(revision, entry.path, max_bytes: max_bytes) ] }
     end
 
+    def workspace_files(revision, paths:, max_bytes:, last_modified: false, history_limit: 25)
+      id = revision_id(revision)
+      paths = Array(paths).map { |path| normalize_path(path) }.uniq
+      return { blobs: {}, last_modified: {}, history_incomplete: false } if paths.empty?
+
+      through_chain(:workspace_files) do |provider|
+        provider.workspace_files(id, paths: paths, max_bytes: max_bytes, last_modified: last_modified, history_limit: history_limit)
+      end
+    end
+
     # What `head` introduced since its merge base with `base` -- GitHub's
     # "Files changed" view, `git diff base...head`.
     def changes(base:, head:, patch: false)

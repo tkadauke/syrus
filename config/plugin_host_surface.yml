@@ -1,7 +1,7 @@
 # Legacy core constants referenced by built-in plugins.
 # New entries are forbidden; add a public facade under Syrus::Host instead.
 ---
-legacy_baseline: 480
+legacy_baseline: 479
 constants:
 - name: Admin::JobStateSerializer
 - name: Admin::OperationalLogsPayload
@@ -307,7 +307,6 @@ constants:
 - name: RepositoryContent::Divergence
 - name: RepositoryContent::Entry
 - name: RepositoryContent::Error
-- name: RepositoryContent::Glob
 - name: RepositoryContent::NotFound
 - name: RepositoryContent::Ref
 - name: RepositoryContent::Revision

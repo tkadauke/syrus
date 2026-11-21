@@ -1,6 +1,13 @@
-import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
-import { PlacementConfirmationModal, PlacementOverrideModal } from "./JobHeader"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { ApiError } from "../../api/client"
+import * as jobsApi from "../../api/jobs"
+import type { JobDetailPayload } from "../../api/jobs"
+import { ShortcutsProvider } from "../../contexts/ShortcutsContext"
+import { useJobCommand } from "./command"
+import { HeaderActions, PlacementConfirmationModal, PlacementOverrideModal, headerActions } from "./JobHeader"
 
 function renderModal() {
   const mutate = vi.fn()
@@ -96,5 +103,139 @@ describe("PlacementOverrideModal", () => {
       },
       expect.any(Object)
     )
+  })
+})
+
+describe("headerActions Reset Job", () => {
+  const t = ((key: string, options?: Record<string, unknown>) => (options ? `${key}:${JSON.stringify(options)}` : key)) as never
+  const base = (actions: Record<string, unknown>) => ({ actions, paths: {}, job: { state: "failed", summary_state: "failed" }, pinned: false }) as never
+
+  it("offers a secondary Reset Job action with a discard list when the payload exposes it", () => {
+    const action = headerActions(
+      base({
+        reset_job_action: {
+          path: "/api/v1/app/jobs/7/reset",
+          destroys: { open_pr_number: 12, branch: "syrus/job-7", checkpoints: 2, active_workflows: [3] }
+        }
+      }),
+      t
+    ).find((entry) => entry.key === "reset_job")
+
+    expect(action?.tone).toBe("secondary")
+    expect(action?.input).toMatchObject({ method: "post", path: "/api/v1/app/jobs/7/reset" })
+    const confirm = (action?.input as { confirm: string }).confirm
+    expect(confirm).toContain("confirm_reset_job")
+    expect(confirm).toContain('• reset_job_pr:{"number":12}')
+    expect(confirm).toContain('• reset_job_branch:{"branch":"syrus/job-7"}')
+    expect(confirm).toContain('• reset_job_checkpoints:{"count":2}')
+    expect(confirm).toContain('• reset_job_workflows:{"count":1}')
+    expect(confirm).toContain("confirm_reset_job_kept")
+  })
+
+  it("omits effects that are absent from the reset preview", () => {
+    const action = headerActions(
+      base({
+        reset_job_action: {
+          path: "/api/v1/app/jobs/7/reset",
+          destroys: { branch: "syrus/job-7", active_workflows: [] }
+        }
+      }),
+      t
+    ).find((entry) => entry.key === "reset_job")
+
+    const confirm = (action?.input as { confirm: string }).confirm
+    expect(confirm).toContain('• reset_job_branch:{"branch":"syrus/job-7"}')
+    expect(confirm).not.toContain("reset_job_pr")
+    expect(confirm).not.toContain("reset_job_checkpoints")
+    expect(confirm).not.toContain("reset_job_workflows")
+  })
+
+  it("hides Reset Job when the payload does not expose it", () => {
+    expect(headerActions(base({ reset_job_action: null }), t).some((entry) => entry.key === "reset_job")).toBe(false)
+  })
+})
+
+describe("HeaderActions Reset Job interaction", () => {
+  const post = vi.fn()
+
+  function Harness({ payload, onNotice }: { payload: JobDetailPayload; onNotice: (message: string | null, tone?: string) => void }) {
+    const command = useJobCommand(7, ["job", 7] as never, undefined, onNotice as never)
+    return (
+      <>
+        <HeaderActions command={command} onToggleFeedbackPanel={() => {}} payload={payload} />
+        {command.dialog}
+      </>
+    )
+  }
+
+  function payloadFor(state: string, withReset: boolean) {
+    return {
+      job: { id: 7, state, summary_state: state, kind: "issue" },
+      pinned: false,
+      paths: {},
+      actions: {
+        can_write: true,
+        reset_job_action: withReset
+          ? { path: "/api/v1/app/jobs/7/reset", destroys: { open_pr_number: 12, branch: "syrus/job-7", checkpoints: 2, active_workflows: [3] } }
+          : null
+      }
+    } as unknown as JobDetailPayload
+  }
+
+  function renderHarness(payload: JobDetailPayload, onNotice = vi.fn()) {
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ShortcutsProvider>
+            <Harness onNotice={onNotice} payload={payload} />
+          </ShortcutsProvider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    return onNotice
+  }
+
+  beforeEach(() => {
+    post.mockReset()
+    vi.spyOn(jobsApi, "postJobCommand").mockImplementation(post)
+  })
+
+  it("shows Reset Job for a failed Job, confirms with the discard list, and issues the request", async () => {
+    post.mockResolvedValue({ message: "reset ok" })
+    const onNotice = renderHarness(payloadFor("failed", true))
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reset Job" }))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(dialog).toHaveTextContent("The Job will restart from scratch on the current base.")
+    expect(dialog).toHaveTextContent("• Close PR #12")
+    expect(dialog).toHaveTextContent("• Delete branch syrus/job-7")
+    expect(dialog).toHaveTextContent("• Delete 2 checkpoints")
+    expect(dialog).toHaveTextContent("• Cancel 1 active workflow")
+    expect(post).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/api/v1/app/jobs/7/reset", undefined))
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("reset ok"))
+  })
+
+  it("displays the service refusal when the reset is rejected", async () => {
+    post.mockRejectedValue(new ApiError("SYR-7 is landing; cancel or finish landing before reset_job.", { status: 422, code: "validation_failed" }))
+    const onNotice = renderHarness(payloadFor("failed", true))
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reset Job" }))
+    await screen.findByText(/PR #12/)
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith(expect.stringContaining("is landing"), "error"))
+  })
+
+  it("does not offer Reset Job when the payload has no reset action", () => {
+    renderHarness(payloadFor("implemented", false))
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    expect(screen.queryByRole("menuitem", { name: "Reset Job" })).toBeNull()
   })
 })

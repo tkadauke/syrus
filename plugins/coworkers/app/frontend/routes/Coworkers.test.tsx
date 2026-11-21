@@ -74,7 +74,6 @@ const detailPayload = {
     chat_model: "gpt-6.1-sol",
     effective_model: "gpt-6.1-sol",
     workspace_repo: "https://github.com/acme/workspace.git",
-    soul: "role: Researcher\n\nCurious and concise.",
     spend_usd: 1.25,
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
@@ -376,7 +375,7 @@ it("loads older activity through the returned cursors", async () => {
   expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("runs_cursor=NTE"))).toBe(true)
 })
 
-it("renders the custom profile, editable capabilities, and creates side chats", async () => {
+it("keeps metadata in Edit, renders capabilities, and creates side chats", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -388,9 +387,8 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   const invalidateQueries = vi.spyOn(client, "invalidateQueries")
   expect(await screen.findByRole("heading", { name: "Maya" })).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Main chat" })).toHaveAttribute("href", "/chats/12")
-  fireEvent.click(screen.getByRole("button", { name: "Profile" }))
-  expect(await screen.findByText("gpt-6.1-sol")).toBeInTheDocument()
-  expect(screen.getByText(/Curious and concise/)).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/coworkers/7/edit")
+  expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
   expect(await screen.findByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
   expect(screen.queryByRole("heading", { name: "Permission cutover report" })).not.toBeInTheDocument()
@@ -773,79 +771,147 @@ it("shows pending approvals with the originating run and tool input and allows r
   await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["sidebar_badge", "coworkers.index"] }))
 })
 
-it("browses, searches, and renders coworker memory without write controls", async () => {
+it("redirects old profile and memory links into scoped Workspace views", async () => {
+  const requests: string[] = []
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      requests.push(String(input))
+      if (String(input).includes("/workspace"))
+        return jsonResponse({
+          remote: "remote",
+          branch: "coworkers/maya",
+          files: [],
+          results: [],
+          total: 0,
+          next_cursor: null,
+          incomplete_reasons: [],
+          partial: false,
+          selected_file: null,
+          commits: [],
+          conflicts: [],
+          branch_counts: { home: 1, chat: 0, run: 0 }
+        })
+      return jsonResponse(detailPayload)
+    })
+  )
+  const profile = renderRoute("/coworkers/7?tab=profile")
+  expect(await screen.findByRole("button", { name: "Workspace" })).toHaveClass("font-semibold")
+  await waitFor(() => expect(requests.some((path) => path.includes("path=SOUL.md"))).toBe(true))
+  profile.unmount()
+
+  renderRoute("/coworkers/7?tab=memory")
+  expect(await screen.findByRole("button", { name: "Workspace" })).toHaveClass("font-semibold")
+  await waitFor(() => expect(requests.some((path) => path.includes("path_prefix=memory"))).toBe(true))
+  expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument()
+})
+
+it("navigates the accessible workspace tree, scopes paths, and renders breadcrumbs", async () => {
   const requests: string[] = []
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
       requests.push(path)
-      if (path.includes("/memory")) {
-        const matches = path.includes("search=evidence")
-          ? [{ path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Thomas likes **evidence**.", truncated: false }]
-          : [
-              { path: "memory/daily/2026-10-29.md", category: "daily", name: "2026-10-29", content: "# Today\n\nShipped it.", truncated: false },
-              { path: "memory/people/thomas.md", category: "people", name: "thomas", content: "Thomas likes **evidence**.", truncated: false }
-            ]
-        return jsonResponse({ files: matches, search: "", truncated: false, partial: false, search_incomplete: false })
+      if (path.includes("/workspace")) {
+        const selected = new URL(path, "http://example.test").searchParams.get("path")
+        return jsonResponse({
+          remote: "https://github.com/acme/workspace.git",
+          branch: "coworkers/maya",
+          files: [
+            { path: "memory/today.md", type: "file", size: 5, extension: "md", area: "memory" },
+            { path: "projects/deep/note.md", type: "file", size: 6, extension: "md", area: "projects" }
+          ],
+          results: [],
+          total: 0,
+          page_start: 0,
+          page_end: 0,
+          previous_cursor: null,
+          next_cursor: null,
+          incomplete_reasons: [],
+          partial: false,
+          selected_file: selected ? { path: selected, content: "# Nested", truncated: false, binary: false } : null,
+          commits: [],
+          conflicts: [],
+          branch_counts: { home: 1, chat: 0, run: 0 }
+        })
       }
       return jsonResponse(detailPayload)
     })
   )
-  renderRoute("/coworkers/7")
-  await screen.findByRole("heading", { name: "Maya" })
-  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
-  expect(await screen.findByRole("heading", { name: "2026-10-29" })).toBeInTheDocument()
-  expect(screen.getByRole("heading", { name: "Today" })).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "Open your Syrus memories" })).toHaveAttribute("href", "/memories")
-  expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
+  renderRoute("/coworkers/7?tab=workspace")
 
-  fireEvent.click(screen.getByRole("button", { name: /add filter/i }))
-  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "evidence" } })
-  fireEvent.click(screen.getByRole("button", { name: "Search for evidence" }))
-  expect(await screen.findByRole("heading", { name: "thomas" })).toBeInTheDocument()
-  expect(requests.some((path) => path.includes("search=evidence"))).toBe(true)
+  const projects = await screen.findByRole("treeitem", { name: "▸ projects" })
+  expect(screen.getAllByRole("treeitem").filter((item) => item.tabIndex === 0)).toHaveLength(1)
+  expect(projects).toHaveAttribute("aria-expanded", "false")
+  fireEvent.keyDown(projects, { key: "ArrowRight" })
+  expect(projects).toHaveAttribute("aria-expanded", "true")
+  expect(projects.closest("li")?.querySelector("[role=group]")).toContainElement(screen.getByRole("treeitem", { name: "▸ deep" }))
+  const deep = screen.getByRole("treeitem", { name: "▸ deep" })
+  fireEvent.click(deep)
+  const note = screen.getByRole("treeitem", { name: "note.md" })
+  fireEvent.keyDown(deep, { key: "ArrowRight" })
+  expect(note).toHaveFocus()
+  fireEvent.click(note)
+  expect(await screen.findByRole("navigation", { name: "Selected file path" })).toHaveTextContent("projects / deep / note.md")
+  expect(requests.some((request) => request.includes("path=projects%2Fdeep%2Fnote.md"))).toBe(true)
+
+  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
+  await waitFor(() => expect(requests.some((request) => request.includes("path_prefix=memory"))).toBe(true))
+  fireEvent.click(await screen.findByRole("button", { name: "All files" }))
+  await waitFor(() => expect(requests.at(-1)).not.toContain("path_prefix=memory"))
 })
 
-it("shows clear empty and unreachable memory states", async () => {
-  let unavailable = false
+it("highlights workspace matches, paginates, and warns about bounded results", async () => {
+  const requests: string[] = []
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes("/memory"))
-        return unavailable
-          ? jsonResponse({ error: { message: "offline" } }, 503)
-          : jsonResponse({ files: [], search: "", truncated: false, partial: false, search_incomplete: false })
+      const path = String(input)
+      requests.push(path)
+      if (path.includes("/workspace"))
+        return jsonResponse({
+          remote: "remote",
+          branch: "coworkers/maya",
+          files: [],
+          results: [
+            {
+              path: "notes.md",
+              type: "file",
+              size: 20,
+              extension: "md",
+              area: "notes.md",
+              binary: false,
+              truncated: false,
+              snippet: "before needle after",
+              highlights: [{ start: 7, length: 6 }],
+              last_modified_at: null
+            }
+          ],
+          total: 101,
+          page_start: path.includes("cursor=") ? 101 : 1,
+          page_end: path.includes("cursor=") ? 101 : 100,
+          previous_cursor: path.includes("cursor=") ? "MA" : null,
+          next_cursor: path.includes("cursor=") ? null : "MTAw",
+          incomplete_reasons: ["search_limit"],
+          partial: true,
+          selected_file: null,
+          commits: [],
+          conflicts: [],
+          branch_counts: { home: 1, chat: 0, run: 0 }
+        })
       return jsonResponse(detailPayload)
     })
   )
-  const view = renderRoute("/coworkers/7")
-  await screen.findByRole("heading", { name: "Maya" })
-  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
-  expect(await screen.findByText("This coworker has no memory yet.")).toBeInTheDocument()
+  const view = renderRoute("/coworkers/7?tab=workspace&search=needle")
 
-  unavailable = true
-  view.unmount()
-  renderRoute("/coworkers/7")
-  await screen.findByRole("heading", { name: "Maya" })
-  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
-  expect(await screen.findByText("This coworker's memory cannot be reached right now.")).toBeInTheDocument()
-})
-
-it("does not claim that an incomplete search has no matches", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes("/memory")) return jsonResponse({ files: [], search: "needle", truncated: true, partial: true, search_incomplete: true })
-      return jsonResponse(detailPayload)
-    })
-  )
-  renderRoute("/coworkers/7?search=needle")
-  await screen.findByRole("heading", { name: "Maya" })
-  fireEvent.click(screen.getByRole("button", { name: "Memory" }))
-
-  expect(await screen.findByText("Some memory content could not be searched. These results may be incomplete.")).toBeInTheDocument()
-  expect(screen.queryByText("No memory files match this search.")).not.toBeInTheDocument()
+  expect(await screen.findByText("Some results may be missing because repository content or history exceeded a safe search bound.")).toBeInTheDocument()
+  expect(view.container.querySelector("mark")).toHaveTextContent("needle")
+  expect(screen.getByText("Showing 1–100 of 101")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Next" }))
+  await waitFor(() => expect(requests.some((request) => request.includes("cursor=MTAw"))).toBe(true))
+  expect(await screen.findByText("Showing 101–101 of 101")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled()
 })
 
 it("warns when the workspace tree and selected file are truncated", async () => {
@@ -857,7 +923,14 @@ it("warns when the workspace tree and selected file are truncated", async () => 
         return jsonResponse({
           remote: "https://github.com/acme/workspace.git",
           branch: "coworkers/maya",
-          files: [{ path: "README.md", type: "file" }],
+          files: [{ path: "README.md", type: "file", size: 10, extension: "md", area: "README.md" }],
+          results: [],
+          total: 0,
+          page_start: 0,
+          page_end: 0,
+          previous_cursor: null,
+          next_cursor: null,
+          incomplete_reasons: [],
           partial: true,
           selected_file: path.includes("path=") ? { path: "README.md", content: "# Partial", truncated: true, binary: false } : null,
           commits: [],
@@ -873,7 +946,7 @@ it("warns when the workspace tree and selected file are truncated", async () => 
 
   expect(await screen.findByText("This workspace tree is incomplete. Only the available files are shown.")).toBeInTheDocument()
   expect(screen.getByText("Branches: 1 home · 4 chat · 2 run")).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "README.md" }))
+  fireEvent.click(screen.getByRole("treeitem", { name: "README.md" }))
   expect(await screen.findByText("This large file is shown in part.")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
 })

@@ -281,6 +281,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/reject_triage` | `api/v1/app/job_lifecycle#reject_triage` |
 | core | POST | `/api/v1/app/jobs/:job_id/release_from_backlog` | `api/v1/app/job_lifecycle#release_from_backlog` |
 | core | POST | `/api/v1/app/jobs/:job_id/reopen` | `api/v1/app/job_lifecycle#reopen` |
+| core | POST | `/api/v1/app/jobs/:job_id/reset` | `api/v1/app/job_lifecycle#reset` |
 | core | POST | `/api/v1/app/jobs/:job_id/restart` | `api/v1/app/job_lifecycle#restart` |
 | core | POST | `/api/v1/app/jobs/:job_id/resume` | `api/v1/app/job_run_commands#resume` |
 | core | POST | `/api/v1/app/jobs/:job_id/retry_implementation` | `api/v1/app/job_lifecycle#retry_implementation` |

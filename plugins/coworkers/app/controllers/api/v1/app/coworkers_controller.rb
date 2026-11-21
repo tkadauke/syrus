@@ -31,15 +31,6 @@ module Api
           render json: { coworker: base_detail_json(coworker) }
         end
 
-        def profile
-          coworker = authorized_coworker
-          render json: {
-            chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
-            effective_model: coworker.chat_model, workspace_repo: coworker.workspace_repo,
-            soul: soul_for(coworker)
-          }
-        end
-
         def chats
           coworker = authorized_coworker
           render json: { chats: chats_json(coworker), available_chats: available_chats_json(coworker) }
@@ -239,27 +230,16 @@ module Api
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
 
-        def memory
-          coworker = find_coworker
-          authorize coworker, :show?, policy_class: CoworkerPolicy
-          begin
-            payload = Coworkers::MemoryBrowser.new(
-              coworker: coworker, repository: workspace_repository(coworker), user: Current.user
-            ).call(search: params[:search])
-            render json: payload
-          rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
-            Rails.logger.info("[Coworkers::MemoryBrowser] memory unavailable: #{error.class}: #{error.message}")
-            render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
-          end
-        end
-
         def workspace
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
           payload = Coworkers::WorkspaceBrowser.new(
             coworker: coworker, repository: workspace_repository(coworker), user: Current.user
-          ).call(path: params[:path])
+          ).call(path: params[:path], filters: params.permit(:search, :extension, :folder, :path_prefix, :filename,
+            :filename_exact, :area, :content_kind, :min_size, :max_size, :modified_after, :modified_before, :sort, :cursor).to_h.symbolize_keys)
           render json: payload
+        rescue Coworkers::WorkspaceBrowser::InvalidCursor => error
+          render_error("invalid_cursor", error.message, status: :bad_request)
         rescue ActiveRecord::RecordNotFound, RepositoryContent::Unavailable, RepositoryContent::UnknownRevision => error
           Rails.logger.info("[Coworkers::WorkspaceBrowser] workspace unavailable: #{error.class}: #{error.message}")
           render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
@@ -489,16 +469,12 @@ module Api
         end
 
         def detail_json(coworker)
-          base_detail_json(coworker).merge(profile_payload(coworker), chats: chats_json(coworker),
+          base_detail_json(coworker).merge(chats: chats_json(coworker),
             available_chats: available_chats_json(coworker),
             grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
             grant_catalog: grant_catalog_json,
             schedules: schedules_json(coworker),
             message_traffic: message_traffic_json(coworker))
-        end
-
-        def profile_payload(coworker)
-          { soul: soul_for(coworker) }
         end
 
         def chats_json(coworker)
@@ -560,14 +536,6 @@ module Api
               reason: message.extract_text_from_content, occurred_at: message.created_at.iso8601 }
           end
           { sent: sent, received: received, window_days: 30, delivery_events: events }
-        end
-
-        def soul_for(coworker)
-          repository = workspace_repository(coworker)
-          content = RepositoryContent.for(repository, user: Current.user)
-          content.read_if_present(content.resolve("coworkers/#{coworker.handle}"), "SOUL.md")&.text
-        rescue ActiveRecord::RecordNotFound, RepositoryContent::Error
-          nil
         end
 
         def available_chats_json(coworker)

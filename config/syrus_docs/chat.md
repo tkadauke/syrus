@@ -91,6 +91,14 @@ remove. Confirmation cancels active execution and releases its locks, removes
 remote and local working state, preserves superseded history for audit, and
 starts fresh from the current effective base when dependencies permit.
 
+On the Job page, a failed Job's menu offers **Reset Job**, which runs the same
+reset. Choose the recovery that fits: **Retry** continues the existing branch
+with a new attempt; **Start over** closes the Job as replaced and creates a
+brand-new Job; **Reset Job** keeps the same Job (id, Epic membership,
+dependencies, history) but discards its PR, branch, checkpoints and workflows
+and restarts it on the current base. Reset is refused for landing or merged
+Jobs, Jobs with live stacked children, and Jobs in an active merge train.
+
 `replace_job_dependency(job_id, remove_dependency_job_id,
 add_dependency_job_id)` atomically swaps one prerequisite while preserving its
 satisfaction mode by default. Repository, cycle, and Epic-chain validation is

@@ -14,6 +14,7 @@
 package mirror
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"errors"
@@ -160,8 +161,16 @@ const MaxRawPatchBytes = 100 << 20
 
 // Blob is a file's content at a revision.
 type Blob struct {
-	Bytes     []byte
-	ContentID string
+	Bytes     []byte `json:"bytes"`
+	ContentID string `json:"content_id"`
+	Size      int64  `json:"size"`
+	Truncated bool   `json:"truncated"`
+}
+
+type WorkspaceFiles struct {
+	Blobs             map[string]Blob      `json:"blobs"`
+	LastModified      map[string]time.Time `json:"last_modified"`
+	HistoryIncomplete bool                 `json:"history_incomplete"`
 }
 
 // Store holds every mirrored repository.
@@ -724,6 +733,107 @@ func (s *Store) Read(ctx context.Context, id, revision, path string) (Blob, erro
 	return Blob{Bytes: content.Stdout, ContentID: oid}, nil
 }
 
+func (s *Store) WorkspaceFiles(ctx context.Context, id, revision string, paths []string, maxBytes, historyLimit int, lastModified bool) (WorkspaceFiles, error) {
+	r, err := s.revisionRepo(ctx, id, revision)
+	if err != nil {
+		return WorkspaceFiles{}, err
+	}
+	for _, path := range paths {
+		if !validPath(path) {
+			return WorkspaceFiles{}, fmt.Errorf("%w: invalid path", ErrBadRequest)
+		}
+	}
+	result := WorkspaceFiles{Blobs: map[string]Blob{}, LastModified: map[string]time.Time{}}
+	metadataArgs := append([]string{"ls-tree", "-l", "-z", "--full-tree", revision, "--"}, paths...)
+	metadata, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, metadataArgs...)
+	if err != nil {
+		return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	smallPaths := make([]string, 0, len(paths))
+	contentIDs := make(map[string]string, len(paths))
+	for _, record := range bytes.Split(metadata.Stdout, []byte{0}) {
+		meta, listed, ok := bytes.Cut(record, []byte{'\t'})
+		fields := strings.Fields(string(meta))
+		if !ok || len(fields) != 4 || fields[1] != "blob" {
+			continue
+		}
+		size, parseErr := strconv.ParseInt(fields[3], 10, 64)
+		if parseErr != nil {
+			continue
+		}
+		path := string(listed)
+		contentIDs[path] = fields[2]
+		if size > int64(maxBytes) {
+			result.Blobs[path] = Blob{Bytes: []byte{}, ContentID: fields[2], Size: size, Truncated: true}
+		} else {
+			smallPaths = append(smallPaths, path)
+		}
+	}
+
+	var archive gitexec.Result
+	if len(smallPaths) > 0 {
+		args := append([]string{"archive", "--format=tar", revision, "--"}, smallPaths...)
+		maxArchiveBytes := int64(len(smallPaths))*(int64(maxBytes)+1024) + 10240
+		archive, err = s.gitLimited(ctx, r.dir, s.cfg.ReadTimeout, maxArchiveBytes, args...)
+		if err != nil {
+			return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
+		}
+	}
+	reader := tar.NewReader(bytes.NewReader(archive.Stdout))
+	for {
+		header, readErr := reader.Next()
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, readErr)
+		}
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+		content, readErr := io.ReadAll(io.LimitReader(reader, int64(maxBytes)+1))
+		if readErr != nil {
+			return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, readErr)
+		}
+		if len(content) > maxBytes {
+			return WorkspaceFiles{}, fmt.Errorf("%w: archive entry exceeded content limit", ErrUnavailable)
+		}
+		result.Blobs[header.Name] = Blob{Bytes: content, ContentID: contentIDs[header.Name], Size: header.Size}
+	}
+	if !lastModified {
+		return result, nil
+	}
+
+	logArgs := []string{"log", fmt.Sprintf("-n%d", historyLimit+1), "--format=COMMIT %aI%x00", "--name-only", "-z", revision, "--"}
+	logArgs = append(logArgs, paths...)
+	history, err := s.git(ctx, r.dir, nil, s.cfg.ReadTimeout, logArgs...)
+	if err != nil {
+		return WorkspaceFiles{}, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	var current time.Time
+	commits := 0
+	for _, token := range bytes.Split(history.Stdout, []byte{0}) {
+		value := strings.TrimSpace(string(token))
+		if strings.HasPrefix(value, "COMMIT") {
+			commits++
+			current, _ = time.Parse(time.RFC3339, strings.TrimSpace(strings.TrimPrefix(value, "COMMIT")))
+		} else if value != "" && commits <= historyLimit {
+			if _, exists := result.LastModified[value]; !exists {
+				result.LastModified[value] = current
+			}
+		}
+	}
+	result.HistoryIncomplete = commits > historyLimit
+	if !result.HistoryIncomplete {
+		for _, path := range paths {
+			if _, exists := result.LastModified[path]; !exists {
+				result.LastModified[path] = current
+			}
+		}
+	}
+	return result, nil
+}
+
 // Changes lists what head introduced since its merge base with base, the
 // three-dot comparison GitHub's "Files changed" tab shows.
 func (s *Store) Changes(ctx context.Context, id, base, head string, withPatch bool) ([]Change, error) {
@@ -1116,6 +1226,12 @@ func (s *Store) git(ctx context.Context, dir string, cred *gitexec.Credential, t
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return s.cfg.Git.Run(ctx, dir, cred, args...)
+}
+
+func (s *Store) gitLimited(ctx context.Context, dir string, timeout time.Duration, maxStdout int64, args ...string) (gitexec.Result, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return s.cfg.Git.RunLimited(ctx, dir, nil, maxStdout, args...)
 }
 
 func (s *Store) gitLimitedTo(ctx context.Context, dir string, destination io.Writer, timeout time.Duration, maxStdout int64, args ...string) (int64, error) {

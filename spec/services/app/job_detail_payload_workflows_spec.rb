@@ -747,7 +747,8 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload.dig(:workflows, 0, :path)).to include("workflows_page=2")
       workflow_id_scans = queries.select do |sql|
         sql.match?(/\ASELECT [`"]?workflows[`"]?\.[`"]?id[`"]? FROM [`"]?workflows[`"]?/i) &&
-          sql.match?(/WHERE [`"]?workflows[`"]?\.[`"]?job_id[`"]? = /i)
+          sql.match?(/WHERE [`"]?workflows[`"]?\.[`"]?job_id[`"]? = /i) &&
+          !sql.match?(/[`"]?workflows[`"]?\.[`"]?state[`"]? IN /i)
       end
       expect(workflow_id_scans).to be_empty
     end

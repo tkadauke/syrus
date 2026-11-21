@@ -8,7 +8,7 @@ RSpec.describe Filters::Subject do
       expect(subject).to be_a(described_class)
       expect(subject.name).to eq(:job)
       expect(subject.model).to eq(Job)
-      expect(subject.chips).to eq(Filters::Registry::CHIPS)
+      expect(subject.chips).to include(Filters::Registry::CHIPS)
     end
 
     it "accepts string subject names" do

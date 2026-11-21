@@ -20,7 +20,6 @@ export type CoworkerDetail = CoworkerSummary & {
   effective_model: string | null
   workspace_repo: string
   about: string | null
-  soul: string | null
   chats: { id: number; link_id: number; role: "main" | "side"; title: string; path: string; unsaved_workspace: UnsavedWorkspace | null }[]
   grants: {
     capability: string
@@ -165,24 +164,28 @@ export type ProvisioningAttempt = {
   last_error: string | null
   acknowledged_at: string | null
 }
-export type CoworkerMemoryFile = {
-  path: string
-  category: "daily" | "people" | "repos" | "banks"
-  name: string
-  content: string
-  truncated: boolean
-}
-export type CoworkerMemoryPayload = {
-  files: CoworkerMemoryFile[]
-  search: string
-  truncated: boolean
-  partial: boolean
-  search_incomplete: boolean
-}
 export type CoworkerWorkspacePayload = {
   remote: string
   branch: string
-  files: { path: string; type: string }[]
+  files: { path: string; type: string; size: number | null; extension: string; area: string }[]
+  results: {
+    path: string
+    type: string
+    size: number | null
+    extension: string
+    area: string
+    binary?: boolean
+    truncated?: boolean
+    snippet: string | null
+    highlights: { start: number; length: number }[]
+    last_modified_at: string | null
+  }[]
+  total: number
+  page_start: number
+  page_end: number
+  previous_cursor: string | null
+  next_cursor: string | null
+  incomplete_reasons: string[]
   partial: boolean
   selected_file: { path: string; content: string; truncated: boolean; binary: boolean } | null
   commits: { sha: string; message: string; authored_at: string | null; source: "chat" | "run" | "unattributed"; source_id: number | null }[]
@@ -209,7 +212,7 @@ export function fetchCoworker(id: string) {
     `/api/v1/app/coworkers/${id}`
   )
 }
-export function fetchCoworkerTab(id: string, tab: "profile" | "chats" | "capabilities" | "schedules") {
+export function fetchCoworkerTab(id: string, tab: "chats" | "capabilities" | "schedules") {
   return getJson<Partial<CoworkerDetail>>(`/api/v1/app/coworkers/${id}/${tab}`)
 }
 export function fetchCoworkerConversationIndex(id: string, search = "") {
@@ -218,11 +221,8 @@ export function fetchCoworkerConversationIndex(id: string, search = "") {
 export const renameCoworkerConversation = (chatId: number, title: string) => patchJson(`/api/v1/app/chats/${chatId}/rename`, { name: title })
 export const archiveCoworkerConversation = (chatId: number, archived: boolean) => patchJson(`/api/v1/app/chats/${chatId}/${archived ? "unhide" : "hide"}`)
 export const deleteCoworkerConversation = (chatId: number) => deleteJson(`/api/v1/app/chats/${chatId}`)
-export function fetchCoworkerMemory(id: string, search: string) {
-  return getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
-}
-export function fetchCoworkerWorkspace(id: string, path?: string) {
-  return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
+export function fetchCoworkerWorkspace(id: string, search: string) {
+  return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${search}`)
 }
 export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
 export function fetchCoworkerActivity(id: string, cursors?: { runs?: string | null; sideChats?: string | null }) {

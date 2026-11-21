@@ -1088,5 +1088,14 @@
   "visual_evidence_unknown_page": "Pagina capta",
   "visual_evidence_unknown_viewport": "dimensio ignota",
   "visual_evidence_metadata": "Captura {{sequence}} · {{viewport}} · {{timestamp}}",
-  "visual_evidence_submission_failed": "Summissio defecit; imago servata est"
+  "visual_evidence_submission_failed": "Summissio defecit; imago servata est",
+  "reset_job": "Job reponere",
+  "confirm_reset_job": "Hoc Job reposito, haec fient:",
+  "confirm_reset_job_kept": "Job de integro in basi currenti incipiet. Id eius, pertinentia ad Epic, dependentiae et historia servabuntur.",
+  "reset_job_pr": "Rogationem traductionis #{{number}} claudere",
+  "reset_job_branch": "Ramum {{branch}} delere",
+  "reset_job_checkpoints_one": "{{count}} punctum servatum delere",
+  "reset_job_checkpoints_other": "{{count}} puncta servata delere",
+  "reset_job_workflows_one": "{{count}} fluxum activum sistere",
+  "reset_job_workflows_other": "{{count}} fluxus activos sistere"
 }

@@ -243,6 +243,13 @@ la:
       registration_failed: "Relatio GitHub App defecit: %{error}"
       invalid_link: "Hic nexus relationis GitHub App invalidus est vel exspiravit."
 
+  reset_jobs:
+    refusals:
+      landing: "%{slug} nunc terram capit; terram captionem cessa vel perfice antequam Job reponas."
+      merged: "%{slug} coniunctum est nec reponi potest; novum Job crea."
+      merge_train: "%{slug} in agmine coniunctionis activo est; agmen cessa antequam Job reponas."
+      stacked_children: "Filii Job strati vivi ab hoc ramo pendent: %{slugs}; eos prius repone vel terrae affer."
+      state: "%{slug} ex statu %{state} reponi non potest; prius iterum conare vel reaperi."
   api:
     cli_commands:
       errors:
@@ -950,6 +957,9 @@ la:
       retry_enqueued: "Fluxus iterationis in ordinem positus est."
       retry_enqueued_with_provider: "Fluxus iterationis cum %{provider} in ordinem positus est."
       started_over: "Ab initio inceptum est - novus ramus et PR creabuntur."
+      reset_failed_only: "%{slug} solum reponi potest dum Job defecit."
+      reset_reason: "A %{user} in pagina Job repositum."
+      reset_done: "%{slug} repositum est et in basi currenti de novo incipit."
       already_closed: "Opus iam clausum est."
       cancellation_requested: "Petitio cassationis missa est."
       workflow_not_found: "Workflow non inventum est."
