@@ -2727,6 +2727,23 @@
       "status": "done",
       "done_by": "F76",
       "notes": "Both writers now write a fresh 0600 file and rename it over the path, which replaces a symlink and is atomic."
+    },
+    {
+      "id": "cli-profile-path",
+      "area": "cli",
+      "title": "Every profile resolves to a credentials file directly inside ~/.syrus",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "config.Profile kept unrecognized values verbatim; DefaultCredentialsPath spliced them into the filename",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F77",
+      "notes": "Profiles must be plain names ([a-z0-9_-]). The desktop app uses two fixed filenames. Precedence order flag > env > argv0 was already pinned by TestProfileResolutionOrder."
     }
   ],
   "needs_you": [

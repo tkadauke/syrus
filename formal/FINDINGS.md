@@ -2530,6 +2530,40 @@ Both were red before the fix. All CLI packages pass.
 
 ---
 
+## F77. A profile name could move the credentials file out of ~/.syrus — fixed
+
+**Found by** DOC-44 Phase 6, Syrus CLI profile precedence: "Every profile
+resolves to a credentials file directly inside `~/.syrus`."
+
+**Gap.** `config.Profile` resolves the profile from `--profile`, then
+`SYRUS_PROFILE`, then argv[0]. It keeps any unrecognized value verbatim.
+`DefaultCredentialsPath` then splices that value into the filename
+`credentials.<profile>` and joins it under `~/.syrus`. As a result:
+
+- `--profile x/../../.ssh/authorized_keys` resolved to `~/.ssh/authorized_keys`.
+- A later `syrus login` would replace that file with `url=`/`token=` lines.
+  After F76 the write is a rename, so the file would be replaced outright.
+
+A `SYRUS_PROFILE` inherited from a hostile environment reaches the same path.
+The desktop app is not affected, because it chooses between two fixed
+filenames.
+
+**Fix.** `DefaultCredentialsPath` refuses any profile that is not a plain name
+of lowercase letters, digits, `-` and `_`. Values are already lowercased by
+normalization.
+
+`go vet` flagged a pre-existing possible context leak in `cmd/local.go`: a
+`WithCancel` call ran before an early return on a JSON-marshal error. The
+context is now created after that return, and vet is clean.
+
+**Spec.** `profile_test.go`
+"TestDefaultCredentialsPathRefusesProfilesThatLeaveTheSyrusDirectory" covers
+separators of both kinds, `..`, and spaces, and checks that valid names still
+resolve. It was red before: the first case resolved to
+`~/.ssh/authorized_keys`. All CLI packages pass, and vet is clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
