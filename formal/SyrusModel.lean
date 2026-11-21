@@ -29,3 +29,6 @@ import SyrusModel.QueueOrder
 import SyrusModel.UnitReentry
 import SyrusModel.PrestartSlot
 import SyrusModel.DispatchOrder
+import SyrusModel.Kernel.Basic
+import SyrusModel.Kernel.Reconcile
+import SyrusModel.Kernel.Examples
