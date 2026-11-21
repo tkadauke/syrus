@@ -1061,6 +1061,46 @@ lands its own Job when an earlier Job is blocked".
 
 ---
 
+## F36. "Nothing left" while the last Step waits for an in-place retry — fixed
+
+**Property.** Every Workflow the "nothing left" classifier flags is one its
+repair can act on (`Agreement.tail_held_after_actionable`).
+
+**Gap.** This is one of the three definitions of an active Step.
+`running_workflow_without_active_descendants` and its repair
+`FinishWorkflowFromTerminalDescendants` judge a Workflow by the *projected*
+Step states, which follow the latest Run. A Step held for an in-place retry
+(F18: Step `running`, only Run `failed`, retry pending for 5 to 60 minutes)
+projects as terminal. When it is the Workflow's last Step, the classifier
+flags the Workflow. The repair then infers the outcome from the *persisted*
+last Step, which is `running`, so it gets nil. It reports "No terminal outcome
+could be inferred; operator review is required" on every pass until the
+retry runs (`tail_held_before_not_actionable`). If the held Step has queued
+successors, they keep the Workflow active, which is why the F18 spec never
+saw this.
+
+**Production.** Not yet observed. Before F18 is deployed, the active-step
+classifier reaches these Steps first and throws the retry away. Once F18 is
+deployed, this branch would have been the next to trip on them.
+
+**Fix.** One predicate, `AutoRetryAttempt.pending_in_place_step_retry_in?(workflow)`,
+used by both the classifier and the executor guard.
+
+**Spec.** `reconciler_spec.rb` "does not report a Workflow with nothing left
+while its last Step waits for an in-place retry" and `repair_executor_spec.rb`
+"finish_workflow_from_terminal_descendants". Both go red without their half
+of the fix; the executor spec then reports the false operator-review alarm.
+
+**Remaining (two-definitions-of-active-step).** Persisted (`steps.active`)
+and projected (`StateProjection`) activity still differ for any Step whose
+Runs are all terminal while the Step stays active. Known producers: the F19
+success window (closed), the in-place retry hold (now recognised), and the
+run-only cancellations (`cancel_without_step_cascade!` on failed Workflows,
+which are terminal and so are not classified, and
+`ImmutableReviewHeadBarrier.cancel_run_without_cascade!`, not yet traced).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

@@ -711,4 +711,27 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(member.reload).to be_cancelled
     end
   end
+  describe "finish_workflow_from_terminal_descendants" do
+    it "skips a Workflow whose last Step waits for an in-place retry" do
+      step = workflow.steps.order(:position).first
+      workflow.steps.where.not(id: step.id).delete_all
+      step.update!(kind: "grader", next_step: nil)
+      Run.where(step_id: step.id).delete_all
+      workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+      step.update_columns(state: "running", started_at: 10.minutes.ago)
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: "claude", state: "failed", finished_at: 1.minute.ago)
+      AutoRetryAttempt.create!(
+        job: job, workflow: workflow, run: run, agent_provider: "claude",
+        failure_classification: "git_transport_transient", retry_kind: "failed_step",
+        attempt_number: 1, scheduled_at: 4.minutes.from_now
+      )
+
+      execution = described_class.call(
+        result: RepairResult.new([ repair_plan(action: "finish_workflow_from_terminal_descendants", target: workflow) ])
+      ).sole
+
+      expect(execution).to have_attributes(status: "skipped", message: "A Step is waiting for an in-place retry")
+      expect(workflow.reload).to be_running
+    end
+  end
 end

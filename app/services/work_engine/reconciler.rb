@@ -1292,7 +1292,8 @@ module WorkEngine
             ),
             explanation: "Workflow ##{workflow.id} is still queued even though Step ##{failed_step.id} has failed."
           )
-        elsif workflow.running? && older_than?(workflow.started_at, ORPHAN_RUN_GRACE_PERIOD) && !workflow_has_active_descendants?(workflow)
+        elsif workflow.running? && older_than?(workflow.started_at, ORPHAN_RUN_GRACE_PERIOD) && !workflow_has_active_descendants?(workflow) &&
+            !AutoRetryAttempt.pending_in_place_step_retry_in?(workflow)
           issue(
             kind: :running_workflow_without_active_descendants,
             severity: :error,

@@ -4813,6 +4813,34 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(next_step.reload.runs).to be_empty
   end
 
+  # The same hold on a Workflow's last Step: its only Run is failed, so the
+  # projected Step state is terminal and the Workflow looked as if nothing
+  # were left. The repair then reported "No terminal outcome could be
+  # inferred; operator review is required" on every pass until the retry ran.
+  it "does not report a Workflow with nothing left while its last Step waits for an in-place retry" do
+    workflow.steps.where.not(id: step.id).delete_all
+    step.update!(kind: "grader", next_step: nil)
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    step.update_columns(state: "running", started_at: 10.minutes.ago, finished_at: nil)
+    run.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    RunFailureClassification.create!(
+      run: run, classification: "git_transport_transient", retryable: true,
+      confidence: 0.95, reason: "early EOF", classified_at: 1.minute.ago
+    )
+    AutoRetryAttempt.create!(
+      job: job, workflow: workflow, run: run, agent_provider: "claude",
+      failure_classification: "git_transport_transient", retry_kind: "failed_step",
+      attempt_number: 1, scheduled_at: 4.minutes.from_now
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(kind(result, :running_workflow_without_active_descendants)).to be_nil
+    expect(result.repair_executions.map(&:status)).not_to include("failed")
+    expect(workflow.reload).to be_running
+    expect(step.reload).to be_running
+  end
+
   it "retries a queued Step whose Run failed retryably before the Step could start" do
     next_step = Step.create!(workflow: workflow, kind: "agent_rebase", position: 1)
     step.update!(kind: "auto_rebase", next_step: next_step)

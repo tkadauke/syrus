@@ -894,9 +894,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "open",
-      "done_by": null,
-      "notes": "Three definitions of 'active Step'. A single predicate should be the proof target; the disagreement drives the skip loops above."
+      "status": "partial",
+      "done_by": "F36 · Agreement.tail_held_after_actionable",
+      "notes": "Three definitions of 'active Step': persisted (steps.active, used by the dispatcher's downstream_work_pending? and finish guard), projected (StateProjection, used by active_descendants? and the nothing-left classifier/repair), and live (projected running + spawned processes). They differ exactly for a Step that stays active while all its Runs are terminal. F36: the in-place retry hold on a Workflow's last Step made the nothing-left classifier flag the Workflow while its repair could infer no outcome (persisted last Step running), a false operator-review failure every pass; now one predicate (AutoRetryAttempt.pending_in_place_step_retry_in?) excludes it in classifier and executor. Producers of the gap: F19 window (closed), in-place hold (recognised), run-only cancellations (cancel_without_step_cascade! on failed Workflows -- terminal, not classified; ImmutableReviewHeadBarrier.cancel_run_without_cascade! -- not yet traced). Not yet a single predicate."
     },
     {
       "id": "one-active-run-per-step",

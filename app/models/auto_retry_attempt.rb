@@ -114,6 +114,19 @@ class AutoRetryAttempt < ApplicationRecord
   # running on purpose (Runs::LifecyclePropagation#scheduled_in_place_step_retry?).
   # Every in-place classification counts, not only worker_died: finishing the
   # Step from the failed Run throws the retry away.
+  # Any active Step of the Workflow held that way. The Step's projected state
+  # follows its failed Run, so a Workflow whose remaining work is only such a
+  # hold looks as if nothing were left.
+  def self.pending_in_place_step_retry_in?(workflow)
+    return false unless workflow
+
+    pending.where(
+      run_id: Run.where(step_id: workflow.steps.active.select(:id)).select(:id),
+      retry_kind: "failed_step",
+      failure_classification: IN_PLACE_STEP_CLASSIFICATIONS
+    ).exists?
+  end
+
   def self.pending_in_place_step_retry_for?(step)
     return false unless step
 
