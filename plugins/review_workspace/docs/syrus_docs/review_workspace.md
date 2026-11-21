@@ -1,6 +1,6 @@
 # Review workspace
 
-The Review workspace is a focused list of Jobs on which the signed-in operator can make an approval decision now. Enable the bundled **Review Workspace** plugin to add **Review** to the primary sidebar. Its badge is the number of currently actionable Jobs.
+The Review workspace is a focused list of Jobs on which the signed-in operator can make an approval decision now. Enable the bundled **Review Workspace** plugin to add **Review** to the primary sidebar. Its badge is the number of currently actionable Jobs. When the Jobs dashboard is available, it also shows an optional notice with the actionable count and a link into Review; the Review route and sidebar entry remain available independently of the dashboard.
 
 A Job appears only when it is visible and writable by the operator, is an ordinary non-investigation Job in the implemented state, can accept that operator's approval, and has no approval-blocking runtime work. Jobs with unresolved dependencies remain reviewable but sort after otherwise equivalent unblocked Jobs. Explicit priority, the time the Job became ready, and its numeric ID complete the deterministic ordering.
 
