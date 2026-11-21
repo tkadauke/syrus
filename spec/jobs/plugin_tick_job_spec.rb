@@ -31,6 +31,25 @@ RSpec.describe PluginTickJob, :reset_plugin_registry do
     expect(callbacks_class.ticked).to be(true)
   end
 
+  # The scheduler checks enablement and health when it enqueues, but the tick
+  # runs later. A plugin disabled or degraded in between must not tick.
+  it "does not tick a plugin that was disabled after the tick was enqueued" do
+    PluginRecord.find_by!(name: "tick_plugin").update!(enabled: false)
+
+    described_class.perform_now("tick_plugin")
+
+    expect(callbacks_class.ticked).to be_nil
+  end
+
+  it "does not tick a plugin that turned unhealthy after the tick was enqueued" do
+    Syrus::PluginRegistry.register(name: "tick_plugin", version: "1.0.0", tick_interval: 5.minutes,
+      depends_on: [ "missing_dependency" ], provides: { callbacks: callbacks_class })
+
+    described_class.perform_now("tick_plugin")
+
+    expect(callbacks_class.ticked).to be_nil
+  end
+
   it "does nothing when the plugin has no callback provider" do
     Syrus::PluginRegistry.register(name: "no_callbacks_plugin", version: "1.0.0")
 

@@ -20,6 +20,10 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
     end
   end
 
+  def set_enabled(name, enabled)
+    PluginRecord.find_by!(name: name).update!(enabled: enabled)
+  end
+
   before do
     Syrus::PluginRegistry.register(
       name: "lifecycle_plugin",
@@ -34,8 +38,30 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
   end
 
   it "calls on_disable when event is on_disable" do
+    set_enabled("lifecycle_plugin", false)
     described_class.perform_now("lifecycle_plugin", "on_disable")
     expect(callbacks_class.last_event).to eq(:disable)
+  end
+
+  # The job runs whenever the queue gets to it, which can be after the plugin
+  # was toggled back. An enable followed quickly by a disable used to run
+  # on_enable last and leave a disabled plugin holding live effects, and the
+  # reverse drained an enabled plugin's effects. The event runs only while it
+  # still describes the plugin's state (formal/SyrusModel/LifecycleOrder.lean).
+  describe "stale events" do
+    it "skips an on_enable that runs after the plugin was disabled again" do
+      set_enabled("lifecycle_plugin", false)
+
+      described_class.perform_now("lifecycle_plugin", "on_enable")
+
+      expect(callbacks_class.last_event).to be_nil
+    end
+
+    it "skips an on_disable that runs after the plugin was enabled again" do
+      described_class.perform_now("lifecycle_plugin", "on_disable")
+
+      expect(callbacks_class.last_event).to be_nil
+    end
   end
 
   it "does nothing when the plugin has no callback provider" do
@@ -99,6 +125,7 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
     end
 
     it "drains registered effects after on_disable" do
+      set_enabled("effectful_plugin", false)
       described_class.perform_now("effectful_plugin", "on_disable")
 
       expect(effectful_callbacks_class.on_disable_cleanup_ran?).to be(true)
@@ -111,6 +138,7 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
     end
 
     it "leaves no effects registered for a later drain once on_disable already drained them" do
+      set_enabled("effectful_plugin", false)
       described_class.perform_now("effectful_plugin", "on_disable")
 
       expect { Syrus::Plugin::EffectRegistry.drain!("effectful_plugin") }.not_to raise_error
@@ -137,6 +165,14 @@ RSpec.describe PluginLifecycleJob, :reset_plugin_registry do
       Syrus::Plugin::EffectRegistry.drain!("effectful_plugin")
 
       expect(effectful_callbacks_class.on_enable_cleanup_ran?).to be(true)
+    end
+
+    it "does not drain an enabled plugin's effects for a stale on_disable" do
+      described_class.perform_now("effectful_plugin", "on_enable")
+
+      described_class.perform_now("effectful_plugin", "on_disable")
+
+      expect(effectful_callbacks_class.on_enable_cleanup_ran?).to be_falsey
     end
 
     it "drains effects registered during a failing on_boot, then re-raises" do

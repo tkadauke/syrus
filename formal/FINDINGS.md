@@ -2000,6 +2000,57 @@ the fix. An unrelated identifier still does not match.
 
 ---
 
+## F65. Queued plugin callbacks ran against a state that had moved on — fixed
+
+**Found by** DOC-44 plugin host semantics, "A plugin is never called for a
+capability it did not declare" and "Disable affects new resolution"
+(`LifecycleOrder.lean`).
+
+**Property.** For every sequence of up to four enable and disable toggles from
+either starting state, and every order in which their queued lifecycle jobs
+run, a plugin ends with live effects exactly when it ends enabled
+(`converges`).
+
+**Context.** Core reaches plugin code through `providers_for`, which hands out
+only enabled and healthy plugins, except for a few call sites that read
+`manifest.provides` directly. Two of those ran plugin code from a queued job
+without checking that the state that enqueued them still held:
+
+- `PluginTickJob` called `on_tick` for whatever plugin it named. Its scheduler
+  checks enablement and health when it enqueues, but the tick can wait in
+  `control_plane` while the plugin is disabled or turns degraded, and it then
+  ticked anyway.
+- `PluginRecord` enqueues `on_enable` or `on_disable` after every toggle, and
+  the queue does not order those jobs against a later toggle. After an
+  enable then disable, a late `on_enable` registered effects that nothing
+  drained, so a disabled plugin held live effects until it was next disabled
+  (`stale_enable_strands`). After a disable then enable, a late `on_disable`
+  drained the effects of an enabled plugin.
+
+**Fix.**
+
+- `PluginTickJob` returns unless the plugin is enabled and healthy, the
+  scheduler's own condition.
+- `PluginLifecycleJob#stale?` skips an `on_enable` for a plugin that is
+  disabled now, and an `on_disable` for one that is enabled now. The toggle
+  that made the job stale enqueued its own event, which then does the work.
+- `on_boot` and `on_shutdown` are process events and are unchanged.
+
+**Spec.**
+
+- `plugin_lifecycle_job_spec.rb` "stale events", and "does not drain an
+  enabled plugin's effects for a stale on_disable".
+- `plugin_tick_job_spec.rb`: a disabled plugin and a degraded plugin each
+  ticked before the fix.
+- Three existing examples ran `on_disable` against a plugin that was still
+  enabled. They now disable it first, which is the order production uses.
+
+**Note.** `Syrus::Plugin::EffectRegistry` is process-local, so `on_enable`
+effects registered in one worker are drained only by an `on_disable` in the
+same process. That design limit predates this fix, which does not change it.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
