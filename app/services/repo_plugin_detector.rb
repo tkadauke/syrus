@@ -20,16 +20,17 @@
 class RepoPluginDetector
   EXTENSION_POINTS = %i[prepare_detector preview_provider].freeze
 
-  def self.for(repo_path)
-    new(repo_path).detect
+  def self.for(repo_path, repository: nil)
+    new(repo_path, repository:).detect
   end
 
-  def initialize(repo_path)
+  def initialize(repo_path, repository: nil)
     @repo_path = repo_path.to_s
+    @repository = repository
   end
 
-  def self.observed_for(repo_path)
-    new(repo_path).observe
+  def self.observed_for(repo_path, repository: nil)
+    new(repo_path, repository:).observe
   end
 
   def detect
@@ -49,7 +50,7 @@ class RepoPluginDetector
 
   private
 
-  attr_reader :repo_path
+  attr_reader :repo_path, :repository
 
   # A plugin whose detector raises must not take the detection pass with it:
   # every other plugin's answer is still good, and a missing one only means a
@@ -80,7 +81,8 @@ class RepoPluginDetector
           plugin_name: manifest.name, family: family.name, capability:,
           provider_name: declaration.provider, key: declaration.key, priority: manifest.prepare_priority
         )
-        reference.invoke { |provider| Array(provider.public_send(capability, repo_path)).any? }
+        context = Syrus::Plugin::Context::RepoContext.new(repo_path:, repository:)
+        reference.invoke { |provider| Array(provider.public_send(capability, context)).any? }
       end
     end
   end
