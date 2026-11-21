@@ -1002,6 +1002,12 @@ module Steps
         "result_outputs" => grader.metadata["result_outputs"],
         "artifact_outputs" => grader.metadata["artifact_outputs"],
         "filter_capabilities" => grader.metadata["filter_capabilities"],
+        # Where grader input materializers write runtime profiles. Steps::Grader
+        # reads them from these details; without them the profiles were never
+        # written and parallel runtime grouping silently fell back to file size.
+        "runtime_profile_destination" => grader.metadata["runtime_profile_destination"],
+        "shard_runtime_profile_destination" => grader.metadata["shard_runtime_profile_destination"],
+        "shard_runtime_profile_key" => grader.metadata["shard_runtime_profile_key"],
         "capabilities" => target_capabilities_for(grader),
         "required_capabilities" => target_capabilities_for(grader),
         "resources" => grader.resources&.to_h,
