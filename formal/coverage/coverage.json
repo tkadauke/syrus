@@ -1917,9 +1917,9 @@
         "stalled_urgent_job_does_not_starve_repository",
         "parallel_grader_retry_cleared_barrier_allows_tail"
       ],
-      "status": "partial",
+      "status": "done",
       "done_by": "F32 · F39",
-      "notes": "Audited every start block in StepDispatcher.start_workflow. Blocks that clear only on an event (backlog release, dependency/stack/job readiness) rely on that event's wakeup; the urgent-Job gate also released on a non-event (an urgent Job ceasing to progress) and had no recheck -- fixed in F32 the way the main-health gate was. Not yet audited: phase-boundary deferrals outside start_workflow. Phase-boundary finding (F39): DeferredPhaseResume let a LockConflict from reactivating a terminal unit escape, and WorkflowPhaseAdmissionJob does not retry it, so that deferral had no recheck; now reported blocked with its own recheck. The DeferredPhaseResume gate-blocked branch already rechecks (Launcher.schedule_blocked_recheck!). Not yet audited: resume_deferred_phase's own not-ready returns."
+      "notes": "Audited every start block in StepDispatcher.start_workflow. Blocks that clear only on an event (backlog release, dependency/stack/job readiness) rely on that event's wakeup; the urgent-Job gate also released on a non-event (an urgent Job ceasing to progress) and had no recheck -- fixed in F32 the way the main-health gate was. Not yet audited: phase-boundary deferrals outside start_workflow. Phase-boundary finding (F39): DeferredPhaseResume let a LockConflict from reactivating a terminal unit escape, and WorkflowPhaseAdmissionJob does not retry it, so that deferral had no recheck; now reported blocked with its own recheck. The DeferredPhaseResume gate-blocked branch already rechecks (Launcher.schedule_blocked_recheck!). Audited resume_deferred_phase's returns: manual pause wakes on unpause (JobManualPause calls DeferredPhaseResume); a landing-queue pause records the block and schedules its own phase-admission recheck; unsettled dependencies wake when the dependency finishes (advance_from); a review-barrier refusal wakes when the required review completes; a provider-routing hold is re-evaluated by HoldReevaluator and the provider admission wakeups. Every deferral now has an event or a recheck."
     },
     {
       "id": "resource-admission-start-block",
