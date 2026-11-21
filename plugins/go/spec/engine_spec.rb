@@ -46,32 +46,12 @@ RSpec.describe Go::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides exactly the expected extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :review_criteria_provider, :autofix_command, :dependency_audit_command, :grader_type, :coverage_analyzer)
-    end
-
-    it "registers GofmtAutofix as the :autofix_command" do
-      expect(registration.provides[:autofix_command]).to eq(Go::GofmtAutofix)
-    end
-
-    it "registers DependencyAuditCommand as the :dependency_audit_command" do
-      expect(registration.provides[:dependency_audit_command]).to eq(Go::DependencyAuditCommand)
-    end
-
-    it "registers PrepareDetector as the :prepare_detector" do
-      expect(registration.provides[:prepare_detector]).to eq(Go::PrepareDetector)
-    end
-
-    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
-      expect(registration.provides[:review_criteria_provider]).to eq(Go::ReviewCriteriaProvider)
-    end
-
-    it "registers TestGraderType as the :grader_type" do
-      expect(registration.provides[:grader_type]).to eq(Go::TestGraderType)
-    end
-
-    it "registers CoverageAnalyzer as the :coverage_analyzer" do
-      expect(registration.provides[:coverage_analyzer]).to eq(Go::CoverageAnalyzer)
+    it "registers its Ecosystem providers and none of the absorbed legacy points" do
+      expect(registration.provides).to be_empty
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] }).to contain_exactly(
+        [ "Go::Ecosystem", %i[detect_prepare review_criteria autofix dependency_audit analyze_coverage] ],
+        [ "Go::TestEcosystem", %i[grader_types] ]
+      )
     end
   end
 
