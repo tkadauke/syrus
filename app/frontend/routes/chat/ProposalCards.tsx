@@ -1263,6 +1263,23 @@ export function PendingActionCard({
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
             <span>{pendingAction.execution_step || "Working..."}</span>
           </div>
+        ) : isQueued ? (
+          <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+            <span className="basis-full sm:basis-auto sm:flex-1">{t("pending_action_queued_hint")}</span>
+            {dismissPath ? (
+              <button
+                className={secondaryButton()}
+                disabled={action.isPending}
+                onClick={() => action.mutate({ action: "dismiss", path: dismissPath })}
+                type="button"
+              >
+                {t("cancel")}
+              </button>
+            ) : null}
+            {action.isError ? (
+              <div className="basis-full text-xs text-red-700 dark:text-red-300">{errorMessage(action.error, t("pending_action_failed"))}</div>
+            ) : null}
+          </div>
         ) : isPending && pendingAction.request_kind !== "authorization_request" ? (
           <div className="flex flex-wrap gap-2">
             <button
