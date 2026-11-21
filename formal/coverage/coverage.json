@@ -1355,7 +1355,7 @@
       ],
       "status": "partial",
       "done_by": "F44, F45 · Agreement.planned_retry_never_skipped",
-      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop."
+      "notes": "Termination measure: the budget is cumulative per (job, provider, classification) via budget_scope_for, so new Workflows do not reset it, and providers x classifications is finite. Budget-exempt skips are the hole: an exempt skip whose cause persists re-plans forever. F44: 'job branch was rewritten' is exempt and requests a reconciliation, and the planner did not check it, so attempts were planned from the same Run every pass; refined in F45: the skip applies only to same-attempt kinds (it is about the stale workspace), the planner routes a rewritten Run to a fresh retry_workflow, and the resume-only classifier excludes rewritten Runs. The over-broad skip had also made the branch-divergence recovery unperformable (planned, skipped, replanned every pass). Audited: 'source workflow was already superseded' and 'branch divergence recovered' are excluded by the planner; 'failure classification changed' and 'default provider changed' converge to a stable classification/provider (finite). Remaining exempt reasons to audit for persistence: provider unavailable/degraded (transient by nature), 'job is terminal' and 'source workflow was already superseded' (planner excludes closed jobs / superseded workflows?), 'failure classification changed', 'default provider changed', 'branch divergence recovered'. 'That agent is not available' (RetryWorkflowEnqueuer, provider credentials missing) can persist; a probe could not reach it because AutoRetryJob reschedules on the provider gate first -- not yet shown to loop. RetryBudget.lean: in-place attempts count against the reconciler's job-wide budget (reconciler_respects_in_place, job_bound), but the in-place path budgets per Step (in_place_per_step), so one outage can take MAX_ATTEMPTS retries on every Step; bounded per Step (step_bound). NY11."
     },
     {
       "id": "resumable-agent-session",
@@ -2481,6 +2481,19 @@
         "C. Compare with the manifest's base_sha instead of the Job column, and fail closed when both are blank."
       ],
       "recommendation": "A. It closes the last path in the check that merges without knowing the base, at the cost of one deferral in a state that should not occur. C is better long-term but changes which record is authoritative.",
+      "decision": null
+    },
+    {
+      "id": "NY11",
+      "item": "auto-retry-bounded",
+      "title": "Should the in-place step retry budget be per Step or per Job?",
+      "context": "worker_died and git_transport_transient failures on deterministic Steps (graders, mechanical steps) are retried in place by Runs::LifecyclePropagation. That path counts only attempts on the same Step's Runs, while the reconciler's retry repair counts every attempt of the Job with the same provider and classification. In-place attempts do count against the job-wide budget, so the reconciler cannot add more after a Step exhausts its own, but each Step gets a fresh in-place budget. A GitHub outage during a 100-grader landing fan-out can therefore schedule up to 3 delayed retries per grader (300 for one classification) instead of 3 for the Job. Bounded, and introduced three days ago without a stated rationale; not observed in production.",
+      "options": [
+        "A. Keep per Step: fan-out graders fail independently, and a per-Job budget would let one flaky grader exhaust retries for its siblings.",
+        "B. Per Job for git_transport_transient, per Step for worker_died: a transport outage affects every Step alike, so one job-wide budget is enough, while worker loss is per host.",
+        "C. Per Job for both, matching the reconciler."
+      ],
+      "recommendation": "B. A transport outage is one event, and the job-wide count already exists (budget_scope_for); worker_died keeps its higher per-Step limit, where independence is real.",
       "decision": null
     }
   ]

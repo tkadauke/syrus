@@ -1583,6 +1583,23 @@ reuse decision is modelled in `RepairReuse.lean` (F50).
 
 ---
 
+## M4. Retry budgets across retry paths — proved, one question (NY11)
+
+`RetryBudget.lean` compares the two paths that create `AutoRetryAttempt`s for
+an ordinary failed Run. In-place attempts count against the reconciler's
+job-wide budget for the same (job, provider, classification)
+(`reconciler_respects_in_place`). So a Step that used its in-place retries gets
+no more from the reconciler (`job_bound`): switching from one path to the other
+does not bypass the budget.
+
+The in-place path's own budget is per Step (`in_place_per_step`), so a Job can
+take `MAX_ATTEMPTS` in-place retries of one classification on every Step, each
+Step bounded (`step_bound`). `run_spec.rb` "gives each Step its own in-place
+budget for transient Git transport failures" pins that. Whether one transport
+outage should spend a budget per Step is NY11.
+
+---
+
 ## Open questions for review
 
 - **Q1 — resolved as F7** (fail and hold instead of parking).

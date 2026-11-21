@@ -654,6 +654,28 @@ RSpec.describe Run, :ci_only do
       end
     end
 
+    # Pins formal/SyrusModel/RetryBudget.lean `in_place_per_step` (NY11): the
+    # in-place budget is per Step, so a sibling Step still retries in place
+    # after another Step used the whole job-wide count for the classification.
+    it "gives each Step its own in-place budget for transient Git transport failures" do
+      AutoRetryAttempt::MAX_ATTEMPTS.times do
+        spent = make_git_transport_run!(step)
+        AutoRetryAttempt.create!(job: job, workflow: workflow, run: spent, agent_provider: spent.agent_provider.presence || job.agent_provider,
+                                 failure_classification: "git_transport_transient", retry_kind: "failed_step",
+                                 attempt_number: 1, scheduled_at: Time.current, performed_at: Time.current)
+      end
+      sibling = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "running")
+      run = make_git_transport_run!(sibling, state: "running")
+
+      run.fail!
+      run.save!
+
+      expect(AutoRetryAttempt.budget_scope_for(job: job, agent_provider: run.agent_provider.presence || job.agent_provider,
+                                               failure_classification: "git_transport_transient").count)
+        .to eq(AutoRetryAttempt::MAX_ATTEMPTS + 1)
+      expect(sibling.reload).to be_running
+    end
+
     it "fails normally after transient Git transport in-place retries are exhausted" do
       AutoRetryAttempt::MAX_ATTEMPTS.times { make_git_transport_run!(step) }
       run = make_git_transport_run!(step, state: "running")
