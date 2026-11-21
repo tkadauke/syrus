@@ -7,6 +7,7 @@ import SyrusModel.Agreement
 import SyrusModel.Artifacts
 import SyrusModel.QueueExecution
 import SyrusModel.JobClosure
+import SyrusModel.LandingBase
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

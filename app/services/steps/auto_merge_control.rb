@@ -52,14 +52,18 @@ module Steps
       base_ref = MergeabilityRecorder.base_ref(pr).presence || job.mergeability_base_ref.presence || repository.default_branch
       return false if validated_base_sha.blank? || base_ref.blank?
 
+      # A base that cannot be read is not a base that stayed put: merging
+      # would let GitHub land the head onto whatever the base now is, which no
+      # grader ran on. Defer and re-check instead (formal/SyrusModel/LandingBase.lean).
       current_base_sha =
         begin
           client.branch_head_sha(repository.slug, base_ref).to_s.presence
         rescue StandardError => e
           log("#{context}: could not verify base SHA before merge: #{e.class}: #{e.message}", kind: "system")
-          return false
+          nil
         end
-      return false if current_base_sha.blank? || current_base_sha == validated_base_sha
+      return defer_unverified_base!(context: context, validated_base_sha: validated_base_sha, base_ref: base_ref) if current_base_sha.blank?
+      return false if current_base_sha == validated_base_sha
 
       workflow.set_artifact!(
         "landing_base_moved",
@@ -79,6 +83,24 @@ module Steps
       defer_landing_for_retry!(
         context: context,
         reason: "#{MERGE_BASE_MOVED_MESSAGE} (#{base_ref} #{validated_base_sha.first(12)} -> #{current_base_sha.first(12)})"
+      )
+      true
+    end
+
+    def defer_unverified_base!(context:, validated_base_sha:, base_ref:)
+      workflow.set_artifact!(
+        "landing_base_moved",
+        {
+          "validated_base_sha" => validated_base_sha,
+          "current_base_sha" => nil,
+          "base_ref" => base_ref,
+          "reason" => "base_unverified_before_merge",
+          "detected_at" => Time.current.iso8601
+        }
+      )
+      defer_landing_for_retry!(
+        context: context,
+        reason: "could not read #{base_ref} to confirm it is still #{validated_base_sha.first(12)}; re-checking before merging"
       )
       true
     end

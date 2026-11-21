@@ -1461,6 +1461,35 @@ approval was withdrawn" (success and landed modes, both red before), plus
 
 ---
 
+## F49. Auto-merge merged when it could not read the base — fixed
+
+**Found by** DOC-44 Phase 3, landing evidence (`LandingBase.lean`).
+
+**Property.** A landing merges only onto the base its landing graders
+validated: with a recorded validated base, a merge happens only if the live
+base was read and equals it (`after_merge_confirms_base`).
+
+**Gap.** `Steps::AutoMergeControl#defer_if_base_moved_since_validation!` runs
+right before `AutoMerge` and `ExternalPrMerge` call GitHub's merge. It read the
+live base head and deferred if it differed from `job.mergeability_base_sha`.
+An error from that read, or a blank SHA, returned "unchanged", and the merge
+went ahead. GitHub's rebase merge then lands the head onto whatever the base is
+now, which no grader ran on (`fail_open_on_error`, `fail_open_on_blank`). The
+merge-train path already fails closed on the same question
+(`ensure_base_unchanged!`).
+
+**Fix.** An unreadable live base defers landing for a re-check (approval kept,
+artifact `landing_base_moved` with reason `base_unverified_before_merge`). The
+fix only turns merges into deferrals, and only when the base could not be read
+(`after_never_adds_merges`, `after_differs_only_when_unread`). A blank
+*recorded* base still merges: NY10.
+
+**Spec.** `auto_merge_spec.rb` "defers instead of merging when GitHub errors
+reading the base before the merge" and "...when GitHub returns no SHA..."
+(both merged before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

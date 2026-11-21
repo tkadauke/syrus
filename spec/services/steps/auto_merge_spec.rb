@@ -550,6 +550,37 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     )
   end
 
+  # Regression (formal/SyrusModel/LandingBase.lean): a base that could not be
+  # read used to count as unchanged, so GitHub's rebase merge could land
+  # commits onto a base no grader ran on.
+  {
+    "GitHub errors" => -> { raise Octokit::ServiceUnavailable },
+    "GitHub returns no SHA" => -> { nil }
+  }.each do |description, read_base|
+    it "defers instead of merging when #{description} reading the base before the merge" do
+      job.approve!(via: "github_review")
+      job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+      job.start_landing!
+      job.save!
+      allow(client).to receive(:branch_head_sha).with("acme/widgets", "main") { read_base.call }
+      allow(client).to receive(:merge_pull_request)
+
+      expect {
+        described_class.new(run).call
+      }.to have_enqueued_job(LandingQueueProcessorJob)
+        .at(be_within(3.seconds).of(LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY.from_now))
+
+      expect(client).not_to have_received(:merge_pull_request)
+      expect(job.reload).to be_approved
+      expect(workflow.reload).to be_cancelled
+      expect(workflow.artifact("landing_base_moved")).to include(
+        "validated_base_sha" => "validated-base",
+        "current_base_sha" => nil,
+        "reason" => "base_unverified_before_merge"
+      )
+    end
+  end
+
   it "rebases and keeps merging when the base branch moved and clean rebases are trusted" do
     job.repository.update!(trust_clean_rebase_grade: true)
     job.approve!(via: "github_review")
