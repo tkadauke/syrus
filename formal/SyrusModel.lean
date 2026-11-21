@@ -35,6 +35,7 @@ import SyrusModel.PluginClosure
 import SyrusModel.PluginDisableRecovery
 import SyrusModel.EffectHealth
 import SyrusModel.CliCollisions
+import SyrusModel.RuleAliases
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

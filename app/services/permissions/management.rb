@@ -27,8 +27,8 @@ module Permissions
     def matrix_state(descriptor:, role:, subject_selector_type:, active_rules: rules.to_a)
       matching_rules = active_rules.select do |rule|
         rule.subject_selector_type == subject_selector_type &&
-          rule.capability == descriptor.capability &&
-          [ nil, descriptor.operation ].include?(rule.operation)
+          descriptor.names_capability?(rule.capability) &&
+          (rule.operation.nil? || descriptor.names_operation?(rule.operation))
       end
       resource_scopes = [ {}, *matching_rules.map(&:resource_scope) ].uniq
       evaluator_rules = active_rules.map(&:to_policy_rule)

@@ -1952,6 +1952,54 @@ signal said so.
 
 ---
 
+## F64. Renaming a permission operation dropped its stored deny rules — fixed
+
+**Found by** DOC-44 plugin host semantics, "Permission upgrades and scope
+migrations cannot broaden authority unless the expansion is explicit"
+(`RuleAliases.lean`).
+
+**Property.** A rename that keeps the old identifier as an alias changes no
+authorization decision. This holds for every list of up to three rules stored
+before the rename, every policy and every role default
+(`rename_preserves_decisions`).
+
+**Gap.** `Syrus::Plugin::PermissionProvider` is public plugin API. It lets a
+plugin rename a capability or operation and list the old identifier in
+`capability_aliases` or `operation_aliases`. `CapabilityUpgradeValidator`
+accepts that as the same capability, needing no scope migration and causing no
+widening.
+
+Stored permission rules keep the identifier they were written with, but
+`PolicyRule#match_status` compared identifiers literally. So the moment a
+plugin renamed `…/write@v1` to `…/write@v2`, an operator's repository-level
+*deny* for `@v1` stopped matching, and the role default decided. With an
+`allow` default, the denied action became allowed (`rename_turned_deny_into_allow`;
+the spec saw `allow` where `deny` was expected). The admin permission matrix
+filtered the same way, so it displayed the default too. No bundled plugin uses
+aliases yet, so this was latent.
+
+**Fix.** `CapabilityDescriptor#names_capability?` and `#names_operation?` treat
+an alias as the identifier. `PolicyRule#match_status` uses the descriptor's
+aliases, and `Permissions::Management#matrix_state` uses the same helpers, so
+the display matches what is enforced. A rule naming an identifier the
+descriptor never had still does not match (`foreign_rule_ignored`).
+
+**Also checked.**
+
+- `CapabilityScopeMigration` transforms are validated but never applied at
+  runtime. No plugin declares one.
+- `validate_permission_upgrade!` runs only in the plugin-author test kit.
+
+So "scope migrations cannot broaden" holds vacuously today. Once a migration is
+first used, its transform will need a runtime caller, and that caller will need
+the same property.
+
+**Spec.** `policy_evaluator_spec.rb` "renamed capabilities and operations":
+stored denies for the old operation and the old capability were `allow` before
+the fix. An unrelated identifier still does not match.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

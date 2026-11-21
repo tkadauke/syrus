@@ -201,4 +201,47 @@ RSpec.describe Permissions::PolicyEvaluator do
     expect(policy_rule.selectors).to eq(agent_id: "agent-1")
     expect(policy_rule.resource_scope[:paths]).to be_frozen
   end
+
+  # A renamed capability or operation keeps its old identifiers as aliases,
+  # and CapabilityUpgradeValidator accepts the rename as non-widening on that
+  # basis. Stored rules still name the old identifiers, so matching must honor
+  # the aliases: otherwise an operator's deny silently stops applying the
+  # moment a plugin renames the operation (formal/SyrusModel/RuleAliases.lean).
+  describe "renamed capabilities and operations" do
+    let(:renamed) do
+      Permissions::CapabilityDescriptor.new(
+        capability: "workspace.files@v2", operation: "workspace.files/write@v2",
+        capability_aliases: [ "workspace.files@v1" ], operation_aliases: [ "workspace.files/write@v1" ],
+        effects: [ :isolated_workspace_write ], risk: :medium,
+        requestable_roles: %w[implementer reviewer], defaults: { implementer: :allow, reviewer: :deny },
+        maximum_autonomy: :job, authority_durations: %i[invocation job], resource_scope: schema,
+        classifier: ->(_arguments) { { operation: "workspace.files/write@v2", confidence: :certain } },
+        fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }
+      )
+    end
+
+    def evaluate_renamed(rules)
+      described_class.new(descriptor: renamed, role: "implementer", resource_scope: { repository_id: 1, path: "app/models/job.rb" },
+        rules:, context: {}, arguments: {}).call
+    end
+
+    it "still applies a deny stored under the old operation identifier" do
+      decision = evaluate_renamed([ rule("old-deny", :repository, :deny, operation: "workspace.files/write@v1") ])
+
+      expect(decision.policy).to eq(:deny)
+      expect(decision.decisive_rule.id).to eq("old-deny")
+    end
+
+    it "still applies a deny stored under the old capability identifier" do
+      decision = evaluate_renamed([ rule("old-deny", :repository, :deny, capability: "workspace.files@v1") ])
+
+      expect(decision.policy).to eq(:deny)
+    end
+
+    it "does not apply a rule for an identifier the descriptor never had" do
+      decision = evaluate_renamed([ rule("other", :repository, :deny, operation: "workspace.files/delete@v1") ])
+
+      expect(decision.policy).to eq(:allow)
+    end
+  end
 end

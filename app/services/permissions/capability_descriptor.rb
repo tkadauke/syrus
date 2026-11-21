@@ -128,6 +128,13 @@ module Permissions
     # outcome. See config/syrus_docs/permission_authority.md.
     def essential? = essential
 
+    # Stored rules keep the identifiers they were written with. A rename that
+    # lists the old identifier as an alias is the same capability or operation
+    # (CapabilityUpgradeValidator rejects one that widens), so it must still
+    # match them (formal/SyrusModel/RuleAliases.lean).
+    def names_capability?(identifier) = identifier == capability || capability_aliases.include?(identifier)
+    def names_operation?(identifier) = identifier == operation || operation_aliases.include?(identifier)
+
     def barrier_effects = effects & BARRIER_EFFECTS
 
     # The longest authority a rule or lease of the given breadth may carry.
