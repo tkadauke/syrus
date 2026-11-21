@@ -105,14 +105,35 @@ func SaveCredentials(path string, creds Credentials) error {
 		return err
 	}
 	contents := fmt.Sprintf("url=%s\ntoken=%s\n", strings.TrimSpace(creds.URL), strings.TrimSpace(creds.Token))
-	if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+
+	// Write a fresh 0600 file beside the path and rename it over the path.
+	// Writing the path directly followed a symlink into its target, and wrote
+	// the token into a pre-existing loose file before tightening its mode.
+	// The rename replaces the path itself (a symlink included) and is atomic,
+	// so the token never sits in a file anyone else can read, and a crash
+	// never leaves a half-written credentials file.
+	temp, err := os.CreateTemp(filepath.Dir(path), ".credentials-*")
+	if err != nil {
 		return err
 	}
-	// os.WriteFile only applies the mode bits when creating a new file; if the
-	// file already existed with weaker permissions, WriteFile truncates and
-	// rewrites without changing them. Chmod explicitly so a pre-existing
-	// world/group-readable credentials file is always corrected.
-	return os.Chmod(path, 0600)
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+	if err := temp.Chmod(0600); err != nil {
+		temp.Close()
+		return err
+	}
+	if _, err := temp.WriteString(contents); err != nil {
+		temp.Close()
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tempPath, path)
 }
 
 func ParseCredentials(r io.Reader) (Credentials, error) {

@@ -2494,6 +2494,42 @@ CLI adapters.
 
 ---
 
+## F76. Saving credentials wrote the token through a symlink and into a loose file — fixed
+
+**Found by** DOC-44 Phase 6, Syrus CLI: "The credentials file only ever holds
+the token under mode 0600 at the configured path itself."
+
+**Gap.** Both writers of the shared `~/.syrus/credentials` file wrote the path
+directly. In the CLI this is `config.SaveCredentials`, which used `os.WriteFile`
+and then `os.Chmod`. In the desktop app it is `writeCredentialsFile`, which used
+`fs.writeFile` with `mode` and then `chmod`. Writing the path directly causes
+two problems:
+
+- **A symlink at the path** sent the token into the link's target, under that
+  target's permissions. The tests saw `secret-token` land in an unrelated
+  0644 file.
+- **A pre-existing file with loose permissions** held the new token while its
+  mode was still loose, until the chmod ran. Both `WriteFile` and Node's
+  `writeFile` apply `mode` only when they create the file.
+
+A crash in the middle of the write could also leave a truncated credentials
+file.
+
+**Fix.** Both writers now create a fresh 0600 file beside the path, sync it,
+and rename it over the path. The rename replaces the symlink itself and is
+atomic. The temporary file is removed on every exit path.
+
+**Spec.**
+
+- `credentials_test.go` "TestSaveCredentialsNeverWritesThroughASymlink".
+- `desktop/src/credentialsStore.test.ts`: the symlink case, plus the loose
+  pre-existing file, which must be replaced by a new inode at 0600 with no
+  temp-file leftovers.
+
+Both were red before the fix. All CLI packages pass.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
