@@ -2307,6 +2307,18 @@ invokes tool classes directly.
   the patterns. Making the Problem decisive would turn a `git_failure` whose
   text is a dropped connection from a deferral into a rejection, so the text
   fallback stays. Left as is.
+- **D5.** Contribution key ownership (DOC-44, "Contribution keys have one
+  unambiguous owner and resolution is deterministic"). `Syrus::KindRegistry`
+  never lets a plugin shadow a built-in kind. When two plugins declare the same
+  kind, the first in `providers_for` order wins and the other is logged and
+  ignored. That order is deterministic for a given plugin set: `PluginLoader`
+  loads in dependency layers sorted by name, and `providers_for` sorts by
+  `prepare_priority`, breaking ties by registration index. It is not stable
+  across plugin sets, though: installing a plugin that sorts earlier and
+  declares an existing plugin's kind takes that kind over (existing Workflows
+  of that kind would then resolve to the newcomer's template) with only a log
+  line. No bundled plugins collide. Rejecting a contested key for both plugins
+  would be the strict reading; left as is.
 
 ---
 
