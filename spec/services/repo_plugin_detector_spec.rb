@@ -147,5 +147,19 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
 
       expect(described_class.for(@dir, repository: :repository)).to eq([ "family-language" ])
     end
+
+    it "detects family-only and legacy-only language plugins together" do
+      legacy = Class.new { include Syrus::Plugin::PrepareDetector }
+      legacy.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, "legacy.lock")) }
+      legacy.define_singleton_method(:prepare_commands) { |_repo_path| [ "legacy prepare" ] }
+      Syrus::PluginRegistry.register(
+        name: "legacy-language", version: "1", provides: { prepare_detector: legacy }
+      )
+      write("family.lock")
+      write("legacy.lock")
+
+      expect(described_class.for(@dir, repository: :repository))
+        .to contain_exactly("family-language", "legacy-language")
+    end
   end
 end

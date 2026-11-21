@@ -72,9 +72,9 @@ Use `it_behaves_like "a valid ecosystem provider"` from `syrus/plugin/test_kit`,
 
 ### `grader_diagnostics`
 
-- Composition: `broadcast`
-- Absent result: `nil`
-- Provider decline: `nil`
+- Composition: `collect`
+- Absent result: `[]`
+- Provider decline: `[]`
 - Tier: `stable`
 - Context: `Syrus::Plugin::Context::GraderContext`
 - Return shape: `Array or NilClass`

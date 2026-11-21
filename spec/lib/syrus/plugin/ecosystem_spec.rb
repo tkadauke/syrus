@@ -11,7 +11,7 @@ RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
       detect_prepare: [ :collect, [], :stable, Syrus::Plugin::Context::RepoContext ],
       grade_candidates: [ :collect, [], :stable, Syrus::Plugin::Context::RepoContext ],
       grader_types: [ :keyed, :configuration_error, :stable, Syrus::Plugin::Context::GraderContext ],
-      grader_diagnostics: [ :broadcast, nil, :stable, Syrus::Plugin::Context::GraderContext ],
+      grader_diagnostics: [ :collect, [], :stable, Syrus::Plugin::Context::GraderContext ],
       review_criteria: [ :collect, [], :stable, Syrus::Plugin::Context::RepoContext ],
       prompt_context: [ :collect, [], :stable, Syrus::Plugin::Context::JobContext ],
       autofix: [ :collect, [], :stable, Syrus::Plugin::Context::WorkspaceContext ],
@@ -74,8 +74,31 @@ RSpec.describe Syrus::Plugin::Ecosystem, :reset_plugin_registry do
       analyze_coverage: :coverage, affected_tests: [ "spec/a_spec.rb" ], target_graph: :graph)
     expect(results[:detect_prepare].sole).to be_detected
     expect(results[:dependency_audit].sole.command).to eq("audit")
+    expect(results[:grader_diagnostics]).to eq([])
     expect(results[:review_file_patterns]).to eq([ "generated/**", { glob: "vendor/**" } ])
     expect(calls).to eq([ :diagnostic ])
+  end
+
+  it "preserves an isolated keyed provider failure for callers that request provider metadata" do
+    provider = Class.new do
+      def self.target_graph(_context) = raise "build file unreadable"
+    end
+    stub_const("FailingTargetGraphFixture", provider)
+    reference = Syrus::Plugin::CapabilityProvider.new(
+      plugin_name: "fixture", family: :ecosystem, capability: :target_graph,
+      provider_name: provider.name, key: :fixture, priority: 0
+    )
+    allow(Syrus::PluginRegistry).to receive(:capability_providers)
+      .with(:ecosystem, :target_graph).and_return([ reference ])
+
+    expect do
+      Syrus::Plugin::Dispatch.call(
+        :ecosystem, :target_graph, repo_context, key: :fixture, with_provider: true
+      )
+    end.to raise_error(Syrus::Plugin::Dispatch::ProviderFailure, "RuntimeError: build file unreadable") do |error|
+      expect(error.exception_class).to eq("RuntimeError")
+      expect(error.reason).to eq(:failed)
+    end
   end
 
   it "answers a legacy prepare lookup from a family provider with the merged plan" do

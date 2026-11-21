@@ -15,6 +15,15 @@ module Syrus
       private_constant :InvocationProvider
       ExpectedValidation = Data.define(:error)
       ProviderResult = Data.define(:value, :provider_name)
+      class ProviderFailure < StandardError
+        attr_reader :exception_class, :reason
+
+        def initialize(failure)
+          @exception_class = failure.exception_class
+          @reason = failure.reason
+          super([ failure.exception_class, failure.message ].compact.join(": ").presence || failure.reason.to_s)
+        end
+      end
       private_constant :ExpectedValidation
 
       COMPOSITION_ARGUMENTS = Hash.new { |_modes, _mode| ->(_key) { [] } }.merge(
@@ -55,7 +64,7 @@ module Syrus
           return value if handled
         end
 
-        invocation = lambda do |provider, implementation|
+        invoke_result = lambda do |provider, implementation|
           result = Syrus::PluginInvocation.call(
             extension_point: definition.name, provider: implementation,
             operation: contract.name, timeout:, on_decline: decline_value(contract),
@@ -71,15 +80,21 @@ module Syrus
           value = Syrus::PluginInvocation.value(result)
           raise value.error if value.is_a?(ExpectedValidation)
 
-          value
+          [ value, result ]
         end
+        invocation = ->(provider, implementation) { invoke_result.call(provider, implementation).first }
 
         invoked_providers = providers.map { |provider| InvocationProvider.new(provider:, invocation:) }
         if with_provider
           raise ArgumentError, "with_provider is only supported for keyed capabilities" unless contract.composition == :keyed
           selected = invoked_providers.find { |provider| provider.key.to_s == key.to_s }
           raise MissingKey, "No capability provider for key #{key.inspect}" unless selected
-          return ProviderResult.new(value: selected.invoke { |value| value }, provider_name: selected.provider.provider_name)
+          value, result = selected.provider.invoke do |implementation|
+            invoke_result.call(selected.provider, implementation)
+          end
+          raise ProviderFailure, result if result.is_a?(Syrus::PluginInvocation::Failed)
+
+          return ProviderResult.new(value:, provider_name: selected.provider.provider_name)
         end
         composition_args = COMPOSITION_ARGUMENTS[contract.composition].call(key)
         result = Composition.public_send(contract.composition, invoked_providers, *composition_args) { |value| value }

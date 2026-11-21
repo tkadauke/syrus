@@ -892,7 +892,7 @@ RSpec.describe TargetGraph::Compiler do
       )
     end
 
-    it "isolates provider exceptions under the warning failure policy" do
+    it "isolates provider exceptions while preserving their diagnostics under the warning failure policy" do
       provider = fake_build_graph_provider(raise_error: RuntimeError.new("build file unreadable"))
       Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
       write(".syrus.yml", <<~YAML)
@@ -905,8 +905,7 @@ RSpec.describe TargetGraph::Compiler do
       expect(described_class.compile(@dir).targets.keys).to eq(%w[//:repo])
 
       diagnostics = described_class.diagnose(@dir)
-      expect(diagnostics.error).to include("returned NilClass, expected TargetGraph::Import")
-      expect(diagnostics.error).not_to include("build file unreadable")
+      expect(diagnostics.error).to include("RuntimeError: build file unreadable")
     end
 
     it "does not partially apply an invalid imported fragment in warning mode" do
