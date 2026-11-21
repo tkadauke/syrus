@@ -27,7 +27,6 @@ RSpec.describe SyrusRails::PromptContext do
     it "instructs the agent to call submit_artifact for migration changes" do
       expect(result).to include("rails_migration_diff")
     end
-
   end
 
   describe ".call" do
