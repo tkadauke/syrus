@@ -1,7 +1,7 @@
 module Workflows
   # Land a whole Epic's children together as one atomic merge.
   #
-  #   merge_train_assemble → merge_train_build → merge_train_reconcile → prepare →
+  #   merge_train_assemble → merge_train_build → prepare → merge_train_reconcile →
   #     retry_until(grader_fanout → grader_collect, repair: landing_fix) →
   #     try(merge_train_land).on_failure("merge_train_base_moved",
   #       merge_train_rebase → merge_train_agent_rebase →
@@ -9,7 +9,13 @@ module Workflows
   #       try(merge_train_land_after_rebase) ...)
   #
   # assemble validates the train members; build rebases/merges them into a
-  # single integration branch in topological order; prepare installs deps;
+  # single integration branch in topological order; prepare installs deps
+  # before the reconcile agent runs, so it can run the integrated suite
+  # without first installing gems and packages itself (it used to spend
+  # minutes on `bundle install` while prepare, run after it, took seconds from
+  # the cached layer). Graders still test the reconciled tree: their source is
+  # snapshotted at grader_fanout, and a reconcile that changes a lockfile only
+  # makes the prepared archive's fingerprint miss, so graders prepare afresh;
   # the grade & fix loop runs graders ONCE on the integrated tip (the exact
   # tree that will exist on base after the Epic merges) and lets the agent
   # commit focused landing fixes; land merges the integration branch into the
@@ -37,8 +43,8 @@ module Workflows
       chain = [
         "merge_train_assemble",
         "merge_train_build",
-        "merge_train_reconcile",
         "prepare",
+        "merge_train_reconcile",
         landing_grader_retry_loop_with_agent_rung,
         merge_train_land_with_rebase_recovery
       ]

@@ -965,7 +965,6 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler.call
 
       expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
-        [ "prepare", "skipped" ],
         [ "grader_fanout", "skipped" ],
         [ "grader_collect", "skipped" ],
         [ "merge_train_land", "queued" ]
@@ -1007,7 +1006,6 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler.call
 
       expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
-        [ "prepare", "skipped" ],
         [ "grader_fanout", "skipped" ],
         [ "grader_collect", "skipped" ],
         [ "merge_train_land", "queued" ]
@@ -1034,7 +1032,6 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler.call
 
       expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
-        [ "prepare", "queued" ],
         [ "grader_fanout", "queued" ],
         [ "grader_collect", "queued" ],
         [ "merge_train_land", "queued" ]
@@ -1049,7 +1046,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       train = build_train([ a, b ])
       train.update!(integration_sha: "assembled999")
       workflow = Workflows::MergeTrain.instantiate(job: b, artifacts: { "merge_train_id" => train.id })
-      %w[prepare grader_fanout grader_collect].each do |kind|
+      %w[grader_fanout grader_collect].each do |kind|
         workflow.steps.find_by!(kind: kind).skip_with_reason!("landing_validation_cached")
       end
       reconcile_step = workflow.steps.find_by!(kind: "merge_train_reconcile")
@@ -1062,12 +1059,11 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler.call
 
       expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
-        [ "prepare", "queued" ],
         [ "grader_fanout", "queued" ],
         [ "grader_collect", "queued" ],
         [ "merge_train_land", "queued" ]
       )
-      %w[prepare grader_fanout grader_collect].each do |kind|
+      %w[grader_fanout grader_collect].each do |kind|
         expect(workflow.steps.find_by!(kind: kind).details).not_to include("skip_reason" => "landing_validation_cached")
       end
       expect(train.reload.integration_sha).to eq("reconciled123")

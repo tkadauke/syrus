@@ -84,7 +84,7 @@ rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 landing_validation: speculative_landing_build → prepare → graders
-merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → try(merge_train_land; base-moved fallback: merge_train_rebase → merge_train_agent_rebase → retry_until(graders, repair: landing_fix) → merge_train_land_after_rebase)
+merge_train: merge_train_assemble → merge_train_build → prepare → merge_train_reconcile → retry_until(graders, repair: landing_fix) → try(merge_train_land; base-moved fallback: merge_train_rebase → merge_train_agent_rebase → retry_until(graders, repair: landing_fix) → merge_train_land_after_rebase)
 merge_train_validation: speculative_merge_train_build → prepare → graders
 coding_handoff: prepare → [loop(adversarial_review first, then coding_handoff_fix ⇄ adversarial_review)] → [loop(visual_review first, then coding_handoff_fix ⇄ visual_review)] → retry_until(graders, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan
 local_mode_handoff: prepare → retry_until(graders, repair: local_mode_handoff_fix) → summarize/test_plan/pr_open or summarize_amend/try(push)
