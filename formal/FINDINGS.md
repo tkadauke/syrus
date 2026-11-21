@@ -2606,6 +2606,62 @@ All CLI packages pass and vet is clean.
 
 ---
 
+## F79. uninstall.sh and the desktop app classified image tags differently — fixed; channel isolation proved
+
+**Found by** DOC-44 Phase 7, desktop backend lifecycle: "Stable and test
+project names, ports, containers, images, and volumes are disjoint", and
+"Every destructive target derives from a validated channel-specific
+manifest."
+
+**Gap.** Both channels pull from the same `syrus-backend` repository, so an
+image's channel is read from its tag. There are two copies of that rule:
+
+- The desktop's `tagChannel` (`desktop/electron/channel.ts`) says test means
+  `test-<x>`, or a tag *ending* in `-test.<digits>`.
+- `uninstall.sh`'s image sweep used the glob `test-*|*-test.[0-9]*`, which
+  also matches `-test.<digit>` *anywhere* in the tag.
+
+For tags such as `0.1.2-test.4-hotfix` or `0.1.2-test.4.1`, the app says
+stable and the script says test. So a test uninstall retired them, and a
+stable uninstall left them behind. `spec/desktop/channels_spec.rb` only
+checked that the glob text was present. The new example ran the script and
+saw the test channel remove both tags.
+
+The impact is bounded: `rmi` without `-f` refuses an image a container still
+uses. But the disagreement is exactly the cross-channel deletion the property
+forbids.
+
+**Fix.** The script uses tagChannel's exact rule:
+`[[ $tag == test-* || $tag =~ -test\.[0-9]+$ ]]`. This works in macOS's bash
+3.2.
+
+**Proved.** `ChannelIsolation.lean` encodes the per-channel resource table
+that `stackIdentity` and `uninstall.sh` share, and the targets of `wipe` and
+`uninstall` (with and without `--keep-data`). It proves four things:
+
+- the two channels' resources are disjoint;
+- every destructive target lies in its own channel's set;
+- a stable `wipe` removes nothing;
+- `--keep-data` removes no data.
+
+It rests on three audited premises:
+
+- `compose -p` overrides the compose file's `name: syrus`, and no volume has a
+  fixed `name:`;
+- plugin-runtime resources are selected by the project label;
+- `~/.syrus` itself is only `rmdir`'d when empty, and a test uninstall skips
+  the stable-only skill.
+
+**Spec.**
+
+- `spec/desktop/uninstall_spec.rb` "retires exactly the tags the desktop
+  classifies as this channel's" runs the real script over the same tags on
+  both channels. It is CI-only; run it locally with `RUN_CI_ONLY_SPECS=true`.
+  Red before.
+- `desktop/src/channel.test.ts` pins the same tags on the app side.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

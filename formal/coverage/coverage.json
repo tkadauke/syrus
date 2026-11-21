@@ -91,6 +91,11 @@
       "id": "cli",
       "title": "Syrus CLI",
       "summary": "Credentials reach only the selected instance; mutations are confirmed, single and authorized server-side; checkout never destroys work."
+    },
+    {
+      "id": "desktop",
+      "title": "Desktop supervisor",
+      "summary": "Channels are isolated; destructive operations target only their own channel; installs, updates and sockets settle."
     }
   ],
   "items": [
@@ -2795,6 +2800,23 @@
       "status": "done",
       "done_by": "F78",
       "notes": "Names match pluginNamePattern; versions must be plain release versions, and a reported one that is not falls back to the CLI release. Destination must be empty. Docker image tags are single argv elements."
+    },
+    {
+      "id": "desktop-channel-isolation",
+      "area": "desktop",
+      "title": "Stable and test installations are disjoint, and destructive operations stay in their channel",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "stackIdentity, wipeBackendStack, uninstall.sh channel table and image sweep",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F79",
+      "notes": "Proved in ChannelIsolation.lean. Fixed uninstall.sh's tag classifier to match tagChannel exactly."
     }
   ],
   "needs_you": [
