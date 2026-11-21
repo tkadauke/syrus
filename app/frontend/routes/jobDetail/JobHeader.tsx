@@ -846,12 +846,7 @@ function HeaderActionsMenu({
             // an absolutely-positioned descendant of the header. z-20 keeps it
             // consistent with other in-page dropdown menus, still under the
             // z-30+ modal/backdrop layers.
-            <div
-              className={actionMenuClass()}
-              ref={menuRef}
-              role="menu"
-              style={menuPosition}
-            >
+            <div className={actionMenuClass()} ref={menuRef} role="menu" style={menuPosition}>
               {extraItems.map((item) => (
                 <button
                   className={menuButtonClass(item.tone)}
