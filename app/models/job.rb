@@ -1316,10 +1316,18 @@ class Job < ApplicationRecord
     approval_withdrawn_at.present?
   end
 
+  # Every approval door refuses while approval-blocking work runs, as the
+  # operator, MCP and pending-action paths do: the running Workflow may still
+  # move HEAD, and taking the Job off :running is its own success
+  # propagation's call. Checked before anything is written -- marking a
+  # running Job implemented first left it implemented under a live Workflow
+  # even when the approval was then declined. The PR poll re-reads the
+  # reviews on every pass, so the approval is recorded once the work ends.
   def record_github_review_approval!(review_url:, approved_at: Time.current, reviewer_user: nil)
+    return false if active_feedback_workflow? || approval_blocking_runtime_work?
+
     mark_implemented! if may_mark_implemented?
     return false unless may_approve?
-    return false if active_feedback_workflow?
 
     approver = reviewer_user || user
     approval = job_approvals.find_or_initialize_by(user: approver)
