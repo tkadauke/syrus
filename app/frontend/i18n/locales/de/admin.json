@@ -549,6 +549,7 @@
       "degraded": "Beeinträchtigt",
       "circuit_open": "Schutzschaltung offen",
       "cycle": "Abhängigkeitszyklus",
+      "non_conforming": "Nicht konform",
       "warning": "Warnung"
     },
     "host_surface_details": "Host-API-Befunde",
@@ -589,6 +590,7 @@
     "configured_repos": "{{count}} Repositorys",
     "no_extension_points": "Keine Erweiterungspunkte registriert.",
     "no_capabilities": "Keine Fähigkeitsfamilien deklariert.",
+    "implements_summary": "{{provider}} implementiert {{family}}: {{capabilities}}",
     "aria_plugins": "Admin-Plugins",
     "list_aria": "Registrierte Plugins",
     "no_results_heading": "Keine Plugins entsprechen deiner Suche",

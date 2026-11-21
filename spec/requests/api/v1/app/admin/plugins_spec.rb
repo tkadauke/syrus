@@ -918,6 +918,44 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       Syrus::PluginInvocation.runtime_health.reset!
     end
 
+    it "serializes conformance reasons and runtime failures in one health payload" do
+      Syrus::Plugin::Family.define(:health_payload_spec) do
+        shape :facet
+        capability :detect, composition: :collect, absent: [], tier: :stable, context: "HealthContext"
+      end
+      namespace = Object.const_set(:HealthPayloadSpec, Module.new)
+      provider = namespace.const_set(:Provider, Class.new do
+        include Syrus::Plugin::CiLogParser
+        def self.key = :health_payload
+        def self.display_name = "Health payload"
+      end)
+      declaration = Syrus::Plugin::FamilyDeclaration.build(
+        family: :health_payload_spec, provider: "HealthPayloadSpec::Provider", implements: %i[detect]
+      )
+      Syrus::PluginRegistry.register(
+        name: "combined-health-plugin", version: "1.0.0", provides: { ci_log_parser: provider },
+        family_provides: [ declaration ]
+      )
+      Syrus::PluginInvocation.call(
+        extension_point: :ci_log_parser, provider:, operation: :call, on_decline: nil
+      ) { raise "runtime failure" }
+      sign_in_as(Factories.user(admin: true))
+
+      get "/api/v1/app/admin/plugins"
+
+      health = response.parsed_body.fetch("plugins").find { |plugin| plugin["name"] == "combined-health-plugin" }.fetch("health")
+      expect(health).to include("state" => "non_conforming")
+      expect(health.fetch("reasons")).to include("HealthPayloadSpec::Provider does not define required method detect")
+      expect(health.fetch("failures").sole).to include(
+        "source" => "runtime", "code" => "runtime_failure",
+        "extension_point" => "ci_log_parser", "operation" => "call", "message" => "runtime failure"
+      )
+    ensure
+      Syrus::PluginInvocation.runtime_health.reset!
+      Syrus::Plugin::Family.reset!
+      Object.send(:remove_const, :HealthPayloadSpec) if Object.const_defined?(:HealthPayloadSpec)
+    end
+
     it "reports ok for a plugin with satisfied dependencies" do
       admin = Factories.user(admin: true)
       sign_in_as(admin)

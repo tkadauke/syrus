@@ -715,6 +715,7 @@
       "degraded": "Degraded",
       "circuit_open": "Circuit open",
       "cycle": "Dependency cycle",
+      "non_conforming": "Non-conforming",
       "warning": "Warning"
     },
     "host_surface_details": "Host API findings",
@@ -755,6 +756,7 @@
     "configured_repos": "{{count}} repositories",
     "no_extension_points": "No extension points registered.",
     "no_capabilities": "No capability families declared.",
+    "implements_summary": "{{provider}} implements {{family}}: {{capabilities}}",
     "aria_plugins": "Admin plugins",
     "list_aria": "Registered plugins",
     "no_results_heading": "No plugins match your search",

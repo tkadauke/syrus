@@ -746,33 +746,53 @@ function ExtensionPointsTable({ extensions }: { extensions: AdminPluginExtension
 
 function CapabilitiesTable({ capabilities }: { capabilities: AdminPluginCapability[] }) {
   const { t } = useT("admin")
+  const declarations = Array.from(
+    capabilities
+      .reduce((groups, capability) => {
+        const key = `${capability.family}\0${capability.provider}`
+        groups.set(key, [...(groups.get(key) || []), capability])
+        return groups
+      }, new Map<string, AdminPluginCapability[]>())
+      .values()
+  )
   return (
-    <DataTable.Root>
-      <DataTable.Header>
-        <DataTable.Row>
-          <DataTable.HeadCell>{t("plugins.col_family")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_capability")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_provider")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_key")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_tier")}</DataTable.HeadCell>
-          <DataTable.HeadCell>{t("plugins.col_priority")}</DataTable.HeadCell>
-        </DataTable.Row>
-      </DataTable.Header>
-      <DataTable.Body>
-        {capabilities.map((capability) => (
-          <DataTable.Row key={`${capability.family}-${capability.capability}-${capability.provider}`}>
-            <DataTable.Cell className="font-mono text-xs">{capability.family}</DataTable.Cell>
-            <DataTable.Cell className="font-mono text-xs">{capability.capability}</DataTable.Cell>
-            <DataTable.Cell className="font-mono text-xs">{capability.provider}</DataTable.Cell>
-            <DataTable.Cell className="font-mono text-xs">{capability.key || "-"}</DataTable.Cell>
-            <DataTable.Cell>
-              <StatusBadge status={capability.tier === "provisional" ? "experimental" : "registered"} label={capability.tier} />
-            </DataTable.Cell>
-            <DataTable.Cell className="font-mono text-xs">{capability.priority}</DataTable.Cell>
+    <div className="space-y-3">
+      {declarations.map((group) => (
+        <p className="text-sm text-gray-700 dark:text-gray-200" key={`${group[0].family}-${group[0].provider}`}>
+          {t("plugins.implements_summary", {
+            provider: group[0].provider,
+            family: group[0].family,
+            capabilities: group.map((capability) => capability.capability).join(", ")
+          })}
+        </p>
+      ))}
+      <DataTable.Root>
+        <DataTable.Header>
+          <DataTable.Row>
+            <DataTable.HeadCell>{t("plugins.col_family")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_capability")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_provider")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_key")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_tier")}</DataTable.HeadCell>
+            <DataTable.HeadCell>{t("plugins.col_priority")}</DataTable.HeadCell>
           </DataTable.Row>
-        ))}
-      </DataTable.Body>
-    </DataTable.Root>
+        </DataTable.Header>
+        <DataTable.Body>
+          {capabilities.map((capability) => (
+            <DataTable.Row key={`${capability.family}-${capability.capability}-${capability.provider}`}>
+              <DataTable.Cell className="font-mono text-xs">{capability.family}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs">{capability.capability}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs">{capability.provider}</DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs">{capability.key || "-"}</DataTable.Cell>
+              <DataTable.Cell>
+                <StatusBadge status={capability.tier === "provisional" ? "experimental" : "registered"} label={capability.tier} />
+              </DataTable.Cell>
+              <DataTable.Cell className="font-mono text-xs">{capability.priority}</DataTable.Cell>
+            </DataTable.Row>
+          ))}
+        </DataTable.Body>
+      </DataTable.Root>
+    </div>
   )
 }
 
@@ -794,7 +814,7 @@ function ExtensionPointRow({ extension }: { extension: AdminPluginExtensionPoint
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge label={extension.availability.label} status={extension.availability.status} />
           {typeof count === "number" ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("plugins.configured_repos", { count })}</span> : null}
-          {extension.availability.detail ? <span className="text-xs text-red-700 dark:text-red-300">{extension.availability.detail}</span> : null}
+          {extension.availability.detail ? <span className="text-xs text-danger">{extension.availability.detail}</span> : null}
         </div>
       </DataTable.Cell>
     </DataTable.Row>
@@ -811,7 +831,7 @@ function statusTone(status: string) {
   if (status === "required") return "bg-info/10 text-info"
   if (status === "experimental") return "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
   if (["disabled", "not_configured"].includes(status)) return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-  if (status === "error") return "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+  if (status === "error") return "bg-danger/10 text-danger"
   return "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
 }
 
