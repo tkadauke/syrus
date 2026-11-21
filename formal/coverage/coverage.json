@@ -2744,6 +2744,40 @@
       "status": "done",
       "done_by": "F77",
       "notes": "Profiles must be plain names ([a-z0-9_-]). The desktop app uses two fixed filenames. Precedence order flag > env > argv0 was already pinned by TestProfileResolutionOrder."
+    },
+    {
+      "id": "cli-mutation-confirmation",
+      "area": "cli",
+      "title": "A confirmed CLI mutation is single and targets the repository shown",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "job/epic create prompts; RepositoryIDForSlug; api.Client.do",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M23",
+      "notes": "Default-no prompt, exact slug match, no client retries. Audited, no bug."
+    },
+    {
+      "id": "cli-checkout-safety",
+      "area": "cli",
+      "title": "syrus checkout never destroys local work",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "checkoutJobBranch, checkoutPlainBranch, backupLocalBranchIfNeeded",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M23 (NY23 open)",
+      "notes": "Dirty trees are refused; diverged local branches are backed up before any reset or branch -f; plain branches only fast-forward. Open: post-checkout hooks run commands authored in the checked-out branch (NY23)."
     }
   ],
   "needs_you": [
@@ -3031,6 +3065,19 @@
         "C. Keep as is."
       ],
       "recommendation": "A, in line with NY13: an unknown is not a pass, and restore is destructive. The break-glass flag keeps the empty-instance and development cases possible on purpose.",
+      "decision": null
+    },
+    {
+      "id": "NY23",
+      "item": "cli-checkout-safety",
+      "title": "Should syrus checkout run post-checkout hooks that the branch itself introduced or changed?",
+      "context": "After a Job or Epic checkout the CLI runs every hooks.post_checkout command from the checked-out branch's .syrus.yml files without prompting, unless --no-hooks is passed. The only gate is a deny-list: hooks are skipped for external_pr Jobs. Every other branch is written by an agent working from issue text, so on a repository that accepts outside issues the issue author can steer the agent into adding a hook, which then runs on the reviewer's machine before the diff has been read. Because the kind set is open to plugins, a new kind carrying outside content, or a response without a kind, also runs hooks.",
+      "options": [
+        "A. Run a hook without asking only if the same command is already in the .syrus.yml on the Job's base branch. Show any new or changed hook and ask before running it (refuse in non-interactive use unless --hooks is passed). Also gate on an allow-list of kinds (issue, direct, cron), so unknown kinds fail closed.",
+        "B. Keep the kind deny-list, but turn it into an allow-list so that unknown kinds and a missing kind fail closed.",
+        "C. Keep as is: hooks are a convenience for trusted repositories, and --no-hooks is the escape hatch."
+      ],
+      "recommendation": "A. It keeps the convenience for hooks the repository already trusts on its base branch, and stops the one path where text from outside becomes code running on the operator's machine without anyone reading it.",
       "decision": null
     }
   ]

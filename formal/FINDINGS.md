@@ -3122,6 +3122,53 @@ Main's "Block unknown plugin versions in recovery" and the preflight checks in
 
 ---
 
+## M23. CLI mutation confirmation and checkout safety — audited, one design question
+
+**Scope.** DOC-44 Phase 6, Syrus CLI: "Mutations are confirmed, single and
+target what was shown", and "Checkout never destroys local work".
+
+**Confirmation holds.**
+
+- `job create` and `epic create` prompt with the repository they will target,
+  and anything but `y`/`yes` (EOF included) cancels.
+- The repository ID sent is the one whose slug exactly equals the slug shown
+  (`cliplugin.RepositoryIDForSlug`), so the prompt and the request cannot
+  disagree.
+- The API client never retries a request, so one confirmation produces at most
+  one mutation.
+- The remaining mutating commands (`approve`, `cancel`, `retry`, ...) take an
+  explicit ID and are authorized server-side, which is the CLI's convention.
+
+**Checkout holds.**
+
+- *Job and Epic branches (`checkoutJobBranch`).* The current branch is refused
+  if it has any local changes, untracked files included, before
+  `reset --hard`. A local branch that is not an ancestor of origin is copied to
+  `syrus/backup/<branch>-<timestamp>` before `reset --hard` or `branch -f`. A
+  backup-name collision fails the command rather than overwriting. A branch
+  checked out in another worktree makes `branch -f` fail.
+- *Plain branches.* A dirty worktree is refused, and divergence is only ever
+  fast-forwarded (`merge --ff-only`).
+- *Ordering.* `--complete` fetches every Epic branch before the
+  origin-matches-repository check. This only rewrites remote-tracking refs, so
+  nothing local is lost.
+
+**Open: post-checkout hooks run branch-authored commands (NY23).** After a Job
+or Epic checkout, `runPostCheckoutHooks` runs every `hooks.post_checkout`
+command from the `.syrus.yml` files in the *checked-out branch*, with no
+prompt, unless `--no-hooks` is passed. Two concerns follow:
+
+- *Who writes that file.* The only gate is `Job.kind != "external_pr"`. For
+  every other kind, the branch was written by an agent working from issue
+  text. On a repository that accepts outside issues, the issue author can steer
+  the agent into adding a hook, and that hook then runs on the reviewer's
+  machine during `syrus checkout`, before anyone has read the diff.
+- *How the gate is shaped.* It is a deny-list over an open, plugin-extensible
+  kind set, so a new kind carrying outside content, or a response without a
+  `kind`, runs hooks by default.
+
+---
+
 ## M22. Diff review endpoints and per-job review state — audited, no bug
 
 Main's "Keep diff review endpoints independent across versions," "Keep diff
