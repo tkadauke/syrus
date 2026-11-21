@@ -900,10 +900,46 @@ module WorkEngine
           run = resume.run
           return success("resumed #{step_label(step)} with #{run_label(run)}") if run
 
+          if resume.reason.to_s == WorkUnits::Gates::CiRepairSafety::REASON &&
+              (cancelled = cancel_superseded_ci_repair(workflow, step))
+            return success(cancelled)
+          end
+
           # Say why. A bare "remained deferred" left workflows parked behind a
           # scheduler gate for weeks with nothing in the activity log naming
           # the gate.
           skipped(["queued Step remained deferred", resume.status, resume.reason].compact_blank.join(": "))
+        end
+
+        private
+
+        # A CI repair that already ran `prepare` can still be held at its
+        # repair step waiting for its base to be known healthy. If main has
+        # moved past that base, no health check will ever grade it, so the
+        # workflow would sit "running" forever -- cancel it as superseded, the
+        # same outcome CancelSupersededCiRepair gives a repair still queued.
+        def cancel_superseded_ci_repair(workflow, step)
+          return nil unless workflow.trigger_kind == "ci_failure" && workflow.work_unit
+
+          gate = WorkUnits::Gates::CiRepairSafety.call(workflow.work_unit, step: step)
+          return nil unless gate.blocked? && gate.details["kind"] == "base_not_known_healthy"
+
+          base_sha = gate.details["base_sha"]
+          return nil unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)
+          return nil unless workflow.may_cancel?
+
+          with_transition_reason do
+            WorkUnits::WorkflowCancellation.cancel!(
+              workflow,
+              reason: WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
+              artifacts: {
+                "cancelled_reason" => WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
+                "cancelled_by_reconciler_at" => Time.current.iso8601,
+                "superseded_ci_repair_base_sha" => base_sha
+              }
+            )
+          end
+          "cancelled #{workflow_label(workflow)}: CI repair base #{base_sha} was superseded and will never be health-checked"
         end
       end
 
@@ -1340,7 +1376,7 @@ module WorkEngine
 
           base_sha = ci_repair_block_base_sha(workflow)
           return skipped("CI repair base SHA is missing") if base_sha.blank?
-          unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha)
+          unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)
             return skipped("CI repair base #{base_sha} is still current")
           end
 
@@ -1349,7 +1385,7 @@ module WorkEngine
             workflow.reload
             return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
             return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
-            unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha)
+            unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)
               return skipped("CI repair base #{base_sha} is still current")
             end
 

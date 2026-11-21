@@ -3858,7 +3858,7 @@ module WorkEngine
       return false unless start_block_reason(workflow).to_s == WorkUnits::Gates::CiRepairSafety::REASON
       return false unless ci_repair_start_block_kind(workflow) == "base_not_known_healthy"
 
-      WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, ci_repair_start_block_base_sha(workflow))
+      WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, ci_repair_start_block_base_sha(workflow), since: workflow.created_at)
     end
 
     def ci_repair_start_block_kind(workflow)

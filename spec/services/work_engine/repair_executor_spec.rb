@@ -604,4 +604,68 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(member_job.branch_deleted_at).to be_nil
     end
   end
+
+  describe "resume_queued_step on a CI repair held behind a superseded base" do
+    let(:base_sha) { "abc1234567890000000000000000000000000000" }
+    let(:ci_workflow) do
+      Workflow.create!(
+        job: job, trigger_kind: "ci_failure", state: "running", started_at: 2.days.ago, created_at: 2.days.ago,
+        artifacts: { "base_sha" => base_sha, "head_sha" => "def1234567890000000000000000000000000000" },
+        chain_template: [
+          { "type" => "step", "kind" => "prepare" },
+          { "type" => "retry_until", "max_iterations" => 3, "repair" => [ "analyze_and_fix" ],
+            "check" => [ "grader_fanout", "grader_collect" ], "repair_first" => true }
+        ]
+      )
+    end
+    let!(:analyze) do
+      Step.create!(workflow: ci_workflow, kind: "prepare", position: 0, state: "succeeded")
+      Step.create!(workflow: ci_workflow, kind: "analyze_and_fix", position: 1, state: "queued", loop_id: "loop-1")
+    end
+
+    before do
+      job.update!(state: "approved", pr_checks_base_sha: base_sha, commits_behind_base: 0)
+      job.repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+      intent = WorkIntent.create!(
+        kind: "ci_failure", state: "requested", repository: job.repository, scope_type: "job", scope_id: job.id,
+        actor: job.user, source_type: "spec", payload_artifacts: ci_workflow.artifacts
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent, kind: "ci_failure", state: "running", repository: job.repository,
+        scope_type: "job", scope_id: job.id, workflow: ci_workflow
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+      allow(StepDispatcher).to receive(:deferred_phase_handoff_ready?).and_return(true)
+      allow(WorkUnits::DeferredPhaseResume).to receive(:call)
+        .and_return(Struct.new(:run, :status, :reason).new(nil, "blocked", "ci_repair_safety"))
+    end
+
+    def resume!
+      described_class.call(result: RepairResult.new([ repair_plan(action: "resume_queued_step", target: analyze) ])).sole
+    end
+
+    # A CI repair that ran `prepare` and was then held waiting for its base to
+    # be known healthy sat "running" for weeks once main moved on: no health
+    # check grades an old base, and the superseded-base cancel only handled
+    # repairs still queued.
+    it "cancels the repair once main health has moved past its base" do
+      MainBranchHealthCheck.create!(
+        repository: job.repository, branch: "main", sha: "fff1234567890000000000000000000000000000",
+        checked_at: 1.day.ago, source: "ci_poll", ci_health: "healthy", grader_health: "healthy"
+      )
+
+      execution = resume!
+
+      expect(execution.status).to eq("applied")
+      expect(ci_workflow.reload).to be_cancelled
+      expect(ci_workflow.artifact("cancelled_reason")).to eq(WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON)
+    end
+
+    it "keeps waiting while the base can still be graded" do
+      execution = resume!
+
+      expect(execution.status).to eq("skipped")
+      expect(ci_workflow.reload).to be_running
+    end
+  end
 end

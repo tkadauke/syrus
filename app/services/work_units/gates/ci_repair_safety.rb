@@ -8,8 +8,13 @@ module WorkUnits
 
       def self.call(work_unit, **context) = new(work_unit, step: context[:step]).call
 
-      def self.superseded_base?(job, base_sha)
-        new(nil).send(:base_superseded_for?, job, base_sha)
+      # `since` is when the CI repair began waiting on `base_sha`. Pass it to
+      # also count a base that main health has moved past: health checks only
+      # grade the branch head, so once a different commit has been checked
+      # after the repair started waiting, `base_sha` will never be graded and
+      # the repair can never pass this gate.
+      def self.superseded_base?(job, base_sha, since: nil)
+        new(nil).send(:base_superseded_for?, job, base_sha, since: since)
       end
 
       def self.current_base_sha_for(job)
@@ -121,10 +126,24 @@ module WorkUnits
         candidate_job&.pr_checks_base_sha.presence || candidate_job&.mergeability_base_sha.presence
       end
 
-      def base_superseded_for?(candidate_job, candidate_base_sha)
-        candidate_base_sha.present? &&
-          current_base_sha_for(candidate_job).present? &&
-          current_base_sha_for(candidate_job) != candidate_base_sha
+      def base_superseded_for?(candidate_job, candidate_base_sha, since: nil)
+        return false if candidate_base_sha.blank?
+
+        recorded_base_sha = current_base_sha_for(candidate_job)
+        return true if recorded_base_sha.present? && recorded_base_sha != candidate_base_sha
+
+        base_health_moved_past?(candidate_job, candidate_base_sha, since)
+      end
+
+      def base_health_moved_past?(candidate_job, candidate_base_sha, since)
+        repository = candidate_job&.repository
+        return false if since.blank? || repository.nil?
+
+        MainBranchHealthCheck
+          .where(repository: repository, branch: candidate_job.effective_base_branch)
+          .where.not(sha: candidate_base_sha)
+          .where(checked_at: since..)
+          .exists?
       end
 
       def require_clean_base_health?

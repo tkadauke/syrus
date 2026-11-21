@@ -239,6 +239,40 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     )
   end
 
+  describe ".superseded_base?" do
+    before { repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older") }
+
+    # Main health only grades the branch head. A base that was never graded
+    # while it was the head will never be graded once main moves on, so a
+    # repair waiting for it would wait forever even though the Job still
+    # records it as its base.
+    it "counts a base main health moved past after the repair began waiting" do
+      job.update!(pr_checks_base_sha: base_sha)
+      waiting_since = 2.days.ago
+      MainBranchHealthCheck.create!(
+        repository: repository, branch: "main", sha: "fff1234567890000000000000000000000000000",
+        checked_at: 1.day.ago, source: "ci_poll", ci_health: "healthy", grader_health: "healthy"
+      )
+
+      expect(described_class.superseded_base?(job, base_sha, since: waiting_since)).to be(true)
+      expect(described_class.superseded_base?(job, base_sha)).to be(false)
+    end
+
+    it "does not count a base while main health has checked nothing newer" do
+      job.update!(pr_checks_base_sha: base_sha)
+      MainBranchHealthCheck.create!(
+        repository: repository, branch: "main", sha: "fff1234567890000000000000000000000000000",
+        checked_at: 3.days.ago, source: "ci_poll", ci_health: "healthy", grader_health: "healthy"
+      )
+      MainBranchHealthCheck.create!(
+        repository: repository, branch: "main", sha: base_sha,
+        checked_at: 1.day.ago, source: "ci_poll", ci_health: "broken", grader_health: "broken"
+      )
+
+      expect(described_class.superseded_base?(job, base_sha, since: 2.days.ago)).to be(false)
+    end
+  end
+
   it "re-applies base health safety to later CI retry loop phases" do
     repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
     unit = ci_unit_for(job, state: "running")
