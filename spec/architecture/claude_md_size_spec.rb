@@ -8,6 +8,13 @@ RSpec.describe "CLAUDE.md startup context size" do
     expect(File.size(claude_md_path)).to be < 35 * 1024
   end
 
+  # Implement agents read this guide; the plugin-boundaries grader was the most
+  # common avoidable grading failure, so the guide names the command to run.
+  it "points plugin authors at the boundary check that grading enforces" do
+    expect(File.read(claude_md_path)).to include("bin/check-plugin-boundaries")
+    expect(File.executable?(File.join(root, "bin/check-plugin-boundaries"))).to be(true)
+  end
+
   it "keeps AGENTS.md resolving to the same slim guide" do
     agents_path = File.join(root, "AGENTS.md")
 

@@ -210,6 +210,10 @@ High-frequency reminders:
   plugin-owned workflow kinds belong behind the `:workflow_kinds` provider.
 - Do not add core references that make bundled plugins undeletable; plugin-owned
   tools, docs, routes, and specs belong with the plugin.
+- Plugins may only use core through the declared `Syrus::Host` API. Before
+  finishing any change under `plugins/`, run `bin/check-plugin-boundaries`
+  (seconds) and fix what it reports; it is a required grader, and a plugin
+  reaching into a core internal is the most common avoidable grading failure.
 - Localize user-visible SPA copy with i18next and server/API copy with Rails
   I18n; add matching English, German, and Latin keys, and keep machine-readable
   API error codes separate from translated messages.
