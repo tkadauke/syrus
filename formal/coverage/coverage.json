@@ -1,5 +1,5 @@
 {
-  "generated_from_commit": "14b5eb2155",
+  "generated_from_commit": "05d1c36ce1",
   "line_numbers_note": "Producer file:line references come from the catalog pass at eca9ba0db5 and are approximate (~) where later commits (F1-F7) moved code; classifier names are verified at the generated commit.",
   "areas": [
     {
@@ -71,6 +71,16 @@
       "id": "reconciler",
       "title": "Reconciler agreement",
       "summary": "The reconciler only flags states it can repair, never undoes deliberate domain states, and converges."
+    },
+    {
+      "id": "plugin-host",
+      "title": "Plugin host",
+      "summary": "Plugin contributions are callable only while their plugin and its required closure are enabled and healthy; lifecycle, disable, purge and fleet changes never strand or broaden anything."
+    },
+    {
+      "id": "frontend",
+      "title": "Frontend realtime",
+      "summary": "The browser's event stream, entity store and query caches converge on committed server state, and scoped events reach exactly the authorized subscribers."
     }
   ],
   "items": [
@@ -2367,6 +2377,278 @@
       "status": "done",
       "done_by": "F51",
       "notes": "RepairLift.lean: after_declares_only_landed, after_declare_was_before. Before: the live default-branch head was declared healthy, whatever had reached main after the repair."
+    },
+    {
+      "id": "plugin-contribution-callable",
+      "area": "plugin-host",
+      "title": "A contribution is callable only while its plugin and its whole required dependency closure are enabled and healthy",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PluginHealth propagation, Installer effects, plugin-hosted extension points, the database-error fallback in providers_for",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "F60, F62, F66 (NY13, NY18 decided)",
+      "notes": "Proved in PluginClosure.lean and EffectHealth.lean: health propagates up hard dependencies (F60); while_enabled effects use the same gate as providers (F62); plugin-hosted points do too (F66). Decided, to implement: NY13 retries the enablement read instead of handing out every plugin on a database error; NY18 adds a health-aware owner-aware lookup for the two plugin-side registries."
+    },
+    {
+      "id": "plugin-capabilities-pass-evaluator",
+      "area": "plugin-host",
+      "title": "Plugin capabilities cannot bypass core authorization",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "approval_effect declared in a plugin tool-set definition (Mcp::CoworkerToolCatalog)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "M9-M12 (NY12 decided)",
+      "notes": "Ask never approves, lease scope, scope matching, invocation claims and delegated approval are proved (M9-M12). Decided NY12: approval_effect is honoured only when Syrus can verify the tool creates a confirmation card. To implement."
+    },
+    {
+      "id": "plugin-disable-recovery",
+      "area": "plugin-host",
+      "title": "Disabling or degrading a plugin never leaves its work unable to finish or be cancelled",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "both",
+      "producer": "kind inclusion validated on every save; disable guard without a work-of-own-kinds blocker; health degradation withdrawing kinds",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "F61 (NY14 decided)",
+      "notes": "F61: kinds validated on create or change only, and the disable guard blocks while active work of the plugin's kinds exists (PluginDisableRecovery.lean). Decided NY14: keep kind metadata resolvable for in-flight work when a plugin turns unhealthy. To implement."
+    },
+    {
+      "id": "plugin-missing-contribution-defaults",
+      "area": "plugin-host",
+      "title": "A missing contribution never silently selects a core default that changes behaviour",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Execution::Router local fallback; ChatShellCommandExecutor::Coding without a workload policy",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "M14 (NY15 decided)",
+      "notes": "The router authorizes the backend it picked and fails closed for the required chat workload (M14). Decided NY15: when containment is required, Coding Mode ! commands are disabled with an explanation. To implement."
+    },
+    {
+      "id": "plugin-purge-ownership",
+      "area": "plugin-host",
+      "title": "Purge removes only resources the plugin owns and preserves generic history",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "edited migrations leaving schema-only tables",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "M15 (NY16 decided)",
+      "notes": "The purge rule holds by construction across all bundled plugins; two orphaned operator briefing tables exist only in schema.rb, pinned by schema_tables_have_migrations_spec. Decided NY16: delete them. To implement."
+    },
+    {
+      "id": "plugin-fleet-admission",
+      "area": "plugin-host",
+      "title": "Work needing a plugin is never admitted to a worker that lacks it",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "RunQueueResolver routes by OS and toolchain only; fleet plugin rollouts and role-limited installations",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "open",
+      "done_by": "M17 (NY17 decided)",
+      "notes": "Workers heartbeat their plugin set but routing ignores it, so a worker without the plugin fails the step terminally. Decided NY17: prevent it by treating the owning plugin as a placement requirement. To implement."
+    },
+    {
+      "id": "plugin-optional-dependencies",
+      "area": "plugin-host",
+      "title": "Optional dependency absence never disables the dependent plugin",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PluginHealth, PluginLoader, PluginDependencyGraph",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M13",
+      "notes": "All three follow hard edges only; pinned by plugin_health, plugin_loader and plugin_dependency_graph specs."
+    },
+    {
+      "id": "plugin-cli-collisions",
+      "area": "plugin-host",
+      "title": "Plugin CLI command collisions fail deterministically",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "first-wins bare-path mounting in the Go CLI over a catalog sorted by plugin name",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F63",
+      "notes": "Colliding commands are withheld from the catalog and reported as a health warning (CliCollisions.lean)."
+    },
+    {
+      "id": "plugin-lifecycle-order",
+      "area": "plugin-host",
+      "title": "Queued plugin callbacks never act on a state that has moved on",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PluginTickJob and PluginLifecycleJob ran without rechecking state",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F65",
+      "notes": "Ticks recheck enablement and health; enable/disable events run only while they still describe the plugin (LifecycleOrder.lean)."
+    },
+    {
+      "id": "plugin-permission-renames",
+      "area": "plugin-host",
+      "title": "Permission upgrades and renames cannot broaden authority",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "PolicyRule matched identifiers literally, ignoring aliases",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F64",
+      "notes": "Renamed capabilities and operations match stored rules through their aliases (RuleAliases.lean). Scope migrations are validated but never applied at runtime yet."
+    },
+    {
+      "id": "plugin-repair-executors",
+      "area": "plugin-host",
+      "title": "Every automatic repair action has an executor, and a missing policy stays manual",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "RepairExecutor Default policy; dead DeferLandingStartBlockedWorkflow",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M16",
+      "notes": "Pinned both directions by repair_action_executors_spec; the dead executor was removed."
+    },
+    {
+      "id": "plugin-migrations-before-enable",
+      "area": "plugin-host",
+      "title": "Required migrations are present before enablement becomes active",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "deploy migration Job over every installed plugin's db/migrate",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M17",
+      "notes": "Holds by construction; an external plugin added between deploys is a deployment precondition."
+    },
+    {
+      "id": "frontend-sequence-gap",
+      "area": "frontend",
+      "title": "Every delivered app event is applied exactly once, and a lost one is recovered",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "trackAppEventSequence dropped late deliveries as duplicates; gap recovery refreshes only the next event's resource",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "F67 (NY19 decided)",
+      "notes": "F67: only a seen sequence is a duplicate; late deliveries are applied (EventSequence.lean). Decided NY19: after a short grace, sweep active continuity queries for a sequence still missing. To implement."
+    },
+    {
+      "id": "frontend-scoped-events",
+      "area": "frontend",
+      "title": "Job- and Chat-scoped events reach exactly the authorized subscribers",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "chat resource events sent to participants only; JobChannel authorized only on subscribe",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "F68 (NY20 decided)",
+      "notes": "F68: chat events reach participants and share viewers, recomputed per broadcast (ChatDelivery.lean). Decided NY20: an access change disconnects that user's open Job subscriptions. To implement."
+    },
+    {
+      "id": "frontend-entity-merge",
+      "area": "frontend",
+      "title": "Entity revisions never decrease and an older snapshot never overwrites a newer patch",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "upsertEntity revision merge",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M18",
+      "notes": "Proved in EntityMerge.lean; partial patches and equal revisions converge through the refetch every job event triggers."
+    },
+    {
+      "id": "frontend-subscriptions-recovery",
+      "area": "frontend",
+      "title": "Route changes, optimistic acknowledgement, hidden tabs and reconnects converge",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "producer": "appEvents and inFlightComposerDraftStore",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M19",
+      "notes": "Events key on their own identifiers; acknowledgement matches chat and key; hidden-tab invalidations flush on visibility; reconnect staleness is bounded by staleTime."
     }
   ],
   "needs_you": [
@@ -2524,7 +2806,7 @@
         "C. Keep as is: plugins are trusted code reviewed like core."
       ],
       "recommendation": "A. It makes the exemption derived rather than declared, the same way pending-action tools already are, and costs nothing for today's tools (the spawn-chat tools can register their pending actions).",
-      "decision": null
+      "decision": "A, and check it (2026-11-21): a tool may skip the generic 'ask' only when Syrus can verify it creates a confirmation card (a registered pending action); a plugin's own declaration grants nothing. To implement."
     },
     {
       "id": "NY13",
@@ -2537,7 +2819,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. It keeps precompile and boot working, keeps a running instance's behaviour stable through a blip, and never activates a plugin the operator disabled. B is safer still but turns a transient error into every plugin vanishing for that call.",
-      "decision": null
+      "decision": "Neither A nor B (2026-11-21): treating installed plugins as enabled is potentially destructive. On a database error, retry until there is a definite answer, never fall back to every plugin at runtime. To implement."
     },
     {
       "id": "NY14",
@@ -2550,7 +2832,7 @@
         "C. Keep as is: an unhealthy plugin's in-flight work stays stuck until it is healthy again."
       ],
       "recommendation": "A. Cancellation and display need only metadata, not the plugin's code paths. It matches F61's create-only validation, and it keeps the 'withheld providers are never called' rule for anything that starts work. B loses work that a plugin fix would have resumed.",
-      "decision": null
+      "decision": "A (2026-11-21): keep kind metadata resolvable for work already in flight, so it can always be cancelled; new work still needs a healthy owner. To implement."
     },
     {
       "id": "NY15",
@@ -2563,7 +2845,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. The containment boundary is about where agent-influenced code executes, and the checkout is agent-written. Under 'preferred' nothing changes, because an unavailable backend still falls back to the worker.",
-      "decision": null
+      "decision": "New option (2026-11-21): when containment is required, Coding Mode ! commands are disabled with an explanation. To implement."
     },
     {
       "id": "NY16",
@@ -2576,7 +2858,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. The rows came from a pipeline that no longer exists and nothing reads them. B alone comes back the next time someone dumps the schema from a database that still has the tables, which is how they came back the first time.",
-      "decision": null
+      "decision": "A (2026-11-21): delete the leftovers with an idempotent drop migration, and remove them from schema.rb and the spec's pending list. To implement."
     },
     {
       "id": "NY17",
@@ -2589,7 +2871,7 @@
         "C. Keep as is: a fleet plugin rollout can fail in-flight steps of that plugin's kinds."
       ],
       "recommendation": "A. It reuses the existing capability-routing contract and the no_capable_worker diagnosis, so a blocked start explains itself. B is smaller, but it spins on a worker that will never have the plugin.",
-      "decision": null
+      "decision": "A (2026-11-21): prevent it; the owning plugin is a placement requirement and a start blocks as no_capable_worker. To implement."
     },
     {
       "id": "NY18",
@@ -2602,7 +2884,7 @@
         "C. Keep as is: plugin-side registries own their own filtering."
       ],
       "recommendation": "B. It keeps plugins out of manifest internals and makes the health rule impossible to forget, because there is no enabled-only path left to reach for. A adds a second public notion of 'enabled'.",
-      "decision": null
+      "decision": "B (2026-11-21): add a public providers_with_owner_for(point) on the health-aware path; both plugin registries switch to it. To implement."
     },
     {
       "id": "NY19",
@@ -2615,7 +2897,7 @@
         "C. Keep the targeted refresh, and state the weaker guarantee: the stale resource converges on the next reconnect or focus refetch."
       ],
       "recommendation": "A. It needs no server change and sweeps only on a genuine loss. revision_gap_recoveries already measures how often that happens, so the cost is visible before and after. B is the strongest option, but it adds server state and a new endpoint.",
-      "decision": null
+      "decision": "A (2026-11-21): wait about 2 s for late deliveries, then sweep active continuity queries for any sequence still missing. To implement."
     },
     {
       "id": "NY20",
@@ -2628,7 +2910,7 @@
         "C. Accept it: visibility revocation takes effect on the next reconnect, and the patches carry no secrets."
       ],
       "recommendation": "B. It keeps the shared stream, which matters because Job events are the high-churn ones, and makes revocation immediate at the single place access changes. A is simpler to reason about, but it multiplies the cost of every Job broadcast.",
-      "decision": null
+      "decision": "Prevent it (2026-11-21), via B: a membership or visibility change disconnects that user's open JobChannel subscriptions. To implement."
     }
   ]
 }
