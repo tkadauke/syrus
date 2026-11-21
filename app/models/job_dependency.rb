@@ -66,6 +66,13 @@ class JobDependency < ApplicationRecord
 
   def execution_dependency_satisfied?
     return dependency_succeeded? if satisfaction_mode == "closed"
+    # A withdrawn approval blocks starting on work that has not finished. Only
+    # approving clears approval_withdrawn_at, so a Job merged on GitHub,
+    # emergency-landed or closed with no changes after a withdrawal is
+    # succeeded and still marked withdrawn; refusing then left its dependents
+    # neither satisfied nor terminally failed, waiting forever
+    # (formal/SyrusModel/Kernel/Dependencies.lean).
+    return true if dependency_succeeded?
     return false if dependency_approval_withdrawn_for_execution?
 
     satisfaction_policy.execution_dependency_satisfied?
