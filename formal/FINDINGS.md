@@ -1756,6 +1756,10 @@ invariant still fails.
 The remaining commits (UI, syntax highlighting, spec speed-ups, CI sharding,
 admin query counts) state no engine invariant.
 
+Checked through main `637033715e`. Each loop iteration continues from there:
+new commits on `origin/main` that are not this branch's, their invariants,
+and a proof or a counterexample and fix for each.
+
 ---
 
 ## Open questions for review
