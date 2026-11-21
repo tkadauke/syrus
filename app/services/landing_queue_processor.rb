@@ -155,6 +155,10 @@ class LandingQueueProcessor
     end
 
     return unless blockage_for(job)[:blocked_reason].blank?
+    # The inline door must pick what the ordered pass would: a Job approved
+    # while an earlier unit of the same landing slot is already eligible
+    # would otherwise take the slot ahead of it (QueueOrder.lean).
+    return call if earlier_eligible_unit_for?(job)
 
     land(job)
   end
@@ -640,6 +644,17 @@ class LandingQueueProcessor
   # `hotfix` track landing straight to `main` doesn't contend with a
   # `default` track landing to `develop`. Two Jobs resolving to the same
   # branch still serialize exactly as before.
+  def earlier_eligible_unit_for?(job)
+    lock_key = landing_lock_key_for(job)
+    own_unit_key = landing_unit_key(job)
+    entries(Job.landing_queue.where(repository_id: job.repository_id)).each do |entry|
+      return false if entry.landing_unit_key == own_unit_key
+      next unless entry.eligible?
+      return true if landing_lock_key_for(entry.job) == lock_key
+    end
+    false
+  end
+
   def landing_in_progress_for_job?(job)
     lock_key = landing_lock_key_for(job)
     return false unless lock_key
