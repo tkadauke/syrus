@@ -2590,6 +2590,19 @@
       ],
       "recommendation": "A. It reuses the existing capability-routing contract and the no_capable_worker diagnosis, so a blocked start explains itself. B is smaller, but it spins on a worker that will never have the plugin.",
       "decision": null
+    },
+    {
+      "id": "NY18",
+      "item": "plugin-contribution-callable",
+      "title": "Should the Host API give plugins the enabled-and-healthy plugin set?",
+      "context": "Two bundled plugins resolve their own contributions by reading manifests: ConnectedAccounts::ProviderRegistry (OAuth provider declarations, which need the contributing plugin's name) and PluginRuntime::DesiredServiceCollection (supervised services). Both filter with manifest.enabled? only, so a degraded or failed contributor's OAuth provider or service stays active. That is the gap F62 and F66 closed in core. The declared Host API (lib/syrus/host/public_apis.rb) promises register, providers_for and extension_point? on PluginRegistry, and says health is not promised, so the plugins cannot apply the core rule themselves.",
+      "options": [
+        "A. Add a public PluginRegistry.active_plugins (manifests that are enabled and healthy, the providers_for set) to the Host API, and switch both registries to it.",
+        "B. Add a public providers_with_owner_for(point) that returns [plugin_name, provider] pairs from the health-aware hosted path, and have both registries use that instead of reading manifests.",
+        "C. Keep as is: plugin-side registries own their own filtering."
+      ],
+      "recommendation": "B. It keeps plugins out of manifest internals and makes the health rule impossible to forget, because there is no enabled-only path left to reach for. A adds a second public notion of 'enabled'.",
+      "decision": null
     }
   ]
 }
