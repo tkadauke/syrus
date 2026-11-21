@@ -1609,9 +1609,9 @@
       "simulator": [
         "blocked_no_capable_worker_does_not_hold_landing_slot"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Two definitions of 'active landing work' disagree (the reconciler excludes externally blocked units, RuntimeOwnership.active_landing_work? does not), so a deferred Job could be pushed back into landing. Production check (one week, read-only): a single landing_work_job_state_drift repair and no defer/re-land alternation on any Job. Not observed; left open at low priority."
+      "status": "done",
+      "done_by": "Agreement.landing_repairs_never_both",
+      "notes": "Two definitions of 'active landing work': the drift classifier (strict) excludes units blocked on an operator-cleared reason; RuntimeOwnership.active_landing_work? (loose), used by DeferOrphanedLandingJob, RepairLandingWorkJobState and the orphaned-landing classifier, does not. Proved strict ⊆ loose (strict_implies_loose), so the re-land repair (needs strict) and the defer repair (needs ¬loose) never both apply to the same unit set (landing_repairs_never_both): a defer/re-land alternation needs new landing work to appear. Matches production (one drift repair in a week, no alternation). Residual: RepairLandingWorkJobState re-checks with the looser rule, so a unit that becomes externally blocked between classification and execution is still re-landed once; classify_externally_blocked_landing_slot then defers it again. Bounded, not a loop."
     },
     {
       "id": "landing-start-blocked",
