@@ -5,6 +5,7 @@ require "fileutils"
 require "securerandom"
 require "sqlite3"
 require "spec_helper"
+require_relative "../../lib/simulator_test_database_identity"
 
 RSpec.describe "bin/simulator", :ci_only do
   let(:root) { File.expand_path("../..", __dir__) }
@@ -18,6 +19,16 @@ RSpec.describe "bin/simulator", :ci_only do
     return :absent unless File.exist?(path)
 
     File.stat(path).ino
+  end
+
+  # The suffix config/database.yml builds from the simulator's stable
+  # TEST_ENV_NUMBER. A grader that shares its checkout runs with a
+  # SYRUS_TEST_DB_NAMESPACE, which the simulator subprocess inherits and
+  # config/database.yml prefixes; expecting the bare path failed this spec in
+  # exactly those graders.
+  def simulator_db_suffix
+    [ ENV["SYRUS_TEST_DB_NAMESPACE"], SimulatorTestDatabaseIdentity::STABLE_ENV_NUMBER ]
+      .reject { |part| part.to_s.empty? }.uniq.join("-")
   end
 
   def run_simulator(*args, env: {})
@@ -107,8 +118,8 @@ RSpec.describe "bin/simulator", :ci_only do
   end
 
   it "reuses the stable-suffix database across invocations instead of rebuilding it from scratch" do
-    db_path = File.join(root, "storage/test_simulator.sqlite3")
-    search_db_path = File.join(root, "storage/test_search_simulator.sqlite3")
+    db_path = File.join(root, "storage/test#{simulator_db_suffix}.sqlite3")
+    search_db_path = File.join(root, "storage/test_search#{simulator_db_suffix}.sqlite3")
     stale_paths = [ db_path, search_db_path ].flat_map { |path| [ path, "#{path}-shm", "#{path}-wal" ] }
     stale_paths.each { |path| FileUtils.rm_f(path) }
 
@@ -158,7 +169,7 @@ RSpec.describe "bin/simulator", :ci_only do
     _stdout, stderr, status = run_simulator("spec/fixtures/work_engine_simulations/single_initial_success.yml")
     expect(status).to be_success, stderr
 
-    db_path = File.join(root, "storage", "test_simulator.sqlite3")
+    db_path = File.join(root, "storage", "test#{simulator_db_suffix}.sqlite3")
     expect(File.exist?(db_path)).to be(true)
     SQLite3::Database.new(db_path) do |db|
       db.execute("UPDATE ar_internal_metadata SET value = ? WHERE key = 'schema_sha1'", [ "0" * 40 ])
