@@ -626,6 +626,21 @@ the subtraction command reports them separately from physical removability.
 Enforcement is disabled by default and requires a later explicit operator
 decision.
 
+## Capability families
+
+Families group related optional contributions into a documented contract. A
+plugin names one or more provider classes and declares the stable capabilities
+each class `implements`; experimental capabilities use the explicit
+`provisional` list. Syrus can show these declarations without loading plugin
+code, never invokes an undeclared capability, and excludes disabled plugins.
+
+Every capability specifies its stability tier, input context, absent behavior,
+and composition rule (`collect`, `broadcast`, `first_claim`, or `keyed`).
+Providers implementing a keyed capability also declare their selector with
+`key:`, keeping provider selection manifest-only and lazy.
+Operators can inspect declarations on the plugin's Admin detail page or with
+`syrus plugin capabilities` without loading provider classes.
+
 ## Execution Backend Contract
 
 Execution backends use the stable, versioned `Execution::Backend` contract.

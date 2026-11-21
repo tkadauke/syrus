@@ -30,6 +30,32 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").sole).to include("name" => "api-plugin", "version" => "2.0.0")
   end
 
+  it "exposes manifest-only capability declarations on plugin detail" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::Plugin::Family.reset!
+    Syrus::Plugin::Family.define(:api_family) do
+      shape :facet
+      capability :items, composition: :collect, absent: [], tier: :stable, context: "ApiContext"
+    end
+    declaration = Syrus::Plugin::FamilyDeclaration.build(
+      family: :api_family, provider: "UnloadedApiPlugin::Provider", implements: %i[items]
+    )
+    Syrus::PluginRegistry.register(name: "api-family-plugin", version: "1", family_provides: [ declaration ])
+
+    get "/api/v1/admin/plugins", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").sole.fetch("capabilities")).to contain_exactly(
+      "family" => "api_family", "capability" => "items", "provider" => "UnloadedApiPlugin::Provider",
+      "key" => nil, "tier" => "stable", "priority" => 100
+    )
+    expect(Object.const_defined?(:UnloadedApiPlugin)).to be(false)
+  ensure
+    Syrus::PluginRegistry.reset!
+    Syrus::Plugin::Family.reset!
+  end
+
   it "falls back to the SPQR eagle icon when the manifest has no icon_url" do
     admin_token
     Syrus::PluginRegistry.reset!
