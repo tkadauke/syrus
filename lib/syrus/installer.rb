@@ -127,8 +127,16 @@ module Syrus
       # nil means "cannot tell yet" (no plugin_records table during early boot
       # or on a fresh database); installs run rather than being suppressed,
       # matching how providers_for degrades.
+      #
+      # Enabled means what providers_for means by it: switched on *and*
+      # healthy. A while_enabled effect is a contribution like any provider (a
+      # chat session rehydrator, a credential probe, a chat extension), so a
+      # plugin that is degraded, failed to load, or sits on a broken dependency
+      # gets none installed (formal/SyrusModel/EffectHealth.lean).
       def enabled_plugin_names
-        Syrus::PluginRegistry.all_plugins.select(&:enabled?).map(&:name).to_set
+        names = Syrus::PluginRegistry.all_plugins.select(&:enabled?).map(&:name)
+        health = Syrus::PluginRegistry.health(enabled_names: names)
+        names.select { |name| health.healthy?(name) }.to_set
       rescue StandardError
         nil
       end

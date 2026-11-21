@@ -1864,6 +1864,47 @@ included, and there is no operator action to guard. That is NY14.
 
 ---
 
+## F62. An unhealthy plugin's effects stayed installed — fixed
+
+**Found by** DOC-44 plugin host semantics, "partial plugin registration cannot
+survive boot failure" (`EffectHealth.lean`).
+
+**Property.** Every contribution channel uses the same callable gate. The
+plugins whose `while_enabled` effects install are exactly the plugins whose
+providers `providers_for` hands out, which is the plugins that are enabled and
+whose whole required closure is enabled and sound
+(`channels_agree_and_effects_iff_closure`, checked over every acyclic graph on
+up to three plugins, every enabled set and every broken set).
+
+**Gap.** `Syrus::Installer` installed a plugin's `while_enabled` effects
+whenever the plugin was switched on, ignoring health. Effects are
+contributions: chat session rehydrators (the agent plugins), credential probes
+(video walkthroughs), and Coworkers' chat, search and schedule extensions. So a
+plugin that was degraded, or sat on a broken dependency, kept its code callable
+through its effects while its providers were withheld
+(`effects_outran_providers`).
+
+This also left a partial-registration hole. `Definition#install!` registers the
+manifest, then calls `Installer.define` for each effect, then runs boot
+blocks. When a boot block raises, `PluginLoader.install_definition!` restores
+the registry snapshot and records the plugin as failed. The effect
+registrations are not in that snapshot and survive the restore. The failed
+manifest keeps the operator's enabled flag, so the effects of a plugin that
+failed to boot were installed (`failed_load_effects`).
+
+**Fix.** `Installer.enabled_plugin_names` keeps only enabled plugins that
+`PluginRegistry.health` reports healthy. This is the same filter as
+`providers_for`. `ever_enabled` cleanup effects are unchanged, because they
+exist to tidy up after the plugin. A health change that comes from a
+`PluginRecord` toggle bumps the generation, so effects are torn down on the
+next sync.
+
+**Spec.** `installer_spec.rb` "unhealthy plugins": a degraded plugin, and one
+whose load failed, installed their effects before the fix. A plugin turning
+degraded now disposes its effects and does not reinstall them.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
