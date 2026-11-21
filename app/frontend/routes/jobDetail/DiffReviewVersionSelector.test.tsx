@@ -64,7 +64,15 @@ function ControlledSelector({ latestVersionId, versions }: { latestVersionId: nu
 // to something unrelated to the clicked range, so the harness can reproduce the
 // divergence instead of only ever seeing `range.versionId` (always null, per
 // selectEndpoint).
-function StaleBackendSelector({ latestVersionId, staleVersionId, versions }: { latestVersionId: number | null; staleVersionId: number; versions: DiffReviewVersion[] }) {
+function StaleBackendSelector({
+  latestVersionId,
+  staleVersionId,
+  versions
+}: {
+  latestVersionId: number | null
+  staleVersionId: number
+  versions: DiffReviewVersion[]
+}) {
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(latestVersionId)
   const [selectedRange, setSelectedRange] = useState<{ baseSha: string; headSha: string } | null>(null)
 
@@ -116,15 +124,15 @@ describe("canonicalReviewVersions", () => {
     const older = allChangesVersion({ id: 1, version_index: 1, head_sha: "claude-head" })
     const newer = allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
 
-    const canonical = canonicalReviewVersions([ older, newer ])
+    const canonical = canonicalReviewVersions([older, newer])
 
-    expect(canonical).toEqual([ newer ])
+    expect(canonical).toEqual([newer])
   })
 
-  it("leaves a single All changes version untouched" , () => {
+  it("leaves a single All changes version untouched", () => {
     const version = allChangesVersion({ id: 1 })
 
-    expect(canonicalReviewVersions([ version ])).toEqual([ version ])
+    expect(canonicalReviewVersions([version])).toEqual([version])
   })
 
   it("drops an empty legacy All changes version when real review versions exist", () => {
@@ -139,7 +147,7 @@ describe("canonicalReviewVersions", () => {
       files_count: 3
     }
 
-    expect(canonicalReviewVersions([ emptyAllChanges, runVersion ])).toEqual([ runVersion ])
+    expect(canonicalReviewVersions([emptyAllChanges, runVersion])).toEqual([runVersion])
   })
 
   it("does not affect non All-changes versions with distinct run ranges", () => {
@@ -160,14 +168,14 @@ describe("canonicalReviewVersions", () => {
       head_sha: "c"
     }
 
-    expect(canonicalReviewVersions([ rangeA, rangeB ])).toEqual([ rangeA, rangeB ])
+    expect(canonicalReviewVersions([rangeA, rangeB])).toEqual([rangeA, rangeB])
   })
 
   it("keeps a resumed Run's second, different commit range as its own distinct row instead of collapsing it", () => {
     const first = rangeVersion({ id: 6, version_index: 6, workflow_id: 20, run_id: 149674, base_sha: "base-a", head_sha: "aaaaaaa1111111" })
     const second = rangeVersion({ id: 7, version_index: 7, workflow_id: 20, run_id: 149674, base_sha: "base-b", head_sha: "bbbbbbb2222222" })
 
-    expect(canonicalReviewVersions([ first, second ])).toEqual([ first, second ])
+    expect(canonicalReviewVersions([first, second])).toEqual([first, second])
   })
 })
 
@@ -177,14 +185,14 @@ describe("duplicateRunIds", () => {
     const second = rangeVersion({ id: 7, run_id: 149674, head_sha: "bbbbbbb2222222" })
     const other = rangeVersion({ id: 8, run_id: 200, head_sha: "ccccccc3333333" })
 
-    expect(duplicateRunIds([ first, second, other ])).toEqual(new Set([ 149674 ]))
+    expect(duplicateRunIds([first, second, other])).toEqual(new Set([149674]))
   })
 
   it("returns an empty set when every version has its own run_id", () => {
     const first = rangeVersion({ id: 1, run_id: 100 })
     const second = rangeVersion({ id: 2, run_id: 101 })
 
-    expect(duplicateRunIds([ first, second ])).toEqual(new Set())
+    expect(duplicateRunIds([first, second])).toEqual(new Set())
   })
 })
 
@@ -195,13 +203,7 @@ describe("DiffReviewVersionSelector", () => {
       allChangesVersion({ id: 2, version_index: 2, head_sha: "codex-head" })
     ]
 
-    render(
-      <DiffReviewVersionSelector
-        onChange={() => {}}
-        selectedVersionId={2}
-        versions={versions}
-      />
-    )
+    render(<DiffReviewVersionSelector onChange={() => {}} selectedVersionId={2} versions={versions} />)
 
     expect(screen.getAllByText("All changes")).toHaveLength(1)
   })
@@ -210,13 +212,7 @@ describe("DiffReviewVersionSelector", () => {
     const first = rangeVersion({ id: 6, version_index: 6, workflow_id: 20, run_id: 149674, base_sha: "main-sha", head_sha: "aaaaaaa1111111" })
     const second = rangeVersion({ id: 7, version_index: 7, workflow_id: 20, run_id: 149674, base_sha: "aaaaaaa1111111", head_sha: "bbbbbbb2222222" })
 
-    render(
-      <DiffReviewVersionSelector
-        onChange={() => {}}
-        selectedVersionId={7}
-        versions={[ first, second ]}
-      />
-    )
+    render(<DiffReviewVersionSelector onChange={() => {}} selectedVersionId={7} versions={[first, second]} />)
 
     // The selected/collapsed label on the closed button must not read the
     // bare run label for the currently selected (later) version -- that is
@@ -226,19 +222,13 @@ describe("DiffReviewVersionSelector", () => {
     fireEvent.click(screen.getByRole("button", { name: /Version/ }))
 
     const rows = screen.getAllByText(/^v[67] RUN-149674/)
-    expect(rows.map((row) => row.textContent)).toEqual([ "v6 RUN-149674 (aaaaaaa)", "v7 RUN-149674 (bbbbbbb)" ])
+    expect(rows.map((row) => row.textContent)).toEqual(["v6 RUN-149674 (aaaaaaa)", "v7 RUN-149674 (bbbbbbb)"])
   })
 
   it("keeps the plain RUN-<id> label when a run_id is not shared by another version", () => {
     const only = rangeVersion({ id: 1, version_index: 1, workflow_id: 10, run_id: 100, head_sha: "aaaaaaa1111111" })
 
-    render(
-      <DiffReviewVersionSelector
-        onChange={() => {}}
-        selectedVersionId={1}
-        versions={[ only ]}
-      />
-    )
+    render(<DiffReviewVersionSelector onChange={() => {}} selectedVersionId={1} versions={[only]} />)
 
     expect(screen.getByText("RUN-100")).toBeInTheDocument()
   })
@@ -247,14 +237,7 @@ describe("DiffReviewVersionSelector", () => {
     const initial = rangeVersion({ id: 1, version_index: 1, workflow_id: 10, run_id: 100, base_sha: "shared-base", head_sha: "claude-head" })
     const retry = rangeVersion({ id: 2, version_index: 2, workflow_id: 11, run_id: 101, base_sha: "shared-base", head_sha: "retry-head" })
 
-    render(
-      <DiffReviewVersionSelector
-        onChange={() => {}}
-        selectedRange={null}
-        selectedVersionId={2}
-        versions={[ initial, retry ]}
-      />
-    )
+    render(<DiffReviewVersionSelector onChange={() => {}} selectedRange={null} selectedVersionId={2} versions={[initial, retry]} />)
 
     fireEvent.click(screen.getByRole("button", { name: /Version/ }))
 
@@ -267,7 +250,7 @@ describe("DiffReviewVersionSelector", () => {
     const second = rangeVersion({ id: 2, version_index: 2, workflow_id: 11, run_id: 101, base_sha: "b", head_sha: "c" })
     const third = rangeVersion({ id: 3, version_index: 3, workflow_id: 12, run_id: 102, base_sha: "c", head_sha: "d" })
 
-    render(<ControlledSelector latestVersionId={3} versions={[ first, second, third ]} />)
+    render(<ControlledSelector latestVersionId={3} versions={[first, second, third]} />)
 
     fireEvent.click(screen.getByRole("button", { name: /Version/ }))
     fireEvent.click(screen.getByRole("button", { name: /^From.*v1/ }))
@@ -280,7 +263,16 @@ describe("DiffReviewVersionSelector", () => {
 
   it("keeps nonlinear history endpoints independent instead of collapsing to either stored version", () => {
     const oldRange = rangeVersion({ id: 1, version_index: 1, workflow_id: 10, run_id: 100, base_sha: "old-base", head_sha: "old-head" })
-    const currentRange = rangeVersion({ id: 2, version_index: 2, workflow_id: 11, run_id: 101, base_sha: "current-base", head_sha: "current-head", label: "Rebase", reason: "rebase" })
+    const currentRange = rangeVersion({
+      id: 2,
+      version_index: 2,
+      workflow_id: 11,
+      run_id: 101,
+      base_sha: "current-base",
+      head_sha: "current-head",
+      label: "Rebase",
+      reason: "rebase"
+    })
     const onRangeChange = vi.fn()
 
     render(
@@ -289,7 +281,7 @@ describe("DiffReviewVersionSelector", () => {
         onRangeChange={onRangeChange}
         selectedRange={null}
         selectedVersionId={2}
-        versions={[ oldRange, currentRange ]}
+        versions={[oldRange, currentRange]}
       />
     )
 
@@ -304,7 +296,7 @@ describe("DiffReviewVersionSelector", () => {
     const second = rangeVersion({ id: 2, version_index: 2, run_id: 101, base_sha: "unrelated-base", head_sha: "second-head" })
     const third = rangeVersion({ id: 3, version_index: 3, run_id: 102, base_sha: "rebased-again", head_sha: "third-head" })
 
-    render(<ControlledSelector latestVersionId={3} versions={[ first, second, third ]} />)
+    render(<ControlledSelector latestVersionId={3} versions={[first, second, third]} />)
 
     fireEvent.click(screen.getByRole("button", { name: /Version/ }))
     fireEvent.click(screen.getByRole("button", { name: "From v1 RUN-100" }))
@@ -322,7 +314,7 @@ describe("DiffReviewVersionSelector", () => {
     const second = rangeVersion({ id: 2, version_index: 2, workflow_id: 11, run_id: 101, base_sha: "b", head_sha: "c" })
     const third = rangeVersion({ id: 3, version_index: 3, workflow_id: 12, run_id: 102, base_sha: "c", head_sha: "d" })
 
-    render(<StaleBackendSelector latestVersionId={3} staleVersionId={1} versions={[ first, second, third ]} />)
+    render(<StaleBackendSelector latestVersionId={3} staleVersionId={1} versions={[first, second, third]} />)
 
     fireEvent.click(screen.getByRole("button", { name: /Version/ }))
     fireEvent.click(screen.getByRole("button", { name: /^From.*v2/ }))

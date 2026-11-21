@@ -55,10 +55,17 @@ export function DiffReviewVersionSelector({
   // match one stored version highlights that version's row instead of
   // whichever row the cross-row lookup happens to match first.
   const resolvedSingleVersion = selectedRange ? findMatchingVersion(ordered, rangeBaseSha, rangeHeadSha) : selected
-  const highlightedFromVersion = selectedRange ? (resolvedSingleVersion || fromEndpointVersion) : selected
-  const highlightedToVersion = selectedRange ? (resolvedSingleVersion || toEndpointVersion) : selected
-  const displayLabel = selectedRange ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha, ambiguousRunIds) : selected ? collapsedLabel(t, selected, ambiguousRunIds) : t("review_version_label")
-  const selectedIndex = Math.max(0, ordered.findIndex((version) => version.id === selected?.id || version.base_sha === rangeBaseSha || version.head_sha === rangeHeadSha))
+  const highlightedFromVersion = selectedRange ? resolvedSingleVersion || fromEndpointVersion : selected
+  const highlightedToVersion = selectedRange ? resolvedSingleVersion || toEndpointVersion : selected
+  const displayLabel = selectedRange
+    ? selectedRangeLabel(t, ordered, rangeBaseSha, rangeHeadSha, ambiguousRunIds)
+    : selected
+      ? collapsedLabel(t, selected, ambiguousRunIds)
+      : t("review_version_label")
+  const selectedIndex = Math.max(
+    0,
+    ordered.findIndex((version) => version.id === selected?.id || version.base_sha === rangeBaseSha || version.head_sha === rangeHeadSha)
+  )
   const [activeIndex, setActiveIndex] = useState(selectedIndex)
 
   useEffect(() => {
@@ -161,7 +168,9 @@ export function DiffReviewVersionSelector({
         type="button"
       >
         <span className="min-w-0 truncate">{displayLabel}</span>
-        <span aria-hidden="true" className="shrink-0 text-gray-400">v</span>
+        <span aria-hidden="true" className="shrink-0 text-gray-400">
+          v
+        </span>
       </button>
       {open ? (
         <div
@@ -171,9 +180,7 @@ export function DiffReviewVersionSelector({
           role="listbox"
         >
           {ordered.map((version, index) => {
-            const selectedOption = selectedRange
-              ? version.base_sha === rangeBaseSha && version.head_sha === rangeHeadSha
-              : version.id === selected?.id
+            const selectedOption = selectedRange ? version.base_sha === rangeBaseSha && version.head_sha === rangeHeadSha : version.id === selected?.id
             const fromSelected = version.id === highlightedFromVersion?.id
             const toSelected = version.id === highlightedToVersion?.id
             const allChanges = isAllChangesVersion(version)
@@ -186,7 +193,9 @@ export function DiffReviewVersionSelector({
                 key={version.id}
                 onClick={allChanges ? () => selectVersion(version) : undefined}
                 onKeyDown={(event) => onOptionKeyDown(event, version)}
-                ref={(element) => { optionRefs.current[index] = element }}
+                ref={(element) => {
+                  optionRefs.current[index] = element
+                }}
                 role="option"
                 tabIndex={activeIndex === index ? 0 : -1}
               >
@@ -273,9 +282,7 @@ function runRangeKey(version: DiffReviewVersion) {
 }
 
 function endpointRange(endpoint: "from" | "to", selectedVersion: DiffReviewVersion, baseSha: string, headSha: string) {
-  return endpoint === "from"
-    ? { baseSha: selectedVersion.base_sha, headSha }
-    : { baseSha, headSha: selectedVersion.head_sha }
+  return endpoint === "from" ? { baseSha: selectedVersion.base_sha, headSha } : { baseSha, headSha: selectedVersion.head_sha }
 }
 
 function RangeRow({
@@ -329,7 +336,21 @@ function RangeRow({
   )
 }
 
-function EndpointChip({ ariaLabel, highlighted, label, onClick, title, type }: { ariaLabel?: string; highlighted: boolean; label: string; onClick?: MouseEventHandler<HTMLButtonElement>; title: string; type: string }) {
+function EndpointChip({
+  ariaLabel,
+  highlighted,
+  label,
+  onClick,
+  title,
+  type
+}: {
+  ariaLabel?: string
+  highlighted: boolean
+  label: string
+  onClick?: MouseEventHandler<HTMLButtonElement>
+  title: string
+  type: string
+}) {
   const className = `inline-flex h-7 w-16 shrink-0 items-center justify-center gap-1 rounded border px-2 py-0.5 text-xs ${onClick ? "cursor-pointer hover:border-brand/70" : ""} ${highlighted ? "border-brand bg-brand text-white" : "border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"}`
   const content = (
     <>
@@ -405,7 +426,9 @@ export function metadataSummary(t: TFunction<"jobs">, version: DiffReviewVersion
     version.created_at ? relativeDate(version.created_at) : null,
     filesLabel(t, version.files_count),
     commentsLabel(t, version.comments_count)
-  ].filter(Boolean).join(t("review_version_separator"))
+  ]
+    .filter(Boolean)
+    .join(t("review_version_separator"))
 }
 
 function metadataTitle(t: TFunction<"jobs">, version: DiffReviewVersion) {
@@ -420,7 +443,9 @@ function optionAccessibleName(t: TFunction<"jobs">, version: DiffReviewVersion, 
     collapsedLabel(t, version, ambiguousRunIds),
     t("review_version_range", { base: endpointLabel(version.base_ref, version.base_sha), head: endpointLabel(version.head_ref, version.head_sha) }),
     metadataSummary(t, version)
-  ].filter(Boolean).join(t("review_version_separator"))
+  ]
+    .filter(Boolean)
+    .join(t("review_version_separator"))
 }
 
 function findMatchingVersion(versions: DiffReviewVersion[], baseSha: string, headSha: string) {
