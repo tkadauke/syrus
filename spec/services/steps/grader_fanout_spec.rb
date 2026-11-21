@@ -2742,6 +2742,50 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       expect(explanations.fetch("volatile")["explanation"]).to eq("explicitly_always_run")
     end
 
+    # Regression (formal/SyrusModel/RepairReuse.lean): the repair's own diff
+    # is not everything that changed in its iteration -- format and generate
+    # commit after it. A repo-wide grader whose dependency's sources changed
+    # that way kept its earlier pass, because only command and environment
+    # fingerprints were compared for it.
+    it "reruns a repo-wide grader when its dependency's sources changed outside the repair's own diff" do
+      workflow.update!(trigger_kind: "merge_train")
+      write_config(<<~YAML)
+        targets:
+          - name: library
+            kind: library
+            sources: ["lib/**"]
+        grade:
+          steps:
+            - name: suite
+              run: bin/suite
+              deps: [":library"]
+            - name: lint
+              run: bin/lint
+      YAML
+      FileUtils.mkdir_p(@ws_path.join("lib"))
+      File.write(@ws_path.join("lib/generated.rb"), "VERSION = 1\n")
+      allow(@git).to receive(:run).with("ls-files", chdir: anything).and_return("lib/generated.rb\n")
+      handler.call
+      workflow.steps.where(kind: "grader", iteration: 1).each { |grader| grader.update_columns(state: "succeeded") }
+
+      # The repair touched an unrelated file; a later generate step rewrote
+      # the dependency's source.
+      File.write(@ws_path.join("lib/generated.rb"), "VERSION = 2\n")
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", position: 250, iteration: 2, loop_id: loop_id)
+      repair.runs.create!(
+        job: job,
+        trigger_kind: workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2,
+        step_agent_diff: "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new\n"
+      )
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |grader| grader.details["name"] }).to eq([ "suite" ])
+      expect(workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)).to contain_exactly(include("name" => "lint"))
+    end
+
     it "does not carry a pass across a repair iteration that committed a real diff" do
       write_config(<<~YAML)
         grade:

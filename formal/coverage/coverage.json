@@ -2333,6 +2333,23 @@
       "status": "done",
       "done_by": "F49",
       "notes": "LandingBase.lean: after_merge_confirms_base (a merge with a validated base had it read and equal), after_differs_only_when_unread. Before: an error or blank read of the live base merged anyway. A blank validated base still proceeds (NY10)."
+    },
+    {
+      "id": "landing-repair-reuse-current",
+      "area": "landing",
+      "title": "A landing repair keeps an earlier grader pass only if nothing that grader reads changed in the iteration",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Steps::GraderFanout#partition_evidence_driven_repair_graders / #reusable_repair_fingerprints?",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F50",
+      "notes": "RepairReuse.lean: keepAfter_nothing_read_changed, keepAfter_implies_keepBefore, keep_differs_only_for_scoped_dependencies. Repo-wide targets with no scoped dependency are kept after narrow repairs by documented design (metadata.always_rerun)."
     }
   ],
   "needs_you": [

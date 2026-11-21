@@ -968,7 +968,9 @@ every active grader. Later repair iterations carry forward a required grader's
 earlier pass only while its inputs, dependencies, command, environment, and
 policy still prove it. Landing retries also retain successful unrelated targets
 across a code-changing repair: failed or inconclusive graders rerun, as do
-graders whose source scope or dependency closure intersects the repair. A
+graders whose source scope or dependency closure intersects the repair, or
+whose scoped input files changed in the repair iteration for any reason,
+including `format` and `generate` commits. A
 repo-wide grader without a source scope is retained after a narrow repair when
 its command, configuration, environment, and declared dependencies are
 unchanged; set `metadata.always_rerun: true` to opt that grader out. Graders
