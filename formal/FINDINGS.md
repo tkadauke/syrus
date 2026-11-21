@@ -1782,6 +1782,19 @@ invokes tool classes directly.
   locks: same-attempt retry reuses the unit (see D1). Its "any active lock ⇒
   done" shortcut can leave a partial lock set, but every resume path re-runs
   `ensure_active_locks!`.
+- **D3.** Main-branch repair uniqueness (DOC-44, "at most one active repair
+  owner per broken-main episode"). `MainHealthChangedService#ensure_repair_job!`
+  checks for a blocking repair Job, then creates one, with no lock. It has many
+  callers: the health poll, the landing queue, the main grader, the repair
+  Workflow and the operator endpoint. Two creators that read the same snapshot
+  pick the same title-derived slug (`Job#generate_slug`), so the unique slug
+  index rejects the second one, as the rescue comment says. One interleaving
+  gets past it: B checks for a blocking Job before A commits, and picks a slug
+  after A commits, so B takes the next suffix. Production (read-only, the
+  repair Jobs since 2026-10-10) shows overlapping repair Jobs, but they are
+  failed repairs left open under `MAX_OPEN_FAILED_FIX_JOBS`, none created
+  within seconds of another. A repository row lock would close it, at the cost
+  of a new lock in a path with known lock-wait pressure (Lead L2). Left as is.
 
 ---
 
