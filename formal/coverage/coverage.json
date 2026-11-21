@@ -2617,9 +2617,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "F68 (NY20 decided)",
-      "notes": "F68: chat events reach participants and share viewers, recomputed per broadcast (ChatDelivery.lean). Decided NY20: an access change disconnects that user's open Job subscriptions. To implement."
+      "status": "done",
+      "done_by": "F68, F70",
+      "notes": "Chat events reach participants and share viewers, recomputed per broadcast (F68, ChatDelivery.lean). Job events are rechecked against Job.visible_to on delivery, so a revoked subscriber stops within 10 s (F70, ScopedDelivery.lean)."
     },
     {
       "id": "frontend-entity-merge",
@@ -2845,7 +2845,7 @@
         "C. Keep as is: plugins are trusted code reviewed like core."
       ],
       "recommendation": "A. It makes the exemption derived rather than declared, the same way pending-action tools already are, and costs nothing for today's tools (the spawn-chat tools can register their pending actions).",
-      "decision": "A, and check it (2026-11-21): a tool may skip the generic 'ask' only when Syrus can verify it creates a confirmation card (a registered pending action); a plugin's own declaration grants nothing. To implement."
+      "decision": "A, and check it (2026-11-21). Implementation detail pending: the only plugin tools that declare approval_effect (the Coworkers spawn tools) create their card themselves, through AuthorizationSupport.pending_coworker_plugin_approval, with normalized arguments. Requiring a registered pending action means giving those tools pending-action classes; letting the generic layer create the card instead risks a second card on the approved re-run, because the arguments differ. Needs a choice between the two."
     },
     {
       "id": "NY13",
@@ -2949,7 +2949,7 @@
         "C. Accept it: visibility revocation takes effect on the next reconnect, and the patches carry no secrets."
       ],
       "recommendation": "B. It keeps the shared stream, which matters because Job events are the high-churn ones, and makes revocation immediate at the single place access changes. A is simpler to reason about, but it multiplies the cost of every Job broadcast.",
-      "decision": "Prevent it (2026-11-21), via B: a membership or visibility change disconnects that user's open JobChannel subscriptions. To implement."
+      "decision": "Prevent it (2026-11-21). Implemented as F70, by rechecking Job.visible_to on delivery (cached 10 s) rather than disconnect hooks, because visibility has more inputs than any hook list would cover."
     },
     {
       "id": "NY21",

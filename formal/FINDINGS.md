@@ -2250,6 +2250,44 @@ missing-database case.
 
 ---
 
+## F70. A user who lost access to a Job kept receiving its live updates — fixed (NY20)
+
+**Found by** DOC-44 Phase 5 (F68's remaining case, queued as NY20). Decision:
+prevent it.
+
+**Property.** No Job event reaches a subscriber more than one recheck interval
+after that subscriber lost access, and every event before that is delivered
+(`ScopedDelivery.bounded_after_revocation`, checked over every revocation
+tick, every message pattern on a ten-tick timeline, and intervals 1 to 3).
+
+**Gap.** `JobChannel` authorized with `Job.visible_to` only on subscribe, then
+streamed one `job_resource:<id>` stream shared by every subscriber. Removing a
+repository membership, narrowing Job visibility, or losing the admin role did
+not end open subscriptions. Until the tab reconnected, that user kept
+receiving the Job's Workflow, Step and Run patches: state, timestamps, PR
+title, summary and cost (`revoked_kept_receiving`).
+
+**Fix.** Each delivery rechecks the same `Job.visible_to` the subscription
+used, trusting a positive answer for `VISIBILITY_RECHECK_INTERVAL` (10 s), so
+high-churn patches do not each cost a query. Once the check fails, the channel
+stops its streams and transmits nothing more.
+
+This differs from the recommendation recorded with NY20, which was to
+disconnect on membership changes. Visibility depends on memberships, teams,
+ownership, archiving, the admin role and plugin-supplied restrictions, so a
+hook-based disconnect would leave a hole for any input it missed. Rechecking
+the one predicate the subscription itself uses covers all of them.
+
+**Spec.** `job_channel_spec.rb` "delivery after access changes":
+
+- a visible subscriber receives;
+- after the membership is removed and the interval passes, nothing is
+  transmitted and the streams are stopped (red before: the method did not
+  exist and every message went out);
+- a second delivery inside the interval does not query again.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
