@@ -74,10 +74,7 @@ export default function ReviewWorkspaceRoute() {
           <CloseIcon className="h-5 w-5" />
         </button>
       </header>
-      <div
-        className={WORKSPACE_SCROLL_CLASS}
-        data-testid="review-workspace-scroll-container"
-      >
+      <div className={WORKSPACE_SCROLL_CLASS} data-testid="review-workspace-scroll-container">
         <JobRail active={active} jobs={jobs} prefix={prefix} />
         <JobReview conversationTarget={conversationTarget} job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
         <DecisionPanel
@@ -138,8 +135,26 @@ function JobReview({
   const detail = useQuery({
     queryKey: ["review_workspace", "job", job.id],
     queryFn: async () => {
-      const [header, summary, review] = await Promise.all([fetchJobDetail(String(job.id)), fetchJobTab(String(job.id), "summary"), fetchJobTab(String(job.id), "review")])
-      return normalizeJobDetailPayload({ ...header, attachments: [], typed_artifacts: [], coverage: null, summary: null, test_plan: null, report: null, feedback_history: [], ...summary, ...review } as JobDetailPayload, "focused_review_workspace")
+      const [header, summary, review] = await Promise.all([
+        fetchJobDetail(String(job.id)),
+        fetchJobTab(String(job.id), "summary"),
+        fetchJobTab(String(job.id), "review")
+      ])
+      return normalizeJobDetailPayload(
+        {
+          ...header,
+          attachments: [],
+          typed_artifacts: [],
+          coverage: null,
+          summary: null,
+          test_plan: null,
+          report: null,
+          feedback_history: [],
+          ...summary,
+          ...review
+        } as JobDetailPayload,
+        "focused_review_workspace"
+      )
     }
   })
   useEffect(() => {
@@ -230,9 +245,7 @@ function DecisionPanel({
       <p className="mt-2 text-sm text-text-secondary">{t("decision_hint")}</p>
       <section className="mt-5 border-t border-border pt-4" aria-label={t("checks")}>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("checks")}</h3>
-        <p className={`mt-2 text-sm ${canApprove ? "text-success-text" : "text-text-secondary"}`}>
-          {canApprove ? t("checks_ready") : t("checks_blocked")}
-        </p>
+        <p className={`mt-2 text-sm ${canApprove ? "text-success-text" : "text-text-secondary"}`}>{canApprove ? t("checks_ready") : t("checks_blocked")}</p>
       </section>
       <section className="mt-4 border-t border-border pt-4" aria-label={t("findings")}>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("findings")}</h3>
