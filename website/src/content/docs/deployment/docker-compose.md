@@ -407,6 +407,13 @@ plugin can create, validate, pin, download, and retain bundles from **Admin → 
 Backups**. Downloads are audited and support resumable HTTP byte ranges. These recovery bundles are separate from the installer's temporary
 pre-upgrade safety archives under `backups/`.
 
+The offline recovery CLI can stage and promote a like-for-like SQLite plus Disk
+Active Storage bundle on an ordinary Linux host. It requires all web and worker
+writers to be stopped and verified through their PID files, retains a pinned
+pre-restore safety copy, and leaves maintenance mode active on failure. This is
+not yet a qualified end-to-end Docker Compose restore: keep Compose recovery
+classified as unsupported until a separate container-backed drill is in CI.
+
 Fresh installs bound the prepared-workspace cache and retained Coding Mode
 checkouts to 10 GB each so these volumes cannot grow without a local policy.
 Existing stored settings survive upgrades. Inspect the instance defaults and

@@ -18,6 +18,33 @@ RSpec.describe LocalBackups::Recovery do
     bundle
   end
 
+  def create_restore_bundle(root)
+    bundle = Pathname.new(root).join("restore-bundle").tap(&:mkpath)
+    database = bundle.join("database/primary.sqlite3")
+    database.dirname.mkpath
+    sqlite = SQLite3::Database.new(database.to_s)
+    sqlite.execute("CREATE TABLE active_storage_blobs (id INTEGER PRIMARY KEY, key TEXT)")
+    key = "abcd-restored-key"
+    sqlite.execute("INSERT INTO active_storage_blobs (key) VALUES (?)", key)
+    sqlite.close
+    blob = bundle.join("blobs/ab/cd/#{key}")
+    blob.dirname.mkpath
+    blob.binwrite("restored object")
+    validation = bundle.join("validation.json").tap { |path| path.write("{}") }
+    checksums = bundle.join("checksums.sha256")
+    files = [database, blob, validation]
+    checksums.write(files.map { |path| "#{Digest::SHA256.file(path).hexdigest}  #{path.relative_path_from(bundle)}\n" }.join)
+    manifest = {
+      manifest_version: "1.0", backup_id: "restore-1", completed_at: "2026-11-20T00:00:00Z",
+      artifact: { format: "directory", checksum_path: "checksums.sha256" }, checksum: Digest::SHA256.file(checksums).hexdigest,
+      database: { adapter: "sqlite3", path: "database/primary.sqlite3", schema_version: 0 },
+      active_storage: { service: "Disk", blob_count: 1, blobs: [{ key:, relative_path: "blobs/ab/cd/#{key}",
+        byte_size: blob.size, bundle_checksum: Digest::SHA256.file(blob).hexdigest }] }
+    }
+    bundle.join("manifest.json").write(JSON.generate(manifest))
+    bundle
+  end
+
   it "validates a bundle without Rails or an inventory record" do
     Dir.mktmpdir do |directory|
       bundle = described_class::Bundle.new(create_bundle(directory)).validate!
@@ -138,6 +165,79 @@ RSpec.describe LocalBackups::Recovery do
       expect { described_class::Importer.new(root: destination).import(bundle) }
         .to raise_error(described_class::Error, "backup_id is not a safe filename")
       expect(Pathname.new(directory).join("outside")).not_to exist
+    end
+  end
+
+  it "restores SQLite and Disk state through staging and keeps a pinned safety copy" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      destination = root.join("data").tap(&:mkpath)
+      database = destination.join("primary.sqlite3").tap { |path| path.write("old database") }
+      storage = destination.join("storage").tap(&:mkpath)
+      storage.join("old").write("old object")
+      pid_file = root.join("worker.pid").tap { |path| path.write("99999999") }
+      bundle = described_class::Bundle.new(create_restore_bundle(root))
+      token = described_class::Token.issue(secret: "secret", artifact_checksum: bundle.identity_checksum, installation_id: "install-a")
+
+      result = described_class::Restore.new(bundle:, destination:, database_path: database, storage_path: storage,
+        installation_id: "install-a", token_secret: "secret", token:, pid_files: [pid_file]).call
+
+      expect(database.binread).to start_with("SQLite format 3\0")
+      expect(storage.join("ab/cd/abcd-restored-key").read).to eq("restored object")
+      expect(Pathname.new(result.rollback_path).join("database.sqlite3").read).to eq("old database")
+      expect(Pathname.new(result.rollback_path).join("PINNED")).to exist
+      expect(destination.join("MAINTENANCE")).not_to exist
+    end
+  end
+
+  it "refuses restore while a declared mutating process is still alive" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      destination = root.join("data").tap(&:mkpath)
+      pid_file = root.join("worker.pid").tap { |path| path.write(Process.pid.to_s) }
+      bundle = described_class::Bundle.new(create_restore_bundle(root))
+      token = described_class::Token.issue(secret: "secret", artifact_checksum: bundle.identity_checksum, installation_id: "install-a")
+
+      expect { described_class::Restore.new(bundle:, destination:, database_path: destination.join("primary.sqlite3"),
+        storage_path: destination.join("storage"), installation_id: "install-a", token_secret: "secret", token:,
+        pid_files: [pid_file]).call }.to raise_error(described_class::Error, /still running/)
+      expect(destination.join("MAINTENANCE")).to exist
+      expect(destination.join("RESTORE_FAILED.json").read).to include("maintenance_required")
+    end
+  end
+
+  it "leaves maintenance active with rollback instructions when restored-state health fails" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      destination = root.join("data").tap(&:mkpath)
+      database = destination.join("primary.sqlite3").tap { |path| path.write("old database") }
+      storage = destination.join("storage").tap(&:mkpath)
+      pid_file = root.join("worker.pid").tap { |path| path.write("99999999") }
+      bundle = described_class::Bundle.new(create_restore_bundle(root))
+      token = described_class::Token.issue(secret: "secret", artifact_checksum: bundle.identity_checksum, installation_id: "install-a")
+
+      expect { described_class::Restore.new(bundle:, destination:, database_path: database, storage_path: storage,
+        installation_id: "install-a", token_secret: "secret", token:, pid_files: [pid_file],
+        health_check: ->(*) { false }).call }.to raise_error(described_class::Error, /health check failed/)
+      expect(destination.join("MAINTENANCE")).to exist
+      expect(destination.join("RESTORE_FAILED.json").read).to include("pinned pre-restore directory")
+      expect(destination.children.map(&:to_s).grep(/pre-restore-.*\.pinned/)).not_to be_empty
+    end
+  end
+
+  it "fails closed for unqualified database and object-storage topologies" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      path = create_restore_bundle(root)
+      manifest = JSON.parse(path.join("manifest.json").read)
+      manifest["database"]["adapter"] = "mysql2"
+      path.join("manifest.json").write(JSON.generate(manifest))
+      bundle = described_class::Bundle.new(path)
+      token = described_class::Token.issue(secret: "secret", artifact_checksum: bundle.identity_checksum, installation_id: "install-a")
+
+      expect { described_class::Restore.new(bundle:, destination: root, database_path: root.join("db"), storage_path: root.join("storage"),
+        installation_id: "install-a", token_secret: "secret", token:, pid_files: [root.join("worker.pid")]).call }
+        .to raise_error(described_class::Error, /not qualified for database adapter/)
     end
   end
 end

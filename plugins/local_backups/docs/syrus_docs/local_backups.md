@@ -86,8 +86,18 @@ artifact checksum. Missing live database information is reported as unknown,
 not healthy. A changed artifact or installation therefore requires a new
 preflight token.
 
-These commands prepare recovery; they do not replace application data. Final
-restore execution remains unavailable until the separately confirmed,
-maintenance-mode execution stage is implemented. Keep workers and web writers
-stopped before any future destructive restore. Replication execution also
-remains a separate product stage.
+The `restore` command performs a deliberately narrow, like-for-like offline
+restore for SQLite plus Disk Active Storage. Run preflight first, stop every
+web and worker process, and pass a PID file for every mutating process together
+with the bound token, database path, and storage path. Restore writes a
+`MAINTENANCE` marker, verifies those processes are gone, creates a pinned
+pre-restore directory, stages and checks the database and every object, and
+then promotes them. `--break-glass` permits proceeding only when the safety
+copy itself cannot be created. A failed restore leaves `MAINTENANCE` and
+`RESTORE_FAILED.json` in place with rollback guidance; never restart writers
+until the restored installation has passed its boot checks.
+
+This command does not qualify Compose or Kubernetes recovery, MySQL, S3-
+compatible object storage, cross-adapter conversion, or cross-storage
+conversion. Those modes remain unsupported pending isolated environment-backed
+CI drills. Replication execution also remains a separate product stage.
