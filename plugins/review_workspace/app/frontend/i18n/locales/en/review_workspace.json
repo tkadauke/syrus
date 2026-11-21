@@ -22,6 +22,7 @@
   "checks": "Checks",
   "checks_ready": "Approval checks are ready.",
   "checks_blocked": "Approval is not currently available.",
+  "pull_request_number": "PR #{{number}}",
   "findings": "Risk and review findings",
   "approve": "Approve for landing",
   "approve_mobile": "Approve",
