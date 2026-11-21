@@ -1125,30 +1125,6 @@ module WorkEngine
         end
       end
 
-      class DeferLandingStartBlockedWorkflow < Base
-        def perform
-          workflow = target_workflow
-          return skipped("Workflow no longer exists") unless workflow
-          return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
-          return skipped("Workflow is not a landing workflow") unless workflow.landing_workflow?
-          return skipped("Job is #{workflow.job&.state}, not landing") unless workflow.job&.landing?
-          return skipped("Workflow first step already has a Run") if workflow.first_step&.runs&.exists?
-          return skipped("Job cannot transition to approved") unless workflow.job.may_defer_landing?
-
-          reason = workflow.artifact("failure_reason").presence ||
-            WorkUnits::StartBlock.for(workflow).reason ||
-            "landing start blocked: workflow admission budget"
-          reason = "workflow admission budget" if reason == StepDispatcher::ADMISSION_BLOCK_REASON
-          reason = "landing start blocked: #{reason}" unless LandingQueueReentry.landing_start_blocker?(reason)
-
-          with_transition_reason do
-            StepDispatcher.fail_unstartable_landing_workflow!(workflow, reason)
-          end
-
-          success("failed blocked landing #{workflow_label(workflow)} and deferred #{job_label(workflow.job)} back to approved")
-        end
-      end
-
       class CancelStaleAutoRetryWorkflow < Base
         def perform
           workflow = target_workflow
