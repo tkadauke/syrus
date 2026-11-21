@@ -43,7 +43,7 @@ module AgentInsights
 
           scope = ::Workflow
             .joins(:job)
-            .includes(:job, :workflow_artifact_values, :workflow_warnings, steps: :runs)
+            .includes(:job, :workflow_warnings)
             .where(jobs: { repository_id: repository.id, user_id: context_run.job.user_id })
             .where.not(jobs: { kind: "agent_insight" })
             .where.not(finished_at: nil)
@@ -51,7 +51,11 @@ module AgentInsights
             .order(finished_at: :desc, id: :desc)
 
           total = scope.count
-          workflows = scope.offset((page_num - 1) * per_page).limit(per_page)
+          workflows = scope.offset((page_num - 1) * per_page).limit(per_page).to_a
+          workflow_ids = workflows.map(&:id)
+          @runs_by_workflow = runs_by_workflow(workflow_ids)
+          @step_counts = ::Step.where(workflow_id: workflow_ids).group(:workflow_id).count
+          @summaries = summaries_by_workflow(workflow_ids)
 
           MCP::Tool::Response.new([
             {
@@ -107,9 +111,41 @@ module AgentInsights
           (total.to_f / per).ceil
         end
 
+        # Narrow columns only. Eager-loading `steps: :runs` pulled every Run's
+        # prompt and diff columns -- megabytes each -- for up to 50 Workflows,
+        # merge trains with 130-plus grader Steps among them, into the worker
+        # serving the agent's MCP calls; it ran out of memory and was killed
+        # mid-call, taking every Run on it down as worker_died, again on each
+        # retry of the insight run.
+        RUN_COLUMNS = "runs.id, runs.state, runs.agent_outcome, runs.agent_summary, runs.started_at, " \
+                      "runs.finished_at, runs.created_at, steps.workflow_id AS step_workflow_id, steps.kind AS step_kind_name"
+        MAX_RUNS_PER_WORKFLOW = 40
+
+        # The one artifact the payload shows, for the whole page in one query --
+        # not every artifact value of every Workflow, which can be large.
+        def summaries_by_workflow(workflow_ids)
+          return {} if workflow_ids.empty?
+
+          ::Workflow.joins(:workflow_artifact_values)
+            .where(id: workflow_ids, workflow_artifact_values: { key: "summary" })
+            .pluck(:id, "workflow_artifact_values.value")
+            .to_h { |id, raw| [ id, (JSON.parse(raw) rescue raw) ] }
+        end
+
+        def runs_by_workflow(workflow_ids)
+          return {} if workflow_ids.empty?
+
+          ::Run.joins(:step)
+            .where(steps: { workflow_id: workflow_ids })
+            .select(RUN_COLUMNS)
+            .order("runs.created_at DESC, runs.id DESC")
+            .group_by(&:step_workflow_id)
+        end
+
         def workflow_payload(workflow)
-          runs = workflow_step_runs(workflow)
-          latest_run = latest_run_for(runs)
+          runs = Array(@runs_by_workflow[workflow.id])
+          latest_run = runs.first
+          shown_runs = runs.first(MAX_RUNS_PER_WORKFLOW)
           {
             id: workflow.id,
             job: {
@@ -121,12 +157,13 @@ module AgentInsights
             trigger_kind: workflow.trigger_kind,
             state: workflow.state,
             agent_provider: workflow.agent_provider,
-            summary: text_snippet(redact(workflow.artifact("summary").presence || latest_run&.agent_summary), 500),
-            step_count: workflow.steps.size,
+            summary: text_snippet(redact(@summaries[workflow.id].presence || latest_run&.agent_summary), 500),
+            step_count: @step_counts.fetch(workflow.id, 0),
             run_count: runs.size,
             started_at: workflow.started_at&.iso8601,
             finished_at: workflow.finished_at&.iso8601,
-            runs: runs.map { |run| run_payload(run) },
+            runs: shown_runs.map { |run| run_payload(run) },
+            runs_truncated: runs.size > shown_runs.size,
             warnings: workflow.workflow_warnings.map { |warning| warning_payload(warning) }
           }
         end
@@ -151,7 +188,7 @@ module AgentInsights
         def run_payload(run)
           {
             id: run.id,
-            step_kind: run.step&.kind,
+            step_kind: run.step_kind_name,
             state: run.state,
             agent_outcome: run.agent_outcome,
             agent_summary: text_snippet(redact(run.agent_summary), 300),
