@@ -142,9 +142,9 @@
         "requested_intent_without_active_unit",
         "stale_initial_intent_after_successful_retry"
       ],
-      "status": "open",
-      "done_by": "O2",
-      "notes": "Both classifiers return [] unless the Reconciler is invoked with work_intent_id, and no production caller passes one, so this state is never detected in production. Modelled as requestedWithoutActiveUnit in Reconciler.lean."
+      "status": "partial",
+      "done_by": "F42",
+      "notes": "Both classifiers return [] unless the Reconciler is invoked with work_intent_id, and no production caller passes one, so this state is never detected in production. Modelled as requestedWithoutActiveUnit in Reconciler.lean. Production (read-only): 87 of 92 requested intents had only cancelled units; for finished work these are now cancelled with the unit (F42). Remaining: Epic-conflict victims rely on the Job-level retry repair, and the generic relaunch classifier still never runs without a work_intent_id."
     },
     {
       "id": "active-unit-without-workflow",
@@ -165,9 +165,9 @@
       "simulator": [
         "active_work_unit_without_workflow"
       ],
-      "status": "partial",
-      "done_by": "model round 1 (Reconciler.lean activeWithoutWorkflow)",
-      "notes": "The repair (cancelWithoutWorkflow) is proved invariant-preserving; prevention (launch atomically attaches a workflow) is not proved."
+      "status": "done",
+      "done_by": "by construction · work_unit_workflow_ownership_spec",
+      "notes": "The repair (cancelWithoutWorkflow) is proved invariant-preserving; prevention (launch atomically attaches a workflow) is not proved. Prevention holds by construction: Launcher#instantiate creates the unit, its locks and its Workflow in one WorkIntent.transaction (a raising template rolls the unit back), nothing in the app destroys a Workflow or nils a unit's workflow, and the architecture spec confines WorkUnit creation to the launcher."
     },
     {
       "id": "unit-intent-outcome-agreement",
@@ -1136,8 +1136,8 @@
       "prod_skipped": 0,
       "simulator": [],
       "status": "partial",
-      "done_by": "F6",
-      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends."
+      "done_by": "F42",
+      "notes": "Member-scoped (Epic / merge-train) intents are never cancelled on close, and an intent skipped because its unit was active is not re-cancelled when the unit later ends. F42: production had 87 requested intents whose only units were cancelled for job_closed / terminal_parent_work_unit / retired_for_implementation_retry; these reasons now end the intent in TerminalUnitSync (shared with the reconciler's superseded-unit backstop), which also covers member-scoped intents and intents whose unit was still active at close."
     },
     {
       "id": "queued-job-after-cancelled-workflow",
