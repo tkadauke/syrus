@@ -534,18 +534,62 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.providers_for(:agent_provider)).to eq([])
     end
 
-    it "returns all plugins when the plugin_records table does not exist" do
-      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::StatementInvalid)
+    # Never treat an installed plugin as enabled because enablement could not
+    # be read: that can switch on a plugin the operator disabled, an execution
+    # backend or an approval provider among them. A missing table has a
+    # definite answer, the declared defaults; any other read error is retried
+    # and then raised (formal/SyrusModel/EnablementRead.lean).
+    describe "when plugin enablement cannot be read" do
+      let(:off_by_default) { Class.new { include Syrus::Plugin::AgentProvider } }
 
-      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
-    end
+      before do
+        allow(described_class).to receive(:enablement_retry_sleep)
+        described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+        described_class.register(name: "plugin_off", version: "1.0.0", default_enabled: false, provides: { agent_provider: off_by_default })
+      end
 
-    it "returns all plugins when the database is unavailable" do
-      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+      it "uses the declared defaults when the plugin_records table does not exist yet" do
+        allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::StatementInvalid)
+        allow(PluginRecord).to receive(:table_exists?).and_return(false)
 
-      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+        expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+      end
+
+      it "uses the declared defaults when the database does not exist yet (db:create)" do
+        allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::NoDatabaseError)
+
+        expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+      end
+
+      it "raises instead of handing out every plugin when the database stays unavailable" do
+        allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+        expect { described_class.providers_for(:agent_provider) }.to raise_error(described_class::EnablementUnavailable)
+        expect { described_class.all_plugins }.to raise_error(described_class::EnablementUnavailable)
+        expect { described_class.health }.to raise_error(described_class::EnablementUnavailable)
+        expect(PluginRecord).to have_received(:all).at_least(described_class::ENABLEMENT_READ_ATTEMPTS).times
+      end
+
+      it "retries a transient error and answers from the records" do
+        PluginRecord.find_by!(name: "plugin_a").update!(enabled: false)
+        described_class.clear_plugin_record_cache!
+        attempts = 0
+        allow(PluginRecord).to receive(:all).and_wrap_original do |original|
+          attempts += 1
+          raise ActiveRecord::ConnectionNotEstablished if attempts == 1
+
+          original.call
+        end
+
+        expect(described_class.providers_for(:agent_provider)).to eq([])
+      end
+
+      it "keeps every plugin only for an asset build, which has no instance to change" do
+        allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+        stub_const("ENV", ENV.to_h.merge("SECRET_KEY_BASE_DUMMY" => "1"))
+
+        expect(described_class.providers_for(:agent_provider)).to contain_exactly(agent_provider_class, off_by_default)
+      end
     end
   end
 
@@ -642,14 +686,18 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.credential_type_names).to eq([])
     end
 
-    it "falls back to registered credential types when plugin_records is unavailable" do
+    it "lists every registered credential type only for an asset build when plugin_records is unavailable" do
       described_class.register(
         name: "fallback_credential_plugin",
         version: "1.0.0",
         credential_type_names: [ "fallback_credential_plugin.kubeconfig" ]
       )
+      allow(described_class).to receive(:enablement_retry_sleep)
       allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
 
+      expect { described_class.credential_type_names }.to raise_error(described_class::EnablementUnavailable)
+
+      stub_const("ENV", ENV.to_h.merge("SECRET_KEY_BASE_DUMMY" => "1"))
       expect(described_class.credential_type_names).to eq([ "fallback_credential_plugin.kubeconfig" ])
     end
   end
@@ -1400,18 +1448,22 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "is resilient when the plugin_records table does not exist" do
       allow(PluginRecord).to receive(:find_or_initialize_by).and_raise(ActiveRecord::StatementInvalid)
+      allow(PluginRecord).to receive(:table_exists?).and_return(false)
       expect {
         described_class.register(name: "resilient_plugin", version: "1.0.0")
       }.not_to raise_error
       expect(described_class.all_plugins.map(&:name)).to include("resilient_plugin")
     end
 
+    # Registration never needs the database; reading enablement does, and an
+    # unreadable answer raises rather than guessing (see "when plugin
+    # enablement cannot be read").
     it "is resilient when the database is unavailable during boot" do
       allow(PluginRecord).to receive(:find_or_initialize_by).and_raise(ActiveRecord::ConnectionNotEstablished)
       expect {
         described_class.register(name: "boot_plugin", version: "1.0.0")
       }.not_to raise_error
-      expect(described_class.all_plugins.map(&:name)).to include("boot_plugin")
+      expect(described_class.registered_names).to include("boot_plugin")
     end
 
     context "direct registration (register(:extension_point, provider))" do
@@ -1795,12 +1847,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.enabled?).to be(false)
     end
 
-    it "reports enabled: true for plugins without a PluginRecord (table missing guard)" do
+    it "reports the declared default for plugins without a PluginRecord (table missing guard)" do
       described_class.register(name: "unrecorded", version: "1.0.0")
+      described_class.register(name: "unrecorded_off", version: "1.0.0", default_enabled: false)
       allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::StatementInvalid)
+      allow(PluginRecord).to receive(:table_exists?).and_return(false)
 
-      manifest = described_class.all_plugins.find { |m| m.name == "unrecorded" }
-      expect(manifest.enabled?).to be(true)
+      manifests = described_class.all_plugins.index_by(&:name)
+      expect(manifests.fetch("unrecorded").enabled?).to be(true)
+      expect(manifests.fetch("unrecorded_off").enabled?).to be(false)
     end
   end
 

@@ -2188,6 +2188,68 @@ stays open. That is NY20.
 
 ---
 
+## F69. A database hiccup switched disabled plugins back on — fixed (NY13)
+
+**Found by** DOC-44 plugin host semantics (queued as NY13). Decision:
+"We should not treat installed plugins as enabled. This is potentially
+destructive. We need to retry until we have a straight answer."
+
+**Property.** Outside an asset build, the enablement answer is exactly what
+the first non-transient read within the retry budget says. That is the
+records, or the declared defaults when the database or table does not exist.
+Otherwise there is no answer. It is never "every installed plugin"
+(`EnablementRead.never_enables_disabled_and_answers_when_readable`, checked
+over every outcome sequence of three attempts and every combination of two
+plugins' defaults and records).
+
+**Gap.** Several call sites answered a database error with "every installed
+plugin is enabled":
+
+- `Syrus::PluginRegistry.providers_for`, `all_plugins`, `health` and
+  `credential_types` caught any `ActiveRecord::ActiveRecordError`;
+- `beta_mode_enabled?` answered `true`;
+- the Installer answered "install everything".
+
+So a lock-wait timeout or a dropped connection made a disabled plugin
+callable for that call: an execution backend, an approval provider, a
+repository content provider (`blip_enables_disabled`). The fallback existed
+so that asset precompile and a first boot work without a database.
+
+**Fix.** One read, `PluginRegistry.enablement_records`, decides every case:
+
+- **No database or no table** (`NoDatabaseError`, or `plugin_records`
+  missing, as for `db:create` or a fresh database before migration): the
+  declared defaults, which are exactly what the records will say once
+  created.
+- **Asset build** (`SECRET_KEY_BASE_DUMMY`): every plugin. There is no
+  instance and no database, and the build needs every plugin's assets.
+- **Any other error:** retried three times with short backoff, then
+  `EnablementUnavailable` is raised. The caller fails instead of guessing.
+  `beta_mode_enabled?` raises the same way.
+
+`Syrus::Installer.sync!` resolves the enabled set *before* disposing
+anything. On `EnablementUnavailable` it keeps every installed effect and
+leaves its fingerprint, so the next sync tries again.
+
+A process whose database server is down at boot now fails boot and is
+restarted until it can read enablement, instead of booting with guessed
+plugins. `db:create` and the first `db:prepare` still boot, through the
+missing-database case.
+
+**Spec.**
+
+- `plugin_registry_spec.rb` "when plugin enablement cannot be read":
+  - defaults for a missing table and for a missing database;
+  - raises after the retry budget, from `providers_for`, `all_plugins` and
+    `health`;
+  - a transient error is retried and answered from the records;
+  - every plugin only for an asset build.
+- The four specs that pinned the old fallback now state the decision.
+- `installer_spec.rb` "keeps installed effects while plugin enablement
+  cannot be read, then resyncs".
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

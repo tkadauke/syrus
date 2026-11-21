@@ -2397,8 +2397,8 @@
       "prod_skipped": 0,
       "simulator": [],
       "status": "partial",
-      "done_by": "F60, F62, F66 (NY13, NY18 decided)",
-      "notes": "Proved in PluginClosure.lean and EffectHealth.lean: health propagates up hard dependencies (F60); while_enabled effects use the same gate as providers (F62); plugin-hosted points do too (F66). Decided, to implement: NY13 retries the enablement read instead of handing out every plugin on a database error; NY18 adds a health-aware owner-aware lookup for the two plugin-side registries."
+      "done_by": "F60, F62, F66, F69 (NY18 decided)",
+      "notes": "Proved in PluginClosure, EffectHealth and EnablementRead: health propagates up hard dependencies (F60); effects and plugin-hosted points use the same gate as providers (F62, F66); an unreadable enablement answer is retried and then refused, never 'every installed plugin' (F69). To implement: NY18, a health-aware owner-aware lookup for the two plugin-side registries."
     },
     {
       "id": "plugin-capabilities-pass-evaluator",
@@ -2858,7 +2858,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. It keeps precompile and boot working, keeps a running instance's behaviour stable through a blip, and never activates a plugin the operator disabled. B is safer still but turns a transient error into every plugin vanishing for that call.",
-      "decision": "Neither A nor B (2026-11-21): treating installed plugins as enabled is potentially destructive. On a database error, retry until there is a definite answer, never fall back to every plugin at runtime. To implement."
+      "decision": "Retry until there is a definite answer (2026-11-21): never treat installed plugins as enabled. Implemented as F69: defaults for a missing database or table, every plugin only for an asset build, otherwise retried and then EnablementUnavailable; the Installer keeps its effects when enablement cannot be read."
     },
     {
       "id": "NY14",
