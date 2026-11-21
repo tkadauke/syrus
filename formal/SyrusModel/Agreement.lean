@@ -556,5 +556,37 @@ theorem tail_held_before_not_actionable : ¬ Actionable detectTailBefore tailOut
 
 theorem tail_held_after_actionable : Actionable detectTailAfter tailOutcomeKnown := fun _ h => h
 
+/-! ## Instance: queued Step behind a gate whose recheck is already due (F40)
+
+F16 exempted pauses only. A unit blocked by any other gate (production:
+`ci_repair_safety`, 437 refused resumes in 9 hours) also has a recheck already
+scheduled for `blocked_until`. Resuming it before then only re-runs the gate,
+which refuses and pushes `blocked_until` forward again. The reconciler is the
+net for a *lost* recheck, so it acts once `blocked_until` has passed. -/
+
+structure GatedStep where
+  ready : Bool
+  paused : Bool
+  /-- Blocked by a gate with `blocked_until` still in the future. -/
+  recheckDue : Bool
+  /-- The gate would pass if evaluated now. -/
+  gatePasses : Bool
+  deriving DecidableEq, Repr
+
+def detectGatedBefore (s : GatedStep) : Prop := s.ready = true ∧ s.paused = false
+def detectGatedAfter (s : GatedStep) : Prop := s.ready = true ∧ s.paused = false ∧ s.recheckDue = false
+/-- A recheck already due means the gate refused within its retry window. -/
+def GatedWF (s : GatedStep) : Prop := s.recheckDue = true → s.gatePasses = false
+def gatedResumes (s : GatedStep) : Prop := s.paused = false ∧ s.gatePasses = true
+
+/-- Before: a flagged Step whose recheck is due is always refused. -/
+theorem gated_before_refused :
+    ∃ s, GatedWF s ∧ detectGatedBefore s ∧ ¬ gatedResumes s :=
+  ⟨⟨true, false, true, false⟩, fun _ => rfl, ⟨rfl, rfl⟩, by simp [gatedResumes]⟩
+
+/-- After: no Step with a pending recheck is flagged. -/
+theorem gated_after_skips_due (s : GatedStep) (h : s.recheckDue = true) : ¬ detectGatedAfter s := by
+  intro hd; rw [hd.2.2] at h; exact Bool.noConfusion h
+
 end Agreement
 end SyrusModel

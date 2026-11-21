@@ -2327,6 +2327,27 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(result.issues.map(&:kind)).not_to include("queued_step_without_run")
   end
 
+  # Any gate that blocks with a retry time has already scheduled its own
+  # recheck. Production: a ci_repair_safety block drew 437 refused resumes in
+  # nine hours, each re-running the gate and pushing blocked_until forward
+  # (Agreement.gated_after_skips_due). Once the recheck is overdue the
+  # reconciler is the net again.
+  it "does not flag a queued Step whose gate recheck is still due, and does once it is overdue" do
+    gated_job = Factories.job_record(state: "running")
+    gated = WorkUnits::Launcher.instantiate(kind: "initial", job: gated_job)
+    gated.update_columns(state: "running", started_at: 2.hours.ago)
+    first, second = gated.steps.order(:position).first(2)
+    first.update_columns(state: "succeeded", started_at: 2.hours.ago, finished_at: 1.hour.ago)
+    second.update_columns(state: "queued", created_at: 2.hours.ago, updated_at: 2.hours.ago)
+    gated.work_unit.block!(reason: "ci_repair_safety", blocked_until: 4.minutes.from_now, details: { "phase_step_id" => second.id })
+
+    expect(reconcile(job_id: gated_job.id).issues.map(&:kind)).not_to include("queued_step_without_run")
+
+    gated.work_unit.update_columns(blocked_until: 1.minute.ago)
+
+    expect(reconcile(job_id: gated_job.id).issues.map(&:kind)).to include("queued_step_without_run")
+  end
+
   # ChatFeedback, Rebase and StackRebase deliberately materialize behind the
   # Job lock (materialize_behind_active_lock?) and wait their turn. That is two
   # active Workflows by design; the newer one is waiting, not superseding.

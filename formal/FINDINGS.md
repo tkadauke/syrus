@@ -1169,6 +1169,37 @@ before: the exception escaped).
 
 ---
 
+## F40. The reconciler resumed Steps whose gate recheck was already due — fixed
+
+**Evidence (production, read-only).** In the last 1,000 repair executions,
+covering about 9 hours, 437 were skipped `resume_queued_step` repairs with
+the message "queued Step remained deferred: blocked: ci_repair_safety". This
+is the F16 pattern again. F16 exempted only pauses (`manual_pause`,
+`provider_availability`; those 380 skips are pre-F16 code still running in
+production). Any gate that blocks with `retry_at` has already scheduled its
+own phase-admission recheck for `blocked_until`. The reconciler resumed the
+Step every minute anyway: the gate re-ran, refused, and pushed `blocked_until`
+forward (`Agreement.gated_before_refused`).
+
+**Fix.** `WorkUnit#deliberate_wait?`: blocked on a pause, or blocked with
+`blocked_until` still in the future. The queued-Step classifier skips such
+units. Once `blocked_until` has passed (a lost or overdue recheck), the
+reconciler acts again as the safety net (`gated_after_skips_due`).
+
+**Spec.** `reconciler_spec.rb` "does not flag a queued Step whose gate
+recheck is still due, and does once it is overdue" (red before).
+
+**Also in this sample.** (1) Five `NameError: undefined method
+'proactive_pause_threshold'` failures in a 6-minute window on two Workflows.
+The column came with a migration the day before, so these are a deploy
+ordering artefact (code running against a schema cache from before the
+migration), not an engine bug. (2) A rare flake in `reconciler_chaos_spec.rb`
+"reconciles one random degradation on a fully materialized random workflow
+topology": 1 failure in about 27 runs, seed not captured. Its workflows are
+built without the launcher and have no WorkUnit, so F40 cannot affect it.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

@@ -1065,10 +1065,10 @@ module WorkEngine
         end
 
         next unless StepDispatcher.deferred_phase_handoff_ready?(step)
-        # A pause (operator or provider availability) holds the next phase on
-        # purpose; resuming it can only be refused (classifier/executor
+        # A pause, or a gate whose own recheck is still due, holds the next
+        # phase on purpose; resuming it can only be refused (classifier/executor
         # agreement, formal/SyrusModel/Agreement.lean `Actionable`).
-        next if WorkUnit::PAUSE_BLOCKED_REASONS.include?(workflow.work_unit&.blocked_reason.to_s) && workflow.work_unit&.blocked?
+        next if workflow.work_unit&.deliberate_wait?
 
         previous = step.previous_step
         dependencies = step.depends_on_steps
