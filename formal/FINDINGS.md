@@ -1093,6 +1093,36 @@ and `WorkflowCancellation` (Workflow lock → cancel → Job write) take Job and
 Workflow in opposite orders. That cycle can deadlock but did not fire in 7
 days.
 
+## Fixed: the order-dependent terminal-relay specs
+
+`runtime_terminal_lifecycle_spec.rb` (3 examples) failed only when the full
+suite ran serially. `rspec --bisect` isolated a single earlier example,
+`chat_turn_job_spec.rb` "includes the workspace root and attached job context
+in the coding mode prompt".
+
+**Mechanism.** About 171 of 208 core MCP tool classes get their authorization
+dispatch (`AuthorizationSupport::ToolDispatch`) only when
+`Mcp::Sidecar.authorize_tool` runs on them. It prepends to the class
+permanently, the first time a sidecar tool list is built in the process. A chat
+turn builds one. The spec called `RuntimeStartTool` and friends directly, so
+alone they ran ungated. After a chat turn they were gated, and with no
+permission grant `runtime_start` returned an authorization request instead of a
+session.
+
+**Fix.** The spec now runs the way production does: it wraps its seven runtime
+tools with `authorize_tool` and opts into `full_chat_access: :all`. It passes
+alone and after the polluting example.
+
+## Lead L3: whether a tool call is gated depends on process history
+
+The same mechanism has a production side. Sidecar and daemon dispatch wrap a
+tool before calling it, so real agent tool calls are gated. But any in-process
+code that calls a core tool class directly gets the authorization check only if
+something in the same process already built a sidecar tool list. Static
+wrapping, as about 37 tools already do in their class body, would make gating
+independent of load history. Not yet checked: whether any production caller
+invokes tool classes directly.
+
 ## Leads not yet worked (from the catalog)
 
 - `approved`/`implemented` Job without a PR: approve guard is `true`, and
