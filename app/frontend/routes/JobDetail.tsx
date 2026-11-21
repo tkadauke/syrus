@@ -968,11 +968,12 @@ function TabNav({
       activeKey={active}
       activeClassName="border-brand text-brand"
       ariaLabel={t("job_sections")}
-      className="scroll-fade-x flex overflow-x-auto border-b border-gray-200 dark:border-gray-700"
+      className="scroll-fade-x flex snap-x snap-mandatory scroll-px-2 overflow-x-auto border-b border-gray-200 dark:border-gray-700 sm:snap-none"
       inactiveClassName="border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-      itemClassName="px-4 py-3 text-sm first:ml-2 last:mr-2 sm:first:ml-0 sm:last:mr-0"
+      itemClassName="snap-start scroll-ml-2 px-4 py-3 text-sm first:ml-2 last:mr-2 sm:first:ml-0 sm:last:mr-0"
       items={tabs.map((tab) => ({ key: tab.id, label: tab.label }))}
       onSelect={onSelect}
+      scrollActiveIntoView
     />
   )
 }

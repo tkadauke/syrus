@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useLayoutEffect, useRef, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { CloseIcon } from "./CloseIcon"
 
@@ -43,7 +43,8 @@ export function UnderlineTabs<Key extends TabKey>({
   inactiveClassName,
   itemClassName = "px-4 py-2 text-sm",
   items,
-  onSelect
+  onSelect,
+  scrollActiveIntoView = false
 }: {
   activeKey: Key | null
   activeClassName?: string
@@ -54,9 +55,24 @@ export function UnderlineTabs<Key extends TabKey>({
   itemClassName?: string
   items: UnderlineTabItem<Key>[]
   onSelect?: (key: Key) => void
+  scrollActiveIntoView?: boolean
 }) {
+  const activeTabRef = useRef<HTMLElement | null>(null)
+  const tabStripRef = useRef<HTMLElement | null>(null)
+  const setActiveTabRef = (element: HTMLElement | null) => {
+    activeTabRef.current = element
+  }
+  const setTabStripRef = (element: HTMLElement | null) => {
+    tabStripRef.current = element
+  }
+
+  useLayoutEffect(() => {
+    if (!scrollActiveIntoView || !tabStripRef.current || tabStripRef.current.scrollWidth <= tabStripRef.current.clientWidth) return
+    activeTabRef.current?.scrollIntoView?.({ block: "nearest", inline: "start" })
+  }, [activeKey, scrollActiveIntoView])
+
   return (
-    <Element aria-label={ariaLabel} className={className}>
+    <Element aria-label={ariaLabel} className={className} ref={setTabStripRef}>
       {items.map((item) => {
         const active = item.key === activeKey
         const tabClassName = underlineTabClass(active, [itemClassName, item.tabClassName].filter(Boolean).join(" "), activeClassName, inactiveClassName)
@@ -91,7 +107,7 @@ export function UnderlineTabs<Key extends TabKey>({
 
         if (item.to) {
           return (
-            <Link className={tabClassName} key={String(item.key)} title={item.title} to={item.to}>
+            <Link className={tabClassName} key={String(item.key)} ref={active ? setActiveTabRef : undefined} title={item.title} to={item.to}>
               {content}
             </Link>
           )
@@ -103,6 +119,7 @@ export function UnderlineTabs<Key extends TabKey>({
             disabled={item.disabled}
             key={String(item.key)}
             onClick={() => onSelect?.(item.key)}
+            ref={active ? setActiveTabRef : undefined}
             title={item.title}
             type="button"
           >
