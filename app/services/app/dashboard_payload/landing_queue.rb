@@ -499,7 +499,7 @@ module App
       def latest_grader_collector_for(workflow)
         workflow.steps
           .where(kind: %w[grader_collect preflight_grader_collect])
-          .order(position: :desc, id: :desc)
+          .reorder(position: :desc, id: :desc)
           .first
       end
 

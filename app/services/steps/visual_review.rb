@@ -139,7 +139,7 @@ module Steps
         workflow.steps
           .where(kind: "visual_review", loop_id: step.loop_id)
           .where("iteration < ?", step.iteration)
-          .order(iteration: :desc)
+          .reorder(iteration: :desc)
           .first&.latest_run&.provider_session&.session_id
     end
 

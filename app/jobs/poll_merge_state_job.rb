@@ -337,7 +337,7 @@ class PollMergeStateJob < ApplicationJob
 
     last_blocked = @job.workflows
       .where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS, state: "cancelled")
-      .order(id: :desc)
+      .reorder(id: :desc)
       .first
     return false unless last_blocked
     return false unless WorkUnits::StartBlock.for(last_blocked).blocked_for?(StepDispatcher::STACK_BLOCK_REASON)

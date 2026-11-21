@@ -51,7 +51,7 @@ module Terminal
     def workflow_candidates
       workflows = user.workflows
         .includes(job: :repository)
-        .order(created_at: :desc)
+        .reorder(created_at: :desc)
         .limit(80)
         .to_a
       queue_names = WorkflowQueueNames.new(workflows).to_h

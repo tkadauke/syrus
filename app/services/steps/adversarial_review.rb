@@ -303,7 +303,7 @@ module Steps
 
     def prior_member_session_id
       prior = workflow.steps.where(kind: review_step_kind, loop_id: step.loop_id)
-        .where("iteration < ?", step.iteration).order(iteration: :desc, position: :desc)
+        .where("iteration < ?", step.iteration).reorder(iteration: :desc, position: :desc)
       if step.details.to_h["panel_member"]
         prior = prior.detect do |candidate|
           details = candidate.details.to_h

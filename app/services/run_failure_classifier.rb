@@ -719,7 +719,7 @@ class RunFailureClassifier
       logs = if run.association(:job_logs).loaded?
         run.job_logs
       else
-        run.job_logs.order(sequence: :desc).limit(RECENT_LOG_LIMIT).to_a.reverse
+        run.job_logs.reorder(sequence: :desc).limit(RECENT_LOG_LIMIT).to_a.reverse
       end
       logs.last(RECENT_LOG_LIMIT)
     end

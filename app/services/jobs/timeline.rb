@@ -123,7 +123,7 @@ module Jobs
     end
 
     def retry_artifact_events
-      workflow = @job.workflows.where(state: "failed").order(created_at: :desc, id: :desc).first
+      workflow = @job.workflows.where(state: "failed").reorder(created_at: :desc, id: :desc).first
       return [] unless workflow
 
       state = App::RetryState.for(@job)

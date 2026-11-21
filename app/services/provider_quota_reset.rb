@@ -131,7 +131,7 @@ class ProviderQuotaReset
   def recent_log_text
     return unless run
 
-    run.job_logs.order(sequence: :desc).limit(10).pluck(:chunk).join(" ")
+    run.job_logs.reorder(sequence: :desc).limit(10).pluck(:chunk).join(" ")
   end
 
   def time_from_value(value)

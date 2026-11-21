@@ -89,7 +89,7 @@ module CiRepair
     end
 
     def skipped_selection_entries(job)
-      job.workflows.order(created_at: :desc, id: :desc).flat_map do |workflow|
+      job.workflows.reorder(created_at: :desc, id: :desc).flat_map do |workflow|
         Array(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY)).map do |entry|
           stringify_hash(entry).merge(
             "selection_workflow_id" => workflow.id,

@@ -203,7 +203,7 @@ module Workflows
     end
 
     private_class_method def self.infrastructure_interrupted_grader?(step)
-      latest_failed_run = step.runs.where(state: "failed").order(created_at: :desc).first
+      latest_failed_run = step.runs.where(state: "failed").reorder(created_at: :desc).first
       return false unless latest_failed_run
 
       latest_failed_run.agent_outcome == "worker_died" ||

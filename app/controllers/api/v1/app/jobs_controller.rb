@@ -398,7 +398,7 @@ module Api
 
         def transcript
           job = find_job
-          run = job.runs.order(created_at: :desc, id: :desc).first
+          run = job.runs.reorder(created_at: :desc, id: :desc).first
           unless run
             render json: { job_id: job.id, run_id: nil, state: job.state, complete: job.closed?, lines: [] }
             return

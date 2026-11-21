@@ -24,6 +24,8 @@ import SyrusModel.ForcePushLease
 import SyrusModel.TrainOrder
 import SyrusModel.EpicAtomicLanding
 import SyrusModel.ValidationReuse
+import SyrusModel.AssociationOrder
+import SyrusModel.CheckpointLineage
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

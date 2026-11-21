@@ -63,4 +63,20 @@ RSpec.describe Workflows::AutoMerge do
       described_class.after_cancel(workflow)
     end
   end
+
+  # Regression (formal/SyrusModel/AssociationOrder.lean): `workflow.runs`
+  # has a default ascending order, so `.order(created_at: :desc).first`
+  # returned the oldest failed run. The landing failure handler then
+  # classified the landing by a stale failure's reason.
+  it "reports the newest failed run's failure as the landing failure" do
+    workflow = described_class.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "auto_merge")
+    old = step.runs.create!(job: job, trigger_kind: "auto_merge", state: "failed", created_at: 2.hours.ago, finished_at: 2.hours.ago)
+    old.create_run_diagnostic!(error_class: "Octokit::ServiceUnavailable", error_message: "503 Service Unavailable")
+    new = step.runs.create!(job: job, trigger_kind: "auto_merge", state: "failed", created_at: 1.minute.ago, finished_at: 1.minute.ago)
+    new.create_run_diagnostic!(error_class: "Steps::Base::StepFailed", error_message: "required graders failed: rspec")
+
+    expect(described_class.latest_failed_run(workflow)).to eq(new)
+    expect(described_class.failure_reason_for(workflow)).to include("required graders failed")
+  end
 end

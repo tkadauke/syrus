@@ -91,7 +91,7 @@ class DefaultProviderChangeWakeup
     job.runs
       .includes(:run_failure_classification)
       .where(state: "failed", agent_provider: previous_provider)
-      .order(finished_at: :desc, id: :desc)
+      .reorder(finished_at: :desc, id: :desc)
       .limit(5)
       .any? do |run|
         run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME ||

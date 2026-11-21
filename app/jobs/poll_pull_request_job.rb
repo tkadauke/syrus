@@ -908,7 +908,7 @@ class PollPullRequestJob < ApplicationJob
     @latest_succeeded_ci_failure_for ||= {}
     @latest_succeeded_ci_failure_for[head_sha] ||= @job.workflows
       .where(trigger_kind: "ci_failure", state: "succeeded")
-      .order(finished_at: :desc, id: :desc)
+      .reorder(finished_at: :desc, id: :desc)
       .detect { |workflow| workflow.artifact("head_sha") == head_sha }
   end
 
