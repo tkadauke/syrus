@@ -496,5 +496,37 @@ def cancelDomainB : CJob → CJob
 theorem cancel_option_a_agrees : Agrees cancelDomain cancelReconA := fun _ => rfl
 theorem cancel_option_b_agrees : cancelRecon (cancelDomainB .running) = cancelDomainB .running := rfl
 
+/-! ## Instance: two definitions of "active landing work" (proof, no change)
+
+`classify_landing_work_job_state_drift` counts a landing unit only if it is not
+blocked on an operator-cleared reason (`strict`); `RuntimeOwnership.active_landing_work?`,
+used by `DeferOrphanedLandingJob`, `RepairLandingWorkJobState` and the
+orphaned-landing classifier, counts every active landing-kind unit (`loose`).
+Every unit `strict` counts, `loose` counts. So the drift repair (approved →
+landing, needs `strict`) and the defer repair (landing → approved, needs
+`¬ loose`) can never both apply to the same unit set: a defer/re-land
+alternation needs new landing work to appear. -/
+
+structure LUnit where
+  active : Bool
+  landingKind : Bool
+  externallyBlocked : Bool
+  deriving DecidableEq, Repr
+
+def loose (us : List LUnit) : Bool := us.any fun u => u.active && u.landingKind
+def strict (us : List LUnit) : Bool := us.any fun u => u.active && u.landingKind && !u.externallyBlocked
+
+theorem strict_implies_loose (us : List LUnit) : strict us = true → loose us = true := by
+  unfold strict loose
+  intro h
+  obtain ⟨u, hu, hp⟩ := List.any_eq_true.mp h
+  exact List.any_eq_true.mpr ⟨u, hu, by simp_all⟩
+
+/-- No unit set makes both repairs applicable. -/
+theorem landing_repairs_never_both (us : List LUnit) : ¬ (strict us = true ∧ loose us = false) := by
+  rintro ⟨hs, hl⟩
+  rw [strict_implies_loose us hs] at hl
+  exact Bool.noConfusion hl
+
 end Agreement
 end SyrusModel
