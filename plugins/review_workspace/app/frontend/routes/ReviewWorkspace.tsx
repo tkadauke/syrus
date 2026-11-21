@@ -656,7 +656,12 @@ function DecisionPanel({
             </div>
           </div>
         ) : (
-          <Button className="w-full max-lg:order-2 max-lg:col-span-2 max-lg:min-h-11" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
+          <Button
+            className="w-full max-lg:order-2 max-lg:col-span-2 max-lg:min-h-11"
+            disabled={!canApprove}
+            onClick={() => setConfirming(true)}
+            variant="primary"
+          >
             {t(isDesktop ? "approve_shortcut" : "approve_mobile")}
           </Button>
         )}
@@ -710,7 +715,16 @@ function DecisionPanel({
 
 function DeferToQueueEndIcon({ className }: { className: string }) {
   return (
-    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
       <path d="M5 7h9a5 5 0 0 1 5 5v1" />
       <path d="m16 10 3 3 3-3" />
       <path d="M5 12h6M5 17h10" />
@@ -720,7 +734,16 @@ function DeferToQueueEndIcon({ className }: { className: string }) {
 
 function FeedbackIcon({ className }: { className: string }) {
   return (
-    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
       <path d="M20 15a3 3 0 0 1-3 3H9l-5 3v-6a3 3 0 0 1-1-2V7a3 3 0 0 1 3-3h11a3 3 0 0 1 3 3Z" />
     </svg>
   )
