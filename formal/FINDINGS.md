@@ -3858,6 +3858,38 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M28. Finished infrastructure Jobs are closed — audited, no bug
+
+**Scope.** DOC-44 infrastructure Jobs, the coverage item
+`completed-infrastructure-job`: "An infrastructure or main-branch-repair Job
+finished its work but stays open."
+
+**Hooks.** Infrastructure kinds manage their own Job lifecycle, and generic
+propagation skips them.
+
+- `MainGrader.after_success` / `after_fail` close the anchor Job.
+- `Deploy.after_success` / `after_fail` close it with `DEPLOY_CLOSURE_REASON`.
+- `MainBranchRepair.after_success` closes it with `preflight_passed` or
+  `preflight_inconclusive`.
+- None of the three defines `after_cancel`. For `main_branch_repair` there is
+  no `after_fail` either: generic `fail!` drives that Job to `failed`.
+
+**Safety net.** `classify_completed_infrastructure_jobs` covers any open Job
+whose latest Workflow is terminal, cancelled included. It auto-repairs
+infrastructure Jobs (`main_grader`, `deploy`), and a `main_branch_repair` Job
+whose Workflow succeeded with `preflight_passed` and opened no PR. So a skipped
+or raising hook, or a cancelled Workflow, closes on the next reconciler pass.
+
+**Not auto-closed, by design.** A cancelled or failed `main_branch_repair`
+Workflow leaves its Job open or failed. While that Job blocks main health,
+`stuck_main_branch_repair_job` surfaces it as critical for operator review
+(the by-design item `stuck-main-branch-repair`).
+
+Production (read-only): 2 `close_completed_infrastructure_job` executions,
+both skipped because the Job had already closed itself.
+
+---
+
 ## M27. Epic-blocked Jobs are released once the Epic releases them — audited, no bug
 
 **Scope.** DOC-44 Epics, the coverage item `epic-blocked-job-releasable`: "A

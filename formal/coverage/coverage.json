@@ -2272,9 +2272,9 @@
       "simulator": [
         "agent_insight_sweep_does_not_block_job_bundle"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: infra Job with a terminal latest workflow is closed; F6's apply-on-finish closure path is the natural place to make it atomic. Production (read-only): 2 executions, both skipped 'Job is already closed' (the Job closed itself before the repair ran) -- no stuck infra Jobs."
+      "status": "done",
+      "done_by": "M28",
+      "notes": "Invariant: infra Job with a terminal latest workflow is closed; F6's apply-on-finish closure path is the natural place to make it atomic. Production (read-only): 2 executions, both skipped 'Job is already closed' (the Job closed itself before the repair ran) -- no stuck infra Jobs. M28: hooks close on success/failure; no after_cancel, but the classifier covers any terminal latest workflow for infra kinds and auto-closes; a cancelled main_branch_repair is operator-reviewed by design."
     },
     {
       "id": "stuck-main-branch-repair",
