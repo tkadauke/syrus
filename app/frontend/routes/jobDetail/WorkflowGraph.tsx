@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { PluginUiSlot } from "../../pluginUiSlots"
+import { PluginUiSlot, pluginUiSlotComponentFor, type UiSlotPanel } from "../../pluginUiSlots"
 import { matchingReviewContribution, renderReviewContribution, type ReviewContribution } from "../../pluginReviewContributions"
 import { useT } from "../../hooks/useT"
 import { useMediaQuery } from "../../hooks/useMediaQuery"
@@ -654,8 +654,12 @@ function WorkflowMobileControls({
   const { t } = useT("jobs")
   const [menuOpen, setMenuOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useDismissiblePopup<HTMLDivElement>(menuOpen, () => setMenuOpen(false), [triggerRef])
-  const hasCommands = Boolean(payload.ui_workflow_actions?.length || workflow.retry_available || (workflow.state === "failed" && !workflow.cleaned_up_at))
+  const menuRef = useDismissiblePopup<HTMLDivElement>(menuOpen, () => {
+    setMenuOpen(false)
+    triggerRef.current?.focus()
+  }, [triggerRef])
+  const pluginActions = renderableWorkflowActions(payload.ui_workflow_actions, workflow.id)
+  const hasCommands = Boolean(pluginActions.length || workflow.retry_available || (workflow.state === "failed" && !workflow.cleaned_up_at))
 
   return (
     <div className="flex shrink-0 items-center gap-1">
@@ -664,7 +668,6 @@ function WorkflowMobileControls({
         <div className="relative">
           <Button
             aria-expanded={menuOpen}
-            aria-haspopup="menu"
             aria-label={t("workflow_actions")}
             className="h-11 w-11 px-0 text-lg"
             disabled={command.isPending}
@@ -678,10 +681,11 @@ function WorkflowMobileControls({
           {menuOpen ? (
             <div
               className="absolute right-0 z-20 mt-1 flex w-[min(18rem,calc(100vw-2rem))] flex-col gap-1 rounded border border-border bg-surface p-2 shadow-lg"
+              aria-label={t("workflow_actions")}
               ref={menuRef}
-              role="menu"
+              role="group"
             >
-              <PluginUiSlot panels={payload.ui_workflow_actions} props={{ prefix, workflow }} />
+              <PluginUiSlot panels={pluginActions} props={{ prefix, workflow }} />
               {workflow.retry_available ? (
                 <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
                   {t("retry_failed_step")}
@@ -710,6 +714,20 @@ function WorkflowMobileControls({
       ) : null}
     </div>
   )
+}
+
+function renderableWorkflowActions(panels: UiSlotPanel[] | undefined, workflowId: number) {
+  return (panels || []).filter((panel) => {
+    if (!pluginUiSlotComponentFor(panel.component)) return false
+
+    const availabilityByWorkflow = panel.props?.availability_by_workflow_id
+    if (!availabilityByWorkflow || typeof availabilityByWorkflow !== "object") return true
+
+    const availability = (availabilityByWorkflow as Record<string, unknown>)[String(workflowId)]
+    if (!availability || typeof availability !== "object") return true
+
+    return (availability as { available?: unknown }).available !== false
+  })
 }
 
 function BranchDivergencePanel({
