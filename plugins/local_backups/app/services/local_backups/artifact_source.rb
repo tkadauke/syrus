@@ -25,12 +25,14 @@ module LocalBackups
     end
 
     def self.pin(backup_id, owner:, context:)
-      backup = completed_backup!(backup_id)
-      backup.replications.upsert(
-        { destination_identity: owner.to_s, state: "uploading", failure_summary: nil, updated_at: Time.current,
-          created_at: Time.current }, unique_by: "idx_local_backup_replications_identity"
-      )
-      true
+      Backup.transaction do
+        backup = Backup.lock.find_by!(uuid: backup_id, state: "completed")
+        replication = backup.replications.find_or_initialize_by(destination_identity: owner.to_s)
+        next false if replication.state == "verified"
+
+        replication.update!(state: "uploading", failure_summary: nil)
+        true
+      end
     end
 
     def self.release_pin(backup_id, owner:, context:)
@@ -41,22 +43,21 @@ module LocalBackups
     end
 
     def self.record_replication(backup_id, destination:, result:, context:)
-      backup = Backup.find_by!(uuid: backup_id)
-      attributes = {
-        state: result.fetch(:state).to_s,
-        remote_reference: result[:remote_reference],
-        remote_checksum: result[:remote_checksum],
-        uploaded_at: result[:uploaded_at],
-        verified_at: result[:verified_at],
-        failure_summary: redacted_summary(result[:failure_summary]),
-        updated_at: Time.current,
-        created_at: Time.current
-      }
-      backup.replications.upsert(
-        attributes.merge(destination_identity: destination.to_s),
-        unique_by: "idx_local_backup_replications_identity"
-      )
-      true
+      Backup.transaction do
+        backup = Backup.lock.find_by!(uuid: backup_id)
+        replication = backup.replications.find_or_initialize_by(destination_identity: destination.to_s)
+        next true if replication.state == "verified" && result.fetch(:state).to_s != "verified"
+
+        replication.update!(
+          state: result.fetch(:state).to_s,
+          remote_reference: result[:remote_reference],
+          remote_checksum: result[:remote_checksum],
+          uploaded_at: result[:uploaded_at],
+          verified_at: result[:verified_at],
+          failure_summary: redacted_summary(result[:failure_summary])
+        )
+        true
+      end
     end
 
     def self.completed_backup!(backup_id)
