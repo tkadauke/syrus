@@ -62,6 +62,37 @@ RSpec.describe CiLogParser do
     )
   end
 
+  def with_actions_timestamps(log)
+    log.lines.each_with_index.map { |line, index| format("2026-11-09T10:52:%02d.2529545Z %s", index % 60, line) }.join
+  end
+
+  # Regression: real GitHub Actions job logs carry a timestamp on every line,
+  # which kept every line-anchored parser from matching. A failed e2e check
+  # fell through to the generic tail -- post-job cleanup -- and the CI-repair
+  # agent had no failure to work from.
+  it "parses Playwright failures out of a timestamped GitHub Actions log" do
+    log = with_actions_timestamps(fixture_log("playwright_failure") + <<~TAIL)
+      ##[error]Process completed with exit code 1.
+      No files were found with the provided path: playwright-report/. No artifacts will be uploaded.
+      Post job cleanup.
+    TAIL
+
+    result = described_class.new(log, step_name: "playwright").parse
+
+    expect(result[:parser]).to eq("playwright")
+    expect(result[:error_summary]).to eq("2 failed")
+    expect(result[:failing_tests]).to include("tests/review/job-review.spec.ts:42:3 › review tab › displays annotations")
+    expect(result[:error_block]).to include("expect(locator).toBeVisible() failed")
+  end
+
+  it "parses RSpec failures out of a timestamped GitHub Actions log" do
+    result = described_class.new(with_actions_timestamps(fixture_log("rspec_failure")), step_name: "bundle exec rspec").parse
+
+    expect(result[:parser]).to eq("rspec")
+    expect(result[:error_summary]).to eq("12 examples, 1 failure")
+    expect(result[:error_block]).not_to match(/\A2026-11-09T/)
+  end
+
   it "extracts RSpec failed examples even when the detailed failures block is absent" do
     log = <<~LOG
       12 examples, 1 failure

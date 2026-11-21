@@ -10,6 +10,13 @@ class CiLogParser
     Not\s+implemented:\s+HTMLCanvasElement
   /ix
 
+  # GitHub Actions job logs prefix every line with an ISO-8601 timestamp. Every
+  # parser anchors on the start of a line ("  2 failed", "Failures:"), so left
+  # in place it kept all of them from matching a real Actions log: a broken
+  # e2e check reached the CI-repair agent as its last 40 lines -- artifact
+  # upload and git cleanup -- and the agent gave up for lack of a failure.
+  ACTIONS_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ?/.freeze
+
   FAILURE_MARKER = /
     failures?:|failed\sexamples?|offenses?:|error:|exception|traceback|
     assertionerror|typeerror|referenceerror|syntaxerror|ts\d{4}|exit\scode
@@ -219,6 +226,6 @@ class CiLogParser
   end
 
   def sanitize(log)
-    log.gsub(ANSI_ESCAPE, "").lines.reject { |line| line.match?(BENIGN_NOISE) }.join
+    log.gsub(ANSI_ESCAPE, "").gsub(ACTIONS_TIMESTAMP, "").lines.reject { |line| line.match?(BENIGN_NOISE) }.join
   end
 end
