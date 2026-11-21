@@ -129,7 +129,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 
 ## Capability families
 
-Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`, passing the plugin name, provider class name, and call and decline contexts. The kit derives the full capability list from that exact manifest declaration.
+Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`, passing literal plugin and provider strings plus call and decline contexts. The kit derives the full capability list from that exact manifest declaration, and the literal identifiers let isolated and sharded suite runs verify coverage from source.
 
 No capability families are currently defined.
 
@@ -186,4 +186,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 32113 bytes (UTF-8, including this line).
+Size: 32205 bytes (UTF-8, including this line).
