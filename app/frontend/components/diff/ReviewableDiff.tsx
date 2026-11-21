@@ -585,9 +585,12 @@ export function ReviewableDiff({
     setHighlightedToken(null)
   }
 
+  // Wide code belongs to each file's horizontal scroller. Clip it at the
+  // viewer boundary so filenames or tables cannot widen the surrounding page
+  // (especially the full-screen mobile artifact panel).
   return (
     <div
-      className={["relative min-w-0 max-w-full [contain:inline-size]", className].filter(Boolean).join(" ")}
+      className={["relative min-w-0 max-w-full overflow-x-hidden [contain:inline-size]", className].filter(Boolean).join(" ")}
       data-testid="agent-diff-viewer"
       ref={containerRef}
     >
