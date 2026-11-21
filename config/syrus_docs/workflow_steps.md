@@ -479,6 +479,10 @@ waits for the operator to review the report and close it.
 ### respond
 
 Agentic. Addresses PR review feedback or chat feedback. Reads the new comments and makes the requested changes.
+Feedback that asks to retitle the PR, rewrite its description or restate the
+Job is handled by the later `refresh_job_metadata` step, so the respond agent
+only changes code (or makes no commit when none is needed). Separate follow-up
+work the feedback asks for is filed with `propose_job`.
 
 ### analyze_and_fix
 

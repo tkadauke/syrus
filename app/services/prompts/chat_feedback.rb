@@ -115,7 +115,8 @@ module Prompts
         "Treat anchored diff comments as precise code-review feedback tied to the listed file and line.",
         "Do NOT broaden the work beyond the requested feedback.",
         "Do NOT revert earlier work unless the feedback explicitly asks for it.",
-        "Make commits to the current branch."
+        "Make commits to the current branch.",
+        *FeedbackScopeDirectives::LINES
       ].join("\n")
     end
 
