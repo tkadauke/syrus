@@ -141,6 +141,16 @@ class WorkUnit < ApplicationRecord
     end
   end
 
+  # Blocked on purpose, with something already set to wake it: a pause
+  # (lifted by the operator or the provider recovering), or a gate whose own
+  # recheck is still due at blocked_until. Resuming such a unit early is only
+  # refused again (formal/SyrusModel/Agreement.lean, F16 and F40).
+  def deliberate_wait?
+    return false unless blocked?
+
+    PAUSE_BLOCKED_REASONS.include?(blocked_reason.to_s) || blocked_until&.future? || false
+  end
+
   def unblock!
     transaction do
       reactivate_work_intent!
