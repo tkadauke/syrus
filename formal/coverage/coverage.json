@@ -2481,9 +2481,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "open",
-      "done_by": "M17 (NY17 decided)",
-      "notes": "Workers heartbeat their plugin set but routing ignores it, so a worker without the plugin fails the step terminally. Decided NY17: prevent it by treating the owning plugin as a placement requirement. To implement."
+      "status": "partial",
+      "done_by": "M17, F73",
+      "notes": "A worker without the plugin hands the Run back instead of failing its Step (F73, UnknownKindHandback.lean). Not done: per-plugin queue routing, so an incapable worker never claims it."
     },
     {
       "id": "plugin-optional-dependencies",
@@ -2910,7 +2910,7 @@
         "C. Keep as is: a fleet plugin rollout can fail in-flight steps of that plugin's kinds."
       ],
       "recommendation": "A. It reuses the existing capability-routing contract and the no_capable_worker diagnosis, so a blocked start explains itself. B is smaller, but it spins on a worker that will never have the plugin.",
-      "decision": "A (2026-11-21): prevent it; the owning plugin is a placement requirement and a start blocks as no_capable_worker. To implement."
+      "decision": "Prevent it (2026-11-21). Implemented as F73: a worker that does not provide a step's kind hands the Run back (30 s, up to 20 times) instead of failing it, and an unknown kind's Step can fail cleanly. Per-plugin queue routing, which would avoid the hand-backs, is a larger change and not done."
     },
     {
       "id": "NY18",

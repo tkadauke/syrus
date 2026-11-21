@@ -2367,6 +2367,53 @@ first-party allowlist now checks the owning plugin's name
 
 ---
 
+## F73. A worker without a plugin failed that plugin's step on first claim — fixed (NY17)
+
+**Found by** the plugin-set admission audit (M17, queued as NY17). Decision:
+prevent it.
+
+**Property.** A Step of a plugin's kind fails as unknown only after the
+hand-back budget is spent, and a capable worker that claims it within the
+budget runs it (`UnknownKindHandback.fails_only_after_budget_and_capable_claim_runs`,
+checked over every claim sequence of up to six claims).
+
+**Gap.** Routing sends a Run to a queue that every worker of that OS
+consumes. So during a fleet plugin rollout, or for a fleet installation
+limited to some roles, a worker without the plugin could claim the Run.
+`Steps.handler_for` then raised and the Step failed terminally
+(`failed_on_first_wrong_worker`). Failing it also raised a second time,
+because `Step::Kind.remediation_for` looked the unknown kind up during the
+failure cascade.
+
+**Fix.**
+
+- **First claim:** `RunJob#hand_back_unknown_step_kind?`, checked before the
+  Run is claimed. A worker that does not provide the Step's kind hands the
+  Run back after 30 s, counting `unknown_kind_handbacks` on the Step. After 20
+  hand-backs (about 10 minutes with no capable claim) it lets the Step fail as
+  unknown.
+- **Inline successor:** a successor this process cannot run goes back to the
+  queue through the ordinary hand-back.
+- **Failure path:** `Step::Kind.remediation_for` answers `nil`, meaning no
+  step-kind opinion, for an unknown kind, like its `label_for` and
+  `review_gate_for` siblings, so the Step can fail cleanly. This is also a
+  first part of NY14.
+
+**Not done.** Routing by plugin, so that an incapable worker never claims the
+Run at all, would need per-plugin queues. The capability resolver routes by
+queue name, and every worker of an OS shares the queue. The hand-back is
+what makes the step survive in the meantime.
+
+**Spec.** `run_job_unknown_step_kind_spec.rb`:
+
+- an unknown kind is handed back with the Run still queued (red before: it
+  raised);
+- with the budget spent, it fails instead of being handed back again.
+
+The job, step, dispatcher and remediation specs pass (854 examples).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
