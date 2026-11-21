@@ -214,6 +214,88 @@ Supported members:
 
 - `read`
 
+### `Syrus::Host::ExternalReviewArtifact`
+
+Since: `0.1.16`
+
+Describes a typed external-review artifact without transferring artifact-storage ownership to providers. Only the listed members are supported.
+
+Supported members:
+
+- `content_type`
+- `kind`
+- `location`
+- `metadata`
+- `name`
+- `new`
+
+### `Syrus::Host::ExternalReviewContext`
+
+Since: `0.1.16`
+
+Carries immutable public review inputs and host-supplied account/client facades; records, credentials, and GitHub internals are not exposed. Only the listed members are supported.
+
+Supported members:
+
+- `base_sha`
+- `client`
+- `connected_account`
+- `diff_review_version`
+- `evidence`
+- `external_id`
+- `head_sha`
+- `idempotency_key`
+- `job`
+- `links`
+- `new`
+- `pull_request`
+- `repository`
+- `rule`
+- `summary`
+- `trigger`
+
+### `Syrus::Host::ExternalReviewResult`
+
+Since: `0.1.16`
+
+Normalizes external-review outcomes and provider response data; persistence, retry scheduling, and publication policy are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `accepted`
+- `artifacts`
+- `completed`
+- `declined`
+- `external_id`
+- `feedback`
+- `idempotency_key`
+- `metadata`
+- `new`
+- `outcome`
+- `publication`
+- `retry_after`
+- `retryable?`
+- `retryable_failure`
+- `terminal?`
+- `terminal_failure`
+- `verdict`
+
+### `Syrus::Host::ExternalReviewer`
+
+Since: `0.1.16`
+
+Defines provisional external-review dispatch, refresh, and cancellation operations; lifecycle orchestration and storage are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `available_for?`
+- `cancel`
+- `capabilities`
+- `display_name`
+- `provider_key`
+- `refresh`
+- `submit`
+
 ### `Syrus::Host::InvocationResult`
 
 Since: `0.1.16`
