@@ -1699,6 +1699,32 @@ deletes a self-healed member's branch" (neither happened before).
 
 ---
 
+## F57. A landing validation was reused for an unknown base — fixed
+
+**Found by** DOC-44 Phase 3, validation reuse (`ValidationReuse.lean`).
+
+**Property.** An earlier green landing validation is reused only when every
+identity it recorded is matched by a known, equal current one
+(`reusable_sound`).
+
+**Gap.** `LandingValidationCache.stale_reason` compared base ref and base SHA
+only when the *current* value was known. When the PR payload carried no base
+(`LandingValidationCache.decision_for_pr`), a validation recorded against one
+base was reused for a base that could be anything, and the landing graders
+were skipped (`unknown_base_reused`). The grader-configuration and
+changed-file fingerprints already failed closed in both directions.
+
+**Fix.** A recorded base ref or base SHA with no current value is stale
+("current base ref is unknown", "current base SHA is unknown"), so the graders
+run. Legacy entries that never recorded a base still match on an exact head,
+as before. The fix only refuses more (`after_narrows`). It matches NY10: no
+landing proceeds on an unknown base.
+
+**Spec.** `landing_validation_cache_spec.rb` "rejects reuse when the current
+base SHA / base ref is unknown" (both reused before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

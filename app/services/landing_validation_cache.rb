@@ -180,6 +180,12 @@ class LandingValidationCache
   def self.stale_reason(artifact, base_sha:, base_tree_sha:, base_ref:, grader_fingerprint:, changed_files_fingerprint:, allow_missing_base_identity: false)
     return "cached validation is older than #{MAX_AGE.inspect}" if stale_checked_at?(artifact)
 
+    # An identity the cache recorded but the caller cannot supply cannot be
+    # shown to match: fail closed, as for the grader and changed-file
+    # fingerprints below (formal/SyrusModel/ValidationReuse.lean).
+    return "current base ref is unknown" if base_ref.blank? && artifact["base_ref"].present?
+    return "current base SHA is unknown" if base_sha.blank? && artifact["base_sha"].present?
+
     if base_ref.present? && artifact["base_ref"].blank? && !allow_missing_base_identity
       return "cached validation is missing base ref"
     end

@@ -114,6 +114,31 @@ RSpec.describe LandingValidationCache do
   end
 
   describe ".reusable_for?" do
+    # Regression (formal/SyrusModel/ValidationReuse.lean): a validation is
+    # reusable only when every correctness-relevant identity is known to
+    # match. An unknown current base was not compared at all, so a cached
+    # validation against base X was reused for a base that could be anything.
+    {
+      "base SHA" => { base_sha: nil, reason: "current base SHA is unknown" },
+      "base ref" => { base_ref: nil, reason: "current base ref is unknown" }
+    }.each do |identity, change|
+      it "rejects reuse when the current #{identity} is unknown" do
+        job = make_job
+        make_workflow(job, artifacts: { "landing_validation" => {
+          "required_graders_passed" => true, "head_sha" => "abc", "tree_sha" => "tree-a",
+          "base_sha" => "base", "base_ref" => "main", "grader_fingerprint" => "fp"
+        } })
+        current = { base_sha: "base", base_ref: "main" }.merge(change.except(:reason))
+
+        exact = described_class.reusable_for?(job: job, head_sha: "abc", grader_fingerprint: "fp", **current)
+        same_tree = described_class.reusable_for?(job: job, head_sha: "other", tree_sha: "tree-a", grader_fingerprint: "fp", **current)
+
+        expect(exact).not_to be_reusable
+        expect(exact.reason).to eq(change[:reason])
+        expect(same_tree).not_to be_reusable
+      end
+    end
+
     it "returns an exact_head hit when head, base, and grader fingerprint match" do
       job = make_job
       make_workflow(job, artifacts: { "landing_validation" => {
