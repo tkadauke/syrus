@@ -1253,7 +1253,8 @@ relaunch".
 
 **Also found.** My earlier production scan for Workflows with two units
 (one-unit-per-workflow) read the wrong key from the admin payload (`units`,
-not `work_units`), so it checked nothing. It is being rerun.
+not `work_units`), so it checked nothing. The corrected rerun covered the
+most recent 2,900 intents (2,935 units) and found no Workflow with two units.
 
 ---
 
