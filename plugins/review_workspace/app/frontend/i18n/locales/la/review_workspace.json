@@ -27,6 +27,7 @@
   "approve_shortcut": "Ad coniunctionem approbare (A)",
   "approve_confirm": "{{slug}} ad coniunctionem approbare?",
   "feedback_shortcut": "Responsum dare (F)",
+  "feedback": "Responsum dare",
   "feedback_label": "Quid mutandum est?",
   "send_feedback": "Responsum mittere",
   "defer": "In hac sessione differre",
@@ -40,5 +41,16 @@
   "gesture_approve": "Dimitte ut approbationem recognoscas",
   "gesture_defer": "Dimitte ut in hac sessione differas",
   "gesture_next": "Dimitte ad Job proximum",
-  "gesture_previous": "Dimitte ad Job priorem"
+  "gesture_previous": "Dimitte ad Job priorem",
+  "summary_unavailable": "Summarium implementationis non submissum est.",
+  "visual_evidence": "Argumenta visualia",
+  "no_visual_evidence": "Nulla argumenta visualia huic Job submissa sunt.",
+  "evidence_position": "{{current}} ex {{count}}",
+  "previous_evidence": "Argumentum visuale prius",
+  "next_evidence": "Argumentum visuale proximum",
+  "why_needed": "Cur te requirit:",
+  "why_needed_ready": "Implementatio et argumenta iudicio tuo parata sunt.",
+  "why_needed_blocked": "Argumenta et probationes ante iudicium inspice.",
+  "gesture_cue": "Sursum aut deorsum trahe · dextrorsum approba · sinistrorsum differ · tene ad singula",
+  "gesture_coach": "Inter Jobs verticaliter move. Dextrorsum trahe ut approbationem recognoscas, sinistrorsum ut differas, aut tene ut differentiam plenam et singula videas. Bullae infra manent."
 }

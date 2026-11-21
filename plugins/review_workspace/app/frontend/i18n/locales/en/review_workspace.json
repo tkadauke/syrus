@@ -27,6 +27,7 @@
   "approve_shortcut": "Approve for landing (A)",
   "approve_confirm": "Approve {{slug}} for landing?",
   "feedback_shortcut": "Give feedback (F)",
+  "feedback": "Give feedback",
   "feedback_label": "What should change?",
   "send_feedback": "Send feedback",
   "defer": "Defer for this session",
@@ -40,5 +41,16 @@
   "gesture_approve": "Release to review approval",
   "gesture_defer": "Release to defer for this session",
   "gesture_next": "Release for next Job",
-  "gesture_previous": "Release for previous Job"
+  "gesture_previous": "Release for previous Job",
+  "summary_unavailable": "No implementation summary was submitted.",
+  "visual_evidence": "Visual evidence",
+  "no_visual_evidence": "No submitted visual evidence for this Job.",
+  "evidence_position": "{{current}} of {{count}}",
+  "previous_evidence": "Previous visual evidence",
+  "next_evidence": "Next visual evidence",
+  "why_needed": "Why it needs you:",
+  "why_needed_ready": "The implementation and its evidence are ready for your decision.",
+  "why_needed_blocked": "Review the evidence and checks before deciding.",
+  "gesture_cue": "Swipe up or down to move · right to approve · left to defer · hold for details",
+  "gesture_coach": "Move between Jobs vertically. Swipe right to review approval, left to defer this session, or press and hold for the full diff and details. Buttons remain available below."
 }
