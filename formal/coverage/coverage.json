@@ -386,9 +386,9 @@
         "landing_queue_serializes_contention",
         "terminal_work_unit_active_lock"
       ],
-      "status": "partial",
-      "done_by": "model round 1 (LockSafety.lean)",
-      "notes": "Proved under UniqueRuntime (O1) and the unique-index abstraction; the nil-owner rescue hole (concurrency/lock-acquisition-nil-owner) is outside the model."
+      "status": "done",
+      "done_by": "model round 1 (LockSafety.lean) · LockAcquire.lean",
+      "notes": "Proved under UniqueRuntime (O1) and the unique-index abstraction; the nil-owner rescue hole (concurrency/lock-acquisition-nil-owner) is outside the model. Closed: the nil-owner rescue hole is fixed at both acquisition sites (Launcher#create_lock! and WorkUnit#ensure_active_locks!), which retry once and then fail closed with LockConflict instead of running without the lock, proved in LockAcquire.lean. Remaining lock-free paths are deliberate (advisory keys, the non-blocking main-branch-repair repository lock, materialize-behind-active-lock kinds that acquire at start)."
     },
     {
       "id": "job-mutex-dedup",
