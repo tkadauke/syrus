@@ -9,34 +9,6 @@ RSpec.describe JavaScript::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "javascript" }
     end
 
-    before do
-      # The after_initialize block runs once at boot; plugin_registry.rb resets
-      # the in-memory registry in test mode. Re-register here so examples see
-      # the manifest. Interface modules were included during after_initialize
-      # and are permanent on the classes.
-      unless Syrus::PluginRegistry.registered_names.include?("javascript")
-        Syrus::PluginRegistry.register(
-          name:             "javascript",
-          version:          Syrus::PluginApi.default_version,
-          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; ESLint/Prettier autofix; npm/yarn/pnpm audit dependency scanning; default `any`-type review criterion",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 20,
-          provides: {
-            prepare_detector:         JavaScript::PrepareDetector,
-            preview_provider:         JavaScript::PreviewProvider,
-            grader_augmentor:         JavaScript::EslintGraderAugmentor,
-            review_criteria_provider: JavaScript::ReviewCriteriaProvider,
-            autofix_command:          [ JavaScript::EslintAutofix, JavaScript::PrettierAutofix ],
-            dependency_audit_command: JavaScript::DependencyAuditCommand,
-            focused_test_command:     JavaScript::FocusedTestCommand,
-            grader_type:              JavaScript::VitestGraderType,
-            grade_detector:           JavaScript::GradeDetector
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end
@@ -51,48 +23,17 @@ RSpec.describe JavaScript::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides exactly the expected extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(
-        :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command, :dependency_audit_command, :focused_test_command, :grader_type, :grade_detector
+    it "registers its Ecosystem providers and none of the absorbed legacy points" do
+      expect(registration.provides.keys).to contain_exactly(:preview_provider)
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] }).to contain_exactly(
+        [ "JavaScript::Ecosystem", %i[detect_prepare grade_candidates grader_diagnostics review_criteria autofix dependency_audit focused_tests] ],
+        [ "JavaScript::PrettierEcosystem", %i[autofix] ],
+        [ "JavaScript::VitestEcosystem", %i[grader_types] ]
       )
-    end
-
-    it "registers EslintAutofix and PrettierAutofix as the :autofix_command providers" do
-      expect(registration.provides[:autofix_command]).to eq(
-        [ JavaScript::EslintAutofix, JavaScript::PrettierAutofix ]
-      )
-    end
-
-    it "registers DependencyAuditCommand as the :dependency_audit_command" do
-      expect(registration.provides[:dependency_audit_command]).to eq(JavaScript::DependencyAuditCommand)
-    end
-
-    it "registers FocusedTestCommand as the :focused_test_command" do
-      expect(registration.provides[:focused_test_command]).to eq(JavaScript::FocusedTestCommand)
-    end
-
-    it "registers VitestGraderType as the :grader_type" do
-      expect(registration.provides[:grader_type]).to eq(JavaScript::VitestGraderType)
-    end
-
-    it "registers GradeDetector as the :grade_detector" do
-      expect(registration.provides[:grade_detector]).to eq(JavaScript::GradeDetector)
-    end
-
-    it "registers PrepareDetector as the :prepare_detector" do
-      expect(registration.provides[:prepare_detector]).to eq(JavaScript::PrepareDetector)
     end
 
     it "registers PreviewProvider as the :preview_provider" do
       expect(registration.provides[:preview_provider]).to eq(JavaScript::PreviewProvider)
-    end
-
-    it "registers EslintGraderAugmentor as the :grader_augmentor" do
-      expect(registration.provides[:grader_augmentor]).to eq(JavaScript::EslintGraderAugmentor)
-    end
-
-    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
-      expect(registration.provides[:review_criteria_provider]).to eq(JavaScript::ReviewCriteriaProvider)
     end
   end
 
@@ -410,7 +351,6 @@ RSpec.describe JavaScript::Engine do
         homepage:         "https://github.com/tkadauke/syrus",
         prepare_priority: 20,
         provides: {
-          prepare_detector: JavaScript::PrepareDetector,
           preview_provider: JavaScript::PreviewProvider
         }
       )

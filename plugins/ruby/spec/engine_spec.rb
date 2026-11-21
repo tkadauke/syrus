@@ -7,39 +7,6 @@ RSpec.describe Ruby::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "ruby" }
     end
 
-    before do
-      # The after_initialize block runs once at boot; plugin_registry.rb resets
-      # the in-memory registry in test mode. Re-register here so examples see
-      # the manifest. Interface modules were included during after_initialize
-      # and are permanent on the classes.
-      unless Syrus::PluginRegistry.registered_names.include?("ruby")
-        Syrus::PluginRegistry.register(
-          name:             "ruby",
-          version:          Syrus::PluginApi.default_version,
-          description:      "Ruby-generic intelligence: RSpec and Minitest grader detail, RuboCop grader detail, " \
-                             "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
-                             "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
-                             "require_relative-graph affected-test analysis, RSpec and Minitest grade detection, RSpec and Minitest typed graders, RSpec focused base-retry commands",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 10,
-          provides: {
-            coverage_analyzer:        Ruby::SimpleCovAnalyzer,
-            grader_augmentor:         [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
-            prepare_detector:         Ruby::PrepareDetector,
-            grade_detector:           Ruby::GradeDetector,
-            grader_type:              [ Ruby::RspecGraderType, Ruby::MinitestGraderType ],
-            review_criteria_provider: Ruby::ReviewCriteriaProvider,
-            "test_insights:parser" => Ruby::RspecParser,
-            autofix_command:          Ruby::RubocopAutofix,
-            dependency_audit_command: Ruby::BundlerAuditCommand,
-            affected_test_analyzer:   Ruby::AffectedTestAnalyzer,
-            focused_test_command:     Ruby::FocusedTestCommand
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end
@@ -54,63 +21,13 @@ RSpec.describe Ruby::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides all 11 extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(
-        :coverage_analyzer,
-        :grader_augmentor,
-        :prepare_detector,
-        :grade_detector,
-        :grader_type,
-        :review_criteria_provider,
-        "test_insights:parser",
-        :autofix_command,
-        :dependency_audit_command,
-        :affected_test_analyzer,
-        :focused_test_command
+    it "registers its Ecosystem providers and none of the absorbed legacy points" do
+      expect(registration.provides.keys).to contain_exactly("test_insights:parser")
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] }).to contain_exactly(
+        [ "Ruby::Ecosystem", %i[detect_prepare grade_candidates grader_diagnostics review_criteria autofix dependency_audit focused_tests analyze_coverage affected_tests] ],
+        [ "Ruby::RspecEcosystem", %i[grader_types] ],
+        [ "Ruby::MinitestEcosystem", %i[grader_types] ]
       )
-    end
-
-    it "registers FocusedTestCommand as the :focused_test_command" do
-      expect(registration.provides[:focused_test_command]).to eq(Ruby::FocusedTestCommand)
-    end
-
-    it "registers RubocopAutofix as the :autofix_command" do
-      expect(registration.provides[:autofix_command]).to eq(Ruby::RubocopAutofix)
-    end
-
-    it "registers BundlerAuditCommand as the :dependency_audit_command" do
-      expect(registration.provides[:dependency_audit_command]).to eq(Ruby::BundlerAuditCommand)
-    end
-
-    it "registers AffectedTestAnalyzer as the :affected_test_analyzer" do
-      expect(registration.provides[:affected_test_analyzer]).to eq(Ruby::AffectedTestAnalyzer)
-    end
-
-    it "registers GradeDetector as the :grade_detector" do
-      expect(registration.provides[:grade_detector]).to eq(Ruby::GradeDetector)
-    end
-
-    it "registers RspecGraderType and MinitestGraderType as :grader_type providers" do
-      expect(registration.provides[:grader_type]).to eq([ Ruby::RspecGraderType, Ruby::MinitestGraderType ])
-      expect(Syrus::PluginRegistry.providers_for(:grader_type)).to include(Ruby::RspecGraderType, Ruby::MinitestGraderType)
-    end
-
-    it "registers SimpleCovAnalyzer as the :coverage_analyzer" do
-      expect(registration.provides[:coverage_analyzer]).to eq(Ruby::SimpleCovAnalyzer)
-    end
-
-    it "registers GraderAugmentor and RubocopGraderAugmentor as the :grader_augmentor providers" do
-      expect(registration.provides[:grader_augmentor]).to eq(
-        [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ]
-      )
-    end
-
-    it "registers PrepareDetector as the :prepare_detector" do
-      expect(registration.provides[:prepare_detector]).to eq(Ruby::PrepareDetector)
-    end
-
-    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
-      expect(registration.provides[:review_criteria_provider]).to eq(Ruby::ReviewCriteriaProvider)
     end
 
     # The parser point is hosted by test_insights, not core: the plugin that
@@ -118,12 +35,6 @@ RSpec.describe Ruby::Engine do
     it "registers RspecParser into the test_insights parser point" do
       expect(registration.provides["test_insights:parser"]).to eq(Ruby::RspecParser)
       expect(Syrus::PluginRegistry.providers_for("test_insights:parser")).to include(Ruby::RspecParser)
-    end
-
-    it "surfaces both grader augmentors through providers_for" do
-      expect(Syrus::PluginRegistry.providers_for(:grader_augmentor)).to include(
-        Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor
-      )
     end
 
     it "leaves RSpec augmentor behavior unaffected by RubocopGraderAugmentor being registered alongside it" do

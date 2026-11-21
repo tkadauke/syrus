@@ -274,7 +274,7 @@ RSpec.describe AgentEnvironmentSnapshot do
 
       snapshot = snapshot_for_workspace
 
-      expect(snapshot).to include("Dependency signals: Ruby::PrepareDetector (bundle install), JavaScript::PrepareDetector (npm ci)")
+      expect(snapshot).to include("Dependency signals: Ruby (bundle install), JavaScript (npm ci)")
     end
 
     it "reports no dependency signals when no detector matches" do
@@ -316,8 +316,8 @@ RSpec.describe AgentEnvironmentSnapshot do
 
       snapshot = snapshot_for_workspace
 
-      expect(snapshot).not_to include("Ruby::PrepareDetector")
-      expect(snapshot).to include("Dependency signals: JavaScript::PrepareDetector (npm install)")
+      expect(snapshot).not_to include("Ruby (bundle install)")
+      expect(snapshot).to include("Dependency signals: JavaScript (npm install)")
     end
   end
 

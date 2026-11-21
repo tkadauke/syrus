@@ -131,8 +131,8 @@ RSpec.describe RepoPrepPlan do
       write("yarn.lock", "")
       result = described_class.for(@dir)
       expect(result.commands).to eq([ "bundle install", "yarn install --frozen-lockfile" ])
-      expect(result.source).to include("Ruby::PrepareDetector")
-      expect(result.source).to include("JavaScript::PrepareDetector")
+      expect(result.source).to include("Ruby")
+      expect(result.source).to include("JavaScript")
     end
 
     it "no recognized signals → empty + diagnostic" do
