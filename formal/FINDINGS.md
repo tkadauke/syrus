@@ -3590,6 +3590,50 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M24. Desktop image cleanup and reboot resume — audited, one design question
+
+**Scope.** DOC-44 Phase 7:
+
+- "Cleanup never deletes the active or recovery image", "Old images are
+  removed only after the new backend is healthy", and "Failed backend update
+  retains the current or rollback-relevant image";
+- "Reboot recovery resumes only the intended channel and phase".
+
+**Cleanup holds for the active image.**
+`removeSupersededSyrusImages` runs only on the update path, and only after
+`ok && backendHealthy()` (F80 audit). The pure filter `supersededSyrusImages`
+removes a ref only if all of these are true:
+
+- the ref has a Syrus basename;
+- it is in the *same repository* as the pin;
+- it has the *same tag channel* as the pin (the rule F79 made both callers
+  share);
+- it is neither the pin nor referenced by a running container.
+
+Removal is a plain `docker image rm` without `-f`, so any image a container
+still references, running or stopped, refuses and stays. Two cases fail
+safe and remove nothing:
+
+- there is no pin;
+- the pin is a digest (`repo@sha256:…`). Its "repository" then matches no
+  listing.
+
+**Open: the previous image is the only local rollback target (NY24).** After
+a *healthy* update, every same-channel sibling of the new pin is removed,
+including the image that was running a minute earlier. If the new version
+then misbehaves after its health gate (a data migration or runtime bug), the
+only rollback is re-pulling the old multi-GB image, which may be impossible
+offline. Keeping it costs one image, about 7.6 GB.
+
+**Reboot resume holds.** The Windows RunOnce value name is per channel
+(`SyrusResumeSetup` / `SyrusResumeSetupTest`), and it launches the running
+channel's own executable. The resume flag (`onboardingResumeLocal`) lives in
+the channel-specific settings store. `clearRebootResume` removes only this
+channel's value. So a reboot resumes exactly the interrupted channel, and the
+local flow is the only phase that arms it.
+
+---
+
 ## M22. Diff review endpoints and per-job review state — audited, no bug
 
 Main's "Keep diff review endpoints independent across versions," "Keep diff

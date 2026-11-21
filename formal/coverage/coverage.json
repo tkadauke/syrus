@@ -2970,6 +2970,40 @@
       "status": "done",
       "done_by": "F85 (audit)",
       "notes": "Validate-then-write; serialized queue with generation supersession."
+    },
+    {
+      "id": "desktop-image-cleanup",
+      "area": "desktop",
+      "title": "Image cleanup never deletes the active image and runs only after a healthy update",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "supersededSyrusImages / removeSupersededSyrusImages",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M24 (NY24 open)",
+      "notes": "Same repository and channel, never the pin or an in-use ref, unforced rm. Open: the previous image (rollback target) is removed too (NY24)."
+    },
+    {
+      "id": "desktop-reboot-resume",
+      "area": "desktop",
+      "title": "Reboot recovery resumes only the interrupted channel and phase",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "windowsResume RunOnce value, onboardingResumeLocal",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "M24",
+      "notes": "Per-channel RunOnce value name and settings store; audited, no bug."
     }
   ],
   "needs_you": [
@@ -3270,6 +3304,19 @@
         "C. Keep as is: hooks are a convenience for trusted repositories, and --no-hooks is the escape hatch."
       ],
       "recommendation": "A. It keeps the convenience for hooks the repository already trusts on its base branch, and stops the one path where text from outside becomes code running on the operator's machine without anyone reading it.",
+      "decision": null
+    },
+    {
+      "id": "NY24",
+      "item": "desktop-image-cleanup",
+      "title": "Should a backend update keep the previous image for rollback?",
+      "context": "After a backend update passes its health gate, the desktop removes every same-channel image of the backend except the new pin, including the image that was running a minute earlier. If the new version misbehaves after the health gate (a migration or runtime problem), rolling back means re-pulling a multi-GB image, which may be impossible offline. Keeping it costs one image (about 7.6 GB).",
+      "options": [
+        "A. Keep exactly one previous same-channel image (the one the update replaced) and remove anything older.",
+        "B. Keep the previous image only until the next successful update or for a fixed period, such as 7 days.",
+        "C. Keep as is: reclaim all space immediately, and rely on re-pulling for rollback."
+      ],
+      "recommendation": "A. It bounds disk use at two images, and it keeps the one image that makes a local rollback possible.",
       "decision": null
     }
   ]
