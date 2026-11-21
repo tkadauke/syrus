@@ -156,7 +156,7 @@ describe("ReviewWorkspaceRoute", () => {
     renderRoute("/review/JOB-42")
     await screen.findByText("Canonical review evidence")
     expect(screen.getByRole("main", { name: "Review" })).toHaveClass("bg-page", "text-text")
-    expect(screen.getByRole("button", { name: "Previous Job" })).toHaveClass("min-h-11", "min-w-11", "bg-surface")
+    expect(screen.getByRole("button", { name: "Job details" })).toHaveClass("min-h-11", "min-w-11", "bg-surface")
     expect(screen.getByRole("complementary", { name: "Decision context" })).toHaveClass("bg-surface")
   })
 
@@ -237,6 +237,54 @@ describe("ReviewWorkspaceRoute", () => {
     expect(jobApi.postJobCommand).not.toHaveBeenCalled()
   })
 
+  it("does not carry approval gesture intent to another Job", async () => {
+    const second = { ...job(), id: 43, slug: "JOB-43", title: "Review next" }
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 2, jobs: [job(), second] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByText("Canonical review evidence")
+    const card = screen.getByTestId("mobile-review-card")
+    fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 11, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 170, clientY: 200, pointerId: 11, pointerType: "touch" })
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }))
+    fireEvent.keyDown(window, { key: "j" })
+    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
+    await waitFor(() => expect(jobApi.fetchJobDetail).toHaveBeenCalledWith("43"))
+    expect(screen.queryByText("Approve JOB-43 for landing?")).not.toBeInTheDocument()
+  })
+
+  it("arbitrates touch scrolling and boundary navigation without relying on pointer cancellation", async () => {
+    const second = { ...job(), id: 43, slug: "JOB-43", title: "Review next" }
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 2, jobs: [job(), second] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByText("Canonical review evidence")
+    const scroller = screen.getByTestId("review-workspace-scroll-container")
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 300 })
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 })
+    scroller.scrollTop = 200
+    let card = screen.getByTestId("mobile-review-card")
+    expect(card).toHaveClass("touch-none")
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 12, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
+    expect(scroller.scrollTop).toBe(300)
+    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("aria-current", "page")
+
+    scroller.scrollTop = 700
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 13, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 13, pointerType: "touch" })
+    fireEvent.pointerCancel(card, { clientX: 150, clientY: 150, pointerId: 13, pointerType: "touch" })
+    expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("aria-current", "page")
+
+    card = screen.getByTestId("mobile-review-card")
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 14, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 14, pointerType: "touch" })
+    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
+  })
+
   it("supports mouse vertical navigation in both directions and cancels short gestures", async () => {
     const second = { ...job(), id: 43, slug: "JOB-43", title: "Review next" }
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -306,6 +354,22 @@ describe("ReviewWorkspaceRoute", () => {
     first.unmount()
     renderRoute("/review/JOB-42")
     expect(await screen.findByText("No screenshots")).toBeInTheDocument()
+  })
+
+  it("refreshes eligibility and clears a stale Job after an approval error", async () => {
+    let workspaceRequests = 0
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      workspaceRequests += 1
+      const jobs = workspaceRequests === 1 ? [job()] : []
+      return new Response(JSON.stringify({ count: jobs.length, jobs }), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+    jobApi.postJobCommand.mockRejectedValueOnce(new Error("Job is no longer eligible"))
+    renderRoute("/review/JOB-42")
+    await screen.findByText("Canonical review evidence")
+    fireEvent.click(screen.getByRole("button", { name: "Approve for landing (A)" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
+    expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
+    expect(workspaceRequests).toBeGreaterThan(1)
   })
 })
 
