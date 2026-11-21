@@ -9,6 +9,7 @@ require "syrus_rails/schema_erd_renderer"
 require "syrus_rails/migration_diff_renderer"
 require "syrus_rails/prompt_context"
 require "syrus_rails/preview_provider"
+require "syrus_rails/ecosystem"
 
 module SyrusRails
   extend Syrus::PluginApi
@@ -39,8 +40,8 @@ module SyrusRails
 
     provides mcp_tool_set: "SyrusRails::McpToolSet",
              artifact_renderer: [ "SyrusRails::SchemaErdRenderer", "SyrusRails::MigrationDiffRenderer" ],
-             prompt_injector: "SyrusRails::PromptContext",
              preview_provider: "SyrusRails::PreviewProvider"
+    provides ecosystem: "SyrusRails::Ecosystem", implements: %i[prompt_context]
 
     frontend i18n: [ "app/frontend/i18n/locales/*/syrus_rails.json" ]
   end

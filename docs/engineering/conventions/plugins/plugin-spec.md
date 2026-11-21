@@ -162,7 +162,7 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::PermissionProvider` (since 0.1.16) — Declares plugin permission capabilities and scopes; core authorization storage is not promised. Only the listed members are supported. Supported members: `migrate_permission_scope`, `register_authorization_adapter`, `register_capability`, `register_permission_preset`, `register_resource_scope`, `retire_permission_identifier`.
 - `Syrus::Host::PluginApi` (since 0.1.16) — Declares and installs plugin manifests; Definition internals are not promised. Only the listed members are supported. Supported members: `enabled?`, `register!`, `syrus_plugin`, `syrus_plugin_definition`.
 - `Syrus::Host::PluginInvocation` (since 0.1.16) — Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised. Only the listed members are supported. Supported members: `call`.
-- `Syrus::Host::PluginRegistry` (since 0.1.16) — Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported. Supported members: `extension_point?`, `providers_for`, `register`.
+- `Syrus::Host::PluginRegistry` (since 0.1.16) — Registers manifests and reads extension providers; reset, health, and cache internals are not promised. Only the listed members are supported. Supported members: `capability_providers`, `extension_point?`, `providers_for`, `register`.
 - `Syrus::Host::ProcessRunner` (since 0.1.16) — Runs managed plugin subprocesses with host cancellation and confinement; backend internals are not promised. Only the listed members are supported. Supported members: `capture`, `forwarded_env`, `mounts`, `new`, `run`, `start`.
 - `Syrus::Host::Record` (since 0.1.16) — Bases plugin-owned records in the primary database; private core helpers are not promised. Only the listed members are supported. Supported members: `belongs_to`, `has_many`.
 - `Syrus::Host::Repository` (since 0.1.16) — Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised. Supported members: `accessible_to`, `active`, `archived_at`, `find`, `id`, `jobs`, `name`, `owner`, `writable_by`.
@@ -188,4 +188,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 33567 bytes (UTF-8, including this line).
+Size: 33591 bytes (UTF-8, including this line).

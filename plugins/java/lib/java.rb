@@ -3,6 +3,7 @@ require "java/prompt_context"
 require "java/review_criteria_provider"
 require "java/gradle_grader_type"
 require "java/maven_grader_type"
+require "java/ecosystem"
 
 module Java
   extend Syrus::PluginApi
@@ -22,9 +23,9 @@ module Java
       signals.repositories_detecting("java")
     end
 
-    provides prepare_detector: "Java::PrepareDetector",
-             prompt_injector: "Java::PromptContext",
-             review_criteria_provider: "Java::ReviewCriteriaProvider",
-             grader_type: [ "Java::GradleGraderType", "Java::MavenGraderType" ]
+    provides ecosystem: "Java::Ecosystem",
+      implements: %i[detect_prepare prompt_context review_criteria]
+    provides ecosystem: "Java::GradleEcosystem", key: :gradle, implements: %i[grader_types]
+    provides ecosystem: "Java::MavenEcosystem", key: :maven, implements: %i[grader_types]
   end
 end

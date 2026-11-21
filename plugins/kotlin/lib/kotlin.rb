@@ -2,6 +2,7 @@ require "java"
 require "kotlin/prepare_detector"
 require "kotlin/prompt_context"
 require "kotlin/review_criteria_provider"
+require "kotlin/ecosystem"
 
 module Kotlin
   extend Syrus::PluginApi
@@ -22,8 +23,7 @@ module Kotlin
       signals.repositories_detecting("kotlin")
     end
 
-    provides prepare_detector: "Kotlin::PrepareDetector",
-             prompt_injector: "Kotlin::PromptContext",
-             review_criteria_provider: "Kotlin::ReviewCriteriaProvider"
+    provides ecosystem: "Kotlin::Ecosystem",
+      implements: %i[detect_prepare prompt_context review_criteria]
   end
 end
