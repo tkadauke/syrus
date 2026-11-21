@@ -9,7 +9,7 @@ module S3BackupDestination
       source = Syrus::Host::PluginRegistry.providers_for(:backup_artifact_source).first
       return unless source && backup_id.present?
 
-      source.pin(backup_id, owner: Destination::IDENTITY, context: nil)
+      return unless source.pin(backup_id, owner: Destination::IDENTITY, context: nil)
       description = source.describe(backup_id, context: nil)
       io = source.open(backup_id, context: nil)
       uploaded = Destination.upload(description.merge(io:))

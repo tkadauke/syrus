@@ -6,11 +6,23 @@ RSpec.describe S3BackupDestination::Subscriber do
 
   before do
     allow(Syrus::Host::PluginRegistry).to receive(:providers_for).with(:backup_artifact_source).and_return([source])
-    allow(source).to receive(:pin)
+    allow(source).to receive(:pin).and_return(true)
     allow(source).to receive(:describe).and_return(id: "backup-1", checksum: { value: "source" })
     allow(source).to receive(:open).and_return(StringIO.new("archive"))
     allow(source).to receive(:record_replication)
     allow(source).to receive(:release_pin)
+    allow(S3BackupDestination::Destination).to receive(:upload)
+  end
+
+  it "does not repeat work for an already verified destination" do
+    allow(source).to receive(:pin).and_return(false)
+
+    described_class.replicate(event)
+
+    expect(source).not_to have_received(:describe)
+    expect(S3BackupDestination::Destination).not_to have_received(:upload)
+    expect(source).not_to have_received(:record_replication)
+    expect(source).to have_received(:release_pin)
   end
 
   it "records verified state without exposing source paths" do
