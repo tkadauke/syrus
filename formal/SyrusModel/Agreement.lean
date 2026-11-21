@@ -528,5 +528,33 @@ theorem landing_repairs_never_both (us : List LUnit) : ¬ (strict us = true ∧ 
   rw [strict_implies_loose us hs] at hl
   exact Bool.noConfusion hl
 
+/-! ## Instance: "nothing left" while the last Step waits for an in-place retry
+
+`running_workflow_without_active_descendants` judged a Workflow by its Steps'
+*projected* states. A Step held for an in-place retry stays `running` with only
+a failed Run, so it projects as terminal. When it was the last Step, the
+classifier flagged the Workflow, and the repair could not infer an outcome
+from a persisted `running` last Step: it failed with "operator review is
+required" on every pass until the retry ran (F36). -/
+
+structure Tail where
+  /-- The last Step is held for a pending in-place retry. -/
+  held : Bool
+  /-- Any other active Step or Run. -/
+  otherActive : Bool
+  deriving DecidableEq, Repr
+
+def detectTailBefore (t : Tail) : Prop := t.otherActive = false
+def detectTailAfter (t : Tail) : Prop := t.otherActive = false ∧ t.held = false
+/-- The repair can infer an outcome only when no Step is still persisted active. -/
+def tailOutcomeKnown (t : Tail) : Prop := t.otherActive = false ∧ t.held = false
+
+theorem tail_held_before_not_actionable : ¬ Actionable detectTailBefore tailOutcomeKnown := by
+  intro h
+  have := h ⟨true, false⟩ rfl
+  simp [tailOutcomeKnown] at this
+
+theorem tail_held_after_actionable : Actionable detectTailAfter tailOutcomeKnown := fun _ h => h
+
 end Agreement
 end SyrusModel

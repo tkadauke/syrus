@@ -1229,6 +1229,7 @@ module WorkEngine
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
           return skipped("Workflow still has active descendants") if workflow.active_descendants?
+          return skipped("A Step is waiting for an in-place retry") if AutoRetryAttempt.pending_in_place_step_retry_in?(workflow)
 
           outcome = workflow.terminal_descendant_outcome
           return failure("No terminal outcome could be inferred; operator review is required") unless outcome
