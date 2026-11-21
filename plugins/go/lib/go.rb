@@ -4,6 +4,7 @@ require "go/gofmt_autofix"
 require "go/dependency_audit_command"
 require "go/test_grader_type"
 require "go/coverage_analyzer"
+require "go/ecosystem"
 
 module Go
   extend Syrus::PluginApi
@@ -21,11 +22,8 @@ module Go
       signals.repositories_detecting("go")
     end
 
-    provides prepare_detector: "Go::PrepareDetector",
-             review_criteria_provider: "Go::ReviewCriteriaProvider",
-             autofix_command: "Go::GofmtAutofix",
-             dependency_audit_command: "Go::DependencyAuditCommand",
-             grader_type: "Go::TestGraderType",
-             coverage_analyzer: "Go::CoverageAnalyzer"
+    provides ecosystem: "Go::Ecosystem",
+      implements: %i[detect_prepare review_criteria autofix dependency_audit analyze_coverage]
+    provides ecosystem: "Go::TestEcosystem", key: :go_test, implements: %i[grader_types]
   end
 end
