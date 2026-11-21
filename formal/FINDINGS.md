@@ -3811,6 +3811,52 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M26. A failed Step on a queued Workflow — dispatch audited, one design question
+
+**Scope.** DOC-44, the coverage item `queued-workflow-with-failed-step`:
+"An unsuperseded failed Step with no live work implies the Workflow is
+terminal or a loop continuation is pending."
+
+**The live dispatch is total.** `StepDispatcher#fail!` ends every branch with
+the Workflow terminal, new live work, or a pending loop continuation:
+
+- a step kind that advances on failure (`:advance`) advances;
+- a loop-iteration kind continues the loop, stops it, or hard-fails;
+- a run that died of retryable infrastructure is retried, bounded by
+  `INFRASTRUCTURE_STEP_RETRY_LIMIT`;
+- a try branch is taken;
+- otherwise the Workflow hard-fails.
+
+So the state is reachable only if the cascade itself is lost, for example an
+exception in the Step's `after_update_commit`. In that case
+`queued_workflow_with_failed_step`, and its running twin
+`running_workflow_with_failed_step`, auto-repair it.
+
+**Open: the repair does not replay the cascade (NY26).** The reconciler offers
+two repairs. A pending loop with budget remaining gets
+`StepDispatcher.fail_from(step)`, which is the cascade itself. Everything else
+gets `fail_workflow_from_failed_step`, which calls `Workflow#fail!` directly.
+That skips three of the cascade's outcomes:
+
+- advance-on-failure kinds;
+- try branches;
+- the in-place retry of a run classified as retryable infrastructure.
+
+A failed `test_plan` Step whose run was classified `worker_died` illustrates
+it. A first version of `failed_step_with(retryable: true)` showed the cascade
+retrying the Step, while the repair failed the Workflow, and with it the Job.
+The existing spec "fails a running workflow that already has a failed step and
+a queued tail" pins the repair's behaviour on purpose, with a retryable
+`agent_resume_unavailable` run: fail the Workflow "and let the normal
+failed-step retry path take over".
+
+The two recovery paths disagree about the same state, and choosing which is
+right is a design decision, so the code is unchanged. This also bears on
+`worker-loss-bounded-recovery` ("Worker or storage loss never fails a Job by
+itself").
+
+---
+
 ## M25. Row-lock order across the engine — counterexample, design question
 
 **Scope.** DOC-44 concurrency, the coverage item `lock-order-acyclic`. Every

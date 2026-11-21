@@ -852,9 +852,9 @@
       "simulator": [
         "queued_workflow_with_failed_step"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: an unsuperseded failed step with no live work implies the Workflow is terminal or a loop continuation is pending."
+      "status": "partial",
+      "done_by": "M26 (NY26 open)",
+      "notes": "Invariant: an unsuperseded failed step with no live work implies the Workflow is terminal or a loop continuation is pending. M26: the live dispatch (StepDispatcher#fail!) is total; a lost cascade is auto-repaired, but the fail_workflow repair hard-fails instead of replaying the cascade (skipping advance, try branches and the infrastructure retry) — NY26."
     },
     {
       "id": "running-workflow-with-failed-step",
@@ -3347,6 +3347,19 @@
         "C. Keep as is: InnoDB detects deadlocks and aborts one side; the callers already tolerate failures."
       ],
       "recommendation": "A. The order matches what the hot paths already do, so the changes are confined to four rarer paths. The checker stops new sites from reintroducing a cycle, which an audit alone cannot.",
+      "decision": null
+    },
+    {
+      "id": "NY26",
+      "item": "queued-workflow-with-failed-step",
+      "title": "Should recovering a lost Step-failure cascade replay the cascade instead of failing the Workflow?",
+      "context": "When a Step fails, StepDispatcher#fail! decides what happens: advance (for kinds that advance on failure), continue a retry loop, take a try branch, retry the Step in place if its run died of retryable infrastructure, or hard-fail the Workflow. If that cascade is lost, the reconciler repairs the Workflow with fail_workflow_from_failed_step, which calls Workflow#fail! directly unless a loop has budget left. So a lost cascade on a Step whose worker died fails the Workflow (and its Job) where the live cascade would have retried the Step in place. An existing spec deliberately pins the repair's behaviour for a retryable agent_resume_unavailable run: fail the Workflow and let the normal failed-step retry path take over.",
+      "options": [
+        "A. Replay the cascade: the repair calls StepDispatcher.fail_from(failed_step), so recovery reaches exactly the outcome the lost cascade would have (hard-failing only when nothing else applies). Update the pinned spec.",
+        "B. Keep failing the Workflow, but exclude runs classified as retryable infrastructure, retrying those in place, so worker loss never fails a Workflow through the repair path.",
+        "C. Keep as is: the repair always fails the Workflow, and retries happen through the Job-level failed-step retry."
+      ],
+      "recommendation": "A. One function deciding what a Step failure means, used by both the live path and its recovery, is the only way the two can never disagree; the pinned case then retries in place, bounded by the existing infrastructure retry limit.",
       "decision": null
     }
   ]
