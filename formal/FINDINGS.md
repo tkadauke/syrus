@@ -3908,6 +3908,45 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M33. A finished Workflow's workspace is never deleted under live work — audited, no bug
+
+**Scope.** DOC-44 steps and workflows, the coverage item
+`terminal-workflow-live-processes`: "A finished Workflow still has a running
+OS process or a step that only looks running". The safety side is that
+cleanup never deletes a workspace something may still be using.
+
+**What counts as live.** `Workflow#live_descendants?` is true for any of:
+
+- an active Run;
+- a *projected* running Step;
+- a running `SpawnedProcess` recorded for the Workflow or any of its Runs.
+
+It is deliberately conservative. A Step that only looks running through its
+projection still counts.
+
+**Every deletion path is guarded:**
+
+- `Workflow#cleanup_workspace!` defers while `cleanup_blocked_by_active_descendants?`
+  holds.
+- `WorkflowWorkspace.cleanup_for` re-checks the same predicate. It also takes
+  the workspace's exclusive file lock, and defers if a live process holds it.
+  It defers again if the Workflow became active during cleanup.
+- The retention sweep `WorkflowWorkspacePruneJob#filesystem_sweep` sends every
+  directory whose Workflow still exists through `cleanup_workflow` and so
+  through `cleanup_for`.
+- The only direct `rm_rf` is for directories whose Workflow record no longer
+  exists. No DB-tracked Run, Step or `SpawnedProcess` can reference those.
+
+**The stuck case is reported, not forced.** A terminal Workflow whose live
+descendants never clear (an orphaned `SpawnedProcess` heartbeat, or a
+projection-only running Step) is reported as
+`cleanup_blocked_by_active_descendants` for operator review. It is reachable
+only when no persisted Step or Run is active. Cleanup stays deferred rather
+than deleting under a process that might be alive. Whether such a process is
+really dead depends on `SpawnedProcess` liveness, which is outside this model.
+
+---
+
 ## M32. Runs stranded on a dead worker's resume queue are rerouted once — audited, no bug
 
 **Scope.** DOC-44 runs and queue, the coverage item

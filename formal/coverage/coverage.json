@@ -829,9 +829,9 @@
       "simulator": [
         "active_run_on_terminal_step"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Operator-only variant of the same issue kind, reachable only when no persisted Step or Run is active; the external part is SpawnedProcess liveness."
+      "status": "done",
+      "done_by": "M33",
+      "notes": "Operator-only variant of the same issue kind, reachable only when no persisted Step or Run is active; the external part is SpawnedProcess liveness. M33: every workspace deletion path checks live_descendants? (runs, projected running steps, spawned processes) and the workspace file lock; only DB-orphaned directories are removed directly."
     },
     {
       "id": "queued-workflow-with-failed-step",
