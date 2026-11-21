@@ -70,6 +70,48 @@ RSpec.describe Syrus::Plugin::TestKit do
     expect(Syrus::PluginRegistry.all_plugins.map(&:name)).to eq(original_names)
   end
 
+  # with_syrus_plugin finds the loaded plugin's definition by probing every
+  # module in ObjectSpace. Any of them can answer respond_to? by raising (a
+  # singleton class whose lookup reaches a `new`-calling respond_to_missing?
+  # raises "can't create instance of singleton class"), so whether the probe
+  # crashed depended on which classes earlier examples had left loaded.
+  it "finds the plugin definition even when another loaded module raises from respond_to?" do
+    hostile = Module.new
+    hostile.define_singleton_method(:respond_to?) { |*| raise TypeError, "can't create instance of singleton class" }
+
+    Dir.mktmpdir("test-kit-hostile") do |parent|
+      root = Pathname.new(parent).join("hostile_probe_test_kit_plugin")
+      root.join("lib").mkpath
+      root.join("hostile_probe_test_kit_plugin.gemspec").write(<<~RUBY)
+        Gem::Specification.new do |spec|
+          spec.name = "hostile_probe_test_kit_plugin"
+          spec.version = "1.0.0"
+          spec.summary = "Test kit fixture"
+          spec.authors = ["Syrus"]
+          spec.files = []
+          spec.add_dependency "rails", ">= 8.1"
+          spec.metadata["requires_syrus"] = ">= 0.1.0"
+        end
+      RUBY
+      root.join("lib/hostile_probe_test_kit_plugin.rb").write(<<~RUBY)
+        module HostileProbeTestKitPlugin
+          extend Syrus::PluginApi
+          syrus_plugin "hostile_probe_test_kit_plugin" do
+            provides callbacks: "HostileProbeTestKitPlugin::Callbacks"
+          end
+          class Callbacks; end
+        end
+      RUBY
+
+      with_syrus_plugin(root) do |loaded|
+        expect(loaded).to register_plugin_provider(:callbacks)
+      end
+    end
+  ensure
+    Object.send(:remove_const, :HostileProbeTestKitPlugin) if defined?(HostileProbeTestKitPlugin)
+    hostile = nil
+  end
+
   it "reports a missing provider with the extension point" do
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:callbacks).and_return([])
 

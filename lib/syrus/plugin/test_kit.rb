@@ -48,6 +48,19 @@ module Syrus
       module Helpers
         def syrus_plugin(root, name: nil) = PluginUnderTest.new(root, name:)
 
+        # A definition lives on a module extended with Syrus::PluginApi, never
+        # on a singleton class. Every other module in ObjectSpace is probed
+        # too, and any of them may answer respond_to? by raising, so a probe
+        # that raises means "not a plugin namespace" rather than a crash that
+        # depends on which classes earlier examples left loaded.
+        def plugin_definition_of(namespace)
+          return if namespace.singleton_class?
+
+          namespace.syrus_plugin_definition if namespace.respond_to?(:syrus_plugin_definition)
+        rescue StandardError
+          nil
+        end
+
         def with_syrus_plugin(root, name: nil)
           plugin = syrus_plugin(root, name:)
           snapshot = Syrus::PluginRegistry.snapshot
@@ -58,7 +71,7 @@ module Syrus
           Syrus::PluginRegistry.reset!
           Syrus::PluginLoader.load!(plugin_roots: roots)
           definition = ObjectSpace.each_object(Module).filter_map do |namespace|
-            namespace.syrus_plugin_definition if namespace.respond_to?(:syrus_plugin_definition)
+            plugin_definition_of(namespace)
           end.find { |candidate| candidate&.name == plugin.name }
           Syrus::PluginLoader.install_definition!(definition) if definition
           yield plugin
