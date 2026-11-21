@@ -7,23 +7,6 @@ RSpec.describe Ios::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "ios" }
     end
 
-    before do
-      unless Syrus::PluginRegistry.registered_names.include?("ios")
-        Syrus::PluginRegistry.register(
-          name:             "ios",
-          version:          Syrus::PluginApi.default_version,
-          description:      "iOS/Xcode grader support: typed xcodebuild and SwiftPM patterns with macOS capability requirements and isolated artifacts",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 48,
-          provides: {
-            prepare_detector: Ios::PrepareDetector,
-            grader_type: [ Ios::XcodebuildGraderType, Ios::SwiftpmGraderType ]
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end

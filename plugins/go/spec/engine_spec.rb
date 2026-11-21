@@ -7,31 +7,6 @@ RSpec.describe Go::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "go" }
     end
 
-    before do
-      # The after_initialize block runs once at boot; plugin_registry.rb resets
-      # the in-memory registry in test mode. Re-register here so examples see
-      # the manifest. Interface modules were included during after_initialize
-      # and are permanent on the classes.
-      unless Syrus::PluginRegistry.registered_names.include?("go")
-        Syrus::PluginRegistry.register(
-          name:             "go",
-          version:          Syrus::PluginApi.default_version,
-          description:      "Go prepare detection: go.mod → GOWORK=off go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 40,
-          provides: {
-            prepare_detector:         Go::PrepareDetector,
-            review_criteria_provider: Go::ReviewCriteriaProvider,
-            autofix_command:          Go::GofmtAutofix,
-            dependency_audit_command: Go::DependencyAuditCommand,
-            grader_type:              Go::TestGraderType,
-            coverage_analyzer:        Go::CoverageAnalyzer
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end
