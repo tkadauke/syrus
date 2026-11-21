@@ -303,9 +303,9 @@
       "simulator": [
         "active_work_unit_without_workflow"
       ],
-      "status": "open",
-      "done_by": "O1",
-      "notes": "LockSafety.steps_lock_safe assumes it; Counterexamples.shared shows lock escape without it."
+      "status": "done",
+      "done_by": "by construction · spec/architecture/work_unit_workflow_ownership_spec.rb",
+      "notes": "LockSafety.steps_lock_safe assumes each Workflow has one WorkUnit (Counterexamples.shared shows a lock escape without it), and work_units.workflow_id is not unique. Holds by construction: the only writer of a unit's Workflow is WorkUnits::Launcher#instantiate, which creates the unit and attaches the Workflow its template created in the same transaction; every template's instantiate (Workflows::Base and its overrides, CheckpointResume, Coworkers::Workflow) calls Workflow.create!, never reuses one; the only other WorkUnit.create! is the simulation scenario loader. Now enforced: the architecture spec fails on any new place that creates a WorkUnit or re-points one at a Workflow. Production check (read-only admin API): the first 100 intents (101 units) had no Workflow with two units; the full scan stopped on an HTTP 500 from the listing and was not retried, to avoid loading production. A unique index would make it a database guarantee, but needs a production duplicate check first."
     },
     {
       "id": "finished-units-reentrant",
