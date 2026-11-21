@@ -1264,7 +1264,7 @@ export function PendingActionCard({
             <span>{pendingAction.execution_step || "Working..."}</span>
           </div>
         ) : isQueued ? (
-          <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-text-secondary">
             <span className="basis-full sm:basis-auto sm:flex-1">{t("pending_action_queued_hint")}</span>
             {dismissPath ? (
               <button
