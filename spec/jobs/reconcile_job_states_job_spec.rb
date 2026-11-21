@@ -36,6 +36,30 @@ RSpec.describe ReconcileJobStatesJob do
   # Workflow would have: otherwise the reconciler overrides a state the
   # lifecycle chose on purpose. Production repaired 75 lifecycle-owning
   # Workflows' Jobs from :queued and 41 implemented Jobs in ~2.5 days.
+  # NY6 (decided A): cancelling a running Job's current Workflow leaves the Job
+  # failed -- "needs an operator decision" -- and nothing relaunches a
+  # deliberately stopped attempt, so lifting it to queued left a Job that read
+  # "waiting to run" with no work behind it (Agreement.cancel_rules_disagree).
+  describe "a failed Job whose latest Workflow was cancelled" do
+    it "stays failed when the cancellation was deliberate" do
+      workflow = build_workflow(state: "cancelled")
+      workflow.set_artifact!("cancelled_reason", WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON)
+      job.update!(state: "failed")
+      finish_work_units!
+
+      expect(ReconcileJobStatesJob::Plan.for(job.reload)).to be_nil
+    end
+
+    it "is still lifted to queued after a cancellation that will be relaunched" do
+      workflow = build_workflow(state: "cancelled")
+      workflow.set_artifact!("cancelled_reason", EpicWorkflowLock::BLOCK_REASON)
+      job.update!(state: "failed")
+      finish_work_units!
+
+      expect(ReconcileJobStatesJob::Plan.for(job.reload)).to have_attributes(target_state: "queued")
+    end
+  end
+
   describe "lifting a Job to :running" do
     it "leaves a lifecycle-owning Workflow's Job where its start left it" do
       build_workflow(state: "running", trigger_kind: "main_branch_repair", finished_at: nil)
