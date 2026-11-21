@@ -169,6 +169,25 @@ RSpec.describe AppEvents do
       expect(AppUserChannel).not_to have_received(:broadcast_to)
     end
 
+    # A user a chat is shared with may open it and subscribe to its ChatChannel
+    # (accessible_chat_sessions includes shares), but resource events went only
+    # to participants, so a share viewer's open chat never received new
+    # messages; while connected, Chat.tsx does not poll, so it stayed stale.
+    it "also reaches users the chat is shared with, and no one else" do
+      owner = Factories.user
+      viewer = Factories.user
+      outsider = Factories.user
+      chat = ChatSession.create!(user: owner, title: "Shared")
+      ChatShare.create!(chat_session: chat, target: viewer, shared_by_user: owner)
+      allow(ActionCable.server).to receive(:broadcast)
+
+      described_class.broadcast_chat_resource(chat_session_id: chat.id, type: "updated", resource: "chat", id: chat.id)
+
+      expect(ActionCable.server).to have_received(:broadcast).with(ChatChannel.stream_name(chat.id, owner.id), anything)
+      expect(ActionCable.server).to have_received(:broadcast).with(ChatChannel.stream_name(chat.id, viewer.id), anything)
+      expect(ActionCable.server).not_to have_received(:broadcast).with(ChatChannel.stream_name(chat.id, outsider.id), anything)
+    end
+
     it "matches the stream ChatChannel subscribes to" do
       expect(ChatChannel.stream_name(4, 9)).to eq("chat_resource:4:user:9")
     end

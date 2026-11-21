@@ -2616,6 +2616,19 @@
       ],
       "recommendation": "A. It needs no server change and sweeps only on a genuine loss. revision_gap_recoveries already measures how often that happens, so the cost is visible before and after. B is the strongest option, but it adds server state and a new endpoint.",
       "decision": null
+    },
+    {
+      "id": "NY20",
+      "item": "frontend-scoped-events",
+      "title": "Should an open Job subscription stop when the user loses access to the Job?",
+      "context": "JobChannel authorizes with Job.visible_to only when a client subscribes, and then streams from one shared job_resource:<id> stream. Removing a user's repository membership, or narrowing Job visibility, does not end open subscriptions. Until the tab reconnects, that user keeps receiving the Job's Workflow, Step and Run field patches (state, timestamps, PR title, summary, cost). ChatChannel does not have this problem after F68, because it uses per-user streams whose recipients are recomputed on each broadcast.",
+      "options": [
+        "A. Move JobChannel to per-user streams like ChatChannel, with recipients recomputed from Job.visible_to on each broadcast. This costs one visibility query per Job broadcast.",
+        "B. Keep the shared stream, but have every membership or visibility change disconnect that user's open JobChannel subscriptions (ActionCable remote_connections), so they must re-authorize.",
+        "C. Accept it: visibility revocation takes effect on the next reconnect, and the patches carry no secrets."
+      ],
+      "recommendation": "B. It keeps the shared stream, which matters because Job events are the high-churn ones, and makes revocation immediate at the single place access changes. A is simpler to reason about, but it multiplies the cost of every Job broadcast.",
+      "decision": null
     }
   ]
 }
