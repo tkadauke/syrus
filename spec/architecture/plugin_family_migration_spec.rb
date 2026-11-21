@@ -11,17 +11,17 @@ RSpec.describe "Plugin family migration architecture" do
   # Existing registrations may shrink as plugins migrate. New files must never
   # be added here; new implementations use the family declaration instead.
   LEGACY_REGISTRATION_ALLOWLIST = {
-    prepare_detector: %w[go ios java kotlin python],
+    prepare_detector: %w[java kotlin],
     grade_detector: [],
-    grader_type: %w[go ios java],
-    grader_augmentor: %w[python],
-    review_criteria_provider: %w[go java kotlin python],
-    autofix_command: %w[go python],
-    dependency_audit_command: %w[go python],
+    grader_type: %w[java],
+    grader_augmentor: [],
+    review_criteria_provider: %w[java kotlin],
+    autofix_command: [],
+    dependency_audit_command: [],
     focused_test_command: [],
-    coverage_analyzer: %w[go],
+    coverage_analyzer: [],
     affected_test_analyzer: [],
-    ci_log_parser: [], prompt_injector: %w[java kotlin python rails],
+    ci_log_parser: [], prompt_injector: %w[java kotlin rails],
     diff_review_file_pattern_provider: [], build_system_graph_provider: []
   }.freeze
 
