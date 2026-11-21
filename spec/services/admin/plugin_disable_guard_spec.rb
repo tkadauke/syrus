@@ -164,4 +164,45 @@ RSpec.describe Admin::PluginDisableGuard, :reset_plugin_registry do
       expect(described_class.dependents_for(manifest_for("python"))).to contain_exactly("django", "django_extras")
     end
   end
+
+  # Disabling removes the plugin's kinds, and with them what running work of
+  # those kinds needs to finish or be cancelled.
+  describe "workflow kind providers" do
+    kinds = Class.new do
+      include Syrus::Plugin::WorkflowKinds
+
+      def self.trigger_kinds = [ { kind: "guard_spec_sweep" } ]
+      def self.step_kinds = [ { kind: "guard_spec_sweep_run" } ]
+    end
+
+    def active_workflow(trigger_kind: "initial", step_kind: "implement", state: "running")
+      job = Factories.job_with_run(state: "running", workflow_attrs: { state: state }, step_attrs: { state: state })
+      workflow = job.workflows.first
+      workflow.update_columns(trigger_kind: trigger_kind)
+      workflow.steps.first.update_columns(kind: step_kind)
+      workflow
+    end
+
+    before { register("sweeper", provides: { workflow_kinds: kinds }) }
+
+    it "blocks disabling while a workflow of the plugin's trigger kinds is active" do
+      active_workflow(trigger_kind: "guard_spec_sweep")
+
+      expect(described_class.blockers_for(manifest_for("sweeper")).map(&:kind)).to include("active_workflows")
+      expect { described_class.ensure_disableable!(manifest_for("sweeper")) }.to raise_error(described_class::Blocked)
+    end
+
+    it "blocks disabling while a step of the plugin's step kinds is active in any workflow" do
+      active_workflow(step_kind: "guard_spec_sweep_run")
+
+      expect(described_class.blockers_for(manifest_for("sweeper")).map(&:kind)).to eq([ "active_steps" ])
+    end
+
+    it "does not block for finished work of its kinds or active work of other kinds" do
+      active_workflow(trigger_kind: "guard_spec_sweep", step_kind: "guard_spec_sweep_run", state: "succeeded")
+      active_workflow
+
+      expect(described_class.blockers_for(manifest_for("sweeper"))).to eq([])
+    end
+  end
 end

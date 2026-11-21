@@ -90,7 +90,12 @@ class Run < ApplicationRecord
 
   # See Workflow#trigger_kind: resolved per validation so a plugin-contributed
   # trigger kind is honoured while its plugin is enabled.
-  validates :trigger_kind, presence: true, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }
+  # Checked against the live registry only when the kind is set or changed:
+  # an existing row keeps the kind it was created with, so work of a disabled
+  # plugin's kind can still be cancelled and finished
+  # (formal/SyrusModel/PluginDisableRecovery.lean).
+  validates :trigger_kind, presence: true
+  validates :trigger_kind, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }, if: -> { new_record? || will_save_change_to_trigger_kind? }
   validates_agent_provider
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create

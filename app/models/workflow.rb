@@ -54,7 +54,12 @@ class Workflow < ApplicationRecord
   # Resolved per validation, not captured at class load: plugin-contributed
   # trigger kinds appear (and disappear) with the plugin, and a frozen array
   # would only ever hold the built-ins.
-  validates :trigger_kind, presence: true, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }
+  # Checked against the live registry only when the kind is set or changed:
+  # an existing row keeps the kind it was created with, so work of a disabled
+  # plugin's kind can still be cancelled and finished
+  # (formal/SyrusModel/PluginDisableRecovery.lean).
+  validates :trigger_kind, presence: true
+  validates :trigger_kind, inclusion: { in: ->(_) { Workflow::TriggerKind.values } }, if: -> { new_record? || will_save_change_to_trigger_kind? }
   validates_agent_provider
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validates :planned_execution_source, inclusion: { in: PlannedExecutionRequirement::SOURCES }, allow_nil: true

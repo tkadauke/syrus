@@ -2538,6 +2538,19 @@
       ],
       "recommendation": "A. It keeps precompile and boot working, keeps a running instance's behaviour stable through a blip, and never activates a plugin the operator disabled. B is safer still but turns a transient error into every plugin vanishing for that call.",
       "decision": null
+    },
+    {
+      "id": "NY14",
+      "item": "plugin-disable-recovery",
+      "title": "Should an enabled but unhealthy plugin keep its kinds installed for work already in flight?",
+      "context": "KindRegistry installs kinds from PluginRegistry.providers_for(:workflow_kinds), which keeps only enabled and healthy plugins. A plugin that turns degraded, failed or incompatible after boot (a broken dependency, which F60 now propagates; a failed load after an upgrade) loses its trigger and step kinds with no disable action to guard. Its queued or running workflows then raise WorkDefinitions::UnknownKind on cancellation cascades, and their step handlers no longer resolve. F61 only guards operator disables.",
+      "options": [
+        "A. Keep the kind metadata (entries and WorkDefinition) of every installed plugin resolvable for existing rows, and let only new work require an enabled and healthy owner. Unhealthy work then fails closed when it next tries to start a step, but can always be cancelled.",
+        "B. Have the reconciler cancel active work whose kind is no longer installed, with a clear 'plugin unavailable' reason.",
+        "C. Keep as is: an unhealthy plugin's in-flight work stays stuck until it is healthy again."
+      ],
+      "recommendation": "A. Cancellation and display need only metadata, not the plugin's code paths. It matches F61's create-only validation, and it keeps the 'withheld providers are never called' rule for anything that starts work. B loses work that a plugin fix would have resumed.",
+      "decision": null
     }
   ]
 }

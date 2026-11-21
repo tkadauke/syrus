@@ -32,6 +32,7 @@ import SyrusModel.ScopeMatching
 import SyrusModel.InvocationClaim
 import SyrusModel.ApprovalDelegation
 import SyrusModel.PluginClosure
+import SyrusModel.PluginDisableRecovery
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

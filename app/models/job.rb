@@ -166,7 +166,12 @@ class Job < ApplicationRecord
   end
   has_many :permission_leases, dependent: :nullify
 
-  validates :kind, presence: true, inclusion: { in: ->(_) { Job::Kind.values } }
+  # Checked against the live registry only when the kind is set or changed:
+  # an existing row keeps the kind it was created with, so work of a disabled
+  # plugin's kind can still be cancelled and finished
+  # (formal/SyrusModel/PluginDisableRecovery.lean).
+  validates :kind, presence: true
+  validates :kind, inclusion: { in: ->(_) { Job::Kind.values } }, if: -> { new_record? || will_save_change_to_kind? }
   validates :state, presence: true, inclusion: { in: STATES }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }

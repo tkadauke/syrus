@@ -1814,6 +1814,53 @@ one along a dependency chain" (both healthy before).
 
 ---
 
+## F61. Disabling a plugin stranded its running work — fixed
+
+**Found by** DOC-44 plugin host semantics (`PluginDisableRecovery.lean`).
+
+**Property.** Disabling a plugin never leaves work that cannot be finished or
+cancelled: in every reachable state, every active workflow's and step's kind is
+installed (`active_kinds_installed`, checked over every sequence of up to five
+disable/enable/create/finish actions on two plugins and four kinds).
+
+**Gap.** Two layers.
+
+* `Job`, `Workflow`, `Step` and `Run` validated their kind against the live
+  kind registry on every save. Disabling a plugin tears its kinds down, so
+  after an operator disabled, say, `agent_insights` with a sweep running,
+  `step.update!(state: "cancelled")` and `WorkUnits::WorkflowCancellation`
+  both raised `RecordInvalid: Kind is not included in the list`
+  (`stranded_before`).
+* `Admin::PluginDisableGuard` had no blocker for active work of the plugin's
+  own kinds, so nothing stopped the disable. Fixing saves alone is not enough:
+  `Workflow#work_definition` and the step handler resolve through the same
+  registry, and cancellation cascades raise `WorkDefinitions::UnknownKind`
+  (`unguarded_disable_strands`).
+
+**Fix.**
+
+* Kind inclusion is checked on create and on a kind change only
+  (`new_record? || will_save_change_to_kind?`), so an existing row keeps the
+  kind it was created with (`existing_saves`). A new row, or a changed kind,
+  still has to name an installed kind (`new_rows_checked`).
+* `PluginDisableGuard#workflow_kind_blockers` blocks the disable while a queued
+  or running workflow of the plugin's trigger kinds, or an active step of its
+  step kinds, exists, like the existing active-workflows check for agent
+  providers. Open Jobs of its Job kinds do not block, because a failed Job
+  stays open indefinitely and needs no handler to be closed.
+
+**Spec.**
+
+* `spec/models/plugin_kind_persistence_spec.rb`: cancelling a running step of a
+  disabled plugin's kind raised before the fix.
+* `plugin_disable_guard_spec.rb` "workflow kind providers": both blocking
+  cases were allowed before the fix.
+
+**Remaining.** Health degradation also withholds a plugin's providers, kinds
+included, and there is no operator action to guard. That is NY14.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
