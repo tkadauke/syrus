@@ -7,7 +7,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import ReviewWorkspaceRoute from "./ReviewWorkspace"
 
 const jobApi = vi.hoisted(() => ({
-  fetchJobDetail: vi.fn(async () => ({ job: { id: 42, summary_state: "implemented" }, actions: { can_approve: true }, paths: { app_approve_path: "/canonical/jobs/42/approve" } })),
+  fetchJobDetail: vi.fn(async () => ({
+    job: { id: 42, summary_state: "implemented" },
+    actions: { can_approve: true },
+    paths: { app_approve_path: "/canonical/jobs/42/approve" }
+  })),
   fetchJobTab: vi.fn(async (_id: string, tab: string) =>
     tab === "review"
       ? {
@@ -23,7 +27,15 @@ const jobApi = vi.hoisted(() => ({
 vi.mock("@app/api/jobs", () => jobApi)
 vi.mock("@app/lib/entityStore", () => ({ normalizeJobDetailPayload: (payload: unknown) => payload }))
 vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({
-  ReviewWorkspace: ({ conversationPortalTarget, showConversation, visualEvidenceNavigation }: { conversationPortalTarget?: Element | null; showConversation?: boolean; visualEvidenceNavigation?: { direction: number } }) => (
+  ReviewWorkspace: ({
+    conversationPortalTarget,
+    showConversation,
+    visualEvidenceNavigation
+  }: {
+    conversationPortalTarget?: Element | null
+    showConversation?: boolean
+    visualEvidenceNavigation?: { direction: number }
+  }) => (
     <div>
       Canonical review evidence
       <span>Conversation {showConversation === false ? "hidden" : "shown"}</span>
@@ -129,7 +141,9 @@ describe("ReviewWorkspaceRoute", () => {
   })
 
   it("navigates canonical visual evidence with both arrow keys", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
     renderRoute("/review/JOB-42")
     await screen.findByText("Canonical review evidence")
     fireEvent.keyDown(window, { key: "ArrowRight" })
@@ -139,8 +153,14 @@ describe("ReviewWorkspaceRoute", () => {
   })
 
   it("does not offer approval when the canonical payload denies it", async () => {
-    jobApi.fetchJobDetail.mockResolvedValueOnce({ job: { id: 42, summary_state: "implemented" }, actions: { can_approve: false }, paths: { app_approve_path: "/canonical/jobs/42/approve" } })
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+    jobApi.fetchJobDetail.mockResolvedValueOnce({
+      job: { id: 42, summary_state: "implemented" },
+      actions: { can_approve: false },
+      paths: { app_approve_path: "/canonical/jobs/42/approve" }
+    })
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
     renderRoute("/review/JOB-42")
     expect(await screen.findByRole("button", { name: "Approve for landing (A)" })).toBeDisabled()
     fireEvent.keyDown(window, { key: "a" })
