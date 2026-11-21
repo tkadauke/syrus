@@ -224,5 +224,6 @@ RSpec.configure do |config|
     # as well so teardown and process-level hooks cannot observe an empty
     # provider list between examples.
     Syrus::PluginRegistry.restore(snapshot) if snapshot
+    Syrus::Plugin::Ecosystem.restore_definition! if defined?(Syrus::Plugin::Ecosystem)
   end
 end

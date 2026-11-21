@@ -5,10 +5,13 @@ module Syrus
     module Context
       # Grader invocation input constructed by core for plugin capabilities.
       GraderContext = Data.define(
-        :name, :command, :workspace_path, :failed_cases, :base_retry, :project_path
+        :name, :command, :workspace_path, :failed_cases, :base_retry, :project_path,
+        :config, :default_failures, :text, :step_name, :test_case, :operation
       ) do
-        def initialize(name:, command:, workspace_path:, failed_cases:, base_retry:, project_path:)
-          super(name:, command:, workspace_path:, failed_cases: Array(failed_cases).dup.freeze, base_retry:, project_path:)
+        def initialize(name: nil, command: nil, workspace_path: nil, failed_cases: [], base_retry: nil, project_path: nil,
+          config: nil, default_failures: nil, text: nil, step_name: nil, test_case: nil, operation: nil)
+          super(name:, command:, workspace_path:, failed_cases: Array(failed_cases).dup.freeze, base_retry:, project_path:,
+            config:, default_failures:, text:, step_name:, test_case:, operation:)
         end
       end
     end

@@ -4396,13 +4396,26 @@ def self.detect_prepare(context)
 end
 ```
 
-The four initial immutable shapes are `RepoContext` (`repo_path`,
-`repository`), `WorkspaceContext` (`workspace_path`, `changed_files`,
-`repository`), `GraderContext` (`name`, `command`, `workspace_path`,
-`failed_cases`, `base_retry`, `project_path`), and `JobContext` (`repository`,
-`job`). Fields are additive. Do not destructure the context or reject unknown
-fields; keep accepting the context and read only the accessors the provider
-needs.
+The four immutable shapes are `RepoContext` (repository checkout and config),
+`WorkspaceContext` (mutable workspace, changed files, and artifact input),
+`GraderContext` (grader configuration, failure evidence, and operation input),
+and `JobContext` (repository and Job). Fields are additive. Do not destructure
+the context or reject unknown fields; keep accepting the context and read only
+the accessors the provider needs.
+
+Ecosystem `detect_prepare` providers return an array containing one
+`Syrus::Plugin::Ecosystem::PreparePlan`, or `[]` to decline. The immutable plan
+holds `detected`, `commands`, `version_file`, and `span_labels`. Keep these
+answers together: detection, dependency preparation, mise version-file
+detection, and command-span presentation must describe one consistent view of
+the repository. A plan may be present with `detected: false` when it still
+contributes version-file or span-label metadata; its commands are used only
+when `detected?` is true.
+
+`dependency_audit` similarly returns a
+`Syrus::Plugin::Ecosystem::DependencyAuditPlan` containing `lockfiles` and the
+optional `command`. Core consults providers whose lockfile basenames match the
+workspace context's changed files.
 
 Return `nil` to decline first-claim work. Raise
 `Syrus::Host::CapabilityValidationError` only for an intentional,

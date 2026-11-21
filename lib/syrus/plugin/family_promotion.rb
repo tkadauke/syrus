@@ -28,7 +28,7 @@ module Syrus
         @definitions.flat_map do |family|
           family.capabilities.values.filter_map do |capability|
             next unless capability.tier == :stable
-            implementations = implementation_count(family.name, capability.name)
+            implementations = implementation_count(family, capability.name)
             contract_tested = @contracted_capabilities.include?([ family.name, capability.name ])
             next if implementations >= 2 && contract_tested
             Violation.new(family: family.name, capability: capability.name, implementations:, contract_tested:)
@@ -39,10 +39,13 @@ module Syrus
       private
 
       def implementation_count(family, capability)
+        legacy_points = family.legacy_mappings.values.filter_map do |mapping|
+          mapping.extension_point if mapping.capability == capability
+        end
         @manifests.count do |manifest|
           Array(manifest.family_provides).any? do |declaration|
-            declaration.family == family && declaration.capabilities.include?(capability)
-          end
+            declaration.family == family.name && declaration.capabilities.include?(capability)
+          end || legacy_points.any? { |point| Array(manifest.provides[point]).any? }
         end
       end
     end
