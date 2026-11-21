@@ -4674,6 +4674,8 @@ describe("Job detail tabs", () => {
     renderJobDetail(jobPayload())
     const summaryTab = screen.getByRole("button", { name: "Summary" })
     expect(summaryTab.parentElement).toHaveClass("overflow-x-auto", "scroll-fade-x")
+    expect(summaryTab).toHaveClass("first:ml-2")
+    expect(screen.getByRole("button", { name: "Source" })).toHaveClass("last:mr-2")
   })
 
   it("clips the mobile review page shell without disabling per-file diff scrolling", async () => {
