@@ -2316,6 +2316,23 @@
       "status": "partial",
       "done_by": "F1",
       "notes": "Agreement.Agrees/converges proved for waiting intents; the same check applies to cleanup_blocked_by_active_descendants (fail! keeps the tail on purpose) and active-step-with-terminal-runs (barrier no-cascade cancels)."
+    },
+    {
+      "id": "landing-merges-onto-validated-base",
+      "area": "landing",
+      "title": "Auto-merge lands a PR only onto the base its landing graders validated",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "Steps::AutoMergeControl#defer_if_base_moved_since_validation! (AutoMerge, ExternalPrMerge)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F49",
+      "notes": "LandingBase.lean: after_merge_confirms_base (a merge with a validated base had it read and equal), after_differs_only_when_unread. Before: an error or blank read of the live base merged anyway. A blank validated base still proceeds (NY10)."
     }
   ],
   "needs_you": [
@@ -2435,6 +2452,19 @@
       ],
       "recommendation": "A. It makes the guarantee structural instead of a convention every new serving path must remember, which is exactly how F47 happened; the layer is already idempotent and context-driven, so tools that need no gating pass straight through.",
       "decision": "A: every registered tool carries the authorization layer from registration (McpToolRegistry#entry), enforced by spec/architecture/mcp_tool_authorization_spec.rb; the layer fails closed with a tool error when it cannot build the call's context."
+    },
+    {
+      "id": "NY10",
+      "item": "landing-merges-onto-validated-base",
+      "title": "Should auto-merge refuse to merge when no validated base was recorded?",
+      "context": "Before calling GitHub's merge, auto-merge compares the live base head with job.mergeability_base_sha, the base the mergeability preflight recorded before the landing graders ran. F49 made an unreadable live base defer instead of merging. A blank recorded base still skips the check and merges. The preflight records the PR's base from GitHub's payload on every landing, so a blank value means GitHub sent no base SHA, or the Job reached auto_merge without a preflight. Not observed in production.",
+      "options": [
+        "A. Fail closed: a blank recorded base defers landing for a re-check, like an unreadable live base, so the next preflight records it.",
+        "B. Keep: a blank recorded base means there is nothing to compare, and the landing validation manifest still binds the head SHA.",
+        "C. Compare with the manifest's base_sha instead of the Job column, and fail closed when both are blank."
+      ],
+      "recommendation": "A. It closes the last path in the check that merges without knowing the base, at the cost of one deferral in a state that should not occur. C is better long-term but changes which record is authoritative.",
+      "decision": null
     }
   ]
 }
