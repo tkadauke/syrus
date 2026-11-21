@@ -37,7 +37,24 @@ func DefaultCredentialsPath() (string, error) {
 	// The channel/profile picks the file basename: `credentials` for the
 	// default channel, `credentials.test` for a `syrus-test` build. See
 	// profile.go for how the profile is resolved.
-	return filepath.Join(home, ".syrus", credentialsFilename(Profile())), nil
+	profile := Profile()
+	// The profile is spliced into the filename, so it must be a plain name:
+	// separators or ".." would move the credentials file out of ~/.syrus.
+	if !validProfileName(profile) {
+		return "", fmt.Errorf("invalid profile %q: use letters, digits, '-' or '_'", profile)
+	}
+	return filepath.Join(home, ".syrus", credentialsFilename(profile)), nil
+}
+
+func validProfileName(profile string) bool {
+	for _, r := range profile {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-', r == '_':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func LoadDefaultCredentials() (Credentials, error) {
