@@ -463,5 +463,38 @@ theorem other_children_of_terminal_parents_stale (p : ParentEnd) (prefetch : Boo
     (h : ¬ (p = .succeeded ∧ prefetch = true)) : childStale p prefetch = true := by
   cases p <;> cases prefetch <;> simp_all [childStale]
 
+/-! ## Instance: a cancelled attempt — `failed` or `queued`? (NY6, undecided)
+
+`JobLifecyclePropagation.cancel!` moves a `running` Job to `failed` when its
+current Workflow is cancelled. `ReconcileJobStatesJob::Plan` maps
+`[failed, cancelled]` to `queued`. For a deliberate cancellation (operator stop,
+`cancel_stale_work`) nothing then relaunches the Job, so it reads `queued` with
+no work. Production: JOB-9436, one minute after an operator's stale-work repair.
+Either rule can be the spec; they cannot both stand. -/
+
+inductive CJob where | running | failed | queued deriving DecidableEq, Repr
+
+/-- The domain on cancellation of the current Workflow. -/
+def cancelDomain : CJob → CJob
+  | .running => .failed
+  | j => j
+
+/-- The reconciler with the latest Workflow cancelled. -/
+def cancelRecon : CJob → CJob
+  | .failed => .queued
+  | j => j
+
+theorem cancel_rules_disagree : cancelRecon (cancelDomain .running) ≠ cancelDomain .running := by decide
+
+/-- Option A: the reconciler leaves a cancelled attempt's `failed` Job alone. -/
+def cancelReconA : CJob → CJob := id
+/-- Option B: the domain itself returns the Job to `queued`. -/
+def cancelDomainB : CJob → CJob
+  | .running => .queued
+  | j => j
+
+theorem cancel_option_a_agrees : Agrees cancelDomain cancelReconA := fun _ => rfl
+theorem cancel_option_b_agrees : cancelRecon (cancelDomainB .running) = cancelDomainB .running := rfl
+
 end Agreement
 end SyrusModel

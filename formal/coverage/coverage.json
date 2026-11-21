@@ -978,7 +978,7 @@
       ],
       "status": "partial",
       "done_by": "F20, F33",
-      "notes": "Production (~2.5 days, 303 executions): 75 queued->running repairs were lifecycle-owning Workflows (coworker_run, main_branch_repair) whose start deliberately leaves the Job; 41 implemented->running were Jobs the lifecycle kept implemented (pr_open mid-chain). Fixed: one rule, JobLifecyclePropagation.lifts_job_on_start?, used by start! and the plan; published-PR Workflows are not drift. Agreement.lean: lift_before_disagrees / lift_after_agrees / lift_after_complete (exhaustive). running->implemented (5) traced: 4 are the echo of F20's wrong implemented->running repair about a minute before the Workflow succeeded, after which succeed! decided on the Workflow's cached (stale, still implemented) Job and returned early. Hunting other writers that change a Job under a running Workflow found F33: a polled GitHub review approved Jobs under non-feedback approval-blocking work and moved running Jobs to implemented even when declined (ApprovalPaths.lean). failed->queued (2): JOB-9430 was the Epic conflict cancel/relaunch loop fixed by F34; JOB-9436 not yet traced. Remaining: JobLifecyclePropagation decides on a cached Job instead of reloading under the Job lock (not exploitable with F20+F33, still check-then-act); other silent returns (fail! on newer_active_workflow?, RetryWorkflowEnqueuer update_columns) still to model."
+      "notes": "Production (~2.5 days, 303 executions): 75 queued->running repairs were lifecycle-owning Workflows (coworker_run, main_branch_repair) whose start deliberately leaves the Job; 41 implemented->running were Jobs the lifecycle kept implemented (pr_open mid-chain). Fixed: one rule, JobLifecyclePropagation.lifts_job_on_start?, used by start! and the plan; published-PR Workflows are not drift. Agreement.lean: lift_before_disagrees / lift_after_agrees / lift_after_complete (exhaustive). running->implemented (5) traced: 4 are the echo of F20's wrong implemented->running repair about a minute before the Workflow succeeded, after which succeed! decided on the Workflow's cached (stale, still implemented) Job and returned early. Hunting other writers that change a Job under a running Workflow found F33: a polled GitHub review approved Jobs under non-feedback approval-blocking work and moved running Jobs to implemented even when declined (ApprovalPaths.lean). failed->queued (2): JOB-9430 was the Epic conflict cancel/relaunch loop fixed by F34; JOB-9436 is the cancel!/[failed, cancelled] disagreement queued as NY6. Remaining: JobLifecyclePropagation decides on a cached Job instead of reloading under the Job lock (not exploitable with F20+F33, still check-then-act); other silent returns (fail! on newer_active_workflow?, RetryWorkflowEnqueuer update_columns) still to model."
     },
     {
       "id": "job-state-vs-active-workflow-kind",
@@ -1160,9 +1160,9 @@
       "simulator": [
         "queued_job_with_published_pr_converges"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Invariant: job queued -> active owner or start-blocked with a recheck; the start-block variant is the allowed waiting state. The fixture guards against retrying when a PR is already published."
+      "status": "partial",
+      "done_by": "Agreement.cancel_rules_disagree · NY6",
+      "notes": "Producer found: JobLifecyclePropagation.cancel! moves a running Job to failed when its current Workflow is cancelled, and ReconcileJobStatesJob::Plan maps [failed, cancelled] to queued. For a deliberate cancellation (operator stop, cancel_stale_work), RetryJobAfterCancelledWorkflow does not relaunch, so the Job then reads queued with no work. Production: JOB-9436, one minute after an operator's stale-work repair (the second untraced failed->queued drift). The two rules disagree (cancel_rules_disagree); which one is the spec is NY6."
     },
     {
       "id": "implemented-or-approved-without-pr",
@@ -2383,6 +2383,18 @@
       ],
       "recommendation": "A. It is the smallest change, keeps the prefetch's value in exactly the case it is built for, and still cancels prefetches whose base did not land. B is cleaner structurally but moves ownership logic into the prefetcher and the landing queue.",
       "decision": "A (2026-11-20): a succeeded parent's landing-validation prefetch children may keep running; children of a failed or cancelled parent are still cancelled."
+    },
+    {
+      "id": "NY6",
+      "item": "queued-job-after-cancelled-workflow",
+      "title": "After the current attempt is cancelled, is the Job failed or queued?",
+      "context": "When a running Job's current Workflow is cancelled (operator stop, cancel_stale_work, a chain cascade), JobLifecyclePropagation.cancel! marks the Job failed: 'Retry or Close'. A minute later the reconciler's Job-state plan sees [failed, latest cancelled] and moves the Job to queued, so that a stale failed pill does not suggest a current failure. For a deliberate cancellation nothing relaunches the Job, so it ends up queued with no work behind it, and a queued Job reads as 'waiting to run'. Production: JOB-9436 after an operator's stale-work repair. The two rules cannot both stand (Agreement.cancel_rules_disagree).",
+      "options": [
+        "A. failed is right: the reconciler stops lifting [failed, cancelled] when the cancellation was deliberate (the existing DELIBERATE_CANCELLED_WORKFLOW_REASONS list), and keeps lifting it for cascade and conflict cancellations that are relaunched.",
+        "B. queued is right: cancel! itself returns a running Job to queued, and the Job page shows 'cancelled — nothing scheduled' for a queued Job with no work.",
+        "C. A new resting state (e.g. stopped) for an operator-stopped attempt."
+      ],
+      "recommendation": "A. failed already means 'needs an operator decision', which is exactly the situation after a deliberate stop, and the deliberate-reason list it reuses already exists for the relaunch repair. B makes queued ambiguous, and C is a new state for a rare case."
     }
   ]
 }
