@@ -1787,6 +1787,33 @@ architecture spec (40 offenders before).
 
 ---
 
+## F60. A plugin stayed callable on top of a broken hard dependency — fixed
+
+**Found by** DOC-44 plugin host semantics (`PluginClosure.lean`).
+
+**Property.** A contribution is callable only when its plugin and its whole
+required dependency closure are healthy (`healthy_iff_closure_sound`, checked
+over every acyclic dependency graph on up to four plugins and every choice of
+broken plugins).
+
+**Gap.** `Syrus::PluginHealth` degraded a plugin only for a *direct* hard
+dependency that was missing or disabled. A plugin whose enabled hard dependency
+was itself degraded, failed or incompatible, and therefore had its providers
+withheld by `PluginRegistry.providers_for`, stayed healthy, and so did its own
+providers (`healthy_over_broken`). The same held along a chain of any length.
+
+**Fix.** `PluginHealth#propagate_unhealthy_dependencies`: an enabled plugin
+whose enabled hard dependency is unhealthy is degraded too ("requires b, which
+is degraded"), iterated to a fixed point. A disabled dependency is still
+reported as before. No bundled plugin is unhealthy in development, so nothing
+changes for the default install.
+
+**Spec.** `plugin_health_spec.rb` "degrades a plugin whose enabled hard
+dependency is itself unhealthy" and "degrades every plugin above an unhealthy
+one along a dependency chain" (both healthy before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

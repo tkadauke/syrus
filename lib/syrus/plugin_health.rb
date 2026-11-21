@@ -38,7 +38,7 @@ module Syrus
     end
 
     def statuses
-      @statuses ||= @manifests.to_h { |manifest| [ manifest.name, status_for(manifest) ] }
+      @statuses ||= propagate_unhealthy_dependencies(@manifests.to_h { |manifest| [ manifest.name, status_for(manifest) ] })
     end
 
     def status(name) = statuses[name]
@@ -67,6 +67,33 @@ module Syrus
 
     def cycle_members
       @cycle_members ||= cycles.flatten.to_set
+    end
+
+    # A contribution is callable only when its plugin's whole required
+    # dependency closure is healthy, not just enabled. An enabled plugin whose
+    # hard dependency is enabled but itself unhealthy (degraded, failed,
+    # incompatible, ...) is degraded too, and so on up the chain. Only ever
+    # turns healthy into degraded, so it reaches a fixed point; cycle members
+    # are already unhealthy (formal/SyrusModel/PluginClosure.lean).
+    def propagate_unhealthy_dependencies(statuses)
+      loop do
+        changed = false
+        statuses.each do |name, status|
+          next unless status.healthy? && @enabled_names.include?(name)
+
+          broken = Array(@by_name[name].depends_on).filter_map do |dependency|
+            dependency_status = statuses[dependency]
+            next unless dependency_status && @enabled_names.include?(dependency) && !dependency_status.healthy?
+
+            "requires #{dependency}, which is #{dependency_status.state}"
+          end
+          next if broken.empty?
+
+          statuses[name] = Status.new(name: name, state: :degraded, reasons: status.reasons + broken)
+          changed = true
+        end
+        return statuses unless changed
+      end
     end
 
     def status_for(manifest)
