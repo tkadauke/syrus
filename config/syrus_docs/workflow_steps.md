@@ -990,6 +990,15 @@ superseded/cancelled instead of surfacing a nonretryable branch-divergence
 failure. Real branch divergence with no newer successful publisher still
 requires operator review.
 
+An **implementation retry** rebuilds the work from the base branch, so the PR
+branch it publishes to never contains its new commits. When the branch head is
+a commit Syrus itself pushed to that branch -- the attempt being retried, or
+that attempt after a stack rebase rewrote it -- `pr_open` replaces it (a
+force push leased on the observed head) and records
+`pr_open_replaced_own_publication` instead of asking. A branch head Syrus never
+pushed, such as a commit a person pushed, still stops for branch divergence
+review.
+
 **Branch divergence review.** When the remote PR branch moved and no newer
 workflow published it, `pr_open` records a `branch_divergence` artifact and the
 Job page offers four choices: retry from the current PR branch, replace the

@@ -417,7 +417,11 @@ module Steps
           @pre_push_observed = true
         end
 
-        return :superseded if published_review_branch? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
+        if published_review_branch?
+          outcome = verify_existing_pr_branch_not_diverged!(git, push_url)
+          return :superseded if outcome == :superseded
+          next if outcome == :replaced_own_publication
+        end
         push_branch_to_remote(git, push_url)
       end
       record_accepted_push!
@@ -658,9 +662,33 @@ module Steps
       return if ancestor?(git, remote_sha, "HEAD")
 
       return supersede_stale_publication!("remote PR branch moved because a newer workflow updated it", remote_sha: remote_sha, local_sha: local_sha) if stale_publication_workflow?
+      return replace_own_publication!(git, push_url, remote_sha: remote_sha, local_sha: local_sha) if replaceable_own_publication?(remote_sha)
 
       record_branch_divergence!(git, "remote PR branch moved before push", remote_sha: remote_sha, local_sha: local_sha)
       raise BranchDiverged, branch_divergence_message
+    end
+
+    # An implementation retry rebuilds the work from the base on purpose, so
+    # the branch it publishes to never contains its new commits. When the
+    # branch head is one Syrus itself pushed -- the attempt being retried, or
+    # that attempt after a stack rebase rewrote it -- replacing it is the
+    # point of the retry, not a conflict with someone else's work. Asking the
+    # operator to choose left a Job "implemented" with a failed publication and
+    # its approval tucked behind a "retry failed step" action. A head Syrus
+    # never pushed (a human's commit) still stops and asks.
+    def replaceable_own_publication?(remote_sha)
+      workflow.artifact("implementation_retry") == true &&
+        BranchPublication.published?(branch_name: workspace.branch_name, sha: remote_sha)
+    end
+
+    def replace_own_publication!(git, push_url, remote_sha:, local_sha:)
+      branch = workspace.branch_name
+      workflow.set_artifact!("pr_open_replaced_own_publication", {
+        "branch" => branch, "remote_sha" => remote_sha, "local_sha" => local_sha, "replaced_at" => Time.current.iso8601
+      })
+      log("pr_open: #{branch} held Syrus's own earlier publication #{remote_sha.first(9)}; replacing it with this implementation retry")
+      git.run("push", "--force-with-lease=refs/heads/#{branch}:#{remote_sha}", push_url, "HEAD:refs/heads/#{branch}", chdir: workspace.path.to_s)
+      :replaced_own_publication
     end
 
     def fetch_remote_branch!(git, push_url)

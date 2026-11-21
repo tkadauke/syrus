@@ -121,7 +121,21 @@ class GitRunner
       raise GitError.new(args, result.exit_status || -1, output)
     end
 
+    record_branch_publication(args, chdir: chdir, workflow: process_workflow) if args.first.to_s == "push"
     output
+  end
+
+  # Every branch push goes through here, so this is the one place that can
+  # remember all the branch heads Syrus published, whichever step pushed
+  # them. Best effort: the push already succeeded, and losing the record only
+  # means a later divergence is surfaced to the operator as before.
+  def record_branch_publication(args, chdir:, workflow:)
+    BranchPublication.record_push!(
+      args, chdir: chdir, workflow: workflow,
+      resolve: ->(rev, dir) { self.class.new.run("rev-parse", "#{rev}^{commit}", chdir: dir).strip }
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[GitRunner] could not record branch publication: #{e.class}: #{e.message}")
   end
 
   # Raw, separately captured stdout/stderr for callers where a non-zero status

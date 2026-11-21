@@ -1064,6 +1064,66 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(git).not_to have_received(:run).with("push", anything, anything, chdir: anything)
   end
 
+  describe "an implementation retry publishing over an existing PR branch" do
+    let(:remote_sha) { "a" * 40 }
+    let(:local_sha) { "b" * 40 }
+    let(:branch) { "syrus/issue-42-#{job.id}" }
+    let(:path) { Pathname.new("/tmp/syrus-pr-open-spec") }
+    let(:git) { instance_double(GitRunner) }
+    let(:push_url) { repository.authenticated_push_url("token") }
+    let(:pr_open_run) { Run.create!(job: job, step: pr_open_step, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider) }
+    let(:handler) { described_class.new(pr_open_run) }
+
+    before do
+      job.update!(state: "running", pr_number: 77)
+      workflow.set_artifact!("implementation_retry", true)
+      workspace = instance_double(WorkflowWorkspace, branch_name: branch, path: path, base_ref: "origin/main")
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(handler).to receive(:persist_pushed_all_changes_version!)
+      allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "token"))
+      allow(git).to receive(:run).with("fetch", push_url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("")
+      allow(git).to receive(:run).with("rev-parse", "refs/remotes/origin/#{branch}", chdir: path.to_s).and_return("#{remote_sha}\n")
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: path.to_s).and_return("#{local_sha}\n")
+      allow(git).to receive(:run).with("merge-base", "--is-ancestor", remote_sha, "HEAD", chdir: path.to_s)
+        .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+      allow(git).to receive(:run).with("log", any_args).and_return("")
+      allow(git).to receive(:run).with("diff", any_args).and_return("")
+      allow(git).to receive(:run).with("push", any_args).and_return("")
+      allow(RunCheckpointPublisher).to receive(:publish!)
+    end
+
+    # Regression: a retry rebuilt the work from the base, the branch still held
+    # Syrus's own previous attempt as a parent stack rebase had rewritten it,
+    # and pr_open called that "the PR branch changed" and asked the operator to
+    # choose -- leaving the Job implemented with a failed publication.
+    it "replaces a branch head Syrus itself published" do
+      BranchPublication.record!(branch_name: branch, sha: remote_sha)
+
+      expect(handler.send(:push_branch)).to eq(:pushed)
+
+      expect(git).to have_received(:run).with(
+        "push", "--force-with-lease=refs/heads/#{branch}:#{remote_sha}", push_url, "HEAD:refs/heads/#{branch}", chdir: path.to_s
+      ).once
+      expect(workflow.reload.artifact("branch_divergence")).to be_nil
+      expect(workflow.artifact("pr_open_replaced_own_publication")).to include("remote_sha" => remote_sha, "local_sha" => local_sha)
+    end
+
+    it "still asks when the branch head is a commit Syrus never published" do
+      expect { handler.send(:push_branch) }.to raise_error(Steps::PrOpen::BranchDiverged)
+
+      expect(git).not_to have_received(:run).with("push", any_args)
+      expect(workflow.reload.artifact("branch_divergence")).to include("remote_sha" => remote_sha)
+    end
+
+    it "still asks for a non-retry workflow even over Syrus's own publication" do
+      BranchPublication.record!(branch_name: branch, sha: remote_sha)
+      workflow.set_artifact!("implementation_retry", nil)
+
+      expect { handler.send(:push_branch) }.to raise_error(Steps::PrOpen::BranchDiverged)
+    end
+  end
+
   it "does not fail pr_open when stack footer refresh hits a transient GitHub server error" do
     parent = Factories.job(repository: repository, issue_number: 41)
     parent.update!(pr_number: 76)

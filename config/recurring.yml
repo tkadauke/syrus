@@ -137,6 +137,10 @@ default: &default
     class: UiEngagementSamplePruneJob
     queue: cleanup
     schedule: every day at 3:17am
+  prune_branch_publications:
+    class: BranchPublicationPruneJob
+    queue: cleanup
+    schedule: every day at 3:23am
   database_retention_sweep:
     class: RetentionSweepJob
     queue: cleanup
