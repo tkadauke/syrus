@@ -44,7 +44,7 @@ RSpec.describe Syrus::PluginRegistry do
 
     it "keeps extension points isolated from each other" do
       described_class.register(:preview_provider, provider)
-      expect(described_class.providers_for(:coverage_analyzer)).to eq([])
+      expect(described_class.providers_for(:agent_provider)).to eq([])
     end
 
     it "raises ArgumentError for an unknown extension point on register" do
@@ -73,10 +73,9 @@ RSpec.describe Syrus::PluginRegistry do
 
     it "includes all expected extension points" do
       expect(described_class::EXTENSION_POINTS).to include(
-        :agent_provider, :chat_provider, :mcp_tool_set, :input_source, :prompt_injector,
-        :artifact_renderer, :coverage_analyzer, :preview_provider,
+        :agent_provider, :chat_provider, :mcp_tool_set, :input_source,
+        :artifact_renderer, :preview_provider,
         :admin_page, :sidebar_page, :chat_mcp_tool_set, :source_control_provider,
-        :build_system_graph_provider, :grader_type,
         :post_implementation_review_provider, :diff_review_annotation_provider
       )
     end

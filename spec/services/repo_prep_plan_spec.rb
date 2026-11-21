@@ -70,7 +70,7 @@ RSpec.describe RepoPrepPlan do
 
   describe "auto-detect", requires_plugin: %w[ruby javascript] do
     # RepoPrepPlan no longer hardcodes Ruby/Node signals — it delegates
-    # entirely to registered :prepare_detector plugins. Register the real
+    # entirely to registered Ecosystem providers. Register the real
     # bundled `ruby` and `javascript` plugins (mirroring their engine.rb
     # manifests) so these specs exercise the actual production wiring
     # instead of a RepoPrepPlan-local fixture.
@@ -78,14 +78,18 @@ RSpec.describe RepoPrepPlan do
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
         Syrus::PluginRegistry.register(
           name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-          provides: { prepare_detector: Ruby::PrepareDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare]
+          ) ]
         )
       end
 
       unless Syrus::PluginRegistry.registered_names.include?("javascript")
         Syrus::PluginRegistry.register(
           name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
-          provides: { prepare_detector: JavaScript::PrepareDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "JavaScript::Ecosystem", implements: %i[detect_prepare]
+          ) ]
         )
       end
     end
@@ -142,7 +146,7 @@ RSpec.describe RepoPrepPlan do
     end
   end
 
-  describe ":prepare_detector plugins", :reset_plugin_registry do
+  describe "Ecosystem prepare providers", :reset_plugin_registry do
     around do |ex|
       Syrus::PluginRegistry.reset!
       ex.run

@@ -63,6 +63,13 @@ RSpec.describe BaseRevisionRetry do
     allow(Syrus::PluginRegistry).to receive(:providers_for).with("test_insights:parser").and_return([])
   end
 
+  def stub_focused_test_command(command)
+    allow(Syrus::Plugin::Dispatch).to receive(:call).and_call_original
+    allow(Syrus::Plugin::Dispatch).to receive(:call)
+      .with(:ecosystem, :focused_tests, kind_of(Syrus::Plugin::Context::GraderContext))
+      .and_return(command)
+  end
+
   describe "base checkout materialization" do
     let(:git) { instance_double(GitRunner, run: "") }
 
@@ -80,7 +87,7 @@ RSpec.describe BaseRevisionRetry do
           "bin/rspec-fast spec/models/widget_spec.rb"
         end
       end
-      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+      stub_focused_test_command(provider.command_for)
       described_class.new(
         workflow: workflow,
         grader_step: grader_step,
@@ -242,7 +249,9 @@ RSpec.describe BaseRevisionRetry do
       checked_at: Time.current
     )
     allow(TestEvidenceLookup).to receive(:failed_test_cases_for).with(main_run, "rspec").and_return(failed_cases)
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_raise("focused retry must not run")
+    expect(Syrus::Plugin::Dispatch).not_to receive(:call).with(
+      :ecosystem, :focused_tests, kind_of(Syrus::Plugin::Context::GraderContext)
+    )
 
     result = described_class.call(
       workflow: workflow,
@@ -307,7 +316,7 @@ RSpec.describe BaseRevisionRetry do
         "bin/rspec-fast spec/models/widget_spec.rb"
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    stub_focused_test_command(provider.command_for)
     retry_check = described_class.new(
       workflow: workflow,
       grader_step: grader_step,
@@ -343,7 +352,7 @@ RSpec.describe BaseRevisionRetry do
         "bin/rspec-fast spec/models/widget_spec.rb"
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    stub_focused_test_command(provider.command_for)
     retry_check = described_class.new(
       workflow: workflow,
       grader_step: grader_step,
@@ -385,7 +394,6 @@ RSpec.describe BaseRevisionRetry do
       failed_cases: failed_cases,
       log: ->(_message) { }
     )
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([])
     allow(retry_check).to receive(:run_command) do |_command, chdir, _output|
       path = chdir.join(".syrus/grade-output/rspec-junit.xml")
       FileUtils.mkdir_p(path.dirname)
@@ -596,7 +604,7 @@ RSpec.describe BaseRevisionRetry do
         "bin/rspec-fast spec/models/widget_spec.rb"
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    stub_focused_test_command(provider.command_for)
     allow(ProcessRunner).to receive(:new).and_return(
       instance_double(ProcessRunner, run: process_runner_result(operator_killed: true))
     )
@@ -666,7 +674,7 @@ RSpec.describe BaseRevisionRetry do
         "bin/rspec-worker spec/models/widget_spec.rb"
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ provider ])
+    stub_focused_test_command(provider.command_for)
     retry_check = described_class.new(
       workflow: workflow,
       grader_step: worker_step,

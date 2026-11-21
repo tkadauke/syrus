@@ -95,14 +95,16 @@ RSpec.describe Skills::OnboardToSyrus do
     end
 
     # scan[:prep] delegates to RepoPrepPlan, which now reads registered
-    # :prepare_detector plugins instead of a hardcoded table — register the
+    # Ecosystem family instead of a hardcoded table — register the
     # real bundled `ruby` plugin (mirroring its engine.rb manifest) so the
     # Gemfile-detection example below exercises production wiring.
     before do
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
         Syrus::PluginRegistry.register(
           name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-          provides: { prepare_detector: Ruby::PrepareDetector, grade_detector: Ruby::GradeDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare grade_candidates]
+          ) ]
         )
       end
     end
