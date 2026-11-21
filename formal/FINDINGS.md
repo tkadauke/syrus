@@ -3959,6 +3959,37 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M43. Which blocked reasons a started landing can hold the slot on — audited, one design question
+
+**Scope.** DOC-44 scheduling, the coverage item `gates-starvation-free`,
+following F92.
+
+**The reasons a started landing can block on.** At a phase boundary, the base
+unit gates are `ActiveWorkLock`, `MainBranchHealth`, `ProviderAvailability`,
+`ManualPause` and `AdmissionControl`. The lifecycle adds
+`agent_cannot_proceed` (F92). Grouped by how they clear:
+
+| Clears | Reasons | Landing slot |
+|---|---|---|
+| On its own, with a scheduled recheck | `active_work_lock`, `provider_availability`, `admission_control`, `resource_safety` | kept; the unit really is next |
+| When main is repaired, by the main grader and repair work | `main_branch_health` | kept; while main is broken no landing proceeds anyway |
+| Only when someone acts | `ci_repair_disabled`, `no_capable_worker`, `agent_cannot_proceed` | released |
+| Only when someone unpauses | `manual_pause` | **kept** |
+
+**Open: a manual pause of a started landing (NY27).** NY7 settled the
+pre-start case: any block before the first Run gives the slot back,
+`manual_pause` included. A pause after the landing started still keeps the
+repository's `landing:` lock. So pausing one landing Job stops every other
+approved Job in that repository from landing until it is unpaused.
+
+Releasing it would follow the allowlist's own rule, since a paused unit is not
+about to run. The cost is that, on unpause, the Job may wait for another
+landing to finish. `ensure_active_locks!` then raises `LockConflict` and the
+unit waits its turn. Whether pausing a Job should also hold the repository's
+queue is a design decision.
+
+---
+
 ## M42. A landing Job whose units are all blocked externally is returned to approved — audited, no bug
 
 **Scope.** DOC-44 landing, the partial coverage item `stranded-landing-job`: "A

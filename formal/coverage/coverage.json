@@ -3361,6 +3361,19 @@
       ],
       "recommendation": "A. One function deciding what a Step failure means, used by both the live path and its recovery, is the only way the two can never disagree; the pinned case then retries in place, bounded by the existing infrastructure retry limit.",
       "decision": null
+    },
+    {
+      "id": "NY27",
+      "item": "gates-starvation-free",
+      "title": "Should manually pausing a started landing give the repository landing slot back?",
+      "context": "Each repository has one landing slot. A landing gives it back when it is blocked on a reason only a person can clear (CI repair disabled, no capable worker, and since F92 the agent being unable to proceed), and NY7 made any block before the landing's first Run give it back too. A manual pause after the landing started still keeps it, so pausing one landing Job stops every other approved Job in that repository from landing until it is unpaused.",
+      "options": [
+        "A. Add manual_pause to the externally cleared reasons: a paused started landing gives the slot back; on unpause it re-acquires the slot, waiting its turn if another landing took it.",
+        "B. Keep the slot while paused, but surface a 'repository landings held by a paused Job' warning so the operator sees what the pause costs.",
+        "C. Keep as is: pausing a landing deliberately holds the repository queue."
+      ],
+      "recommendation": "A. It is the same rule NY7 chose before the first Run and the allowlist's own definition (a paused unit is not about to run); the only cost is that an unpaused landing may wait behind one that went ahead.",
+      "decision": null
     }
   ]
 }
