@@ -55,6 +55,7 @@ RSpec.describe Syrus::Plugin::ExternalReviewer do
 
     stub_const("GithubClient", Class.new)
     expect { context(client: GithubClient.new) }.to raise_error(ArgumentError, /not GithubClient/)
+    expect { context(repository: Object.new) }.to raise_error(ArgumentError, /must be immutable/)
   end
 
   it "requires exact base and head object ids" do

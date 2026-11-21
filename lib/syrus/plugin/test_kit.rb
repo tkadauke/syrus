@@ -263,6 +263,19 @@ module Syrus
             @base_installed = true
           end
 
+          unless @external_reviewer_installed
+            RSpec.shared_examples "a valid external reviewer" do |context:, refresh_context:, timeout: nil|
+              it "satisfies the external-reviewer service contract" do
+                resolved_context = context.respond_to?(:call) ? instance_exec(&context) : context
+                resolved_refresh = refresh_context.respond_to?(:call) ? instance_exec(&refresh_context) : refresh_context
+                Syrus::Plugin::ExternalReviewerContractKit.validate!(
+                  provider: subject, context: resolved_context, refresh_context: resolved_refresh, timeout:
+                )
+              end
+            end
+            @external_reviewer_installed = true
+          end
+
           Syrus::Plugin::Family.all.each do |family|
             @installed_families ||= Set.new
             next unless @installed_families.add?(family.name)
