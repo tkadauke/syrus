@@ -3908,6 +3908,53 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M36. Stalled intake classification is retried, bounded by real attempts — audited, no bug
+
+**Scope.** DOC-44 job state, the coverage item `stalled-intake`: "A Job stays
+in triaging because its classification job vanished." The fault is a lost
+token, and the plan asks for bounded retries rather than prevention.
+
+**Detection.** `classify_stalled_classifier_pending_jobs` covers triaging Jobs
+of a classifiable kind with no classification activity for
+`CLASSIFIER_PENDING_STUCK_AFTER` (activity is the later of the last attempt's
+`started_at`, `updated_at` and `created_at`). It applies only while retries
+remain:
+
+- a `classifier_pending` Job needs `classifier_attempts < MAX_CLASSIFIER_ATTEMPTS`;
+- a `classifier_uncertain` Job needs `classifier_retry_available?`.
+
+It is safe to auto-repair.
+
+**Repair.** Under the Job lock, `ReclassifyStalledIntake` rechecks the state,
+the kind and the attempt cap. It moves an uncertain Job back to pending, then
+enqueues `ClassifyIssueJob` in the same transaction, so a blocked enqueue rolls
+the transition back. Each repair is audited as a `StateTransition`.
+
+**The bound.** Only a real `IngestionClassifier` invocation advances
+`classifier_attempts`, and every real run does so, retryable failures
+included. So a classifier that keeps running is cut off at
+`MAX_CLASSIFIER_ATTEMPTS`, and the triage decision then hands the Job to a
+person.
+
+A queue job that is *lost* never advances the counter, so the cap does not
+bound those re-enqueues. They are still harmless:
+
+- `ClassifyIssueJob` has `limits_concurrency to: 1` per Job, so duplicates
+  queue behind each other instead of running together;
+- `ClassifyIssueJob` refuses to run unless the Job is still
+  `classifier_pending`, so every duplicate after the first real classification
+  is a no-op.
+
+**Refinement worth considering, not a bug.** The repair does not touch any of
+the timestamps the classifier measures staleness from. A Job whose
+classification is merely *slow* (queued behind a backlog past the threshold)
+is therefore re-enqueued on every reconciler pass until it runs. Each copy is
+serialized and becomes a no-op, so the cost is a queue of blocked executions,
+not wrong work. Stamping the enqueue time onto the activity that staleness is
+measured from would limit it to one re-enqueue per threshold.
+
+---
+
 ## M35. A Workflow paused at a phase boundary by admission resumes — audited, no bug
 
 **Scope.** DOC-44 start blocks, the coverage item

@@ -1231,9 +1231,9 @@
       "simulator": [
         "stalled_intake_reclassifies"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Lost-token fault; prove bounded retries via the attempt cap rather than prevention."
+      "status": "done",
+      "done_by": "M36",
+      "notes": "Lost-token fault; prove bounded retries via the attempt cap rather than prevention. M36: real classifier runs are capped by MAX_CLASSIFIER_ATTEMPTS; lost-token re-enqueues are uncapped but serialized by limits_concurrency and no-ops once classified. Refinement noted: stamp the enqueue time so a slow (not lost) classification is re-enqueued once per threshold, not every pass."
     },
     {
       "id": "feedback-does-not-regress-job",
