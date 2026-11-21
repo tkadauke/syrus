@@ -1562,9 +1562,9 @@
         "urgent_landing_preempts_blocked_epic_train",
         "stalled_urgent_job_does_not_starve_repository"
       ],
-      "status": "partial",
-      "done_by": "PrestartSlot.lean · NY7",
-      "notes": "Generalised and modelled: WorkUnit#block! surrenders the repository landing slot only for EXTERNALLY_CLEARED_BLOCKED_REASONS and urgent_job_active before the first Run. A landing unit takes the landing lock at instantiation, before start! runs its gates, and every definition's gates include ManualPause, so an operator pause of a Job whose landing Workflow has not yet run holds the repository-wide slot for as long as the pause lasts (PrestartSlot.today_starves_on_manual_pause). Option A (every pre-start block surrenders; resume already re-acquires) never starves (option_a_never_starves). Decision queued as NY7."
+      "status": "done",
+      "done_by": "NY7 (A) · PrestartSlot.option_a_never_starves",
+      "notes": "Generalised and modelled: WorkUnit#block! surrenders the repository landing slot only for EXTERNALLY_CLEARED_BLOCKED_REASONS and urgent_job_active before the first Run. A landing unit takes the landing lock at instantiation, before start! runs its gates, and every definition's gates include ManualPause, so an operator pause of a Job whose landing Workflow has not yet run holds the repository-wide slot for as long as the pause lasts (PrestartSlot.today_starves_on_manual_pause). Option A (every pre-start block surrenders; resume already re-acquires) never starves (option_a_never_starves). Decision queued as NY7. Decided NY7 (A) and implemented: WorkUnit#block! releases the landing slot whenever the Workflow is a queued landing before its first Run (prestart_landing_block?), replacing the urgent-only case; WorkflowLifecycle.started! (mark_running!) and resume_for_workflow! re-acquire every key before the first Run, so mutual exclusion is unchanged."
     },
     {
       "id": "stranded-landing-job",
@@ -1991,8 +1991,8 @@
         "agent_insight_sweep_does_not_block_job_bundle"
       ],
       "status": "partial",
-      "done_by": "PrestartSlot.lean · NY7",
-      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats. PrestartSlot.lean states the structural rule (a landing blocked before its first Run never holds the slot) that would end the allowlist; decision queued as NY7."
+      "done_by": "PrestartSlot.lean · NY7 (A)",
+      "notes": "Fixed three separate times after production starvation; allowlists mean any new externally-cleared reason squats. PrestartSlot.lean states the structural rule (a landing blocked before its first Run never holds the slot) that would end the allowlist; decision queued as NY7. NY7 implemented: a pre-start landing block surrenders the slot for every reason, so a new block reason can no longer squat it before the first Run. In-flight (post-first-Run) blocks still keep it unless externally cleared."
     },
     {
       "id": "provider-pause-readmits",
@@ -2407,7 +2407,8 @@
         "B. Keep the allowlist and add manual_pause and provider_availability (the indefinite ones).",
         "C. Keep the current behaviour."
       ],
-      "recommendation": "A. It replaces the allowlist that has starved production three times with a structural rule, and it costs nothing in mutual exclusion because resume already re-acquires; losing queue position while blocked matches how the queue already treats blocked Jobs (they do not hold it either)."
+      "recommendation": "A. It replaces the allowlist that has starved production three times with a structural rule, and it costs nothing in mutual exclusion because resume already re-acquires; losing queue position while blocked matches how the queue already treats blocked Jobs (they do not hold it either).",
+      "decision": "A: any block before a landing's first Run surrenders the repository landing slot; the Workflow's start and resume_for_workflow! re-acquire it."
     },
     {
       "id": "NY8",
