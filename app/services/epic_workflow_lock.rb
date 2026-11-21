@@ -4,6 +4,7 @@ class EpicWorkflowLock
   def self.epic_for(workflow) = new(workflow).epic
   def self.active_epic_wide_workflows_for(workflow) = new(workflow).active_epic_wide_workflows
   def self.blocking_workflow_for(workflow) = new(workflow).blocking_workflow
+  def self.running_member_workflow_for(workflow) = new(workflow).running_member_workflow
   def self.conflicting_active_units(units) = ConflictDetector.new(units).conflicts
 
   def initialize(workflow)
@@ -26,6 +27,22 @@ class EpicWorkflowLock
 
   def blocking_workflow
     active_epic_wide_workflows.first
+  end
+
+  # The other half of Epic exclusivity: an Epic-wide Workflow waits until no
+  # member Workflow in its Epic is *running* (members already wait while
+  # Epic-wide work is queued or running). Only running ones: a member that is
+  # merely queued is itself waiting for this Workflow, and waiting on it
+  # would deadlock. Neither side preempts the other.
+  def running_member_workflow
+    return nil unless epic && workflow.epic_wide?
+
+    Workflow.joins(:job)
+      .where(jobs: { epic_id: epic.id }, state: "running")
+      .where.not(id: workflow.id)
+      .where.not(trigger_kind: WorkDefinitions.epic_wide_kinds)
+      .order(:created_at, :id)
+      .first
   end
 
   private

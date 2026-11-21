@@ -522,6 +522,46 @@ RSpec.describe StepDispatcher, :ci_only do
       )
     end
 
+    # Decided (Epic-wide vs member work): neither preempts the other. An
+    # Epic-wide workflow used to start while a member's own workflow ran, and
+    # the reconciler then cancelled the member's running work.
+    describe "an Epic-wide workflow and running member work" do
+      def epic_with_member(member_state)
+        epic = Factories.epic(user: job.user, repository: job.repository)
+        member_job = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 103)
+        job.update!(epic: epic)
+        member = Workflow.create!(job: member_job, trigger_kind: "initial")
+        member.update_columns(state: member_state, started_at: member_state == "running" ? 1.minute.ago : nil)
+        attach_work_unit(member, state: member_state == "running" ? "running" : "queued", member_jobs: [ member_job ])
+        workflow.update!(trigger_kind: "stack_rebase")
+        member
+      end
+
+      it "waits until no member workflow is running" do
+        member = epic_with_member("running")
+
+        expect {
+          described_class.start_workflow(workflow)
+        }.not_to change { Run.count }
+
+        expect(workflow.reload).to be_queued
+        expect(workflow.artifact("start_blocked_reason")).to eq(StepDispatcher::EPIC_MEMBER_WORK_BLOCK_REASON)
+        expect(workflow.artifact("start_blocked_details")).to include("blocking_workflow_id" => member.id)
+        expect(member.reload).to be_running
+      end
+
+      # Members already wait while Epic-wide work is queued or running; if the
+      # Epic-wide workflow also waited for queued members, the two would wait
+      # for each other forever.
+      it "is not held up by member work that is only queued" do
+        epic_with_member("queued")
+
+        described_class.start_workflow(workflow)
+
+        expect(workflow.reload.artifact("start_blocked_reason")).not_to eq(StepDispatcher::EPIC_MEMBER_WORK_BLOCK_REASON)
+      end
+    end
+
     it "cancels a second Epic-wide workflow before it starts" do
       epic = Factories.epic(user: job.user, repository: job.repository)
       keeper_job = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 102)
@@ -4721,9 +4761,7 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
 
     candidates = [
       [ "auto_merge", "mergeability_preflight", "landing", {}, "issue" ],
-      [ "merge_train", "merge_train_land", "approved", { "merge_train_id" => 123 }, "issue" ],
       [ "rebase", "auto_rebase", "implemented", {}, "issue" ],
-      [ "stack_rebase", "stack_auto_rebase", "implemented", {}, "issue" ],
       [ "main_grader", "grader_fanout", "queued", {}, "main_grader" ]
     ]
 
@@ -4735,6 +4773,27 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
         described_class.start_workflow(workflow)
       }.to change { step.runs.count }.by(1), "expected #{trigger_kind} to bypass the sibling implementation gate"
       expect(workflow.reload.artifact("start_blocked_reason")).not_to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
+    end
+  end
+
+  # Epic-wide work is not held by the sibling gate either, but it does wait
+  # for running member work in its Epic (neither side preempts the other).
+  it "holds Epic-wide workflows for running member work, not for the sibling gate" do
+    implementing_job = epic_job(issue_number: 204, state: "running")
+    implementing_workflow, = build_workflow(job: implementing_job, trigger_kind: "initial")
+    implementing_workflow.update_columns(state: "running", started_at: 1.minute.ago)
+
+    [
+      [ "merge_train", "merge_train_land", "approved", { "merge_train_id" => 123 } ],
+      [ "stack_rebase", "stack_auto_rebase", "implemented", {} ]
+    ].each_with_index do |(trigger_kind, step_kind, state, artifacts), index|
+      job = epic_job(issue_number: 220 + index, state: state)
+      workflow, step = build_workflow(job: job, trigger_kind: trigger_kind, step_kind: step_kind, artifacts: artifacts)
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { step.runs.count }
+      expect(workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_MEMBER_WORK_BLOCK_REASON)
     end
   end
 end
