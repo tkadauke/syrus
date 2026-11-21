@@ -1430,6 +1430,37 @@ constants in its describe block (`ALLOWED`), which clobbered
 
 ---
 
+## F48. A dependency on a Job finished after a withdrawn approval waited forever — fixed
+
+**Found by** the DOC-44 kernel dependency model (`Kernel/Dependencies.lean`).
+
+**Property.** Once the upstream Job is closed, every dependency on it is
+decided: either satisfied, or terminally unsuccessful (`closed_decided`). The
+two never hold together (`never_both`).
+
+**Gap.** `JobDependency#execution_dependency_satisfied?` returned false
+whenever the upstream approval was withdrawn (every mode except `closed`),
+even after the dependency had succeeded. Only approving clears
+`approval_withdrawn_at`. A Job whose approval was withdrawn and that was then
+merged on GitHub (closed `pr_merged` or `external_pr_merged`), emergency-landed
+or closed with no changes is succeeded *and* still marked withdrawn. Its
+dependents were not satisfied, and not terminally unsuccessful either (it
+succeeded), so they neither started nor failed closed
+(`closed_undecided_before`). The exhaustive check over all modes and upstream
+states finds every such case.
+
+**Fix.** A withdrawn approval only blocks a dependency that has not succeeded
+yet. The fix only ever turns waiting into satisfied (`after_extends_before`),
+and only for a dependency that has already succeeded
+(`after_differs_only_when_succeeded`). That includes a deployment stage
+reached while the upstream Job is still open.
+
+**Spec.** `job_dependency_spec.rb` "an upstream Job that succeeded after its
+approval was withdrawn" (success and landed modes, both red before), plus
+"still blocks a ready-but-unfinished upstream whose approval was withdrawn".
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

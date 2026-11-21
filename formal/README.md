@@ -88,8 +88,11 @@ reasoned about in proofs.
 - `Kernel/Preservation.lean`: `reconcile_valid` (a valid world stays valid) and
   repair scoping (a record changes only under its own finished Workflow).
 
-Still to come in Phase 1:
-dependencies with their satisfaction modes, and the executable oracle.
+- `Kernel/Dependencies.lean`: the four satisfaction modes, with `never_both`
+  (never satisfied and terminally failed at once) and `closed_decided` (a closed
+  upstream Job always decides its dependency); found F48.
+
+Still to come in Phase 1: the executable oracle.
 
 ## Next steps
 
