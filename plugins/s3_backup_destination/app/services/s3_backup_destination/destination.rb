@@ -5,7 +5,7 @@ require "json"
 
 module S3BackupDestination
   class Destination
-    include Syrus::Plugin::BackupDestination
+    include Syrus::Host::BackupDestination
 
     PART_SIZE = 8 * 1024 * 1024
     CHUNK_SIZE = 64 * 1024

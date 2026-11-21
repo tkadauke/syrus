@@ -112,6 +112,20 @@ Supported members:
 - `record_replication`
 - `release_pin`
 
+### `Syrus::Host::BackupDestination`
+
+Since: `0.1.16`
+
+Defines offsite backup destination operations plugins may provide; credential storage and replication orchestration are not promised. Only the listed members are supported.
+
+Supported members:
+
+- `delete`
+- `health`
+- `materialize_local`
+- `upload`
+- `verify`
+
 ### `Syrus::Host::Callbacks`
 
 Since: `0.1.16`
