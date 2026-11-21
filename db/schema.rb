@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_060207) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_120308) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -2176,6 +2176,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_060207) do
     t.integer "canonical_job_id"
     t.string "proposer_type"
     t.integer "proposer_id"
+    t.json "landing_blocker_override_params"
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
     t.index ["canonical_job_id"], name: "index_jobs_on_canonical_job_id"
     t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"

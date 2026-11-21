@@ -37,6 +37,8 @@ Landing failures are either deferrals or rejections. Deferrals keep approval and
 
 Before dispatch, Syrus rechecks current approval policy and approver access. A no-longer-valid approval blocks without being overrideable for solo Jobs, Epic trains, and bundles.
 
+An operator can override an overridable landing blocker once for a Job. The override applies to the exact blocker it was granted for (its kind and details, such as which checks were failing or which Job's CI repair was running). A different blocker of the same kind later needs its own override.
+
 ## Failing PR checks: inherited vs. introduced
 
 Syrus compares failing check names on the candidate with settled failures on its base:

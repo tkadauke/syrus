@@ -1168,6 +1168,42 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     end
   end
 
+  # Regression (formal/SyrusModel/LandingOverride.lean): an override is one
+  # operator decision about one blocker. Matching by key alone let an unused
+  # override granted for one instance of a blocker bypass a different one
+  # under the same key (another Job's CI repair, other inherited checks).
+  describe "override binding" do
+    let(:job) { queue_job(issue_number: 1, approved_at: 1.minute.ago) }
+
+    before { WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job) }
+
+    def override!(params)
+      job.update!(
+        landing_blocker_override_key: "ci_failure_in_progress",
+        landing_blocker_override_params: params,
+        landing_blocker_override_reason: "operator reviewed the CI repair",
+        landing_blocker_override_requested_at: Time.current,
+        landing_blocker_override_requested_by_user_id: user.id
+      )
+    end
+
+    it "does not let an override for another instance of the blocker bypass this one" do
+      override!({ "slug" => "JOB-999999" })
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to eq({ key: "ci_failure_in_progress", params: { slug: job.slug } })
+    end
+
+    it "bypasses the exact blocker it was granted for" do
+      override!({ "slug" => job.slug })
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason&.fetch(:key)).to eq("active_workflow")
+    end
+  end
+
   it "continues to non-overridable gates after matching an earlier override" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     user.update!(landing_paused: true)
