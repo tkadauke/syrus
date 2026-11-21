@@ -978,7 +978,7 @@
       ],
       "status": "partial",
       "done_by": "F20, F33",
-      "notes": "Production (~2.5 days, 303 executions): 75 queued->running repairs were lifecycle-owning Workflows (coworker_run, main_branch_repair) whose start deliberately leaves the Job; 41 implemented->running were Jobs the lifecycle kept implemented (pr_open mid-chain). Fixed: one rule, JobLifecyclePropagation.lifts_job_on_start?, used by start! and the plan; published-PR Workflows are not drift. Agreement.lean: lift_before_disagrees / lift_after_agrees / lift_after_complete (exhaustive). running->implemented (5) traced: 4 are the echo of F20's wrong implemented->running repair about a minute before the Workflow succeeded, after which succeed! decided on the Workflow's cached (stale, still implemented) Job and returned early. Hunting other writers that change a Job under a running Workflow found F33: a polled GitHub review approved Jobs under non-feedback approval-blocking work and moved running Jobs to implemented even when declined (ApprovalPaths.lean). Remaining: failed->queued (2) not yet traced; JobLifecyclePropagation decides on a cached Job instead of reloading under the Job lock (not exploitable with F20+F33, still check-then-act); other silent returns (fail! on newer_active_workflow?, RetryWorkflowEnqueuer update_columns) still to model."
+      "notes": "Production (~2.5 days, 303 executions): 75 queued->running repairs were lifecycle-owning Workflows (coworker_run, main_branch_repair) whose start deliberately leaves the Job; 41 implemented->running were Jobs the lifecycle kept implemented (pr_open mid-chain). Fixed: one rule, JobLifecyclePropagation.lifts_job_on_start?, used by start! and the plan; published-PR Workflows are not drift. Agreement.lean: lift_before_disagrees / lift_after_agrees / lift_after_complete (exhaustive). running->implemented (5) traced: 4 are the echo of F20's wrong implemented->running repair about a minute before the Workflow succeeded, after which succeed! decided on the Workflow's cached (stale, still implemented) Job and returned early. Hunting other writers that change a Job under a running Workflow found F33: a polled GitHub review approved Jobs under non-feedback approval-blocking work and moved running Jobs to implemented even when declined (ApprovalPaths.lean). failed->queued (2): JOB-9430 was the Epic conflict cancel/relaunch loop fixed by F34; JOB-9436 not yet traced. Remaining: JobLifecyclePropagation decides on a cached Job instead of reloading under the Job lock (not exploitable with F20+F33, still check-then-act); other silent returns (fail! on newer_active_workflow?, RetryWorkflowEnqueuer update_columns) still to model."
     },
     {
       "id": "job-state-vs-active-workflow-kind",
@@ -1773,8 +1773,8 @@
         "epic_merge_train_after_approval_events"
       ],
       "status": "done",
-      "done_by": "EpicWide.lean · F30 (NY2)",
-      "notes": "Decided NY2: neither side preempts. Members wait while Epic-wide work is queued or running; Epic-wide work now waits while any member is running (not merely queued -- that reading deadlocks, EpicWide.naive_deadlocks). Proved by exhaustive check over 6-op interleavings: exclusive and deadlock-free; a queued Epic-wide Workflow blocks new member starts, so it cannot be starved. The reconciler's conflict cancellation remains only as a backstop for a race between the two start checks."
+      "done_by": "EpicWide.lean · F30 (NY2) · F34",
+      "notes": "Decided NY2: neither side preempts. Members wait while Epic-wide work is queued or running; Epic-wide work waits while any member is running (not merely queued -- that reading deadlocks, EpicWide.naive_deadlocks). Proved by exhaustive check over 6-op interleavings: exclusive and deadlock-free; a queued Epic-wide Workflow blocks new member starts, so it cannot be starved. Correction (F34): the earlier note said the reconciler's conflict cancellation was then only a race backstop. It was not -- ConflictDetector cancelled every active member, queued or running, even under a queued keeper, so it cancelled exactly the waits F30 introduced (production: 11 of 13 applied cancellations hit members that had never started). Now a member conflicts only when it runs alongside a running keeper; the executor re-checks the same rule under the lock (EpicWide.recon_after_agrees / recon_after_restores_exclusive)."
     },
     {
       "id": "epic-conflict-victim-not-relaunched",
@@ -1793,9 +1793,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "open",
-      "done_by": null,
-      "notes": "Moot after F30 (NY2): Epic-wide work no longer starts over running member work, so the reconciler no longer creates victims except in a race between the two start checks."
+      "status": "partial",
+      "done_by": "F34",
+      "notes": "The main producer of victims was the reconciler itself: ConflictDetector cancelled members that were only waiting for the Epic-wide Workflow (11 of 13 applied cancellations in production had never started; one pass cancelled six queued members of one Epic), and the queued-job repair relaunched them into the same cancellation once a minute (JOB-9430's failed->queued drift). F34 stops cancelling waiters, so with F30 victims arise only from a running member and a running keeper together -- a race between the two start checks. Remaining: whether every such victim is relaunched (retry_job_after_epic_workflow_conflict covers queued Jobs only)."
     },
     {
       "id": "epic-blocked-job-releasable",

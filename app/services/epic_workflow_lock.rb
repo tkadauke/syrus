@@ -84,7 +84,9 @@ class EpicWorkflowLock
       return [] if epic_wide.empty?
 
       keeper = epic_wide.first
-      (epic_units - [ keeper ]).map do |unit|
+      (epic_units - [ keeper ]).filter_map do |unit|
+        next unless conflicts_with_keeper?(unit, keeper)
+
         workflow = unit.workflow
         {
           workflow: workflow,
@@ -94,6 +96,18 @@ class EpicWorkflowLock
           reason: epic_wide?(unit) ? "another Epic-wide workflow is already active" : "an Epic-wide workflow is active"
         }
       end
+    end
+
+    # A second Epic-wide Workflow is always a conflict: the dispatcher cancels
+    # one that cannot start. A member is only when it runs alongside a running
+    # keeper. A queued member is waiting for the keeper, and a queued keeper is
+    # waiting for the running member (StepDispatcher's two Epic start blocks);
+    # cancelling either undid the wait and the member was relaunched into the
+    # same cancellation.
+    def conflicts_with_keeper?(unit, keeper)
+      return true if epic_wide?(unit)
+
+      unit.workflow&.running? && keeper.workflow&.running?
     end
 
     def active_workflow?(workflow)

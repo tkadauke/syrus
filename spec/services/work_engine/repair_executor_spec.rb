@@ -668,4 +668,47 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(ci_workflow.reload).to be_running
     end
   end
+
+  # The classifier only reports a member running alongside a running keeper
+  # (EpicWorkflowLock::ConflictDetector). The executor re-checked only that
+  # both were active, so a plan could still cancel a member that was merely
+  # waiting for the Epic-wide Workflow.
+  describe "cancel_epic_workflow_conflict" do
+    let(:epic) { Factories.epic(user: job.user, repository: job.repository) }
+    let(:keeper_job) { Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 301) }
+    let(:member_job) { Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 302) }
+    let(:keeper) { Workflow.create!(job: keeper_job, trigger_kind: "stack_rebase", state: "running") }
+
+    def conflict_plan(member)
+      WorkEngine::RepairPlanner::Plan.new(
+        issue_kind: "epic_workflow_conflict",
+        action: "cancel_epic_workflow_conflict",
+        auto_executable: true,
+        target_type: "Workflow",
+        target_id: member.id,
+        affected_ids: {},
+        execution_steps: [],
+        preconditions: { "keeper_workflow_id" => keeper.id },
+        reason: "test"
+      )
+    end
+
+    it "leaves a member that is only waiting for the Epic-wide workflow" do
+      member = Workflow.create!(job: member_job, trigger_kind: "initial", state: "queued")
+
+      execution = described_class.call(result: RepairResult.new([ conflict_plan(member) ])).sole
+
+      expect(execution.status).to eq("skipped")
+      expect(member.reload).to be_queued
+    end
+
+    it "cancels a member running alongside a running Epic-wide workflow" do
+      member = Workflow.create!(job: member_job, trigger_kind: "initial", state: "running")
+
+      execution = described_class.call(result: RepairResult.new([ conflict_plan(member) ])).sole
+
+      expect(execution.status).to eq("applied")
+      expect(member.reload).to be_cancelled
+    end
+  end
 end
