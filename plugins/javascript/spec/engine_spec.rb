@@ -37,7 +37,7 @@ RSpec.describe JavaScript::Engine do
     end
   end
 
-  describe JavaScript::PrepareDetector do
+  describe JavaScript::Ecosystem do
     around do |ex|
       Dir.mktmpdir("syrus-javascript-prepare-detector") { |dir| @dir = dir; ex.run }
     end
@@ -49,8 +49,7 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "does not detect a repo with no recognized lockfile" do
-      expect(described_class.detect?(@dir)).to be false
-      expect(described_class.prepare_commands(@dir)).to eq([])
+      expect(described_class.detect_prepare(repo_context)).to eq([])
     end
 
     it "yarn.lock wins over pnpm-lock.yaml, package-lock.json, and package.json" do
@@ -59,8 +58,8 @@ RSpec.describe JavaScript::Engine do
       write("pnpm-lock.yaml", "")
       write("yarn.lock", "")
 
-      expect(described_class.detect?(@dir)).to be true
-      expect(described_class.prepare_commands(@dir)).to eq([ "yarn install --frozen-lockfile" ])
+      expect(described_class.detect_prepare(repo_context).sole.detected?).to be true
+      expect(described_class.detect_prepare(repo_context).sole.commands).to eq([ "yarn install --frozen-lockfile" ])
     end
 
     it "pnpm-lock.yaml wins over package-lock.json and package.json" do
@@ -68,25 +67,25 @@ RSpec.describe JavaScript::Engine do
       write("package-lock.json", "{}")
       write("pnpm-lock.yaml", "")
 
-      expect(described_class.prepare_commands(@dir)).to eq([ "pnpm install --frozen-lockfile" ])
+      expect(described_class.detect_prepare(repo_context).sole.commands).to eq([ "pnpm install --frozen-lockfile" ])
     end
 
     it "package-lock.json wins over bare package.json" do
       write("package.json", "{}")
       write("package-lock.json", "{}")
 
-      expect(described_class.prepare_commands(@dir)).to eq([ "npm ci" ])
+      expect(described_class.detect_prepare(repo_context).sole.commands).to eq([ "npm ci" ])
     end
 
     it "bare package.json → npm install" do
       write("package.json", "{}")
 
-      expect(described_class.prepare_commands(@dir)).to eq([ "npm install" ])
+      expect(described_class.detect_prepare(repo_context).sole.commands).to eq([ "npm install" ])
     end
 
     describe ".shell_install_command" do
       it "renders the same PRIORITY table as a runtime if/elif shell chain" do
-        expect(described_class.shell_install_command).to eq(
+        expect(JavaScript::PrepareDetector.shell_install_command).to eq(
           "if [ -f yarn.lock ]; then yarn install --frozen-lockfile; " \
           "elif [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; " \
           "elif [ -f package-lock.json ]; then npm ci; " \
@@ -104,7 +103,7 @@ RSpec.describe JavaScript::Engine do
         it "installs with #{expected} when #{lockfile} is present" do
           write(lockfile, "{}")
           shell_stubs = 'yarn() { echo "yarn $*"; }; pnpm() { echo "pnpm $*"; }; npm() { echo "npm $*"; };'
-          output, status = Open3.capture2("bash", "-c", "#{shell_stubs} #{described_class.shell_fresh_install_command}", chdir: @dir)
+          output, status = Open3.capture2("bash", "-c", "#{shell_stubs} #{JavaScript::PrepareDetector.shell_fresh_install_command}", chdir: @dir)
 
           expect(status).to be_success
           expect(output.strip).to eq(expected)
@@ -113,11 +112,14 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "declares .node-version as its mise version file" do
-      expect(described_class.mise_version_file).to eq(".node-version")
+      write("package.json", "{}")
+      expect(described_class.detect_prepare(repo_context).sole.version_file).to eq(".node-version")
     end
+
+    def repo_context = Syrus::Plugin::Context::RepoContext.new(repo_path: @dir)
   end
 
-  describe JavaScript::ReviewCriteriaProvider do
+  describe JavaScript::Ecosystem do
     around do |ex|
       Dir.mktmpdir("syrus-javascript-review-criteria-provider") { |dir| @dir = dir; ex.run }
     end
@@ -129,17 +131,19 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "returns [] for a repo with no recognized lockfile or package.json" do
-      expect(described_class.criteria(@dir)).to eq([])
+      expect(described_class.review_criteria(repo_context)).to eq([])
     end
 
     it "contributes the any-type criterion when a JS/TS project is detected" do
       write("package.json", "{}")
 
-      expect(described_class.criteria(@dir)).to eq([ "Flag newly introduced `any` types" ])
+      expect(described_class.review_criteria(repo_context)).to eq([ "Flag newly introduced `any` types" ])
     end
+
+    def repo_context = Syrus::Plugin::Context::RepoContext.new(repo_path: @dir)
   end
 
-  describe JavaScript::EslintAutofix do
+  describe JavaScript::Ecosystem do
     around do |ex|
       Dir.mktmpdir("syrus-javascript-eslint-autofix") { |dir| @dir = dir; ex.run }
     end
@@ -151,23 +155,27 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "returns nil for a repo with no ESLint config file" do
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to be_nil
+      expect(described_class.autofix(workspace_context([ "src/app.ts" ]))).to be_nil
     end
 
     it "contributes the fix command when a flat eslint.config.js is present" do
       write("eslint.config.js")
 
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts", "README.md" ])).to eq("npx eslint --fix -- src/app.ts")
+      expect(described_class.autofix(workspace_context([ "src/app.ts", "README.md" ]))).to eq("npx eslint --fix -- src/app.ts")
     end
 
     it "contributes the fix command when a legacy .eslintrc.json is present" do
       write(".eslintrc.json", "{}")
 
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.js" ])).to eq("npx eslint --fix -- src/app.js")
+      expect(described_class.autofix(workspace_context([ "src/app.js" ]))).to eq("npx eslint --fix -- src/app.js")
+    end
+
+    def workspace_context(changed_files)
+      Syrus::Plugin::Context::WorkspaceContext.new(workspace_path: @dir, changed_files:)
     end
   end
 
-  describe JavaScript::PrettierAutofix do
+  describe JavaScript::PrettierEcosystem do
     around do |ex|
       Dir.mktmpdir("syrus-javascript-prettier-autofix") { |dir| @dir = dir; ex.run }
     end
@@ -179,29 +187,33 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "returns nil for a repo with no Prettier config" do
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to be_nil
+      expect(described_class.autofix(workspace_context([ "src/app.ts" ]))).to be_nil
     end
 
     it "contributes the write command when a .prettierrc is present" do
       write(".prettierrc", "{}")
 
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to eq("npx prettier --write --ignore-unknown -- src/app.ts")
+      expect(described_class.autofix(workspace_context([ "src/app.ts" ]))).to eq("npx prettier --write --ignore-unknown -- src/app.ts")
     end
 
     it "contributes the write command when package.json declares a prettier key" do
       write("package.json", JSON.generate("prettier" => { "singleQuote" => true }))
 
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to eq("npx prettier --write --ignore-unknown -- src/app.ts")
+      expect(described_class.autofix(workspace_context([ "src/app.ts" ]))).to eq("npx prettier --write --ignore-unknown -- src/app.ts")
     end
 
     it "returns nil for malformed package.json instead of raising" do
       write("package.json", "not json")
 
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "src/app.ts" ])).to be_nil
+      expect(described_class.autofix(workspace_context([ "src/app.ts" ]))).to be_nil
+    end
+
+    def workspace_context(changed_files)
+      Syrus::Plugin::Context::WorkspaceContext.new(workspace_path: @dir, changed_files:)
     end
   end
 
-  describe JavaScript::ReviewCriteriaProvider do
+  describe JavaScript::Ecosystem do
     around do |ex|
       Dir.mktmpdir("syrus-javascript-review-criteria-provider") { |dir| @dir = dir; ex.run }
     end
@@ -213,14 +225,16 @@ RSpec.describe JavaScript::Engine do
     end
 
     it "returns [] for a repo with no recognized lockfile or package.json" do
-      expect(described_class.criteria(@dir)).to eq([])
+      expect(described_class.review_criteria(repo_context)).to eq([])
     end
 
     it "contributes the any-type criterion when a JS/TS project is detected" do
       write("package.json", "{}")
 
-      expect(described_class.criteria(@dir)).to eq([ "Flag newly introduced `any` types" ])
+      expect(described_class.review_criteria(repo_context)).to eq([ "Flag newly introduced `any` types" ])
     end
+
+    def repo_context = Syrus::Plugin::Context::RepoContext.new(repo_path: @dir)
   end
 
   describe JavaScript::PreviewProvider do

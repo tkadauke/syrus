@@ -46,8 +46,10 @@ RSpec.describe Ruby::Engine do
           "examples" => [ { "status" => "failed", "full_description" => "still works" } ]
         ))
 
-        lines = Ruby::GraderAugmentor.augment_grader_failure(
-          name: "rspec", command: "bin/rspec", workspace_path: workspace_path
+        lines = Ruby::Ecosystem.grader_diagnostics(
+          Syrus::Plugin::Context::GraderContext.new(
+            name: "rspec", command: "bin/rspec", workspace_path:
+          )
         )
 
         expect(lines).to include("still works\n")
@@ -55,76 +57,88 @@ RSpec.describe Ruby::Engine do
     end
   end
 
-  describe Ruby::PrepareDetector do
+  describe Ruby::Ecosystem do
     around do |ex|
       Dir.mktmpdir("syrus-ruby-prepare-detector") { |dir| @dir = dir; ex.run }
     end
 
     it "detects a Gemfile at the repo root" do
       FileUtils.touch(File.join(@dir, "Gemfile"))
-      expect(described_class.detect?(@dir)).to be true
+      expect(described_class.detect_prepare(repo_context).sole.detected?).to be true
     end
 
     it "does not detect a repo without a Gemfile" do
-      expect(described_class.detect?(@dir)).to be false
+      expect(described_class.detect_prepare(repo_context)).to eq([])
     end
 
     it "contributes bundle install" do
-      expect(described_class.prepare_commands(@dir)).to eq([ "bundle install" ])
+      FileUtils.touch(File.join(@dir, "Gemfile"))
+      expect(described_class.detect_prepare(repo_context).sole.commands).to eq([ "bundle install" ])
     end
 
     it "declares .ruby-version as its mise version file" do
-      expect(described_class.mise_version_file).to eq(".ruby-version")
+      FileUtils.touch(File.join(@dir, "Gemfile"))
+      expect(described_class.detect_prepare(repo_context).sole.version_file).to eq(".ruby-version")
     end
+
+    def repo_context = Syrus::Plugin::Context::RepoContext.new(repo_path: @dir)
   end
 
-  describe Ruby::ReviewCriteriaProvider do
+  describe Ruby::Ecosystem do
     around do |ex|
       Dir.mktmpdir("syrus-ruby-review-criteria-provider") { |dir| @dir = dir; ex.run }
     end
 
     it "returns [] for a repo with no Gemfile" do
-      expect(described_class.criteria(@dir)).to eq([])
+      expect(described_class.review_criteria(repo_context)).to eq([])
     end
 
     it "contributes the N+1 criterion when a Gemfile is present" do
       FileUtils.touch(File.join(@dir, "Gemfile"))
 
-      expect(described_class.criteria(@dir)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
+      expect(described_class.review_criteria(repo_context)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
     end
+
+    def repo_context = Syrus::Plugin::Context::RepoContext.new(repo_path: @dir)
   end
 
-  describe Ruby::RubocopAutofix do
+  describe Ruby::Ecosystem do
     around do |ex|
       Dir.mktmpdir("syrus-ruby-rubocop-autofix") { |dir| @dir = dir; ex.run }
     end
 
     it "returns nil for a repo with no .rubocop.yml" do
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "lib/example.rb" ])).to be_nil
+      expect(described_class.autofix(workspace_context([ "lib/example.rb" ]))).to be_nil
     end
 
     it "contributes the autocorrect command when .rubocop.yml is present" do
       FileUtils.touch(File.join(@dir, ".rubocop.yml"))
 
-      expect(described_class.autofix_command(workspace_path: @dir, changed_files: [ "lib/example.rb", "README.md" ])).to eq(
+      expect(described_class.autofix(workspace_context([ "lib/example.rb", "README.md" ]))).to eq(
         "bundle exec rubocop -a -- lib/example.rb"
       )
     end
+
+    def workspace_context(changed_files)
+      Syrus::Plugin::Context::WorkspaceContext.new(workspace_path: @dir, changed_files:)
+    end
   end
 
-  describe Ruby::ReviewCriteriaProvider do
+  describe Ruby::Ecosystem do
     around do |ex|
       Dir.mktmpdir("syrus-ruby-review-criteria-provider") { |dir| @dir = dir; ex.run }
     end
 
     it "returns [] for a repo with no Gemfile" do
-      expect(described_class.criteria(@dir)).to eq([])
+      expect(described_class.review_criteria(repo_context)).to eq([])
     end
 
     it "contributes the N+1 criterion when a Gemfile is present" do
       FileUtils.touch(File.join(@dir, "Gemfile"))
 
-      expect(described_class.criteria(@dir)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
+      expect(described_class.review_criteria(repo_context)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
     end
+
+    def repo_context = Syrus::Plugin::Context::RepoContext.new(repo_path: @dir)
   end
 end
