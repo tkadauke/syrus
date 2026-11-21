@@ -9,6 +9,7 @@ module ReviewWorkspacePlugin
       reference = job.slug.presence || "JOB-#{job.id}"
       {
         id: job.id,
+        revision: job.entity_revision,
         slug: reference,
         title: job.issue_title.presence || reference,
         priority: job.priority,

@@ -8,6 +8,8 @@
   "dependency_blocked": "Dependency blocked",
   "action_hint": "Open the Job's current review evidence to make a decision. Eligibility is checked again when you act.",
   "open_review": "Open active review",
+  "dashboard_ready_one": "{{count}} Job is ready for your review.",
+  "dashboard_ready_other": "{{count}} Jobs are ready for your review.",
   "all_caught_up": "All caught up",
   "empty": "There are no Jobs you can approve right now.",
   "load_error": "Unable to load the review workspace.",

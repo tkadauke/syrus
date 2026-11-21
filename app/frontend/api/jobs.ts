@@ -2082,8 +2082,8 @@ export function deleteJobCommand(path: string) {
   return deleteJson<JobCommandPayload>(path)
 }
 
-export async function submitJobFeedback(jobId: number, body: string): Promise<void> {
-  await postJson(`/api/v1/app/jobs/${jobId}/chat_feedback`, { body })
+export async function submitJobFeedback(jobId: number, body: string, expectedRevision?: number): Promise<void> {
+  await postJson(`/api/v1/app/jobs/${jobId}/chat_feedback`, { body, expected_revision: expectedRevision })
 }
 
 export function openJobInCodingMode(path: string, feedback?: string) {

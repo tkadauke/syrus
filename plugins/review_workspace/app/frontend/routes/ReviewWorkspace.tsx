@@ -5,6 +5,7 @@ import { Notice } from "@app/components/ui"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
+import { addAppEventListener } from "@app/lib/appEvents"
 import { normalizeJobDetailPayload } from "@app/lib/entityStore"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { ReviewWorkspace as CanonicalReviewWorkspace } from "@app/routes/jobDetail/ReviewWorkspace"
@@ -27,6 +28,7 @@ export default function ReviewWorkspaceRoute() {
   const { job_id: requestedJobId } = useParams()
   const prefix = routePrefix(location.pathname)
   const review = useQuery({ queryKey: ["review_workspace"], queryFn: fetchReviewWorkspace, refetchInterval: 30_000 })
+  const queryClient = useQueryClient()
   const [deferred, setDeferred] = useState<Set<number>>(() => new Set())
   const [loadedDetail, setLoadedDetail] = useState<{ jobId: number; payload: JobDetailPayload } | null>(null)
   const [evidenceNavigation, setEvidenceNavigation] = useState<{ direction: -1 | 1; sequence: number }>()
@@ -37,6 +39,14 @@ export default function ReviewWorkspaceRoute() {
   const handleDetail = useCallback((jobId: number, payload: JobDetailPayload) => setLoadedDetail({ jobId, payload }), [])
   usePageTitle(t("title"))
   useEffect(() => exitRef.current?.focus(), [review.isSuccess])
+  useEffect(
+    () =>
+      addAppEventListener((event) => {
+        if (event.resource !== "job" && event.resource !== "workflow") return
+        void queryClient.invalidateQueries({ queryKey: ["review_workspace"] })
+      }),
+    [queryClient]
+  )
 
   function exitWorkspace() {
     if (window.history.length > 1) navigate(-1)
@@ -452,8 +462,16 @@ function DecisionPanel({
   }
   const canApprove = Boolean(detail?.actions.can_approve && detail.job.summary_state.toLowerCase() === "implemented" && detail.paths.app_approve_path)
   const refreshEligibility = () => queryClient.invalidateQueries({ queryKey: ["review_workspace"] })
-  const approve = useMutation({ mutationFn: () => postJobCommand(detail!.paths.app_approve_path), onError: refreshEligibility, onSuccess: completed })
-  const submitFeedback = useMutation({ mutationFn: () => submitJobFeedback(job.id, feedback.trim()), onError: refreshEligibility, onSuccess: completed })
+  const approve = useMutation({
+    mutationFn: () => postJobCommand(detail!.paths.app_approve_path, { expected_revision: job.revision }),
+    onError: refreshEligibility,
+    onSuccess: completed
+  })
+  const submitFeedback = useMutation({
+    mutationFn: () => submitJobFeedback(job.id, feedback.trim(), job.revision),
+    onError: refreshEligibility,
+    onSuccess: completed
+  })
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if (event.key !== "Escape" && (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) return

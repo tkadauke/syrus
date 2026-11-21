@@ -85,6 +85,14 @@ module Api
           render_error("unauthorized", I18n.t("api.base.sign_in_required"), status: :unauthorized)
         end
 
+        def reject_stale_job_revision?(job)
+          expected = params[:expected_revision]
+          return false if expected.blank? || expected.to_i == job.reload.entity_revision
+
+          render_error("stale_job", I18n.t("api.base.stale_job"), status: :conflict)
+          true
+        end
+
         def policy_scope(scope, policy_scope_class: nil)
           restrict_invocation_relation(super)
         end

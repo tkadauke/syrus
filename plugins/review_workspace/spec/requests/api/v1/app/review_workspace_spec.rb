@@ -13,11 +13,26 @@ RSpec.describe "API: review workspace", type: :request do
     get "/api/v1/app/review_workspace"
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body).to include("count" => 1)
-    expect(response.parsed_body.fetch("jobs")).to contain_exactly(include("id" => job.id, "slug" => job.slug, "title" => "Review me"))
+    expect(response.parsed_body.fetch("jobs")).to contain_exactly(
+      include("id" => job.id, "revision" => job.entity_revision, "slug" => job.slug, "title" => "Review me")
+    )
 
     get "/api/v1/app/review_workspace/count"
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body).to include("count" => 1)
+  end
+
+  it "rejects a review decision rendered from an older Job revision" do
+    job = Factories.job_record(user:, repository:, state: "implemented", issue_title: "Review me")
+    rendered_revision = job.entity_revision
+    job.update!(pr_checks_state: "failing")
+
+    expect {
+      post "/api/v1/app/jobs/#{job.id}/approve", params: { expected_revision: rendered_revision }
+    }.not_to change(JobApproval, :count)
+
+    expect(response).to have_http_status(:conflict)
+    expect(response.parsed_body.dig("error", "code")).to eq("stale_job")
   end
 
   it "fails closed after the plugin is disabled" do

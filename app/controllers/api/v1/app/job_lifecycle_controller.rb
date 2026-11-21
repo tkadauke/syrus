@@ -327,6 +327,7 @@ module Api
         def approve
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
+          return if reject_stale_job_revision?(job)
 
           unless job.auto_merge_enabled?
             render_error("validation_failed", lifecycle_t("auto_merge_disabled", slug: job.repository.slug), status: :unprocessable_content)
