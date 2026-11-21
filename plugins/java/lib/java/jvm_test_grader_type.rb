@@ -2,7 +2,6 @@ require "shellwords"
 
 module Java
   class JvmTestGraderType
-
     DEFAULT_TIMEOUT_MINUTES = 20
     DEFAULT_CHANGED_FILES = [
       "**/*.java",

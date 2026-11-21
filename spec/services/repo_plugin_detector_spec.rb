@@ -101,6 +101,5 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
 
       expect(described_class.for(@dir, repository: :repository)).to eq([ "family-language" ])
     end
-
   end
 end

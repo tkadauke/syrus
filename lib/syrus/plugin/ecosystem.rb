@@ -41,7 +41,6 @@ module Syrus
           coverage && (Array(phases).map(&:to_s) & COVERAGE_PHASES).any?
         end
       end
-
     end
 
     Ecosystem::DEFINITION = Family.define(:ecosystem) do
@@ -82,7 +81,6 @@ module Syrus
         context: Context::RepoContext, returns: Ecosystem::REVIEW_PATTERNS
       capability :target_graph, composition: :keyed, absent: :configuration_error, decline: nil, tier: :provisional,
         context: Context::RepoContext, returns: Object
-
     end
 
     def Ecosystem.restore_definition!
