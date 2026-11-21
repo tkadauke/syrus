@@ -32,7 +32,7 @@ module PendingActions
     private
 
     def job_snapshot(job)
-      workflow = job.workflows.order(created_at: :desc, id: :desc).includes(steps: :runs).first
+      workflow = job.workflows.reorder(created_at: :desc, id: :desc).includes(steps: :runs).first
 
       {
         "id" => job.id,

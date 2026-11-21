@@ -141,7 +141,7 @@ module App
       return nil unless @job.needs_attention? && @job.needs_attention_reason == "agent_cannot_proceed"
 
       workflow = @job.workflows.where(state: "blocked", trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES)
-        .order(created_at: :desc, id: :desc).first
+        .reorder(created_at: :desc, id: :desc).first
       return nil unless workflow&.operator_dismissable?
 
       {

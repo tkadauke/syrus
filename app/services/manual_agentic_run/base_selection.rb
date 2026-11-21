@@ -92,7 +92,7 @@ module ManualAgenticRun
       if payload["failed_workflow_id"].present?
         job.workflows.failed.find_by(id: payload["failed_workflow_id"])
       else
-        job.workflows.failed.where(cleaned_up_at: nil).order(created_at: :desc, id: :desc).first
+        job.workflows.failed.where(cleaned_up_at: nil).reorder(created_at: :desc, id: :desc).first
       end
     end
 

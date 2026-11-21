@@ -51,17 +51,26 @@ class RunCheckpointResume
 
   attr_reader :job, :agent_provider, :artifacts
 
+  # The attempt being retried is the Job's newest one. Only it may be resumed:
+  # an older failed attempt's checkpoint predates whatever ran since (a
+  # feedback workflow that pushed, a later failure elsewhere), so resuming it
+  # would restore and push superseded code. Child workflows (landing
+  # validation, visual diffs) are not attempts and do not count
+  # (formal/SyrusModel/CheckpointLineage.lean).
   def source_workflow
-    job.workflows
-       .where(state: "failed")
-       .order(created_at: :desc, id: :desc)
-       .detect do |workflow|
-         failed_step = RetryFailedStepEnqueuer.failed_step_for(workflow)
-         failed_step &&
-           safe_failed_step?(failed_step) &&
-           !RetryFailedStepEnqueuer.crosses_uncleared_retry_until_barrier?(failed_step) &&
-           checkpoint_before(failed_step).present?
-       end
+    workflow = job.workflows
+                  .where(trigger_kind: Workflow::TriggerKind.runtime_role_values("first_class"))
+                  .reorder(created_at: :desc, id: :desc)
+                  .first
+    return nil unless workflow&.failed?
+
+    failed_step = RetryFailedStepEnqueuer.failed_step_for(workflow)
+    return nil unless failed_step &&
+      safe_failed_step?(failed_step) &&
+      !RetryFailedStepEnqueuer.crosses_uncleared_retry_until_barrier?(failed_step) &&
+      checkpoint_before(failed_step).present?
+
+    workflow
   end
 
   def safe_failed_step?(step)

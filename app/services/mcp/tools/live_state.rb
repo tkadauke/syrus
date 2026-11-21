@@ -300,7 +300,7 @@ module Mcp::Tools
     end
 
     def recent_workflows_payload(compact:)
-      job.workflows.order(created_at: :desc, id: :desc).limit(RECENT_WORKFLOW_LIMIT).map do |candidate|
+      job.workflows.reorder(created_at: :desc, id: :desc).limit(RECENT_WORKFLOW_LIMIT).map do |candidate|
         workflow_payload(candidate, compact: compact)
       end
     end

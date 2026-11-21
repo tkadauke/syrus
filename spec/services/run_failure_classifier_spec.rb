@@ -682,6 +682,18 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).not_to eq("rate_limited")
   end
 
+  # Regression (formal/SyrusModel/AssociationOrder.lean): `job_logs` has a
+  # default ascending order, and `.order(sequence: :desc)` only appended to
+  # it, so "the recent logs" were the run's first 25 lines. A rate limit at
+  # the end of a long run was never seen.
+  it "reads the run's most recent log lines, not its first ones" do
+    run.update!(state: "failed", agent_provider: "claude")
+    29.times { |index| JobLog.append!(run: run, chunk: "step #{index} ok", kind: "system") }
+    JobLog.append!(run: run, chunk: "Claude API error: HTTP 429 too many requests", kind: "system")
+
+    expect(classification.classification).to eq("rate_limited")
+  end
+
   it "classifies provider terminal log rate-limit text" do
     run.update!(state: "failed", agent_provider: "claude")
     JobLog.append!(run: run, chunk: "Claude API error: HTTP 429 too many requests", kind: "system")

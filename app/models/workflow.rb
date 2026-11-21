@@ -430,7 +430,7 @@ class Workflow < ApplicationRecord
   # A newer Workflow on the Job is the replacement for a recently superseded
   # one whose replacement was not known when the cancellation was recorded.
   def link_as_replacement_in_cancellation_attribution
-    job.workflows.where(state: "cancelled").where("id < ?", id).order(id: :desc).limit(5).each do |candidate|
+    job.workflows.where(state: "cancelled").where("id < ?", id).reorder(id: :desc).limit(5).each do |candidate|
       Workflows::CancellationAttribution.link_replacement!(candidate, self)
     end
   rescue StandardError => e

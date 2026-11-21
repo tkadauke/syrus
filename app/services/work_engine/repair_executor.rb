@@ -274,7 +274,7 @@ module WorkEngine
         end
 
         def audit_run
-          target_run || target_workflow&.runs&.order(created_at: :desc)&.first || target_job&.runs&.order(created_at: :desc)&.first
+          target_run || target_workflow&.runs&.reorder(created_at: :desc)&.first || target_job&.runs&.reorder(created_at: :desc)&.first
         end
 
         def audit!(status, message = nil)
@@ -1267,7 +1267,7 @@ module WorkEngine
           return skipped("Workflow is #{workflow.state}, not queued/running") unless workflow.queued? || workflow.running?
           return skipped("Workflow still has running descendants") if workflow.live_descendants?
 
-          failed_step = workflow.steps.where(state: "failed").order(position: :desc, id: :desc).detect { |step| !step.superseded_retry_until_failure? }
+          failed_step = workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).detect { |step| !step.superseded_retry_until_failure? }
           return skipped("Workflow has no failed Step") unless failed_step
           return skipped("Workflow cannot transition to failed") unless workflow.may_fail?
 
@@ -1930,7 +1930,7 @@ module WorkEngine
           return skipped("Job is #{job.state}, not repairable to landing") unless job.running? || job.approved?
           return skipped("Job is not owned by active landing work") unless active_landing_work_for_job?(job)
 
-          workflow = target_workflow || job.workflows.where(trigger_kind: WorkDefinitions.landing_workflow_kinds, state: Workflow::TriggerKind::ACTIVE_STATES).order(created_at: :desc, id: :desc).first
+          workflow = target_workflow || job.workflows.where(trigger_kind: WorkDefinitions.landing_workflow_kinds, state: Workflow::TriggerKind::ACTIVE_STATES).reorder(created_at: :desc, id: :desc).first
           with_transition_reason do
             LandingWorkJobState.ensure_landing!(
               job: job,

@@ -631,7 +631,7 @@ module Steps
 
     def codex_resume_unavailable_failure?
       run.job_logs
-        .order(sequence: :desc)
+        .reorder(sequence: :desc)
         .limit(25)
         .pluck(:chunk)
         .any? { |chunk| chunk.to_s.match?(AGENT_RESUME_UNAVAILABLE_PATTERN) }

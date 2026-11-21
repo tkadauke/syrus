@@ -569,7 +569,7 @@ class AgentEnvironmentSnapshot
   end
 
   def find_coverage_data
-    @run.job.workflows.order(created_at: :desc).each do |w|
+    @run.job.workflows.reorder(created_at: :desc).each do |w|
       artifact = Workflow::CoverageArtifact.read(w)
       next unless artifact.present? && !artifact["coverage_unavailable"]
 

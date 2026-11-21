@@ -38,7 +38,7 @@ module Mcp::Tools
       private
 
       def find_latest_coverage_artifact(run)
-        run.job.workflows.order(created_at: :desc).each do |w|
+        run.job.workflows.reorder(created_at: :desc).each do |w|
           artifact = Workflow::CoverageArtifact.read(w)
           return artifact if artifact.present?
         end

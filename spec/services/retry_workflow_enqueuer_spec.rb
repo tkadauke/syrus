@@ -125,6 +125,36 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(result.workflow.first_step.runs.last.agent_provider).to eq("claude")
   end
 
+  # Regression (formal/SyrusModel/CheckpointLineage.lean): a retry resumes
+  # the attempt it retries -- the Job's newest. It used to pick the newest
+  # failed workflow that *had* a resumable checkpoint, so after a newer
+  # attempt (a feedback workflow that pushed, or a later failure elsewhere)
+  # the retry restored and pushed an older checkpoint's code.
+  {
+    "a newer workflow succeeded" => %w[chat_feedback succeeded],
+    "a newer workflow failed somewhere unresumable" => %w[retry failed]
+  }.each do |description, (kind, state)|
+    it "does not resume an older attempt's checkpoint when #{description}" do
+      failed_job = Factories.job_record(user: user, repository: repository, state: "failed", agent_provider: "claude")
+      older = Workflow.create!(job: failed_job, user: user, trigger_kind: "initial", agent_provider: "claude",
+                               state: "failed", created_at: 2.hours.ago)
+      implement = Step.create!(workflow: older, kind: "implement", position: 1, state: "succeeded", finished_at: 2.hours.ago)
+      summarize = Step.create!(workflow: older, kind: "summarize", position: 2, state: "failed", finished_at: 2.hours.ago)
+      implement.update!(next_step: summarize)
+      implement_run = implement.runs.create!(job: failed_job, user: user, trigger_kind: "initial", agent_provider: "claude",
+                                             state: "succeeded", head_sha: "oldsha", base_sha: "basesha", finished_at: 2.hours.ago)
+      RunCheckpoint.create!(run: implement_run, workflow: older, step: implement, job: failed_job, repository: repository,
+                            user: user, step_kind: "implement", commit_sha: "oldsha", base_sha: "basesha",
+                            remote_ref: "refs/syrus/checkpoints/runs/#{implement_run.id}", status: "published",
+                            published_at: 2.hours.ago)
+      newer = Workflow.create!(job: failed_job, user: user, trigger_kind: kind, agent_provider: "claude", state: state,
+                               created_at: 1.hour.ago, finished_at: 1.hour.ago)
+      Step.create!(workflow: newer, kind: "implement", position: 1, state: state, finished_at: 1.hour.ago)
+
+      expect(RunCheckpointResume.call(job: failed_job)).not_to be_success
+    end
+  end
+
   it "gracefully reports a conflict instead of raising when a checkpoint resume races an active WorkUnit" do
     # RunCheckpointResume's own WorkUnits::Launcher.instantiate
     # call (kind: "checkpoint_resume") must be rescued the same way as

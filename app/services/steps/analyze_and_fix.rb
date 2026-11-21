@@ -99,7 +99,7 @@ module Steps
     end
 
     def repair_attempt_for(prior_step)
-      prior_run = prior_step.runs.order(created_at: :desc, id: :desc).first
+      prior_run = prior_step.runs.reorder(created_at: :desc, id: :desc).first
       return nil unless prior_run
 
       {

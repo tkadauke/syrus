@@ -131,7 +131,7 @@ class GraderOutcome
     end
 
     def latest_failed_run_outcome(step)
-      run = step.runs.where(state: "failed").order(created_at: :desc).first
+      run = step.runs.where(state: "failed").reorder(created_at: :desc).first
       return nil unless run
 
       run.agent_outcome.presence || run.run_failure_classification&.classification

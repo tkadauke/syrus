@@ -517,7 +517,7 @@ class AutoRetryJob < ApplicationJob
   end
 
   def log(attempt, message)
-    run = attempt.job.runs.order(created_at: :desc).first
+    run = attempt.job.runs.reorder(created_at: :desc).first
     return unless run
 
     JobLog.append!(run: run, chunk: message, kind: "system")

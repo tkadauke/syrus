@@ -55,7 +55,7 @@ class BaseRefreshRetryEnqueuer
   attr_reader :job, :source_workflow, :reason, :agent_provider
 
   def selected_source_workflow
-    source_workflow || job.workflows.where(state: %w[failed blocked]).order(created_at: :desc, id: :desc).first
+    source_workflow || job.workflows.where(state: %w[failed blocked]).reorder(created_at: :desc, id: :desc).first
   end
 
   def effective_base_repository

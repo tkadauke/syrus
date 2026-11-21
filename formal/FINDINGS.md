@@ -1725,6 +1725,68 @@ base SHA / base ref is unknown" (both reused before).
 
 ---
 
+## F58. Checkpoint resume continued an older attempt — fixed
+
+**Found by** DOC-44 Phase 3, retry lineage (`CheckpointLineage.lean`).
+
+**Property.** A retry's checkpoint resume continues the attempt being
+retried, the Job's newest (`after_newest`).
+
+**Gap.** Every retry (operator and automatic) first tries
+`RunCheckpointResume`. Its `source_workflow` took the first failed workflow
+that had a resumable checkpoint. A newer attempt that could not be resumed (a
+later failure in `implement`) or had succeeded (a feedback workflow that pushed)
+did not stop it, so the retry restored and pushed an older attempt's code
+(`older_checkpoint_resumed`). Because of F59 it also scanned oldest first.
+
+**Fix.** Only the Job's newest first-class workflow can be the source, and only
+if it is a resumable failure; otherwise the retry falls through to an ordinary
+retry workflow.
+
+**Spec.** `retry_workflow_enqueuer_spec.rb` "does not resume an older attempt's
+checkpoint when a newer workflow succeeded / failed somewhere unresumable" (both
+resumed before).
+
+---
+
+## F59. "Newest" lookups on default-ordered associations returned the oldest — fixed
+
+**Found by** deriving the invariant behind a recent main commit ("Return a Job's
+newest workflows from the admin API, not its oldest") and finding it was a
+class, not one call site (`AssociationOrder.lean`).
+
+**Property.** A lookup for the newest (or highest) record returns it.
+
+**Gap.** `Job#workflows`, `Job#runs`, `Step#runs`, `Workflow#steps`,
+`Run#job_logs` and others have a default `order` scope, and `.order(x)` appends
+to it: `job.workflows.order(created_at: :desc).first` ran `ORDER BY created_at
+ASC, id ASC, created_at DESC, id DESC` and returned the oldest
+(`appended_desc_is_ascending`). Forty-one lookups were affected, among them:
+
+- `RunFailureClassifier#recent_logs` (and `AutoRetryFailureClassifier`,
+  `ProviderQuotaReset`, `Steps::Base`'s resume-unavailable check) read a run's
+  *first* log lines as its recent ones, so a rate limit or provider error at the
+  end of a long run went unseen;
+- `Workflows::AutoMerge` / `ExternalPrMerge.latest_failed_run` gave the landing
+  failure handler the oldest failed run's error to classify;
+- the reconciler's retry (`RepairExecutor`) picked the lowest failed step, and
+  its run lookup the oldest run;
+- `GraderOutcome`, `Workflows::MainGrader`, `FeedbackHandling`,
+  `Steps::AnalyzeAndFix`, `BaseRefreshRetryEnqueuer`, `ManualAgenticRun` base
+  selection, `RebaseAttemptGuard`, `PollMergeStateJob`, `PollPullRequestJob`,
+  the live-state MCP tool, the timeline, coverage reports and more.
+
+**Fix.** All use `reorder`. `spec/architecture/default_ordered_association_spec.rb`
+finds every default-ordered association by reflection and fails on any
+descending `order` chained onto one, across lines.
+
+**Spec.** `run_failure_classifier_spec.rb` "reads the run's most recent log
+lines, not its first ones" and `workflows/auto_merge_spec.rb` "reports the newest
+failed run's failure as the landing failure" (both wrong before), plus the
+architecture spec (40 offenders before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -1910,7 +1972,9 @@ Later commits, checked in the next iteration:
   concurrent graders never share a test database and cleanup never deletes
   another grader's files. Holds, checked exhaustively in
   `TestDbNamespaces.lean` (`suffix_injective`, `cleanup_scoped`).
-- "Return a Job's newest workflows from the admin API": presentation only.
+- "Return a Job's newest workflows from the admin API": first read as
+  presentation only. Its invariant (a "newest" lookup returns the newest) turned
+  out to fail in 41 places: F59, proved in `AssociationOrder.lean`.
 
 Checked through main `a47a6abd37`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,

@@ -232,7 +232,7 @@ class AutoRetryFailureClassifier
   end
 
   def latest_failed_run
-    workflow.runs.where(state: "failed").includes(:run_diagnostic).order(created_at: :desc).first
+    workflow.runs.where(state: "failed").includes(:run_diagnostic).reorder(created_at: :desc).first
   end
 
   def retryable_error_class?(error_class)
@@ -254,7 +254,7 @@ class AutoRetryFailureClassifier
   end
 
   def recent_log_chunks(run)
-    run.job_logs.order(sequence: :desc).limit(RunFailureClassifier::RECENT_LOG_LIMIT).pluck(:chunk)
+    run.job_logs.reorder(sequence: :desc).limit(RunFailureClassifier::RECENT_LOG_LIMIT).pluck(:chunk)
   end
 
   def retryable(classification, reason)

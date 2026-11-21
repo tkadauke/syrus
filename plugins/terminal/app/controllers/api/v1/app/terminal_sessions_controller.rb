@@ -116,7 +116,7 @@ module Api
             working_directory: working_directory(availability),
             worker_hostname: selected_workflow&.worker_hostname,
             worker_storage_key: selected_workflow&.worker_storage_key,
-            queue_name: availability&.queue_name.presence || selected_workflow&.runs&.order(created_at: :desc)&.first&.resume_worker_queue,
+            queue_name: availability&.queue_name.presence || selected_workflow&.runs&.reorder(created_at: :desc)&.first&.resume_worker_queue,
             workspace_kind: selected_workflow ? "workflow" : "scratch"
           }
         end

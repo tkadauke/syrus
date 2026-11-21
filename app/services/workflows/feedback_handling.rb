@@ -48,7 +48,7 @@ module Workflows
     end
 
     def feedback_failure_reason(workflow)
-      run = workflow.runs.where(state: "failed").includes(:run_failure_classification).order(created_at: :desc).first
+      run = workflow.runs.where(state: "failed").includes(:run_failure_classification).reorder(created_at: :desc).first
       classification = run&.run_failure_classification
       classification&.reason.presence ||
         classification&.classification.presence ||

@@ -27,7 +27,7 @@ module Workflows
     end
 
     def self.revision_guard_workflows_for(job)
-      job.workflows.where(trigger_kind: trigger_kind).order(created_at: :desc, id: :desc).to_a
+      job.workflows.where(trigger_kind: trigger_kind).reorder(created_at: :desc, id: :desc).to_a
     end
 
     def self.steps_for(job)

@@ -73,7 +73,7 @@ module Workflows
     end
 
     def self.latest_failed_run(workflow)
-      workflow.runs.where(state: "failed").includes(:run_diagnostic).order(created_at: :desc).first
+      workflow.runs.where(state: "failed").includes(:run_diagnostic).reorder(created_at: :desc).first
     end
   end
 end

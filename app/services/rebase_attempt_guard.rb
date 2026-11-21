@@ -82,7 +82,7 @@ class RebaseAttemptGuard
   def self.latest_failed_agent_rebase_run(workflow)
     workflow.steps
       .where(kind: AGENT_REBASE_STEPS, state: "failed")
-      .order(id: :desc)
+      .reorder(id: :desc)
       .first
       &.runs
       &.order(id: :desc)
@@ -191,7 +191,7 @@ class RebaseAttemptGuard
   def self.latest_failed_run(workflow)
     workflow.steps
       .where(state: "failed")
-      .order(position: :desc, id: :desc)
+      .reorder(position: :desc, id: :desc)
       .first
       &.runs
       &.order(id: :desc)

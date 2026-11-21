@@ -40,7 +40,7 @@ class VisualDiffSubmission
 
     job.workflows
       .where(trigger_kind: VISUAL_REVIEW_SOURCE_TRIGGER_KINDS)
-      .order(created_at: :desc, id: :desc)
+      .reorder(created_at: :desc, id: :desc)
       .each do |workflow|
         result = enqueue_deferred_for_visual_review(workflow)
         return result if result&.success?
@@ -165,7 +165,7 @@ class VisualDiffSubmission
   def latest_visual_artifacts
     job.workflows
       .where(trigger_kind: VISUAL_REVIEW_SOURCE_TRIGGER_KINDS)
-      .order(created_at: :desc, id: :desc)
+      .reorder(created_at: :desc, id: :desc)
       .lazy
       .map { |workflow| artifacts_for_workflow(workflow, nil) }
       .find(&:present?) || []

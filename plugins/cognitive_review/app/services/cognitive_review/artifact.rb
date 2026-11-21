@@ -27,7 +27,7 @@ module CognitiveReview
     end
 
     def matching_entry_for(job:, version:, base_sha:, head_sha:)
-      job.workflows.order(created_at: :desc, id: :desc).lazy
+      job.workflows.reorder(created_at: :desc, id: :desc).lazy
         .flat_map { |workflow| Array(workflow.artifact(KEY)).reverse }
         .find { |entry| entry_matches?(entry, version: version, base_sha: base_sha, head_sha: head_sha) }
     end
