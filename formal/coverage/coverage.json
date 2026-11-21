@@ -261,9 +261,9 @@
         "zombie_terminal_unit_orphaned_run",
         "failed_unit_running_workflow_queued_tail"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Operator-only repair (retire_terminal_work_unit). Unit and Workflow terminal state should move together; not modelled (the Lean model has only workflowTerminal flags)."
+      "status": "done",
+      "done_by": "by construction · work_unit_workflow_ownership_spec",
+      "notes": "Every terminal Workflow transition is an AASM event whose after-callback (Workflows::LifecyclePropagation succeeded!/failed!/cancelled!/blocked!) runs sync_work_unit_terminal! inside the event's transaction, so the unit ends and releases its locks with the Workflow, or neither commits. The only column write of a Workflow's state, RunCompletionReconciler#force_state!, calls Workflows::LifecyclePropagation.succeeded! explicitly afterwards. The architecture spec now fails on any other Workflow state column write. Residual producers are outside the app: TerminalWorkflowSync and retire_terminal_work_unit remain the repairs for legacy rows."
     },
     {
       "id": "terminal-parent-active-children",
