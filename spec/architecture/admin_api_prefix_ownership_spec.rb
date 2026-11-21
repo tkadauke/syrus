@@ -178,6 +178,13 @@ RSpec.describe "admin API prefix ownership" do
     k8s_cluster GET /api/v1/app/admin/kubernetes_clusters/:id/nodes api/v1/app/admin/kubernetes_resources#nodes
     k8s_cluster GET /api/v1/app/admin/kubernetes_clusters/:id/overview api/v1/app/admin/kubernetes_resources#overview
     k8s_cluster GET /api/v1/app/admin/kubernetes_clusters/:id/pods api/v1/app/admin/kubernetes_resources#pods
+    local_backups DELETE /api/v1/app/admin/local_backups/:id api/v1/app/admin/local_backups#destroy
+    local_backups DELETE /api/v1/app/admin/local_backups/:id/pin api/v1/app/admin/local_backups#unpin
+    local_backups GET /api/v1/app/admin/local_backups api/v1/app/admin/local_backups#index
+    local_backups GET /api/v1/app/admin/local_backups/:id/download api/v1/app/admin/local_backups#download
+    local_backups POST /api/v1/app/admin/local_backups api/v1/app/admin/local_backups#create
+    local_backups POST /api/v1/app/admin/local_backups/:id/pin api/v1/app/admin/local_backups#pin
+    local_backups POST /api/v1/app/admin/local_backups/:id/validate api/v1/app/admin/local_backups#validate
     k8s_cluster GET /api/v1/app/admin/kubernetes_clusters/:id/pods/:name/logs api/v1/app/admin/kubernetes_resources#pod_logs
     k8s_cluster GET /api/v1/app/admin/kubernetes_clusters/:id/pvcs api/v1/app/admin/kubernetes_resources#pvcs
     k8s_cluster GET /api/v1/app/admin/kubernetes_clusters/:id/secrets api/v1/app/admin/kubernetes_resources#secrets

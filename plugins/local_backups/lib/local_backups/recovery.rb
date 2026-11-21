@@ -4,7 +4,6 @@ require "digest"
 require "fileutils"
 require "json"
 require "openssl"
-require "open3"
 require "pathname"
 require "rubygems/package"
 require "securerandom"
@@ -17,6 +16,27 @@ module LocalBackups
     DEFAULT_MAX_FILES = 1_000_000
 
     class Error < StandardError; end
+
+    # Rails-backed recovery checks and commands still cross the host's managed
+    # subprocess boundary. The standalone disaster-recovery executable injects
+    # its own adapter because it deliberately remains usable when Rails cannot
+    # boot.
+    class ManagedProcess
+      def capture(command, workdir:)
+        capture = Syrus::Host::ProcessRunner.new(
+          env: {}, command:, mounts: Syrus::Host::ProcessRunner.mounts(workdir),
+          network: "agent", timeout: 60
+        ).capture
+        [capture.stdout + capture.stderr, capture.success?]
+      end
+
+      def run(command, environment:, workdir:)
+        Syrus::Host::ProcessRunner.new(
+          env: environment, command: [ "/bin/sh", "-c", command.to_s ],
+          mounts: Syrus::Host::ProcessRunner.mounts(workdir), network: "agent", timeout: 24 * 60 * 60
+        ).run.success?
+      end
+    end
 
     class Bundle
       attr_reader :path, :manifest, :total_bytes
@@ -158,12 +178,13 @@ module LocalBackups
     end
 
     class Preflight
-      def initialize(bundle:, installation_id:, destination:, token_secret:, current: {})
+      def initialize(bundle:, installation_id:, destination:, token_secret:, current: {}, process: ManagedProcess.new)
         @bundle = bundle
         @installation_id = installation_id.to_s
         @destination = Pathname.new(destination)
         @token_secret = token_secret.to_s
         @current = current
+        @process = process
       end
 
       def call
@@ -188,8 +209,8 @@ module LocalBackups
 
       def destination_check
         return result("destination", "fail", "destination is not a writable directory") unless @destination.directory? && @destination.writable?
-        output, status = Open3.capture2e("df", "-Pk", @destination.to_s)
-        raise Error, "destination capacity is unavailable" unless status.success?
+        output, success = @process.capture([ "df", "-Pk", @destination.to_s ], workdir: @destination.to_s)
+        raise Error, "destination capacity is unavailable" unless success
         fields = output.lines.last.to_s.split
         available = Integer(fields.fetch(3), 10) * 1024
         result("destination", available >= required_bytes ? "pass" : "fail", "#{available} bytes available; #{required_bytes} required")
@@ -313,16 +334,18 @@ module LocalBackups
     # Restore intentionally lives in this standard-library-only file. A broken
     # application boot must not take away the recovery path.
     class Command
-      def initialize(environment: ENV, output: $stdout)
+      def initialize(environment: ENV, output: $stdout, process: ManagedProcess.new, workdir: Dir.pwd)
         @environment = environment
         @output = output
+        @process = process
+        @workdir = workdir
       end
 
       def run!(name, command, extra_environment = {})
         raise Error, "#{name} command is required" if command.to_s.empty?
 
         @output.puts("recovery: #{name}")
-        success = system(@environment.to_h.merge(extra_environment), command.to_s)
+        success = @process.run(command, environment: @environment.to_h.merge(extra_environment), workdir: @workdir)
         raise Error, "#{name} failed" unless success
       end
     end
@@ -541,7 +564,8 @@ module LocalBackups
       Result = Data.define(:status, :artifact_checksum, :safety_backup, :maintenance_marker)
 
       def initialize(bundle:, token:, token_secret:, installation_id:, destination:, database_destination:, objects_destination:,
-        safety_root:, maintenance_marker:, commands:, break_glass: false, output: $stdout, phase_hook: ->(_phase) { })
+        safety_root:, maintenance_marker:, commands:, break_glass: false, output: $stdout, phase_hook: ->(_phase) { },
+        process: ManagedProcess.new)
         @bundle = bundle
         @token = token
         @token_secret = token_secret
@@ -555,13 +579,14 @@ module LocalBackups
         @break_glass = break_glass
         @output = output
         @phase_hook = phase_hook
+        @process = process
       end
 
       def call
         maintenance = nil
         @bundle.validate!
         verify_token!
-        command = Command.new(output: @output)
+        command = Command.new(output: @output, process: @process, workdir: @destination.to_s)
         maintenance = Maintenance.new(marker: @maintenance_marker, command:, enter_command: @commands[:enter],
           drain_command: @commands[:drain], verify_command: @commands[:verify_drained])
         maintenance.enter!

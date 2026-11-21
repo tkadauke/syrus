@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Local backups">
+  <rect x="8" y="10" width="48" height="44" rx="8" fill="#2563eb"/>
+  <path d="M19 22h26v8H19zm0 14h26v8H19z" fill="#fff"/>
+  <circle cx="39" cy="26" r="2" fill="#2563eb"/>
+  <circle cx="39" cy="40" r="2" fill="#2563eb"/>
+</svg>

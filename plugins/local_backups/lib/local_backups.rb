@@ -8,6 +8,7 @@ module LocalBackups
     homepage "https://github.com/tkadauke/syrus"
     author "Thomas Kadauke"
     category "tooling"
+    icon_url "/plugin-icons/local_backups.svg"
     default_enabled false
     disableable true
     provides admin_page: "LocalBackups::AdminPages", callbacks: "LocalBackups::Callbacks",

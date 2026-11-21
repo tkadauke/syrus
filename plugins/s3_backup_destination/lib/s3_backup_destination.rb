@@ -8,6 +8,7 @@ module S3BackupDestination
     homepage "https://github.com/tkadauke/syrus"
     author "Thomas Kadauke"
     category "tooling"
+    icon_url "/plugin-icons/s3_backup_destination.svg"
     version "0.1.0"
     default_enabled false
     disableable true

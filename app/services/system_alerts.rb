@@ -90,12 +90,12 @@ module SystemAlerts
 
   def self.plugin_admin_alerts
     Syrus::PluginRegistry.providers_for(:system_alert_provider).flat_map do |provider|
-      PerformanceLogging.plugin_call(extension_point: :system_alert_provider, provider:, operation: :system_alerts) do
+      result = Syrus::PluginInvocation.call(
+        extension_point: :system_alert_provider, provider:, operation: :system_alerts, on_decline: []
+      ) do
         Array(provider.system_alerts)
       end
-    rescue StandardError => e
-      Rails.logger.warn("System alert provider #{provider} failed: #{e.class}")
-      []
+      Array(Syrus::PluginInvocation.value(result))
     end
   end
   private_class_method :plugin_admin_alerts

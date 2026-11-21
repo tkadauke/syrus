@@ -9,6 +9,15 @@ module Syrus
 
       def self.included(base)
         base.extend(VersionedCapability)
+        base.extend(ClassMethods)
+      end
+
+      module ClassMethods
+        REQUIRED_METHODS.each do |method_name|
+          define_method(method_name) do |*args, **kwargs|
+            raise NotImplementedError, "#{name} must implement .#{method_name}"
+          end
+        end
       end
     end
   end

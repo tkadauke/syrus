@@ -2,7 +2,21 @@
 # frozen_string_literal: true
 
 require "optparse"
+require "open3"
 require_relative "../plugins/local_backups/lib/local_backups/recovery"
+
+class StandaloneRecoveryProcess
+  def capture(command, workdir:)
+    output, status = Open3.capture2e(*command, chdir: workdir)
+    [output, status.success?]
+  end
+
+  def run(command, environment:, workdir:)
+    system(environment, command.to_s, chdir: workdir)
+  end
+end
+
+recovery_process = StandaloneRecoveryProcess.new
 
 options = {
   root: ENV["SYRUS_BACKUP_ROOT"], max_bytes: Integer(ENV.fetch("SYRUS_RECOVERY_MAX_BYTES", LocalBackups::Recovery::DEFAULT_MAX_BYTES)),
@@ -90,7 +104,8 @@ when "preflight"
   raise LocalBackups::Recovery::Error, "--destination or SYRUS_DATA_ROOT is required" if destination.to_s.empty?
   report = LocalBackups::Recovery::Preflight.new(
     bundle:, destination:, installation_id: options[:installation_id] || ENV["SYRUS_INSTALLATION_ID"],
-    token_secret: ENV["SYRUS_RECOVERY_TOKEN_SECRET"], current: options.slice(:database_adapter, :database_version, :application_version, :plugins, :encryption_fingerprints, :in_flight)
+    token_secret: ENV["SYRUS_RECOVERY_TOKEN_SECRET"], process: recovery_process,
+    current: options.slice(:database_adapter, :database_version, :application_version, :plugins, :encryption_fingerprints, :in_flight)
   ).call
   puts JSON.pretty_generate(report)
   exit 2 if report[:status] == "blocked"
@@ -115,6 +130,7 @@ when "restore"
     installation_id: options[:installation_id] || ENV["SYRUS_INSTALLATION_ID"], destination:,
     database_destination: options[:database_destination], objects_destination: options[:objects_destination],
     safety_root: options[:safety_root], maintenance_marker: options[:maintenance_marker], break_glass: options[:break_glass],
+    process: recovery_process,
     commands: options.slice(:enter, :drain, :verify_drained, :safety_backup, :migrate, :rebuild, :reconcile,
       :health_check, :resume, :mysql_stage_command, :mysql_promote_command, :mysql_rollback_command,
       :object_stage_command, :object_promote_command, :object_rollback_command)

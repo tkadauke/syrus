@@ -1,0 +1,10 @@
+project:
+  id: local_backups
+  label: "local_backups plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest

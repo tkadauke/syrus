@@ -28,7 +28,7 @@ export function fetchAdminLocalBackups() {
   return getJson<LocalBackupsPayload>("/api/v1/app/admin/local_backups")
 }
 
-export const createLocalBackup = () => postJson<{ queued: boolean }>("/api/v1/app/admin/local_backups")
+export const createLocalBackup = () => postJson("/api/v1/app/admin/local_backups") as Promise<{ queued: boolean }>
 export const validateLocalBackup = (id: string) => postJson(`/api/v1/app/admin/local_backups/${id}/validate`)
 export const pinLocalBackup = (id: string) => postJson(`/api/v1/app/admin/local_backups/${id}/pin`)
 export const unpinLocalBackup = (id: string) => deleteJson(`/api/v1/app/admin/local_backups/${id}/pin`)
