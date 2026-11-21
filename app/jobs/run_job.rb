@@ -901,7 +901,7 @@ class RunJob < ApplicationJob
     fail_run_tolerating_duplicate_diagnostic! if @run&.may_fail?
 
     record_landing_failure!(exception)
-    if @workflow && !workflow_controlled_failure?
+    if @workflow && !workflow_controlled_failure? && !collector_judged_grader_failure?
       with_lifecycle_lock_retry("record failure for Workflow ##{@workflow.id}") do
         @workflow.record_run_failure!
       end
@@ -962,6 +962,18 @@ class RunJob < ApplicationJob
   # on the next Step's Run.
   def workflow_controlled_failure?
     loop_controlled_grade_failure? || dispatcher_continued_workflow?
+  end
+
+  # A failed grader is evidence for its collect Step, not a failed Workflow:
+  # the collector decides whether the failure stands, and a main-repair
+  # preflight collector re-runs infrastructure failures on a fresh checkout.
+  # Counted toward max_job_failures, three failed graders in a 130-grader
+  # preflight failed the Workflow while 120 graders were still queued, so the
+  # collector -- and its infrastructure retries -- never ran.
+  COLLECTOR_JUDGED_GRADER_KINDS = %w[ grader preflight_grader ].freeze
+
+  def collector_judged_grader_failure?
+    COLLECTOR_JUDGED_GRADER_KINDS.include?(@step&.kind)
   end
 
   def loop_controlled_grade_failure?

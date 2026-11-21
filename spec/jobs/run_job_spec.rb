@@ -1244,6 +1244,32 @@ RSpec.describe RunJob, :ci_only do
       # Job stays open — failure cap is per-Workflow now, not per-Job
       expect(job.reload).to be_open
     end
+
+    # Regression: a main-repair preflight fans out 130 graders in parallel
+    # waves. Three of them failing tripped the cap and failed the Workflow
+    # while 120 were still queued, so the collect Step that judges graders and
+    # re-runs infrastructure failures never ran.
+    it "does not count a collector-judged grader failure toward the cap" do
+      AppSetting.current.update!(max_job_failures: 1)
+      grader_job = Factories.job_record(user: user, repository: repository, issue_number: 79, state: "running")
+      workflow = Workflow.create!(job: grader_job, user: user, trigger_kind: "main_branch_repair", agent_provider: grader_job.agent_provider, state: "running")
+      grader = Step.create!(
+        workflow: workflow, kind: "preflight_grader", position: 0,
+        details: { "name" => "rspec-ci-1-of-4", "command" => "exit 1", "required" => true, "timeout_minutes" => 1 }
+      )
+      Step.create!(workflow: workflow, kind: "preflight_grader_collect", position: 1, depends_on_ids: [ grader.id ])
+      run = grader.runs.create!(job: grader_job, trigger_kind: workflow.trigger_kind, agent_provider: grader_job.agent_provider)
+
+      begin
+        RunJob.perform_now(run.id)
+      rescue StandardError
+        nil
+      end
+
+      expect(grader.reload).to be_failed
+      expect(workflow.reload.failure_count).to eq(0)
+      expect(workflow).not_to be_failed
+    end
   end
 
   # ----- Pre-pickup cancellation ---------------------------------
