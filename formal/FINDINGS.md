@@ -3502,6 +3502,59 @@ this mission repairs nothing by hand.
 
 ---
 
+## F96. A finished Workflow deleted its workspace inside the finish transaction — fixed
+
+**Found by** the failure sweep and coverage item
+`running-workflow-nothing-left`. Its note recorded three
+`finish_workflow_from_terminal_descendants` executions 20–250 s *after* their
+Workflow finished as "unexplained, recheck after deploy".
+
+**Evidence (production, read-only).** Over two days there were 27 such skips
+("Workflow is succeeded, not running"):
+
+- Most fire within a few seconds of the finish, a classifier snapshot racing
+  the last Step. The repair skips correctly.
+- Three were merge trains, 175, 206 and 251 s late.
+
+The latest was the merge train that landed the plugin capability-family epic:
+
+- It recorded `finished_at` 22:12:34.
+- Four reconciler passes, at 22:13, 22:13:44, 22:14:30 and 22:15, still read
+  it as running with every Step terminal. Their repairs failed on `Lock wait
+  timeout exceeded`, from both `ReapStaleRunsJob` and
+  `LandingQueueProcessorJob.lock_conflict`.
+- Its final Run's log shows why: `[workspace] cleanup starting` at 22:12:38,
+  then `[workspace] cleanup complete` at 22:16:05.
+
+**Cause.** `Workflows::LifecyclePropagation` runs the AASM transition's `after`
+hook inside the event's transaction. It called `workflow.cleanup_workspace!`
+from `succeeded!`, `cancelled!`, `blocked!` and the infrastructure branch of
+`failed!`. That cleanup `rm_rf`s the workspace and scratch directories, which
+for a merge train took 3.5 minutes. For that whole time:
+
+- the terminal state stayed uncommitted, so other processes saw a running
+  Workflow with nothing left;
+- the rows the same transaction had locked (the Workflow, its WorkUnit, and
+  the member Jobs closed by `JobClosure.apply_pending!`) stayed locked;
+- any failure in the deletion rolled back the terminal transition itself.
+
+**Fix.** `Workflow#cleanup_workspace_after_commit!` defers `cleanup_workspace!`
+with `ActiveRecord.after_all_transactions_commit`, which runs immediately when
+no transaction is open, and contains its errors. If the process dies first,
+`WorkflowWorkspacePruneJob` removes the directory, as it does any incomplete
+cleanup. All four lifecycle paths use it. The direct callers (the admin
+endpoint, the admin pending action and the prune job) are outside a
+transaction and need its return value, so they keep the synchronous form.
+
+**Spec.** `lifecycle_propagation_spec.rb` "removes the workspace only after the
+succeed/cancel transition has committed" records the transaction depth inside
+`WorkflowWorkspace.cleanup_for`. It was one level too deep before the fix.
+
+No Lean model: this is about where I/O sits relative to a transaction
+boundary, which the state models abstract away. The spec is the evidence.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -4104,6 +4157,43 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 - *How the gate is shaped.* It is a deny-list over an open, plugin-extensible
   kind set, so a new kind carrying outside content, or a response without a
   `kind`, runs hooks by default.
+
+---
+
+## M47. Failure sweep (read-only): recent fixes verified in production
+
+Main had no new commits. The sweep looked at failed Runs and Workflows in the
+last three hours, and reconciler repair activity over two days.
+
+**Run failures.**
+
+- Grader failures are real test results.
+- One implement Run failed with `worker_died`, and a second Run on the same
+  Step succeeded.
+- The merge-train `merge_train_land` failure was the designed fallback: land
+  failed, rebase, `merge_train_land_after_rebase` succeeded.
+- No Workflow failed or blocked.
+
+**Repair loops, both stopped after their fixes deployed.**
+
+- `clear_waiting_work_intent_active_unit` ran 4,000–6,000 times a day through
+  11-20. It hit the same intents every minute: Epic children whose queued
+  Workflow's intent `JobWakeup` parks on `dependency`. It stopped once
+  "Stop the reconciler undoing justified dependency waits" deployed, and has
+  applied once since.
+- `resume_queued_step` was refused once a minute on one Step behind
+  `ci_repair_safety` until 12:36 UTC on 11-21. F40 is deployed, and since then
+  only one-off `not_ready` skips remain, each on a distinct Step.
+
+**Late "nothing left" detections.** Explained and fixed in F96.
+
+**Full-suite gate** (`bin/rspec-fast`, 24,587 examples): one order-dependent
+failure. `chip_contract_spec.rb` found the latest-workflow trigger-kind filter
+chip offering `coworker_run` after an earlier spec had taken it out of the
+registry. The chip copied `Workflow::TriggerKind.values` at class load. In the
+product that meant a disabled plugin's kinds stayed selectable, and kinds
+registered later were missing. It now reads the registry on every call, with
+a deterministic regression example. The filter specs (985) are green.
 
 ---
 
