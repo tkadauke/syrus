@@ -1645,6 +1645,60 @@ recorded parameters.
 
 ---
 
+## F55. A late main grade of an older commit cancelled a live CI repair — fixed
+
+**Found by** deriving the invariants behind a recent main commit ("Cancel a
+running CI repair whose base main health has moved past";
+`BaseSupersession.lean`).
+
+**Property.** A CI repair waiting for its base to be known healthy is released
+once the poller observes a different branch head (`after_live`, the commit's
+liveness fix), and only on such an observation (`after_safe`).
+
+**Gap.** The commit counted any health check of another SHA after the repair
+began waiting. Main grading records its result for the commit it graded, with
+`checked_at` set to when it finished, and records `"unknown"` when the SHA is
+missing. A full main grade of an older commit that finished after a newer base
+landed cancelled a CI repair whose base was the current head and about to be
+graded (`late_grade_cancels`).
+
+**Fix.** Only head observations count: CI polls (the poller polls only the
+head) and grades of the head the poller last recorded
+(`last_health_checked_sha`). The fix only narrows the commit's rule
+(`after_narrows`), and it keeps the no-CI case: a grade of the tracked head
+still counts.
+
+**Spec.** `ci_repair_safety_spec.rb` "does not count a late grade of an older
+commit / a grade recorded without a SHA as main moving past the base" (both
+counted before), "counts a grade of the head main health is tracking".
+
+---
+
+## F56. A self-healed merge-train member kept its branch and stacked children — fixed
+
+**Found by** deriving the invariant behind a recent main commit ("Close the PR
+and branch of a merge-train member the reconciler lands";
+`MemberLandingCleanup.lean`).
+
+**Property.** Every path that lands a merge-train member closes its PR,
+retargets its stacked child PRs onto the base and deletes its branch
+(`after_uniform`).
+
+**Gap.** `MergeTrainFailureHandler#complete_landing!` self-heals a member the
+failed train had already landed. It closed the PR, but neither retargeted
+stacked children nor deleted the branch; its own log said "Its branch may still
+need manual GitHub cleanup" (`self_heal_incomplete`). The stale-branch reaper
+never deletes a branch an open PR targets, so a stacked child kept pointing at
+the landed member's branch.
+
+**Fix.** `MergeTrainMemberLandedCleanup` does the land step's cleanup; the
+reconciler's member repair (from that commit) and the self-heal both call it.
+
+**Spec.** `merge_train_failure_handler_spec.rb` "retargets stacked children and
+deletes a self-healed member's branch" (neither happened before).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -1756,7 +1810,21 @@ invariant still fails.
 The remaining commits (UI, syntax highlighting, spec speed-ups, CI sharding,
 admin query counts) state no engine invariant.
 
-Checked through main `637033715e`. Each loop iteration continues from there:
+Later commits, checked in the next iteration:
+
+- "Cancel a running CI repair whose base main health has moved past":
+  violated by late grades of older commits, F55; proved in
+  `BaseSupersession.lean`.
+- "Close the PR and branch of a merge-train member the reconciler lands":
+  violated by the failure handler's self-heal, F56; proved in
+  `MemberLandingCleanup.lean`.
+- "Keep parallel RSpec preflight graders on their own test databases":
+  concurrent graders never share a test database and cleanup never deletes
+  another grader's files. Holds, checked exhaustively in
+  `TestDbNamespaces.lean` (`suffix_injective`, `cleanup_scoped`).
+- "Return a Job's newest workflows from the admin API": presentation only.
+
+Checked through main `a47a6abd37`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

@@ -120,28 +120,23 @@ class MergeTrainFailureHandler
 
   def complete_landing!(member, job)
     job.update_column(:landed_sha, integration_merge_sha)
-    reconcile_member_pull_request!(job)
+    clean_up_landed_member!(job)
     job.close_with_reason!("pr_merged") if job.may_close?
     member.update!(state: "merged")
     log_self_healed!(job)
   end
 
-  # Same PR reconciliation (comment + close) the happy path uses in
-  # Steps::MergeTrainLand#reconcile_member_pull_request_after_landing -- a
+  # The same cleanup the happy path does in Steps::MergeTrainLand -- a
   # self-healed member never went through an integration PR merge here, so
-  # nothing else ever comments on or closes its GitHub PR, leaving it open
-  # forever even though the Job itself lands correctly.
-  def reconcile_member_pull_request!(job)
-    MergeTrainMemberPrReconciler.call(
-      client: github_client,
-      repository: @workflow.job.repository,
-      train: merge_train,
-      member_job: job,
-      integration_pr: nil,
-      log: ->(message, kind: nil) { job_log(job, message, kind: kind) }
+  # nothing else comments on and closes its GitHub PR, retargets its stacked
+  # children or deletes its branch.
+  def clean_up_landed_member!(job)
+    MergeTrainMemberLandedCleanup.call(
+      client: github_client, train: merge_train, job: job,
+      log: ->(message, kind: "system") { job_log(job, message, kind: kind) }
     )
   rescue StandardError => e
-    Rails.logger.warn("[MergeTrainFailureHandler] could not reconcile PR for #{job.slug}: #{e.class}: #{e.message}")
+    Rails.logger.warn("[MergeTrainFailureHandler] could not clean up #{job.slug}: #{e.class}: #{e.message}")
   end
 
   def github_client
@@ -152,7 +147,7 @@ class MergeTrainFailureHandler
     job_log(
       job,
       "merge_train: #{job.slug} was already landed at #{integration_merge_sha.to_s.first(9)} when the train " \
-      "failed; closed pr_merged instead of reverting and closed its PR. Its branch may still need manual GitHub cleanup."
+      "failed; closed pr_merged instead of reverting, closed its PR and cleaned up its branch."
     )
   end
 
