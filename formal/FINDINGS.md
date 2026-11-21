@@ -3908,6 +3908,46 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M37. The last queued-Run recoveries: wedged claims, cached grader failures, pre-start crashes — audited, no bug
+
+**Scope.** These are the three remaining open DOC-44 runs and queue items:
+`queued-run-wedged-or-stale-claim`, `queued-grader-collect-cached-failure`
+and `queued-run-failed-execution`. All three are liveness questions that
+depend on workers and the queue (class c, or class a with infrastructure
+causes).
+
+**Wedged or stale claim.** `wedged_queue_claim?` matches a SolidQueue row
+claimed for longer than `WEDGED_QUEUE_CLAIM_AFTER` while the Run never
+started. The repair is the same `ReenqueueRun` as for a dead resume queue
+(M32), done under the Run lock. It deletes the stale queue rows *before*
+dropping affinity, so no old resume job can stamp the storage key back while
+the repair runs. The replacement then goes to the general queue. As its
+comment notes, routing would otherwise hand the Run straight back to the
+still-heartbeating storage key it is stuck on, and the repair would loop. It
+terminates in one step.
+
+**Cached grader failure.** When a queued `grader_collect` Run belongs to a
+Workflow whose grader conclusion for this commit is already cached as failed
+(`GraderConclusionCache.failed_for_workflow?`), the classifier reports
+`queued_grader_collect_cached_failure`, whatever queue the Run is stuck on.
+The repair, `mark_cached_grader_collect_failed`, fails the Run from the cached
+conclusion instead of replaying graders whose result is known. Its spec pins
+that writing the diagnostic cannot double-insert. Every other queued-Run
+repair refuses to re-enqueue when a cached failure exists, so the two cannot
+disagree.
+
+**Pre-start crash.** RunJob failures before the Run starts are
+infrastructure: lock-wait timeouts and SolidQueue process pruning, from the
+read-only production analysis of 61 executions. They leave the Run queued
+with a failed queue execution. The reconciler re-enqueues it, which is the
+intended recovery. Step failures that RunJob re-raises *after* handling them
+are finished Runs, not pre-start crashes.
+
+This closes the runs and queue area, apart from the NY26-dependent bound
+`worker-loss-bounded-recovery`.
+
+---
+
 ## M36. Stalled intake classification is retried, bounded by real attempts — audited, no bug
 
 **Scope.** DOC-44 job state, the coverage item `stalled-intake`: "A Job stays
