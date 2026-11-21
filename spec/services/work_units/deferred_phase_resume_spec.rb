@@ -151,6 +151,29 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     end
   end
 
+  # Reactivating the unit acquires its locks. When another unit already holds
+  # one, LockConflict escaped: WorkflowPhaseAdmissionJob retries only database
+  # lock errors, so the job failed and nothing ever rechecked the deferral.
+  it "reports a lock-blocked reactivation and schedules its own recheck" do
+    job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")
+    first_step = workflow.first_step
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    first_step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    workflow.work_unit.mark_terminal!("failed")
+    holder = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job, agent_provider: "codex")
+    expect(holder.work_unit.work_unit_locks.active).not_to be_empty
+
+    result = nil
+    expect {
+      result = described_class.call(workflow.id, first_step.id)
+    }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
+
+    expect(result).to be_blocked
+    expect(result.reason).to eq("active_work_lock")
+    expect(workflow.work_unit.reload).to be_failed
+  end
+
   it "does not revive a deliberately cancelled tail after a deferred branch step" do
     job = Factories.job_record(user: user, repository: repository, state: "running", agent_provider: "codex")
     workflow = Workflow.create!(
