@@ -1028,6 +1028,51 @@ because they didn't set `RUN_CI_ONLY_SPECS`.
 
 ---
 
+## Lead L2: lock-wait timeouts on two hot rows (production, read-only)
+
+**Counts.** No InnoDB deadlocks in 7 days. There were 33 lock-wait timeouts
+(MySQL's default wait is 50 s): RunJob 13, PollMergeStateJob 8,
+PollPullRequestJob 6, the rest scattered. All sampled backtraces are *waiters*:
+- **Workflow row (5).** `StepDispatcher.create_run_and_enqueue` → `Workflow#reload`
+  (with lock) while advancing a chain. Four hit between 22:08 and 22:41 Eastern
+  on 2026-11-19, a period with heavy merge-train grading.
+- **User row (3).** `AppEvents.next_sequence` → `UPDATE users SET
+  app_event_sequence = app_event_sequence + 1`, from a Job commit callback.
+  Every app broadcast for a user serialises on that user's row. With
+  effectively one operator, that is every broadcast in the instance.
+- **Others:** `PollPullRequestJob#cache_pr_checks_state` (2),
+  `GraderFanoutAdmission.synchronize` (1), `ReapOrphanedSpawnedProcessesJob` (1).
+
+**Likely holders, not yet proven.**
+- `GraderFanoutAdmission.synchronize` holds the *instance-wide* `AppSetting`
+  row lock while it creates and enqueues every admitted grader Run, and each
+  creation takes that Workflow's lock and runs RunQueueResolver. A merge train
+  admits about 80 graders.
+- Any broadcast made inside a longer transaction holds the user row until that
+  transaction commits.
+
+Next: find the holders, from the `innodb_lock_waits` view at a timeout, or by
+timing the admission block.
+
+**Code-level hazard found while looking.** `LandingValidationPrefetcher#call`
+locks the source landing Workflow and the target Jobs, then runs
+`LandingValidationPrefetchSource.publish!` inside that transaction:
+- `git bundle create … HEAD`, a bundle of the whole repository;
+- the ActiveStorage upload of that bundle.
+
+It runs "after landing graders passed", exactly when that Workflow's grader
+Runs advance and need its lock. Its errors are rescued and only logged.
+
+I could not tie it to the 2026-11-19 burst: no prefetch Workflow started
+22:00–22:45, and operational logs are kept only 6 hours. The fix would be to
+build and upload the bundle outside the lock, then claim and attach under it,
+purging the blob on a lost race. Left until a holder is proven.
+
+**Lock order.** Retry (`RetryFailedStepEnqueuer`: Job lock → reopen Workflow)
+and `WorkflowCancellation` (Workflow lock → cancel → Job write) take Job and
+Workflow in opposite orders. That cycle can deadlock but did not fire in 7
+days.
+
 ## Leads not yet worked (from the catalog)
 
 - `approved`/`implemented` Job without a PR: approve guard is `true`, and

@@ -2206,7 +2206,7 @@
       "simulator": [],
       "status": "open",
       "done_by": null,
-      "notes": "Run->Job vs Job->Run is a potential cycle; today safety comes from with_lifecycle_lock_retry and DB deadlock detection, not ordering."
+      "notes": "Production (7 days, read-only): no InnoDB deadlocks; 33 lock-wait timeouts (>50 s) clustering on two hot rows -- the Workflow row (create_run_and_enqueue waiting, 5 sampled) and the user row (AppEvents.next_sequence, every app broadcast increments users.app_event_sequence). A known Job/Workflow order inversion (retry: Job→Workflow; WorkflowCancellation: Workflow→Job) exists but did not fire. Suspected long holder: GraderFanoutAdmission.synchronize holding the instance-wide AppSetting lock while creating ~80 grader Runs. Lead L2 in FINDINGS; holders not yet proven."
     },
     {
       "id": "launch-funnel",
