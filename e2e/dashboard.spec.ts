@@ -66,7 +66,10 @@ test("shows the system readiness panel for a user who has not finished setup", a
   // admin-panel.spec.ts's fake worker row exists, and those files run in
   // parallel, so asserting it failed roughly half the time.
   const panel = page.getByRole("region", { name: "System readiness" })
-  await expect(panel.getByRole("heading", { name: "System readiness needs attention" })).toBeVisible()
+  // The readiness checks make live calls (GitHub, providers) before the panel
+  // renders; under a loaded full-suite run that took longer than the default
+  // five seconds and failed the spec although the panel was correct.
+  await expect(panel.getByRole("heading", { name: "System readiness needs attention" })).toBeVisible({ timeout: 30_000 })
   await expect(panel.getByRole("heading", { name: "Agent provider" })).toBeVisible()
   await expect(panel.getByText("Codex is selected but its credentials are missing.")).toBeVisible()
 
