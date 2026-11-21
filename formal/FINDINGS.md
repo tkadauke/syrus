@@ -2727,6 +2727,29 @@ Main's "Block unknown plugin versions in recovery" and the preflight checks in
 
 ---
 
+## M22. Diff review endpoints and per-job review state — audited, no bug
+
+Main's "Keep diff review endpoints independent across versions," "Keep diff
+review range endpoints independent," and "Isolate review state across cached
+jobs."
+
+- **Endpoints are compared exactly.** The client keys the range query on both
+  SHAs (`["jobs", id, "review_source_diff_range", base, head]`) and sends both.
+  `App::JobSourceDiffPayload` resolves exactly the requested `base` and `head`,
+  and under `explicit_selection?` it skips the stored-version fallback. So an
+  incomparable or unresolvable pair surfaces `diff_error` instead of a diff of
+  some other pair, which is what lets the selector keep FROM and TO
+  independent without lying about what is shown.
+- **One job's review data never shows under another.** The source-diff query
+  uses `placeholderData: keepPreviousData`, which carries data across a key
+  change within one mounted observer. Both mounts are keyed by job: the
+  desktop `ReviewWorkspace` uses `key={payload.job.id}` in `JobDetail.tsx`,
+  and the mobile `MobileReviewCard` uses `key={job.id}` (added by that
+  commit). Each job therefore gets a fresh observer with no previous data,
+  and the version list additionally checks `job_id === jobId`.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
@@ -2779,7 +2802,18 @@ Later commits, checked in the next iteration:
   fix whose invariant (a file row never widens the page) is geometry, pinned by
   its own `ReviewableDiff.test.tsx` regression; no engine state involved.
 
-Checked through main `d7403fee64`. Each loop iteration continues from there:
+Later commits, checked through main `cb5b006575` (two merge trains):
+
+- The backup and disaster-recovery epic: retention, replication leases and
+  verified-copy preservation hold (M20, NY21). Recovery preflight blocks
+  known incompatibilities but only warns on unknowns (M21, NY22). Capture,
+  capacity admission, partial cleanup and the S3 destination are covered by
+  their own specs. Their macOS-only spec failures were fixed while merging.
+- The diff review and mobile review train: endpoint independence and per-job
+  state isolation hold (M22). The remaining commits are layout and
+  accessibility only.
+
+Checked through main `cb5b006575`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
