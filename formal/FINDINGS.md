@@ -3959,6 +3959,61 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M44. Main commits through `d9be256158` — invariants checked, no counterexample
+
+Thirteen commits landed on main after `05d1c36ce1`. The branch rebased onto
+them without conflicts. The invariants they rely on, and how each was checked:
+
+- **"Let a failed main-branch repair retry itself"** (`41b0c16234`). Retry
+  eligibility looked for the opening workflow only as `initial`, so
+  main-branch repair Jobs were refused forever as `initial_not_run`. The fix
+  adds `OPENING_TRIGGER_KINDS = initial, main_branch_repair`.
+  - *Relied-on invariant:* every Job kind that goes through the generic retry
+    (`RetryWorkflowEligibility`, `RetryJobs::Mode`) opens with one of those
+    kinds.
+  - *Checked:* every caller of `RetryWorkflowEligibility` and every Job kind.
+    `external_pr` retries through its own `ExternalPrIngestRetryEnqueuer` and
+    never reaches this check. In production (read-only), the opening kinds of
+    failed Jobs are only `initial` (issue, direct) and `main_branch_repair`
+    (direct).
+  - *Assumption to keep:* a plugin Job kind that opens with its own Workflow
+    and uses generic retry would hit the same refusal. Deriving the opening
+    workflow as the Job's first Workflow would remove the list.
+- **"Refuse to retry an attempt a newer success already replaced"**
+  (`b57d999ab1`). Implementation-retry preflight now refuses a source that
+  `superseded_by_newer_successful_publication?`.
+  - This is the *manual* path. It differs from the automatic rule F90 unified
+    (`Workflows::AutoRetrySupersession`), but they govern different decisions.
+  - The reconciler's stale-retry repair only targets Workflows carrying
+    `auto_retry_attempt_id`, so the difference cannot produce the
+    launch-then-cancel loop.
+- **"Do not fail a workflow over a grader whose failure it advances past"**
+  (`98ee966907`). `orphaned_failed_step` now skips advance-on-failure kinds.
+  - This closes part of NY26: the reconciler no longer hard-fails a Workflow
+    over a grader-style failure that the live dispatch would have advanced
+    past.
+  - NY26 remains for the try-branch and in-place infrastructure-retry outcomes.
+- **The others** are local, and none touches an invariant proved on this
+  branch:
+  - the main-repair preflight graders and simulator database path;
+  - the `list_recent_workflows` worker budget;
+  - retry operator guidance;
+  - the grader-failure attribution prompt;
+  - the publication-resolved retry headline;
+  - replacing Syrus's own earlier PR branch;
+  - e2e menu lookup;
+  - GitHub Actions log parsing;
+  - leaving failed graders to their collector.
+
+**Post-rebase checks:**
+
+- the CI-only reconciler, executor and resilience specs: 351 examples, 0
+  failures;
+- `spec/jobs`, `spec/services/workflows`, the retry specs and `spec/models`:
+  3,342 examples, 0 failures.
+
+---
+
 ## M43. Which blocked reasons a started landing can hold the slot on — audited, one design question
 
 **Scope.** DOC-44 scheduling, the coverage item `gates-starvation-free`,
@@ -4793,7 +4848,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `cb5b006575`. Each loop iteration continues from there:
+Checked through main `d9be256158`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
