@@ -12,12 +12,13 @@ RSpec.describe Syrus::Host::PublicApis do
   it "rebuilds aliases and contracts without duplicates on every prepare pass" do
     2.times { described_class.install! }
 
-    expect(Syrus::Host.apis.size).to eq(33)
-    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(33)
+    expect(Syrus::Host.apis.size).to eq(34)
+    expect(Syrus::Host.apis.map(&:name).uniq.size).to eq(34)
     expect(Syrus::Host::Record).to equal(ApplicationRecord)
     expect(Syrus::Host::BackgroundJob).to equal(ApplicationJob)
     expect(Syrus::Host::PluginInvocation).to equal(Syrus::PluginInvocation)
     expect(Syrus::Host::BackupArtifactSource).to equal(Syrus::Plugin::BackupArtifactSource)
+    expect(Syrus::Host::BackupDestination).to equal(Syrus::Plugin::BackupDestination)
     expect(Syrus::Host::SystemAlertProvider).to equal(Syrus::Plugin::SystemAlertProvider)
   end
 
