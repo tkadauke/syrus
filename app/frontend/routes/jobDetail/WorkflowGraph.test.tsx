@@ -1,12 +1,30 @@
 import { fireEvent, render as testingRender, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { JobDetailPayload } from "../../api/jobs"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import { StepCoworkerReviewPanel, WorkflowsTab } from "./WorkflowGraph"
 
 stubVirtualizerMeasurements()
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+function mockMobileViewport() {
+  vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+    matches: query === "(max-width: 639px)",
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn()
+  })))
+}
 
 function render(ui: Parameters<typeof testingRender>[0]) {
   return testingRender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>)
@@ -120,6 +138,61 @@ function command() {
 }
 
 describe("WorkflowsTab", () => {
+  it("consolidates eligible mobile workflow commands and keeps disclosure compact", async () => {
+    mockMobileViewport()
+    const detailed = workflowWithStepDetails({} as never)
+    const summary = structuredClone(detailed) as JobDetailPayload["workflows"][number]
+    summary.state = "failed"
+    summary.retry_available = true
+    summary.cleaned_up_at = null
+    summary.steps.forEach((step) => delete (step as Partial<typeof step>).runs)
+    const cmd = command()
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ workflow: detailed }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={cmd}
+          payload={payload({
+            job: { id: 1 } as JobDetailPayload["job"],
+            ui_workflow_actions: [
+              {
+                id: "terminal-workspace",
+                component: "terminal/OpenWorkspaceButton",
+                order: 10,
+                props: { availability_by_workflow_id: { [String(summary.id)]: { available: true } } }
+              }
+            ],
+            workflows: [summary]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole("button", { name: "Retry failed step" })).not.toBeInTheDocument()
+    const actions = screen.getByRole("button", { name: "Workflow actions" })
+    expect(actions).toHaveClass("h-11", "w-11")
+    fireEvent.click(actions)
+
+    expect(await screen.findByRole("button", { name: "Open terminal in workspace" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry failed step" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Push commits" })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Retry failed step" })).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry failed step" }))
+    expect(cmd.mutate).toHaveBeenCalledWith(expect.objectContaining({ method: "post", path: summary.app_retry_step_path }))
+
+    const disclosure = screen.getByRole("button", { name: "Show more" })
+    expect(disclosure).toHaveClass("h-11", "w-11")
+    fireEvent.click(disclosure)
+    expect(await screen.findByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true")
+    fireEvent.click(screen.getByRole("button", { name: "Show less" }))
+    expect(screen.getByRole("button", { name: "Show more" })).toHaveAttribute("aria-expanded", "false")
+  })
+
   it("fetches step and run detail only when a collapsed workflow is expanded", async () => {
     const detailed = workflowWithDiffRun()
     const summary = structuredClone(detailed) as JobDetailPayload["workflows"][number]
