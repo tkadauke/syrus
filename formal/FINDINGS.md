@@ -1855,6 +1855,9 @@ disable/enable/create/finish actions on two plugins and four kinds).
   disabled plugin's kind raised before the fix.
 * `plugin_disable_guard_spec.rb` "workflow kind providers": both blocking
   cases were allowed before the fix.
+* `spec/architecture/kind_writes_validated_spec.rb`: no app write sets a kind
+  around validation, which the model's "create only if installed" step relies
+  on.
 
 **Remaining.** Health degradation also withholds a plugin's providers, kinds
 included, and there is no operator action to guard. That is NY14.
