@@ -407,6 +407,16 @@ plugin can create, validate, pin, download, and retain bundles from **Admin → 
 Backups**. Downloads are audited and support resumable HTTP byte ranges. These recovery bundles are separate from the installer's temporary
 pre-upgrade safety archives under `backups/`.
 
+When the web application is unavailable, run `bin/disaster-recovery preflight`
+and then `bin/disaster-recovery restore` from the matching Syrus image. Restore
+is a maintenance operation: stop ingress writes, drain every worker, and supply
+commands that verify no mutating process remains. The restore command stages
+and validates the SQLite database and Disk objects, creates a pinned safety
+bundle unless the operator explicitly chooses the break-glass path, and keeps
+maintenance mode active if promotion, reconciliation, or boot health checks
+fail. Only like-for-like SQLite/Disk recovery is supported; database-engine or
+storage-topology conversion requires a separate migration.
+
 Fresh installs bound the prepared-workspace cache and retained Coding Mode
 checkouts to 10 GB each so these volumes cannot grow without a local policy.
 Existing stored settings survive upgrades. Inspect the instance defaults and

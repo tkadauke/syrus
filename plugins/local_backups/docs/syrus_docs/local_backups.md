@@ -68,9 +68,12 @@ access; expose only authenticated, bounded download operations to it.
 
 ## Disaster-recovery preparation
 
-`bin/disaster-recovery` uses only the Ruby standard library and can run when
+`bin/disaster-recovery` can run when
 Rails, the web application, plugins, or the primary database cannot boot. It
-supports `list`, `inspect`, `validate`, `copy`, `import`, and `preflight`.
+supports `list`, `inspect`, `validate`, `copy`, `import`, `preflight`, and
+`restore`. SQLite recovery additionally needs the `sqlite3` gem shipped in the
+Syrus image; MySQL and S3-compatible recovery use operator-supplied staging and
+promotion commands for the deployment's database and object-store tooling.
 Commands accept a sealed directory or tar stream. `import --stdin` enforces
 `SYRUS_RECOVERY_MAX_BYTES` and `SYRUS_RECOVERY_MAX_FILES` while extracting and
 rejects absolute paths, traversal, links, special files, checksum mismatches,
@@ -86,8 +89,24 @@ artifact checksum. Missing live database information is reported as unknown,
 not healthy. A changed artifact or installation therefore requires a new
 preflight token.
 
-These commands prepare recovery; they do not replace application data. Final
-restore execution remains unavailable until the separately confirmed,
-maintenance-mode execution stage is implemented. Keep workers and web writers
-stopped before any future destructive restore. Replication execution also
-remains a separate product stage.
+`restore` requires the token from the exact successful preflight plus explicit
+maintenance-entry, worker-drain, drain-verification, derived-index rebuild,
+restored-work reconciliation, health-check, and resume commands. It creates a
+maintenance marker before changing durable state. The drain verifier must fail
+while any mutating process remains. Recovery then creates and validates a
+pinned pre-restore safety bundle. If that is impossible, restore refuses to
+continue unless the operator passes `--break-glass-no-safety-backup`.
+
+Database and Active Storage content are staged and checked before promotion.
+Disk destinations use same-host renames; MySQL and S3-compatible destinations
+must provide deployment-specific stage, promote, and rollback commands. After
+promotion, restore runs only an explicit compatibility-approved migration
+command, rebuilds derived indexes, reconciles restored work and queue claims,
+and runs the supplied restored-state health check. Service resumes and the
+maintenance marker is removed only after every gate succeeds. A failure keeps
+maintenance mode active and prints ordered rollback instructions.
+
+Supported recovery is like-for-like: SQLite to SQLite or MySQL to MySQL, and
+Disk objects to Disk or an object service restored by its own compatible
+adapter commands. SQLite-to-MySQL conversion and implicit Disk-to-object-store
+conversion are not supported. Replication remains a separate product stage.
