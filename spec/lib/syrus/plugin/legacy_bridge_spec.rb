@@ -18,7 +18,7 @@ RSpec.describe Syrus::Plugin::LegacyBridge, :reset_plugin_registry do
 
   after do
     Syrus::PluginRegistry.reset!
-    Syrus::Plugin::Family.reset!
+    Syrus::Plugin::Family.restore_built_ins!
     Object.send(:remove_const, :LegacyBridgeSpec) if Object.const_defined?(:LegacyBridgeSpec)
   end
 

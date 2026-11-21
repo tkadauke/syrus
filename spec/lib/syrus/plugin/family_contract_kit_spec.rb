@@ -21,7 +21,7 @@ RSpec.describe Syrus::Plugin::FamilyContractKit do
     end
   end
 
-  after { Syrus::Plugin::Family.reset! }
+  after { Syrus::Plugin::Family.restore_built_ins! }
 
   def validate(candidate = provider, contexts: { items: ContractContext.new(decline: false) },
     decline_contexts: { items: ContractContext.new(decline: true) })

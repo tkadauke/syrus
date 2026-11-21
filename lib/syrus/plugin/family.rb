@@ -78,8 +78,9 @@ module Syrus
         end
       end
       @definitions = {}
+      @built_in_definitions = {}
       class << self
-        def define(name, &block)
+        def define(name, built_in: false, &block)
           definition = Definition.new(name).tap { |entry| entry.instance_eval(&block) }
           raise ArgumentError, "Family #{name.inspect} must declare a shape" unless definition.shape
           raise ArgumentError, "Family #{name.inspect} must declare at least one capability" if definition.capabilities.empty?
@@ -96,6 +97,8 @@ module Syrus
           end
           raise ArgumentError, "Family #{name.inspect} is already defined" if @definitions.key?(definition.name)
           @definitions[definition.name] = definition
+          @built_in_definitions[definition.name] = definition if built_in
+          definition
         end
         def fetch(name) = @definitions.fetch(name.to_sym) { raise ArgumentError, "Unknown plugin family #{name.inspect}" }
         def all = @definitions.values.freeze
@@ -105,6 +108,7 @@ module Syrus
           matches.first
         end
         def reset! = @definitions.clear
+        def restore_built_ins! = @definitions.replace(@built_in_definitions)
       end
     end
   end

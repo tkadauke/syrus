@@ -12,7 +12,7 @@ RSpec.describe Syrus::Plugin::FamilyContractCoverage do
   end
 
   after do
-    Syrus::Plugin::Family.reset!
+    Syrus::Plugin::Family.restore_built_ins!
   end
 
   def manifest(name, *providers, plugin_root: nil)

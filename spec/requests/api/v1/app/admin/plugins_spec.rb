@@ -952,7 +952,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       )
     ensure
       Syrus::PluginInvocation.runtime_health.reset!
-      Syrus::Plugin::Family.reset!
+      Syrus::Plugin::Family.restore_built_ins!
       Object.send(:remove_const, :HealthPayloadSpec) if Object.const_defined?(:HealthPayloadSpec)
     end
 
