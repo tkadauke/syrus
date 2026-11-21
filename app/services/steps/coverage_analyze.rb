@@ -117,16 +117,10 @@ module Steps
     end
 
     def try_plugin_parsers(artifact_path, format)
-      Syrus::PluginRegistry.providers_for(:coverage_analyzer).each do |provider|
-        result = Syrus::PluginInvocation.call(
-          extension_point: :coverage_analyzer, provider:, operation: :call, on_decline: nil
-        ) do
-          provider.call(artifact_path: artifact_path, format_hint: format)
-        end
-        result = Syrus::PluginInvocation.value(result)
-        return result if result
-      end
-      nil
+      context = Syrus::Plugin::Context::WorkspaceContext.new(
+        workspace_path: artifact_path&.dirname, artifact_path:, format_hint: format
+      )
+      Syrus::Plugin::Dispatch.call(:ecosystem, :analyze_coverage, context)
     end
 
     def compute_diff_coverage(hit_map, diff_text)

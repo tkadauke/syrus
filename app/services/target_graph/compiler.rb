@@ -443,18 +443,17 @@ class TargetGraph
 
     def compile_imported_build_system_graphs!(graph)
       config&.target_graph&.imports&.each_with_index do |import_config, index|
-        provider = build_system_graph_provider(import_config.provider)
         label = "#{owner_config_path} target_graph.imports[#{index}] provider #{import_config.provider.inspect}"
-
-        unless provider
-          TargetGraph::ImportFailurePolicy::Base.for(import_config.failures).handle(
-            error_message: "#{label}: no enabled build_system_graph_provider is registered for #{import_config.provider.inspect}",
-            compiler: self
-          )
-          next
-        end
-
-        apply_import!(graph, provider: provider, import_config: import_config, label: label)
+        context = Syrus::Plugin::Context::RepoContext.new(repo_path: workspace_path, config: import_config.config)
+        result = Syrus::Plugin::Dispatch.call(
+          :ecosystem, :target_graph, context, key: import_config.provider, with_provider: true
+        )
+        apply_import!(graph, imported: result.value, provider_name: result.provider_name, import_config:, label:)
+      rescue Syrus::Plugin::Dispatch::MissingKey
+        TargetGraph::ImportFailurePolicy::Base.for(import_config.failures).handle(
+          error_message: "#{label}: no enabled build_system_graph_provider is registered for #{import_config.provider.inspect}",
+          compiler: self
+        )
       rescue StandardError => e
         TargetGraph::ImportFailurePolicy::Base.for(import_config.failures).handle(
           error_message: "#{label}: #{e.class}: #{e.message}",
@@ -463,19 +462,12 @@ class TargetGraph
       end
     end
 
-    def build_system_graph_provider(provider_key)
-      Syrus::PluginRegistry.providers_for(:build_system_graph_provider).find do |provider|
-        provider.public_send(:provider_key).to_s == provider_key.to_s
-      end
-    end
-
-    def apply_import!(graph, provider:, import_config:, label:)
-      imported = provider.import_target_graph(repo_path: workspace_path, config: import_config.config)
+    def apply_import!(graph, imported:, provider_name:, import_config:, label:)
       unless imported.is_a?(TargetGraph::Import)
-        raise TargetGraph::ValidationError, "#{provider_description(provider)} returned #{imported.class}, expected TargetGraph::Import"
+        raise TargetGraph::ValidationError, "#{import_config.provider} returned #{imported.class}, expected TargetGraph::Import"
       end
 
-      provider_provenance = import_provenance(provider: provider, import_config: import_config, label: label)
+      provider_provenance = import_provenance(provider_name:, import_config:, label:)
       imported_projects = imported_projects(imported, label: label)
       imported_targets = imported_targets(imported, label: label, provider_provenance: provider_provenance)
 
@@ -488,7 +480,7 @@ class TargetGraph
 
       import_diagnostics << {
         "provider" => import_config.provider,
-        "provider_class" => provider_description(provider),
+        "provider_class" => provider_name,
         "status" => "imported",
         "project_ids" => imported_projects.map(&:id),
         "target_labels" => imported_targets.map { |target| target.label.to_s },
@@ -496,10 +488,10 @@ class TargetGraph
       }.compact
     end
 
-    def import_provenance(provider:, import_config:, label:)
+    def import_provenance(provider_name:, import_config:, label:)
       {
         "provider" => import_config.provider,
-        "provider_class" => provider_description(provider),
+        "provider_class" => provider_name,
         "declaration" => label
       }
     end

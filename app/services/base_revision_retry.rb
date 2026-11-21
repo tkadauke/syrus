@@ -231,19 +231,11 @@ class BaseRevisionRetry
     return interpolate_explicit_command(config.fetch("command")) if config.fetch("strategy") == "command"
     return files_as_args_command if config.fetch("strategy") == "files_as_args"
 
-    Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
-      result = Syrus::PluginInvocation.call(
-        extension_point: :focused_test_command, provider:, operation: :focused_test_command, on_decline: nil
-      ) do
-        Syrus::Plugin::FocusedTestCommand.invoke(
-          provider, grader_name: grader_name, grader_command: @grader_step.details.to_h["command"],
-          failed_cases: @failed_cases, base_retry: config, project_path: @grader_step.details.to_h["project_path"]
-        )
-      end
-      command = Syrus::PluginInvocation.value(result)
-      return command.to_s.strip if command.to_s.strip.present?
-    end
-    nil
+    context = Syrus::Plugin::Context::GraderContext.new(
+      name: grader_name, command: @grader_step.details.to_h["command"], failed_cases: @failed_cases,
+      base_retry: config, project_path: @grader_step.details.to_h["project_path"], operation: :command
+    )
+    Syrus::Plugin::Dispatch.call(:ecosystem, :focused_tests, context)&.to_s&.strip&.presence
   end
 
   def base_retry_config

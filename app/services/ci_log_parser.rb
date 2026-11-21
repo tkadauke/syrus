@@ -50,21 +50,9 @@ class CiLogParser
   # of taking down CI-failure diagnosis for every check — third-party plugin
   # code is not as trusted as the built-in parsers below it.
   def try_plugin_parsers(text)
-    Syrus::PluginRegistry.providers_for(:ci_log_parser).each do |provider|
-      result = Syrus::PluginInvocation.call(
-        extension_point: :ci_log_parser, provider:, operation: :call, on_decline: nil
-      ) do
-        provider.call(text: text, step_name: @step_name.presence)
-      end
-      result = Syrus::PluginInvocation.value(result)
-      next unless result.is_a?(Hash)
-
-      result = result.symbolize_keys
-      next unless %i[parser error_summary error_block].all? { |key| result.key?(key) }
-
-      return base_result(**result)
-    end
-    nil
+    context = Syrus::Plugin::Context::GraderContext.new(text:, step_name: @step_name.presence)
+    result = Syrus::Plugin::Dispatch.call(:ecosystem, :parse_ci_log, context)
+    result && base_result(**result.symbolize_keys)
   end
 
   def base_result(parser:, error_summary:, error_block:, error_block_tail: false, **extra)

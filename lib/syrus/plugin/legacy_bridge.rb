@@ -22,6 +22,27 @@ module Syrus
         end
       end
 
+      # Presents a legacy registration through the capability dispatcher while
+      # plugins migrate independently from core callers.
+      class LegacyCapabilityProvider
+        attr_reader :key
+
+        def initialize(provider:, adapter:, capability:, key: nil)
+          @provider = provider
+          @adapter = adapter
+          @capability = capability
+          @key = key
+        end
+
+        def invoke = yield self
+        def provider_name = @provider.respond_to?(:name) ? @provider.name : @provider.class.name
+
+        def public_send(name, context, **)
+          raise NoMethodError, name unless name.to_sym == @capability
+          @adapter.dispatch(@provider, context)
+        end
+      end
+
       module_function
 
       def mapping_for(extension_point) = Family.legacy_mapping(extension_point)

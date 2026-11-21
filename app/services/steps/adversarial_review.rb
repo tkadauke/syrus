@@ -233,13 +233,8 @@ module Steps
     end
 
     def plugin_review_criteria
-      Syrus::PluginRegistry.providers_for(:review_criteria_provider)
-        .flat_map do |provider|
-          result = Syrus::PluginInvocation.call(
-            extension_point: :review_criteria_provider, provider:, operation: :criteria, on_decline: []
-          ) { provider.criteria(workspace.path) }
-          Array(Syrus::PluginInvocation.value(result))
-        end
+      context = Syrus::Plugin::Context::RepoContext.new(repo_path: workspace.path)
+      Syrus::Plugin::Dispatch.call(:ecosystem, :review_criteria, context)
         .map(&:to_s)
         .map(&:strip)
         .reject(&:empty?)

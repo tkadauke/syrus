@@ -494,21 +494,18 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to raise_error(NotImplementedError, /command_for is required/)
     end
 
-    it "invokes providers with the original exact keyword signature without project_path" do
+    it "keeps legacy providers with an exact keyword signature working through the context adapter" do
       provider = Class.new do
         def self.command_for(grader_name:, grader_command:, failed_cases:, base_retry:)
           [ grader_name, grader_command, failed_cases, base_retry ]
         end
       end
 
-      result = Syrus::Plugin::FocusedTestCommand.invoke(
-        provider,
-        grader_name: "vitest",
-        grader_command: "npx vitest run",
-        failed_cases: [],
-        base_retry: { "strategy" => "plugin" },
-        project_path: "frontend"
+      context = Syrus::Plugin::Context::GraderContext.new(
+        name: "vitest", command: "npx vitest run", failed_cases: [],
+        base_retry: { "strategy" => "plugin" }, project_path: "frontend", operation: :command
       )
+      result = Syrus::Plugin::Ecosystem::Adapters::FocusedTests.dispatch(provider, context)
 
       expect(result).to eq([ "vitest", "npx vitest run", [], { "strategy" => "plugin" } ])
     end

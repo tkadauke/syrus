@@ -20,18 +20,18 @@ module Syrus
       REVIEW_PATTERNS = ReturnShape.new(description: "Array<String or Hash>",
         validator: ->(value) { value.is_a?(Array) && value.all? { |entry| entry.is_a?(String) || entry.is_a?(Hash) } })
 
-      PreparePlan = Data.define(:detected, :commands, :version_file, :span_labels) do
-        def initialize(detected:, commands: [], version_file: nil, span_labels: [])
+      PreparePlan = Data.define(:detected, :commands, :version_file, :span_labels, :label) do
+        def initialize(detected:, commands: [], version_file: nil, span_labels: [], label: nil)
           super(detected: !!detected, commands: Array(commands).dup.freeze, version_file:,
-            span_labels: Array(span_labels).dup.freeze)
+            span_labels: Array(span_labels).dup.freeze, label:)
         end
 
         def detected? = detected
       end
 
-      DependencyAuditPlan = Data.define(:lockfiles, :command) do
-        def initialize(lockfiles:, command: nil)
-          super(lockfiles: Array(lockfiles).dup.freeze, command:)
+      DependencyAuditPlan = Data.define(:lockfiles, :command, :label) do
+        def initialize(lockfiles:, command: nil, label: nil)
+          super(lockfiles: Array(lockfiles).dup.freeze, command:, label:)
         end
       end
 
@@ -43,10 +43,22 @@ module Syrus
           Context::WorkspaceContext.new(workspace_path: path, changed_files:, artifact_path:, format_hint:)
         end
         def grader(**attributes) = Context::GraderContext.new(**attributes)
-        def plan(provider, path = nil) = Array(provider.detect_prepare(repo(path))).first
+        def plan(provider, path = nil)
+          plan = Array(provider.detect_prepare(repo(path))).first
+          return unless plan
+          return plan if plan.label
+
+          plan.with(label: provider.respond_to?(:display_name) ? provider.display_name : provider.name)
+        end
 
         module Prepare
           module_function
+          def dispatch(provider, context)
+            detected = context.repo_path && provider.detect?(context.repo_path)
+            [ PreparePlan.new(detected:, commands: detected ? provider.prepare_commands(context.repo_path) : [],
+              version_file: provider.mise_version_file, span_labels: provider.span_labels,
+              label: provider.respond_to?(:name) ? provider.name : provider.to_s) ]
+          end
           def detect?(provider, repo_path) = !!Adapters.plan(provider, repo_path)&.detected?
           def prepare_commands(provider, repo_path)
             result = Adapters.plan(provider, repo_path)
@@ -58,11 +70,18 @@ module Syrus
 
         module GradeCandidates
           module_function
+          def dispatch(provider, context) = provider.grade_candidates(context.repo_path)
           def grade_candidates(provider, repo_path) = provider.grade_candidates(Adapters.repo(repo_path))
         end
 
         module GraderTypes
           module_function
+          def key(provider) = provider.type_name
+          def dispatch(provider, context)
+            provider.grade_steps(config: context.config, default_failures: context.default_failures)
+          rescue ArgumentError => e
+            raise Dispatch::ValidationError, e.message
+          end
           def type_name(provider) = provider.key
           def grade_steps(provider, config:, default_failures:)
             provider.grader_types(Adapters.grader(config:, default_failures:))
@@ -71,6 +90,9 @@ module Syrus
 
         module GraderDiagnostics
           module_function
+          def dispatch(provider, context)
+            provider.augment_grader_failure(name: context.name, command: context.command, workspace_path: context.workspace_path)
+          end
           def augment_grader_failure(provider, name:, command:, workspace_path:)
             provider.grader_diagnostics(Adapters.grader(name:, command:, workspace_path:))
           end
@@ -78,11 +100,18 @@ module Syrus
 
         module ReviewCriteria
           module_function
+          def dispatch(provider, context) = provider.criteria(context.repo_path)
           def criteria(provider, repo_path) = provider.review_criteria(Adapters.repo(repo_path))
         end
 
         module Autofix
           module_function
+          def dispatch(provider, context)
+            provider.autofix_command(workspace_path: context.workspace_path, changed_files: context.changed_files)
+          rescue ArgumentError => e
+            raise unless e.message.include?("unknown keyword: :changed_files")
+            provider.autofix_command(workspace_path: context.workspace_path)
+          end
           def autofix_command(provider, workspace_path:, changed_files: [])
             provider.autofix(Adapters.workspace(workspace_path, changed_files:))
           end
@@ -90,6 +119,15 @@ module Syrus
 
         module DependencyAudit
           module_function
+          def dispatch(provider, context)
+            lockfiles = provider.lockfiles
+            changed = context.changed_files.map { |file| File.basename(file) }
+            return DependencyAuditPlan.new(lockfiles:, label: provider.to_s.split("::").first) if changed.empty?
+            return nil unless lockfiles.any? { |lockfile| changed.include?(lockfile) }
+
+            DependencyAuditPlan.new(lockfiles:,
+              command: provider.audit_command(workspace_path: context.workspace_path), label: provider.to_s.split("::").first)
+          end
           def lockfiles(provider)
             Array(provider.dependency_audit(Adapters.workspace)).first&.lockfiles || []
           end
@@ -100,6 +138,27 @@ module Syrus
 
         module FocusedTests
           module_function
+          LEGACY_OPERATIONS = {
+            prepare: lambda { |provider, context|
+              provider.prepare_command_for(grader_name: context.name, grader_command: context.command)
+            },
+            isolated: lambda { |provider, context|
+              provider.isolated_command_for(grader_name: context.name, grader_command: context.command,
+                test_case: context.test_case) if provider.respond_to?(:isolated_command_for)
+            },
+            command: lambda { |provider, context|
+              provider.command_for(grader_name: context.name, grader_command: context.command,
+                failed_cases: context.failed_cases, base_retry: context.base_retry, project_path: context.project_path)
+            }
+          }.freeze
+
+          def dispatch(provider, context)
+            LEGACY_OPERATIONS.fetch(context.operation || :command).call(provider, context)
+          rescue ArgumentError => e
+            raise unless e.message.include?("unknown keyword: :project_path")
+            provider.command_for(grader_name: context.name, grader_command: context.command,
+              failed_cases: context.failed_cases, base_retry: context.base_retry)
+          end
           def command_for(provider, grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil)
             provider.focused_tests(Adapters.grader(name: grader_name, command: grader_command, failed_cases:,
               base_retry:, project_path:, operation: :command))
@@ -115,6 +174,7 @@ module Syrus
 
         module Coverage
           module_function
+          def dispatch(provider, context) = provider.call(artifact_path: context.artifact_path, format_hint: context.format_hint)
           def call(provider, artifact_path:, format_hint: nil)
             provider.analyze_coverage(Adapters.workspace(artifact_path&.dirname, artifact_path:, format_hint:))
           end
@@ -122,6 +182,7 @@ module Syrus
 
         module AffectedTests
           module_function
+          def dispatch(provider, context) = provider.affected_files(repo_path: context.workspace_path, changed_files: context.changed_files)
           def affected_files(provider, repo_path:, changed_files:)
             provider.affected_tests(Adapters.workspace(repo_path, changed_files:))
           end
@@ -129,6 +190,7 @@ module Syrus
 
         module CiLog
           module_function
+          def dispatch(provider, context) = provider.call(text: context.text, step_name: context.step_name)
           def call(provider, text:, step_name: nil)
             provider.parse_ci_log(Adapters.grader(text:, step_name:))
           end
@@ -136,6 +198,7 @@ module Syrus
 
         module Prompt
           module_function
+          def dispatch(provider, context) = provider.call(repository: context.repository, job: context.job)
           def call(provider, repository:, job:)
             provider.prompt_context(Context::JobContext.new(repository:, job:))
           end
@@ -143,11 +206,14 @@ module Syrus
 
         module ReviewPatterns
           module_function
+          def dispatch(provider, _context) = provider.diff_review_file_patterns
           def diff_review_file_patterns(provider) = provider.review_file_patterns(Adapters.repo)
         end
 
         module TargetGraph
           module_function
+          def key(provider) = provider.provider_key
+          def dispatch(provider, context) = provider.import_target_graph(repo_path: context.repo_path, config: context.config)
           def provider_key(provider) = provider.key
           def import_target_graph(provider, repo_path:, config:)
             provider.target_graph(Adapters.repo(repo_path, config:))
