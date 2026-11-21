@@ -2603,6 +2603,19 @@
       ],
       "recommendation": "B. It keeps plugins out of manifest internals and makes the health rule impossible to forget, because there is no enabled-only path left to reach for. A adds a second public notion of 'enabled'.",
       "decision": null
+    },
+    {
+      "id": "NY19",
+      "item": "frontend-sequence-gap",
+      "title": "What should the client guarantee when an app event is genuinely lost?",
+      "context": "When the client sees a sequence gap on the user channel (10, then 12), it refreshes only the queries of the event after the gap (recoverEventResourceContinuity). The lost event's resource is unknown, so it stays stale until an unrelated reconnect, focus refetch or later event. F67 now applies late deliveries, so a gap that closes on its own needs no recovery at all. Only a sequence that never arrives needs one.",
+      "options": [
+        "A. Wait a short grace period (about 2s) for the missing sequences to arrive late. Any still missing then triggers recoverAppEventContinuity, the reconnect sweep of active continuity queries, which defers for hidden tabs as it already does.",
+        "B. Keep a short replayable server-side event window per user and request the missing range on a gap.",
+        "C. Keep the targeted refresh, and state the weaker guarantee: the stale resource converges on the next reconnect or focus refetch."
+      ],
+      "recommendation": "A. It needs no server change and sweeps only on a genuine loss. revision_gap_recoveries already measures how often that happens, so the cost is visible before and after. B is the strongest option, but it adds server state and a new endpoint.",
+      "decision": null
     }
   ]
 }

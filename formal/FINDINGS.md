@@ -2095,6 +2095,58 @@ admin specs pass (7,412 examples), and `bin/check-plugin-boundaries` is clean.
 
 ---
 
+## F67. A reordered app event was dropped as a duplicate — fixed
+
+**Found by** DOC-44 Phase 5, frontend realtime synchronization
+(`EventSequence.lean`).
+
+**Property.** For every delivery order of up to four distinct events, with any
+one of them delivered twice, every event is applied exactly once
+(`applied_exactly_once`).
+
+**Gap.** `AppEvents.broadcast` gives each user-channel event a per-user
+`sequence`. The counter is incremented in the database, and the event is then
+published by whichever process is broadcasting. Two processes can therefore
+publish 11 before 10.
+
+`trackAppEventSequence` (`app/frontend/lib/appEvents.ts`) classified every
+sequence not above the highest seen as a duplicate. So a late 10 was dropped
+entirely, together with its entity patch and its query invalidation
+(`late_event_dropped`). The gap detected at 11 refreshed only 11's resource,
+so 10's resource stayed stale until some unrelated refetch.
+
+The existing test "ignores a duplicate or replayed event outright" encoded
+this behaviour: it asserted that an unseen lower sequence is ignored.
+ActionCable does not replay messages, and a reconnect resets sequence
+tracking, so an unseen lower sequence can only be a late delivery.
+
+**Fix.** The client remembers the highest sequence and every sequence seen in
+a 256-wide window below it.
+
+- Only a seen sequence is a duplicate.
+- An unseen lower one is `late` and is applied like any other event.
+- A sequence below the window is treated as a duplicate, because no reorder
+  is that wide.
+
+Older fields still cannot win: `upsertEntity` compares revisions on its own
+(the new test "still lets the entity store's revision guard reject a late
+event's older fields").
+
+**Spec.** `appEvents.test.ts`:
+
+- "applies a late, never-seen lower sequence instead of dropping it as a
+  duplicate" (red before);
+- "ignores a late sequence a second time once it has been applied";
+- the true duplicate case is kept.
+
+All 515 frontend lib tests pass. The worktree needed `npm ci` to run them.
+
+**Remaining.** An event that never arrives still leaves its resource stale.
+Its resource is unknown, and the gap refresh covers only the event after the
+gap. This is the plan's "global sequence-gap issue", queued as NY19.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

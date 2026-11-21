@@ -1529,7 +1529,7 @@ describe("applyAppEvent revisioned event patches", () => {
     expect(workflow?.revision).toBe(3)
   })
 
-  it("ignores a duplicate or replayed event outright, including its entity patch", () => {
+  it("ignores a duplicate event outright, including its entity patch", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
 
@@ -1537,9 +1537,49 @@ describe("applyAppEvent revisioned event patches", () => {
     invalidate.mockClear()
 
     applyAppEvent(queryClient, { ...event("run", 5), sequence: 4, revision: 2, payload: { fields: { state: "queued" } } })
+
+    expect(readEntity("runs", 5)?.fields.state).toBe("succeeded")
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  // Sequences are allocated and then published by whichever process
+  // broadcasts, so two processes can publish 11 before 10. A lower sequence
+  // that was never seen is a late delivery, not a duplicate: dropping it lost
+  // the only event about its resource (formal/SyrusModel/EventSequence.lean).
+  it("applies a late, never-seen lower sequence instead of dropping it as a duplicate", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("job", 1), sequence: 9 })
+    applyAppEvent(queryClient, { ...event("job", 1), sequence: 11 })
+    invalidate.mockClear()
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 10, revision: 1, payload: { fields: { state: "running" } } })
+
+    expect(readEntity("workflows", 7)?.fields.state).toBe("running")
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["workflows", "7"] }))
+  })
+
+  it("still lets the entity store's revision guard reject a late event's older fields", () => {
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, { ...event("run", 5), sequence: 4, revision: 2, payload: { fields: { state: "succeeded" } } })
     applyAppEvent(queryClient, { ...event("run", 5), sequence: 3, revision: 1, payload: { fields: { state: "cancelled" } } })
 
     expect(readEntity("runs", 5)?.fields.state).toBe("succeeded")
+  })
+
+  it("ignores a late sequence a second time once it has been applied", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("job", 1), sequence: 9 })
+    applyAppEvent(queryClient, { ...event("job", 1), sequence: 11 })
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 10 })
+    invalidate.mockClear()
+
+    applyAppEvent(queryClient, { ...event("workflow", 7), sequence: 10 })
+
     expect(invalidate).not.toHaveBeenCalled()
   })
 
