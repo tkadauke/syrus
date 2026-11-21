@@ -194,6 +194,11 @@ class StepDispatcher
       return if start_blocked_backoff_active?(workflow, reason)
 
       record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF)
+      # The gate also releases when the urgent Job stops progressing
+      # (UrgentWorkGate), which wakes nothing; only closing one does
+      # (UrgentJobClosedJob). Look again on our own backoff, as the
+      # main-health gate above does.
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
       warn_if_stuck_queued(workflow, reason)
       return
     end

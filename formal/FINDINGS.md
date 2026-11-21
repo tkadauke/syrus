@@ -912,6 +912,26 @@ middle of a Step, isn't fenced, which is option B in the original question.
 
 ---
 
+## F32. The urgent-Job start block had no recheck — fixed
+
+**Property.** Every start block either clears on an event that wakes the
+blocked Workflow, or has its own scheduled recheck.
+
+**Gap.** `urgent_job_active` was recorded with no `WorkflowPhaseAdmissionJob`.
+The only wake was `UrgentJobClosedJob`, which runs when an urgent Job closes.
+But the gate also releases when an urgent Job stops progressing
+(`UrgentWorkGate.progressing` lets a parked urgent Job stop holding it), and
+nothing wakes the blocked Workflow then. It waited for the reconciler to judge
+the block stale. That is the gap the main-health gate had before its recheck
+was added; its comment says so.
+
+**Fix.** Schedule the same recheck the neighbouring gates do.
+
+**Spec.** `step_dispatcher_spec.rb` "schedules its own recheck, like the
+neighbouring gates". It goes red with the recheck removed.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

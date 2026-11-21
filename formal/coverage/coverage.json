@@ -1917,9 +1917,9 @@
         "stalled_urgent_job_does_not_starve_repository",
         "parallel_grader_retry_cleared_barrier_allows_tail"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Liveness under fairness of background jobs; proving it pinpoints each branch that relies on the reconciler as its only wakeup."
+      "status": "partial",
+      "done_by": "F32",
+      "notes": "Audited every start block in StepDispatcher.start_workflow. Blocks that clear only on an event (backlog release, dependency/stack/job readiness) rely on that event's wakeup; the urgent-Job gate also released on a non-event (an urgent Job ceasing to progress) and had no recheck -- fixed in F32 the way the main-health gate was. Not yet audited: phase-boundary deferrals outside start_workflow."
     },
     {
       "id": "resource-admission-start-block",

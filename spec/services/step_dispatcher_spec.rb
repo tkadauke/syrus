@@ -4520,6 +4520,19 @@ RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
     expect(workflow.reload.artifact("start_blocked_reason")).to eq("urgent_job_active")
   end
 
+  # Every start block must clear or have a recheck scheduled. The gate also
+  # releases when the urgent Job stops progressing (UrgentWorkGate), which
+  # wakes nothing -- only closing an urgent Job does -- so without its own
+  # recheck the blocked Workflow waited for the reconciler.
+  it "schedules its own recheck, like the neighbouring gates" do
+    create_urgent_job!
+    clear_enqueued_jobs
+
+    described_class.start_workflow(workflow)
+
+    expect(enqueued_jobs.map { |entry| entry[:job] }).to include(WorkflowPhaseAdmissionJob)
+  end
+
   it "logs a warning when blocked by urgent job" do
     create_urgent_job!
     expect(Rails.logger).to receive(:warn).with(include("urgent_job_active"))
