@@ -19,6 +19,27 @@ parser = OptionParser.new do |opts|
   opts.on("--plugin NAME") { |value| (options[:plugins] ||= []) << value }
   opts.on("--encryption-fingerprints JSON") { |value| options[:encryption_fingerprints] = JSON.parse(value) }
   opts.on("--in-flight COUNT", Integer) { |value| options[:in_flight] = value }
+  opts.on("--token TOKEN") { |value| options[:token] = value }
+  opts.on("--database-destination PATH") { |value| options[:database_destination] = value }
+  opts.on("--objects-destination PATH") { |value| options[:objects_destination] = value }
+  opts.on("--safety-root PATH") { |value| options[:safety_root] = value }
+  opts.on("--maintenance-marker PATH") { |value| options[:maintenance_marker] = value }
+  opts.on("--enter-maintenance-command COMMAND") { |value| options[:enter] = value }
+  opts.on("--drain-command COMMAND") { |value| options[:drain] = value }
+  opts.on("--verify-drained-command COMMAND") { |value| options[:verify_drained] = value }
+  opts.on("--safety-backup-command COMMAND") { |value| options[:safety_backup] = value }
+  opts.on("--migrate-command COMMAND") { |value| options[:migrate] = value }
+  opts.on("--rebuild-command COMMAND") { |value| options[:rebuild] = value }
+  opts.on("--reconcile-command COMMAND") { |value| options[:reconcile] = value }
+  opts.on("--health-check-command COMMAND") { |value| options[:health_check] = value }
+  opts.on("--resume-command COMMAND") { |value| options[:resume] = value }
+  opts.on("--mysql-stage-command COMMAND") { |value| options[:mysql_stage_command] = value }
+  opts.on("--mysql-promote-command COMMAND") { |value| options[:mysql_promote_command] = value }
+  opts.on("--mysql-rollback-command COMMAND") { |value| options[:mysql_rollback_command] = value }
+  opts.on("--object-stage-command COMMAND") { |value| options[:object_stage_command] = value }
+  opts.on("--object-promote-command COMMAND") { |value| options[:object_promote_command] = value }
+  opts.on("--object-rollback-command COMMAND") { |value| options[:object_rollback_command] = value }
+  opts.on("--break-glass-no-safety-backup") { options[:break_glass] = true }
   opts.on("--max-bytes BYTES", Integer) { |value| options[:max_bytes] = value }
   opts.on("--max-files COUNT", Integer) { |value| options[:max_files] = value }
   opts.on("--stdin") { options[:stdin] = true }
@@ -83,6 +104,22 @@ when "verify-token"
   )
   raise LocalBackups::Recovery::Error, "preflight token is stale or belongs to another artifact or installation" unless valid
   puts JSON.generate(status: "valid", artifact_checksum: bundle.identity_checksum, installation_id:)
+when "restore"
+  bundle = open_bundle(bundle_argument, options)
+  destination = options[:destination] || ENV["SYRUS_DATA_ROOT"]
+  required = %i[token database_destination objects_destination safety_root maintenance_marker enter drain verify_drained rebuild reconcile health_check resume]
+  missing = required.select { |key| options[key].to_s.empty? }
+  raise LocalBackups::Recovery::Error, "missing restore options: #{missing.join(', ')}" if destination.to_s.empty? || missing.any?
+  result = LocalBackups::Recovery::Restore.new(
+    bundle:, token: options[:token], token_secret: ENV["SYRUS_RECOVERY_TOKEN_SECRET"],
+    installation_id: options[:installation_id] || ENV["SYRUS_INSTALLATION_ID"], destination:,
+    database_destination: options[:database_destination], objects_destination: options[:objects_destination],
+    safety_root: options[:safety_root], maintenance_marker: options[:maintenance_marker], break_glass: options[:break_glass],
+    commands: options.slice(:enter, :drain, :verify_drained, :safety_backup, :migrate, :rebuild, :reconcile,
+      :health_check, :resume, :mysql_stage_command, :mysql_promote_command, :mysql_rollback_command,
+      :object_stage_command, :object_promote_command, :object_rollback_command)
+  ).call
+  puts JSON.generate(result.to_h)
 else
   warn parser
   exit 64

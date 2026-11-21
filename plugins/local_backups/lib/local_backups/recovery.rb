@@ -9,6 +9,7 @@ require "pathname"
 require "rubygems/package"
 require "securerandom"
 require "tmpdir"
+require "time"
 
 module LocalBackups
   module Recovery
@@ -306,6 +307,302 @@ module LocalBackups
         destination
       ensure
         FileUtils.remove_entry_secure(staging) if staging&.exist?
+      end
+    end
+
+    # Restore intentionally lives in this standard-library-only file. A broken
+    # application boot must not take away the recovery path.
+    class Command
+      def initialize(environment: ENV, output: $stdout)
+        @environment = environment
+        @output = output
+      end
+
+      def run!(name, command, extra_environment = {})
+        raise Error, "#{name} command is required" if command.to_s.empty?
+
+        @output.puts("recovery: #{name}")
+        success = system(@environment.to_h.merge(extra_environment), command.to_s)
+        raise Error, "#{name} failed" unless success
+      end
+    end
+
+    class Maintenance
+      attr_reader :marker
+
+      def initialize(marker:, command:, enter_command:, drain_command:, verify_command:)
+        @marker = Pathname.new(marker)
+        @command = command
+        @enter_command = enter_command
+        @drain_command = drain_command
+        @verify_command = verify_command
+      end
+
+      def enter!
+        marker.dirname.mkpath
+        File.open(marker, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+          file.write(JSON.generate(pid: Process.pid, entered_at: Time.now.utc.iso8601))
+          file.flush
+          file.fsync
+        end
+        @command.run!("maintenance entry", @enter_command)
+        @command.run!("worker drain", @drain_command)
+        @command.run!("mutating-process verification", @verify_command)
+      end
+
+      def leave!(resume_command)
+        @command.run!("service resume", resume_command)
+        FileUtils.rm_f(marker)
+      end
+    end
+
+    class SafetyBackup
+      attr_reader :path
+
+      def initialize(root:, command:, create_command:, break_glass:, clock: -> { Time.now.utc })
+        @root = Pathname.new(root)
+        @command = command
+        @create_command = create_command
+        @break_glass = break_glass
+        @clock = clock
+      end
+
+      def create!
+        if @create_command.to_s.empty?
+          raise Error, "pre-restore safety backup is unavailable; pass --break-glass-no-safety-backup to accept destructive recovery without one" unless @break_glass
+          return nil
+        end
+
+        @path = @root.join("pre-restore-#{@clock.call.strftime('%Y%m%dT%H%M%SZ')}-#{SecureRandom.uuid}")
+        @path.mkdir(0o700)
+        @command.run!("pre-restore safety backup", @create_command, "SYRUS_PRE_RESTORE_BACKUP_PATH" => @path.to_s)
+        bundle = Bundle.new(@path).validate!
+        @path.join("PINNED").write("Pinned automatically by disaster recovery.\n", mode: "w", perm: 0o400)
+        bundle
+      rescue StandardError
+        FileUtils.remove_entry_secure(@path) if @path&.exist?
+        raise
+      end
+    end
+
+    class DatabaseRestore
+      def self.for(manifest, **options)
+        adapter = manifest.dig("database", "adapter").to_s
+        driver = { "sqlite3" => SqliteDatabaseRestore, "mysql2" => MysqlDatabaseRestore }.fetch(adapter) do
+          raise Error, "restore does not support database adapter #{adapter.inspect}"
+        end
+        driver.new(manifest:, **options)
+      end
+    end
+
+    class SqliteDatabaseRestore
+      attr_reader :staged_path
+
+      def initialize(manifest:, bundle:, destination:, staging_root:, **)
+        @source = bundle.path.join(Bundle.safe_relative(manifest.dig("database", "path")))
+        @destination = Pathname.new(destination)
+        @staged_path = staging_root.join("database", @destination.basename)
+      end
+
+      def stage!
+        require "sqlite3"
+        staged_path.dirname.mkpath
+        FileUtils.copy_file(@source, staged_path)
+        File.chmod(0o600, staged_path)
+        database = SQLite3::Database.new(staged_path.to_s, readonly: true)
+        raise Error, "staged SQLite database failed integrity validation" unless database.get_first_value("PRAGMA integrity_check") == "ok"
+      ensure
+        database&.close
+      end
+
+      def promote!(journal)
+        journal.replace(@destination, staged_path)
+      end
+    end
+
+    class MysqlDatabaseRestore
+      def initialize(manifest:, bundle:, command:, staging_root:, mysql_stage_command:, mysql_promote_command:, mysql_rollback_command:, **)
+        @source = bundle.path.join(Bundle.safe_relative(manifest.dig("database", "path")))
+        @command = command
+        @staging_root = staging_root
+        @stage_command = mysql_stage_command
+        @promote_command = mysql_promote_command
+        @rollback_command = mysql_rollback_command
+      end
+
+      def stage!
+        @command.run!("staged MySQL restore", @stage_command, "SYRUS_RESTORE_DATABASE_DUMP" => @source.to_s,
+          "SYRUS_RESTORE_STAGING_ROOT" => @staging_root.to_s)
+      end
+
+      def promote!(journal)
+        @command.run!("MySQL promotion", @promote_command)
+        journal.external_rollback(@rollback_command)
+      end
+    end
+
+    class ObjectRestore
+      def self.for(manifest, **options)
+        service = manifest.dig("active_storage", "service").to_s
+        driver = { "" => DiskObjectRestore, "Disk" => DiskObjectRestore }.fetch(service, ExternalObjectRestore)
+        driver.new(manifest:, **options)
+      end
+    end
+
+    class DiskObjectRestore
+      def initialize(manifest:, bundle:, destination:, staging_root:, **)
+        @manifest = manifest
+        @bundle = bundle
+        @destination = Pathname.new(destination)
+        @staged = staging_root.join("objects")
+      end
+
+      def stage!
+        @staged.mkpath
+        Array(@manifest.dig("active_storage", "blobs")).each do |blob|
+          relative = Bundle.safe_relative(blob.fetch("relative_path"))
+          source = @bundle.path.join(relative)
+          target = @staged.join(relative.relative_path_from(Pathname.new("blobs")))
+          target.dirname.mkpath
+          FileUtils.copy_file(source, target)
+          raise Error, "staged object checksum mismatch: #{blob.fetch('id')}" unless Digest::SHA256.file(target).hexdigest == blob.fetch("bundle_checksum")
+        end
+        actual = @staged.find.count(&:file?)
+        expected = Integer(@manifest.dig("active_storage", "blob_count") || 0)
+        raise Error, "staged object count mismatch: expected #{expected}, got #{actual}" unless actual == expected
+      end
+
+      def promote!(journal)
+        journal.replace(@destination, @staged)
+      end
+    end
+
+    class ExternalObjectRestore
+      def initialize(bundle:, command:, staging_root:, object_stage_command:, object_promote_command:, object_rollback_command:, **)
+        @bundle = bundle
+        @command = command
+        @staging_root = staging_root
+        @stage_command = object_stage_command
+        @promote_command = object_promote_command
+        @rollback_command = object_rollback_command
+      end
+
+      def stage!
+        @command.run!("staged object restore", @stage_command, "SYRUS_RESTORE_BUNDLE" => @bundle.path.to_s,
+          "SYRUS_RESTORE_STAGING_ROOT" => @staging_root.to_s)
+      end
+
+      def promote!(journal)
+        @command.run!("object-store promotion", @promote_command)
+        journal.external_rollback(@rollback_command)
+      end
+    end
+
+    class PromotionJournal
+      attr_reader :rollback_steps
+
+      def initialize(root:)
+        @root = Pathname.new(root)
+        @rollback_steps = []
+      end
+
+      def replace(destination, staged)
+        destination.dirname.mkpath
+        rollback = @root.join("rollback-#{rollback_steps.length}-#{destination.basename}")
+        File.rename(destination, rollback) if destination.exist?
+        File.rename(staged, destination)
+        rollback_steps.unshift(destination: destination.to_s, rollback: rollback.exist? ? rollback.to_s : nil)
+      rescue StandardError
+        File.rename(rollback, destination) if rollback&.exist? && !destination.exist?
+        raise
+      end
+
+      def external_rollback(command)
+        rollback_steps.unshift(command:) unless command.to_s.empty?
+      end
+
+      def instructions
+        rollback_steps.map do |step|
+          next "run: #{step.fetch(:command)}" if step[:command]
+          if step[:rollback]
+            "replace #{step.fetch(:destination)} with #{step.fetch(:rollback)}"
+          else
+            "remove newly-created #{step.fetch(:destination)}"
+          end
+        end
+      end
+    end
+
+    class Restore
+      Result = Data.define(:status, :artifact_checksum, :safety_backup, :maintenance_marker)
+
+      def initialize(bundle:, token:, token_secret:, installation_id:, destination:, database_destination:, objects_destination:,
+        safety_root:, maintenance_marker:, commands:, break_glass: false, output: $stdout, phase_hook: ->(_phase) { })
+        @bundle = bundle
+        @token = token
+        @token_secret = token_secret
+        @installation_id = installation_id
+        @destination = Pathname.new(destination)
+        @database_destination = database_destination
+        @objects_destination = objects_destination
+        @safety_root = safety_root
+        @maintenance_marker = maintenance_marker
+        @commands = commands
+        @break_glass = break_glass
+        @output = output
+        @phase_hook = phase_hook
+      end
+
+      def call
+        @bundle.validate!
+        verify_token!
+        command = Command.new(output: @output)
+        maintenance = Maintenance.new(marker: @maintenance_marker, command:, enter_command: @commands[:enter],
+          drain_command: @commands[:drain], verify_command: @commands[:verify_drained])
+        maintenance.enter!
+        @phase_hook.call(:maintenance_entered)
+        safety = SafetyBackup.new(root: @safety_root, command:, create_command: @commands[:safety_backup], break_glass: @break_glass).create!
+        @phase_hook.call(:safety_backup_created)
+
+        staging = @destination.join(".restore-#{SecureRandom.uuid}.staged")
+        staging.mkdir(0o700)
+        journal = PromotionJournal.new(root: staging)
+        database = DatabaseRestore.for(@bundle.manifest, bundle: @bundle, destination: @database_destination,
+          staging_root: staging, command:, **@commands)
+        objects = ObjectRestore.for(@bundle.manifest, bundle: @bundle, destination: @objects_destination,
+          staging_root: staging, command:, **@commands)
+        database.stage!
+        objects.stage!
+        @phase_hook.call(:staged)
+        database.promote!(journal)
+        @phase_hook.call(:database_promoted)
+        objects.promote!(journal)
+        @phase_hook.call(:objects_promoted)
+        run_post_promotion!(command)
+        maintenance.leave!(@commands[:resume])
+        FileUtils.remove_entry_secure(staging) if staging.exist?
+        Result.new(status: "restored", artifact_checksum: @bundle.identity_checksum,
+          safety_backup: safety&.path&.to_s, maintenance_marker: maintenance.marker.to_s)
+      rescue StandardError => error
+        instructions = journal&.instructions || []
+        @output.puts(JSON.generate(status: "failed", error: error.message, maintenance_mode: true,
+          rollback: instructions, safety_backup: safety&.path&.to_s))
+        raise
+      end
+
+      private
+
+      def verify_token!
+        valid = Token.valid?(@token, secret: @token_secret, artifact_checksum: @bundle.identity_checksum,
+          installation_id: @installation_id)
+        raise Error, "preflight token is stale or belongs to another artifact or installation" unless valid
+      end
+
+      def run_post_promotion!(command)
+        command.run!("compatibility-approved migrations", @commands[:migrate]) unless @commands[:migrate].to_s.empty?
+        command.run!("derived-index rebuild", @commands[:rebuild])
+        command.run!("restored-work reconciliation", @commands[:reconcile])
+        command.run!("restored-state health check", @commands[:health_check])
       end
     end
   end
