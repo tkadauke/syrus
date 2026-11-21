@@ -125,12 +125,21 @@ const EVENT_RESOURCE_ENTITY_KIND: Partial<Record<string, EntityKind>> = {
   chat: "chat_sessions"
 }
 
-type AppEventSequenceOutcome = "ok" | "duplicate" | "gap"
+type AppEventSequenceOutcome = "ok" | "duplicate" | "gap" | "late"
 
-const lastAppEventSequence = new WeakMap<QueryClient, number>()
+// The highest sequence seen, and every sequence seen within the window below
+// it. Sequences are allocated and then published by whichever process
+// broadcasts, so delivery can reorder them (11 before 10): only a sequence
+// actually seen is a duplicate, and an unseen lower one is a late delivery
+// that still has to be applied (formal/SyrusModel/EventSequence.lean).
+type AppEventSequenceState = { highest: number; seen: Set<number> }
+
+const APP_EVENT_SEQUENCE_WINDOW = 256
+
+const appEventSequenceState = new WeakMap<QueryClient, AppEventSequenceState>()
 
 export function resetAppEventSequenceTracking(queryClient: QueryClient) {
-  lastAppEventSequence.delete(queryClient)
+  appEventSequenceState.delete(queryClient)
 }
 
 // Stream-level ordering check, independent of any single resource: every
@@ -141,13 +150,29 @@ export function resetAppEventSequenceTracking(queryClient: QueryClient) {
 function trackAppEventSequence(queryClient: QueryClient, event: AppEvent): AppEventSequenceOutcome {
   if (typeof event.sequence !== "number") return "ok"
 
-  const previous = lastAppEventSequence.get(queryClient)
-  if (previous === undefined || event.sequence > previous) {
-    lastAppEventSequence.set(queryClient, event.sequence)
-    return previous !== undefined && event.sequence > previous + 1 ? "gap" : "ok"
+  const sequence = event.sequence
+  const state = appEventSequenceState.get(queryClient)
+  if (!state) {
+    appEventSequenceState.set(queryClient, { highest: sequence, seen: new Set([sequence]) })
+    return "ok"
   }
 
-  return "duplicate"
+  if (sequence > state.highest) {
+    const previous = state.highest
+    state.highest = sequence
+    state.seen.add(sequence)
+    for (const seen of state.seen) {
+      if (seen <= sequence - APP_EVENT_SEQUENCE_WINDOW) state.seen.delete(seen)
+    }
+    return sequence > previous + 1 ? "gap" : "ok"
+  }
+
+  // Below the window nothing is remembered, so it cannot be told apart from
+  // a duplicate; a delivery that late is far outside any reorder.
+  if (state.seen.has(sequence) || sequence <= state.highest - APP_EVENT_SEQUENCE_WINDOW) return "duplicate"
+
+  state.seen.add(sequence)
+  return "late"
 }
 
 // Patches the normalized entity store directly from an event's payload,
