@@ -611,6 +611,9 @@ preview it with `bin/rails 'plugin:data[name]'` and confirm it with
 `bin/rails 'plugin:purge[name]'`. Purge removes declared plugin tables,
 plugin-owned rows and fields stored on shared tables, and contributed external
 resources; disabling or uninstalling alone retains all of them.
+Credential Store contributes cleanup for credentials in the purged plugin's
+type namespace and their access-audit rows, even after that plugin's code has
+been removed.
 
 Bundled plugins can also declare `config/plugin_ownership.yml`, covering their
 configuration keys, workflow vocabulary, routes, data, tools, frontend
