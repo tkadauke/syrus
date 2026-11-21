@@ -2147,7 +2147,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       handler = step_handler(described_class, "merge_train_land", train, a)
       allow(handler).to receive(:repository).and_return(repository)
       stub_git(handler)
-      allow(described_class).to receive(:merge_retry_sleeper).and_return(->(_seconds) {})
+      allow(described_class).to receive(:merge_retry_sleeper).and_return(->(_seconds) { })
       allow(client).to receive(:merge_pull_request)
         .and_raise(octokit_error(Octokit::MethodNotAllowed, status: 405, message: "Base branch was modified. Review and try the merge again."))
 
