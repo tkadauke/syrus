@@ -29,11 +29,12 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
       homepage:         "https://github.com/tkadauke/syrus",
       prepare_priority: 10,
       provides: {
-        coverage_analyzer:  Ruby::SimpleCovAnalyzer,
-        grader_augmentor:   Ruby::GraderAugmentor,
-        prepare_detector:   Ruby::PrepareDetector,
         "test_insights:parser" => Ruby::RspecParser
-      }
+      },
+      family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+        family: :ecosystem, provider: "Ruby::Ecosystem",
+        implements: %i[detect_prepare grader_diagnostics analyze_coverage]
+      ) ]
     )
 
     # Mirrors plugins/rails/lib/syrus_rails/engine.rb's after_initialize registration.
@@ -46,9 +47,11 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
       provides: {
         mcp_tool_set:      SyrusRails::McpToolSet,
         artifact_renderer: [ SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer ],
-        prompt_injector:   SyrusRails::PromptContext,
         preview_provider:  SyrusRails::PreviewProvider
-      }
+      },
+      family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+        family: :ecosystem, provider: "SyrusRails::Ecosystem", implements: %i[prompt_context]
+      ) ]
     )
   end
 

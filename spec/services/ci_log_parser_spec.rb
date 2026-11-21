@@ -180,7 +180,7 @@ RSpec.describe CiLogParser do
     expect(result[:error_block]).not_to include("context line 76")
   end
 
-  describe ":ci_log_parser plugin integration" do
+  describe "Ecosystem parse_ci_log integration" do
     after { Syrus::PluginRegistry.reset! }
 
     def ci_log_parser_provider(double)

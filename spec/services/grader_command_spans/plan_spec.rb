@@ -9,14 +9,18 @@ RSpec.describe GraderCommandSpans::Plan, requires_plugin: %w[ruby javascript] do
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
       Syrus::PluginRegistry.register(
         name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-        provides: { prepare_detector: Ruby::PrepareDetector }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare]
+        ) ]
       )
     end
 
     unless Syrus::PluginRegistry.registered_names.include?("javascript")
       Syrus::PluginRegistry.register(
         name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
-        provides: { prepare_detector: JavaScript::PrepareDetector }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "JavaScript::Ecosystem", implements: %i[detect_prepare]
+        ) ]
       )
     end
   end
