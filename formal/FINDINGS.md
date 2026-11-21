@@ -3908,6 +3908,48 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M34. Provider pauses only pause admission, and recovery re-admits the paused work — audited, no bug
+
+**Scope.** DOC-44 start blocks, the coverage item `provider-pause-readmits`:
+"Provider unavailability only pauses admission, and recovery re-admits exactly
+the paused work." This is liveness under fairness.
+
+**Pause.** `WorkUnits::Gates::ProviderAvailability` asks
+`ProviderAvailabilityPause` for a decision:
+
+- On *pause* it blocks the WorkUnit with `provider_availability` and the
+  pause's `retry_at`.
+- On *failover* it re-pins a Workflow that has no Runs to the selected
+  provider, under the Workflow lock, and passes.
+
+No Run is failed and no Step is touched. The work only waits.
+
+**Two independent ways back:**
+
+- **Recheck.** `Launcher.schedule_blocked_recheck!` enqueues
+  `WorkflowPhaseAdmissionJob` at `retry_at`, or after `START_BLOCKED_BACKOFF`.
+  This covers first admission and phase boundaries of running Workflows alike.
+  That matters because `provider_availability` is a pause reason, so the
+  reconciler treats it as a deliberate wait and leaves it alone.
+- **Wake-up (fast path).** `ProviderAdmissionWakeup` runs when the provider
+  recovers. It restarts exactly the queued Workflows on that provider that have
+  no Runs and whose unit is blocked on `provider_availability`, skipping any
+  whose circuit is still open. It also releases pending auto-retries on the
+  provider to the reconciler.
+
+So paused work is re-admitted at the latest by its own recheck. The wake-up
+only shortens the wait. A Workflow blocked on a provider its Job no longer
+resolves to is relaunched by `StaleProviderRelauncher`.
+
+**Simulations**, all passing:
+
+- `provider_usage_pause_then_resume`;
+- `provider_auth_pause_then_resume`;
+- `provider_switch_relaunches_blocked_work`;
+- `codex_overload_initial_retries`.
+
+---
+
 ## M33. A finished Workflow's workspace is never deleted under live work — audited, no bug
 
 **Scope.** DOC-44 steps and workflows, the coverage item

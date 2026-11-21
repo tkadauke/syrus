@@ -2043,9 +2043,9 @@
         "provider_switch_relaunches_blocked_work",
         "codex_overload_initial_retries"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Liveness under fairness; low priority."
+      "status": "done",
+      "done_by": "M34",
+      "notes": "Liveness under fairness; low priority. M34: the gate only blocks (or fails over a run-less Workflow); every block schedules its own phase-admission recheck at retry_at, and the provider wake-up is a fast path for queued work. Four simulations pass."
     },
     {
       "id": "resource-congestion",
