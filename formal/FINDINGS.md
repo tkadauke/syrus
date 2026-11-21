@@ -1258,6 +1258,26 @@ most recent 2,900 intents (2,935 units) and found no Workflow with two units.
 
 ---
 
+## F43. The stale-train repair could fail a train that had an owner — fixed
+
+**Gap.** `classify_stale_active_merge_trains_without_runtime` counts as the
+train's owner a queued, running or *blocked* train Workflow, an active unit,
+or a pending preserved-train relaunch. Its repair `FailStaleActiveMergeTrain`
+re-checked only queued and running Workflows and active units. An owner of
+the other two kinds that appeared between planning and execution (a
+`MergeTrainFailureHandler` relaunch being scheduled, a Workflow blocking on
+admission) did not stop it. It failed the train, discarding the preserved
+assembly and the real failure reason (`Agreement.train_before_fails_owned`).
+
+**Fix.** `WorkEngine::MergeTrainOwnership#owned?`, shared by the classifier
+and the repair.
+
+**Spec.** `reconciler_spec.rb` "a stale active merge train … is not failed by
+an already-planned repair once a relaunch is pending". Red on the old
+executor: it applied the repair.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

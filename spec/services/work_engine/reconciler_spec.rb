@@ -7492,6 +7492,26 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
       expect(kind(reconcile(job_id: job.id), :stale_active_merge_train_without_runtime)).to be_nil
     end
+
+    # The repair's re-check counted only queued and running Workflows and
+    # ignored a pending relaunch, so an owner that appeared between planning
+    # and execution did not stop it (MergeTrainOwnership is now shared).
+    it "is not failed by an already-planned repair once a relaunch is pending" do
+      train = stale_train!
+      result = reconcile(job_id: job.id)
+      expect(plan(result, :fail_stale_active_merge_train)).to be_present
+      AutoRetryAttempt.create!(
+        job: job, workflow: workflow, run: run, agent_provider: "claude",
+        failure_classification: "application_error",
+        retry_kind: AutoRetryAttempt::PRESERVED_MERGE_TRAIN_RETRY_KIND,
+        attempt_number: 1, scheduled_at: 30.seconds.from_now
+      )
+
+      executions = WorkEngine::RepairExecutor.call(result: result)
+
+      expect(executions.find { |execution| execution.action == "fail_stale_active_merge_train" }.status).to eq("skipped")
+      expect(train.reload.state).to eq("grading")
+    end
   end
 
   it "keeps one delayed retry for repeated rate-limited landing reconciler passes" do
