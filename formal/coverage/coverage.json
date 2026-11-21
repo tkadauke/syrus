@@ -1873,9 +1873,9 @@
         "dependent_active_initial_dedup_collision",
         "single_initial_success"
       ],
-      "status": "partial",
-      "done_by": "reviewed",
-      "notes": "Safety holds at the start funnel: StepDispatcher.start_workflow refuses a Job whose dependencies failed (landings fail closed, rebases are cancelled, others start-block), whose stack is not ready (JobStackResolver), or which is not ready for execution. Liveness is event-driven by design: the dependency and stack branches record a start block but schedule no WorkflowPhaseAdmissionJob recheck (unlike the Epic-sibling and admission branches), so starting relies on the satisfying event waking the dependent, with stale_dependency_start_block as the reconciler safety net. Periodic rechecks for every blocked dependent would add churn for large Epics, so not changed. Open edge, queued as NY8: a step retry (RetryFailedStepEnqueuer reopening a failed Workflow in place) skips the start funnel, so a dependent whose dependency has since failed or lost approval is retried on that base. No Lean model yet: the safety half is a single guard."
+      "status": "done",
+      "done_by": "start funnel · landing queue · NY8 (B)",
+      "notes": "Safety holds at the start funnel: StepDispatcher.start_workflow refuses a Job whose dependencies failed (landings fail closed, rebases are cancelled, others start-block), whose stack is not ready (JobStackResolver), or which is not ready for execution. Liveness is event-driven by design: the dependency and stack branches record a start block but schedule no WorkflowPhaseAdmissionJob recheck (unlike the Epic-sibling and admission branches), so starting relies on the satisfying event waking the dependent, with stale_dependency_start_block as the reconciler safety net. Periodic rechecks for every blocked dependent would add churn for large Epics, so not changed. Open edge, queued as NY8: a step retry (RetryFailedStepEnqueuer reopening a failed Workflow in place) skips the start funnel, so a dependent whose dependency has since failed or lost approval is retried on that base. No Lean model yet: the safety half is a single guard. Decided NY8 (B): retries keep their semantics; safety rests on the start funnel plus the landing queue's dependency check before merge."
     },
     {
       "id": "queued-workflow-without-first-run",
@@ -2420,7 +2420,8 @@
         "B. Keep: a retry continues an attempt that already started legitimately; dependency regressions are handled when the dependent lands (the landing queue checks dependencies again).",
         "C. Re-check only for automatic retries; an operator's explicit Retry proceeds."
       ],
-      "recommendation": "B, narrowly. The landing queue re-checks dependencies before anything merges, so the worst case is wasted work on a base that may come back, not a wrong merge; A changes retry semantics for a case not seen in production. Revisit if it shows up."
+      "recommendation": "B, narrowly. The landing queue re-checks dependencies before anything merges, so the worst case is wasted work on a base that may come back, not a wrong merge; A changes retry semantics for a case not seen in production. Revisit if it shows up.",
+      "decision": "B: keep. A retry continues an attempt that started legitimately; the landing queue re-checks dependencies before anything merges, so a regressed dependency costs wasted work, not a wrong merge."
     },
     {
       "id": "NY9",
