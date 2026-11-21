@@ -65,6 +65,13 @@ module PersistentMcpDaemon::ChatToolDispatch
       # daemon's own server -- the invocation-context/tiering enforcement
       # below only makes sense for daemon-routed calls in the first place.
       return super(*args, server_context: server_context, **kwargs, &block) if daemon_identity.blank?
+      # A tool served on both routes (the coworkers' list_chats, search_chats)
+      # carries WorkflowToolDispatch too, prepended once on first use, so
+      # either wrapper can be outermost. A workflow-route call is that
+      # wrapper's to authorize; resolving a chat context from its run token
+      # refused every one whenever this wrapper happened to be outermost
+      # (formal/SyrusModel/DispatchOrder.lean).
+      return super(*args, server_context: server_context, **kwargs, &block) if server_context[:workflow_role].present?
 
       begin
         resolved = PersistentMcpDaemon::ChatContextResolver.resolve(server_context)

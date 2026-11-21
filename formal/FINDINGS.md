@@ -1338,6 +1338,37 @@ reasons are past the activity retention, so it is not proof.
 
 ---
 
+## F46. Coworker workflow tool calls depended on daemon wrap order — fixed (Lead L3)
+
+**Found from** an order-dependent failure in `persistent_mcp_daemon_spec.rb`
+"dispatches owner-scoped coworker chat discovery…". It passed alone and
+failed after the Coworkers plugin specs. The `list_chats` result was
+"Unauthorized: invocation context Malformed: invocation token surface :run is
+not chat".
+
+**Gap.** The persistent MCP daemon serves the chat and workflow routes in one
+process. A tool served on both routes (the coworkers' `list_chats`,
+`search_chats`) has both `ChatToolDispatch` and `WorkflowToolDispatch`
+prepended to its class, each once, on first use, so whichever was wrapped last
+is outermost. `WorkflowToolDispatch` passes through calls that did not come
+in on a workflow route. `ChatToolDispatch` passed through only calls without
+a daemon identity, and a workflow-route call carries one. So with the chat
+wrapper outermost it resolved a chat context from the run token and refused
+the call. In production this is latent: the health check enumerates chat
+tools at boot, so the chat wrapper usually goes on first. But if a workflow
+request ever arrived first, coworkers' chat-reading tools would be refused
+for the life of that daemon process (`DispatchOrder.before_depends_on_order`).
+
+**Fix.** `ChatToolDispatch` also passes through workflow-route calls
+(`workflow_role` present). Each wrapper handles only its own route, so the
+order no longer matters (`after_order_independent`, `after_serves_both`).
+
+**Spec.** `spec/services/persistent_mcp_daemon/dispatch_order_spec.rb` wraps a
+probe tool in the bad order. It is red before the fix. The original failure
+order (Coworkers specs, then the daemon spec) passes: 982 examples.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -1519,7 +1550,7 @@ session.
 tools with `authorize_tool` and opts into `full_chat_access: :all`. It passes
 alone and after the polluting example.
 
-## Lead L3: whether a tool call is gated depends on process history
+## Lead L3: whether a tool call is gated depends on process history (one instance fixed as F46)
 
 The same mechanism has a production side. Sidecar and daemon dispatch wrap a
 tool before calling it, so real agent tool calls are gated. But any in-process
