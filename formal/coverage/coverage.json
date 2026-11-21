@@ -1355,9 +1355,9 @@
         "stale_initial_intent_after_successful_retry",
         "auto_retry_skip_clears_same_attempt_backoff"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "The executor comment records a production loop where the requested intent re-materialized retries. AutoRetryJob/launch should check supersession atomically. Production (read-only): 1 applied repair over the reconciler's retained history; the AutoRetryJob stale check (F27) already covers the success-before-perform race."
+      "status": "done",
+      "done_by": "F90",
+      "notes": "The executor comment records a production loop where the requested intent re-materialized retries. AutoRetryJob/launch should check supersession atomically. Production (read-only): 1 applied repair over the reconciler's retained history; the AutoRetryJob stale check (F27) already covers the success-before-perform race. F90: AutoRetryJob lacked the branch-divergence-recovered clause the classifier and executor used; all three now share Workflows::AutoRetrySupersession."
     },
     {
       "id": "auto-retry-bounded",

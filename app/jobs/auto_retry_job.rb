@@ -343,9 +343,8 @@ class AutoRetryJob < ApplicationJob
     # check, started, and was cancelled moments later -- and the cancellation
     # left a requested WorkIntent behind for the launcher to materialize
     # again. Three intents produced fourteen cancelled workflows that way.
-    return true if attempt.workflow&.succeeded?
-
-    Workflows::ValidationSupersession.superseded_by_successful_workflow?(attempt.workflow)
+    # Both sides now share one rule.
+    Workflows::AutoRetrySupersession.superseded?(attempt.workflow)
   end
 
   def retry_failed_step(attempt)

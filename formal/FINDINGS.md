@@ -3206,6 +3206,53 @@ waits from that classifier, but it is not in the deployed build
 
 ---
 
+## F90. AutoRetryJob and the stale-retry repair still disagreed about supersession — fixed
+
+**Found by** DOC-44 retries, coverage item `stale-auto-retry-workflow`: "A
+queued auto-retry Workflow is still waiting although its source was
+superseded."
+
+**Gap.** Three places decided whether an auto-retry's source Workflow was
+superseded:
+
+- `AutoRetryJob#stale_attempt?`, before launching the retry;
+- the reconciler's `stale_auto_retry_workflow` classifier;
+- the `CancelStaleAutoRetryWorkflow` executor.
+
+F27 aligned the first two on "the source succeeded", after three intents
+produced fourteen cancelled workflows. But the classifier and the executor
+also count a source whose branch divergence was recovered by the current PR
+branch (`branch_divergence_recovery.action == superseded_by_current_pr_branch`),
+and `AutoRetryJob` did not.
+
+Recovery skips pending `branch_diverged` attempts. But the operator's "retry
+from the current PR branch" choice
+(`mark_branch_divergence_retry_choice!`) passes
+`cancel_stale_retry_workflows: false` and leaves them alive. A surviving
+attempt then passed the launch check and started. The reconciler then
+cancelled it as stale, which leaves a requested WorkIntent behind for the
+launcher: the relaunch loop F27 described. The spec saw the attempt go ahead
+to `RetryWorkflowEnqueuer`.
+
+**Fix.** One predicate, `Workflows::AutoRetrySupersession.superseded?`: the
+source succeeded, or was superseded by a later successful Workflow, or was
+recovered by the current PR branch. `AutoRetryJob`, the classifier and the
+executor all call it, so they cannot drift again. No Lean model: agreement
+now holds by construction, and a model would only restate it.
+
+**Spec.** `auto_retry_job_spec.rb` "skips an attempt whose source divergence
+was recovered by the current PR branch" was red before (the retry was
+performed).
+
+Also run and green:
+
+- the AutoRetryJob, recovery and attempt specs (100 examples);
+- the CI-only reconciler, executor and resilience specs (350 examples);
+- the `auto_retry_budget_exhausts`, `auto_retry_skip_clears_same_attempt_backoff`
+  and `repeated_pr_open_failure_retry_recovers` simulations.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
