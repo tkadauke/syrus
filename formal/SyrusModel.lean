@@ -54,6 +54,7 @@ import SyrusModel.LockOrder
 import SyrusModel.FollowUpFailure
 import SyrusModel.RunningHasWork
 import SyrusModel.LegalJobWorkflowPairs
+import SyrusModel.PinnedDeferralBudget
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet

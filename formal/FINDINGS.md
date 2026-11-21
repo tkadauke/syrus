@@ -3253,6 +3253,56 @@ Also run and green:
 
 ---
 
+## F91. Sibling Runs reset each other's pinned deferral budget, so the loop could not end — fixed
+
+**Found by** DOC-44 runs and queue, coverage item
+`queued-run-placement-livelock`. A Run pinned to one host keeps deferring or
+re-enqueueing itself and never starts. The plan frames it as a termination
+argument, bounded by `PINNED_HOST_ADMISSION_DEFERRAL_BUDGET` (40).
+
+**Gap.** `RunJob#record_host_admission_deferral!` kept the deferral count in a
+single per-Workflow artifact, `run_host_admission`. It took the next count as
+`prior.deferral_count + 1` only if `prior.run_id` was this Run, and otherwise
+restarted at 1. `RunHostAdmission` resource-guards graders, and the
+`WholeHostClaims` comment describes sibling grader shards of one Workflow
+admitted within seconds of each other. On a pinned Workflow, siblings deferred
+by the same host overwrite the artifact in turn, resetting each other's count,
+so the budget never drops the storage affinity.
+
+The spec alternated two sibling Runs for 40 rounds each, and the Workflow was
+still pinned (`storage-a`).
+
+Two things were already sound:
+
+- When recording a deferral fails, the rescue returns a count of 1 for that
+  call, but the stored count is untouched. That only delays exhaustion by one
+  round.
+- Reroutes do not count against the budget, by design.
+
+**Fix.** The artifact keeps per-Run counts in `deferral_counts`, migrating a
+legacy single count into it on first use. Each Run's `deferral_count` is its
+own count. The top-level fields keep their meaning for other readers.
+
+**Proved.** `PinnedDeferralBudget.lean` uses a budget of 4, three siblings and
+every sequence of up to 12 deferrals:
+
+- once some Run has been deferred `budget` times, affinity is dropped, so no
+  interleaving defers forever;
+- under the old shared counter, two alternating siblings never reach the
+  budget in 3·budget rounds.
+
+**Spec.** `run_job_spec.rb` "counts each pinned Run's deferrals separately so
+siblings cannot reset each other" was red before.
+
+Also run and green:
+
+- the existing budget specs;
+- all `spec/jobs` (849 examples);
+- the CI-only reconciler deferral examples;
+- the `pinned_host_admission_deferral_budget_reenqueues_elsewhere` simulation.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

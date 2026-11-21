@@ -544,9 +544,9 @@
         "pinned_host_admission_deferral_budget_reenqueues_elsewhere",
         "healthy_reenqueue_loop_clears_affinity"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "A placement livelock bounded by a 40-deferral budget and a staleness window; a fairness/termination-measure argument, not a safety invariant."
+      "status": "done",
+      "done_by": "F91",
+      "notes": "A placement livelock bounded by a 40-deferral budget and a staleness window; a fairness/termination-measure argument, not a safety invariant. F91: sibling Runs reset the shared per-Workflow count, so the budget never ran out; per-Run counts now, termination proved in PinnedDeferralBudget.lean."
     },
     {
       "id": "queued-run-wedged-or-stale-claim",

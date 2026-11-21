@@ -361,7 +361,13 @@ class RunJob < ApplicationJob
 
   def record_host_admission_deferral!(admission, routing: nil)
     prior = @workflow.artifact("run_host_admission").to_h
-    count = prior["run_id"].to_i == @run.id ? prior["deferral_count"].to_i + 1 : 1
+    # Per-Run counts: the artifact is per Workflow, and sibling Runs (parallel
+    # grader shards deferring each other) would otherwise reset each other's
+    # count on every round, so the budget that ends this loop never ran out.
+    counts = prior["deferral_counts"].is_a?(Hash) ? prior["deferral_counts"].dup : {}
+    counts[prior["run_id"].to_s] ||= prior["deferral_count"].to_i if prior["run_id"].present?
+    count = counts[@run.id.to_s].to_i + 1
+    counts[@run.id.to_s] = count
     first_deferred_at = count == 1 ? Time.current.iso8601 : prior["first_deferred_at"].presence || Time.current.iso8601
     payload = admission.details.merge(routing&.details.to_h || {}).merge(
       "action" => routing&.action || admission.action,
@@ -375,6 +381,7 @@ class RunJob < ApplicationJob
       "routed_at" => routing&.reroute? ? Time.current.iso8601 : nil,
       "routed_queue" => routing&.queue_name,
       "deferral_count" => count,
+      "deferral_counts" => counts,
       "deferral_budget" => PINNED_HOST_ADMISSION_DEFERRAL_BUDGET
     )
     @workflow.update!(
