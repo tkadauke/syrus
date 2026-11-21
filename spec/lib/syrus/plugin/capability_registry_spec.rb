@@ -13,7 +13,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       example.run
     ensure
       described_class.reset!
-      Syrus::Plugin::Family.reset!
+      Syrus::Plugin::Family.restore_built_ins!
     end
   end
 

@@ -17,7 +17,7 @@ RSpec.describe Syrus::Plugin::Dispatch do
   end
 
   after do
-    Syrus::Plugin::Family.reset!
+    Syrus::Plugin::Family.restore_built_ins!
     Syrus::PluginInvocation.runtime_health = Syrus::PluginRuntimeHealth.new
   end
 

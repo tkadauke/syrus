@@ -139,7 +139,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
 
     after do
       Syrus::PluginRegistry.reset!
-      Syrus::Plugin::Family.reset!
+      Syrus::Plugin::Family.restore_built_ins!
     end
 
     it "detects a plugin registered only through the family declaration" do
