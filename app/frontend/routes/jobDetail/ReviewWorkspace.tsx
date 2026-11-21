@@ -706,11 +706,7 @@ export function VisualEvidenceGallery({
             const viewport = screenshot.viewport?.width && screenshot.viewport?.height ? `${screenshot.viewport.width}×${screenshot.viewport.height}` : null
             return (
               <figure className={`${surfaceClasses("panel", "sm")} max-w-lg`} key={screenshot.id}>
-                <button
-                  className="flex w-full cursor-zoom-in justify-center"
-                  onClick={() => setPreviewIndex(screenshots.indexOf(screenshot))}
-                  type="button"
-                >
+                <button className="flex w-full cursor-zoom-in justify-center" onClick={() => setPreviewIndex(screenshots.indexOf(screenshot))} type="button">
                   <img
                     alt={pageLabel}
                     className="max-h-72 max-w-full rounded-md border border-border object-contain"
