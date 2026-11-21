@@ -151,6 +151,8 @@ Declare one family at a time with `provides family_name: "Provider::Class", impl
 - `Syrus::Host::CliCommandHandler` (since 0.1.16) — Bases server-backed plugin CLI handlers; transport internals are not promised. Only the listed members are supported. Supported members: `call`, `json`, `raw_text`, `table`, `text`.
 - `Syrus::Host::Current` (since 0.1.16) — Exposes the request-local authenticated user; assignment and other current attributes are not promised. Only the listed members are supported. Supported members: `api_user`, `user`.
 - `Syrus::Host::DiskUsage` (since 0.1.16) — Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised. Supported members: `read`.
+- `Syrus::Host::EcosystemDependencyAuditPlan` (since 0.1.16) — Carries one ecosystem's immutable dependency-audit lockfiles and command. Only the listed members are supported. Supported members: `command`, `label`, `lockfiles`, `new`.
+- `Syrus::Host::EcosystemPreparePlan` (since 0.1.16) — Carries one ecosystem's immutable repository detection and preparation answer. Only the listed members are supported. Supported members: `commands`, `detected`, `detected?`, `label`, `new`, `span_labels`, `version_file`.
 - `Syrus::Host::InvocationResult` (since 0.1.16) — Carries an agent or chat invocation result; invocation-engine internals are not promised. Only the listed members are supported. Supported members: `cost_usd`, `exit_status`, `final_text`, `input_tokens`, `is_error`, `new`, `outcome`, `output_tokens`, `session_id`, `success?`, `timed_out`, `transcript_jsonl`, `transcript_path`, `turns`.
 - `Syrus::Host::Job` (since 0.1.16) — Reads a job's identity, state, title, repository, owner, and workflows through find and visibility-scoped lookups; transitions, persistence, callbacks, and other associations are not promised. Supported members: `accessible_to`, `find`, `id`, `repository`, `state`, `title`, `user`, `visible_to`, `workflows`.
 - `Syrus::Host::McpTools` (since 0.1.16) — Provides database-connection and MCP response helpers; core tool implementations are not promised. Only the listed members are supported. Supported members: `invalid`, `success`, `with_database_connection`.
@@ -186,4 +188,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 33052 bytes (UTF-8, including this line).
+Size: 33567 bytes (UTF-8, including this line).
