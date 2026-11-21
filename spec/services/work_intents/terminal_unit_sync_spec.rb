@@ -100,6 +100,30 @@ RSpec.describe WorkIntents::TerminalUnitSync do
     expect(cancelled.work_unit.work_intent.reload).to be_requested
   end
 
+  # Production had 87 requested intents whose only units were cancelled
+  # because the work itself was over -- the Job closed, the parent unit
+  # finished, the attempt was retired for an implementation retry. Nothing
+  # relaunches those, so the intent stayed requested indefinitely.
+  %w[job_closed terminal_parent_work_unit retired_for_implementation_retry].each do |reason|
+    it "cancels a requested WorkIntent when its only WorkUnit ends for #{reason}" do
+      workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
+      intent = workflow.work_unit.work_intent
+
+      workflow.work_unit.preempt!(reason: reason)
+
+      expect(intent.reload).to be_cancelled
+    end
+  end
+
+  it "keeps an Epic-conflict victim's intent requested for its relaunch" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
+    intent = workflow.work_unit.work_intent
+
+    workflow.work_unit.preempt!(reason: EpicWorkflowLock::BLOCK_REASON)
+
+    expect(intent.reload).to be_requested
+  end
+
   it "cancels a requested WorkIntent when its only WorkUnit is superseded by a rebase" do
     workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
     intent = workflow.work_unit.work_intent

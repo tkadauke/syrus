@@ -1223,6 +1223,40 @@ from its latest unit only" (red before) and `repair_executor_spec.rb`
 
 ---
 
+## F42. Intents of finished work stayed requested — fixed
+
+**Evidence (production, read-only).** 92 WorkIntents were `requested`. 87 of
+them had no active unit, only cancelled units, cancelled with these reasons:
+`job_closed` (mostly `stack_rebase`, `job_bundle`, `merge_train`),
+`terminal_parent_work_unit` (validation children), `retired_for_implementation_retry`,
+and Epic-conflict victims.
+
+**Gap.** `WorkIntents::TerminalUnitSync` cancels an intent only when its unit
+was cancelled for a reason in `SUPERSEDING_CANCEL_REASONS`. Any other
+cancellation leaves the intent requested so that it can be relaunched. But
+the generic relaunch (`requested_work_intent_without_active_unit`) runs only
+when the reconciler is called with a `work_intent_id`, which no production
+path does. For work that is over, a requested intent is simply stranded. The
+close-time sweep (`Job#cancel_stale_work_intents_after_close`) skips intents
+whose unit is still active and only looks at Job-scoped intents, so Epic and
+train intents of a closed Job were never cancelled (closed-job-open-intent).
+
+**Fix.** `job_closed`, `terminal_parent_work_unit` and
+`retired_for_implementation_retry` end the intent with the unit. The
+reconciler's superseded-unit backstop shares the list, so after deploy it
+also cancels the 87 already stranded. Epic-conflict victims stay requested:
+they are meant to be relaunched, and F34 stops creating them.
+
+**Spec.** `terminal_unit_sync_spec.rb`: one example per reason (all red
+before), and "keeps an Epic-conflict victim's intent requested for its
+relaunch".
+
+**Also found.** My earlier production scan for Workflows with two units
+(one-unit-per-workflow) read the wrong key from the admin payload (`units`,
+not `work_units`), so it checked nothing. It is being rerun.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

@@ -8,7 +8,12 @@ module WorkIntents
       WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON,
       WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON,
       "operator_cancelled",
-      "job_approved"
+      "job_approved",
+      # The work itself is over: nothing relaunches the intent, so leaving it
+      # requested stranded it (87 such intents in production).
+      JobClosure::CANCELLED_REASON,
+      "terminal_parent_work_unit",
+      RetryJobs::Modes::Implementation::AGENT_BLOCKED_RETIRED_REASON
     ].freeze
 
     def self.call(work_unit) = new(work_unit).call
