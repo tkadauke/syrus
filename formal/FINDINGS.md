@@ -2772,6 +2772,60 @@ All 301 desktop vitest tests and 389 desktop specs pass.
 
 ---
 
+## F82. A link or file dropped on a privileged desktop window ran with the credential bridge — fixed
+
+**Found by** DOC-44 Phase 7, Electron security boundary: "untrusted renderer
+content cannot invoke filesystem, credential, backend-control, or process
+IPC".
+
+**Gap.** The tray popover, Preferences and onboarding windows load the bundled
+renderer with `preload.cjs`. Its handlers include `get-credentials` (returns
+the saved API token), `save-credentials`, `checkout-job` and the installer
+controls, and none of them check the sender. The windows had no
+`will-navigate`, `will-redirect` or `setWindowOpenHandler` guard, no global
+`web-contents-created` guard existed, and the renderer does not cancel drops.
+Electron navigates a window to a link or file dropped onto it by default. So
+dropping a link or a downloaded HTML file onto Preferences loaded foreign
+content with `window.syrus.getCredentials()` available.
+
+The web-app window was already sound, in three layers:
+
+- navigation, redirects and popups go through `decideWindowOpen`;
+- the window is sandboxed;
+- every handler on its bridge (`shell:*`, `annotation:*`, `recorderHud:*`,
+  `dictation:*`) checks the sender is the web-app window's top frame on the
+  instance origin.
+
+`open-external` allows only http(s). App auto-update is armed only for stable
+packaged builds. "Restart to update" refuses while a backend update is running,
+and a plain Quit kills the installer tree instead of orphaning it.
+
+**Fix.** `windows/privilegedWindowGuard.ts` `lockPrivilegedWindow` refuses
+every content-started navigation, redirect and popup. The main process's own
+`loadFile` and `loadURL` never fire `will-navigate`. The popover, Preferences
+and onboarding windows install the guard.
+
+**Proved.** `PrivilegedWindows.lean` checks every sequence of up to four
+content-started navigations:
+
+- a privileged window only ever shows the local renderer;
+- the web-app window only ever shows the server origin;
+- the unguarded window reaches `file:` content.
+
+**Spec.**
+
+- `desktop/src/privilegedWindowGuard.test.ts` covers the guard.
+- `spec/desktop/privileged_window_guard_spec.rb` finds every `BrowserWindow`
+  given the privileged preload and requires it to be locked. It was red with
+  the wiring removed ("main.ts creates mainWindow with the privileged preload
+  but never locks it").
+
+All 302 desktop vitest tests and 391 desktop specs pass. `npm run typecheck`
+for the desktop is clean; its dependencies are now installed in the worktree.
+This typecheck also covers F76, F80 and F81.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

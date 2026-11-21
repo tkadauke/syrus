@@ -2868,6 +2868,40 @@
       "status": "done",
       "done_by": "F81",
       "notes": "Proved in CableDelivery.lean. Generations, single reconnect per socket, capped backoff, unauthorized stop, and confirmation reset were audited sound."
+    },
+    {
+      "id": "desktop-privileged-bridge",
+      "area": "desktop",
+      "title": "Untrusted content never reaches the privileged preload bridge",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "popover/preferences/onboarding windows (preload.cjs); webAppWindow navigation and shellSenderAllowed",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F82",
+      "notes": "Privileged windows refuse every content-started navigation; web-app window stays on the server origin. Proved in PrivilegedWindows.lean."
+    },
+    {
+      "id": "desktop-update-coordination",
+      "area": "desktop",
+      "title": "App self-update is stable-only and never races a backend update",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "appUpdates.updatesEnabled, deferRelaunchWhileBackendBusy, before-quit",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F82 (audit)",
+      "notes": "Packaged, stable channel, not a pinned test build; both restart-to-update entries defer while backendBusy; quit SIGKILLs the installer tree rather than orphaning it."
     }
   ],
   "needs_you": [

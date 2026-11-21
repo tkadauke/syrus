@@ -53,6 +53,7 @@ import { CredentialMutationCoordinator } from "./credentialMutationCoordinator.j
 import { paintUnreadDot } from "./trayBadge.js"
 import { desktopCommandEnvironment } from "./shellEnvironment.js"
 import { createOnboardingWindow } from "./windows/onboardingWindow.js"
+import { lockPrivilegedWindow } from "./windows/privilegedWindowGuard.js"
 import { resolveInstanceOrigin, resolveOpenInSyrusTarget } from "./windows/openInSyrusTarget.js"
 import { computePopoverPosition } from "./windows/popoverPosition.js"
 import { createWebAppWindow, type WebAppWindowHandle } from "./windows/webAppWindow.js"
@@ -1626,6 +1627,7 @@ const createPopoverWindow = async () => {
     }
   })
 
+  lockPrivilegedWindow(mainWindow.webContents)
   mainWindow.on("blur", () => {
     mainWindow?.hide()
   })
@@ -1711,6 +1713,7 @@ const showPreferencesWindow = async () => {
     }
   })
 
+  lockPrivilegedWindow(preferencesWindow.webContents)
   preferencesWindow.on("closed", () => {
     preferencesWindow = null
   })
