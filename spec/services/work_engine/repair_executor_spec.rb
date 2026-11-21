@@ -734,4 +734,34 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(workflow.reload).to be_running
     end
   end
+  describe "satisfy_work_intent_from_succeeded_work_unit" do
+    it "skips a succeeded unit that a newer unit of the same intent has outlived" do
+      old_unit = workflow.work_unit
+      intent = old_unit.work_intent
+      old_unit.update_columns(state: "succeeded", finished_at: 2.hours.ago)
+      WorkUnit.create!(
+        work_intent: intent, kind: old_unit.kind, state: "failed",
+        repository: job.repository, scope_type: "job", scope_id: job.id,
+        started_at: 1.hour.ago, finished_at: 30.minutes.ago
+      )
+      intent.update_columns(state: "requested")
+      plan = WorkEngine::RepairPlanner::Plan.new(
+        issue_kind: "succeeded_work_unit_unsatisfied_intent",
+        action: "satisfy_work_intent_from_succeeded_work_unit",
+        auto_executable: true,
+        target_type: "WorkIntent",
+        target_id: intent.id,
+        affected_ids: {},
+        execution_steps: [],
+        preconditions: { "work_unit_id" => old_unit.id },
+        reason: "test"
+      )
+
+      execution = described_class.call(result: RepairResult.new([ plan ])).sole
+
+      expect(execution.status).to eq("skipped")
+      expect(execution.message).to include("is not the latest finished unit")
+      expect(intent.reload).to be_requested
+    end
+  end
 end

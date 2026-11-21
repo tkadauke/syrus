@@ -1747,6 +1747,7 @@ module WorkEngine
           return skipped("#{work_unit_id_label(unit_id)} no longer exists") unless unit
           return skipped("#{work_unit_label(unit)} belongs to #{work_intent_id_label(unit.work_intent_id)}, not #{work_intent_label(intent)}") unless unit.work_intent_id == intent.id
           return skipped("#{work_unit_label(unit)} is #{unit.state}, not succeeded") unless unit.succeeded?
+          return skipped("#{work_unit_label(unit)} is not the latest finished unit of #{work_intent_label(intent)}") unless intent.settled_by?(unit)
 
           active_sibling_ids = intent.work_units
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
@@ -1770,6 +1771,7 @@ module WorkEngine
           return skipped("#{work_unit_id_label(unit_id)} no longer exists") unless unit
           return skipped("#{work_unit_label(unit)} belongs to #{work_intent_id_label(unit.work_intent_id)}, not #{work_intent_label(intent)}") unless unit.work_intent_id == intent.id
           return skipped("#{work_unit_label(unit)} is #{unit.state}, not cancelled") unless unit.cancelled?
+          return skipped("#{work_unit_label(unit)} is not the latest finished unit of #{work_intent_label(intent)}") unless intent.settled_by?(unit)
 
           expected_reason = plan.preconditions["preemption_reason"].to_s
           allowed_reasons = WorkIntents::TerminalUnitSync::SUPERSEDING_CANCEL_REASONS
@@ -1798,6 +1800,7 @@ module WorkEngine
           return skipped("#{work_unit_id_label(unit_id)} no longer exists") unless unit
           return skipped("#{work_unit_label(unit)} belongs to #{work_intent_id_label(unit.work_intent_id)}, not #{work_intent_label(intent)}") unless unit.work_intent_id == intent.id
           return skipped("#{work_unit_label(unit)} is #{unit.state}, not failed") unless unit.failed?
+          return skipped("#{work_unit_label(unit)} is not the latest finished unit of #{work_intent_label(intent)}") unless intent.settled_by?(unit)
 
           active_sibling_ids = intent.work_units
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
