@@ -175,13 +175,22 @@ describe("WorkflowsTab", () => {
     expect(screen.queryByRole("button", { name: "Retry failed step" })).not.toBeInTheDocument()
     const actions = screen.getByRole("button", { name: "Workflow actions" })
     expect(actions).toHaveClass("h-11", "w-11")
+    expect(actions).not.toHaveAttribute("aria-haspopup")
     fireEvent.click(actions)
 
+    expect(screen.getByRole("group", { name: "Workflow actions" })).toBeInTheDocument()
     expect(await screen.findByRole("button", { name: "Open terminal in workspace" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Retry failed step" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Push commits" })).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "Retry failed step" })).toHaveLength(1)
 
+    const retry = screen.getByRole("button", { name: "Retry failed step" })
+    retry.focus()
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(screen.queryByRole("group", { name: "Workflow actions" })).not.toBeInTheDocument()
+    expect(actions).toHaveFocus()
+
+    fireEvent.click(actions)
     fireEvent.click(screen.getByRole("button", { name: "Retry failed step" }))
     expect(cmd.mutate).toHaveBeenCalledWith(expect.objectContaining({ method: "post", path: summary.app_retry_step_path }))
 
@@ -191,6 +200,36 @@ describe("WorkflowsTab", () => {
     expect(await screen.findByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true")
     fireEvent.click(screen.getByRole("button", { name: "Show less" }))
     expect(screen.getByRole("button", { name: "Show more" })).toHaveAttribute("aria-expanded", "false")
+  })
+
+  it("omits the mobile actions trigger when every plugin action is unavailable", () => {
+    mockMobileViewport()
+    const workflow = workflowWithStepDetails({} as never)
+    workflow.state = "succeeded"
+    workflow.retry_available = false
+    workflow.cleaned_up_at = null
+
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            ui_workflow_actions: [
+              {
+                id: "terminal-workspace",
+                component: "terminal/OpenWorkspaceButton",
+                order: 10,
+                props: { availability_by_workflow_id: { [String(workflow.id)]: { available: false } } }
+              }
+            ],
+            workflows: [workflow]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole("button", { name: "Workflow actions" })).not.toBeInTheDocument()
   })
 
   it("fetches step and run detail only when a collapsed workflow is expanded", async () => {
