@@ -86,6 +86,11 @@
       "id": "backups",
       "title": "Backups",
       "summary": "Retention, replication and recovery never delete, overwrite or restore the wrong thing."
+    },
+    {
+      "id": "cli",
+      "title": "Syrus CLI",
+      "summary": "Credentials reach only the selected instance; mutations are confirmed, single and authorized server-side; checkout never destroys work."
     }
   ],
   "items": [
@@ -2688,6 +2693,23 @@
       "status": "partial",
       "done_by": "M21 (NY22 open)",
       "notes": "Known mismatches (adapter, database major version, older application, missing or mismatched required plugin) block. Missing or unparseable version information only warns and still reports ready (NY22)."
+    },
+    {
+      "id": "cli-token-origin",
+      "area": "cli",
+      "title": "Bearer tokens are attached only to the selected instance's origin",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "api.Client.newRequest resolved absolute and scheme-relative paths, then attached the token",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F75",
+      "notes": "Paths with their own scheme or host are refused, and the resolved endpoint must keep the instance origin. Cross-domain redirects already drop Authorization."
     }
   ],
   "needs_you": [

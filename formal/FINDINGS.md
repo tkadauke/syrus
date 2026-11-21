@@ -2461,6 +2461,39 @@ finished nor cancelled.
 
 ---
 
+## F75. The CLI's API client could send the user's token to another host — fixed
+
+**Found by** DOC-44 Phase 6, Syrus CLI: "API requests attach bearer tokens
+only to the selected instance origin," and "Plugin CLI paths cannot use the
+central client to send credentials to an absolute or scheme-relative foreign
+URL."
+
+**Gap.** `api.Client.newRequest` (`cli/pkg/api/client.go`) resolved the given
+path against the instance URL with `ResolveReference`, then always set
+`Authorization: Bearer <token>`. An absolute path (`https://other.host/x`) or
+a scheme-relative one (`//other.host/x`) resolves to that other host. Because
+`Client.Do` is exported precisely so that third-party plugin CLI modules can
+call it, a plugin, or any path assembled from server-supplied data, could
+deliver the user's Syrus token to an arbitrary host. The test saw `Bearer
+secret-token` arrive at the foreign server for both forms.
+
+Already safe: Go's HTTP client drops `Authorization` on a redirect to a
+different domain. The other places that set the header (`plugin_commands.go`,
+`plugin_new.go`, `local.go`) append fixed paths to the saved instance URL.
+
+**Fix.** `newRequest` refuses a path that names its own scheme or host, and
+checks that the resolved endpoint keeps the instance's scheme and host, before
+any request is built.
+
+**Spec.** `client_test.go` "TestRequestsNeverCarryTheTokenToAnotherOrigin":
+both forms are refused, the foreign host is never contacted, and an instance
+path still works (red before: two foreign hits carrying the token). All CLI
+packages pass and `go vet` is clean. This is adapter behaviour, so it is
+established by the Go test rather than a Lean model, as the plan assigns
+CLI adapters.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
