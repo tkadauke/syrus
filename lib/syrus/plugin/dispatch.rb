@@ -5,8 +5,6 @@ module Syrus
     # Resolves, composes, and safely invokes one declared family capability.
     module Dispatch
       class MissingKey < KeyError; end
-      class InvalidResult < TypeError; end
-
       InvocationProvider = Data.define(:provider, :invocation) do
         def key = provider.key
         def invoke
@@ -63,8 +61,7 @@ module Syrus
           ) do
             value = implementation.public_send(contract.name, context, **args)
             unless contract.return_contract.valid?(value)
-              raise InvalidResult,
-                "#{implementation}.#{contract.name} returned #{value.inspect}; expected #{contract.return_contract.description}"
+              next Syrus::PluginInvocation.decline(decline_value(contract))
             end
             value
           rescue ValidationError => error

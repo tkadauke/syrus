@@ -139,6 +139,8 @@ module Syrus
           |---|---|---|---|---|---|---|
           #{capability_rows.join("\n")}
 
+          For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
           | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
           |---|---|---|---|---|
           #{provider_rows.presence || "| - | - | - | - | - |"}
