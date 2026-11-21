@@ -3811,6 +3811,47 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M27. Epic-blocked Jobs are released once the Epic releases them — audited, no bug
+
+**Scope.** DOC-44 Epics, the coverage item `epic-blocked-job-releasable`: "A
+Job stays blocked by its Epic although the Epic now releases it." This should
+be transient at most.
+
+**Inputs of `Epic#releases_jobs_for_execution?`.** It holds when the Epic is
+in progress (or done) and `execution_dependencies_ready?` holds. That in turn
+means every upstream Epic is done, or the Linear early-execution policy says
+the dependencies are ready. The Linear policy depends on:
+
+- the feature flag;
+- a single same-repository upstream Epic that is also linear;
+- every upstream Job implemented, approved, landing or succeeded, with a
+  branch, a PR and a head SHA.
+
+**Each input change wakes the release:**
+
+- the Epic starting (`start` and `set_state(in_progress)`) runs
+  `unblock_child_jobs!`;
+- an upstream Epic's state change runs `refresh_dependent_epic_auto_states`
+  (`after_update_commit`), and through `refresh_auto_state!` reaches
+  `release_child_jobs_if_ready!`;
+- adding, changing or removing a dependency edge runs
+  `EpicDependency#refresh_dependent_epic` (`after_commit`);
+- an upstream Job becoming implemented runs
+  `Job#refresh_execution_ready_dependent_epics`. Its head SHA is derived from
+  its Runs and is already present by then.
+
+**The one unwatched input is the flag.** Turning on
+`early_epic_dependency_execution` wakes nothing. Even so, the Job is not
+stuck: `classify_releasable_epic_blocked_jobs` tests the *same* predicate
+(`releases_jobs_for_execution?` and `dependencies_satisfied_for_execution?`),
+and is safe to auto-repair whenever the Job can still be released. So any
+missed wake-up is released on the next reconciler pass.
+
+Production (read-only): no `releasable_epic_blocked_job` repairs in the
+retained history.
+
+---
+
 ## M26. A failed Step on a queued Workflow — dispatch audited, one design question
 
 **Scope.** DOC-44, the coverage item `queued-workflow-with-failed-step`:

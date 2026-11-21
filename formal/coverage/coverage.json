@@ -1844,9 +1844,9 @@
         "happy_path_job_with_epic_dependency_lands",
         "cross_epic_approved_parent_waits_for_merge"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Missed wakeup; better to make blocked_by_epic a derived predicate so it cannot drift. Production (read-only): no releasable_epic_blocked_job repairs in the retained history."
+      "status": "done",
+      "done_by": "M27",
+      "notes": "Missed wakeup; better to make blocked_by_epic a derived predicate so it cannot drift. Production (read-only): no releasable_epic_blocked_job repairs in the retained history. M27: every input except the early-execution flag has a wake-up; the reconciler classifier uses the identical predicate and auto-repairs, so a missed wake-up resolves within one pass."
     },
     {
       "id": "epic-linear-children",
