@@ -3725,6 +3725,27 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(AutoRetryAttempt.where(run: run).count).to be <= 1
   end
 
+  # The divergence recovery retries from the current PR branch, so the branch
+  # having moved is its premise. AutoRetryJob's rewritten-branch skip applied
+  # to it as well, so the recovery was skipped and replanned on every pass and
+  # never ran.
+  it "performs the branch-divergence recovery retry instead of skipping it as rewritten" do
+    job.update!(state: "failed", pr_number: 77, branch_name: "syrus/issue-42-#{job.id}", mergeability_head_sha: "remote-head")
+    workflow.update_columns(state: "failed", trigger_kind: "retry", finished_at: 10.minutes.ago)
+    step.update_columns(kind: "pr_open", state: "failed", finished_at: 10.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 10.minutes.ago, agent_provider: "claude", head_sha: "stale-local")
+    run.create_run_failure_classification!(classification: "branch_diverged", retryable: false, confidence: 0.95, reason: "diverged", classified_at: 10.minutes.ago)
+    workflow.set_artifact!("branch_divergence", { "branch" => job.branch_name, "remote_sha" => "remote-head", "local_sha" => "stale-local" })
+    job.update_columns(mergeability_checked_at: 1.minute.ago)
+
+    reconcile_and_execute(workflow_id: workflow.id)
+    attempt = AutoRetryAttempt.find_by!(run: run, retry_kind: "retry_workflow")
+    attempt.update_columns(scheduled_at: 1.minute.ago)
+    AutoRetryJob.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).not_to eq(AutoRetryAttempt::BRANCH_REWRITTEN_SKIP_REASON)
+  end
+
   it "plans a fresh retry from the current PR branch for the latest failed branch divergence" do
     job.update!(
       state: "failed",
@@ -7297,6 +7318,30 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(missing_issue.affected_ids[:run_ids]).to include(missing.id)
     expect(missing_issue.safe_to_auto_repair).to eq(false)
     expect(plan(result, :resume_failed_step)).to have_attributes(auto_executable: true, target_id: present.id)
+  end
+
+  # Same loop as the retry planner's (F44): AutoRetryJob skips a resume whose
+  # Run's workspace the branch has moved past, budget-exempt, and requests a
+  # reconciliation; this planner did not check it either.
+  it "does not keep planning resumes from a Run whose branch was rewritten" do
+    job.update_columns(state: "failed", pr_number: 77, branch_name: "syrus/issue-42-#{job.id}")
+    workflow.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    agent_step = workflow.steps.find_by!(kind: "implement")
+    agent_step.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    failed = agent_step.runs.create!(
+      job: job, trigger_kind: workflow.trigger_kind, agent_provider: "claude", state: "failed",
+      agent_outcome: "worker_died", head_sha: "a" * 40, finished_at: 10.minutes.ago
+    )
+    ProviderSession.create!(resumable: failed, provider: "claude", session_id: "session-rewritten", transcript_jsonl: "{}\n")
+    job.update_columns(mergeability_head_sha: "b" * 40, mergeability_checked_at: 1.minute.ago)
+
+    3.times do
+      reconcile_and_execute(workflow_id: workflow.id)
+      AutoRetryAttempt.pending.update_all(scheduled_at: 1.minute.ago)
+      AutoRetryAttempt.pending.each { |attempt| AutoRetryJob.perform_now(attempt.id) }
+    end
+
+    expect(AutoRetryAttempt.where(run: failed).count).to be <= 1
   end
 
   it "ignores stale failed resumable runs after a newer run owns the step" do

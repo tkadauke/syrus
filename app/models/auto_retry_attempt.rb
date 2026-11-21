@@ -180,7 +180,10 @@ class AutoRetryAttempt < ApplicationRecord
     return "source workflow was already superseded by a successful workflow" if superseded_by_successful_workflow?
     return "source step already recovered" if run&.step&.state.in?(%w[succeeded skipped])
     return "source step superseded by a later loop iteration" if run&.step&.superseded_by_later_loop_iteration?
-    return BRANCH_REWRITTEN_SKIP_REASON if branch_head_moved?
+    # Only a same-attempt retry reuses the source Run's workspace; a fresh
+    # Workflow starts from the current PR branch, so a moved branch is what
+    # it recovers from, not a reason to skip it.
+    return BRANCH_REWRITTEN_SKIP_REASON if same_attempt_retry? && branch_head_moved?
 
     nil
   end
@@ -199,6 +202,10 @@ class AutoRetryAttempt < ApplicationRecord
   # are simply from different moments and a difference proves nothing.
   def branch_head_moved?
     self.class.branch_rewritten_since?(job, run)
+  end
+
+  def same_attempt_retry?
+    retry_kind.in?(WorkUnits::AutoRetryBackoff::SAME_ATTEMPT_RETRY_KINDS)
   end
 
   def request_reconciliation
