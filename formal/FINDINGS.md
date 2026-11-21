@@ -2146,7 +2146,11 @@ Later commits, checked in the next iteration:
   presentation only. Its invariant (a "newest" lookup returns the newest) turned
   out to fail in 41 places: F59, proved in `AssociationOrder.lean`.
 
-Checked through main `a47a6abd37`. Each loop iteration continues from there:
+- "Prevent long diff filenames from widening step views": a CSS-only layout
+  fix whose invariant (a file row never widens the page) is geometry, pinned by
+  its own `ReviewableDiff.test.tsx` regression; no engine state involved.
+
+Checked through main `d7403fee64`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
