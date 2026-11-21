@@ -106,7 +106,8 @@ module WorkEngine
         auto_retry_failed_jobs: true,
         global_reconcile: false,
         max_ticks: DEFAULT_MAX_TICKS,
-        ignored_reconciler_issue_kinds: DEFAULT_IGNORED_RECONCILER_ISSUE_KINDS
+        ignored_reconciler_issue_kinds: DEFAULT_IGNORED_RECONCILER_ISSUE_KINDS,
+        tick_observer: nil
       )
         @job_ids = Array(job_ids).map(&:to_i)
         @work_intent_ids = Array(work_intent_ids).map(&:to_i)
@@ -121,6 +122,10 @@ module WorkEngine
         @global_reconcile = global_reconcile
         @max_ticks = max_ticks.to_i.positive? ? max_ticks.to_i : DEFAULT_MAX_TICKS
         @ignored_reconciler_issue_kinds = Array(ignored_reconciler_issue_kinds).map(&:to_s)
+        # Called with the tick number at the start of each tick, before the
+        # reconciler acts. The Lean oracle conformance spec compares the two
+        # reconcilers on every intermediate world through it (DOC-44 Phase 2).
+        @tick_observer = tick_observer
         @events = []
         @run_attempts = Hash.new(0)
         @worker_index = 0
@@ -133,6 +138,7 @@ module WorkEngine
               max_ticks.times do |tick|
                 before = fingerprint
                 apply_scenario_events!(tick)
+                @tick_observer&.call(tick)
                 reconcile!(tick)
                 process_auto_retry_attempts!(tick)
                 retry_failed_jobs!(tick)

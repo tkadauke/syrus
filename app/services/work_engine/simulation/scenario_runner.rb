@@ -1,7 +1,7 @@
 module WorkEngine
   module Simulation
     class ScenarioRunner
-      def self.call(path:, max_ticks: nil)
+      def self.call(path:, max_ticks: nil, tick_observer: nil)
         SolidQueueBootstrap.ensure! if Rails.env.test?
         world = ScenarioLoader.load!(path)
         tick_limit = max_ticks.presence || world.max_ticks.presence || DEFAULT_MAX_TICKS
@@ -28,7 +28,8 @@ module WorkEngine
           wait_states: wait_states,
           auto_retry_failed_jobs: world.runner.fetch("auto_retry_failed_jobs", true),
           global_reconcile: world.runner.fetch("global_reconcile", false),
-          max_ticks: tick_limit
+          max_ticks: tick_limit,
+          tick_observer: tick_observer
         }
         if world.reconciler.key?("ignored_issue_kinds")
           runner_args[:ignored_reconciler_issue_kinds] = world.reconciler.fetch("ignored_issue_kinds")
