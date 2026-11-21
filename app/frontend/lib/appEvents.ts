@@ -612,7 +612,9 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
     case "job":
       return jobQueryKeysFor(event)
     case "workflow":
-      return event.id == null ? [["dashboard"], ["workflows"]] : [["dashboard"], ["workflows"], ["workflows", String(event.id)]]
+      return event.id == null
+        ? [["dashboard"], ["workflows"], ["sidebar_badge"]]
+        : [["dashboard"], ["workflows"], ["workflows", String(event.id)], ["sidebar_badge"]]
     case "epic":
       return event.id == null ? [["dashboard"], ["epics"]] : [["dashboard"], ["epics"], ["epics", String(event.id)]]
     case "repository":
@@ -665,12 +667,13 @@ function chatMessageTailChanged(event: AppEvent) {
 }
 
 function jobQueryKeysFor(event: AppEvent): QueryKey[] {
-  if (event.id == null) return [["dashboard"], ["jobs"], ["job_run_artifacts"]]
+  const sidebarBadgeKey: QueryKey = ["sidebar_badge"]
+  if (event.id == null) return [["dashboard"], ["jobs"], ["job_run_artifacts"], sidebarBadgeKey]
 
   const id = String(event.id)
   const previewKey: QueryKey = ["jobs", id]
   const detailKey: QueryKey = workflowOnlyJobEvent(event) ? ["jobs", id, "workflows"] : ["jobs", id, "detail"]
-  return [["dashboard"], ["jobs"], previewKey, detailKey, ...jobSectionQueryKeys(event, id), ["job_run_artifacts", id]]
+  return [["dashboard"], ["jobs"], previewKey, detailKey, ...jobSectionQueryKeys(event, id), ["job_run_artifacts", id], sidebarBadgeKey]
 }
 
 function jobSectionQueryKeys(event: AppEvent, id: string): QueryKey[] {

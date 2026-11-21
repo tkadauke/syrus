@@ -156,6 +156,7 @@ per-user/private:
   - app/controllers/api/v1/app/provider_routing_rules_controller.rb
   - plugins/scheduled_tasks/app/controllers/api/v1/app/cron_templates_controller.rb
   - app/controllers/api/v1/app/dashboard_controller.rb
+  - plugins/review_workspace/app/controllers/api/v1/app/review_workspace_controller.rb
   - app/controllers/api/v1/app/desktop_tokens_controller.rb
   - app/controllers/api/v1/app/diff_review_comments_controller.rb
   - app/controllers/api/v1/app/diff_review_versions_controller.rb

@@ -673,6 +673,7 @@ en:
         repository_change_too_late: "Repository can only be changed before the first message."
 
     base:
+      stale_job: "This Job changed after it was displayed. Review its current state before acting."
       unauthorized: "Provide a valid API token via `Authorization: Bearer <token>`."
       admin_required: "Admin API endpoints require an admin user's token."
       sign_in_required: "Sign in to use the app API."

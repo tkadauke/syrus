@@ -123,6 +123,31 @@ The view stays inert until a provider plugin is installed and you add an
 explicit delegation. Revoking a delegation takes effect immediately, and
 workflow agents cannot create or revoke delegations.
 
+## Review Workspace
+
+The bundled Review Workspace plugin adds a top-level **Review** destination
+with a live badge. It shows only implemented, non-investigation Jobs that the
+signed-in operator can see, modify, and approve now, excluding Jobs with
+approval-blocking runtime work. The list puts dependency-ready Jobs first,
+then applies explicit priority, ready age, and Job ID for stable ordering.
+When the Jobs dashboard is available, an optional notice shows the same
+actionable count and links into Review. The Review route remains available
+independently of the dashboard, so replacing or disabling the dashboard does
+not remove direct links or the sidebar destination.
+
+Review opens as a full-screen, distraction-free workspace with the eligible
+Job rail, canonical Job review evidence and source diff, and approval and
+feedback controls. Visual evidence, diff versions, annotations, and
+plugin-contributed findings stay identical to Job detail. Keyboard controls
+mirror the visible actions for selecting Jobs, browsing evidence, approving,
+giving feedback, and exiting.
+
+Review links are safe to bookmark. If a selected Job is no longer actionable,
+the workspace selects the first current item or shows an all-caught-up state.
+Defer is session-only; the plugin stores no read, unread, inbox, or durable
+deferred state. Disabling it removes its page, API, sidebar badge, and dashboard
+notice without changing Job data.
+
 The same canonical policy evaluator governs ordinary chat, coworkers, Local
 Mode, scheduled work, and workflow agents. Benign descriptor defaults remain
 automatic; an `ask` always pauses at an approval boundary and never becomes an

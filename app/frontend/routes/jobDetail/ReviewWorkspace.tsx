@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "react"
 import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "../../components/Button"
 import { DocumentPreviewModal } from "../../components/DocumentPreviewModal"
 import { GearIcon } from "../../components/GearIcon"
@@ -109,7 +110,21 @@ export async function fetchProfiledSourceDiff(jobId: string, search = "") {
   }
 }
 
-export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLineMetricProviders?: DiffLineMetricProvider[]; payload: JobDetailPayload }) {
+export function ReviewWorkspace({
+  conversationPortalTarget = null,
+  diffLineMetricProviders,
+  payload,
+  showConversation = true,
+  showEmptyVisualEvidence = false,
+  visualEvidenceNavigation
+}: {
+  conversationPortalTarget?: Element | null
+  diffLineMetricProviders?: DiffLineMetricProvider[]
+  payload: JobDetailPayload
+  showConversation?: boolean
+  showEmptyVisualEvidence?: boolean
+  visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
+}) {
   const { t } = useT("jobs")
   const { t: commonT } = useT("common")
   const jobId = payload.job.id
@@ -454,7 +469,9 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             gallery={payload.visual_evidence}
             selectedRange={selectedRange}
             selectedVersion={selectedVersion}
+            showEmptyState={showEmptyVisualEvidence}
             versions={versions}
+            navigation={visualEvidenceNavigation}
           />
 
           {/*
@@ -547,7 +564,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             />
           </Section.Root>
         </div>
-        {isDesktopSplit ? (
+        {showConversation && isDesktopSplit ? (
           <ReviewCommentsSplitterHandle
             collapsed={commentsSplitter.collapsed}
             label={t("review_comments_splitter_label")}
@@ -564,14 +581,16 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             valueNow={commentsSplitter.collapsed ? 0 : commentsSplitter.width}
           />
         ) : null}
-        <div
-          className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
-          data-testid="review-comments-panel"
-          style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
-        >
-          {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
-        </div>
-        {isDesktopSplit && commentsSplitter.collapsed ? (
+        {showConversation ? (
+          <div
+            className={`${isDesktopSplit && commentsSplitter.collapsed ? "hidden" : ""} min-w-0 max-w-full lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:overflow-y-auto`}
+            data-testid="review-comments-panel"
+            style={isDesktopSplit ? { width: `${commentsSplitter.width}px` } : undefined}
+          >
+            {isDesktopSplit && commentsSplitter.collapsed ? null : feedback.panel}
+          </div>
+        ) : null}
+        {showConversation && isDesktopSplit && commentsSplitter.collapsed ? (
           <ReviewCommentsCollapsedRail
             label={t("review_comments_collapsed_aria")}
             onMouseEnter={openCommentsPeek}
@@ -579,7 +598,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             summaries={feedback.versionSummaries}
           />
         ) : null}
-        {isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
+        {showConversation && isDesktopSplit && commentsSplitter.collapsed && commentsPeekOpen ? (
           <div
             className="absolute top-0 z-30 h-screen min-w-0 overflow-y-auto shadow-2xl"
             data-testid="review-comments-peek"
@@ -590,6 +609,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             {feedback.panel}
           </div>
         ) : null}
+        {!showConversation && conversationPortalTarget ? createPortal(feedback.panel, conversationPortalTarget) : null}
         {settingsOpen ? (
           <ReviewDiffSettingsModal
             initialSettings={{ ...reviewSettings, metric_gutter: activeMetricGutterId }}
@@ -608,25 +628,51 @@ export function VisualEvidenceGallery({
   gallery,
   selectedRange = null,
   selectedVersion = null,
-  versions = []
+  showEmptyState = false,
+  versions = [],
+  navigation
 }: {
   approved: boolean
   artifacts?: TypedArtifact[]
   gallery: JobDetailPayload["visual_evidence"]
   selectedRange?: { baseSha: string; headSha: string } | null
   selectedVersion?: DiffReviewVersion | null
+  showEmptyState?: boolean
   versions?: DiffReviewVersion[]
+  navigation?: { direction: -1 | 1; sequence: number }
 }) {
   const { t } = useT("jobs")
   const [showAll, setShowAll] = useState(false)
-  const [preview, setPreview] = useState<{ title: string; url: string } | null>(null)
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const evidence = gallery || { captured_count: 0, submitted_count: 0, screenshots: [] }
   const submitted = evidence.screenshots.filter((screenshot) => screenshot.status === "submitted")
   const screenshots = showAll ? evidence.screenshots : submitted
+  const movePreview = (direction: -1 | 1) => {
+    if (screenshots.length === 0) return
+    setPreviewIndex((current) => {
+      const startingIndex = current == null ? (direction === 1 ? -1 : 0) : current
+      return (startingIndex + direction + screenshots.length) % screenshots.length
+    })
+  }
+  useEffect(() => {
+    if (!navigation || screenshots.length === 0) return
+    movePreview(navigation.direction)
+    // The navigation sequence is the external command signal; screenshot
+    // count supplies the wrap boundary.
+  }, [navigation, screenshots.length])
+  const preview = previewIndex == null ? null : screenshots[previewIndex]
 
   const typedArtifacts = artifacts.filter((artifact) => !isRepresentedByGalleryEvidence(artifact, submitted))
 
-  if (evidence.captured_count === 0 && typedArtifacts.length === 0) return null
+  if (evidence.captured_count === 0 && typedArtifacts.length === 0) {
+    if (!showEmptyState) return null
+    return (
+      <Section.Root>
+        <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
+        <p className="mt-3 text-sm text-text-muted">{t("visual_evidence_none")}</p>
+      </Section.Root>
+    )
+  }
 
   return (
     <Section.Root>
@@ -662,11 +708,7 @@ export function VisualEvidenceGallery({
             const viewport = screenshot.viewport?.width && screenshot.viewport?.height ? `${screenshot.viewport.width}×${screenshot.viewport.height}` : null
             return (
               <figure className={`${surfaceClasses("panel", "sm")} max-w-lg`} key={screenshot.id}>
-                <button
-                  className="flex w-full cursor-zoom-in justify-center"
-                  onClick={() => setPreview({ title: pageLabel, url: screenshot.image_url })}
-                  type="button"
-                >
+                <button className="flex w-full cursor-zoom-in justify-center" onClick={() => setPreviewIndex(screenshots.indexOf(screenshot))} type="button">
                   <img
                     alt={pageLabel}
                     className="max-h-72 max-w-full rounded-md border border-border object-contain"
@@ -696,7 +738,20 @@ export function VisualEvidenceGallery({
         </div>
       ) : null}
       {preview ? (
-        <DocumentPreviewModal file={{ contentType: "image/png", rawUrl: preview.url, title: preview.title }} onClose={() => setPreview(null)} />
+        <DocumentPreviewModal
+          file={{ contentType: "image/png", rawUrl: preview.image_url, title: preview.page?.title || preview.page?.path || t("visual_evidence_unknown_page") }}
+          footerActions={
+            <div aria-label={t("visual_evidence_navigation")} className="flex gap-2">
+              <Button onClick={() => movePreview(-1)} size="sm" variant="secondary">
+                {t("visual_evidence_previous")}
+              </Button>
+              <Button onClick={() => movePreview(1)} size="sm" variant="secondary">
+                {t("visual_evidence_next")}
+              </Button>
+            </div>
+          }
+          onClose={() => setPreviewIndex(null)}
+        />
       ) : null}
     </Section.Root>
   )
