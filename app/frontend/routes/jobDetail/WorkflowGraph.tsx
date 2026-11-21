@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
 import { PluginUiSlot, pluginUiSlotComponentFor, type UiSlotPanel } from "../../pluginUiSlots"
@@ -80,7 +80,16 @@ import {
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill, TranscriptPagination } from "./components"
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { WorkflowReference } from "../../components/WorkflowReference"
-import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
+import {
+  actionMenuClass,
+  artifactPanelClass,
+  disabledPaginationClass,
+  formatCurrency,
+  formatDuration,
+  paginationLinkClass,
+  shortSha,
+  withRoutePrefix
+} from "./formatting"
 import {
   stepArtifactAdversarialReview,
   stepArtifactCoworkerReview,
@@ -663,6 +672,30 @@ function WorkflowMobileControls({
   const hasCommands = Boolean(pluginActions.length || workflow.retry_available || (workflow.state === "failed" && !workflow.cleaned_up_at))
   const menuPosition = workflowMenuPosition(triggerRef.current)
 
+  useEffect(() => {
+    if (!menuOpen) return
+    menuRef.current?.querySelector<HTMLElement>("[role='menuitem']:not([disabled])")?.focus()
+  }, [menuOpen, menuRef])
+
+  function handleMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return
+
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']:not([disabled])") || [])
+    if (items.length === 0) return
+
+    event.preventDefault()
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement)
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? items.length - 1
+          : event.key === "ArrowDown"
+            ? (currentIndex + 1) % items.length
+            : (currentIndex - 1 + items.length) % items.length
+    items[nextIndex]?.focus()
+  }
+
   return (
     <div className="flex shrink-0 items-center gap-1">
       {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
@@ -683,25 +716,34 @@ function WorkflowMobileControls({
           {menuOpen && menuPosition
             ? createPortal(
                 <div
-                  className={surfaceClasses(
-                    "raised",
-                    "none",
-                    "fixed z-20 w-56 py-1 [&_button]:!flex [&_button]:!h-11 [&_button]:!w-full [&_button]:!justify-start [&_button]:!rounded-none [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!px-4 [&_button]:!py-2 [&_button]:!text-left [&_button]:!text-sm [&_button]:hover:!bg-surface-raised [&>div]:!w-full [&>div]:!max-w-none"
-                  )}
+                  className={`${actionMenuClass()} [&_button]:!flex [&_button]:!h-11 [&_button]:!w-full [&_button]:!justify-start [&_button]:!rounded-none [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!px-4 [&_button]:!py-2 [&_button]:!text-left [&_button]:!text-sm [&_button]:hover:!bg-surface-raised [&>div]:!w-full [&>div]:!max-w-none`}
                   aria-label={t("workflow_actions")}
                   onClick={() => setMenuOpen(false)}
+                  onKeyDown={handleMenuKeyDown}
                   ref={menuRef}
                   role="menu"
                   style={menuPosition}
                 >
-                  <PluginUiSlot panels={pluginActions} props={{ prefix, workflow }} />
+                  <PluginUiSlot panels={pluginActions} props={{ prefix, role: "menuitem", tabIndex: -1, workflow }} />
                   {workflow.retry_available ? (
-                    <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">
+                    <CommandButton
+                      command={command}
+                      input={{ method: "post", path: workflow.app_retry_step_path }}
+                      role="menuitem"
+                      tabIndex={-1}
+                      tone="secondary"
+                    >
                       {t("retry_failed_step")}
                     </CommandButton>
                   ) : null}
                   {workflow.state === "failed" && !workflow.cleaned_up_at ? (
-                    <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">
+                    <CommandButton
+                      command={command}
+                      input={{ method: "post", path: workflow.app_push_commits_path }}
+                      role="menuitem"
+                      tabIndex={-1}
+                      tone="secondary"
+                    >
                       {t("push_commits")}
                     </CommandButton>
                   ) : null}

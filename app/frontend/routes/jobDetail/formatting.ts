@@ -20,6 +20,10 @@ export function menuButtonClass(tone: ButtonTone) {
   return `block w-full px-4 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone]}`
 }
 
+export function actionMenuClass() {
+  return "fixed z-20 w-56 rounded border border-border bg-surface py-1 shadow-lg"
+}
+
 export function paginationLinkClass() {
   return "rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
 }
