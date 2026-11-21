@@ -98,15 +98,26 @@ export function CommandButton({
   children,
   command,
   input,
+  role,
+  tabIndex,
   tone = "primary"
 }: {
   children: ReactNode
   command: JobCommand
   input: CommandInput
+  role?: "menuitem"
+  tabIndex?: number
   tone?: ButtonTone
 }) {
   return (
-    <button className={buttonClass(tone)} disabled={commandPendingFor(command, input)} onClick={() => command.mutate(input)} type="button">
+    <button
+      className={buttonClass(tone)}
+      disabled={commandPendingFor(command, input)}
+      onClick={() => command.mutate(input)}
+      role={role}
+      tabIndex={tabIndex}
+      type="button"
+    >
       {children}
     </button>
   )
