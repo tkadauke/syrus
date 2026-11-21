@@ -85,7 +85,10 @@ reasoned about in proofs.
 - `Kernel/Examples.lean`: small worlds checked by `decide`; the first oracle
   and conformance fixtures.
 
-Still to come in Phase 1: validity preservation and repair scoping,
+- `Kernel/Preservation.lean`: `reconcile_valid` (a valid world stays valid) and
+  repair scoping (a record changes only under its own finished Workflow).
+
+Still to come in Phase 1:
 dependencies with their satisfaction modes, and the executable oracle.
 
 ## Next steps
