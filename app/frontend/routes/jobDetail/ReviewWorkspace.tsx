@@ -185,8 +185,9 @@ export function ReviewWorkspace({
   })
   const activeVersionId = selectedRange ? (rangeDiff.data?.version?.id ?? null) : (selectedVersionId ?? defaultVersionId)
   const historicalVersionSelected = !selectedRange && activeVersionId != null && activeVersionId !== payloadVersionId
+  const historicalVersionBelongsToJob = historicalVersionSelected && versions.some((version) => version.id === activeVersionId)
   const historicalVersion = useQuery({
-    enabled: sourceDiff.isSuccess && historicalVersionSelected,
+    enabled: sourceDiff.isSuccess && historicalVersionBelongsToJob,
     queryKey: ["jobs", String(jobId), "diff_review_versions", activeVersionId],
     queryFn: () => fetchDiffReviewVersion(jobId, activeVersionId!)
   })
@@ -264,6 +265,19 @@ export function ReviewWorkspace({
   useEffect(() => {
     if (defaultVersionId && selectedVersionId == null) setSelectedVersionId(defaultVersionId)
   }, [defaultVersionId, selectedVersionId])
+
+  useEffect(() => {
+    if (!versionsQuery.isSuccess || selectedVersionId == null) return
+    if (versions.some((version) => version.id === selectedVersionId)) return
+    setSelectedRange(null)
+    setSelectedVersionId(defaultVersionId)
+  }, [defaultVersionId, selectedVersionId, versions, versionsQuery.isSuccess])
+
+  useEffect(() => {
+    if (!historicalVersion.isError) return
+    setSelectedRange(null)
+    setSelectedVersionId(payloadVersionId)
+  }, [historicalVersion.isError, payloadVersionId])
 
   useEffect(() => {
     return () => {
@@ -397,9 +411,7 @@ export function ReviewWorkspace({
   if (sourceDiff.isError) return <PanelMessage tone="error">{errorMessage(sourceDiff.error, t("review_load_error"))}</PanelMessage>
   if (sourceDiff.data.diff_error) return <PanelMessage tone="error">{sourceDiff.data.diff_error}</PanelMessage>
   if (!activeDiff) return <PanelMessage>{t("review_loading")}</PanelMessage>
-  if (historicalVersionSelected && historicalVersion.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
-  if (historicalVersionSelected && historicalVersion.isError)
-    return <PanelMessage tone="error">{errorMessage(historicalVersion.error, t("source_diff_error"))}</PanelMessage>
+  if (historicalVersionBelongsToJob && historicalVersion.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
   if (selectedRange && rangeDiff.isPending) return <PanelMessage>{t("source_diff_loading")}</PanelMessage>
   if (selectedRange && rangeDiff.isError) return <PanelMessage tone="error">{staleRangeErrorMessage(rangeDiff.error, t)}</PanelMessage>
   if (activeDiff.diff_error) return <PanelMessage tone="error">{activeDiff.diff_error}</PanelMessage>

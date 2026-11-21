@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { createPortal } from "react-dom"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -19,12 +19,12 @@ class TestPointerEvent extends MouseEvent {
 vi.stubGlobal("PointerEvent", TestPointerEvent)
 
 const jobApi = vi.hoisted(() => ({
-  fetchJobDetail: vi.fn(async () => ({
-    job: { id: 42, summary_state: "implemented" },
+  fetchJobDetail: vi.fn(async (id = "42") => ({
+    job: { id: Number(id), summary_state: "implemented" },
     actions: { can_approve: true },
     paths: { app_approve_path: "/canonical/jobs/42/approve" }
   })),
-  fetchJobTab: vi.fn(async (_id: string, tab: string) =>
+  fetchJobTab: vi.fn(async (_id: string, tab: string): Promise<Record<string, unknown>> =>
     tab === "review"
       ? {
           typed_artifacts: [{ type: "security_review", title: "Security review approved", renderer_type: "data_table" }],
@@ -46,12 +46,12 @@ vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({
     visualEvidenceNavigation
   }: {
     conversationPortalTarget?: Element | null
-    payload?: { visual_evidence?: { screenshots?: unknown[] } }
+    payload?: { job?: { id: number }; visual_evidence?: { screenshots?: unknown[] } }
     showConversation?: boolean
     visualEvidenceNavigation?: { direction: number }
   }) => (
     <div>
-      Canonical review evidence
+      Canonical review evidence for Job {payload?.job?.id}
       <span>Conversation {showConversation === false ? "hidden" : "shown"}</span>
       <span>{payload?.visual_evidence?.screenshots?.length ? `${payload.visual_evidence.screenshots.length} screenshots` : "No screenshots"}</span>
       {conversationPortalTarget ? createPortal(<div>Canonical contributed findings</div>, conversationPortalTarget) : null}
@@ -118,18 +118,18 @@ describe("ReviewWorkspaceRoute", () => {
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
   })
 
-  it("uses canonical evidence and progresses after approval", async () => {
+  it("uses the compact mobile hierarchy and progresses after approval", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async () => new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
 
-    expect(await screen.findByText("Canonical review evidence")).toBeInTheDocument()
-    expect(screen.getByText("Conversation hidden")).toBeInTheDocument()
-    const findings = screen.getByRole("region", { name: "Risk and review findings" })
-    expect(within(findings).getByText("Canonical contributed findings")).toBeInTheDocument()
+    expect(await screen.findByTestId("mobile-review-summary")).toBeInTheDocument()
+    expect(screen.queryByText("Canonical review evidence")).not.toBeInTheDocument()
+    expect(screen.getByText(/Swipe up or down/)).toBeInTheDocument()
+    expect(screen.queryByText(/J \/ K move/)).not.toBeInTheDocument()
     expect(screen.queryByText("Security review approved")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Approve for landing (A)" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
     await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/canonical/jobs/42/approve", { expected_revision: 3 }))
   })
@@ -140,7 +140,7 @@ describe("ReviewWorkspaceRoute", () => {
     )
     renderRoute("/review/JOB-42")
 
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
     const workspace = screen.getByRole("main", { name: "Review" })
     const scroller = screen.getByTestId("review-workspace-scroll-container")
     expect(workspace).toHaveClass("h-dvh", "overflow-hidden")
@@ -154,10 +154,10 @@ describe("ReviewWorkspaceRoute", () => {
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
     expect(screen.getByRole("main", { name: "Review" })).toHaveClass("bg-page", "text-text")
     expect(screen.getByRole("button", { name: "Job details" })).toHaveClass("min-h-11", "min-w-11", "bg-surface")
-    expect(screen.getByRole("complementary", { name: "Decision context" })).toHaveClass("bg-surface")
+    expect(screen.getByRole("complementary", { name: "Decision context" })).toHaveClass("max-lg:bg-transparent")
   })
 
   it("focuses the discoverable exit and supports keyboard Job navigation", async () => {
@@ -172,16 +172,20 @@ describe("ReviewWorkspaceRoute", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
   })
 
-  it("navigates canonical visual evidence with both arrow keys", async () => {
+  it("navigates mobile visual evidence with both arrow keys", async () => {
+    jobApi.fetchJobTab
+      .mockImplementationOnce(async () => ({}))
+      .mockImplementationOnce(async () => ({ visual_evidence: { captured_count: 2, submitted_count: 2, screenshots: [screenshot(1), screenshot(2)] } }))
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
+    expect(screen.getByText("1 of 2")).toBeInTheDocument()
     fireEvent.keyDown(window, { key: "ArrowRight" })
-    expect(await screen.findByText("Evidence direction 1")).toBeInTheDocument()
+    expect(await screen.findByText("2 of 2")).toBeInTheDocument()
     fireEvent.keyDown(window, { key: "ArrowLeft" })
-    expect(await screen.findByText("Evidence direction -1")).toBeInTheDocument()
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
   })
 
   it("does not offer approval when the canonical payload denies it", async () => {
@@ -194,7 +198,7 @@ describe("ReviewWorkspaceRoute", () => {
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    expect(await screen.findByRole("button", { name: "Approve for landing (A)" })).toBeDisabled()
+    expect(await screen.findByRole("button", { name: "Approve for landing" })).toBeDisabled()
     fireEvent.keyDown(window, { key: "a" })
     expect(screen.queryByText("Approve JOB-42 for landing?")).not.toBeInTheDocument()
   })
@@ -205,8 +209,8 @@ describe("ReviewWorkspaceRoute", () => {
     )
     renderRoute("/review/JOB-42")
 
-    await screen.findByText("Canonical review evidence")
-    fireEvent.click(screen.getByRole("button", { name: "Give feedback (F)" }))
+    await screen.findByTestId("mobile-review-summary")
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
     fireEvent.change(await screen.findByLabelText("What should change?"), { target: { value: "Please tighten this." } })
     fireEvent.click(screen.getByRole("button", { name: "Send feedback" }))
     await waitFor(() => expect(jobApi.submitJobFeedback).toHaveBeenCalledWith(42, "Please tighten this.", 3))
@@ -227,7 +231,7 @@ describe("ReviewWorkspaceRoute", () => {
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
     const card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
     fireEvent.pointerMove(card, { clientX: 170, clientY: 205, pointerId: 1, pointerType: "touch" })
@@ -243,7 +247,7 @@ describe("ReviewWorkspaceRoute", () => {
       new Response(JSON.stringify({ count: 2, jobs: [job(), second] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
     const card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 11, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 170, clientY: 200, pointerId: 11, pointerType: "touch" })
@@ -252,6 +256,10 @@ describe("ReviewWorkspaceRoute", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
     await waitFor(() => expect(jobApi.fetchJobDetail).toHaveBeenCalledWith("43"))
     expect(screen.queryByText("Approve JOB-43 for landing?")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Job details" }))
+    expect(await screen.findByText("Canonical review evidence for Job 43")).toBeInTheDocument()
+    expect(screen.queryByText("Canonical review evidence for Job 42")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close Job details" }))
     fireEvent.keyDown(window, { key: "k" })
     await waitFor(() => expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("aria-current", "page"))
     expect(screen.queryByText("Approve JOB-42 for landing?")).not.toBeInTheDocument()
@@ -263,7 +271,7 @@ describe("ReviewWorkspaceRoute", () => {
       new Response(JSON.stringify({ count: 2, jobs: [job(), second] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
     const scroller = screen.getByTestId("review-workspace-scroll-container")
     Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 300 })
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 })
@@ -294,7 +302,7 @@ describe("ReviewWorkspaceRoute", () => {
       new Response(JSON.stringify({ count: 2, jobs: [job(), second] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
     let card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { button: 0, clientX: 150, clientY: 300, pointerId: 2, pointerType: "mouse" })
     fireEvent.pointerUp(card, { button: 0, clientX: 153, clientY: 260, pointerId: 2, pointerType: "mouse" })
@@ -313,7 +321,7 @@ describe("ReviewWorkspaceRoute", () => {
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
     vi.useFakeTimers()
     const card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 5, pointerType: "touch" })
@@ -323,6 +331,7 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 6, pointerType: "touch" })
     act(() => vi.advanceTimersByTime(600))
     expect(screen.getByRole("dialog", { name: "Job details" })).toBeInTheDocument()
+    expect(screen.getByText("Canonical review evidence for Job 42")).toBeInTheDocument()
     vi.useRealTimers()
   })
 
@@ -331,7 +340,7 @@ describe("ReviewWorkspaceRoute", () => {
       async () => new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
     const card = screen.getByTestId("mobile-review-card")
     fireEvent.pointerDown(card, { clientX: 5, clientY: 200, pointerId: 7, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 100, clientY: 200, pointerId: 7, pointerType: "touch" })
@@ -341,10 +350,13 @@ describe("ReviewWorkspaceRoute", () => {
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
   })
 
-  it("passes multiple screenshots and the explicit no-screenshot state through canonical evidence", async () => {
+  it("presents multiple screenshots and the explicit no-screenshot state", async () => {
     jobApi.fetchJobTab
       .mockImplementationOnce(async () => ({}))
-      .mockImplementationOnce(async () => ({ typed_artifacts: [], visual_evidence: { screenshots: [{ id: 1 }, { id: 2 }] } }))
+      .mockImplementationOnce(async () => ({
+        typed_artifacts: [],
+        visual_evidence: { captured_count: 2, submitted_count: 2, screenshots: [screenshot(1), screenshot(2)] }
+      }))
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async () =>
         new Response(JSON.stringify({ count: 1, jobs: [job()] }), {
@@ -353,10 +365,10 @@ describe("ReviewWorkspaceRoute", () => {
         })
     )
     const first = renderRoute("/review/JOB-42")
-    expect(await screen.findByText("2 screenshots")).toBeInTheDocument()
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
     first.unmount()
     renderRoute("/review/JOB-42")
-    expect(await screen.findByText("No screenshots")).toBeInTheDocument()
+    expect(await screen.findByText("No submitted visual evidence for this Job.")).toBeInTheDocument()
   })
 
   it("refreshes eligibility and clears a stale Job after an approval error", async () => {
@@ -368,8 +380,8 @@ describe("ReviewWorkspaceRoute", () => {
     })
     jobApi.postJobCommand.mockRejectedValueOnce(new Error("Job is no longer eligible"))
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
-    fireEvent.click(screen.getByRole("button", { name: "Approve for landing (A)" }))
+    await screen.findByTestId("mobile-review-summary")
+    fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
     expect(workspaceRequests).toBeGreaterThan(1)
@@ -383,7 +395,7 @@ describe("ReviewWorkspaceRoute", () => {
       return new Response(JSON.stringify({ count: jobs.length, jobs }), { status: 200, headers: { "Content-Type": "application/json" } })
     })
     renderRoute("/review/JOB-42")
-    await screen.findByText("Canonical review evidence")
+    await screen.findByTestId("mobile-review-summary")
 
     window.dispatchEvent(new CustomEvent("syrus:app-event", { detail: { resource: "job", id: 42, type: "updated" } }))
 
@@ -403,5 +415,20 @@ function job() {
     dependency_blocked: false,
     repository: { id: 1, slug: "acme/widgets" },
     pr_number: 7
+  }
+}
+
+function screenshot(id: number) {
+  return {
+    id: String(id),
+    workflow_id: 1,
+    run_id: 1,
+    sequence: id,
+    status: "submitted",
+    captured_at: "2026-11-19T00:00:00Z",
+    page: { title: `Screenshot ${id}` },
+    viewport: { width: 390, height: 844 },
+    submission_failed: false,
+    image_url: `/screenshots/${id}.png`
   }
 }

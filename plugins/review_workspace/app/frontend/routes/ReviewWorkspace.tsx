@@ -7,6 +7,7 @@ import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 import { addAppEventListener } from "@app/lib/appEvents"
 import { normalizeJobDetailPayload } from "@app/lib/entityStore"
+import { Markdown } from "@app/lib/Markdown"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { ReviewWorkspace as CanonicalReviewWorkspace } from "@app/routes/jobDetail/ReviewWorkspace"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -27,13 +28,14 @@ export default function ReviewWorkspaceRoute() {
   const navigate = useNavigate()
   const { job_id: requestedJobId } = useParams()
   const prefix = routePrefix(location.pathname)
+  const isDesktop = useDesktopReviewLayout()
   const review = useQuery({ queryKey: ["review_workspace"], queryFn: fetchReviewWorkspace, refetchInterval: 30_000 })
   const queryClient = useQueryClient()
   const [deferred, setDeferred] = useState<Set<number>>(() => new Set())
   const [loadedDetail, setLoadedDetail] = useState<{ jobId: number; payload: JobDetailPayload } | null>(null)
-  const [evidenceNavigation, setEvidenceNavigation] = useState<{ direction: -1 | 1; sequence: number }>()
+  const [evidenceNavigation, setEvidenceNavigation] = useState<{ jobId: number; direction: -1 | 1; sequence: number }>()
   const [gestureIntent, setGestureIntent] = useState<{ jobId: number; sequence: number }>()
-  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [detailsJobId, setDetailsJobId] = useState<number | null>(null)
   const [conversationTarget, setConversationTarget] = useState<HTMLDivElement | null>(null)
   const exitRef = useRef<HTMLButtonElement>(null)
   const handleDetail = useCallback((jobId: number, payload: JobDetailPayload) => setLoadedDetail({ jobId, payload }), [])
@@ -107,7 +109,7 @@ export default function ReviewWorkspaceRoute() {
           <button
             aria-label={t("details")}
             className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
-            onClick={() => setDetailsOpen(true)}
+            onClick={() => setDetailsJobId(active.id)}
             type="button"
           >
             …
@@ -128,10 +130,17 @@ export default function ReviewWorkspaceRoute() {
         <MobileGestureSurface
           onApprove={() => setGestureIntent((current) => ({ jobId: active.id, sequence: (current?.sequence ?? 0) + 1 }))}
           onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
-          onDetails={() => setDetailsOpen(true)}
+          onDetails={() => setDetailsJobId(active.id)}
           onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
         >
-          <JobReview conversationTarget={conversationTarget} job={active} onDetail={handleDetail} visualEvidenceNavigation={evidenceNavigation} />
+          <JobReview
+            conversationTarget={conversationTarget}
+            isDesktop={isDesktop}
+            job={active}
+            onDetail={handleDetail}
+            onDetails={() => setDetailsJobId(active.id)}
+            visualEvidenceNavigation={evidenceNavigation?.jobId === active.id ? evidenceNavigation : undefined}
+          />
         </MobileGestureSurface>
         <DecisionPanel
           detail={loadedDetail?.jobId === active.id ? loadedDetail.payload : undefined}
@@ -141,19 +150,35 @@ export default function ReviewWorkspaceRoute() {
             void review.refetch()
           }}
           onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
-          onEvidenceMove={(direction) => setEvidenceNavigation((current) => ({ direction, sequence: (current?.sequence ?? 0) + 1 }))}
+          onEvidenceMove={(direction) => setEvidenceNavigation((current) => ({ jobId: active.id, direction, sequence: (current?.sequence ?? 0) + 1 }))}
           onExit={exitWorkspace}
           onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
           setConversationTarget={setConversationTarget}
           gestureIntent={gestureIntent}
+          isDesktop={isDesktop}
         />
       </div>
-      {detailsOpen ? <DetailsSheet job={active} onClose={() => setDetailsOpen(false)} /> : null}
+      {detailsJobId === active.id && loadedDetail?.jobId === active.id ? (
+        <DetailsSheet job={active} payload={loadedDetail.payload} onClose={() => setDetailsJobId(null)} />
+      ) : null}
       <p aria-live="polite" className="sr-only">
         {t("position", { current: jobs.indexOf(active) + 1, count: jobs.length })}
       </p>
     </main>
   )
+}
+
+function useDesktopReviewLayout() {
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024)
+  useEffect(() => {
+    const media = window.matchMedia?.("(min-width: 1024px)")
+    if (!media) return
+    const update = () => setIsDesktop(media.matches)
+    update()
+    media.addEventListener?.("change", update)
+    return () => media.removeEventListener?.("change", update)
+  }, [])
+  return isDesktop
 }
 
 const SWIPE_THRESHOLD = 72
@@ -288,7 +313,7 @@ function MobileGestureSurface({
   )
 }
 
-function DetailsSheet({ job, onClose }: { job: ReviewWorkspaceJob; onClose: () => void }) {
+function DetailsSheet({ job, payload, onClose }: { job: ReviewWorkspaceJob; payload: JobDetailPayload; onClose: () => void }) {
   const { t } = useT("review_workspace")
   const closeRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -310,7 +335,7 @@ function DetailsSheet({ job, onClose }: { job: ReviewWorkspaceJob; onClose: () =
       <section
         aria-label={t("details")}
         aria-modal="true"
-        className="w-full rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
         role="dialog"
       >
         <div className="flex items-start justify-between gap-4">
@@ -324,7 +349,9 @@ function DetailsSheet({ job, onClose }: { job: ReviewWorkspaceJob; onClose: () =
             <CloseIcon className="h-5 w-5" />
           </button>
         </div>
-        <p className="mt-4 text-sm text-text-secondary">{t("decision_hint")}</p>
+        <div className="mt-4">
+          <CanonicalReviewWorkspace key={job.id} payload={payload} />
+        </div>
       </section>
     </div>
   )
@@ -357,13 +384,17 @@ function JobRail({ active, jobs, prefix }: { active: ReviewWorkspaceJob; jobs: R
 
 function JobReview({
   conversationTarget,
+  isDesktop,
   job,
   onDetail,
+  onDetails,
   visualEvidenceNavigation
 }: {
   conversationTarget: HTMLDivElement | null
+  isDesktop: boolean
   job: ReviewWorkspaceJob
   onDetail: (jobId: number, payload: JobDetailPayload) => void
+  onDetails: () => void
   visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
 }) {
   const { t } = useT("review_workspace")
@@ -415,14 +446,106 @@ function JobReview({
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{job.title}</h1>
       </div>
-      <CanonicalReviewWorkspace
-        conversationPortalTarget={conversationTarget}
-        payload={detail.data}
-        showConversation={false}
-        showEmptyVisualEvidence
-        visualEvidenceNavigation={visualEvidenceNavigation}
-      />
+      {isDesktop ? (
+        <CanonicalReviewWorkspace
+          key={job.id}
+          conversationPortalTarget={conversationTarget}
+          payload={detail.data}
+          showConversation={false}
+          showEmptyVisualEvidence
+          visualEvidenceNavigation={visualEvidenceNavigation}
+        />
+      ) : (
+        <MobileReviewCard job={job} onDetails={onDetails} payload={detail.data} visualEvidenceNavigation={visualEvidenceNavigation} />
+      )}
     </section>
+  )
+}
+
+function MobileReviewCard({
+  job,
+  onDetails,
+  payload,
+  visualEvidenceNavigation
+}: {
+  job: ReviewWorkspaceJob
+  onDetails: () => void
+  payload: JobDetailPayload
+  visualEvidenceNavigation?: { direction: -1 | 1; sequence: number }
+}) {
+  const { t } = useT("review_workspace")
+  const screenshots = (payload.visual_evidence?.screenshots ?? []).filter((screenshot) => screenshot.status === "submitted")
+  const [evidenceIndex, setEvidenceIndex] = useState(0)
+  useEffect(() => {
+    if (!visualEvidenceNavigation || screenshots.length < 2) return
+    setEvidenceIndex((current) => (current + visualEvidenceNavigation.direction + screenshots.length) % screenshots.length)
+  }, [screenshots.length, visualEvidenceNavigation])
+  const evidence = screenshots[evidenceIndex]
+  const canApprove = Boolean(payload.actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented")
+  return (
+    <article className="space-y-4 rounded-2xl border border-border bg-surface p-4 shadow-sm" data-testid="mobile-review-summary">
+      {payload.summary?.text ? (
+        <Markdown className="chat-prose text-sm text-text-secondary" text={payload.summary.text} />
+      ) : (
+        <p className="text-sm text-text-secondary">{t("summary_unavailable")}</p>
+      )}
+      <section aria-label={t("visual_evidence")} className="overflow-hidden rounded-xl border border-border bg-surface-subtle">
+        {evidence ? (
+          <>
+            <button className="block min-h-11 w-full" data-review-gesture-exempt onClick={onDetails} type="button">
+              <img
+                alt={evidence.page?.title || evidence.page?.path || t("visual_evidence")}
+                className="max-h-[42dvh] w-full object-contain"
+                src={evidence.image_url}
+              />
+            </button>
+            <div className="flex min-h-11 items-center justify-between gap-3 px-2 py-1 text-xs text-text-secondary">
+              <span className="truncate">{evidence.page?.title || evidence.page?.path || t("visual_evidence")}</span>
+              <div className="flex items-center gap-1" data-review-gesture-exempt>
+                {screenshots.length > 1 ? (
+                  <button
+                    aria-label={t("previous_evidence")}
+                    className="min-h-11 min-w-11 rounded-lg border border-border"
+                    onClick={() => setEvidenceIndex((current) => (current - 1 + screenshots.length) % screenshots.length)}
+                    type="button"
+                  >
+                    ←
+                  </button>
+                ) : null}
+                <span aria-live="polite">{t("evidence_position", { current: evidenceIndex + 1, count: screenshots.length })}</span>
+                {screenshots.length > 1 ? (
+                  <button
+                    aria-label={t("next_evidence")}
+                    className="min-h-11 min-w-11 rounded-lg border border-border"
+                    onClick={() => setEvidenceIndex((current) => (current + 1) % screenshots.length)}
+                    type="button"
+                  >
+                    →
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="grid min-h-40 place-items-center p-5 text-center text-sm text-text-secondary">{t("no_visual_evidence")}</div>
+        )}
+      </section>
+      <div className="flex flex-wrap gap-2" aria-label={t("checks")}>
+        <span
+          className={`rounded-full border px-3 py-1 text-xs font-medium ${canApprove ? "border-success-border bg-success-subtle text-success-text" : "border-border text-text-secondary"}`}
+        >
+          {canApprove ? t("checks_ready") : t("checks_blocked")}
+        </span>
+        {job.pr_number ? <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">PR #{job.pr_number}</span> : null}
+      </div>
+      <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
+        <strong className="text-text">{t("why_needed")}</strong> {canApprove ? t("why_needed_ready") : t("why_needed_blocked")}
+      </div>
+      <p className="text-center text-xs text-text-secondary">{t("gesture_cue")}</p>
+      <div className="rounded-lg border border-brand/30 bg-brand-subtle p-3 text-xs text-text-secondary" data-testid="mobile-gesture-coach">
+        {t("gesture_coach")}
+      </div>
+    </article>
   )
 }
 
@@ -435,7 +558,8 @@ function DecisionPanel({
   onExit,
   onMove,
   setConversationTarget,
-  gestureIntent
+  gestureIntent,
+  isDesktop
 }: {
   detail?: JobDetailPayload
   job: ReviewWorkspaceJob
@@ -446,6 +570,7 @@ function DecisionPanel({
   onMove: (offset: number) => void
   setConversationTarget: (target: HTMLDivElement | null) => void
   gestureIntent?: { jobId: number; sequence: number }
+  isDesktop: boolean
 }) {
   const { t } = useT("review_workspace")
   const queryClient = useQueryClient()
@@ -501,17 +626,22 @@ function DecisionPanel({
   }, [canApprove, gestureIntent, job.id])
   const mutationError = approve.error ?? submitFeedback.error
   return (
-    <aside aria-label={t("decision_context")} className="border-l border-border bg-surface p-5 max-lg:border-t max-lg:pb-28 lg:overflow-y-auto">
-      <h2 className="font-semibold">{t("decision_context")}</h2>
-      <p className="mt-2 text-sm text-text-secondary">{t("decision_hint")}</p>
-      <section className="mt-5 border-t border-border pt-4" aria-label={t("checks")}>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("checks")}</h3>
-        <p className={`mt-2 text-sm ${canApprove ? "text-success-text" : "text-text-secondary"}`}>{canApprove ? t("checks_ready") : t("checks_blocked")}</p>
-      </section>
-      <section className="mt-4 border-t border-border pt-4" aria-label={t("findings")}>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("findings")}</h3>
-        <div className="mt-2" ref={setConversationTarget} />
-      </section>
+    <aside
+      aria-label={t("decision_context")}
+      className="border-l border-border bg-surface p-5 max-lg:border-0 max-lg:bg-transparent max-lg:p-0 max-lg:pb-28 lg:overflow-y-auto"
+    >
+      <div className="hidden lg:block">
+        <h2 className="font-semibold">{t("decision_context")}</h2>
+        <p className="mt-2 text-sm text-text-secondary">{t("decision_hint")}</p>
+        <section className="mt-5 border-t border-border pt-4" aria-label={t("checks")}>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("checks")}</h3>
+          <p className={`mt-2 text-sm ${canApprove ? "text-success-text" : "text-text-secondary"}`}>{canApprove ? t("checks_ready") : t("checks_blocked")}</p>
+        </section>
+        <section className="mt-4 border-t border-border pt-4" aria-label={t("findings")}>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{t("findings")}</h3>
+          <div className="mt-2" ref={setConversationTarget} />
+        </section>
+      </div>
       <div className={MOBILE_ACTION_BAR_CLASS}>
         {confirming ? (
           <div className="col-span-3 rounded border border-brand/30 bg-brand-subtle p-3">
@@ -527,11 +657,11 @@ function DecisionPanel({
           </div>
         ) : (
           <Button className="w-full" disabled={!canApprove} onClick={() => setConfirming(true)} variant="primary">
-            {t("approve_shortcut")}
+            {t(isDesktop ? "approve_shortcut" : "approve")}
           </Button>
         )}
         <Button className="w-full" onClick={() => setFeedbackOpen(true)} variant="secondary">
-          {t("feedback_shortcut")}
+          {t(isDesktop ? "feedback_shortcut" : "feedback")}
         </Button>
         <Button className="w-full" onClick={onDefer} variant="secondary">
           {t("defer")}
@@ -539,7 +669,7 @@ function DecisionPanel({
       </div>
       {feedbackOpen ? (
         <form
-          aria-label={t("feedback_shortcut")}
+          aria-label={t("feedback")}
           className={MOBILE_FEEDBACK_SHEET_CLASS}
           onSubmit={(event) => {
             event.preventDefault()
@@ -571,7 +701,7 @@ function DecisionPanel({
           {errorMessage(mutationError, t("mutation_error"))}
         </p>
       ) : null}
-      <p className="mt-5 text-xs text-text-secondary">{t("shortcuts")}</p>
+      {isDesktop ? <p className="mt-5 text-xs text-text-secondary">{t("shortcuts")}</p> : null}
     </aside>
   )
 }
