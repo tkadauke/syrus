@@ -90,13 +90,6 @@ module Syrus
         credential_types while_enabled metrics always suggests_enabling on_boot
       ]).freeze
 
-      # Kept next to the DSL that accepts these keys so generated authoring
-      # documentation cannot acquire a parallel manifest vocabulary.
-      MANIFEST_KEYS = (SCALARS + LISTS + %i[
-        provides route frontend events link links credential_type_names
-        credential_types while_enabled metrics always suggests_enabling on_boot
-      ]).freeze
-
       attr_reader :name, :namespace, :lib_dir
 
       def initialize(name:, namespace:, lib_dir:)

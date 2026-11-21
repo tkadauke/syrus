@@ -154,6 +154,19 @@ Supported members:
 - `table_name`
 - `table_name=`
 
+### `Syrus::Host::CapabilityValidationError`
+
+Since: `0.1.16`
+
+Reports a deliberate caller-visible capability validation problem without counting it as a provider crash. Only the listed members are supported.
+
+Supported members:
+
+- `code`
+- `details`
+- `message`
+- `new`
+
 ### `Syrus::Host::ChatSession`
 
 Since: `0.1.16`
