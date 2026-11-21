@@ -24,6 +24,7 @@
   "checks_blocked": "Approval is not currently available.",
   "findings": "Risk and review findings",
   "approve": "Approve for landing",
+  "approve_mobile": "Approve",
   "approve_shortcut": "Approve for landing (A)",
   "approve_confirm": "Approve {{slug}} for landing?",
   "feedback_shortcut": "Give feedback (F)",

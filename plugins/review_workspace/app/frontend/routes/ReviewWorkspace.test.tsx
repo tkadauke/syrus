@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { createPortal } from "react-dom"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -129,7 +129,17 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.getByText(/Swipe up or down/)).toBeInTheDocument()
     expect(screen.queryByText(/J \/ K move/)).not.toBeInTheDocument()
     expect(screen.queryByText("Security review approved")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
+    const actions = screen.getByRole("complementary", { name: "Decision context" })
+    const buttons = within(actions).getAllByRole("button")
+    expect(buttons.map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual([
+      "Defer for this session",
+      "Approve",
+      "Give feedback"
+    ])
+    expect(buttons[1]).toHaveClass("max-lg:col-span-2")
+    expect(within(buttons[0]).queryByText("Defer for this session")).toHaveClass("max-lg:hidden")
+    expect(within(buttons[2]).queryByText("Give feedback")).toHaveClass("max-lg:hidden")
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
     await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/canonical/jobs/42/approve", { expected_revision: 3 }))
   })
@@ -198,7 +208,7 @@ describe("ReviewWorkspaceRoute", () => {
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
     renderRoute("/review/JOB-42")
-    expect(await screen.findByRole("button", { name: "Approve for landing" })).toBeDisabled()
+    expect(await screen.findByRole("button", { name: "Approve" })).toBeDisabled()
     fireEvent.keyDown(window, { key: "a" })
     expect(screen.queryByText("Approve JOB-42 for landing?")).not.toBeInTheDocument()
   })
@@ -411,7 +421,7 @@ describe("ReviewWorkspaceRoute", () => {
     jobApi.postJobCommand.mockRejectedValueOnce(new Error("Job is no longer eligible"))
     renderRoute("/review/JOB-42")
     await screen.findByTestId("mobile-review-summary")
-    fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
     expect(workspaceRequests).toBeGreaterThan(1)

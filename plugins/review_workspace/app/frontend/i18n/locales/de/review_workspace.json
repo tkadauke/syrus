@@ -24,6 +24,7 @@
   "checks_blocked": "Die Freigabe ist derzeit nicht verfügbar.",
   "findings": "Risiken und Review-Befunde",
   "approve": "Zur Landung freigeben",
+  "approve_mobile": "Freigeben",
   "approve_shortcut": "Zur Landung freigeben (A)",
   "approve_confirm": "{{slug}} zur Landung freigeben?",
   "feedback_shortcut": "Feedback geben (F)",
