@@ -29,6 +29,25 @@ RSpec.describe WorkUnitLock do
     expect(duplicate.errors[:active_lock_key]).to be_present
   end
 
+  # DOC-44 database boundary: the lock models (LockSafety.lean,
+  # LockAcquire.lean) assume at most one active lock per key. The validation
+  # above runs before the insert, so two concurrent acquirers can both pass
+  # it; the unique index is what makes the second insert fail.
+  it "has the database reject a second active lock on a key even when validation is skipped" do
+    described_class.create!(work_unit: work_unit, lock_key: "job:123")
+    racing = described_class.new(work_unit: work_unit, lock_key: "job:123", acquired_at: Time.current, active_lock_key: "job:123")
+
+    expect { racing.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
+  end
+
+  it "frees the key in the database once the active lock is released" do
+    first = described_class.create!(work_unit: work_unit, lock_key: "job:123")
+    first.release!
+    racing = described_class.new(work_unit: work_unit, lock_key: "job:123", acquired_at: Time.current, active_lock_key: "job:123")
+
+    expect { racing.save!(validate: false) }.not_to raise_error
+  end
+
   it "allows repeated historical lock keys after release" do
     described_class.create!(work_unit: work_unit, lock_key: "job:123").release!
     duplicate = described_class.new(work_unit: work_unit, lock_key: "job:123")
