@@ -403,6 +403,11 @@ export class OnboardingDriver {
   async precheck() {
     this.stopPolling()
     this.setState({ phase: "local.precheck" })
+    // Every navigation (Back, Run Setup Again, a new precheck) goes through
+    // stopPolling, which bumps pollGeneration. A precheck whose generation is
+    // gone must not set wizard state or start an install from stale probes.
+    const generation = this.pollGeneration
+    const superseded = () => generation !== this.pollGeneration || this.state.phase !== "local.precheck"
 
     const stateDir = localStateDir()
     const envPath = path.join(stateDir, ".env")
@@ -414,19 +419,21 @@ export class OnboardingDriver {
     } catch {
       this.port = channelDefaultPort()
     }
+    if (superseded()) return
 
     // A healthy Syrus already answering that we don't own: offer to adopt it
     // as remote-at-localhost (no lifecycle control) instead of clobbering.
     // Fingerprinted — a foreign app's /up must not masquerade as Syrus.
     if (!hasEnv && (await syrusHealthy(this.port))) {
       const localUrl = `http://localhost:${this.port}`
-      if (await isSyrusInstance(localUrl)) {
+      if ((await isSyrusInstance(localUrl)) && !superseded()) {
         this.setState({ phase: "local.adoptRunning", url: localUrl })
         return
       }
     }
 
     const binary = await findDockerBinary()
+    if (superseded()) return
     if (!binary) {
       if (installedRuntimeApp()) {
         await this.startRuntime()
@@ -437,14 +444,18 @@ export class OnboardingDriver {
       return
     }
 
-    if (!(await daemonUp())) {
+    const daemonIsUp = await daemonUp()
+    if (superseded()) return
+    if (!daemonIsUp) {
       await this.startRuntime()
       return
     }
 
     // The encryption-key guard, surfaced before install.sh would exit 20:
     // a data volume encrypted with keys from a .env we don't have.
-    if (!hasEnv && (await volumeExists(dataVolumeName()))) {
+    const foreignVolume = !hasEnv && (await volumeExists(dataVolumeName()))
+    if (superseded()) return
+    if (foreignVolume) {
       this.setState({ phase: "local.adoptExisting", error: null })
       return
     }
@@ -454,7 +465,9 @@ export class OnboardingDriver {
     // --port), and a busy-but-unhealthy port there is usually our own stack
     // still booting — let the install proceed; a genuine foreign bind
     // surfaces as compose exit 40.
-    if (!hasEnv && !(await syrusHealthy(this.port)) && (await portInUse(this.port))) {
+    const portConflict = !hasEnv && !(await syrusHealthy(this.port)) && (await portInUse(this.port))
+    if (superseded()) return
+    if (portConflict) {
       this.setState({ phase: "local.portConflict", port: this.port })
       return
     }

@@ -2895,6 +2895,49 @@ typecheck is clean.
 
 ---
 
+## F84. A stale onboarding precheck overrode navigation and could start an install — fixed
+
+**Found by** DOC-44 Phase 7, installer and onboarding: "Stale probe results
+cannot race navigation and change wizard state", and "Remote mode cannot
+mutate the local backend".
+
+**Gap.** `OnboardingDriver.precheck` awaits up to six probes in turn:
+
+1. read the `.env`;
+2. check Syrus's health on the port;
+3. fingerprint whatever answers;
+4. find the Docker binary;
+5. check the daemon, which allows up to 10 s;
+6. look for the data volume and probe the port.
+
+Then it sets the next screen, or calls `startInstall()` directly. It never
+re-checked that it was still current. "Run Setup Again…" (`reset`), or any
+other navigation that landed while it probed, was overridden by the stale
+result, which could go on to start an install. The vitest reproduction holds
+the daemon probe, resets the wizard, then answers. The stale precheck spawned
+the installer.
+
+`connectRemote` was already sound: it re-checks the phase and URL after its
+probe. So was `probeInstance`, which is stateless. Remote mode cannot touch the
+local backend: start, stop, update and `ensureRunning` all return early unless
+the backend mode is `local`. The test-only wipe is gated on the channel.
+
+**Fix.** The precheck captures the navigation generation (`pollGeneration`).
+Every navigation bumps it through `stopPolling`. After each probe the precheck
+stops if the generation moved on or the phase is no longer `local.precheck`.
+
+**Spec.** `desktop/src/installerDriverPrecheck.test.ts` "drops its result when
+the wizard was reset while it probed" was red before (an installer was
+spawned). No Lean model: an encoding of "check after every await" would only
+restate the fix, so the adapter test is the evidence. This follows the
+pattern of the existing generation proofs, `WatchdogStop` and the cable
+generations.
+
+All 305 desktop vitest tests and 391 desktop specs pass, and the desktop
+typecheck is clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
