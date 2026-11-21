@@ -1563,9 +1563,9 @@
         "blocked_no_capable_worker_does_not_hold_landing_slot",
         "blocked_ci_repair_does_not_block_job_bundle"
       ],
-      "status": "partial",
-      "done_by": "F7",
-      "notes": "no_capable_worker landings now fail and hold instead of blocking (F7); ci_repair_disabled and the AutoRetryBackoff re-lock remain unproved."
+      "status": "done",
+      "done_by": "F7 · M41",
+      "notes": "no_capable_worker landings now fail and hold instead of blocking (F7); ci_repair_disabled and the AutoRetryBackoff re-lock remain unproved. M41: ci_repair_disabled is externally cleared and releases the landing slot; auto_retry_backoff keeps it for a bounded time (backoff interval, cumulative retry budget)."
     },
     {
       "id": "urgent-blocked-landing-slot",

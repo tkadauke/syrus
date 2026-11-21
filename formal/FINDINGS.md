@@ -3908,6 +3908,40 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M41. A blocked landing holds the repository slot only while it is about to run — audited, no bug
+
+**Scope.** DOC-44 landing, the partial coverage item
+`externally-blocked-landing-slot`. F7 made `no_capable_worker` landings fail
+and release instead of blocking. Two reasons remained unproved:
+`ci_repair_disabled`, and the `AutoRetryBackoff` re-lock.
+
+The repository landing slot (`landing:` lock) is the mutex every landing path
+checks. A blocked unit that keeps it stalls every other landing in the
+repository.
+
+**`WorkUnit#block!` releases the slot in two cases:**
+
+- **The reason cannot clear by waiting** (`EXTERNALLY_CLEARED_BLOCKED_REASONS`:
+  `ci_repair_disabled`, `no_capable_worker`). It clears only when an operator
+  changes the configuration or the fleet, so the unit is not about to run and
+  gives the slot back at once.
+- **The landing has not started its first Run** (`prestart_landing_block?`).
+  Decision NY7, proved in `PrestartSlot.lean`, says a prestart block gives the
+  slot back whatever the reason.
+
+Only the `landing:` lock is surrendered. Job- and Epic-scoped locks stay held,
+because they still correctly stop a second attempt at the same work.
+
+**`auto_retry_backoff` keeps the slot on purpose, and only for a bounded
+time.** It is a self-clearing reason: the unit has `blocked_until` set and
+really is next. Releasing would let a later landing cut ahead of a landing
+that is waiting out a backoff. The slot is held for at most the backoff
+interval. The number of backoffs is bounded by the cumulative auto-retry
+budget per (job, provider, classification) (`auto-retry-bounded`, F44/F45),
+so the slot cannot be squatted indefinitely.
+
+---
+
 ## M40. A requested WorkIntent without a unit is dormant, not stuck — audited, no bug
 
 **Scope.** DOC-44 ownership, the partial coverage item
