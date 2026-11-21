@@ -131,11 +131,7 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.queryByText("Security review approved")).not.toBeInTheDocument()
     const actions = screen.getByRole("complementary", { name: "Decision context" })
     const buttons = within(actions).getAllByRole("button")
-    expect(buttons.map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual([
-      "Approve",
-      "Give feedback",
-      "Defer for this session"
-    ])
+    expect(buttons.map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Approve", "Give feedback", "Defer for this session"])
     expect(buttons[0]).toHaveClass("max-lg:order-2", "max-lg:col-span-2", "max-lg:min-h-11")
     expect(buttons[1]).toHaveClass("max-lg:order-3", "max-lg:min-h-11")
     expect(buttons[2]).toHaveClass("max-lg:order-1", "max-lg:min-h-11")
@@ -154,11 +150,11 @@ describe("ReviewWorkspaceRoute", () => {
 
     await screen.findByText("Canonical review evidence for Job 42")
     const actions = screen.getByRole("complementary", { name: "Decision context" })
-    expect(within(actions).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual([
-      "Approve for landing (A)",
-      "Give feedback",
-      "Defer for this session"
-    ])
+    expect(
+      within(actions)
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label") ?? button.textContent)
+    ).toEqual(["Approve for landing (A)", "Give feedback", "Defer for this session"])
     expect(within(actions).getByRole("button", { name: "Approve for landing (A)" })).toBeInTheDocument()
     expect(within(actions).getByRole("button", { name: "Give feedback" })).toHaveTextContent("Give feedback (F)")
   })
