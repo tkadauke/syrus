@@ -16,9 +16,9 @@ module ConnectedAccounts
 
     def https_urls
       values = [ authorize_url, token_url, revoke_url, identity_url, validate_url, *Array(api_origins) ].compact_blank
-      errors.add(:base, "provider URLs must use HTTPS") unless values.all? { |value| URI.parse(value).is_a?(URI::HTTPS) }
+      errors.add(:base, I18n.t("connected_accounts.errors.https_urls")) unless values.all? { |value| URI.parse(value).is_a?(URI::HTTPS) }
     rescue URI::InvalidURIError
-      errors.add(:base, "provider URL is invalid")
+      errors.add(:base, I18n.t("connected_accounts.errors.invalid_url"))
     end
 
     def read_only_scopes_are_configured

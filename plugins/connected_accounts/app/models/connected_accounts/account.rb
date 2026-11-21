@@ -54,31 +54,31 @@ module ConnectedAccounts
     end
 
     def validate_string_arrays
-      errors.add(:granted_scopes, "must be an array of strings") unless granted_scopes.is_a?(Array) && granted_scopes.all?(String)
-      errors.add(:acting_modes, "must be an array of strings") unless acting_modes.is_a?(Array) && acting_modes.all?(String)
-      errors.add(:scope_ceiling, "must be an array of strings") unless scope_ceiling.nil? || (scope_ceiling.is_a?(Array) && scope_ceiling.all?(String))
-      errors.add(:scope_ceiling, "must be a subset of granted scopes") if scope_ceiling.present? && (scope_ceiling - granted_scopes).any?
+      errors.add(:granted_scopes, I18n.t("connected_accounts.errors.array_of_strings")) unless granted_scopes.is_a?(Array) && granted_scopes.all?(String)
+      errors.add(:acting_modes, I18n.t("connected_accounts.errors.array_of_strings")) unless acting_modes.is_a?(Array) && acting_modes.all?(String)
+      errors.add(:scope_ceiling, I18n.t("connected_accounts.errors.array_of_strings")) unless scope_ceiling.nil? || (scope_ceiling.is_a?(Array) && scope_ceiling.all?(String))
+      errors.add(:scope_ceiling, I18n.t("connected_accounts.errors.scope_ceiling_subset")) if scope_ceiling.present? && (scope_ceiling - granted_scopes).any?
     end
 
     def validate_acting_modes
       invalid = acting_modes - ACTING_MODES
-      errors.add(:acting_modes, "contains unsupported modes: #{invalid.join(', ')}") if invalid.any?
+      errors.add(:acting_modes, I18n.t("connected_accounts.errors.unsupported_modes", modes: invalid.join(", "))) if invalid.any?
     end
 
     def validate_credential_contract
       return unless credential_store_credential
 
       if credential_store_credential.credential_type != AccountClient::CREDENTIAL_TYPE
-        errors.add(:credential_store_credential, "must contain connected account OAuth material")
+        errors.add(:credential_store_credential, I18n.t("connected_accounts.errors.oauth_material"))
       end
       if credential_store_credential.owner_user_id != owner_user_id
-        errors.add(:credential_store_credential, "must have the same owner")
+        errors.add(:credential_store_credential, I18n.t("connected_accounts.errors.same_owner"))
       end
       unless credential_store_credential.allowed_tools == [ AccountClient::BROKER_TOOL_NAME ]
-        errors.add(:credential_store_credential, "must be pinned to the connected account broker")
+        errors.add(:credential_store_credential, I18n.t("connected_accounts.errors.broker_pinned"))
       end
       if Array(credential_store_credential.target_constraints["allowed_url_prefixes"]).empty?
-        errors.add(:credential_store_credential, "must be pinned to provider API origins")
+        errors.add(:credential_store_credential, I18n.t("connected_accounts.errors.origins_pinned"))
       end
     end
   end

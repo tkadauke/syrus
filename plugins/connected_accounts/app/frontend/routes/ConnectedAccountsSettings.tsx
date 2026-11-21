@@ -20,7 +20,10 @@ type Payload = { accounts: Account[]; providers: Provider[] }
 export default function ConnectedAccountsSettings() {
   const { t } = useT("connected_accounts")
   const client = useQueryClient()
-  const query = useQuery({ queryKey: ["connected_accounts", "accounts"], queryFn: () => getJson<Payload>("/api/v1/app/connected_accounts/accounts") })
+  const query = useQuery({
+    queryKey: ["connected_accounts", "accounts"],
+    queryFn: (): Promise<Payload> => getJson("/api/v1/app/connected_accounts/accounts")
+  })
   const refresh = () => client.invalidateQueries({ queryKey: ["connected_accounts", "accounts"] })
   const toggle = useMutation({
     mutationFn: ({ id, readOnly }: { id: number; readOnly: boolean }) =>

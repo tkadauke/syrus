@@ -1,5 +1,5 @@
 module ConnectedAccounts
-  class RefreshAccountsJob < ApplicationJob
+  class RefreshAccountsJob < Syrus::Host::BackgroundJob
     queue_as :low_priority_maintenance
     retry_on Provider::TransientError, wait: :polynomially_longer, attempts: 5
 

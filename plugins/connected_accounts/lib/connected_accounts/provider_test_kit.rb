@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "rspec/core"
-
 module ConnectedAccounts
   module ProviderTestKit
     module_function

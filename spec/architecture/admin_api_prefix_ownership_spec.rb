@@ -161,6 +161,8 @@ RSpec.describe "admin API prefix ownership" do
     build_cache POST /api/v1/app/admin/build_cache/clear_requests api/v1/app/admin/build_cache#create_clear_request
     build_cache POST /api/v1/app/admin/build_cache/clear_requests/:id/cancel api/v1/app/admin/build_cache#cancel_clear_request
     build_cache POST /api/v1/app/admin/build_cache/clear_requests/:id/confirm api/v1/app/admin/build_cache#confirm_clear_request
+    connected_accounts GET /api/v1/app/admin/connected_accounts/provider_config api/v1/app/connected_accounts/provider_configs#show
+    connected_accounts PATCH /api/v1/app/admin/connected_accounts/provider_config api/v1/app/connected_accounts/provider_configs#update
     github_source GET /api/v1/app/admin/github_api_usage api/v1/app/admin/github_api_usage#show
     k8s_cluster DELETE /api/v1/app/admin/kubernetes_clusters/:id api/v1/app/admin/kubernetes_clusters#destroy
     k8s_cluster GET /api/v1/app/admin/kubernetes_clusters api/v1/app/admin/kubernetes_clusters#index

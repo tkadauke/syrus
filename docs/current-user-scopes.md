@@ -228,6 +228,8 @@ per-user/private:
   - plugins/attention_report/app/controllers/api/v1/app/insights/attention_controller.rb
   - plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb
   - plugins/cognitive_review/app/controllers/api/v1/app/cognitive_review_notes_controller.rb
+  - plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/accounts_controller.rb
+  - plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/oauth_controller.rb
   - plugins/coworkers/app/controllers/api/v1/app/coworkers_controller.rb
   - plugins/credential_store/app/controllers/api/v1/app/credential_store/credentials_controller.rb
   - plugins/design_docs/app/controllers/api/v1/app/design_docs_controller.rb
@@ -443,6 +445,8 @@ instead of broader model scopes.
 | `plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb` | per-user/private | The per-repository insight sweep schedule is read and written through `Current.user.repositories`, so only the repository owner can change how often sweeps run. |
 | `plugins/attention_report/app/controllers/api/v1/app/insights/attention_controller.rb` | per-user/private | Builds the attention report only for the signed-in user and never accepts another user identifier. |
 | `plugins/build_cache/app/controllers/api/v1/app/build_cache_repository_settings_controller.rb` | per-user/private | The per-repository sccache `basedirs_safe` opt-in is read and written through `Current.user.repositories`, so only the repository owner can toggle path normalization for that repo's coverage builds. |
+| `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/accounts_controller.rb` | per-user/private | Lists, updates, and disconnects only accounts owned by the signed-in user. |
+| `plugins/connected_accounts/app/controllers/api/v1/app/connected_accounts/oauth_controller.rb` | per-user/private | Binds OAuth state and completed connections to the signed-in user and their current session. |
 | `plugins/worker_timeline/app/controllers/api/v1/app/admin/worker_timeline_controller.rb` | admin-only with current-user scope | Worker Timeline queries are admin-only; macro results and smart-folder counts are additionally constrained to Jobs accessible to `Current.user`, and smart-folder navigation uses that user as its ownership context. |
 | `plugins/test_insights/app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/repository_preview_controller.rb` | per-user/private and repository-write affordance | Job-less repository preview show/logs resolve through the readable repository helper; create/destroy then require repository write access. |

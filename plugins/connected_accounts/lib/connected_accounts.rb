@@ -7,6 +7,7 @@ module ConnectedAccounts
     display_name_i18n_key "connected_accounts:plugin.display_name"
     category     "tooling"
     author       "Thomas Kadauke"
+    icon_url     "/plugin-icons/connected_accounts.svg"
     description  "Broker access to user-owned external accounts without exposing long-lived credentials."
     description_i18n_key "connected_accounts:plugin.description"
     long_description "Connected Accounts owns external account metadata and brokers short-lived, authorized access to OAuth credentials stored by Credential Store."

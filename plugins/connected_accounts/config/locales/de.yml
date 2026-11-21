@@ -13,3 +13,13 @@ de:
     settings:
       saved: "Anbieterkonfiguration gespeichert."
       read_only_scopes_not_in_catalog: "müssen auch im Berechtigungskatalog enthalten sein"
+    errors:
+      array_of_strings: "muss ein Array aus Zeichenketten sein"
+      scope_ceiling_subset: "muss eine Teilmenge der gewährten Berechtigungen sein"
+      unsupported_modes: "enthält nicht unterstützte Modi: %{modes}"
+      oauth_material: "muss OAuth-Daten eines verbundenen Kontos enthalten"
+      same_owner: "muss denselben Eigentümer haben"
+      broker_pinned: "muss an den Vermittler für verbundene Konten gebunden sein"
+      origins_pinned: "muss an die API-Ursprünge des Anbieters gebunden sein"
+      https_urls: "Anbieter-URLs müssen HTTPS verwenden"
+      invalid_url: "Anbieter-URL ist ungültig"

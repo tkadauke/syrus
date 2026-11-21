@@ -5,8 +5,8 @@ module ConnectedAccounts
     module_function
 
     def call(provider:, capability:, context:)
-      if defined?(Syrus::PluginInvocation)
-        Syrus::PluginInvocation.call(
+      if defined?(Syrus::Host::PluginInvocation)
+        Syrus::Host::PluginInvocation.call(
           extension_point: EXTENSION_POINT,
           provider: provider,
           operation: capability,
