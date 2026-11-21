@@ -104,6 +104,7 @@ module LocalBackups
 
     def ineligible?(backup, protected:)
       backup.state != "completed" || backup.pinned? || backup == protected ||
+        backup.replications.any? { |replication| replication.state == "uploading" } ||
         (@require_replication && backup.replications.none? { |replication| replication.state == "verified" })
     end
 
@@ -120,9 +121,10 @@ module LocalBackups
         completed = Backup.lock.where(state: "completed").order(completed_at: :desc).to_a
         Replication.lock.where(backup_id: completed.map(&:id)).load
         verified_ids = Replication.where(backup_id: completed.map(&:id), state: "verified").distinct.pluck(:backup_id).to_set
+        uploading_ids = Replication.where(backup_id: completed.map(&:id), state: "uploading").distinct.pluck(:backup_id).to_set
         protected = protected_backup(completed)
         candidates = completed.select do |backup|
-          candidate_ids.include?(backup.id) && !backup.pinned? && backup != protected &&
+          candidate_ids.include?(backup.id) && !backup.pinned? && backup != protected && !uploading_ids.include?(backup.id) &&
             (!@require_replication || verified_ids.include?(backup.id))
         end
         candidates.each { |backup| backup.update!(state: "deleting") }

@@ -41,7 +41,11 @@ hidden sibling partial directory, and made read-only.
 
 Local Backups also supplies the versioned backup artifact-source capability.
 Destination plugins consume opaque artifact identities and streams through
-that contract; they do not receive arbitrary local filesystem access.
+that contract; they do not receive arbitrary local filesystem access. The S3
+Backup Destination plugin can replicate those streams to an S3-compatible
+bucket and record remotely verified state. Set
+`SYRUS_BACKUP_REQUIRE_VERIFIED_REPLICATION=1` to prevent retention from
+deleting a local bundle until at least one destination has verified it.
 On Docker Compose, `SYRUS_BACKUP_HOST_PATH` selects a host-visible directory
 that is separate from the installer's upgrade safety archives. The worker
 mounts it read-write and web mounts it read-only. Daily scheduled creation is
