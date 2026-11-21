@@ -239,4 +239,21 @@ RSpec.describe DistributedRunAdmissionRouter do
       "completed_exclusion_cycle" => contain_exactly("worker-a", "worker-b")
     )
   end
+
+  describe "committed load" do
+    it "counts a distributed grader where its process runs, not on its workflow's home host" do
+      workflow.update!(worker_hostname: "worker-a")
+      sibling = Step.create!(
+        workflow: workflow, kind: "grader", position: 11, state: "running",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT, details: { "name" => "rspec-2" }
+      )
+      sibling_run = sibling.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+      sibling_run.spawned_processes.create!(workflow: workflow, kind: "grader", command: "bin/rspec",
+                                            hostname: "worker-b", started_at: 1.minute.ago)
+      router = described_class.new(run: run, admission: admission)
+
+      expect(router.send(:active_compute_runs, "worker-a")).to eq(0)
+      expect(router.send(:active_compute_runs, "worker-b")).to eq(1)
+    end
+  end
 end

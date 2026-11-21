@@ -165,14 +165,16 @@ class DistributedRunAdmissionRouter
     0
   end
 
+  # Same placement rule as RunHostAdmission#active_run_scope: a distributed
+  # grader counts where its processes run, not on its workflow's home host.
   def active_compute_runs(hostname)
     Run.where(state: "running")
       .joins(step: :workflow)
       .left_outer_joins(:spawned_processes)
       .where(
-        "workflows.worker_hostname = :hostname OR " \
+        "(workflows.worker_hostname = :hostname AND steps.placement_policy <> :distributed_placement) OR " \
           "(spawned_processes.hostname = :hostname AND spawned_processes.finished_at IS NULL)",
-        hostname: hostname
+        hostname: hostname, distributed_placement: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT
       )
       .distinct
       .count

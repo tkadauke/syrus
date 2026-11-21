@@ -703,6 +703,12 @@ class RunHostAdmission
   # not reserve compute or memory until stale-Run reconciliation catches up.
   # Provider-bound agent turns have no child command, so their heartbeat is
   # what keeps them counted.
+  # A Run occupies this host when a process it spawned is still running here,
+  # or -- for steps that work in the workflow's shared workspace -- when this
+  # is that workspace's home host. A distributed grader runs from an immutable
+  # checkout on whichever worker claimed it, so the workflow's home host says
+  # nothing about where it executes: counting it there made the home host
+  # refuse work for every grader of its workflow running elsewhere.
   def active_run_scope
     cutoff = LIVENESS_WINDOW.ago
     Run
@@ -713,9 +719,10 @@ class RunHostAdmission
       .where(
         [
           "(spawned_processes.hostname = :hostname AND spawned_processes.finished_at IS NULL)",
-          "(workflows.worker_hostname = :hostname AND (#{fresh_heartbeat_sql} OR #{live_runtime_session_sql}))"
+          "(workflows.worker_hostname = :hostname AND steps.placement_policy <> :distributed_placement " \
+            "AND (#{fresh_heartbeat_sql} OR #{live_runtime_session_sql}))"
         ].join(" OR "),
-        hostname: hostname, cutoff: cutoff
+        hostname: hostname, cutoff: cutoff, distributed_placement: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT
       )
       .distinct
   end

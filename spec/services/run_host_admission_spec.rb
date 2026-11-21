@@ -523,6 +523,43 @@ RSpec.describe RunHostAdmission do
       expect(count).to be <= 4
     end
 
+    def running_distributed_grader(index, process_host:)
+      Feature.find_or_create_by!(slug: "distributed_workflow_dag") do |feature|
+        feature.category = "Operations"
+        feature.name = "Distributed workflow DAG"
+      end.update!(enabled: true)
+      repository.update!(distributed_workflow_dag_enabled: true)
+      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 800 + index)
+      other_workflow = Workflow.create!(job: other, trigger_kind: "merge_train", state: "running", worker_hostname: "worker-a")
+      grader = Step.create!(
+        workflow: other_workflow, kind: "grader", position: 10, state: "running",
+        placement_policy: Step::PlacementPolicy::IMMUTABLE_SOURCE_CHECKOUT,
+        details: { "name" => "rspec-ci-#{index}" }
+      )
+      grader_run = grader.runs.create!(job: other, trigger_kind: "merge_train", state: "running",
+                                       started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+      grader_run.spawned_processes.create!(workflow: other_workflow, kind: "grader", command: "bin/rspec",
+                                           hostname: process_host, started_at: 4.minutes.ago)
+      grader_run
+    end
+
+    it "does not count a distributed grader on its workflow's home host when it runs elsewhere" do
+      running_distributed_grader(1, process_host: "worker-b")
+      local = running_distributed_grader(2, process_host: "worker-a")
+
+      evidence = described_class.new(run: run).send(:active_run_liveness_evidence)
+
+      expect(evidence.map { |entry| entry["run_id"] }).to eq([ local.id ])
+    end
+
+    it "still counts a shared-workspace step on its workflow's home host" do
+      live = running_run_on_worker_a(3, heartbeat: 1.minute.ago)
+
+      evidence = described_class.new(run: run).send(:active_run_liveness_evidence)
+
+      expect(evidence.map { |entry| entry["run_id"] }).to eq([ live.id ])
+    end
+
     it "counts a recently started provider-bound Run before its first heartbeat" do
       live = running_run_on_worker_a(1, started_at: 2.minutes.ago)
 
