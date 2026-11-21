@@ -256,6 +256,22 @@ RSpec.describe App::JobRetryActions do
     end
   end
 
+  # Regression: a retry card confirmed after a newer attempt had succeeded
+  # still re-ran the old blocked attempt from the base, and its publication
+  # then collided with the newer attempt already on the PR branch.
+  it "refuses to retry an attempt a newer successful publication superseded" do
+    job = Factories.job_record(user: user, repository: repo, state: "failed", pr_number: 77, branch_name: "syrus/direct-77")
+    old_attempt = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: job.agent_provider, state: "failed",
+      started_at: 3.hours.ago, finished_at: 2.hours.ago)
+    Workflow.create!(job: job, trigger_kind: "retry", agent_provider: job.agent_provider, state: "succeeded",
+      started_at: 90.minutes.ago, finished_at: 1.hour.ago)
+
+    preflight = RetryJobs::Modes::Implementation.new(job: job, source_workflow_id: old_attempt.id, explicit_operator_intent: true).preflight
+
+    expect(preflight).not_to be_eligible
+    expect(preflight.message).to include("newer attempt already succeeded")
+  end
+
   it "omits implementation retry when its preflight refuses" do
     job = Factories.job_record(user: user, repository: repo, state: "failed")
     build_failed_workflow(job, failed_step_kind: "pr_open")

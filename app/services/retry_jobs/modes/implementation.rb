@@ -29,6 +29,9 @@ module RetryJobs
           return failure("The latest workflow did not fail or get cancelled.")
         end
         return failure("Landing workflows must be retried with their landing action.") if latest_workflow&.landing_workflow?
+        if failure_workflow&.superseded_by_newer_successful_publication?
+          return failure("A newer attempt already succeeded on this Job's PR branch, so #{failure_workflow.slug} is no longer the work to retry.")
+        end
 
         step = failed_step unless fresh_implementation_escape? || explicit_operator_intent?
         if step.present? &&
