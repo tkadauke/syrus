@@ -3348,8 +3348,9 @@ Also run and green:
 - `spec/models/work_unit_spec.rb`, `spec/services/workflows` and the
   cannot-proceed tool spec;
 - the CI-only reconciler, executor and resilience specs;
-- the `stranded_landing_job_without_lock_returns_to_approved` and
-  `externally_blocked_landing_slot_released` simulations.
+- the `stranded_landing_job_without_lock_returns_to_approved` simulation.
+  There is no simulator scenario for the externally blocked landing slot
+  itself; the reconciler spec covers that classifier and repair.
 
 ---
 
