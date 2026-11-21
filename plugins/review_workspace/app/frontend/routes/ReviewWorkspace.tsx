@@ -536,7 +536,11 @@ function MobileReviewCard({
         >
           {canApprove ? t("checks_ready") : t("checks_blocked")}
         </span>
-        {job.pr_number ? <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">PR #{job.pr_number}</span> : null}
+        {job.pr_number ? (
+          <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">
+            {t("pull_request_number", { number: job.pr_number })}
+          </span>
+        ) : null}
       </div>
       <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
         <strong className="text-text">{t("why_needed")}</strong> {canApprove ? t("why_needed_ready") : t("why_needed_blocked")}
