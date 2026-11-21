@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../support/resolved_tmpdir"
 require "rbconfig"
 require "shellwords"
 require Rails.root.join("plugins/local_backups/lib/local_backups/recovery")
@@ -210,7 +211,9 @@ RSpec.describe LocalBackups::Recovery do
         expect(marker).not_to exist
         expect(result.status).to eq("restored")
         expect(Pathname.new(result.safety_backup).join("PINNED")).to exist
-        expect(Pathname.new(result.safety_backup).to_s).to start_with(safety_root.to_s)
+        # Resolved on both sides: on macOS the temp dir is under /var, a
+        # symlink to /private/var, and the restore reports the resolved path.
+        expect(Pathname.new(result.safety_backup).realpath.to_s).to start_with(safety_root.realpath.to_s)
       end
     end
 

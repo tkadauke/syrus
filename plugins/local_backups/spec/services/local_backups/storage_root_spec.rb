@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../support/resolved_tmpdir"
 
 RSpec.describe LocalBackups::StorageRoot do
   it "contains artifact paths and rejects traversal and symlink escapes" do

@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../support/resolved_tmpdir"
 
 RSpec.describe LocalBackups::Creator do
   self.use_transactional_tests = false

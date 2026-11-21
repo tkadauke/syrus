@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../support/resolved_tmpdir"
 RSpec.describe LocalBackups::PartialCleanup do
   it "removes only abandoned partial directories" do
     Dir.mktmpdir do |directory|

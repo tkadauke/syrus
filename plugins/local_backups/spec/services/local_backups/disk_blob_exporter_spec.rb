@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../support/resolved_tmpdir"
 
 RSpec.describe LocalBackups::DiskBlobExporter do
   let(:service) { ActiveStorage::Blob.service }

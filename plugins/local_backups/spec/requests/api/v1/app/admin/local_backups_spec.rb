@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../../../../support/resolved_tmpdir"
 
 RSpec.describe "API: local backup inventory", type: :request do
   let(:admin) { Factories.user(admin: true) }

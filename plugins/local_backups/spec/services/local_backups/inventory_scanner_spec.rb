@@ -1,4 +1,5 @@
 require "rails_helper"
+require_relative "../../support/resolved_tmpdir"
 
 RSpec.describe LocalBackups::InventoryScanner do
   it "reconstructs inventory from sealed manifests after rows are lost" do
