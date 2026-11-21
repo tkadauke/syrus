@@ -16,6 +16,7 @@ import {
   createDiffReviewComment,
   deleteDiffReviewComment,
   fetchDiffReviewVersion,
+  fetchDiffReviewVersions,
   fetchDiffReviewComments,
   fetchJobSourceFileContent,
   fetchJobSourceDiff,
@@ -37,6 +38,7 @@ vi.mock("../../api/jobs", async (importOriginal) => {
     deleteDiffReviewComment: vi.fn(),
     fetchDiffReviewComments: vi.fn(),
     fetchDiffReviewVersion: vi.fn(),
+    fetchDiffReviewVersions: vi.fn(),
     fetchJobSourceFileContent: vi.fn(),
     fetchJobSourceDiff: vi.fn(),
     replyToDiffReviewComment: vi.fn(),
@@ -62,6 +64,7 @@ beforeEach(() => {
   vi.mocked(deleteDiffReviewComment).mockReset()
   vi.mocked(fetchDiffReviewComments).mockReset()
   vi.mocked(fetchDiffReviewVersion).mockReset()
+  vi.mocked(fetchDiffReviewVersions).mockReset()
   vi.mocked(fetchJobSourceFileContent).mockReset()
   vi.mocked(fetchJobSourceDiff).mockReset()
   vi.mocked(replyToDiffReviewComment).mockReset()
@@ -89,14 +92,14 @@ function renderWorkspace(
   } = {}
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const result = render(
+  const workspace = (currentPayload: JobDetailPayload) => (
     <MemoryRouter>
       <ShortcutsProvider>
         <QueryClientProvider client={client}>
           <ReviewWorkspace
             conversationPortalTarget={options.conversationPortalTarget}
             diffLineMetricProviders={options.diffLineMetricProviders}
-            payload={payload}
+            payload={currentPayload}
             showConversation={options.showConversation}
             showEmptyVisualEvidence={options.showEmptyVisualEvidence}
             visualEvidenceNavigation={options.visualEvidenceNavigation}
@@ -105,7 +108,8 @@ function renderWorkspace(
       </ShortcutsProvider>
     </MemoryRouter>
   )
-  return { client, ...result }
+  const result = render(workspace(payload))
+  return { client, ...result, rerenderWorkspace: (currentPayload: JobDetailPayload) => result.rerender(workspace(currentPayload)) }
 }
 
 describe("ReviewWorkspace", () => {
@@ -286,6 +290,70 @@ describe("ReviewWorkspace", () => {
 
     await waitFor(() => expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 200))
     expect(screen.queryByTestId("diff-review-composer")).not.toBeInTheDocument()
+  })
+
+  it("does not request one Job's selected diff version after switching Jobs in the same mounted workspace", async () => {
+    const firstVersions = [
+      version({ id: 100, job_id: 42, label: "Current Job 42", version_index: 1 }),
+      version({ id: 200, job_id: 42, label: "Historical Job 42", version_index: 2, run_id: 22 })
+    ]
+    const secondVersion = version({ id: 300, job_id: 43, label: "Current Job 43", version_index: 1 })
+    vi.mocked(fetchJobSourceDiff).mockImplementation(async (jobId) =>
+      jobId === "42"
+        ? sourceDiffPayload({ job_id: 42, version: firstVersions[0], versions: firstVersions })
+        : sourceDiffPayload({ job_id: 43, version: secondVersion, versions: [secondVersion] })
+    )
+    vi.mocked(fetchDiffReviewVersions).mockImplementation(async (jobId) =>
+      Number(jobId) === 42
+        ? { job_id: 42, versions: firstVersions, latest_version_id: 200 }
+        : { job_id: 43, versions: [secondVersion], latest_version_id: 300 }
+    )
+    vi.mocked(fetchDiffReviewVersion).mockResolvedValue({
+      ...firstVersions[1],
+      job_id: 42,
+      default_ref: "main",
+      diff_error: null,
+      files: sourceDiffPayload().files
+    })
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    const firstPayload = jobPayload()
+    const secondPayload = { ...jobPayload(), job: { ...jobPayload().job, id: 43 } }
+    const { rerenderWorkspace } = renderWorkspace(firstPayload)
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "v2 RUN-22" }))
+    await waitFor(() => expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 200))
+    vi.mocked(fetchDiffReviewVersion).mockClear()
+
+    rerenderWorkspace(secondPayload)
+
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveTextContent("Current Job 43"))
+    expect(fetchDiffReviewVersion).not.toHaveBeenCalled()
+  })
+
+  it("falls back to the current canonical version when a selected historical version is missing", async () => {
+    const currentVersion = version({ id: 100, label: "Current version", version_index: 1 })
+    const missingVersion = version({ id: 200, label: "Missing version", version_index: 2, run_id: 22 })
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(
+      sourceDiffPayload({ version: currentVersion, versions: [currentVersion, missingVersion] })
+    )
+    vi.mocked(fetchDiffReviewVersions).mockResolvedValue({
+      job_id: 42,
+      versions: [currentVersion, missingVersion],
+      latest_version_id: 200
+    })
+    vi.mocked(fetchDiffReviewVersion).mockRejectedValue(new Error("Couldn't find DiffReviewVersion"))
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByLabelText("Version"))
+    fireEvent.click(within(screen.getByRole("listbox", { name: "Version" })).getByRole("button", { name: "v2 RUN-22" }))
+
+    await waitFor(() => expect(fetchDiffReviewVersion).toHaveBeenCalledWith(42, 200))
+    await waitFor(() => expect(screen.getByLabelText("Version")).toHaveTextContent("Current version"))
+    expect(screen.queryByText("Couldn't find DiffReviewVersion")).not.toBeInTheDocument()
   })
 
   it("does not render plugin review-note chrome when no annotations exist", async () => {

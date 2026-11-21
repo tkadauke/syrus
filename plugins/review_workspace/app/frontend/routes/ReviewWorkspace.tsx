@@ -456,7 +456,7 @@ function JobReview({
           visualEvidenceNavigation={visualEvidenceNavigation}
         />
       ) : (
-        <MobileReviewCard job={job} onDetails={onDetails} payload={detail.data} visualEvidenceNavigation={visualEvidenceNavigation} />
+        <MobileReviewCard key={job.id} job={job} onDetails={onDetails} payload={detail.data} visualEvidenceNavigation={visualEvidenceNavigation} />
       )}
     </section>
   )
