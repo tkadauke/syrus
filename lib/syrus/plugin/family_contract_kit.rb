@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
+require "set"
+
 module Syrus
   module Plugin
     module FamilyContractKit
       module_function
 
-      def validate!(family:, provider:, capabilities:, contexts:, decline_contexts:)
+      def validate!(declaration:, provider:, contexts:, decline_contexts:)
+        family = declaration.family
         definition = Family.fetch(family)
         provider = provider.class unless provider.is_a?(Module)
 
@@ -15,7 +18,7 @@ module Syrus
           validate_signature!(provider, method_name, definition.core_method_contract(method_name))
         end
 
-        Array(capabilities).map(&:to_sym).each do |capability_name|
+        declaration.capabilities.each do |capability_name|
           capability = definition.capabilities.fetch(capability_name)
           validate_signature!(provider, capability_name, capability.method_contract)
           context = fetch_context!(contexts, capability_name, capability.context, "call")
@@ -79,6 +82,38 @@ module Syrus
 
       def context_label(context) = context.respond_to?(:name) ? context.name : context.to_s
       private_class_method :context_label
+    end
+
+    module FamilyContractCoverage
+      Entry = Data.define(:plugin, :family, :provider)
+
+      module_function
+
+      def declaration!(plugin:, family:, provider:, manifests: PluginRegistry.all_plugins)
+        manifest = manifests.find { |candidate| candidate.name == plugin.to_s }
+        raise ArgumentError, "Unknown plugin #{plugin.inspect}" unless manifest
+
+        declaration = Array(manifest.family_provides).find do |candidate|
+          candidate.family == family.to_sym && candidate.provider == provider.to_s
+        end
+        raise ArgumentError,
+          "#{plugin} does not declare #{provider} as a #{family} provider" unless declaration
+
+        covered << Entry.new(plugin: manifest.name, family: declaration.family, provider: declaration.provider)
+        declaration
+      end
+
+      def missing(manifests: PluginRegistry.all_plugins)
+        manifests.reject(&:external).flat_map do |manifest|
+          Array(manifest.family_provides).filter_map do |declaration|
+            entry = Entry.new(plugin: manifest.name, family: declaration.family, provider: declaration.provider)
+            entry unless covered.include?(entry)
+          end
+        end
+      end
+
+      def covered = @covered ||= Set.new
+      private_class_method :covered
     end
   end
 end
