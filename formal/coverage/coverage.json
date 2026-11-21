@@ -2249,9 +2249,9 @@
         "single_initial_success",
         "happy_path_single_job_lands"
       ],
-      "status": "partial",
-      "done_by": "O1",
-      "notes": "Architecture-spec enforced; the Lean statement 'every Workflow has a WorkUnit' needs N:1 allowance (O1)."
+      "status": "done",
+      "done_by": "O1 · workflow_launch_funnel_spec · UnitReentry.lean",
+      "notes": "Architecture-spec enforced; the Lean statement 'every Workflow has a WorkUnit' needs N:1 allowance (O1). Closed: the only persisted Workflow creations are the instantiation primitives the launcher calls (Workflows::Base, CheckpointResume), enforced by spec/architecture/workflow_launch_funnel_spec.rb; the two other Workflow.new calls are unsaved capability probes for RunQueueResolver. The N:1 allowance is the deliberate same-attempt re-entry pinned by UnitReentry.lean, so 'every persisted Workflow has a WorkUnit' holds with a unit owning one or more attempts."
     },
     {
       "id": "completed-infrastructure-job",
