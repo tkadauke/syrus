@@ -6,14 +6,6 @@ Families are defined by core and implementations are read from plugin manifests.
 A stable capability requires at least two independent in-tree implementations
 and a generated contract test; all other capabilities are provisional.
 
-## `review`
-
-Shape: `facet`. Required core: `key`, `display_name`.
-
-| Capability | Composition | Absent behavior | Tier | Context | Return shape |
-|---|---|---|---|---|---|
-| `external_reviewer` | `first_claim` | `nil` | `provisional` | `Syrus::Plugin::ExternalReviewContext` | `Syrus::Plugin::ExternalReviewer` |
-
 ## `ecosystem`
 
 Shape: `facet`. Required core: `key`, `display_name`.
@@ -58,3 +50,17 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | `ruby` | `Ruby::MinitestEcosystem` | `minitest` | `grader_types` | - |
 | `ruby` | `Ruby::RspecEcosystem` | `rspec` | `grader_types` | - |
 | `syrus-rails` | `SyrusRails::Ecosystem` | - | `prompt_context` | - |
+
+## `review`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `external_reviewer` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::ExternalReviewContext` | `Syrus::Plugin::ExternalReviewer` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| - | - | - | - | - |

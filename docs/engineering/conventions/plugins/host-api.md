@@ -214,6 +214,45 @@ Supported members:
 
 - `read`
 
+### `Syrus::Host::EcosystemDependencyAuditPlan`
+
+Since: `0.1.16`
+
+Carries one ecosystem's immutable dependency-audit lockfiles and command. Only the listed members are supported.
+
+Supported members:
+
+- `command`
+- `label`
+- `lockfiles`
+- `new`
+
+### `Syrus::Host::EcosystemGraderCoverage`
+
+Since: `0.1.16`
+
+Shares the supported coverage-phase decision used by Ecosystem grader-type providers. Only the listed members are supported.
+
+Supported members:
+
+- `coverage_for_phases?`
+
+### `Syrus::Host::EcosystemPreparePlan`
+
+Since: `0.1.16`
+
+Carries one ecosystem's immutable repository detection and preparation answer. Only the listed members are supported.
+
+Supported members:
+
+- `commands`
+- `detected`
+- `detected?`
+- `label`
+- `new`
+- `span_labels`
+- `version_file`
+
 ### `Syrus::Host::ExternalReviewArtifact`
 
 Since: `0.1.16`
@@ -295,45 +334,6 @@ Supported members:
 - `provider_key`
 - `refresh`
 - `submit`
-
-### `Syrus::Host::EcosystemDependencyAuditPlan`
-
-Since: `0.1.16`
-
-Carries one ecosystem's immutable dependency-audit lockfiles and command. Only the listed members are supported.
-
-Supported members:
-
-- `command`
-- `label`
-- `lockfiles`
-- `new`
-
-### `Syrus::Host::EcosystemGraderCoverage`
-
-Since: `0.1.16`
-
-Shares the supported coverage-phase decision used by Ecosystem grader-type providers. Only the listed members are supported.
-
-Supported members:
-
-- `coverage_for_phases?`
-
-### `Syrus::Host::EcosystemPreparePlan`
-
-Since: `0.1.16`
-
-Carries one ecosystem's immutable repository detection and preparation answer. Only the listed members are supported.
-
-Supported members:
-
-- `commands`
-- `detected`
-- `detected?`
-- `label`
-- `new`
-- `span_labels`
-- `version_file`
 
 ### `Syrus::Host::InvocationResult`
 
