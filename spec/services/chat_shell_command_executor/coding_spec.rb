@@ -27,6 +27,31 @@ RSpec.describe ChatShellCommandExecutor::Coding do
     end
   end
 
+  describe "#policy_error_code" do
+    it "refuses while contained chat execution is required, and only then" do
+      AppSetting.current.update!(contained_chat_execution: "preferred")
+      expect(executor.policy_error_code(chat_session)).to be_nil
+
+      AppSetting.current.update!(contained_chat_execution: "required")
+      expect(executor.policy_error_code(chat_session)).to eq(:containment_required)
+    end
+  end
+
+  # A command queued before containment became required must not run on the
+  # worker when its job picks it up.
+  describe "#run! under required containment" do
+    it "refuses without starting a process" do
+      AppSetting.current.update!(contained_chat_execution: "required")
+      allow(ProcessRunner).to receive(:new)
+
+      result = executor.run!(command_record)
+
+      expect(result.outcome).to eq("error")
+      expect(result.output).to eq(I18n.t("api.chat_shell_commands.preconditions.containment_required"))
+      expect(ProcessRunner).not_to have_received(:new)
+    end
+  end
+
   describe "#precondition_error_code" do
     it "requires a repository" do
       chat = ChatSession.create!(user: user, mode: "coding", coding_checkout_branch: "syrus-chat-1")

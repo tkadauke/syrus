@@ -2538,6 +2538,17 @@ One path does not: Coding Mode `!` shell commands
 workload policy. Under `required` they run on the worker while the chat agent
 is contained, in the same checkout the agent writes. That is NY15.
 
+**Resolved (NY15: disable them with an explanation).**
+`ChatShellCommandExecutor::Coding#policy_error_code` returns
+`containment_required` while `contained_chat_execution` is `required`. The
+endpoint then answers 403 with that code and a translated explanation, which
+the composer shows as its notice, and queues nothing. `run!` refuses a command
+queued before the setting changed, without starting a process. Local Mode is
+unaffected. Specs: `chat_shell_commands_spec.rb` "when contained chat
+execution is required", and `coding_spec.rb` `#policy_error_code` and
+"#run! under required containment". The website and `config/syrus_docs`
+describe it.
+
 `providers_for`'s own database-error fallback hands out disabled backends too.
 That is the NY13 question again, not a separate one.
 

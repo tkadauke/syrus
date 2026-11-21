@@ -2447,9 +2447,9 @@
       "prod_applied": 0,
       "prod_skipped": 0,
       "simulator": [],
-      "status": "partial",
-      "done_by": "M14 (NY15 decided)",
-      "notes": "The router authorizes the backend it picked and fails closed for the required chat workload (M14). Decided NY15: when containment is required, Coding Mode ! commands are disabled with an explanation. To implement."
+      "status": "done",
+      "done_by": "M14, NY15",
+      "notes": "The router authorizes the backend it picked and fails closed for the required chat workload (M14). Under required containment, Coding Mode ! commands are refused with an explanation, at the endpoint and at run time (NY15)."
     },
     {
       "id": "plugin-purge-ownership",
@@ -2884,7 +2884,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A. The containment boundary is about where agent-influenced code executes, and the checkout is agent-written. Under 'preferred' nothing changes, because an unavailable backend still falls back to the worker.",
-      "decision": "New option (2026-11-21): when containment is required, Coding Mode ! commands are disabled with an explanation. To implement."
+      "decision": "New option (2026-11-21): when containment is required, Coding Mode ! commands are disabled with an explanation. Implemented: 403 containment_required with a translated explanation, refused again at run time, Local Mode unaffected."
     },
     {
       "id": "NY16",
