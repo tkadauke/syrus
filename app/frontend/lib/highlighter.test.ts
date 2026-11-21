@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest"
 import * as performanceMarkers from "./performanceMarkers"
-import { HIGHLIGHTER_CSS_VARIABLE_PREFIX, detectFenceLanguage, detectHighlighterLanguage, highlighterCacheStatsForTest, resetHighlighterCachesForTest, tokenizeLines } from "./highlighter"
+import {
+  HIGHLIGHTER_CSS_VARIABLE_PREFIX,
+  detectFenceLanguage,
+  detectHighlighterLanguage,
+  highlighterCacheStatsForTest,
+  resetHighlighterCachesForTest,
+  tokenizeLines
+} from "./highlighter"
 
 function textOf(line: { content: string }[]) {
   return line.map((token) => token.content).join("")
