@@ -468,7 +468,25 @@ module Steps
         label = "#{record.class.name.downcase} ##{record.id}"
         raise RunEndedExternally, "#{label} no longer exists; stopping before #{phase}" if fresh.nil?
         raise RunEndedExternally, "#{label} is #{fresh.state}; stopping before #{phase}" if fresh.terminal?
+        ensure_still_owned!(fresh, label, phase) if record.is_a?(Run)
       end
+    end
+
+    # A worker that looked dead had its Run requeued, and possibly claimed by
+    # another worker; if this process was only stalled, it must not carry on.
+    # The Run is no longer running, or its execution_attempt moved past the
+    # one this process claimed. Only for a Run this process actually claimed.
+    def ensure_still_owned!(fresh, label, phase)
+      claimed = run.claimed_execution_attempt
+      return if claimed.nil?
+
+      unless fresh.running?
+        raise RunEndedExternally, "#{label} was requeued (#{fresh.state}); stopping before #{phase}"
+      end
+      return if fresh.execution_attempt.to_i == claimed
+
+      raise RunEndedExternally,
+        "#{label} was claimed again (attempt #{fresh.execution_attempt}, this executor holds #{claimed}); stopping before #{phase}"
     end
 
     def authorization_checkpoint_waiting?

@@ -23,3 +23,4 @@ import SyrusModel.AtomicSuccess
 import SyrusModel.LockedCleanup
 import SyrusModel.InlineHandoff
 import SyrusModel.RebasedMembers
+import SyrusModel.ExecutionFence

@@ -4,6 +4,12 @@ class Run < ApplicationRecord
   # Matches StepDispatcher::START_BLOCKED_BACKOFF so the two paths that can
   # notice the same gap also recover on the same cadence.
   CAPABILITY_BLOCK_BACKOFF = 5.minutes
+
+  # The execution_attempt this process claimed (RunJob#acquire_run_execution!).
+  # Not persisted: it is what this executor believes it owns, compared with the
+  # row by Steps::Base#ensure_run_still_active!. Nil when the Run was not
+  # claimed by a RunJob in this process.
+  attr_accessor :claimed_execution_attempt
   # Thread-local list of Runs created while a RunJob drives their Workflow
   # inline, and therefore not enqueued (see #enqueue_run_job).
   INLINE_HELD_RUN_IDS = :syrus_inline_held_run_ids

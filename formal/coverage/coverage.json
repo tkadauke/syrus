@@ -1772,9 +1772,9 @@
         "urgent_landing_preempts_blocked_epic_train",
         "epic_merge_train_after_approval_events"
       ],
-      "status": "partial",
-      "done_by": "EpicWide.lean · NY2",
-      "notes": "Epic-wide kinds are merge_train and stack_rebase. The start rule (EpicWorkflowLock.blocking_workflow_for) only waits for other Epic-wide Workflows, so a stack rebase can start while a member (e.g. a grandchild in the stack) is mid-implementation; classify_epic_workflow_conflicts then keeps the Epic-wide Workflow and cancels the running member work (6 applied in the production sample). EpicWide.lean: today_breaks; with Epic-wide work waiting for idle members, every interleaving stays exclusive (wait_rule_exclusive). Whether to wait or to preempt-and-relaunch is NY2."
+      "status": "done",
+      "done_by": "EpicWide.lean · F30 (NY2)",
+      "notes": "Decided NY2: neither side preempts. Members wait while Epic-wide work is queued or running; Epic-wide work now waits while any member is running (not merely queued -- that reading deadlocks, EpicWide.naive_deadlocks). Proved by exhaustive check over 6-op interleavings: exclusive and deadlock-free; a queued Epic-wide Workflow blocks new member starts, so it cannot be starved. The reconciler's conflict cancellation remains only as a backstop for a race between the two start checks."
     },
     {
       "id": "epic-conflict-victim-not-relaunched",
@@ -1795,7 +1795,7 @@
       "simulator": [],
       "status": "open",
       "done_by": null,
-      "notes": "Pair 'cancel(reason = epic lock)' with an obligation discharged when the Epic-wide unit ends; the reconciler is the only relauncher today."
+      "notes": "Moot after F30 (NY2): Epic-wide work no longer starts over running member work, so the reconciler no longer creates victims except in a race between the two start checks."
     },
     {
       "id": "epic-blocked-job-releasable",
@@ -2187,9 +2187,9 @@
         "worker_died_retries_once",
         "parallel_grader_worker_loss_retries"
       ],
-      "status": "partial",
-      "done_by": "NY3",
-      "notes": "Run ownership is a heartbeat lease without a fencing token. WorkflowWorkspaceRecovery#requeue! and worker-died recovery put the same Run back to queued; a stalled-but-alive old process can resume and keep executing (git writes, pushes) alongside the replacement. F12's pre-merge check does not stop it because a requeued Run is not terminal. Needs an attempt token checked at side-effect boundaries: NY3."
+      "status": "done",
+      "done_by": "F31 (NY3: A) · ExecutionFence.lean",
+      "notes": "Decided NY3: A. Runs carry execution_attempt, incremented on every claim; the executor keeps the claimed value and ensure_run_still_active! (before agent work and every merge) stops it once the row is no longer running or the attempt moved. ExecutionFence.at_most_one_passes: two claimants cannot both pass a checkpoint. Side effects between checkpoints remain unfenced (option B was not chosen)."
     },
     {
       "id": "lock-order-acyclic",

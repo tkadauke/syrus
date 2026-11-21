@@ -840,6 +840,78 @@ running". The existing cancellation spec now uses a failed parent.
 
 ---
 
+## F30 (NY2: both wait). Epic-wide work waits for running member work — implemented
+
+**Decision.** Neither side preempts the other. Members already waited while
+Epic-wide work (merge trains, stack rebases) was queued or running. An
+Epic-wide Workflow could start while a member's own Workflow ran, and the
+reconciler then cancelled the member's running work.
+
+**The trap, and why the rule reads "running".** If the Epic-wide Workflow also
+waited for *queued* members, the two would deadlock: queued members wait for
+the queued Epic-wide Workflow, and it waits for them
+(`EpicWide.naive_deadlocks`). The decided rule never deadlocks, keeps the Epic
+exclusive, and can't starve the Epic-wide Workflow, since a queued one blocks
+new member starts:
+- `decided_exclusive` and `decided_deadlock_free`, checked over every
+  interleaving of up to 6 operations;
+- `queued_epic_wide_blocks_new_members`;
+- `queued_epic_wide_starts_when_members_idle`.
+
+**Change.**
+- `EpicWorkflowLock#running_member_workflow` returns the oldest running,
+  non-Epic-wide Workflow on a Job in the Epic.
+- `StepDispatcher.start_workflow` start-blocks an Epic-wide Workflow with
+  `epic_member_work_running` (and an admission wakeup) while one exists.
+- The reconciler's start-block judgement knows the new reason.
+
+**Specs.** `step_dispatcher_spec.rb`:
+- "waits until no member workflow is running" (red before);
+- "is not held up by member work that is only queued" (the deadlock case);
+- "holds Epic-wide workflows for running member work, not for the sibling
+  gate" (replaces the merge_train/stack_rebase half of the sibling-gate bypass
+  spec, which assumed the old start rule).
+
+**Review note.** `classify_epic_workflow_conflicts` still cancels on a
+conflict. With both start rules in place, a conflict now needs the two checks
+to race. Taking a shared Epic lock around the check and the start would rule
+that out too; not done here.
+
+---
+
+## F31 (NY3: A). Run execution is fenced by an attempt counter — implemented
+
+**Decision.** Add a fencing token at the existing checkpoints.
+
+**Gap.** Recovery requeues a Run whose worker looks dead. If that worker was
+only stalled, it resumed and carried on: commit, push, call GitHub.
+`ensure_run_still_active!` refused only *terminal* records, and a requeued Run
+is queued, a reclaimed one running (`ExecutionFence.before_stale_passes`,
+`before_requeued_passes`).
+
+**Change.**
+- Migration `AddExecutionAttemptToRuns` (integer, default 0, idempotent).
+- `RunJob#acquire_run_execution!` increments it on every claim and keeps the
+  claimed value on the in-memory Run (`Run#claimed_execution_attempt`).
+- `Steps::Base#ensure_run_still_active!` (already called before agent work and
+  every merge, F12) also raises `RunEndedExternally` when this process claimed
+  the Run and the row is no longer running, or its attempt moved on. RunJob
+  logs the stop and leaves all state to the current owner.
+- Handlers run outside RunJob (most specs) have no claim, so they keep the old
+  terminal-only check.
+
+**Proof.** `ExecutionFence.after_stale_stopped`, `after_requeued_stopped`,
+`after_owner_passes`, and `at_most_one_passes` (two claimants can't both pass).
+
+**Spec.** `spec/services/steps/run_execution_fencing_spec.rb` (5 examples). The
+two stalled-executor cases go red with the check disabled.
+
+**Review note.** This fences at the checkpoints that exist: before agent work
+and before merges. A side effect between two checkpoints, such as a push in the
+middle of a Step, isn't fenced, which is option B in the original question.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

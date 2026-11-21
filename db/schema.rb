@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_001246) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_004334) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3808,6 +3808,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_001246) do
     t.datetime "coworker_wake_enqueued_at"
     t.integer "provider_account_id"
     t.json "artifacts"
+    t.integer "execution_attempt", default: 0, null: false
     t.index ["agent_provider", "cost_usd"], name: "idx_runs_spending_provider_cost"
     t.index ["agent_provider", "created_at", "cost_usd"], name: "idx_runs_spending_provider_window"
     t.index ["agent_provider", "state", "finished_at"], name: "idx_runs_provider_state_finished"

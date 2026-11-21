@@ -693,8 +693,12 @@ class RunJob < ApplicationJob
           @workflow.save!
           @step.start! if @step.may_start?
           @step.save!
+          # Fencing token: a stalled earlier executor of this Run sees the
+          # counter move at its next ensure_run_still_active! and stops.
+          @run.execution_attempt = @run.execution_attempt.to_i + 1
           @run.start!
           @run.save!
+          @run.claimed_execution_attempt = @run.execution_attempt
           @job.update!(started_at: Time.current) if @job.started_at.nil?
           acquired = true
         end
