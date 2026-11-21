@@ -37,7 +37,8 @@ RSpec.describe Steps::PreflightGrader do
     env = handler.send(:env)
 
     expect(env["TEST_ENV_NUMBER"]).to eq("pf#{step.id}")
-    expect(env["SEARCH_DATABASE_PATH"]).to eq("storage/test_searchpf#{step.id}.sqlite3")
+    expect(env["SYRUS_TEST_DB_NAMESPACE"]).to eq("pf#{step.id}")
+    expect(env["SEARCH_DATABASE_PATH"]).to eq("")
   end
 
   it "removes its database files even when the grader fails" do

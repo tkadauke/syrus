@@ -34,6 +34,16 @@ RSpec.describe "config/database.yml local SQLite mode" do
     expect(production.dig("search", "schema_dump")).to be(false)
   end
 
+  # Preflight graders clear SEARCH_DATABASE_PATH so their parallel workers each
+  # derive their own test search database; an empty value must fall back to the
+  # default path in every environment rather than become an empty path.
+  it "treats an empty SEARCH_DATABASE_PATH like an unset one" do
+    config = render_database_config("SYRUS_SQLITE" => "1", "SYRUS_DATA_ROOT" => "/data", "SEARCH_DATABASE_PATH" => "")
+
+    expect(config.dig("production", "search", "database")).to eq("/data/search.sqlite3")
+    expect(config.dig("development", "search", "database")).to eq("/data/search.sqlite3")
+  end
+
   it "keeps MySQL for production when SYRUS_SQLITE is not set" do
     config = render_database_config({})
 

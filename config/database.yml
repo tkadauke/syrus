@@ -34,20 +34,26 @@ development:
     migrations_paths: db/cable_migrate
   search:
     <<: *default
-    database: <%= ENV.fetch("SEARCH_DATABASE_PATH", File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3")) %>
+    database: <%= ENV["SEARCH_DATABASE_PATH"].to_s.empty? ? File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3") : ENV["SEARCH_DATABASE_PATH"] %>
     migrations_paths: db/search_migrate
     schema_dump: false
 
 # Warning: The database defined as "test" will be erased and
 # re-generated from your development database when you run "rake".
 # Do not set this db to the same as development or production.
+#
+# SYRUS_TEST_DB_NAMESPACE keeps graders that share one checkout apart.
+# TEST_ENV_NUMBER alone cannot: parallel_tests overwrites it for each worker
+# process with "", "2", "3", ..., so two parallel RSpec graders in the same
+# checkout would both open storage/test.sqlite3 and lock each other out.
+<% test_db_suffix = [ ENV["SYRUS_TEST_DB_NAMESPACE"], ENV["TEST_ENV_NUMBER"] ].reject { |part| part.to_s.empty? }.uniq.join("-") %>
 test:
   primary:
     <<: *default
-    database: storage/test<%= ENV["TEST_ENV_NUMBER"] %>.sqlite3
+    database: storage/test<%= test_db_suffix %>.sqlite3
   search:
     <<: *default
-    database: <%= ENV.fetch("SEARCH_DATABASE_PATH", "storage/test_search#{ENV["TEST_ENV_NUMBER"]}.sqlite3") %>
+    database: <%= ENV["SEARCH_DATABASE_PATH"].to_s.empty? ? "storage/test_search#{test_db_suffix}.sqlite3" : ENV["SEARCH_DATABASE_PATH"] %>
     migrations_paths: db/search_migrate
     schema_dump: false
     database_tasks: false
@@ -78,7 +84,7 @@ production:
     migrations_paths: db/cable_migrate
   search:
     <<: *primary_production_sqlite
-    database: <%= ENV.fetch("SEARCH_DATABASE_PATH", File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3")) %>
+    database: <%= ENV["SEARCH_DATABASE_PATH"].to_s.empty? ? File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3") : ENV["SEARCH_DATABASE_PATH"] %>
     migrations_paths: db/search_migrate
     schema_dump: false
 <% else %>
@@ -153,7 +159,7 @@ production:
     adapter: sqlite3
     pool: <%= ENV.fetch("DB_POOL", 9) %>
     timeout: 5000
-    database: <%= ENV.fetch("SEARCH_DATABASE_PATH", File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3")) %>
+    database: <%= ENV["SEARCH_DATABASE_PATH"].to_s.empty? ? File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3") : ENV["SEARCH_DATABASE_PATH"] %>
     migrations_paths: db/search_migrate
     schema_dump: false
 <% end %>

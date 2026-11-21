@@ -20,6 +20,7 @@ module PreflightGraderPolicy
   INFRASTRUCTURE_RETRY_BUDGET = 2
   WAVE_SIZE_ENV = "SYRUS_PREFLIGHT_GRADER_WAVE_SIZE".freeze
   NAMESPACE_PREFIX = "pf".freeze
+  NAMESPACE_ENV = "SYRUS_TEST_DB_NAMESPACE".freeze
   # Directories (relative to the grader workspace) config/database.yml places
   # per-TEST_ENV_NUMBER SQLite files in.
   DATABASE_DIRECTORY = "storage".freeze
@@ -44,19 +45,26 @@ module PreflightGraderPolicy
     end
 
     # Environment that points every database-using grader at its own test
-    # database. SEARCH_DATABASE_PATH is set explicitly because an inherited
-    # value would otherwise win over the TEST_ENV_NUMBER-derived default.
+    # databases. TEST_ENV_NUMBER covers a grader that runs one process, but
+    # parallel_tests overwrites it per worker, so a parallel RSpec grader keeps
+    # its namespace only through NAMESPACE_ENV (config/database.yml joins the
+    # two). SEARCH_DATABASE_PATH is cleared rather than pinned to one file: an
+    # inherited value would otherwise win, and one fixed path would put every
+    # parallel worker on the same search database.
     def database_env(namespace)
       {
         "TEST_ENV_NUMBER" => namespace,
-        "SEARCH_DATABASE_PATH" => "#{DATABASE_DIRECTORY}/test_search#{namespace}.sqlite3"
+        NAMESPACE_ENV => namespace,
+        "SEARCH_DATABASE_PATH" => ""
       }
     end
 
+    # The namespace's own files plus its parallel workers' (`<namespace>-<n>`).
     def database_files(root, namespace)
       directory = Pathname.new(root).join(DATABASE_DIRECTORY)
       DATABASE_FILE_STEMS.flat_map do |stem|
-        Dir.glob(directory.join("#{stem}#{namespace}.sqlite3*").to_s)
+        Dir.glob(directory.join("#{stem}#{namespace}.sqlite3*").to_s) +
+          Dir.glob(directory.join("#{stem}#{namespace}-*.sqlite3*").to_s)
       end
     end
 
