@@ -57,10 +57,14 @@ class ReconcileJobStatesJob < ApplicationJob
                   steps: %i[ retry_after_failure! ])
 
       when [ "failed", "cancelled" ]
-        # Latest attempt was cancelled (operator stop, or chain
-        # cascade). Lifting to :queued lets the operator decide
-        # what's next instead of leaving a stale :failed pill that
-        # implies the failure is current.
+        # A deliberate stop (operator cancel, stale-work repair, closure)
+        # leaves the Job failed on purpose -- JobLifecyclePropagation.cancel!
+        # marks it so -- and nothing relaunches it, so :queued would read
+        # "waiting to run" with no work behind it (decision NY6).
+        return nil if deliberately_cancelled?(latest_wf)
+
+        # A cascade or conflict cancellation that will be relaunched:
+        # lifting to :queued matches the work about to start.
         new(job, target_state: "queued",
                   reason: "latest workflow :cancelled but Job stuck at :failed",
                   steps: %i[ retry_after_failure! ])
@@ -202,6 +206,13 @@ class ReconcileJobStatesJob < ApplicationJob
 
       WorkUnits::TerminalWorkflowSync.for_job(job)
       job.reload.active_runtime_work?
+    end
+
+    # The same list the cancelled-workflow relaunch repair treats as "do not
+    # relaunch", so the two agree on which stops are final.
+    def self.deliberately_cancelled?(workflow)
+      reason = workflow.artifact("start_cancelled_reason").presence || workflow.artifact("cancelled_reason")
+      reason.to_s.in?(WorkEngine::Reconciler::DELIBERATE_CANCELLED_WORKFLOW_REASONS)
     end
 
     def self.lifecycle_owned_child_workflow?(workflow)

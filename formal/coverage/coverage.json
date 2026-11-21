@@ -1160,9 +1160,9 @@
       "simulator": [
         "queued_job_with_published_pr_converges"
       ],
-      "status": "partial",
-      "done_by": "Agreement.cancel_rules_disagree · NY6",
-      "notes": "Producer found: JobLifecyclePropagation.cancel! moves a running Job to failed when its current Workflow is cancelled, and ReconcileJobStatesJob::Plan maps [failed, cancelled] to queued. For a deliberate cancellation (operator stop, cancel_stale_work), RetryJobAfterCancelledWorkflow does not relaunch, so the Job then reads queued with no work. Production: JOB-9436, one minute after an operator's stale-work repair (the second untraced failed->queued drift). The two rules disagree (cancel_rules_disagree); which one is the spec is NY6."
+      "status": "done",
+      "done_by": "NY6 (A) · Agreement.cancel_option_a_agrees",
+      "notes": "Producer found: JobLifecyclePropagation.cancel! moves a running Job to failed when its current Workflow is cancelled, and ReconcileJobStatesJob::Plan maps [failed, cancelled] to queued. For a deliberate cancellation (operator stop, cancel_stale_work), RetryJobAfterCancelledWorkflow does not relaunch, so the Job then reads queued with no work. Production: JOB-9436, one minute after an operator's stale-work repair (the second untraced failed->queued drift). The two rules disagree (cancel_rules_disagree); which one is the spec is NY6. Decided NY6 (A) and implemented: ReconcileJobStatesJob::Plan leaves a failed Job alone when its latest Workflow was cancelled for a deliberate reason, the list the relaunch repair already uses."
     },
     {
       "id": "implemented-or-approved-without-pr",
@@ -2394,7 +2394,8 @@
         "B. queued is right: cancel! itself returns a running Job to queued, and the Job page shows 'cancelled — nothing scheduled' for a queued Job with no work.",
         "C. A new resting state (e.g. stopped) for an operator-stopped attempt."
       ],
-      "recommendation": "A. failed already means 'needs an operator decision', which is exactly the situation after a deliberate stop, and the deliberate-reason list it reuses already exists for the relaunch repair. B makes queued ambiguous, and C is a new state for a rare case."
+      "recommendation": "A. failed already means 'needs an operator decision', which is exactly the situation after a deliberate stop, and the deliberate-reason list it reuses already exists for the relaunch repair. B makes queued ambiguous, and C is a new state for a rare case.",
+      "decision": "A: failed is right; the Job-state plan no longer lifts [failed, cancelled] when the cancellation was deliberate (DELIBERATE_CANCELLED_WORKFLOW_REASONS), and still lifts cascade and conflict cancellations that are relaunched."
     },
     {
       "id": "NY7",
