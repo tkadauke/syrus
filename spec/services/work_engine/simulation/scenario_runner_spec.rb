@@ -94,6 +94,27 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     allow(App::ProviderAvailability).to receive(:broadcast_changed)
   end
 
+  # The Lean oracle conformance spec compares the two reconcilers through this
+  # seam on every intermediate world (DOC-44 Phase 2).
+  it "calls the tick observer once per tick, before the reconciler acts" do
+    ticks = []
+    observed_before_reconcile = []
+    allow(WorkEngine::Reconciler).to receive(:call).and_wrap_original do |original, **args|
+      observed_before_reconcile << ticks.last
+      original.call(**args)
+    end
+
+    result = described_class.call(
+      path: SCENARIO_FIXTURE_ROOT.join("single_initial_success.yml"),
+      max_ticks: 50,
+      tick_observer: ->(tick) { ticks << tick }
+    )
+
+    expect(ticks).to eq((0...ticks.size).to_a)
+    expect(ticks.size).to be >= result.ticks.to_i
+    expect(observed_before_reconcile.compact.first).to eq(0)
+  end
+
   def run_scenario(name, max_ticks: 50)
     described_class.call(
       path: SCENARIO_FIXTURE_ROOT.join("#{name}.yml"),

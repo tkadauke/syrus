@@ -129,8 +129,12 @@ failed Workflow's queued tail, which retry-from-failed-step continues through
 holds. All 99 scenarios agree now; the case is a fixture
 (`failed_with_queued_tail.json`, `Examples.failedWithQueuedTail`).
 
-Next in Phase 2: compare at every simulation tick, not only the starting world,
-and generate and shrink differential traces.
+The comparison also runs at the start of every simulation tick (a
+`tick_observer:` seam on the simulator), so the intermediate worlds the engine
+passes through are covered: all 99 scenarios agree at every tick.
+
+Next in Phase 2:
+generate and shrink differential traces.
 
 ## Next steps
 
