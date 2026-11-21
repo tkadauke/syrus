@@ -2350,6 +2350,23 @@
       "status": "done",
       "done_by": "F50",
       "notes": "RepairReuse.lean: keepAfter_nothing_read_changed, keepAfter_implies_keepBefore, keep_differs_only_for_scoped_dependencies. Repo-wide targets with no scoped dependency are kept after narrow repairs by documented design (metadata.always_rerun)."
+    },
+    {
+      "id": "repair-lifts-correct-pause",
+      "area": "infrastructure-jobs",
+      "title": "A landed main-branch repair declares healthy only the commit it validated, and lifts the pause only then",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "MainHealthChangedService#repair_landed! (Job#ensure_main_branch_repair_after_close)",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F51",
+      "notes": "RepairLift.lean: after_declares_only_landed, after_declare_was_before. Before: the live default-branch head was declared healthy, whatever had reached main after the repair."
     }
   ],
   "needs_you": [

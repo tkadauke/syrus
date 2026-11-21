@@ -290,7 +290,7 @@ handoff succeeds.
 
 ## main_branch_repair
 
-When the default branch is unhealthy, Syrus can create an infrastructure repair Job that checks out the failing revision, attempts a bounded repair, validates it, and opens the normal reviewed change. Repository landing is held while main is known broken and resumes when health becomes healthy or inconclusive according to policy.
+When the default branch is unhealthy, Syrus can create an infrastructure repair Job that checks out the failing revision, attempts a bounded repair, validates it, and opens the normal reviewed change. Repository landing is held while main is known broken and resumes when health becomes healthy or inconclusive according to policy. A merged repair marks main healthy only while main is still at the repair's merge commit; if other commits reached main after it, Syrus grades the current head first and keeps landing held until that result is in.
 
 Only one active repair is maintained for the same repository health episode. Polling retries transient GitHub failures without treating missing data as healthy; sustained inability to inspect an already-broken branch makes health inconclusive so the outage does not freeze landing forever. Recovery work is rate-limited to avoid a burst after a broad outage.
 

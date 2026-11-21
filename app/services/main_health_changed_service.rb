@@ -155,6 +155,19 @@ class MainHealthChangedService
     return unless @repository.main_branch_health_enabled?
 
     sha = latest_default_branch_sha.presence || job.head_sha.presence || checked_sha
+    # The landing validated the repair's merge result, and nothing after it.
+    # When main has already moved past that commit, the live head is
+    # ungraded: grade it instead of declaring it healthy and lifting the
+    # pause on stale evidence (formal/SyrusModel/RepairLift.lean).
+    landed_sha = job.landed_sha.presence
+    if landed_sha && latest_default_branch_sha.present? && latest_default_branch_sha != landed_sha
+      Rails.logger.warn(
+        "[MainHealthChangedService] #{@repository.slug} repair job #{job.slug} landed #{landed_sha.first(12)}, " \
+        "but main is already at #{latest_default_branch_sha.first(12)}; grading it before resuming landing"
+      )
+      PollMainBranchHealthJob.perform_later(@repository.id)
+      return
+    end
     unless sha.present? && sha != "unknown"
       Rails.logger.warn(
         "[MainHealthChangedService] #{@repository.slug} repair job #{job.slug} landed, " \
