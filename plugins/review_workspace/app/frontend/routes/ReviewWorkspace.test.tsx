@@ -237,7 +237,7 @@ describe("ReviewWorkspaceRoute", () => {
     expect(jobApi.postJobCommand).not.toHaveBeenCalled()
   })
 
-  it("does not carry approval gesture intent to another Job", async () => {
+  it("does not carry or replay approval gesture intent across Job navigation", async () => {
     const second = { ...job(), id: 43, slug: "JOB-43", title: "Review next" }
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ count: 2, jobs: [job(), second] }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -252,6 +252,9 @@ describe("ReviewWorkspaceRoute", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: /JOB-43/ })).toHaveAttribute("aria-current", "page"))
     await waitFor(() => expect(jobApi.fetchJobDetail).toHaveBeenCalledWith("43"))
     expect(screen.queryByText("Approve JOB-43 for landing?")).not.toBeInTheDocument()
+    fireEvent.keyDown(window, { key: "k" })
+    await waitFor(() => expect(screen.getByRole("link", { name: /JOB-42/ })).toHaveAttribute("aria-current", "page"))
+    expect(screen.queryByText("Approve JOB-42 for landing?")).not.toBeInTheDocument()
   })
 
   it("arbitrates touch scrolling and boundary navigation without relying on pointer cancellation", async () => {

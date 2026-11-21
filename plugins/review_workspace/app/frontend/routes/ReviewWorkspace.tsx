@@ -439,6 +439,7 @@ function DecisionPanel({
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedback, setFeedback] = useState("")
   const [confirming, setConfirming] = useState(false)
+  const handledGestureSequence = useRef<number>()
   useEffect(() => {
     setConfirming(false)
     setFeedbackOpen(false)
@@ -473,7 +474,9 @@ function DecisionPanel({
     return () => window.removeEventListener("keydown", shortcut)
   }, [canApprove, confirming, feedbackOpen, onEvidenceMove, onExit, onMove])
   useEffect(() => {
-    if (gestureIntent?.jobId === job.id && canApprove) setConfirming(true)
+    if (gestureIntent?.jobId !== job.id || !canApprove || handledGestureSequence.current === gestureIntent.sequence) return
+    handledGestureSequence.current = gestureIntent.sequence
+    setConfirming(true)
   }, [canApprove, gestureIntent, job.id])
   const mutationError = approve.error ?? submitFeedback.error
   return (
