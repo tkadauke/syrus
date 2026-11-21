@@ -2671,6 +2671,23 @@
       "status": "partial",
       "done_by": "M20 (NY21 open)",
       "notes": "Safety holds: every gate is re-evaluated under Backup and Replication row locks, and replication serializes with deletion on the Backup row lock. Open liveness question: an abandoned upload (expired lease, destination gone) protects its backup forever (NY21)."
+    },
+    {
+      "id": "backup-recovery-preflight",
+      "area": "backups",
+      "title": "Recovery never restores into a destination it has not established as compatible",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "LocalBackups::Recovery preflight checks",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "partial",
+      "done_by": "M21 (NY22 open)",
+      "notes": "Known mismatches (adapter, database major version, older application, missing or mismatched required plugin) block. Missing or unparseable version information only warns and still reports ready (NY22)."
     }
   ],
   "needs_you": [
@@ -2945,6 +2962,19 @@
         "C. Keep as is: an abandoned upload pins its backup until an operator deletes it."
       ],
       "recommendation": "A. It never deletes under a live or recoverable upload, and it releases exactly the case that cannot recover on its own.",
+      "decision": null
+    },
+    {
+      "id": "NY22",
+      "item": "backup-recovery-preflight",
+      "title": "Should recovery preflight block when it cannot establish compatibility, rather than warn?",
+      "context": "LocalBackups::Recovery preflight fails on a known mismatch: a different database adapter or major version, an older destination application, or a required plugin missing or at another version. But it only warns when information is missing: the destination's application version, database adapter or database version not supplied, no compatibility range in the bundle, or versions that do not parse. Warnings need no acknowledgement, so preflight reports 'ready' and a restore can proceed into a destination whose compatibility was never established. Restore replaces the database.",
+      "options": [
+        "A. Treat every unknown as a failure, and allow it only with an explicit operator flag (like the existing --break-glass-no-safety-backup), named after what is unknown.",
+        "B. Keep warnings, but require the operator to acknowledge the listed warnings by passing their codes before a restore starts.",
+        "C. Keep as is."
+      ],
+      "recommendation": "A, in line with NY13: an unknown is not a pass, and restore is destructive. The break-glass flag keeps the empty-instance and development cases possible on purpose.",
       "decision": null
     }
   ]

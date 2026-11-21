@@ -2701,6 +2701,32 @@ running longer than six hours. That is NY21.
 
 ---
 
+## M21. Recovery preflight blocks known incompatibility, warns on unknowns — audited, one question
+
+Main's "Block unknown plugin versions in recovery" and the preflight checks in
+`LocalBackups::Recovery` (`plugins/local_backups/lib/local_backups/recovery.rb`).
+
+- **Plugins: holds.** Every plugin the bundle marks as required must be
+  present. When the bundle names a version, the destination must report
+  exactly that version, and a destination plugin with no version is
+  "unknown" and blocks.
+- **Known mismatches fail.** These block the restore: a different database
+  adapter, a different database major version, a destination application
+  older than the bundle's, or a destination outside a declared compatibility
+  list.
+- **Unknowns only warn.** These are all `warn`, and preflight reports
+  `ready` whenever nothing *failed*, with no acknowledgement required:
+  - the destination's application version, database adapter or database
+    version was not supplied;
+  - the bundle declares no compatibility range;
+  - the application versions do not parse as versions (development builds,
+    SHAs).
+
+  So a restore can proceed into a destination whose compatibility was never
+  established. That is NY22.
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
