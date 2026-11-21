@@ -564,6 +564,41 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#ci_checks_for and #ci_job_log" do
+    before do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/abc123/check-runs")
+        .with(query: hash_including({}))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+          check_runs: [
+            { name: "rspec", status: "completed", conclusion: "failure",
+              html_url: "https://github.com/acme/widgets/actions/runs/111/job/222", output: { summary: "1 failure", text: nil } },
+            { name: "codecov", status: "completed", conclusion: "failure",
+              html_url: "https://codecov.io/gh/acme/widgets", output: { summary: nil, text: "coverage dropped" } }
+          ]
+        }.to_json)
+    end
+
+    it "lists every check with its Actions job id and output text, without fetching logs" do
+      checks = described_class.new(user).ci_checks_for("acme/widgets", "abc123")
+
+      expect(checks).to contain_exactly(
+        include(name: "rspec", conclusion: "failure", summary: "1 failure", actions_job_id: 222),
+        include(name: "codecov", output_text: "coverage dropped")
+      )
+      expect(checks.find { |check| check[:name] == "codecov" }).not_to have_key(:actions_job_id)
+      expect(a_request(:get, %r{/actions/jobs/})).not_to have_been_made
+    end
+
+    it "reads one Actions job log on demand" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222/logs")
+        .to_return(status: 302, headers: { "Location" => "https://productionresultssa3.blob.core.windows.net/actions-results/logs.txt?sig=abc" })
+      stub_request(:get, "https://productionresultssa3.blob.core.windows.net/actions-results/logs.txt?sig=abc")
+        .to_return(status: 200, body: "rspec failed: 1 example, 1 failure")
+
+      expect(described_class.new(user).ci_job_log("acme/widgets", 222)).to eq("rspec failed: 1 example, 1 failure")
+    end
+  end
+
   describe "#check_runs_detail_for fetching Actions job logs" do
     let(:check_runs_body) do
       {

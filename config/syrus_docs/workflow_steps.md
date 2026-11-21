@@ -484,6 +484,15 @@ If GitHub Actions reports that a job failed before repository tests ran
 records the CI infrastructure reason and does not start an agentic repair
 workflow for that signal.
 
+Syrus prefetches each failing GitHub Actions job's log into the repair prompt.
+When that log is missing, truncated, or too generic to act on, the agent reads
+CI itself with the read-only `list_ci_checks` and `read_ci_log` tools, which
+use Syrus's own GitHub access for the Job's repository -- the agent never
+needs the gh CLI or a GitHub token. `read_ci_log` returns a log's tail or only
+the lines matching a search term, with secrets redacted. Every workflow agent
+step has both tools, so an implementation or review agent can check CI on its
+own pull request too.
+
 ### coding_handoff_fix
 
 Agentic. Used inside `coding_handoff`'s `adversarial_review`/`visual_review` loops and its grader retry loop, before any PR exists — plays the same repair role `implement`/`respond` plays for `initial`/`retry`, since coding_handoff has no bare leading agentic step of its own (the diff was already committed by the chat coding session). Repairs a review's `needs_work` verdict and/or required grader failures on the captured handoff branch with a fresh workflow-agent turn. The prompt includes original Job context, committed handoff branch metadata, recent branch commits, `Prompts::ReviewFeedback`, and `Prompts::GradeFailureFeedback`.

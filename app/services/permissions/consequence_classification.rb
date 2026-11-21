@@ -61,7 +61,7 @@ module Permissions
         read_file list_files git_diff git_status
       ]).uniq.freeze,
       workflow: (WORKFLOW_OUTPUT + RUN_OBSERVATION + %w[
-        propose_job list_jobs search_jobs read_pr list_open_prs list_open_issues list_artifacts
+        propose_job list_jobs search_jobs read_pr list_ci_checks read_ci_log list_open_prs list_open_issues list_artifacts
         start_preview stop_preview run_target_prepare
       ]).uniq.freeze,
       agent_insight: %w[read_live_state read_run_worker_health].freeze,

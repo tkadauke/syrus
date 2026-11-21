@@ -599,6 +599,26 @@ class GithubClient
     raise
   end
 
+  # Every check run on +sha+, without fetching any logs. Each entry carries
+  # the GitHub Actions job id when the check is an Actions job -- the handle
+  # #ci_job_log needs -- and the check's own output text, which is the only
+  # log a non-Actions check app publishes.
+  def ci_checks_for(repo_slug, sha)
+    runs = Array(track_rate_limits { @client.check_runs_for_ref(repo_slug, sha) }.check_runs)
+    runs.map do |check_run|
+      normalized_check_run(check_run).merge(
+        actions_job_id: actions_job_id_from_url(check_run.html_url),
+        output_text: check_run.output&.text.to_s.presence
+      ).compact
+    end
+  end
+
+  # The raw log of one GitHub Actions job, capped at ACTIONS_JOB_LOG_MAX_BYTES,
+  # or nil when GitHub has none (expired, never produced, or unreadable).
+  def ci_job_log(repo_slug, actions_job_id)
+    actions_job_log_for(repo_slug, actions_job_id)
+  end
+
   # Fetches all check runs for a SHA in one API call and returns both a summary
   # and detailed failure info. Used by PollPullRequestJob to update the cached
   # pr_checks_state on the Job (for LandingQueueProcessor) and collect failure

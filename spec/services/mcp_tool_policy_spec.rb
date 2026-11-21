@@ -58,7 +58,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitJobMetadataTool,
         Mcp::Tools::SubmitReportTool
       )
-      expect(tools.size).to eq(22)
+      expect(tools.size).to eq(24)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
@@ -76,7 +76,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SubmitAdversarialReviewTool
       )
       expect(tools).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
-      expect(tools.size).to eq(12)
+      expect(tools.size).to eq(14)
     end
 
     it "returns only the dedicated submission tool to the security reviewer" do
@@ -122,7 +122,7 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitArtifactTool,
         Mcp::Tools::SubmitAdversarialReviewTool
       )
-      expect(tools.size).to eq(15)
+      expect(tools.size).to eq(17)
     end
 
     it "advertises generic runtime tools for a non-browser visual-review session" do

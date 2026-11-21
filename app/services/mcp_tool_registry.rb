@@ -549,6 +549,8 @@ class McpToolRegistry
         workflow_action(Mcp::Tools::ListJobsTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ListOpenPrsTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ReadPrTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ListCiChecksTool, required_roles: workflow_roles),
+        workflow_action(Mcp::Tools::ReadCiLogTool, required_roles: workflow_roles),
         workflow_action(Mcp::Tools::ListOpenIssuesTool, required_roles: workflow_roles),
         effect_workflow(SyrusMcp::SubmitArtifactTool, capability: :submit_artifact, required_roles: artifact_roles, mutation: true),
         workflow_action(SyrusMcp::RunTargetPrepareTool, capability: :run_target_prepare, required_roles: target_prepare_roles, mutation: true),
