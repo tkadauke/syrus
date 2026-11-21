@@ -21,6 +21,7 @@ import SyrusModel.BaseSupersession
 import SyrusModel.MemberLandingCleanup
 import SyrusModel.TestDbNamespaces
 import SyrusModel.ForcePushLease
+import SyrusModel.TrainOrder
 import SyrusModel.LandingSlot
 import SyrusModel.ReviewBarrier
 import SyrusModel.ReadySet
