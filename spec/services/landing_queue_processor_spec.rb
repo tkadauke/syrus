@@ -1242,6 +1242,29 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(job.landing_blocker_override_used_at).to be_nil
   end
 
+  # Epic atomicity (formal/SyrusModel/EpicAtomicLanding.lean):
+  # `waiting_epic_merge_train` is overridable like other blockers, but both
+  # landing entry points route an Epic child to its Epic's train before the
+  # per-Job path, so an override cannot land one member on its own.
+  it "never lands an Epic child on its own, even with an override of the train wait" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    child = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
+    child.update!(
+      landing_blocker_override_key: "waiting_epic_merge_train",
+      landing_blocker_override_reason: "operator wants this one out",
+      landing_blocker_override_requested_at: Time.current,
+      landing_blocker_override_requested_by_user_id: user.id
+    )
+    allow(MergeTrainDispatcher).to receive(:try_dispatch!).and_return(nil)
+
+    described_class.try_land!(child)
+    described_class.call
+
+    expect(child.workflows.where(trigger_kind: %w[auto_merge external_pr_merge])).to be_empty
+    expect(MergeTrainDispatcher).to have_received(:try_dispatch!).with(epic).at_least(:once)
+    expect(child.reload).to be_approved
+  end
+
   it "classifies every Epic child as waiting for the merge train" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     child = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)

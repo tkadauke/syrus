@@ -1816,6 +1816,30 @@ number, merge-train membership and position.
 
 ---
 
+## M8. Merge-train membership, order and Epic atomicity — proved, no bug
+
+- `TrainOrder.lean`: `LandingQueueProcessor#dependency_order` (Kahn's algorithm,
+  original-order ties, cycle fallback) is transcribed and checked over every
+  dependency graph on up to four members. It always returns exactly the members
+  (`order_is_permutation`), and for an acyclic graph every prerequisite comes
+  first (`order_respects_dependencies`).
+  `landing_queue_processor_dependency_order_spec.rb` checks the Ruby method for
+  the same over 500 random graphs. The dispatchers store this order as member
+  positions and `Steps::MergeTrainBuild` integrates `train.member_jobs` by
+  position, so the integration content is the declared members in dependency
+  order.
+- Partial success is not reported as atomic: a landed train with unverifiable
+  members is `succeeded` (its integration merge is atomic) but records a
+  `partial` member reconciliation and leaves those members open for the
+  reconciler, so their Epic cannot close early.
+- `EpicAtomicLanding.lean`: both landing entry points route an Epic child to its
+  train before the per-Job path, so `land` is never reached for one
+  (`epic_child_never_lands_alone`), even though `waiting_epic_merge_train` is an
+  overridable blocker. Pinned by "never lands an Epic child on its own, even
+  with an override of the train wait".
+
+---
+
 ## M5. Invariants derived from recent main commits
 
 At the operator's request, each recent main commit that touches engine
