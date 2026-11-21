@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 // Stub every boundary backendLifecycle touches: settings, the Docker runtime
 // probes, the installer paths (electron), and child_process (compose).
 vi.mock("electron", () => ({ app: { getAppPath: () => "/app", isPackaged: false } }))
+let channel = "stable"
 vi.mock("../electron/settings.js", () => ({
-  currentChannel: () => "stable",
+  currentChannel: () => channel,
   currentStackIdentity: () => ({ project: "syrus", dataVolume: "syrus_syrus-data", defaultPort: 3000 }),
   getBackendMode: () => "local",
   getLocalInstall: () => null,
@@ -99,5 +100,45 @@ describe("backend watchdog", () => {
       [false, "containers-down"],
       [true, null]
     ])
+  })
+})
+
+// "Reset Test Setup…" checked backendBusy() before its confirmation dialog,
+// which waits on the user indefinitely, and the wipe itself never took the
+// lifecycle. A start or update confirmed meanwhile therefore ran under
+// `compose down -v`, and one begun during the wipe recreated the stack it was
+// deleting. The wipe is now a lifecycle action of its own.
+describe("test-channel wipe", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    channel = "test"
+  })
+
+  afterEach(() => {
+    channel = "stable"
+    vi.useRealTimers()
+  })
+
+  it("refuses while another lifecycle action is running, and holds the lifecycle while it wipes", async () => {
+    let answerHealth: (healthy: boolean) => void = () => {}
+    health = () =>
+      new Promise<boolean>((resolve) => {
+        answerHealth = resolve
+      })
+    const starting = lifecycle.startBackend()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(lifecycle.backendBusy()).toBe(true)
+
+    await expect(lifecycle.wipeBackendStack()).rejects.toThrow(/busy|in progress/i)
+
+    answerHealth(true)
+    expect(await starting).toBe(true)
+
+    health = async () => true
+    const wiping = lifecycle.wipeBackendStack()
+    expect(lifecycle.backendBusy()).toBe(true)
+    expect(await lifecycle.startBackend()).toBe(false)
+    await wiping
+    expect(lifecycle.backendBusy()).toBe(false)
   })
 })

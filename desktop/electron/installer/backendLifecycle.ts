@@ -75,7 +75,22 @@ export const wipeBackendStack = async (): Promise<void> => {
   if (currentChannel() !== "test") {
     throw new Error("wipeBackendStack is only available on the test channel")
   }
+  // A lifecycle action like start/stop/update: never under one that is
+  // running (its compose recreate would race `down -v`), and none may begin
+  // until the wipe is done. The caller's pre-dialog check is not enough — the
+  // dialog waits on the user indefinitely.
+  if (backendBusy()) {
+    throw new Error("A backend start, stop or update is in progress; try again when it finishes.")
+  }
+  beginLifecycleAction()
+  try {
+    await wipeStack()
+  } finally {
+    busy = false
+  }
+}
 
+const wipeStack = async (): Promise<void> => {
   const identity = currentStackIdentity()
 
   // `down -v` removes the containers + the Compose-managed named volumes, when

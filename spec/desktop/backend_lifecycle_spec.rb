@@ -37,7 +37,8 @@ RSpec.describe "desktop backend lifecycle" do
     # The only `down` in the module is the explicit, test-channel-guarded
     # wipeBackendStack (Reset Test Setup). Exempt exactly that helper, then
     # assert the rest of the lifecycle never tears containers down.
-    wipe = lifecycle[/export const wipeBackendStack[\s\S]*?\n\}/]
+    # wipeBackendStack guards (test channel, lifecycle) and delegates to wipeStack.
+    wipe = lifecycle[/export const wipeBackendStack[\s\S]*?\nconst wipeStack[\s\S]*?\n\}/]
     expect(wipe).to include('compose(["down", "-v", "--remove-orphans"])')
     expect(lifecycle.sub(wipe, "")).not_to include('"down"')
   end

@@ -2985,6 +2985,48 @@ is clean.
 
 ---
 
+## F86. "Reset Test Setup" could wipe the stack under a running start or update — fixed
+
+**Found by** DOC-44 Phase 7, backend lifecycle and data safety: "Start, stop,
+update, reset, and uninstall are mutually exclusive where required", and
+"Missing data is distinguished from temporarily stopped containers".
+
+**Gap.** `start`, `stop` and `update` are mutually exclusive. Each checks
+`backendBusy()` and sets it with no await in between. The test-channel wipe
+was not part of this:
+
+- `confirmAndResetTestSetup` checked `backendBusy()` *before* its confirmation
+  dialog. That dialog waits on the user indefinitely, and a backend update can
+  be confirmed from its own dialog meanwhile.
+- `wipeBackendStack` never took the lifecycle itself. A start or update
+  confirmed while the reset dialog was open ran under `compose down -v`, and
+  one begun during the wipe recreated the stack it was deleting.
+
+Uninstall quits the app before its script runs (`uninstall.sh`, detached), so
+it cannot overlap.
+
+**Fix.**
+
+- `wipeBackendStack` refuses while any lifecycle action is running, and is a
+  lifecycle action itself: it bumps the F80 generation, holds `busy`, and
+  clears it in `finally`. The work moved to `wipeStack`.
+- `confirmAndResetTestSetup` re-checks after the dialog, so the usual case
+  refuses before supervision is stopped.
+
+**Missing data vs stopped holds.** The watchdog diagnoses `daemon-down`,
+`data-gone` (the data volume is absent) and `containers-down` separately. A
+deliberate stop shows the "stopped" page and is not reported as an outage
+(F80).
+
+**Spec.** `desktop/src/backendWatchdog.test.ts` "refuses while another
+lifecycle action is running, and holds the lifecycle while it wipes" was red
+before: the wipe resolved during a start. Two text specs were updated for the
+`wipeStack` split. No Lean model: exclusion here is a check-and-set with no
+await between, which a model would only restate. All 307 desktop vitest tests
+and 391 desktop specs pass, and the typecheck is clean.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

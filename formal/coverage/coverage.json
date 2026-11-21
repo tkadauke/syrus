@@ -3004,6 +3004,23 @@
       "status": "done",
       "done_by": "M24",
       "notes": "Per-channel RunOnce value name and settings store; audited, no bug."
+    },
+    {
+      "id": "desktop-lifecycle-exclusion",
+      "area": "desktop",
+      "title": "Start, stop, update and the test wipe are mutually exclusive; missing data is distinguished from a stopped stack",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "producer": "backendLifecycle start/stop/update/wipeBackendStack; confirmAndResetTestSetup; watchdog diagnosis",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "done_by": "F86",
+      "notes": "The wipe is now a lifecycle action; uninstall quits first."
     }
   ],
   "needs_you": [

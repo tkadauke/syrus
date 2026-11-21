@@ -2323,6 +2323,17 @@ const confirmAndResetTestSetup = async () => {
     return
   }
 
+  // The dialog waited on the user; an update may have started meanwhile.
+  // (wipeBackendStack refuses too, but checking here keeps supervision running.)
+  if (backendLifecycle.backendBusy()) {
+    void dialog.showMessageBox({
+      type: "info",
+      message: t("dialog.finishing_update"),
+      detail: t("dialog.update_busy_test")
+    })
+    return
+  }
+
   try {
     await resetTestSetup()
   } catch (error) {

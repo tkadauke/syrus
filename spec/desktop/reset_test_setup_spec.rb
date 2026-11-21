@@ -29,7 +29,8 @@ RSpec.describe "desktop reset test setup" do
     end
 
     it "tears the stack down with volumes, then removes the named volumes by prefix as a fallback" do
-      wipe = backend_lifecycle[/export const wipeBackendStack[\s\S]*?\n\}/]
+      # The entry point guards and holds the lifecycle; wipeStack does the work.
+      wipe = backend_lifecycle[/export const wipeBackendStack[\s\S]*?\nconst wipeStack[\s\S]*?\n\}/]
       # down -v --remove-orphans drops containers + Compose-managed volumes.
       expect(wipe).to include('await compose(["down", "-v", "--remove-orphans"])')
       # Belt-and-braces by-name removal, scoped strictly to THIS channel's
