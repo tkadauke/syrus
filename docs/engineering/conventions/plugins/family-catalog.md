@@ -19,7 +19,7 @@ Shape: `facet`. Required core: `key`, `display_name`.
 | `detect_prepare` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::RepoContext` | `Array<PreparePlan>` |
 | `focused_tests` | `first_claim` | `nil` | `nil` | `stable` | `Syrus::Plugin::Context::GraderContext` | `String or NilClass` |
 | `grade_candidates` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::RepoContext` | `Array` |
-| `grader_diagnostics` | `broadcast` | `nil` | `nil` | `stable` | `Syrus::Plugin::Context::GraderContext` | `Array or NilClass` |
+| `grader_diagnostics` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::GraderContext` | `Array or NilClass` |
 | `grader_types` | `keyed` | `:configuration_error` | `nil` | `stable` | `Syrus::Plugin::Context::GraderContext` | `Array` |
 | `parse_ci_log` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::Context::GraderContext` | `Hash with parser, error_summary, and error_block, or nil` |
 | `prompt_context` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::JobContext` | `String or NilClass` |
