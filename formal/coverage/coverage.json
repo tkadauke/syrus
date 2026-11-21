@@ -1253,9 +1253,9 @@
         "remote_moved_push_rebases",
         "superseded_ci_repair_base_resolves"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Medium priority; overlaps job-state-matches-latest-workflow for follow-up kinds."
+      "status": "done",
+      "done_by": "F87",
+      "notes": "F87: a follow-up failure with no changes closed a Job with an open PR as no_changes (counted as landed by dependents). Fixed; proved in FollowUpFailure.lean."
     },
     {
       "id": "run-before-review-barrier",

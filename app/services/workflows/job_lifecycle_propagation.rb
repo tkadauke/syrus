@@ -96,7 +96,11 @@ module Workflows
 
       return if job.implemented? || job.approved? || job.landing? || job.closed?
 
-      if no_changes_produced_failure?
+      # "No changes" closes only a Job whose work never produced a PR. On a Job
+      # with a PR, a follow-up that gave up without a diff says nothing about
+      # the PR's work: closing it would drop an unmerged PR, and the `landed`
+      # dependency mode counts a no_changes closure as landed. It fails.
+      if no_changes_produced_failure? && !job_has_pull_request?
         return unless job.may_close?
 
         StateTransition.with_source("propagate") do
@@ -219,6 +223,10 @@ module Workflows
         .where(id: active_workflow_ids)
         .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, workflow.id)
         .exists?
+    end
+
+    def job_has_pull_request?
+      job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
     end
 
     def no_changes_produced_failure?

@@ -3027,6 +3027,70 @@ and 391 desktop specs pass, and the typecheck is clean.
 
 ---
 
+## F87. A CI repair that gave up closed a Job with an open PR as "no changes" — fixed
+
+**Found by** DOC-44 job state, coverage item `feedback-does-not-regress-job`:
+"Feedback and repair Workflows on an existing Job never regress its state."
+
+**Gap.** Here is how a CI repair on an implemented Job reached the closure:
+
+1. An approval-blocking follow-up (`ci_failure`, `pr_comment`, …) lifts the
+   implemented Job to `running` when it starts.
+2. `analyze_and_fix` raises `NoChangesProduced` when the agent's step made no
+   change.
+3. `JobLifecyclePropagation.fail!` diverts such a failure to
+   `CiFailureNotReproduced` only when every grader in the Workflow passed or
+   was inconclusive.
+4. Otherwise it fell through to the generic rule, which closes the Job with
+   reason `no_changes`.
+
+So a CI repair whose agent gave up without a diff after a grader had already
+reproduced the failure closed a Job that still had an open, unmerged PR. The
+repair loop's later iterations are exactly this case. The spec saw `closed` /
+`no_changes`. Two things made this worse:
+
+- the PR's work was abandoned;
+- `JobDependency::SatisfactionModes::Landed` treats a `no_changes` closure as
+  landed (`landed.rb:16`), so dependents went ahead as if it had merged.
+
+**Production** (read-only). The four recent `ci_failure` runs that failed with
+`NoChangesProduced` all belong to Jobs that later closed as `pr_merged`. They
+took the diversion branch, so the gap is reachable but not yet observed.
+
+**Fix.** The `no_changes` closure applies only to a Job without a PR (no
+`pr_number`, `external_pr_number` or `fork_review_pr_number`). That is its
+meaning: an attempt that produced nothing. On a Job with a PR, the failure
+follows the ordinary path to `failed`, where it is visible and retryable.
+
+**Not changed.** `cancel!` of a follow-up that lifted the Job moves the Job to
+`failed`, which keeps the PR and stays retryable. Existing specs pin this
+intentionally ("still fails the Job when its only Workflow is cancelled").
+
+**Proved.** `FollowUpFailure.lean` encodes `fail!` branch for branch, over
+every Job state, PR or not, failure kind, CI diversion and lifecycle
+ownership:
+
+- a Job with a PR is never closed by a failed Workflow;
+- it never returns to a pre-PR state;
+- a Job without a PR whose attempt produced nothing is still closed as
+  `no_changes`;
+- the old rule closes a running Job with a PR.
+
+**Spec.** `job_lifecycle_propagation_spec.rb` "fails, rather than closes, a Job
+with a PR when a repair gives up after a reproduced failure" was red before:
+it got `closed` / `no_changes`.
+
+Also run and green:
+
+- the propagation specs;
+- the workflow, job, run_job, poll_pull_request, job_closure and
+  stack_rebase_coordinator specs, with `spec/services/workflows` (370
+  examples);
+- the `ci_failure_repair`, `pr_review_feedback_repair` and
+  `superseded_ci_repair_base_resolves` simulations.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

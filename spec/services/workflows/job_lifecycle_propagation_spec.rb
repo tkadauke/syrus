@@ -177,4 +177,25 @@ RSpec.describe Workflows::JobLifecyclePropagation, "ci_failure no-diff follow-up
     expect(job.landing_failure_reason).to include("ci_failure_not_reproduced")
     expect(workflow.artifact("ci_failure_outcome")["escalated"]).to be(true)
   end
+
+  # Regression: a CI repair loop's agent that gives up without a diff, after a
+  # grader in the same Workflow already reproduced the failure, fell past the
+  # not-reproduced branch into the generic "no changes" rule, which closes the
+  # Job as `no_changes`. The Job had an open, unmerged PR; closing it threw
+  # that work away, and the `landed` dependency mode treats a `no_changes`
+  # closure as landed, so dependents went ahead as if it had merged. A repair
+  # follow-up on a Job with a PR is never evidence that the Job's work is empty.
+  it "fails, rather than closes, a Job with a PR when a repair gives up after a reproduced failure" do
+    job = Factories.job
+    job.update_columns(state: "running", pr_number: 42)
+    workflow = failing_ci_workflow(job)
+    workflow.steps.create!(
+      kind: "grader", state: "failed", position: 99,
+      details: { "command" => "bin/rspec spec/a_spec.rb", "exit_code" => 1, "output" => "1 example, 1 failure" }
+    )
+
+    described_class.fail!(workflow)
+
+    expect(job.reload.attributes.slice("state", "closure_reason")).to eq("state" => "failed", "closure_reason" => nil)
+  end
 end
