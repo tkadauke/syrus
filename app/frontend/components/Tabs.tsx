@@ -24,14 +24,11 @@ export type UnderlineTabItem<Key extends TabKey = string> = {
 }
 
 const DEFAULT_ACTIVE_TAB_CLASS = "border-brand text-brand dark:border-brand dark:text-brand-emphasis"
-const DEFAULT_INACTIVE_TAB_CLASS = "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"
+const DEFAULT_INACTIVE_TAB_CLASS =
+  "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"
 
 export function underlineTabClass(active: boolean, className = "", activeClassName = DEFAULT_ACTIVE_TAB_CLASS, inactiveClassName = DEFAULT_INACTIVE_TAB_CLASS) {
-  return [
-    "min-w-0 shrink-0 border-b-2 font-medium",
-    active ? activeClassName : inactiveClassName,
-    className
-  ].filter(Boolean).join(" ")
+  return ["min-w-0 shrink-0 border-b-2 font-medium", active ? activeClassName : inactiveClassName, className].filter(Boolean).join(" ")
 }
 
 export function UnderlineTabs<Key extends TabKey>({
