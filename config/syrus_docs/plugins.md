@@ -9,8 +9,6 @@ features.
 
 The complete installed inventory is available under **Admin → Plugins**. Plugin
 authors should use the engineering plugin-authoring reference (`docs/engineering/conventions/plugins/authoring.md` in the Syrus repository); this page describes behavior that operators and agents need when using plugins.
-Each plugin detail page shows its manifest-declared capability families. The
-same manifest-only inventory is available from `syrus plugin capabilities`.
 
 Enabled, healthy plugins may also declare server-backed CLI commands. The CLI
 catalog exposes nested command paths, summaries, positional arguments, and
@@ -37,21 +35,6 @@ select a release, `--json` for a machine-readable test summary, `--checkout`
 for contributor testing, and `--keep-data` to retain a stopped dev instance.
 The full authoring workflow and option reference live in
 `docs/engineering/conventions/plugins/external.md`.
-
-`syrus plugin dev [DIR]` runs one plugin in a throwaway, release-matched Syrus
-container backed by SQLite. It prints the local URL and the seeded sign-in
-(`demo@syrus.local` / `password`), enables the mounted plugin, and reports its
-health. Frontend source changes are rebuilt inside the container; reload the
-browser to fetch the new content-hashed bundle. Ruby, manifest, and locale
-changes restart Syrus and print the resulting health, including load failures.
-Ctrl-C removes the container and its data volume unless `--keep-data` is used,
-which retains the stopped container and prints its name for later inspection.
-
-The development instance supports one plugin and intentionally has no real
-agent provider credentials. Configure a provider from the normal settings UI
-if you want to exercise real agent calls; those credentials remain only in the
-throwaway data volume. This command requires Docker and does not model MySQL or
-a multi-worker deployment.
 
 ## Per-origin Job visibility
 
@@ -112,23 +95,6 @@ that it would help, such as detected repository technology, configured database
 adapters, worker hosts, recent agent activity, repository count, or Syrus
 repositories. Recommendations are informational only, never gate work, and are
 suppressed when there is no evidence or the plugin is already enabled.
-
-## Where plugin documentation lives
-
-## External plugin frontends
-
-Plugins installed outside the Syrus repository can provide a prebuilt browser
-bundle and stylesheet. Syrus loads these assets at startup only while the
-plugin is enabled and healthy. A broken external bundle is logged and skipped;
-it does not prevent the application from opening. Plugin styles are
-self-contained and cannot rely on Syrus compiling plugin-specific Tailwind
-classes.
-
-Plugin authors build the conventional `frontend/entry.tsx` file with
-`bin/build-plugin-frontend <plugin-dir>`. The bundle may import the host's
-React, React DOM, TanStack Query, i18next, react-i18next, and
-`@syrus/plugin-sdk` modules; those dependencies must remain external rather
-than being copied into the plugin bundle.
 
 ## Installing an external plugin
 
@@ -502,40 +468,15 @@ instance. The standard distribution includes:
 
 ## Capability families
 
-Capability families group related, optional plugin contributions under one
-contract. A plugin declares a provider class name plus the stable capabilities
-it `implements`; provisional capabilities require a separate, explicit
-`provisional` opt-in. Undeclared capabilities are never invoked. The manifest
-and capability catalog remain readable while plugin code is unloaded, and a
-disabled plugin contributes no capability providers.
-
-Providers are ordered by the plugin's `prepare_priority`. Each capability
-documents its context, stability tier, absent behavior, and one composition
-mode: `collect`, `broadcast`, `first_claim`, or `keyed`.
-Providers implementing a `keyed` capability declare the selector with `key:`
-in the manifest, allowing selection without loading candidate classes.
-Enabled providers are checked when plugin health is first resolved after boot.
-Missing core methods, unknown capabilities, and incompatible signatures mark
-the plugin non-conforming and withhold that family's declarations without
-disabling unrelated registrations. Disabled plugins remain unloaded. Admin and
-`syrus plugin capabilities` show declarations and conformance failures.
-
-Core invokes a declared capability through `Syrus::Plugin::Dispatch.call`,
-passing one immutable context object. The initial context shapes are
-`RepoContext` (`repo_path`, `repository`), `WorkspaceContext`
-(`workspace_path`, `changed_files`, `repository`), `GraderContext` (`name`,
-`command`, `workspace_path`, `failed_cases`, `base_retry`, `project_path`), and
-`JobContext` (`repository`, `job`). Providers accept the context as one
-positional argument and read only the fields they need. Context fields are
-additive: core may add a field without changing the provider method signature.
-
-The dispatcher applies the capability's composition and absent behavior and
-isolates every provider through plugin runtime health, timing, optional timeout,
-and circuit-breaker handling. A crash or timeout becomes a neutral decline or
-empty contribution. A missing keyed provider raises
-`Syrus::Plugin::Dispatch::MissingKey`. Providers may raise
-`Syrus::Host::CapabilityValidationError` for a deliberate caller-visible
-configuration problem; validation errors do not count as plugin crashes.
+Capability families declare provider capabilities, stability, composition
+(`collect`, `broadcast`, `first_claim`, or `keyed`), and absent behavior.
+Undeclared capabilities and providers from disabled or non-conforming plugins
+are not called; Admin and `syrus plugin capabilities` show the declarations.
+Core dispatches each call with one immutable repository, workspace, grader, or
+Job context whose fields are additive. Providers read only the fields they need.
+Calls share timing, timeout, health, and circuit-breaker isolation, so crashes
+become neutral contributions. Missing keyed providers and intentional
+`Syrus::Host::CapabilityValidationError` failures remain caller-visible.
 
 ## Background jobs
 
