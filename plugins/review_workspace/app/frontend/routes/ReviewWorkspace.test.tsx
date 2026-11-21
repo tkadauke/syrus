@@ -131,7 +131,7 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.queryByText("Security review approved")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing (A)" }))
     fireEvent.click(screen.getByRole("button", { name: "Approve for landing" }))
-    await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/canonical/jobs/42/approve"))
+    await waitFor(() => expect(jobApi.postJobCommand).toHaveBeenCalledWith("/canonical/jobs/42/approve", { expected_revision: 3 }))
   })
 
   it("owns mobile scrolling inside the fixed dynamic-viewport workspace", async () => {
@@ -209,7 +209,7 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.click(screen.getByRole("button", { name: "Give feedback (F)" }))
     fireEvent.change(await screen.findByLabelText("What should change?"), { target: { value: "Please tighten this." } })
     fireEvent.click(screen.getByRole("button", { name: "Send feedback" }))
-    await waitFor(() => expect(jobApi.submitJobFeedback).toHaveBeenCalledWith(42, "Please tighten this."))
+    await waitFor(() => expect(jobApi.submitJobFeedback).toHaveBeenCalledWith(42, "Please tighten this.", 3))
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
   })
 
@@ -374,11 +374,28 @@ describe("ReviewWorkspaceRoute", () => {
     expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
     expect(workspaceRequests).toBeGreaterThan(1)
   })
+
+  it("reconciles the active stack when realtime Job eligibility changes", async () => {
+    let workspaceRequests = 0
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      workspaceRequests += 1
+      const jobs = workspaceRequests === 1 ? [job()] : []
+      return new Response(JSON.stringify({ count: jobs.length, jobs }), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+    renderRoute("/review/JOB-42")
+    await screen.findByText("Canonical review evidence")
+
+    window.dispatchEvent(new CustomEvent("syrus:app-event", { detail: { resource: "job", id: 42, type: "updated" } }))
+
+    expect(await screen.findByRole("heading", { name: "All caught up" })).toBeInTheDocument()
+    expect(workspaceRequests).toBe(2)
+  })
 })
 
 function job() {
   return {
     id: 42,
+    revision: 3,
     slug: "JOB-42",
     title: "Review me",
     priority: "high",

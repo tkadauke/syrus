@@ -8,6 +8,8 @@
   "dependency_blocked": "Durch Abhängigkeit blockiert",
   "action_hint": "Öffne die aktuellen Review-Nachweise des Jobs, um zu entscheiden. Deine Berechtigung wird bei der Aktion erneut geprüft.",
   "open_review": "Aktive Review öffnen",
+  "dashboard_ready_one": "{{count}} Job ist für deine Review bereit.",
+  "dashboard_ready_other": "{{count}} Jobs sind für deine Review bereit.",
   "all_caught_up": "Alles erledigt",
   "empty": "Es gibt gerade keine Jobs, die du genehmigen kannst.",
   "load_error": "Der Review-Arbeitsbereich konnte nicht geladen werden.",

@@ -2,6 +2,7 @@ import { getJson } from "@app/api/client"
 
 export type ReviewWorkspaceJob = {
   id: number
+  revision: number
   slug: string
   title: string
   priority: string

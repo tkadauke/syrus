@@ -8,6 +8,8 @@
   "dependency_blocked": "Dependentia impeditum",
   "action_hint": "Aperi testimonia recensionis Job praesentia ut decernas. Potestas tua cum agis iterum probatur.",
   "open_review": "Recensionem praesentem aperi",
+  "dashboard_ready_one": "{{count}} Job recensioni tuae paratum est.",
+  "dashboard_ready_other": "{{count}} Jobs recensioni tuae parata sunt.",
   "all_caught_up": "Omnia perfecta",
   "empty": "Nulla Jobs nunc a te approbari possunt.",
   "load_error": "Spatium recensionis onerari non potuit.",

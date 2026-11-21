@@ -597,6 +597,7 @@ de:
         repository_change_too_late: "Das Repository kann nur vor der ersten Nachricht geändert werden."
 
     base:
+      stale_job: "Dieser Job hat sich seit der Anzeige geändert. Prüfe den aktuellen Stand, bevor du handelst."
       unauthorized: "Bitte gib im Header `Authorization: Bearer <token>` ein gültiges API-Token an."
       admin_required: "Admin-API-Endpunkte erfordern das Token eines Administrator-Benutzers."
       sign_in_required: "Bitte melde dich an, um die App-API zu verwenden."

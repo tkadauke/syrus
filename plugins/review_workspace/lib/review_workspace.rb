@@ -11,12 +11,14 @@ module ReviewWorkspacePlugin
     disableable true
 
     link "Open Review", "/review", description: "Review Jobs that can receive your decision now."
-    provides sidebar_page: "ReviewWorkspacePlugin::SidebarPages"
+    provides sidebar_page: "ReviewWorkspacePlugin::SidebarPages",
+             ui_slot: "ReviewWorkspacePlugin::UiSlots"
 
     route :get, "/api/v1/app/review_workspace", to: "api/v1/app/review_workspace#index"
     route :get, "/api/v1/app/review_workspace/count", to: "api/v1/app/review_workspace#count"
 
     frontend routes: { "review_workspace/ReviewWorkspace" => "app/frontend/routes/ReviewWorkspace.tsx" },
+             ui_slots: { "review_workspace/ReviewDashboardNotice" => "app/frontend/ui_slots/ReviewDashboardNotice.tsx" },
              i18n: [ "app/frontend/i18n/locales/*/review_workspace.json" ]
   end
 end

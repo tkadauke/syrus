@@ -597,6 +597,7 @@ la:
         repository_change_too_late: "Repository tantum ante primum nuntium mutari potest."
 
     base:
+      stale_job: "Hic Job post ostensionem mutatus est. Statum praesentem recense antequam agas."
       unauthorized: "Da validum signum API per `Authorization: Bearer <signum>`."
       admin_required: "Termini API administratoris signum usori administratoris requirunt."
       sign_in_required: "Intra ut API applicationis utaris."
