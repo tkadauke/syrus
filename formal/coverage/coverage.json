@@ -953,9 +953,9 @@
         "terminal_cleanup_cancelled_retry_recovers",
         "zombie_terminal_unit_orphaned_run"
       ],
-      "status": "open",
-      "done_by": "D1",
-      "notes": "Theorem: terminal -> non-terminal only via a Reopen event that re-establishes lock and intent invariants. D1 makes unit re-entry intentional, but the other edges are unchecked."
+      "status": "partial",
+      "done_by": "UnitReentry.lean · work_unit_workflow_ownership_spec",
+      "notes": "Theorem: terminal -> non-terminal only via a Reopen event that re-establishes lock and intent invariants. D1 makes unit re-entry intentional, but the other edges are unchecked. WorkUnit half done: block!/unblock! do re-enter a finished unit as blocked/queued without its locks (UnitReentry.lockless_reentry; AutoRetryBackoff does it on purpose), but the only writer of a running unit is mark_running!, which acquires every key or raises, so RunningHoldsLocks survives re-entry from any state (step_preserves, reentry_runs_only_locked). The architecture spec now fails on any WorkUnit state write outside WorkUnit's own transitions. Remaining: the Workflow/Step/Run update_columns resurrection edges listed above."
     },
     {
       "id": "job-state-matches-latest-workflow",
