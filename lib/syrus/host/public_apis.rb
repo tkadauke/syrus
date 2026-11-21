@@ -5,6 +5,7 @@ require "syrus/host/chat_titles"
 require "syrus/host/disk_usage"
 require "syrus/host/system_alert"
 require "syrus/host/system_alert_provider"
+require "syrus/host/external_reviewer"
 %w[
   agent_provider callbacks permission_provider repository_content_provider
   cli_command_handler
@@ -26,6 +27,10 @@ module Syrus
         BackupArtifactSource: "Syrus::Plugin::BackupArtifactSource",
         BackupDestination: "Syrus::Plugin::BackupDestination",
         SystemAlertProvider: "Syrus::Plugin::SystemAlertProvider",
+        ExternalReviewer: "Syrus::Plugin::ExternalReviewer",
+        ExternalReviewContext: "Syrus::Plugin::ExternalReviewContext",
+        ExternalReviewResult: "Syrus::Plugin::ExternalReviewResult",
+        ExternalReviewArtifact: "Syrus::Plugin::ExternalReviewArtifact",
         InvocationResult: "AgentInvocation::Result",
         ToolContext: "McpToolContext",
         Current: "Current",
@@ -55,6 +60,10 @@ module Syrus
         BackupArtifactSource: [ "Defines the sealed backup-artifact source operations plugins may provide; replication orchestration is not promised.", %w[list describe open checksum pin release_pin record_replication] ],
         BackupDestination: [ "Defines offsite backup destination operations plugins may provide; credential storage and replication orchestration are not promised.", %w[upload verify delete materialize_local health] ],
         SystemAlertProvider: [ "Defines the system-alert contribution plugins may provide; alert aggregation and delivery are not promised.", %w[system_alerts] ],
+        ExternalReviewer: [ "Defines provisional external-review dispatch, refresh, and cancellation operations; lifecycle orchestration and storage are not promised.", %w[provider_key display_name capabilities available_for? submit refresh cancel] ],
+        ExternalReviewContext: [ "Carries immutable public review inputs and host-supplied account/client facades; records, credentials, and GitHub internals are not exposed.", %w[new repository job pull_request base_sha head_sha diff_review_version trigger rule links summary evidence connected_account client external_id idempotency_key] ],
+        ExternalReviewResult: [ "Normalizes external-review outcomes and provider response data; persistence, retry scheduling, and publication policy are not promised.", %w[new accepted completed declined retryable_failure terminal_failure outcome external_id idempotency_key retry_after artifacts feedback verdict publication metadata retryable? terminal?] ],
+        ExternalReviewArtifact: [ "Describes a typed external-review artifact without transferring artifact-storage ownership to providers.", %w[new kind name content_type location metadata] ],
         InvocationResult: [ "Carries an agent or chat invocation result; invocation-engine internals are not promised.", %w[new turns exit_status timed_out is_error outcome final_text session_id transcript_jsonl transcript_path cost_usd input_tokens output_tokens success?] ],
         ToolContext: [ "Exposes immutable authorization and request scope to tool handlers; construction and mutation are not promised.", %w[surface role user repository job workflow run chat_session run? chat? interactive] ],
         Current: [ "Exposes the request-local authenticated user; assignment and other current attributes are not promised.", %w[user api_user] ],

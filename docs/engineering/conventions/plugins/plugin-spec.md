@@ -131,7 +131,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 
 Declare one family at a time with `provides family_name: "Provider::Class", implements: %i[stable_capability], provisional: %i[experimental_capability]`. Providers implement only the capabilities they declare. Run the generated shared examples named `a valid <family> provider` from `syrus/plugin/test_kit`, passing literal plugin and provider strings plus call and decline contexts. The kit derives the full capability list from that exact manifest declaration, and the literal identifiers let isolated and sharded suite runs verify coverage from source.
 
-No capability families are currently defined.
+- `review` (facet; required core: `key`, `display_name`) — `external_reviewer` (provisional, first_claim, Syrus::Plugin::ExternalReviewer)
 
 ## Public host surface
 
@@ -151,6 +151,10 @@ No capability families are currently defined.
 - `Syrus::Host::CliCommandHandler` (since 0.1.16) — Bases server-backed plugin CLI handlers; transport internals are not promised. Only the listed members are supported. Supported members: `call`, `json`, `raw_text`, `table`, `text`.
 - `Syrus::Host::Current` (since 0.1.16) — Exposes the request-local authenticated user; assignment and other current attributes are not promised. Only the listed members are supported. Supported members: `api_user`, `user`.
 - `Syrus::Host::DiskUsage` (since 0.1.16) — Reads filesystem capacity snapshots for plugin-managed storage; caching and host health policy are not promised. Supported members: `read`.
+- `Syrus::Host::ExternalReviewArtifact` (since 0.1.16) — Describes a typed external-review artifact without transferring artifact-storage ownership to providers. Only the listed members are supported. Supported members: `content_type`, `kind`, `location`, `metadata`, `name`, `new`.
+- `Syrus::Host::ExternalReviewContext` (since 0.1.16) — Carries immutable public review inputs and host-supplied account/client facades; records, credentials, and GitHub internals are not exposed. Only the listed members are supported. Supported members: `base_sha`, `client`, `connected_account`, `diff_review_version`, `evidence`, `external_id`, `head_sha`, `idempotency_key`, `job`, `links`, `new`, `pull_request`, `repository`, `rule`, `summary`, `trigger`.
+- `Syrus::Host::ExternalReviewResult` (since 0.1.16) — Normalizes external-review outcomes and provider response data; persistence, retry scheduling, and publication policy are not promised. Only the listed members are supported. Supported members: `accepted`, `artifacts`, `completed`, `declined`, `external_id`, `feedback`, `idempotency_key`, `metadata`, `new`, `outcome`, `publication`, `retry_after`, `retryable?`, `retryable_failure`, `terminal?`, `terminal_failure`, `verdict`.
+- `Syrus::Host::ExternalReviewer` (since 0.1.16) — Defines provisional external-review dispatch, refresh, and cancellation operations; lifecycle orchestration and storage are not promised. Only the listed members are supported. Supported members: `available_for?`, `cancel`, `capabilities`, `display_name`, `provider_key`, `refresh`, `submit`.
 - `Syrus::Host::InvocationResult` (since 0.1.16) — Carries an agent or chat invocation result; invocation-engine internals are not promised. Only the listed members are supported. Supported members: `cost_usd`, `exit_status`, `final_text`, `input_tokens`, `is_error`, `new`, `outcome`, `output_tokens`, `session_id`, `success?`, `timed_out`, `transcript_jsonl`, `transcript_path`, `turns`.
 - `Syrus::Host::Job` (since 0.1.16) — Reads a job's identity, state, title, repository, owner, and workflows through find and visibility-scoped lookups; transitions, persistence, callbacks, and other associations are not promised. Supported members: `accessible_to`, `find`, `id`, `repository`, `state`, `title`, `user`, `visible_to`, `workflows`.
 - `Syrus::Host::McpTools` (since 0.1.16) — Provides database-connection and MCP response helpers; core tool implementations are not promised. Only the listed members are supported. Supported members: `invalid`, `success`, `with_database_connection`.
@@ -186,4 +190,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 32205 bytes (UTF-8, including this line).
+Size: 33881 bytes (UTF-8, including this line).
