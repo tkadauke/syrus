@@ -2051,6 +2051,50 @@ same process. That design limit predates this fix, which does not change it.
 
 ---
 
+## F66. Plugin-hosted extension points ignored health — fixed
+
+**Found by** DOC-44 plugin host semantics: auditing every call site that reads
+`manifest.provides` instead of going through `providers_for`.
+
+**Property.** This is `EffectHealth.lean`'s single callable gate, enabled and
+healthy, applied to a third channel: points one plugin hosts for others
+(`"<host>:<point>"`, such as `connected_accounts:provider`).
+
+**Gap.** `PluginRegistry.hosted_providers_for` required only `enabled?`, of
+the host and of each contributor. A contributor that was degraded, failed to
+load, or sat on a broken dependency still contributed. That included a
+contributor its host had rejected through `add_validation_error`, which is the
+documented way a host degrades a malformed contribution. A degraded host kept
+serving its point too.
+
+**Fix.** `hosted_providers_for` computes the same enabled-and-healthy set as
+the core points, using `health_for` over the enabled plugins. It requires the
+host to be in that set, and takes contributions only from plugins in it.
+
+**Spec.** `plugin_registry_spec.rb` "withholds a hosted point's providers from
+an unhealthy contributor" and "withholds every provider of a point whose host
+is unhealthy" (both returned the provider before the fix). Plugin, lib and
+admin specs pass (7,412 examples), and `bin/check-plugin-boundaries` is clean.
+
+**Audit of the other direct `manifest.provides` readers.**
+
+- *Deliberate:*
+  - `PlatformPollingJob` only identifies a class.
+  - `RepoPluginDetector` asks disabled plugins to detect, so it can recommend
+    enabling them.
+  - `PluginRepositoryConfiguration` labels each registration
+    enabled, disabled or unavailable, and offers only enabled ones.
+  - `Syrus::Events#queue_for` picks a queue.
+  - `PluginDisableGuard` and `Permissions::PluginContributions` take inventory.
+- *Fixed in F65:* `PluginTickJob` and `PluginLifecycleJob`.
+- *Still enabled-only:* two plugin-side registries read manifests themselves,
+  with `enabled?` only: `ConnectedAccounts::ProviderRegistry` (OAuth
+  providers) and `PluginRuntime::DesiredServiceCollection` (supervised
+  services). Plugins may use only the declared Host API, and health is "not
+  promised" there. That is NY18.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

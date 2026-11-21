@@ -561,6 +561,31 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.providers_for("host_plugin:thing")).to eq([ test_result_parser_class ])
     end
 
+    # The same callable rule as every core extension point: enabled is not
+    # enough, the plugin must be healthy. A host rejecting a malformed
+    # contribution through add_validation_error degrades the contributor, which
+    # must then stop contributing (formal/SyrusModel/EffectHealth.lean).
+    it "withholds a hosted point's providers from an unhealthy contributor" do
+      described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ])
+      described_class.register(
+        name: "contributor_plugin", version: "1.0.0",
+        provides: { "host_plugin:thing" => test_result_parser_class }
+      )
+      described_class.add_validation_error("contributor_plugin", "invalid thing")
+
+      expect(described_class.providers_for("host_plugin:thing")).to eq([])
+    end
+
+    it "withholds every provider of a point whose host is unhealthy" do
+      described_class.register(name: "host_plugin", version: "1.0.0", hosts: [ :thing ], depends_on: [ "missing_dependency" ])
+      described_class.register(
+        name: "contributor_plugin", version: "1.0.0",
+        provides: { "host_plugin:thing" => test_result_parser_class }
+      )
+
+      expect(described_class.providers_for("host_plugin:thing")).to eq([])
+    end
+
     it "returns nothing for a point no registered plugin hosts" do
       described_class.register(
         name: "contributor_plugin", version: "1.0.0",

@@ -393,8 +393,16 @@ module Syrus
         host_name = key.split(":", 2).first
         plugins = all_plugins
 
-        host = plugins.find { |manifest| manifest.name == host_name }
-        return [] if host.nil? || !host.enabled?
+        # The same callable rule as the core points: enabled *and* healthy,
+        # for the host and for each contributor. A host degrades a malformed
+        # contributor through add_validation_error, which must then stop it
+        # contributing (formal/SyrusModel/EffectHealth.lean).
+        enabled = plugins.select(&:enabled?)
+        health = health_for(plugins, enabled_names: enabled.map(&:name))
+        live = enabled.select { |manifest| health.healthy?(manifest.name) }
+
+        host = live.find { |manifest| manifest.name == host_name }
+        return [] if host.nil?
 
         # The host must actually declare the point. Without this any
         # "<plugin>:<anything>" would silently resolve, and the declared
@@ -402,7 +410,7 @@ module Syrus
         # anything.
         return [] unless host.hosted_extension_points.include?(key)
 
-        plugins.select(&:enabled?).flat_map do |manifest|
+        live.flat_map do |manifest|
           Array(manifest.provides[key] || manifest.provides[key.to_sym])
         end.compact
       end
