@@ -11,6 +11,14 @@ RSpec.describe Syrus::PluginDocumentation do
       "Plugin specification is stale; run bin/generate-plugin-docs"
   end
 
+  it "keeps generated per-family references current" do
+    committed = described_class::FAMILY_REFERENCE_ROOT.glob("*.md").to_h do |path|
+      [ path.basename(".md").to_s.to_sym, path.read ]
+    end
+    expect(committed).to eq(described_class.family_references),
+      "Plugin family references are stale; run bin/generate-plugin-docs"
+  end
+
   it "documents requires_syrus as gemspec string metadata" do
     expect(described_class.plugin_spec).to include('metadata["requires_syrus"] = ">= 0.1.16"')
   end
@@ -22,6 +30,11 @@ RSpec.describe Syrus::PluginDocumentation do
     expect(described_class::MANIFEST_DESCRIPTIONS.keys).to contain_exactly(*Syrus::PluginApi::Definition::MANIFEST_KEYS)
     expect(Syrus::PluginRegistry::EXTENSION_POINT_DESCRIPTIONS.keys).to contain_exactly(*Syrus::PluginRegistry::EXTENSION_POINTS)
     expect(Syrus::PluginRegistry::EXTENSION_POINT_DESCRIPTIONS.values).to all(match(/\A\S.*[.!?]\z/))
+  end
+
+
+  it "includes capability families in the compact plugin specification" do
+    expect(described_class.plugin_spec).to include("## Capability families")
   end
 
   it "documents the public host facades and legacy compatibility surface" do
