@@ -796,7 +796,56 @@ succeeded Workflow" (red before).
 
 ---
 
-## M1. Required reviews vs. the HEAD that is pushed — modelled, awaiting NY1
+## F28 (NY4: A). A failed Workflow keeps its queued tail — implemented
+
+**Decision.** `Workflow#fail!` keeps the downstream queued Steps for
+Retry-from-failed-step. The reconciler had been cancelling them about a minute
+later, roughly 127 repairs a week. A cancelled tail Step that already had a Run
+could not be revived by the retry.
+
+**Change.**
+- `Workflow#stale_terminal_steps`: on a failed Workflow, only running Steps,
+  plus an active publication Step that already failed. Cleanup still fails that
+  Step, so it stays the Step the retry resumes from.
+- The classifier and `cancel_terminal_workflow_active_descendants` both use it.
+- `Workflow#cancel_stale_terminal_descendants!` cancels live Runs through
+  `Run#cancel_without_step_cascade!`. That is a column update, so the cancel
+  doesn't cascade to the Step, and it still records the reconciler transition
+  that `controlling_run_for_failed_step` relies on to see past the cancelled
+  replacement.
+
+**Proof.** `Agreement.tail_after_agrees` and `tail_after_complete`.
+
+**Specs.** `reconciler_spec.rb` "a failed Workflow's queued tail" (2 examples):
+the tail is left for the retry, and it loses a live Run but keeps its Step.
+Two existing specs were updated to the decided behaviour; the cancellation-details
+spec now uses a cancelled Workflow.
+
+---
+
+## F29 (NY5: A). Validation prefetches may outlive a landed parent — implemented
+
+**Decision.** A `LandingValidationChild` WorkUnit whose parent *succeeded* keeps
+running. It is the prefetch the next landing reuses. Children of a failed or
+cancelled parent are still cancelled.
+
+**Change.** `classify_active_child_work_units_with_terminal_parents` skips
+`validation_prefetch_of_landed_parent?`.
+
+**Proof.** `Agreement.prefetch_of_landed_parent_kept` and
+`other_children_of_terminal_parents_stale`.
+
+**Specs.** `reconciler_spec.rb` "leaves a landed parent's validation prefetch
+running". The existing cancellation spec now uses a failed parent.
+
+---
+
+## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
+
+**Decision (2026-11-20).** Agent-authored commits after approval are intended.
+They only happen as part of fixes and rebases (`landing_fix`, agent conflict
+resolution), which graders cover, so there's no re-review gate. The proved
+property below is the barrier's whole guarantee.
 
 `ReviewBarrier.lean`. Proved: if every HEAD move is a tracked `implement`/
 `respond` step, whatever the barrier lets through was approved

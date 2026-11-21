@@ -1437,13 +1437,13 @@ module WorkEngine
             next if refusal
 
             with_transition_reason do
-              workflow.cancel_active_descendants!(reason: plan.action)
+              workflow.cancel_stale_terminal_descendants!(reason: plan.action)
             end
           end
           return skipped(refusal) if refusal
 
           workflow.reload
-          remaining_steps = workflow.persisted_active_step_ids
+          remaining_steps = workflow.stale_terminal_steps.pluck(:id)
           remaining_runs = workflow.runs.active.pluck(:id)
           if remaining_steps.any? || remaining_runs.any?
             failure("active descendants remain: steps=#{remaining_steps.inspect} runs=#{remaining_runs.inspect}")

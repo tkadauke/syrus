@@ -415,5 +415,53 @@ theorem ws_before_not_actionable : ¬ Actionable detectWsBefore wsRepairs := by
 
 theorem ws_after_actionable : Actionable detectWsAfter wsRepairs := fun _ h => h
 
+/-! ## Instance (decided): a failed Workflow's queued tail
+
+`Workflow#fail!` keeps the queued tail for Retry-from-failed-step; the
+reconciler cancelled it a minute later. Decision: the tail stays. The reconciler
+now treats as stale only live Runs, running Steps, and an active publication
+Step that already failed (cleanup fails it, making it the retry point). -/
+
+inductive TailStep where
+  | queued | queuedFailedPublication | running
+  deriving DecidableEq, Repr
+
+/-- What the domain keeps under a failed Workflow. -/
+def domainKeeps : TailStep → Bool
+  | .queued => true
+  | .queuedFailedPublication => false
+  | .running => false
+
+def staleBefore' (_ : TailStep) : Bool := true
+def staleAfter' (s : TailStep) : Bool := !domainKeeps s
+
+theorem tail_before_disagrees : ∃ s, staleBefore' s = true ∧ domainKeeps s = true := ⟨.queued, rfl, rfl⟩
+
+theorem tail_after_agrees (s : TailStep) : staleAfter' s = true → domainKeeps s = false := by
+  cases s <;> simp [staleAfter', domainKeeps]
+
+theorem tail_after_complete (s : TailStep) : domainKeeps s = false → staleAfter' s = true := by
+  cases s <;> simp [staleAfter', domainKeeps]
+
+/-! ## Instance (decided): validation prefetches of a landed parent
+
+A landing-validation prefetch validates the next landing on top of its
+parent's result, for the next landing to reuse. Decision: it may outlive a
+parent that succeeded; children of a failed or cancelled parent are still
+stale. -/
+
+inductive ParentEnd where
+  | succeeded | failed | cancelled
+  deriving DecidableEq, Repr
+
+def childStale (parent : ParentEnd) (prefetch : Bool) : Bool :=
+  !(parent = .succeeded && prefetch)
+
+theorem prefetch_of_landed_parent_kept : childStale .succeeded true = false := rfl
+
+theorem other_children_of_terminal_parents_stale (p : ParentEnd) (prefetch : Bool)
+    (h : ¬ (p = .succeeded ∧ prefetch = true)) : childStale p prefetch = true := by
+  cases p <;> cases prefetch <;> simp_all [childStale]
+
 end Agreement
 end SyrusModel

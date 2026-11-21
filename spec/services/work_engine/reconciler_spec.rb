@@ -1980,6 +1980,46 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(lock.reload).not_to be_active
   end
 
+  # A finished auto_merge parent with a running landing_validation prefetch
+  # child, as LandingValidationPrefetcher leaves them.
+  def terminal_parent_with_prefetch_child(parent_state)
+    target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 452)
+    parent_intent = WorkIntent.create!(
+      kind: "auto_merge", state: "requested", repository: target.repository,
+      scope_type: "job", scope_id: target.id, actor: target.user, source_type: "spec"
+    )
+    parent = WorkUnit.create!(
+      work_intent: parent_intent, kind: "auto_merge", state: parent_state,
+      repository: target.repository, scope_type: "job", scope_id: target.id, finished_at: 5.minutes.ago
+    )
+    child_intent = WorkIntent.create!(
+      kind: "landing_validation", state: "requested", repository: target.repository,
+      scope_type: "job", scope_id: target.id, actor: target.user, source_type: "spec"
+    )
+    child_workflow = Workflow.create!(job: target, trigger_kind: "landing_validation", state: "running")
+    child = WorkUnit.create!(
+      work_intent: child_intent, kind: "landing_validation", state: "running",
+      repository: target.repository, scope_type: "job", scope_id: target.id,
+      workflow: child_workflow, parent_work_unit: parent
+    )
+    child.work_unit_members.create!(job: target, role: "primary")
+    [ target, parent, child ]
+  end
+
+  # Decided (validation prefetches): LandingValidationPrefetcher starts these
+  # to validate the next landing on top of this one's result; a parent that
+  # landed is exactly when the next landing reuses them. In production 6 of
+  # the 7 cancellations were of this kind.
+  it "leaves a landed parent's validation prefetch running" do
+    target, parent, child = terminal_parent_with_prefetch_child("succeeded")
+
+    result = reconcile_and_execute(job_id: target.id)
+
+    expect(kind(result, :terminal_work_unit_active_children)).to be_nil
+    expect(child.reload).to be_running
+    expect(parent.reload).to be_succeeded
+  end
+
   it "cancels active child WorkUnits left behind by terminal parents" do
     target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 451)
     parent_intent = WorkIntent.create!(
@@ -1994,7 +2034,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     parent = WorkUnit.create!(
       work_intent: parent_intent,
       kind: "auto_merge",
-      state: "succeeded",
+      state: "failed",
       repository: target.repository,
       scope_type: "job",
       scope_id: target.id,
@@ -2035,7 +2075,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_id: parent.id
     )
     expect(result.repair_executions.map(&:message)).to include("cancelled 1 active child WorkUnit(s) for terminal parent #{parent.slug}")
-    expect(parent.reload).to be_succeeded
+    expect(parent.reload).to be_failed
     expect(child.reload).to be_cancelled
     expect(child_workflow.reload).to be_cancelled
   end
@@ -4429,7 +4469,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     run.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
     failed_step.update_columns(state: "failed", started_at: 8.minutes.ago, finished_at: 7.minutes.ago)
     queued_tail.update_columns(state: "queued", started_at: nil, finished_at: nil)
-    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 6.minutes.ago)
+    # A cancelled Workflow: a failed one keeps its queued tail (see below).
+    workflow.update_columns(state: "cancelled", started_at: 10.minutes.ago, finished_at: 6.minutes.ago)
 
     result = reconcile_and_execute(workflow_id: workflow.id)
 
@@ -4442,10 +4483,49 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       "cancelled_by" => "terminal_workflow_cleanup",
       "cancelled_reason" => "cancel_terminal_workflow_active_descendants",
       "cancelled_workflow_id" => workflow.id,
-      "cancelled_workflow_state" => "failed",
+      "cancelled_workflow_state" => "cancelled",
       "cancelled_source_step_id" => failed_step.id,
       "cancelled_source_step_kind" => "grader_collect"
     )
+  end
+
+  # Decided (failed Workflow tails): Workflow#fail! keeps the queued tail so
+  # Retry-from-failed-step can continue through it. The reconciler used to
+  # cancel it a minute later (~127 repairs a week), and a tail Step that had
+  # a Run could then not be revived by the retry.
+  describe "a failed Workflow's queued tail" do
+    def failed_workflow_with_tail
+      failed_step = Step.create!(workflow: workflow, kind: "grader_collect", position: 2)
+      tail = Step.create!(workflow: workflow, kind: "summarize", position: 3)
+      step.update!(next_step: failed_step)
+      failed_step.update!(next_step: tail)
+      step.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+      run.update_columns(state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+      failed_step.update_columns(state: "failed", started_at: 8.minutes.ago, finished_at: 7.minutes.ago)
+      tail.update_columns(state: "queued", started_at: nil, finished_at: nil)
+      workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 6.minutes.ago)
+      tail
+    end
+
+    it "is left for Retry-from-failed-step" do
+      tail = failed_workflow_with_tail
+
+      result = reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(kind(result, :cleanup_blocked_by_active_descendants)).to be_nil
+      expect(tail.reload).to be_queued
+    end
+
+    it "loses a live Run but keeps its queued Step" do
+      tail = failed_workflow_with_tail
+      tail_run = tail.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
+
+      result = reconcile_and_execute(workflow_id: workflow.id)
+
+      expect(kind(result, :cleanup_blocked_by_active_descendants)).to be_present
+      expect(tail_run.reload).to be_cancelled
+      expect(tail.reload).to be_queued
+    end
   end
 
   it "cancels a persisted running Step under a terminal Workflow even when its latest Run is already terminal" do
@@ -8474,7 +8554,9 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :operator_review_nonretryable_failure)).to be_nil
   end
 
-  it "cancels stale queued descendants inside a terminal failed Workflow" do
+  # A failed Workflow keeps its queued tail for Retry-from-failed-step; only
+  # the live Run under it is stale.
+  it "cancels a stale queued Run inside a terminal failed Workflow and keeps its Step" do
     queued_tail = workflow.steps.where(state: "queued").where.not(id: step.id).first ||
       Step.create!(workflow: workflow, kind: "summarize", position: 99, state: "queued")
     queued_tail_run = queued_tail.runs.create!(
@@ -8505,7 +8587,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     )
     expect(result.repair_executions.map(&:message)).to include("cancelled active descendants for terminal #{workflow.slug}")
     expect(workflow.reload).to be_failed
-    expect(queued_tail.reload).to be_cancelled
+    expect(queued_tail.reload).to be_queued
     expect(queued_tail_run.reload).to be_cancelled
   end
 

@@ -1155,7 +1155,8 @@ module WorkEngine
 
     def classify_terminal_workflows_with_active_descendants
       workflows.select(&:terminal?).filter_map do |workflow|
-        active_step_ids = workflow.persisted_active_step_ids
+        # A failed Workflow's queued tail is kept for Retry-from-failed-step.
+        active_step_ids = workflow.stale_terminal_steps.pluck(:id)
         active_run_ids = workflow.runs.active.pluck(:id)
         next if active_step_ids.empty? && active_run_ids.empty?
 
@@ -1688,6 +1689,7 @@ module WorkEngine
       active_children_by_parent = work_units
         .select(&:active?)
         .select { |unit| unit.parent_work_unit&.terminal? }
+        .reject { |unit| validation_prefetch_of_landed_parent?(unit) }
         .group_by(&:parent_work_unit)
 
       active_children_by_parent.map do |parent, children|
@@ -1706,6 +1708,17 @@ module WorkEngine
           explanation: "Terminal WorkUnit ##{parent.id} still has active child WorkUnits; terminal parents cannot keep descendant runtime work alive."
         )
       end
+    end
+
+    # LandingValidationPrefetcher starts these to validate the NEXT landing on
+    # top of this landing's result, for LandingValidationCache to reuse; a
+    # parent that landed is exactly when they pay off, so they may outlive it.
+    # A failed or cancelled parent's base never landed, so its prefetches are
+    # still cancelled.
+    def validation_prefetch_of_landed_parent?(unit)
+      unit.parent_work_unit.succeeded? && unit.definition.landing_validation_child?
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def active_work_unit_ids_for_intent(intent, excluding: nil)

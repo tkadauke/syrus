@@ -331,6 +331,29 @@ class Run < ApplicationRecord
   # SolidQueue::Job (e.g. an inline-drive successor orphaned when the
   # worker died before picking it up — see ReapStaleRunsJob). Reuses
   # the same queue + priority logic as the create-commit enqueue.
+  # Cancels this Run without its commit-time cascade to the Step (a cancelled
+  # Run otherwise cancels its Step, and through it the Workflow), while still
+  # recording the transition with the current StateTransition source and
+  # reason -- the reconciler reads that marker to see past an administrative
+  # cancellation to the failure that still explains the Step. Used where the
+  # Step must stay as it is: a failed Workflow's queued tail.
+  def cancel_without_step_cascade!
+    return false unless state.in?(ACTIVE_STATES)
+
+    from = state
+    update_columns(state: "cancelled", finished_at: Time.current)
+    metadata = StateTransition.transition_metadata_for(self)
+    reason_key = StateTransition.reason_key_for(self)
+    metadata["reason_key"] = reason_key if reason_key.present?
+    StateTransition.create!(
+      subject: self, from_state: from, to_state: "cancelled", event_name: "cancel",
+      source: StateTransition.current_source, user_id: StateTransition.current_user&.id,
+      run_id: StateTransition.current_run_id, metadata: metadata
+    )
+    RunResourceSummary.refresh_for(reload)
+    true
+  end
+
   def reenqueue!(ignore_workflow_affinity: false)
     enqueue_run_job(force: true, ignore_workflow_affinity: ignore_workflow_affinity)
   end

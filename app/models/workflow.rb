@@ -285,7 +285,34 @@ class Workflow < ApplicationRecord
   end
 
   def terminal_cleanup_active_descendants?
-    runs.active.exists? || persisted_active_steps.exists?
+    runs.active.exists? || stale_terminal_steps.exists?
+  end
+
+  # Steps that may not stay active under this terminal Workflow. A failed
+  # Workflow keeps its queued tail on purpose -- Retry-from-failed-step
+  # continues through it -- so only its running Steps are stale, plus an
+  # active publication Step that already failed: cleanup turns that one back
+  # into the failed Step the retry resumes from (see
+  # #preserve_publication_failure_during_terminal_cleanup?). A succeeded or
+  # cancelled Workflow has nothing that may stay active.
+  def stale_terminal_steps
+    return persisted_active_steps unless failed?
+
+    failed_publication = steps.active
+      .where(kind: work_definition.review_publication_step_kinds)
+      .where(id: Run.where(state: "failed").select(:step_id))
+    steps.where(state: "running").or(failed_publication)
+  end
+
+  # Terminal cleanup that respects that tail: on a failed Workflow, live Runs
+  # are cancelled without cascading to their Steps (as #failed! does), and
+  # only running Steps are cancelled.
+  def cancel_stale_terminal_descendants!(reason:)
+    return cancel_active_descendants!(reason: reason) unless failed?
+
+    request_live_process_kill!
+    Run.where(step_id: steps.select(:id)).active.find_each(&:cancel_without_step_cascade!)
+    cancel_active_descendants!(reason: reason, step_scope: stale_terminal_steps)
   end
 
   def live_descendants?
@@ -492,10 +519,10 @@ class Workflow < ApplicationRecord
     end
   end
 
-  def cancel_active_descendants!(reason: "terminal_workflow_active_descendants")
+  def cancel_active_descendants!(reason: "terminal_workflow_active_descendants", step_scope: persisted_active_steps)
     request_live_process_kill!
     Step.suppress_cancel_cascade do
-      active_steps = persisted_active_steps.to_a
+      active_steps = step_scope.to_a
       cancellation_details = active_descendant_cancellation_details(reason)
       attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
       publication_failure_step_ids = active_steps.filter_map do |step|

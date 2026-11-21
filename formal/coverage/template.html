@@ -243,7 +243,8 @@ details > summary::-webkit-details-marker { display: none; }
     document.getElementById("needs-list").innerHTML = NY.map(function (q) {
       return '<div class="q"><span class="ref">' + esc(q.id) + ' · ' + esc(q.item) + '</span><h3>' + esc(q.title) + '</h3>' +
         '<p>' + esc(q.context) + '</p><ul>' + (q.options || []).map(function (o) { return '<li>' + esc(o) + '</li>'; }).join("") + '</ul>' +
-        (q.recommendation ? '<p class="rec"><b>Recommendation:</b> ' + esc(q.recommendation) + '</p>' : "") + '</div>';
+        (q.recommendation ? '<p class="rec"><b>Recommendation:</b> ' + esc(q.recommendation) + '</p>' : "") +
+        (q.decision ? '<p class="rec"><b>Decided:</b> ' + esc(q.decision) + '</p>' : "") + '</div>';
     }).join("");
   }
   ["f-area", "f-status", "f-q"].forEach(function (id) { document.getElementById(id).addEventListener("input", render); });

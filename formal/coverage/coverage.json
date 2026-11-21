@@ -284,9 +284,9 @@
       "simulator": [
         "closed_job_active_work_unit"
       ],
-      "status": "partial",
-      "done_by": "model round 1 (Reconciler.lean activeChildOfTerminal)",
-      "notes": "Production (7 executions, all applied, read-only): in 6 the parent landing/merge-train/bundle unit had SUCCEEDED while its landing_validation / merge_train_validation / job_bundle_validation child was running; 1 parent had failed. Those children are LandingValidationPrefetcher prefetches: started once the parent's landing graders pass, they validate the NEXT landing on top of the parent's result and record a landing_validation artifact that LandingValidationCache lets that next landing reuse. Cancelling them when the parent succeeds discards exactly that work. The reconciler rule and its spec are deliberate ('terminal parents cannot keep descendant runtime work alive'), so this is queued as NY5 rather than changed."
+      "status": "done",
+      "done_by": "F29 (NY5: A)",
+      "notes": "Decided NY5: A. A succeeded parent's LandingValidationChild prefetches keep running for the next landing to reuse (6 of 7 production cancellations were these); children of failed or cancelled parents are still cancelled. Agreement.prefetch_of_landed_parent_kept / other_children_of_terminal_parents_stale."
     },
     {
       "id": "one-unit-per-workflow",
@@ -638,9 +638,9 @@
       "simulator": [
         "active_run_on_terminal_step"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Mostly self-heals because RunJob skips such Runs on dequeue. Invariant: step terminal -> all its Runs terminal; every Step terminal event must cancel or skip its own Runs."
+      "status": "partial",
+      "done_by": "F15, F19 (expected)",
+      "notes": "Production (6 executions, read-only), all a second Run on a Step that then finished through another Run. Latest case: the pr_open Step's first Run succeeded at 16:02:09.4, a second Run was created 0.7 s later, and the Step was marked succeeded 90 s after that -- the Step sat in 'Run succeeded, Step still running', the window F19 now closes by committing both together. Two 11-14 cases had a duplicate grader_fanout Run running and heartbeating after its Step succeeded: two executors on one Step, which F15 (one active Run per Step, under the Step lock) prevents at creation and NY3 (attempt fencing) would stop at execution. Recheck after deploy; the 90 s Step-success lag itself is not yet explained."
     },
     {
       "id": "active-step-with-terminal-runs",
@@ -781,9 +781,9 @@
         "terminal_cleanup_cancelled_retry_recovers",
         "repeated_pr_open_failure_retry_recovers"
       ],
-      "status": "partial",
-      "done_by": "F21",
-      "notes": "Production (7 days): ~127 applied repairs, nearly all on Workflows that were failed at repair time (the event shows today's state, so 'succeeded' ones were failed then and retried later). Fixed F21: the repair checked 'terminal' and then cancelled without a lock, so a Retry-from-failed-step reopening the Workflow in between had its fresh Runs cancelled (seen in production: 4 retry Runs survived only because they were already running). It now decides under the Job lock the retry holds (LockedCleanup.unlocked_damages / locked_safe). The by-design part — Workflow#fail! keeps the queued tail and the reconciler cancels it a minute later — is a design question: NY4."
+      "status": "done",
+      "done_by": "F21, F28 (NY4: A)",
+      "notes": "F21: cleanup decides under the Job lock a reopening retry holds. F28 (decided NY4: A): a failed Workflow keeps its queued tail for Retry-from-failed-step; only live Runs, running Steps, and an already-failed active publication Step are stale, and live Runs are cancelled without cascading to their Steps while still recording the reconciler transition. Removes ~127 repairs a week. Agreement.tail_after_agrees / tail_after_complete."
     },
     {
       "id": "terminal-workflow-live-processes",
@@ -1279,9 +1279,9 @@
         "cancelled_retry_until_barrier_blocks_tail",
         "parallel_merge_train_blocks_dirty_publication"
       ],
-      "status": "partial",
-      "done_by": "ReviewBarrier.lean · NY1",
-      "notes": "Proved: when every HEAD move is a tracked implement/respond step, whatever the barrier lets through was approved (tracked_only_push_reviewed). Counterexamples: a format or generate commit after approval is pushed unreviewed while the barrier passes; so is an agent-authored landing_fix or conflict-resolving rebase. The blank-SHA fail-open is harmless unless combined with such an untracked move. No code bug found in the tracked path (implement always records head_sha). Policy question queued as NY1."
+      "status": "by-design",
+      "done_by": "ReviewBarrier.lean · NY1 (C)",
+      "notes": "Decided (NY1, option C): agent-authored commits after approval are intended -- they only happen as part of fixes and rebases (landing_fix, agent conflict resolution), which graders cover; mechanical commits (format, generate) likewise. ReviewBarrier.lean proves the barrier's actual guarantee: every implement/respond HEAD move is approved before downstream work runs. Recorded as by design, no code change."
     },
     {
       "id": "retry-planned-for-active-workflow",
@@ -2329,7 +2329,8 @@
         "B. Everything that moves HEAD after review requires re-review (strictest; formatter changes would trigger review rounds).",
         "C. Today's behavior is intended: reviews cover the implementation, graders cover later fixes. Document it and record it as by design."
       ],
-      "recommendation": "A. Mechanical steps are deterministic and already gated by graders; agent edits after approval are exactly what the barrier exists to catch. Lean then proves 'the last agent-authored commit was reviewed' for every push."
+      "recommendation": "A. Mechanical steps are deterministic and already gated by graders; agent edits after approval are exactly what the barrier exists to catch. Lean then proves 'the last agent-authored commit was reviewed' for every push.",
+      "decision": "C (2026-11-20): agentic changes after approval are fine; they only happen as part of fixes and rebases. Recorded as by design."
     },
     {
       "id": "NY2",
@@ -2341,7 +2342,8 @@
         "B. Epic-wide work preempts: keep cancelling member work, but cancel it before starting (not via the reconciler afterwards) and relaunch every victim when the Epic-wide Workflow finishes.",
         "C. Keep today's behavior."
       ],
-      "recommendation": "A. Waiting is the only option that never discards running agent work, it needs no relaunch bookkeeping, and EpicWide.lean shows it keeps the Epic exclusive under every interleaving. A stack rebase is rarely urgent enough to justify killing an implementation mid-run."
+      "recommendation": "A. Waiting is the only option that never discards running agent work, it needs no relaunch bookkeeping, and EpicWide.lean shows it keeps the Epic exclusive under every interleaving. A stack rebase is rarely urgent enough to justify killing an implementation mid-run.",
+      "decision": "Both directions wait (2026-11-20): Epic-wide work waits until every member is idle, and member work waits until the Epic is idle. No preemption."
     },
     {
       "id": "NY3",
@@ -2353,7 +2355,8 @@
         "B. A full lease with expiry and renewal checked before every external side effect (push, GitHub API, workspace writes).",
         "C. Accept the risk: rely on the heartbeat threshold and the merge call's expected_sha fence."
       ],
-      "recommendation": "A. It reuses the checkpoints that already exist and turns a stalled executor's next side effect into a clean RunEndedExternally stop. Needs a migration (one integer column), hence the question."
+      "recommendation": "A. It reuses the checkpoints that already exist and turns a stalled executor's next side effect into a clean RunEndedExternally stop. Needs a migration (one integer column), hence the question.",
+      "decision": "A (2026-11-20): an attempt counter on Run, checked at the existing ensure_run_still_active! checkpoints."
     },
     {
       "id": "NY4",
@@ -2365,7 +2368,8 @@
         "B. fail! cancels the tail itself, and Retry revives every cancelled downstream Step (including those with cancelled Runs). Invariant: terminal ⇒ no active descendants.",
         "C. Keep both as they are."
       ],
-      "recommendation": "A. It matches the documented intent of fail!, needs no change to Retry, removes ~127 repairs a week, and still gives a provable invariant (no live Runs under a terminal Workflow). B is cleaner on paper but makes Retry responsible for reconstructing state it currently simply keeps."
+      "recommendation": "A. It matches the documented intent of fail!, needs no change to Retry, removes ~127 repairs a week, and still gives a provable invariant (no live Runs under a terminal Workflow). B is cleaner on paper but makes Retry responsible for reconstructing state it currently simply keeps.",
+      "decision": "A (2026-11-20): a failed Workflow keeps its queued tail; the reconciler stops cancelling queued Steps of failed Workflows and still cancels active Runs."
     },
     {
       "id": "NY5",
@@ -2377,7 +2381,8 @@
         "B. No: keep cancelling, and instead have the prefetcher re-parent the child to the next landing's unit (or to no parent) once the parent succeeds, so the state never arises.",
         "C. Keep the current behaviour; prefetches only pay off when they finish before their parent."
       ],
-      "recommendation": "A. It is the smallest change, keeps the prefetch's value in exactly the case it is built for, and still cancels prefetches whose base did not land. B is cleaner structurally but moves ownership logic into the prefetcher and the landing queue."
+      "recommendation": "A. It is the smallest change, keeps the prefetch's value in exactly the case it is built for, and still cancels prefetches whose base did not land. B is cleaner structurally but moves ownership logic into the prefetcher and the landing queue.",
+      "decision": "A (2026-11-20): a succeeded parent's landing-validation prefetch children may keep running; children of a failed or cancelled parent are still cancelled."
     }
   ]
 }
