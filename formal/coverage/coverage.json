@@ -595,9 +595,9 @@
         "visual_diff_worker_loss_does_not_fail_job",
         "grader_fanout_worker_loss_stays_in_loop"
       ],
-      "status": "open",
+      "status": "done",
       "done_by": "F52",
-      "notes": "Production (77 executions, 6 days, read-only): 56 'skipped: worker_died failure already created active replacement work'. Not a classifier/executor disagreement: the repair did mark the Run worker_died, and that failure's own propagation queued the replacement, so the repair rightly declined to add a second retry. The audit labels the step 'skipped' on purpose (reconciler_spec asserts the warn-severity skip), which hides that a repair was applied; reading skip counts for this kind needs that caveat. No code change. F52 / WorkerEvidence.lean: the live-claim guard now attributes an inline-chained Run's worker (the finished root Run's RunJob) to it (after_complete) without borrowing a running sibling's claim (after_ignores_running_siblings)."
+      "notes": "Production (77 executions, 6 days, read-only): 56 'skipped: worker_died failure already created active replacement work'. Not a classifier/executor disagreement: the repair did mark the Run worker_died, and that failure's own propagation queued the replacement, so the repair rightly declined to add a second retry. The audit labels the step 'skipped' on purpose (reconciler_spec asserts the warn-severity skip), which hides that a repair was applied; reading skip counts for this kind needs that caveat. No code change. F52 / WorkerEvidence.lean: the live-claim guard now attributes an inline-chained Run's worker (the finished root Run's RunJob) to it (after_complete) without borrowing a running sibling's claim (after_ignores_running_siblings). Closed: the production skips are the repair correctly declining a second retry after its own worker_died propagation; the live-claim guard is proved in WorkerEvidence.lean."
     },
     {
       "id": "runs-paused",
@@ -640,9 +640,9 @@
         "visual_diff_worker_loss_does_not_fail_job",
         "grader_fanout_worker_loss_stays_in_loop"
       ],
-      "status": "open",
-      "done_by": null,
-      "notes": "Fault model: prove a recovery bound and that mutable steps stay pinned to the workspace's storage key."
+      "status": "partial",
+      "done_by": "M26/F91 (NY26 open)",
+      "notes": "Fault model: prove a recovery bound and that mutable steps stay pinned to the workspace's storage key. Bounds established so far: the in-place infrastructure retry is capped by INFRASTRUCTURE_STEP_RETRY_LIMIT, pinned host-admission deferral by the per-Run budget (F91, PinnedDeferralBudget.lean), dead resume queues are rerouted once (M32). Open: a lost failure cascade after worker death is recovered by failing the Workflow rather than retrying in place (NY26)."
     },
     {
       "id": "active-run-on-terminal-step",
