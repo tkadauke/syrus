@@ -606,7 +606,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       it "keeps every plugin only for an asset build, which has no instance to change" do
         allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
-        stub_const("ENV", ENV.to_h.merge("SECRET_KEY_BASE_DUMMY" => "1"))
+        allow(described_class).to receive(:build_time_without_database?).and_return(true)
 
         expect(described_class.providers_for(:agent_provider)).to contain_exactly(agent_provider_class, off_by_default)
       end
@@ -717,7 +717,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       expect { described_class.credential_type_names }.to raise_error(described_class::EnablementUnavailable)
 
-      stub_const("ENV", ENV.to_h.merge("SECRET_KEY_BASE_DUMMY" => "1"))
+      allow(described_class).to receive(:build_time_without_database?).and_return(true)
       expect(described_class.credential_type_names).to eq([ "fallback_credential_plugin.kubeconfig" ])
     end
   end

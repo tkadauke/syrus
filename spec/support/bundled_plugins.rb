@@ -151,7 +151,9 @@ module Syrus
           # Transactional examples roll their own changes back to that value,
           # so ordinary core and plugin specs should not pay for two writes to
           # the singleton settings row. Only default-policy specs toggle it.
-          settings = AppSetting.current
+          # A transactional example may have rolled the row back while the
+          # process-local singleton still carries its pre-rollback attributes.
+          settings = AppSetting.current.reload
           previous = settings.beta_mode_enabled?
           desired = !beta_mode_excluded?(example)
           settings.update!(beta_mode_enabled: desired) unless previous == desired
@@ -161,14 +163,21 @@ module Syrus
 
         yield
       ensure
-        settings&.update!(beta_mode_enabled: previous) if defined?(settings) && settings && settings.beta_mode_enabled? != previous
+        if defined?(settings) && settings
+          begin
+            settings.reload
+            settings.update!(beta_mode_enabled: previous) if settings.beta_mode_enabled? != previous
+          rescue ActiveRecord::ActiveRecordError
+            nil
+          end
+        end
       end
 
       def establish_default_beta_mode
         return unless defined?(AppSetting) && AppSetting.respond_to?(:current)
         return unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
 
-        settings = AppSetting.current
+        settings = AppSetting.current.reload
         settings.update!(beta_mode_enabled: true) unless settings.beta_mode_enabled?
       rescue ActiveRecord::ActiveRecordError
         nil
