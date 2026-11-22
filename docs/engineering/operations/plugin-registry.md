@@ -33,3 +33,9 @@ The Go CLI reads SYRUS_PLUGIN_REGISTRY_URL from its own environment and caches
 the compatible catalog under the user's cache directory. This lets `syrus
 plugin search [TERM]` query either registry transport directly rather than
 routing registry content through the configured Syrus instance.
+
+The reusable index starter in `templates/plugin-index` runs `syrus plugin
+index-check` for changed releases. The check downloads the package and
+signature, verifies digest and publisher provenance, compares manifests,
+validates the package, and runs its contract tests against the declared minimum
+Syrus release. It emits a single JSON CI summary.

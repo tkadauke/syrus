@@ -1,0 +1,19 @@
+name: Check plugin submission
+on:
+  pull_request:
+    paths: ["**/*.json"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Syrus CLI
+        run: curl -fsSL https://get.syrus.dev/cli | sh
+      - name: Check changed releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only --diff-filter=AM "${{ github.event.pull_request.base.sha }}" HEAD -- '*/*.json' |
+            while IFS= read -r entry; do
+              syrus plugin index-check "$entry" --trust-store trust-store.json
+            done
