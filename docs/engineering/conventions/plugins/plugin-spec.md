@@ -38,6 +38,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `optionally_depends_on` — Optional plugin names.
 - `prepare_priority` — Ordering priority for prepare contributions.
 - `provides` — Map of extension-point names to implementing class names.
+- `roles` — Process roles in which the plugin may load.
 - `route` — Plugin-owned Rails route (verb, path, controller).
 - `suggests_enabling` — Evidence callback for suggesting a disabled plugin.
 - `tick_interval` — Optional control-plane tick interval.
@@ -153,7 +154,7 @@ A plugin is a gem loaded as trusted in-process code and requires a Syrus restart
 - `Syrus::Host::User` (since 0.1.16) — Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised. Supported members: `admin?`, `display_name`, `find`, `handle`, `id`, `jobs`, `repositories`.
 - `Syrus::Host::Workflow` (since 0.1.16) — Reads a workflow's identity, state, job, and runs through find; scheduling, transitions, repair, persistence, and other associations are not promised. Supported members: `find`, `id`, `job`, `runs`, `state`.
 
-The compatibility scanner also recognizes 477 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
+The compatibility scanner also recognizes 479 legacy core constants used by bundled plugins. They are not public APIs and must not be used by new or external plugins; use only the `Syrus::Host` facades listed above.
 
 ## Packaging and testing
 
@@ -167,4 +168,4 @@ Keep all plugin code, migrations, frontend assets, locales, and documentation in
 - Registering irreversible work in lifecycle hooks or assuming disable/uninstall removes owned data.
 - Adding chat MCP tools without an explicit tool-card rendering status.
 
-Size: 28621 bytes (UTF-8, including this line).
+Size: 28679 bytes (UTF-8, including this line).

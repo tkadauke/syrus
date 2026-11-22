@@ -54,7 +54,6 @@ module Syrus
       }.freeze
 
       DOMAIN_CONTRACTS = {
-        ApplicationRecord: [ "Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.", %w[abstract_class table_name table_name=] ],
         Job: [ "Reads a job's identity, state, title, repository, owner, and workflows through find and visibility-scoped lookups; transitions, persistence, callbacks, and other associations are not promised.", %w[find visible_to accessible_to id state title repository user workflows] ],
         Repository: [ "Reads repository identity, owner/name, archival state, and jobs through find and access-scoped lookups; credentials, synchronization, persistence, and other associations are not promised.", %w[find active accessible_to writable_by id owner name archived_at jobs] ],
         User: [ "Reads user identity, handle, display name, administrator status, repositories, and jobs through find; credentials, preferences, persistence, and other associations are not promised.", %w[find id handle display_name admin? repositories jobs] ],
@@ -63,12 +62,17 @@ module Syrus
         ChatSession: [ "Reads a chat session's identity, title, owner, and repository through find; turns, broadcasts, artifacts, persistence, and other associations are not promised.", %w[find id title user repository] ]
       }.freeze
 
+      STATIC_CONTRACTS = {
+        ApplicationRecord: [ "Stable Active Record base for plugin-owned models. Plugins may inherit from it and set their own table name; host persistence internals are not public.", %w[abstract_class table_name table_name=] ]
+      }.freeze
+
       class << self
         def install!
           install_aliases!
           replace_contracts!
           register_contracts(ALIAS_CONTRACTS, qualify: true)
           register_contracts(DOMAIN_CONTRACTS)
+          register_contracts(STATIC_CONTRACTS)
         end
 
         private
@@ -81,7 +85,7 @@ module Syrus
         end
 
         def replace_contracts!
-          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
+          managed_names = (ALIAS_CONTRACTS.keys + DOMAIN_CONTRACTS.keys + STATIC_CONTRACTS.keys).map { |name| "Syrus::Host::#{name}" }
           Host.apis.reject! { |api| managed_names.include?(api.name) }
         end
 
