@@ -60,28 +60,41 @@ RSpec.describe PluginRegistryClient do
   end
 
   it "clones a git registry once within the refresh interval" do
+    git = instance_double(GitRunner)
     client = described_class.new(url: "git+https://registry.example.test/plugins.git", cache_root: root,
-      syrus_version: Gem::Version.new("2.0.0"))
-    allow(Open3).to receive(:capture3) do |*_arguments|
+      syrus_version: Gem::Version.new("2.0.0"), git:)
+    allow(git).to receive(:run) do |*_arguments|
       materialize_registry(root.join("index"))
-      [ "", "", instance_double(Process::Status, success?: true) ]
+      ""
     end
 
     expect(client.search.entries.map(&:name)).to include("acme_weather")
     expect(client.search.entries.map(&:name)).to include("acme_weather")
-    expect(Open3).to have_received(:capture3).once
+    expect(git).to have_received(:run).once
+  end
+
+  it "returns a non-fatal error when a git registry cannot be cloned" do
+    git = instance_double(GitRunner)
+    allow(git).to receive(:run).and_raise(GitRunner::GitError.new([ "clone" ], 128, "offline"))
+    client = described_class.new(url: "git+https://registry.example.test/plugins.git", cache_root: root, git:)
+
+    result = client.search
+
+    expect(result.entries).to eq([])
+    expect(result.error).to include("git fetch failed", "offline")
   end
 
   it "rejects git registry symlinks that escape the checkout" do
+    git = instance_double(GitRunner)
     client = described_class.new(url: "git+https://registry.example.test/plugins.git", cache_root: root,
-      syrus_version: Gem::Version.new("2.0.0"))
+      syrus_version: Gem::Version.new("2.0.0"), git:)
     outside = root.join("outside.json")
     outside.write(JSON.generate(registry_entry("acme_weather", "1.0.0", ">= 1.0", "abc")))
-    allow(Open3).to receive(:capture3) do |*_arguments|
+    allow(git).to receive(:run) do |*_arguments|
       materialize_registry(root.join("index"))
       root.join("index/acme_weather/1.0.0.json").delete
       File.symlink(outside, root.join("index/acme_weather/1.0.0.json"))
-      [ "", "", instance_double(Process::Status, success?: true) ]
+      ""
     end
 
     result = client.search
@@ -91,15 +104,16 @@ RSpec.describe PluginRegistryClient do
   end
 
   it "stores git refresh metadata outside the untrusted checkout" do
+    git = instance_double(GitRunner)
     client = described_class.new(url: "git+https://registry.example.test/plugins.git", cache_root: root,
-      syrus_version: Gem::Version.new("2.0.0"))
+      syrus_version: Gem::Version.new("2.0.0"), git:)
     outside = root.join("outside.txt")
     outside.write("preserve me")
     FileUtils.touch(outside, mtime: Time.at(1))
-    allow(Open3).to receive(:capture3) do |*_arguments|
+    allow(git).to receive(:run) do |*_arguments|
       materialize_registry(root.join("index"))
       File.symlink(outside, root.join("index/.syrus-refreshed-at"))
-      [ "", "", instance_double(Process::Status, success?: true) ]
+      ""
     end
 
     expect(client.search.entries.map(&:name)).to include("acme_weather")
