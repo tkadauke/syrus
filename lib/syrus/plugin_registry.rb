@@ -843,7 +843,7 @@ module Syrus
       # AppSetting invalidates it on save when the flag actually changes.
       def beta_mode_enabled?
         return true unless defined?(AppSetting) && AppSetting.respond_to?(:current)
-        return true if ENV["SECRET_KEY_BASE_DUMMY"].present?
+        return true if build_time_without_database?
         return true unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
 
         cached = cached_beta_mode_enabled
@@ -959,7 +959,9 @@ module Syrus
         end
       end
 
-      def build_time_without_database? = ENV["SECRET_KEY_BASE_DUMMY"].present?
+      def build_time_without_database?
+        Rails.env.production? && ENV["SECRET_KEY_BASE_DUMMY"].present?
+      end
 
       def plugin_records_table_missing?
         !PluginRecord.table_exists?

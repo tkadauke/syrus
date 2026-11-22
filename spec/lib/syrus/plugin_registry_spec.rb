@@ -1943,6 +1943,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
     end
 
+    it "does not mistake a normal test process for a database-free asset build" do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("SECRET_KEY_BASE_DUMMY").and_return("1")
+      AppSetting.current.update!(beta_mode_enabled: false)
+      described_class.clear_beta_mode_cache!
+
+      expect(described_class.beta_mode_enabled?).to be(false)
+    end
+
     it "loads the setting once however many times the registry consults it" do
       # Let unrelated per-example lazy initialization settle before the
       # counting window opens: the performance-logging SQL subscriber loads
