@@ -63,9 +63,11 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus plugin` | Develop and inspect Syrus plugins | `--debug`, `--profile` | no |
 | `syrus plugin capabilities` | List plugin capability-family declarations | `--debug`, `--profile` | no |
 | `syrus plugin dev [DIR]` | Run a throwaway Syrus that reloads a plugin as you edit | `--debug`, `--keep-data`, `--profile`, `--syrus-version` | no |
+| `syrus plugin index-check ENTRY` | Validate a plugin registry submission | `--checkout`, `--debug`, `--profile`, `--trust-store` | no |
 | `syrus plugin keygen` | Generate a local Ed25519 publisher key | `--debug`, `--output`, `--profile` | no |
 | `syrus plugin new NAME` | Create a tested external plugin project | `--cli`, `--debug`, `--frontend`, `--model`, `--path`, `--profile`, `--syrus-version` | no |
 | `syrus plugin pack [DIR]` | Validate and build a deterministic plugin package | `--checkout`, `--debug`, `--output`, `--profile`, `--syrus-version` | no |
+| `syrus plugin publish [DIR]` | Pack, sign, and publish a plugin release | `--checkout`, `--debug`, `--index-repository`, `--key`, `--profile`, `--repository`, `--submit`, `--syrus-version` | no |
 | `syrus plugin sign PACKAGE` | Create a detached Ed25519 package signature | `--debug`, `--key`, `--output`, `--profile` | no |
 | `syrus plugin test [DIR]` | Validate and test a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
 | `syrus plugin validate [DIR]` | Validate a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
