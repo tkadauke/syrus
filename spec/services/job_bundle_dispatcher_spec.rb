@@ -476,6 +476,20 @@ RSpec.describe JobBundleDispatcher do
     expect { described_class.try_dispatch!(repository) }.not_to raise_error
   end
 
+  # Regression: when the launcher could not identify the lock owner, the
+  # conflict carried a PendingWorkUnit placeholder, and the deferral log line
+  # called `kind` on it. The NoMethodError escaped the rescue and aborted the
+  # whole landing-queue pass, skipping every repository after this one.
+  it "defers quietly when the lock owner could not be identified" do
+    approved_job(1)
+    approved_job(2)
+
+    allow(WorkUnits::Launcher).to receive(:instantiate)
+      .and_raise(WorkUnits::Launcher::LockConflict.new(lock_key: "landing:repository:#{repository.id}", work_unit: nil))
+
+    expect { expect(described_class.try_dispatch!(repository)).to be_nil }.not_to raise_error
+  end
+
   it "does not re-dispatch during the cooldown after a failed bundle" do
     approved_job(1)
     approved_job(2)

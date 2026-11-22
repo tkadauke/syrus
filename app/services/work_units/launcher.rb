@@ -12,10 +12,15 @@ module WorkUnits
       end
     end
 
+    # Stands in for a lock owner the launcher could not identify. LockConflict
+    # consumers read the owner's kind and id, so it answers both (nil) rather
+    # than turning a harmless deferral into a NoMethodError.
     PendingWorkUnit = Data.define(:id, :slug) do
       def initialize(id: nil, slug: "unknown active WorkUnit")
         super
       end
+
+      def kind = nil
 
       def label
         slug
