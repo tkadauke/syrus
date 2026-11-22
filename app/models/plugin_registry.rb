@@ -20,6 +20,7 @@ class PluginRegistry < ApplicationRecord
   def canonical? = url == CANONICAL_URL
   def read_only? = environment_managed?
   def cache_key = "registry-#{id}"
+  def configuration_error = nil
 
   def self.ensure_canonical!
     find_or_create_by!(url: CANONICAL_URL) { |registry| registry.name = "canonical"; registry.enabled = true }
@@ -30,7 +31,13 @@ class PluginRegistry < ApplicationRecord
     configured = active.where(environment_managed: false).order(:id).to_a
     env_url = ENV["SYRUS_PLUGIN_REGISTRY_URL"].to_s.strip
     return configured if env_url.blank? || configured.any? { |source| source.url == env_url }
-    configured + [ ensure_environment!(env_url) ]
+
+    environment = begin
+      ensure_environment!(env_url)
+    rescue ActiveRecord::RecordInvalid, URI::InvalidURIError => error
+      InvalidEnvironmentSource.new(env_url, error.message)
+    end
+    configured + [ environment ]
   end
 
   def self.ensure_environment!(url)
@@ -57,6 +64,17 @@ class PluginRegistry < ApplicationRecord
     def canonical? = url == CANONICAL_URL
     def read_only? = true
     def cache_key = "transient-#{Digest::SHA256.hexdigest(url)[0, 16]}"
+    def configuration_error = nil
+  end
+
+  class InvalidEnvironmentSource < TransientSource
+    def initialize(url, error)
+      super(url)
+      @error = error
+    end
+
+    def name = "environment-invalid-#{Digest::SHA256.hexdigest(url)[0, 8]}"
+    def configuration_error = @error
   end
 
   private
