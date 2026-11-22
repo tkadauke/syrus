@@ -51,14 +51,22 @@ class PluginRegistryPackageFetcher
   def download(url, limit:)
     uri = URI.parse(url)
     raise Error, "plugin registry artifacts must use HTTPS" unless uri.is_a?(URI::HTTPS)
+    raise Error, "plugin registry artifact host is not permitted" unless SsrfGuard.safe_host?(uri.host)
 
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 60) do |http|
-      http.request(Net::HTTP::Get.new(uri.request_uri))
+    body = +""
+    Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 60) do |http|
+      http.request(Net::HTTP::Get.new(uri.request_uri)) do |response|
+        raise Error, "plugin registry download failed with HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+        raise Error, "plugin registry download is too large" if response["content-length"].to_i > limit
+
+        response.read_body do |chunk|
+          raise Error, "plugin registry download is too large" if body.bytesize + chunk.bytesize > limit
+
+          body << chunk
+        end
+      end
     end
-    raise Error, "plugin registry download failed with HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
-    raise Error, "plugin registry download is too large" if response.body.to_s.bytesize > limit
-
-    response.body.to_s
+    body
   rescue URI::InvalidURIError, SocketError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError => error
     raise Error, "plugin registry download failed: #{error.message}"
   end
