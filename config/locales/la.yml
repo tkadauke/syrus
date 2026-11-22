@@ -57,6 +57,12 @@ la:
       plugin_release:
         bundled_archive_present: "abesse debet pro emissionibus inclusis"
         artifact_identity_immutable: "Identitas artefacti emissionis plugin post conservationem vel electionem immutabilis est."
+      plugin_registry:
+        configured_limit: "non plus quam %{count} registra plugin configurari possunt"
+        unsupported_transport: "HTTPS vel git+https uti debet"
+        credentials_forbidden: "credentialia continere non debet"
+        host_not_permitted: "hospes non permittitur"
+        invalid_url: "invalida est"
       chat_attachments:
         default_name: "Adiunctum"
         must_be_array: "Adiuncta series esse debent."

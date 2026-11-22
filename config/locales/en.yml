@@ -88,6 +88,12 @@ en:
       plugin_release:
         bundled_archive_present: "must be absent for bundled releases"
         artifact_identity_immutable: "plugin release artifact identity is immutable after storage or selection"
+      plugin_registry:
+        configured_limit: "at most %{count} plugin registries may be configured"
+        unsupported_transport: "must use HTTPS or git+https"
+        credentials_forbidden: "must not contain credentials"
+        host_not_permitted: "host is not permitted"
+        invalid_url: "is invalid"
       chat_attachments:
         default_name: "Attachment"
         must_be_array: "Attachments must be an array."

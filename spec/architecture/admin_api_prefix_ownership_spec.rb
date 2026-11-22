@@ -18,6 +18,10 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/plugin_convergence api/v1/app/admin/plugin_convergence#show
     GET /api/v1/app/admin/plugin_installer api/v1/app/admin/plugin_installer#index
     GET /api/v1/app/admin/plugin_installer/catalog api/v1/app/admin/plugin_installer#catalog
+    GET /api/v1/app/admin/plugin_installer/registries api/v1/app/admin/plugin_installer#registries
+    POST /api/v1/app/admin/plugin_installer/registries api/v1/app/admin/plugin_installer#create_registry
+    PATCH /api/v1/app/admin/plugin_installer/registries/:id api/v1/app/admin/plugin_installer#update_registry
+    DELETE /api/v1/app/admin/plugin_installer/registries/:id api/v1/app/admin/plugin_installer#destroy_registry
     POST /api/v1/app/admin/plugin_installer/stage api/v1/app/admin/plugin_installer#stage
     POST /api/v1/app/admin/plugin_installer/stage_remove api/v1/app/admin/plugin_installer#stage_remove
     POST /api/v1/app/admin/plugin_installer/stage_release api/v1/app/admin/plugin_installer#stage_release
