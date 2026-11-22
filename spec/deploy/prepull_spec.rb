@@ -111,6 +111,26 @@ RSpec.describe Deploy::Prepull do
     expect(pod_spec.dig("containers", 0, "image")).to eq("ghcr.io/tkadauke/syrus-worker-dev:abc1234")
   end
 
+  # Regression: only worker-dev was warmed, but the migration pod runs the app
+  # image. Two production deploys in a row then waited out the five-minute
+  # migration start timeout in ContainerCreating while a node pulled it cold,
+  # and the first of them gave up before reaching production.
+  it "warms the app image alongside worker-dev" do
+    prepull, fake = build({
+      "daemonset syrus-worker-compute" => compute_daemonset,
+      "daemonset syrus-image-prepull" => prepull_status
+    })
+
+    prepull.warm!
+
+    containers = fake.writes.first[:manifest].dig("spec", "template", "spec", "containers")
+    expect(containers.map { |container| container["image"] }).to eq([
+      "ghcr.io/tkadauke/syrus-worker-dev:abc1234",
+      "ghcr.io/tkadauke/syrus:abc1234"
+    ])
+    expect(containers.map { |container| container["name"] }.uniq.size).to eq(2)
+  end
+
   # The bash implementation interpolated a variable nothing ever assigned.
   # Under `set -u` the heredoc aborted, the apply never ran, and every deploy
   # silently skipped the pre-pull -- leaving each node to pull a
