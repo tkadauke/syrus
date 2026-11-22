@@ -10,7 +10,7 @@ RSpec.describe ReduceMetricsDashboardSampleRetention, :ci_only do
     current_migration.migrate(:down)
     ActiveRecord::Base.connection.schema_cache.clear!
     AppSetting.reset_column_information
-    example.run
+    AppSetting.with_current_cache { example.run }
   ensure
     current_migration.migrate(:up) unless ActiveRecord::Base.connection.table_exists?(:retention_policy_settings)
     ActiveRecord::Base.connection.schema_cache.clear!
