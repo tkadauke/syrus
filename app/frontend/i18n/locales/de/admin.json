@@ -481,11 +481,11 @@
     "registry": {
       "heading": "Registry durchsuchen",
       "search": "Kompatible Plugins suchen",
-      "filter": "Registry",
+      "filter": "Registry-Quelle",
       "all": "Alle Registrys",
       "install": "Installation prüfen",
       "source": "Plugin-Registry: {{name}}",
-      "source_error": "{{name}}: {{message}}",
+      "source_error": "Registry {{name}}: {{message}}",
       "source_stale": "{{name}} zeigt veraltete zwischengespeicherte Ergebnisse.",
       "unconfigured": "Keine Plugin-Registry ist konfiguriert. Setze SYRUS_PLUGIN_REGISTRY_URL, um Plugins zu durchsuchen.",
       "empty": "Keine kompatiblen Plugins gefunden."
