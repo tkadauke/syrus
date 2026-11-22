@@ -154,6 +154,9 @@ module Syrus
           # A transactional example may have rolled the row back while the
           # process-local singleton still carries its pre-rollback attributes.
           settings = AppSetting.current.reload
+          # The database rollback does not run AppSetting's save callback, so
+          # Current may still memoize the value from the preceding example.
+          Syrus::PluginRegistry.clear_beta_mode_cache!
           previous = settings.beta_mode_enabled?
           desired = !beta_mode_excluded?(example)
           settings.update!(beta_mode_enabled: desired) unless previous == desired
@@ -166,6 +169,7 @@ module Syrus
         if defined?(settings) && settings
           begin
             settings.reload
+            Syrus::PluginRegistry.clear_beta_mode_cache!
             settings.update!(beta_mode_enabled: previous) if settings.beta_mode_enabled? != previous
           rescue ActiveRecord::ActiveRecordError
             nil
@@ -178,6 +182,7 @@ module Syrus
         return unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
 
         settings = AppSetting.current.reload
+        Syrus::PluginRegistry.clear_beta_mode_cache!
         settings.update!(beta_mode_enabled: true) unless settings.beta_mode_enabled?
       rescue ActiveRecord::ActiveRecordError
         nil
