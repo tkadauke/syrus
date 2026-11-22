@@ -3866,6 +3866,34 @@ named registry when no version is given" was red before (got 1.0.0).
 
 ---
 
+## F105. Merge-train base-move recovery was not bounded by its nesting — fixed
+
+Found while designing NY29, which reuses the same Try-branch mechanism.
+
+**Before.** `merge_train_land_with_rebase_recovery` bounds base-move recovery
+by nesting: each attempt is a Try whose branch ends in the next attempt, and
+the last attempt (`BASE_MOVE_RECOVERY_ATTEMPTS`) is a plain
+`merge_train_land_after_rebase` Step. `StepDispatcher#try_node_for` matches a
+Step without a `try_id` to any Try of its kind, a fallback for Steps created
+before `try_id` existed. Steps a branch inserts for plain nodes carry no
+`try_id`, so the last attempt matched the nested Try of the same kind and
+expanded its branch again, which ends in another plain Step of that kind. A
+base that kept moving got recovery rounds without end
+(`BranchBound.before_unbounded`).
+
+**Fix.** `materialize_branch_steps!` marks a Step it inserts for a plain node
+(`try_branch_plain_step`), and `try_node_for` never matches a marked Step
+without a `try_id`. The fallback stays for up-front Steps.
+
+**Proof.** `BranchBound.lean`: `fixed_bounded` (from the top Try, recovery
+expands exactly `k` times for `k` attempts).
+
+**Spec.** `step_dispatcher_spec.rb` "hard-fails the plain land at the bottom of
+the recovery nesting instead of expanding again" was red before (12 Steps
+became 17). Dispatcher spec, CI-only included: 244 examples, 0 failures.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

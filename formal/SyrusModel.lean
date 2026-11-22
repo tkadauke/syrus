@@ -80,6 +80,7 @@ import SyrusModel.UnitReentry
 import SyrusModel.PrestartSlot
 import SyrusModel.CascadeReplay
 import SyrusModel.SignerPrefix
+import SyrusModel.BranchBound
 import SyrusModel.DispatchOrder
 import SyrusModel.Kernel.Basic
 import SyrusModel.Kernel.Reconcile

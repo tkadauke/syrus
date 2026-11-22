@@ -3364,6 +3364,30 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(try_workflow.steps.order(:position).last.kind).to eq("merge_train_land_after_rebase")
     end
 
+    # The recovery depth is bounded by nesting: the deepest land is a plain
+    # Step, not a Try. A plain Step inserted by a branch carries no try_id, and
+    # a Step without one used to match any Try of its kind, so the deepest land
+    # re-expanded the nested Try on every base move and the bound never held.
+    it "hard-fails the plain land at the bottom of the recovery nesting instead of expanding again" do
+      try_workflow = workflow_with_try_merge_train_land_branch
+      land = try_workflow.steps.find_by!(kind: "merge_train_land")
+      land.update!(details: land.details.merge("failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE))
+      described_class.fail_from(land)
+      retry_land = try_workflow.steps.find_by!(kind: "merge_train_land_after_rebase")
+      retry_land.update!(details: retry_land.details.merge("failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE))
+      described_class.fail_from(retry_land)
+
+      last_land = try_workflow.reload.steps.where(kind: "merge_train_land_after_rebase").order(:position).last
+      expect(last_land.details["try_id"]).to be_nil
+      last_land.update!(details: last_land.details.merge("failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE))
+
+      expect {
+        described_class.fail_from(last_land)
+      }.not_to change { try_workflow.steps.count }
+      expect(last_land.reload.details).not_to include("try_branch_expanded")
+      expect(try_workflow.reload).to be_failed
+    end
+
     it "expands a Try failure branch before the continuation step" do
       try_workflow = workflow_with_try_push_branch
       push = try_workflow.steps.find_by!(kind: "push")

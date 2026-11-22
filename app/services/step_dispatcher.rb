@@ -315,6 +315,8 @@ class StepDispatcher
   # workflow is allowed to hard-fail. Bounded so a genuinely unrunnable step
   # cannot spin: a third failure is no longer plausibly a passing worker.
   INFRASTRUCTURE_STEP_RETRY_LIMIT = 2
+  # Step detail marking a plain Step a Try branch inserted (see #try_node_for).
+  BRANCH_PLAIN_STEP = "try_branch_plain_step".freeze
   DEPENDENCY_FAILED_BLOCK_REASON = "dependency_failed"
   WITHDRAWN_APPROVAL_BLOCK_REASON = Job::WITHDRAWN_APPROVAL_DEPENDENCY_BLOCK_REASON
   STACK_BLOCK_REASON = "stack_dependencies_not_ready"
@@ -1956,8 +1958,15 @@ class StepDispatcher
     true
   end
 
+  # A branch bounds its own recovery by nesting: its deepest Step is plain, not
+  # a Try. A Step without a try_id falls back to any Try of its kind (for
+  # Steps created before try_id existed), so a plain Step a branch inserted is
+  # marked and never matches one, or it re-expands a Try of the same kind and
+  # the bound never holds.
   def try_node_for(step)
     try_id = step.details.to_h["try_id"]
+    return nil if try_id.blank? && step.details.to_h[BRANCH_PLAIN_STEP]
+
     workflow_template_nodes.find do |node|
       next false unless node["type"] == "try"
       next false unless node["step"].to_s == step.kind
@@ -2004,7 +2013,12 @@ class StepDispatcher
       loop_id = %w[ loop retry_until ].include?(node["type"]) ? SecureRandom.uuid : nil
 
       step_kinds.map do |kind|
-        details = node["type"] == "try" ? { "try_id" => node["id"] } : {}
+        details =
+          case node["type"]
+          when "try" then { "try_id" => node["id"] }
+          when "step" then { BRANCH_PLAIN_STEP => true }
+          else {}
+          end
         step = Step.create!(
           workflow: @workflow,
           kind: kind,
