@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -27,6 +28,8 @@ type pluginPublisher interface {
 var newPluginPublisher = func(token string) pluginPublisher {
 	return &githubPluginPublisher{token: token, client: http.DefaultClient}
 }
+
+var githubAPIBase = "https://api.github.com"
 
 type githubPluginPublisher struct {
 	token  string
@@ -54,7 +57,7 @@ func (p *githubPluginPublisher) request(ctx context.Context, method, endpoint st
 }
 
 func (p *githubPluginPublisher) Upload(ctx context.Context, repository, tag, name string, contents []byte) (string, error) {
-	api := "https://api.github.com/repos/" + repository
+	api := githubAPIBase + "/repos/" + repository
 	payload, _ := json.Marshal(map[string]any{"tag_name": tag, "name": tag})
 	res, err := p.request(ctx, http.MethodPost, api+"/releases", payload, "application/json")
 	if err != nil { // An existing release is the normal retry path.
@@ -88,8 +91,24 @@ func (p *githubPluginPublisher) Upload(ctx context.Context, repository, tag, nam
 func (p *githubPluginPublisher) Submit(ctx context.Context, repository, path string, contents []byte) (string, error) {
 	owner := strings.Split(repository, "/")[0]
 	branch := "plugin-submission-" + strings.ReplaceAll(strings.TrimSuffix(filepath.Base(path), ".json"), ".", "-")
-	api := "https://api.github.com/repos/" + repository
-	res, err := p.request(ctx, http.MethodGet, api+"/git/ref/heads/main", nil, "application/json")
+	api := githubAPIBase + "/repos/" + repository
+	res, err := p.request(ctx, http.MethodGet, api, nil, "application/json")
+	if err != nil {
+		return "", err
+	}
+	var repositoryDetails struct {
+		DefaultBranch string `json:"default_branch"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&repositoryDetails); err != nil {
+		res.Body.Close()
+		return "", err
+	}
+	res.Body.Close()
+	if repositoryDetails.DefaultBranch == "" {
+		return "", errors.New("GitHub repository did not report a default branch")
+	}
+	baseBranch := repositoryDetails.DefaultBranch
+	res, err = p.request(ctx, http.MethodGet, api+"/git/ref/heads/"+url.PathEscape(baseBranch), nil, "application/json")
 	if err != nil {
 		return "", err
 	}
@@ -107,12 +126,12 @@ func (p *githubPluginPublisher) Submit(ctx context.Context, repository, path str
 		return "", err
 	}
 	res.Body.Close()
-	fileBody, _ := json.Marshal(map[string]string{"message": "Add " + path, "content": encodeBase64(contents), "branch": branch})
+	fileBody, _ := json.Marshal(map[string]string{"message": "Add " + path, "content": base64.StdEncoding.EncodeToString(contents), "branch": branch})
 	if res, err = p.request(ctx, http.MethodPut, api+"/contents/"+path, fileBody, "application/json"); err != nil {
 		return "", err
 	}
 	res.Body.Close()
-	prBody, _ := json.Marshal(map[string]string{"title": "Add " + path, "head": owner + ":" + branch, "base": "main", "body": "Automated plugin registry submission."})
+	prBody, _ := json.Marshal(map[string]string{"title": "Add " + path, "head": owner + ":" + branch, "base": baseBranch, "body": "Automated plugin registry submission."})
 	if res, err = p.request(ctx, http.MethodPost, api+"/pulls", prBody, "application/json"); err != nil {
 		return "", err
 	}
@@ -126,37 +145,8 @@ func (p *githubPluginPublisher) Submit(ctx context.Context, repository, path str
 	return pr.URL, nil
 }
 
-func encodeBase64(value []byte) string {
-	const table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-	var out strings.Builder
-	for i := 0; i < len(value); i += 3 {
-		var n uint32
-		remain := len(value) - i
-		n = uint32(value[i]) << 16
-		if remain > 1 {
-			n |= uint32(value[i+1]) << 8
-		}
-		if remain > 2 {
-			n |= uint32(value[i+2])
-		}
-		out.WriteByte(table[(n>>18)&63])
-		out.WriteByte(table[(n>>12)&63])
-		if remain > 1 {
-			out.WriteByte(table[(n>>6)&63])
-		} else {
-			out.WriteByte('=')
-		}
-		if remain > 2 {
-			out.WriteByte(table[n&63])
-		} else {
-			out.WriteByte('=')
-		}
-	}
-	return out.String()
-}
-
 func newPluginPublishCommand() *cobra.Command {
-	var keyPath, repository, indexRepository, version, checkout string
+	var keyPath, repository, indexRepository, version, checkout, description, category, license string
 	var submit bool
 	command := &cobra.Command{Use: "publish [DIR]", Short: "Pack, sign, and publish a plugin release", Args: cobra.MaximumNArgs(1), RunE: func(command *cobra.Command, args []string) error {
 		if keyPath == "" || repository == "" {
@@ -177,9 +167,28 @@ func newPluginPublishCommand() *cobra.Command {
 		if err = runPluginValidation(command, root, version, checkout); err != nil {
 			return fmt.Errorf("refusing to publish because validation failed: %w", err)
 		}
+		if _, err := os.Stat(filepath.Join(root, "frontend", "entry.tsx")); err == nil {
+			if _, err := os.Stat(filepath.Join(root, "dist", "frontend", "plugin.js")); os.IsNotExist(err) {
+				if err := runFrontendBuild(command, root, version, checkout); err != nil {
+					return err
+				}
+			}
+		}
 		manifest, files, err := inspectPluginPackage(root)
 		if err != nil {
 			return err
+		}
+		if description == "" || license == "" {
+			inferredDescription, inferredLicense := pluginPublicationMetadata(files)
+			if description == "" {
+				description = inferredDescription
+			}
+			if license == "" {
+				license = inferredLicense
+			}
+		}
+		if description == "" || license == "" {
+			return errors.New("plugin description and license must be set in the gemspec or with --description and --license")
 		}
 		temp, err := os.MkdirTemp("", "syrus-plugin-publish-")
 		if err != nil {
@@ -216,7 +225,7 @@ func newPluginPublishCommand() *cobra.Command {
 			return err
 		}
 		digest := sha256.Sum256(packageBytes)
-		entry := pluginRegistryRelease{Name: manifest.Name, Version: manifest.Version, Description: manifest.Name, Category: "other", Author: strings.Split(manifest.Name, "_")[0], Homepage: "https://github.com/" + repository, License: "unknown", RequiresSyrus: manifest.RequiresSyrus, PackageURL: packageURL, PackageDigest: "sha256:" + hex.EncodeToString(digest[:]), SignatureURL: signatureURL, PublisherKeyFingerprint: key.Fingerprint, TrustLabelInputs: json.RawMessage(`{}`), CapabilitySummary: mustJSON(manifest)}
+		entry := pluginRegistryRelease{Name: manifest.Name, Version: manifest.Version, Description: description, Category: category, Author: strings.Split(manifest.Name, "_")[0], Homepage: "https://github.com/" + repository, License: license, RequiresSyrus: manifest.RequiresSyrus, PackageURL: packageURL, PackageDigest: "sha256:" + hex.EncodeToString(digest[:]), SignatureURL: signatureURL, PublisherKeyFingerprint: key.Fingerprint, TrustLabelInputs: json.RawMessage(`{}`), CapabilitySummary: mustJSON(manifest)}
 		entryBytes, _ := json.MarshalIndent(entry, "", "  ")
 		entryBytes = append(entryBytes, '\n')
 		path := manifest.Name + "/" + manifest.Version + ".json"
@@ -241,7 +250,31 @@ func newPluginPublishCommand() *cobra.Command {
 	command.Flags().BoolVar(&submit, "submit", false, "open an index pull request (explicit consent)")
 	command.Flags().StringVar(&version, "syrus-version", "", "Syrus release to validate against")
 	command.Flags().StringVar(&checkout, "checkout", "", "run validation from a local Syrus checkout")
+	command.Flags().StringVar(&description, "description", "", "registry description (defaults to the gemspec summary or description)")
+	command.Flags().StringVar(&category, "category", "other", "registry category")
+	command.Flags().StringVar(&license, "license", "", "registry license (defaults to the gemspec license)")
 	return command
+}
+
+func pluginPublicationMetadata(files map[string][]byte) (string, string) {
+	for path, contents := range files {
+		if !strings.HasSuffix(path, ".gemspec") {
+			continue
+		}
+		read := func(field string) string {
+			match := packageField(field).FindSubmatch(contents)
+			if len(match) > 1 {
+				return string(match[1])
+			}
+			return ""
+		}
+		description := read("summary")
+		if description == "" {
+			description = read("description")
+		}
+		return description, read("license")
+	}
+	return "", ""
 }
 
 func mustJSON(value any) json.RawMessage { bytes, _ := json.Marshal(value); return bytes }

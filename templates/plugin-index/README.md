@@ -25,4 +25,7 @@ GITHUB_TOKEN=... syrus plugin publish . --key /secure/key.json \
 ```
 
 Omit `--submit` to print the entry and manual instructions. The token is read
-only from `GITHUB_TOKEN`; it is never printed or stored.
+only from `GITHUB_TOKEN`; it is never printed or stored. Publisher prefixes are
+lowercase identifiers: the author `Acme` publishes names beginning with
+`acme_`. Use `--description`, `--license`, and `--category` when the gemspec
+metadata or default category is not suitable for the registry entry.
