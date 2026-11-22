@@ -1,7 +1,6 @@
 require "fileutils"
 require "json"
 require "net/http"
-require "open3"
 require "uri"
 
 class PluginRegistryClient
@@ -14,10 +13,11 @@ class PluginRegistryClient
   Result = Data.define(:entries, :configured, :error, :stale)
 
   def initialize(url: ENV["SYRUS_PLUGIN_REGISTRY_URL"], cache_root: WorkflowWorkspace.data_root.join("plugin-registry"),
-    syrus_version: SyrusVersion.release)
+    syrus_version: SyrusVersion.release, git: GitRunner.new)
     @url = url.to_s.strip
     @cache_root = Pathname.new(cache_root)
     @syrus_version = syrus_version
+    @git = git
   end
 
   def search(term = nil)
@@ -85,14 +85,15 @@ class PluginRegistryClient
     return parse_entries(index_root) if index_root.join(".git").directory? && refreshed_at.exist? &&
       Time.current - refreshed_at.mtime < GIT_REFRESH_INTERVAL
     if index_root.join(".git").directory?
-      _out, error, status = Open3.capture3("git", "-C", index_root.to_s, "pull", "--ff-only", "--quiet")
+      @git.run("pull", "--ff-only", "--quiet", chdir: index_root.to_s)
     else
       FileUtils.rm_rf(index_root) if index_root.exist?
-      _out, error, status = Open3.capture3("git", "clone", "--depth", "1", "--quiet", url, index_root.to_s)
+      @git.run("clone", "--depth", "1", "--quiet", url, index_root.to_s, chdir: @cache_root.to_s)
     end
-    raise Error, "Plugin registry git fetch failed: #{error.strip}" unless status.success?
     FileUtils.touch(refreshed_at)
     parse_entries(index_root)
+  rescue GitRunner::GitError => error
+    raise Error, "Plugin registry git fetch failed: #{error.message}"
   end
 
   def refresh_http!
