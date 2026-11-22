@@ -46,7 +46,9 @@ module.exports = [
       "design-system/no-raw-status-colors": "error",
       "design-system/no-panel-shell-repeats": "error",
       "design-system/no-raw-table-classes": "error",
-      "design-system/no-long-class-strings": "error"
+      "design-system/no-long-class-strings": "error",
+      "design-system/no-swallowed-errors": "error",
+      "design-system/no-direct-browser-error-payload": "error"
     }
   },
   {

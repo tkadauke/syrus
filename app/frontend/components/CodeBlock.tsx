@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react"
 import type { ThemedToken } from "@shikijs/core"
 import { tokenizeLines, type HighlighterLanguageId } from "../lib/highlighter"
+import { reportHandledError } from "../lib/handledErrorReporting"
 
 // Tokenizes the full `code` string against Shiki's css-variables theme
 // (see lib/highlighter.ts) and returns one token array per line. Returns
@@ -14,15 +15,23 @@ export function useHighlightedLines(code: string, lang: HighlighterLanguageId | 
     if (!lang) return
 
     let cancelled = false
-    tokenizeLines(code, lang).then((result) => {
-      if (!cancelled) setLines(result)
-    }).catch((error: unknown) => {
-      // A blocked/failed highlighter load must not surface as an
-      // unhandled promise rejection -- `lines` stays null, so the block
-      // just keeps rendering its plain-text fallback.
-      if (cancelled) return
-      console.warn("Code highlighting failed; falling back to plain text.", error)
-    })
+    tokenizeLines(code, lang)
+      .then((result) => {
+        if (!cancelled) setLines(result)
+      })
+      .catch((error: unknown) => {
+        // A blocked/failed highlighter load must not surface as an
+        // unhandled promise rejection -- `lines` stays null, so the block
+        // just keeps rendering its plain-text fallback.
+        if (cancelled) return
+        reportHandledError(error, {
+          surface: "code_block",
+          operation: "highlight",
+          stage: "tokenize",
+          recoverability: "non_retryable"
+        })
+        console.warn("Code highlighting failed; falling back to plain text.", error)
+      })
 
     return () => {
       cancelled = true
@@ -37,7 +46,11 @@ export function useHighlightedLines(code: string, lang: HighlighterLanguageId | 
 export function renderCodeLine(tokens: ThemedToken[] | undefined, fallback: string): ReactNode {
   if (!tokens) return fallback
 
-  return tokens.map((token, index) => <span key={index} style={{ color: token.color }}>{token.content}</span>)
+  return tokens.map((token, index) => (
+    <span key={index} style={{ color: token.color }}>
+      {token.content}
+    </span>
+  ))
 }
 
 // Shared `<pre><code>` code block, built on the Shiki core highlighter.
