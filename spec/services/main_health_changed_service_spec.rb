@@ -769,6 +769,32 @@ RSpec.describe MainHealthChangedService, :ci_only do
       # blocking repair (the Job was failed, for an older SHA) and spawned a
       # second repair Job; the retry then relaunched the first. Two repairs ran
       # at once, each with a full preflight grader fan-out.
+      # A repair superseded because main moved past its preflight snapshot did
+      # not fail and was not abandoned: its diagnosis was simply for an older
+      # commit. If the new head is still broken, it needs its own repair now,
+      # not after the cooldown that follows a cancelled repair.
+      it "spawns a fix Job for a still-broken head right after superseding a stale preflight repair" do
+        stale = repository.jobs.create!(
+          user: user, kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "stale repair", issue_body: "Main branch health is broken.", agent_provider: "claude",
+          priority: "high", state: "queued"
+        )
+        workflow = Workflow.create!(job: stale, trigger_kind: "main_branch_repair", state: "running", started_at: 10.minutes.ago)
+        fanout = Step.create!(workflow: workflow, kind: "preflight_grader_fanout", position: 0, state: "succeeded")
+        Step.create!(workflow: workflow, kind: "implement", position: 5, state: "queued")
+        WorkflowSourceSnapshots.record!(workflow: workflow, creator_step: fanout, source_sha: "0" * 40,
+                                        source_ref: "refs/heads/main", tree_sha: "t" * 40)
+        head = repository.reload.last_health_checked_sha
+        described_class.supersede_stale_preflight_repairs!(repository, head_sha: head)
+        expect(stale.reload).to have_attributes(state: "closed", closure_reason: "superseded")
+
+        described_class.on_health_change!(repository)
+
+        replacement = repository.jobs.where(kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR)
+                                .where.not(id: stale.id).where.not(state: "closed")
+        expect(replacement).to exist
+      end
+
       it "does not spawn another fix Job while a failed repair has a pending auto-retry" do
         failed = repository.jobs.create!(
           user: user,
