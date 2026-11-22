@@ -290,15 +290,8 @@ function MobileGestureSurface({
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
   const horizontal = Math.abs(offset.x) > Math.abs(offset.y)
   const rotation = horizontal && !reducedMotion ? Math.max(-MAX_CARD_ROTATION_DEGREES, Math.min(MAX_CARD_ROTATION_DEGREES, offset.x / 30)) : 0
-  const gestureLabel = horizontal
-    ? offset.x > 0
-      ? t("gesture_approve")
-      : t("gesture_defer")
-    : offset.y < 0
-      ? t("gesture_next")
-      : t("gesture_previous")
-  const cardTransform =
-    offset.x || offset.y ? `translate3d(${offset.x}px, ${offset.y}px, 0)${rotation ? ` rotate(${rotation}deg)` : ""}` : undefined
+  const gestureLabel = horizontal ? (offset.x > 0 ? t("gesture_approve") : t("gesture_defer")) : offset.y < 0 ? t("gesture_next") : t("gesture_previous")
+  const cardTransform = offset.x || offset.y ? `translate3d(${offset.x}px, ${offset.y}px, 0)${rotation ? ` rotate(${rotation}deg)` : ""}` : undefined
   return (
     <div className="relative isolate min-w-0 overflow-hidden lg:contents lg:overflow-visible">
       {Boolean(offset.x || offset.y) && (
@@ -565,9 +558,7 @@ function MobileReviewCard({
           {canApprove ? t("checks_ready") : t("checks_blocked")}
         </span>
         {job.pr_number ? (
-          <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">
-            {t("pull_request_number", { number: job.pr_number })}
-          </span>
+          <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">{t("pull_request_number", { number: job.pr_number })}</span>
         ) : null}
       </div>
       <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
@@ -765,17 +756,7 @@ function DecisionPanel({
   )
 }
 
-function ApprovalSheet({
-  inProgress,
-  job,
-  onApprove,
-  onClose
-}: {
-  inProgress: boolean
-  job: ReviewWorkspaceJob
-  onApprove: () => void
-  onClose: () => void
-}) {
+function ApprovalSheet({ inProgress, job, onApprove, onClose }: { inProgress: boolean; job: ReviewWorkspaceJob; onApprove: () => void; onClose: () => void }) {
   const { t } = useT("review_workspace")
   const cancelRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef(onClose)

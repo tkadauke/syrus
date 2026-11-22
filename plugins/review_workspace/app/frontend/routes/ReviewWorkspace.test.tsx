@@ -299,7 +299,10 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerCancel(card, { pointerId: 22, pointerType: "touch" })
 
     const originalMatchMedia = window.matchMedia
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    )
     fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 23, pointerType: "touch" })
     fireEvent.pointerMove(card, { clientX: 170, clientY: 200, pointerId: 23, pointerType: "touch" })
     expect(card.style.transform).not.toContain("rotate")
