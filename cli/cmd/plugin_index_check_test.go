@@ -4,9 +4,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/pkg/plugintrust"
 )
 
@@ -74,6 +77,41 @@ func TestIndexCheckExtractsValidatorApprovedDirectoryEntries(t *testing.T) {
 	}
 }
 
+func TestIndexResourceURLRejectsPrivateAndReservedDestinations(t *testing.T) {
+	for _, raw := range []string{
+		"http://example.com/package",
+		"https://127.0.0.1/package",
+		"https://169.254.169.254/latest/meta-data",
+		"https://[::1]/package",
+		"https://192.0.2.1/package",
+	} {
+		if err := validateIndexResourceURL(t.Context(), raw); err == nil {
+			t.Errorf("expected %s to be rejected", raw)
+		}
+	}
+}
+
+func TestIndexResourceDownloadValidatesRedirectDestinations(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		http.Redirect(response, request, "https://169.254.169.254/latest/meta-data", http.StatusFound)
+	}))
+	defer server.Close()
+	previousHTTP, previousValidator := pluginIndexCheckHTTP, pluginIndexCheckURLValidator
+	pluginIndexCheckHTTP = server.Client()
+	pluginIndexCheckURLValidator = func(_ context.Context, raw string) error {
+		if raw == server.URL {
+			return nil
+		}
+		return errors.New("unsafe redirect destination")
+	}
+	t.Cleanup(func() { pluginIndexCheckHTTP, pluginIndexCheckURLValidator = previousHTTP, previousValidator })
+	command := &cobra.Command{}
+	command.SetContext(t.Context())
+	if _, err := downloadIndexResource(command, server.URL); err == nil || !strings.Contains(err.Error(), "unsafe redirect destination") {
+		t.Fatalf("redirect validation error: %v", err)
+	}
+}
+
 func TestPluginIndexCheckEndToEndAndFailureClasses(t *testing.T) {
 	plugin := packageFixture(t)
 	gemspec := filepath.Join(plugin, "weather.gemspec")
@@ -94,11 +132,14 @@ func TestPluginIndexCheckEndToEndAndFailureClasses(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	previousHTTP, previousRunner := pluginIndexCheckHTTP, newDockerPluginRunner
+	previousHTTP, previousRunner, previousValidator := pluginIndexCheckHTTP, newDockerPluginRunner, pluginIndexCheckURLValidator
 	pluginIndexCheckHTTP = server.Client()
+	pluginIndexCheckURLValidator = func(context.Context, string) error { return nil }
 	runner := &fakePluginRunner{}
 	newDockerPluginRunner = func() pluginRunner { return runner }
-	t.Cleanup(func() { pluginIndexCheckHTTP, newDockerPluginRunner = previousHTTP, previousRunner })
+	t.Cleanup(func() {
+		pluginIndexCheckHTTP, newDockerPluginRunner, pluginIndexCheckURLValidator = previousHTTP, previousRunner, previousValidator
+	})
 	sum := sha256.Sum256(packageBytes)
 	entry := pluginRegistryRelease{Name: "acme_weather", Version: "1.2.3", Description: "Weather", Category: "automation", Author: "Acme", Homepage: "https://example.test", License: "MIT", RequiresSyrus: ">= 1.0", PackageURL: server.URL + "/package", PackageDigest: "sha256:" + hex.EncodeToString(sum[:]), SignatureURL: server.URL + "/package.sig", PublisherKeyFingerprint: key.Fingerprint, TrustLabelInputs: json.RawMessage(`{}`), CapabilitySummary: mustJSON(manifest)}
 	trustStore := plugintrust.TrustStore{Publishers: []plugintrust.Publisher{{Fingerprint: key.Fingerprint, Label: "community", Prefix: "acme"}}}

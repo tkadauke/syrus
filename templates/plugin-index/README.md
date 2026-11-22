@@ -6,6 +6,8 @@ path to `index.json`. CI runs `syrus plugin index-check` against every changed
 release before review, rejects unlisted submissions, and verifies every listed
 release file exists. `syrus plugin publish --submit` creates or reuses the
 author's GitHub fork and updates both files in one pull request.
+Submission checks use the base branch's trust store, so a release pull request
+cannot authorize its own publisher key.
 
 ## Submission and review rules
 
