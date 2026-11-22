@@ -304,12 +304,21 @@ function MobileGestureSurface({
       {Boolean(offset.x || offset.y) && (
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 z-0 flex p-5 text-sm font-semibold text-brand lg:hidden ${
-            horizontal ? (offset.x > 0 ? "items-center justify-start" : "items-center justify-end") : offset.y < 0 ? "items-end justify-center" : "items-start justify-center"
+          className={`pointer-events-none absolute z-0 flex font-semibold text-brand lg:hidden ${
+            horizontal
+              ? `inset-y-0 items-center p-1 ${offset.x > 0 ? "left-0" : "right-0"}`
+              : `inset-x-0 p-5 text-sm ${offset.y < 0 ? "bottom-0 justify-center" : "top-0 justify-center"}`
           }`}
           data-testid="mobile-gesture-reveal"
+          style={{ width: horizontal ? Math.abs(offset.x) : undefined }}
         >
-          <span className="max-w-[45%] rounded-full border border-brand/20 bg-brand-subtle px-3 py-2 text-center">{gestureLabel}</span>
+          <span
+            className={`rounded-xl border border-brand/20 bg-brand-subtle text-center ${
+              horizontal ? "w-full break-words px-1.5 py-2 text-xs leading-tight" : "max-w-[45%] px-3 py-2"
+            }`}
+          >
+            {gestureLabel}
+          </span>
         </div>
       )}
       <div
