@@ -25,6 +25,8 @@ const MOBILE_DETAILS_SHEET_CLASS =
   "max-h-[92dvh] w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
 const MOBILE_EVIDENCE_CAROUSEL_CLASS =
   "flex w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+const MOBILE_GESTURE_ACTION_CLASS =
+  "flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-brand/20 bg-brand-subtle text-center"
 const MAX_CARD_ROTATION_DEGREES = 4
 const REVIEW_SESSION_STATE_KEY = "reviewWorkspaceCanReturn"
 
@@ -283,8 +285,7 @@ function MobileGestureSurface({
       origin.lastY = event.clientY
       return
     }
-    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
-      setOffset({ x: Math.abs(x) > Math.abs(y) ? Math.max(-120, Math.min(120, x)) : 0, y: Math.abs(y) > Math.abs(x) ? Math.max(-80, Math.min(80, y)) : 0 })
+    setOffset({ x: Math.abs(x) > Math.abs(y) ? Math.max(-120, Math.min(120, x)) : 0, y: Math.abs(y) > Math.abs(x) ? Math.max(-80, Math.min(80, y)) : 0 })
   }
   function pointerUp(event: ReactPointerEvent<HTMLDivElement>) {
     const origin = start.current
@@ -307,27 +308,38 @@ function MobileGestureSurface({
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
   const horizontal = Math.abs(offset.x) > Math.abs(offset.y)
   const rotation = horizontal && !reducedMotion ? Math.max(-MAX_CARD_ROTATION_DEGREES, Math.min(MAX_CARD_ROTATION_DEGREES, offset.x / 30)) : 0
-  const gestureLabel = horizontal ? (offset.x > 0 ? t("gesture_approve") : t("gesture_defer")) : offset.y < 0 ? t("gesture_next") : t("gesture_previous")
-  const cardTransform = offset.x || offset.y ? `translate3d(${offset.x}px, ${offset.y}px, 0)${rotation ? ` rotate(${rotation}deg)` : ""}` : undefined
+  const gesture = horizontal
+    ? offset.x > 0
+      ? { action: t("gesture_action_approve"), consequence: t("gesture_approve"), direction: "right" as const }
+      : { action: t("gesture_action_defer"), consequence: t("gesture_defer"), direction: "left" as const }
+    : offset.y < 0
+      ? { action: t("gesture_action_next"), consequence: t("gesture_next"), direction: "up" as const }
+      : { action: t("gesture_action_previous"), consequence: t("gesture_previous"), direction: "down" as const }
+  const progress = Math.min(1, (horizontal ? Math.abs(offset.x) : Math.abs(offset.y)) / SWIPE_THRESHOLD)
+  const cueStyle = reducedMotion ? undefined : { opacity: 0.2 + progress * 0.8, transform: `scale(${0.88 + progress * 0.12})` }
+  const cardTransform = !reducedMotion && (offset.x || offset.y) ? `translate3d(${offset.x}px, ${offset.y}px, 0)${rotation ? ` rotate(${rotation}deg)` : ""}` : undefined
   return (
     <div className="relative isolate min-w-0 overflow-hidden lg:contents lg:overflow-visible">
       {Boolean(offset.x || offset.y) && (
         <div
-          aria-hidden="true"
+          aria-label={gesture.consequence}
           className={`pointer-events-none absolute z-0 flex font-semibold text-brand lg:hidden ${
             horizontal
-              ? `inset-y-0 items-center p-1 ${offset.x > 0 ? "left-0" : "right-0"}`
+              ? `inset-y-0 w-[min(7rem,30vw)] items-center ${offset.x > 0 ? "left-[max(.5rem,env(safe-area-inset-left))]" : "right-[max(.5rem,env(safe-area-inset-right))]"}`
               : `inset-x-0 p-5 text-sm ${offset.y < 0 ? "bottom-0 justify-center" : "top-0 justify-center"}`
           }`}
+          data-gesture-direction={gesture.direction}
           data-testid="mobile-gesture-reveal"
-          style={{ width: horizontal ? Math.abs(offset.x) : undefined }}
+          role="status"
         >
           <span
-            className={`rounded-xl border border-brand/20 bg-brand-subtle text-center ${
-              horizontal ? "w-full break-words px-1.5 py-2 text-xs leading-tight" : "max-w-[45%] px-3 py-2"
-            }`}
+            aria-hidden="true"
+            className={`${MOBILE_GESTURE_ACTION_CLASS} ${horizontal ? "w-full px-2 py-2 text-sm" : "w-[min(12rem,70vw)] px-3 py-2"}`}
+            data-testid="mobile-gesture-action"
+            style={cueStyle}
           >
-            {gestureLabel}
+            <GestureDirectionIcon direction={gesture.direction} />
+            {gesture.action}
           </span>
         </div>
       )}
@@ -348,6 +360,15 @@ function MobileGestureSurface({
         {children}
       </div>
     </div>
+  )
+}
+
+function GestureDirectionIcon({ direction }: { direction: "left" | "right" | "up" | "down" }) {
+  const rotation = { right: "", left: "rotate-180", up: "-rotate-90", down: "rotate-90" }[direction]
+  return (
+    <svg aria-hidden="true" className={`h-4 w-4 shrink-0 ${rotation}`} fill="none" viewBox="0 0 20 20">
+      <path d="M4 10h11m-4-4 4 4-4 4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
   )
 }
 
