@@ -159,6 +159,12 @@ class MainBranchFailureClassifier
     }.compact
 
     return result.merge("reason" => "strict_failure_policy") unless failures == ALLOW_INHERITED
+
+    family = failed_shard_family(name, evidence)
+    if family.any? && (!base_failed || family.size > 1)
+      return classify_shard_family(result, grader_step, family, evidence)
+    end
+
     return result unless base_failed
 
     if (base_retry = details["base_retry_result"].presence)
@@ -168,6 +174,53 @@ class MainBranchFailureClassifier
     return classify_test_cases(result, grader_step, base_run) if comparable_test_case_evidence_present?(grader_step, base_run, name)
 
     classify_binary_contextual(result, details, base_conclusion)
+  end
+
+  # Shards of one suite ("rspec-ci-2-of-4", "rspec-ci-serial") split the same
+  # files by recorded runtime, so which shard runs a file shifts whenever the
+  # suite changes. A test the base failed in shard 2 can fail in shard 3 on a
+  # branch that added files. Compare a shard against the whole family's base
+  # failures, not only the base shard of the same name.
+  SHARD_SUFFIX = /-(?:\d+-of-\d+|serial)\z/
+
+  def shard_name?(name)
+    name.to_s.match?(SHARD_SUFFIX)
+  end
+
+  def shard_family_key(name)
+    name.to_s.sub(SHARD_SUFFIX, "")
+  end
+
+  # The base's failed graders that belong to the same sharded suite as +name+.
+  def failed_shard_family(name, evidence)
+    return [] unless shard_name?(name)
+
+    key = shard_family_key(name)
+    Array(evidence.fetch("failed_names")).select { |candidate| shard_name?(candidate) && shard_family_key(candidate) == key }
+  end
+
+  def classify_shard_family(result, grader_step, family, evidence)
+    base_runs = family.filter_map do |member|
+      base_run_for(member, evidence, latest_base_conclusion(member, evidence.fetch("sha")))
+    end
+    candidate_run = grader_step.runs.order(:created_at).last
+    name = result.fetch("name")
+    candidate_failures = failed_test_identities_for_run(candidate_run, name)
+    base_failures = base_runs.zip(family).flat_map { |run, member| failed_test_identities_for_run(run, member) }.uniq
+
+    return result.merge("reason" => "missing_candidate_test_cases") if candidate_failures.empty?
+    return result.merge("reason" => "missing_base_test_cases") if base_failures.empty?
+
+    introduced = candidate_failures - base_failures
+    inherited = introduced.empty?
+    result.merge(
+      "inherited" => inherited,
+      "reason" => inherited ? "failed_cases_match_base_shard_family" : "introduced_failed_cases",
+      "base_shard_family" => family,
+      "candidate_failed_case_count" => candidate_failures.size,
+      "base_failed_case_count" => base_failures.size,
+      "introduced_failed_cases" => introduced.first(20)
+    )
   end
 
   def failure_policy(details)
