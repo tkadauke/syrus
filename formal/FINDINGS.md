@@ -4594,6 +4594,30 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## Lead L10. E2E on main: one new failure fixed, two that only fail in the full CI run
+
+Main's E2E workflow has been red for at least fifteen runs. On `46989b055f`
+it fails three tests:
+
+- **`admin-panel.spec.ts`**, new with the plugin registry UI. The page gained
+  an "Install external plugins" heading, so `getByRole("heading", { name:
+  "Plugins" })` matched two elements under strict mode. Fixed on the branch
+  with `exact: true`; it passes locally.
+- **`signup.spec.ts`**, failing in every listed run. After signing out from
+  `/onboarding`, the page stays on `/onboarding` instead of `/session/new`.
+  It passes locally when run on its own (8.8s). The server's sign-out answers
+  `redirect_to: /session/new`, so the redirect comes from client or database
+  state.
+- **`onboarding.spec.ts`**, failing since about `e6aa5d7d0e`: the Dashboard
+  heading never appears after the checklist completes.
+
+CI runs the whole core project in one worker on one database, and onboarding
+(test 44) runs before signup (test 59). The working hypothesis is state that
+one test leaves behind for a later one, the same shape as Lead L9. Next step:
+run the core project from onboarding through signup locally, in CI order.
+
+---
+
 ## M63. Main through `9a3ed75dbb`
 
 Forty commits, one Epic: deterministic plugin packages, ed25519 signing, trust

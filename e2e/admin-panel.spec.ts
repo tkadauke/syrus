@@ -54,7 +54,7 @@ test("admin renders queue, stuck jobs, plugin registry, and process inventory", 
   await expect(stuckRow).toContainText("without enough evidence of a live worker")
 
   await openAdminNav(page, "Plugins")
-  await expect(page.getByRole("heading", { name: "Plugins" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Plugins", exact: true })).toBeVisible()
   const registry = page.getByRole("region", { name: "Registered plugins" })
   await expect(registry.getByRole("heading", { name: "Design Docs" })).toBeVisible()
   await expect(pluginCard(page, "Design Docs")).toContainText("Enabled")
