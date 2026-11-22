@@ -4392,6 +4392,42 @@ the caller. It is not yet modelled.
 
 ---
 
+## Lead L9: order-dependent failures on main's rspec-ci shards after the 11-22 push
+
+Two main graders failed with examples that pass locally in every order tried:
+
+- Main grader 66311 failed on `installer_spec.rb`, "disposes experimental
+  plugin effects when the instance opts out". The log showed an extra
+  `:install` after beta mode was turned off.
+- Main grader 66315 failed on these examples:
+  - this branch's F93 example in `capability_registry_spec.rb`;
+  - two `jobs_spec.rb` / `job_detail_payload_spec.rb` examples, with
+    "Validation failed: Enabled requires beta mode for beta or experimental
+    features";
+  - two `spec/syrus/spec_support/bundled_plugins_spec.rb` examples, where the
+    suite's beta-mode baseline helper read the opposite value.
+
+**What was ruled out locally.** Spec order within one process: those files,
+together with this branch's capability spec, pass in six random orders. The
+beta-mode memo is per `Current` and is cleared by an `after_save` hook on
+`AppSetting`, which the helper's `update!` triggers.
+
+**Fixed here.** The F93 example stubbed the enablement read after `register`
+had cached the records. It now clears the plugin-record cache first, as the
+neighbouring NY13 example does.
+
+**Hypothesis, not confirmed.** Every other failure involves a *global* row:
+the `AppSetting` singleton's beta-mode flag, or plugin enablement records.
+That fits separate processes sharing one test database more than it fits
+in-process ordering. Main fixed one instance of that class on 11-21 ("Keep
+parallel RSpec preflight graders on their own test databases"), and the
+11-22 grader placement changes (declared memory reservations, preflight
+lanes) change which graders share a host. Runs do not record their worker
+host, so the theory needs the grader logs' host lines, or a test database
+name per process, to confirm or refute.
+
+---
+
 ## M61. Main through `7a6949c328` — main green again, the F88 spec settled on main
 
 Main's grader went red after this branch was pushed to main. There were three
