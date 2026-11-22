@@ -194,8 +194,6 @@ show every source; bare installs prefer a canonical collision and require an
 explicit registry for ambiguity among non-canonical sources. Trust and
 revocations are isolated by registry, and non-canonical registries can grant
 at most the `verified` label. Registry URLs are administrator-confirmed input.
-browser, or in the CLI environment to enable `syrus plugin search [TERM]`
-directly against an HTTPS mirror or HTTPS Git URL. It is unset by default.
 Search returns only releases compatible with the running or connected Syrus
 version and omits revoked releases. Registry errors are non-fatal, and a valid
 cached index remains available when refresh fails.
