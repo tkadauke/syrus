@@ -329,11 +329,13 @@ describe("ReviewWorkspaceRoute", () => {
     )
     renderRoute("/review/JOB-42")
     await screen.findByTestId("mobile-review-summary")
-    expect(screen.getByText("1 of 2")).toBeInTheDocument()
+    const carousel = configureCarousel(320)
+    expect(screen.getByText("1 of 2")).toHaveClass("sr-only")
     fireEvent.keyDown(window, { key: "ArrowRight" })
-    expect(await screen.findByText("2 of 2")).toBeInTheDocument()
+    expect(carousel.scrollTo).toHaveBeenLastCalledWith({ behavior: "smooth", left: 320 })
+    await waitFor(() => expect(screen.getByText("2 of 2")).toBeInTheDocument())
     fireEvent.keyDown(window, { key: "ArrowLeft" })
-    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("1 of 2")).toBeInTheDocument())
   })
 
   it("does not offer approval when the canonical payload denies it", async () => {
@@ -640,7 +642,11 @@ describe("ReviewWorkspaceRoute", () => {
         })
     )
     const first = renderRoute("/review/JOB-42")
-    expect(await screen.findByText("1 of 2")).toBeInTheDocument()
+    expect(await screen.findByRole("region", { name: "Submitted visual evidence" })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: /Show visual evidence/ })).toHaveLength(2)
+    expect(screen.queryByRole("button", { name: "Previous visual evidence" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Next visual evidence" })).not.toBeInTheDocument()
+    expect(screen.getByText("1 of 2")).toHaveClass("sr-only")
     first.unmount()
     renderRoute("/review/JOB-42")
     expect(await screen.findByText("No submitted visual evidence for this Job.")).toBeInTheDocument()
@@ -658,15 +664,16 @@ describe("ReviewWorkspaceRoute", () => {
     )
     renderRoute("/review/JOB-42")
 
-    expect(await screen.findByText("1 of 3")).toBeInTheDocument()
+    expect(await screen.findByText("1 of 3")).toHaveClass("sr-only")
     fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
     expect(await screen.findByRole("heading", { name: "Review next" })).toBeInTheDocument()
-    expect(await screen.findByText("1 of 1")).toBeInTheDocument()
+    expect(await screen.findByText("1 of 1")).toHaveClass("sr-only")
+    expect(screen.queryByRole("group", { name: "Choose visual evidence" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Previous Job" }))
     expect(await screen.findByRole("heading", { name: "Review me" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Next visual evidence" }))
-    fireEvent.click(screen.getByRole("button", { name: "Next visual evidence" }))
-    expect(await screen.findByText("3 of 3")).toBeInTheDocument()
+    const carousel = configureCarousel(300)
+    fireEvent.click(screen.getByRole("button", { name: "Show visual evidence 3 of 3" }))
+    await waitFor(() => expect(screen.getByText("3 of 3")).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
 
@@ -674,6 +681,57 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.getByText("1 of 1")).toBeInTheDocument()
     expect(screen.getByRole("img", { name: "Screenshot 4" })).toBeInTheDocument()
     expect(screen.queryByText("No submitted visual evidence for this Job.")).not.toBeInTheDocument()
+  })
+
+  it("synchronizes dots and captions from settled swipes in both directions", async () => {
+    jobApi.fetchJobTab
+      .mockImplementationOnce(async () => ({}))
+      .mockImplementationOnce(async () => ({
+        visual_evidence: { captured_count: 4, submitted_count: 4, screenshots: [screenshot(1), screenshot(2), screenshot(3), screenshot(4)] }
+      }))
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const carousel = configureCarousel(300)
+
+    carousel.element.scrollLeft = 600
+    fireEvent.scroll(carousel.element)
+    await waitFor(() => expect(screen.getByText("Screenshot 3", { selector: "span" })).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Show visual evidence 3 of 4" })).toHaveAttribute("aria-pressed", "true")
+
+    carousel.element.scrollLeft = 300
+    fireEvent.scroll(carousel.element)
+    await waitFor(() => expect(screen.getByText("Screenshot 2", { selector: "span" })).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Show visual evidence 2 of 4" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("keeps carousel gestures isolated, preserves resize position, and honors reduced motion", async () => {
+    jobApi.fetchJobTab
+      .mockImplementationOnce(async () => ({}))
+      .mockImplementationOnce(async () => ({ visual_evidence: { captured_count: 2, submitted_count: 2, screenshots: [screenshot(1), screenshot(2)] } }))
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const carousel = configureCarousel(280)
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+
+    fireEvent.click(screen.getByRole("button", { name: "Show visual evidence 2 of 2" }))
+    expect(carousel.scrollTo).toHaveBeenLastCalledWith({ behavior: "auto", left: 280 })
+    await waitFor(() => expect(screen.getByText("2 of 2")).toBeInTheDocument())
+    fireEvent.resize(window)
+    expect(carousel.scrollTo).toHaveBeenLastCalledWith({ behavior: "auto", left: 280 })
+
+    fireEvent.pointerDown(carousel.element, { clientX: 220, clientY: 180, pointerId: 50, pointerType: "touch" })
+    fireEvent.pointerMove(carousel.element, { clientX: 80, clientY: 182, pointerId: 50, pointerType: "touch" })
+    fireEvent.pointerUp(carousel.element, { clientX: 80, clientY: 182, pointerId: 50, pointerType: "touch" })
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
+    expect(screen.getByTestId("mobile-review-card").style.transform).toBe("")
+    expect(carousel.element).toHaveClass("overscroll-x-contain", "touch-pan-x", "touch-pan-y")
   })
 
   it("refreshes eligibility and clears a stale Job after an approval error", async () => {
@@ -736,4 +794,15 @@ function screenshot(id: number) {
     submission_failed: false,
     image_url: `/screenshots/${id}.png`
   }
+}
+
+function configureCarousel(width: number) {
+  const element = screen.getByTestId("mobile-evidence-carousel")
+  Object.defineProperty(element, "clientWidth", { configurable: true, value: width })
+  const scrollTo = vi.fn(({ left }: ScrollToOptions) => {
+    element.scrollLeft = Number(left ?? 0)
+    fireEvent.scroll(element)
+  })
+  Object.defineProperty(element, "scrollTo", { configurable: true, value: scrollTo })
+  return { element, scrollTo }
 }
