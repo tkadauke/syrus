@@ -4,14 +4,22 @@ const { relativePath, allowedCount, isTestFile, reportBeyondBaseline } = require
 
 const RULE_KEY = "no-swallowed-errors"
 const ESCAPE = "handled-error-expected"
+const NESTED_SCOPE_TYPES = new Set([
+  "ArrowFunctionExpression",
+  "FunctionDeclaration",
+  "FunctionExpression",
+  "ClassDeclaration",
+  "ClassExpression"
+])
 
-function walk(node, visit) {
+function walk(node, visit, root = true) {
   if (!node || typeof node !== "object") return
+  if (!root && NESTED_SCOPE_TYPES.has(node.type)) return
   visit(node)
   for (const [key, value] of Object.entries(node)) {
     if (key === "parent" || key === "loc" || key === "range" || key === "tokens" || key === "comments") continue
-    if (Array.isArray(value)) value.forEach((child) => walk(child, visit))
-    else if (value?.type) walk(value, visit)
+    if (Array.isArray(value)) value.forEach((child) => walk(child, visit, false))
+    else if (value?.type) walk(value, visit, false)
   }
 }
 
