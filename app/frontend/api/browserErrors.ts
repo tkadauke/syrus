@@ -44,6 +44,14 @@ export type BrowserErrorPayload = {
   metadata: Record<string, unknown>
 }
 
+export type HandledErrorMetadata = {
+  surface: string
+  operation: string
+  stage: string
+  recoverability: "retryable" | "non_retryable" | "unknown"
+  diagnostics?: Record<string, boolean | number | string>
+}
+
 export type BrowserErrorResponse = {
   id: number
   fingerprint: string
@@ -66,6 +74,7 @@ export function buildBrowserErrorPayload(
     lastInteraction?: BrowserErrorPayload["last_interaction"]
     recoverable?: boolean
     resourceTimings?: BrowserErrorPayload["resource_timings"]
+    handledError?: HandledErrorMetadata
   }
 ): BrowserErrorPayload {
   const bootstrap = readInitialBootstrap()
@@ -75,9 +84,9 @@ export function buildBrowserErrorPayload(
     occurred_at: new Date().toISOString(),
     app_revision: bootstrap?.app?.revision ?? null,
     fingerprint: options.fingerprint,
-    name: error.name || "Error",
-    message: error.message || "Unknown browser error",
-    stack: error.stack,
+    name: scrubBrowserErrorText(error.name || "Error"),
+    message: scrubBrowserErrorText(error.message || "Unknown browser error"),
+    stack: error.stack ? scrubBrowserErrorText(error.stack) : undefined,
     component_stack: options.componentStack,
     component_stack_unavailable_reason: options.componentStackUnavailableReason,
     error_cause: options.errorCause,
@@ -101,9 +110,18 @@ export function buildBrowserErrorPayload(
     metadata: {
       boundary: options.boundary,
       history_length: window.history.length,
-      visibility_state: document.visibilityState
+      visibility_state: document.visibilityState,
+      ...(options.handledError ? { handled_error: options.handledError } : {})
     }
   }
+}
+
+export function scrubBrowserErrorText(value: string): string {
+  return value
+    .replace(/(https?:\/\/[^\s?#]+)\?[^\s#]+/gi, "$1?[FILTERED]")
+    .replace(/([?&](?:token|key|secret|password|authorization)=)[^\s&#]+/gi, "$1[FILTERED]")
+    .replace(/(\/chats\/shared\/)[^/?#\s]+/gi, "$1[FILTERED]")
+    .replace(/(\/passwords\/)[^/?#\s]+(\/edit\b)/gi, "$1[FILTERED]$2")
 }
 
 function browserErrorSafeLocation(location: Location): { url: string; path: string } {
