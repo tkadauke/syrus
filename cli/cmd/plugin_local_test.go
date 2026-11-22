@@ -19,6 +19,7 @@ type fakePluginRunner struct {
 	pulled    string
 	request   pluginRunRequest
 	runErr    error
+	runErrors map[string]error
 }
 
 func (runner *fakePluginRunner) Available() error { return runner.available }
@@ -28,6 +29,9 @@ func (runner *fakePluginRunner) Pull(_ context.Context, image string, _, _ io.Wr
 }
 func (runner *fakePluginRunner) Run(_ context.Context, request pluginRunRequest, _ io.Reader, _, _ io.Writer) error {
 	runner.request = request
+	if runner.runErrors != nil && runner.runErrors[request.Mode] != nil {
+		return runner.runErrors[request.Mode]
+	}
 	return runner.runErr
 }
 
@@ -116,6 +120,24 @@ func TestPluginCheckoutSkipsDocker(t *testing.T) {
 	root := NewRootCommand()
 	root.SetArgs([]string{"plugin", "validate", directory, "--checkout", checkout})
 	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCheckoutPackageValidationUsesCanonicalValidator(t *testing.T) {
+	checkout := t.TempDir()
+	entrypoint := filepath.Join(checkout, "bin", "plugin-package-validate")
+	if err := os.MkdirAll(filepath.Dir(entrypoint), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entrypoint, []byte("#!/bin/sh\ntest \"$1\" = --json && test \"$2\" = \"$EXPECTED_PACKAGE\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(t.TempDir(), "plugin.tar.gz")
+	t.Setenv("EXPECTED_PACKAGE", archive)
+	runner := checkoutPluginRunner{}
+	request := pluginRunRequest{Mode: "package-validate", Directory: archive, Checkout: checkout, JSON: true}
+	if err := runner.Run(context.Background(), request, strings.NewReader(""), io.Discard, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 }

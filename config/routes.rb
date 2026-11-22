@@ -499,6 +499,18 @@ Rails.application.routes.draw do
           get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
           patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
           get "plugins/:name", to: "plugins#show", constraints: { name: /[^\/]+/ }
+          get "plugin_installer", to: "plugin_installer#index"
+          get "plugin_installer/catalog", to: "plugin_installer#catalog"
+          get "plugin_installer/registries", to: "plugin_installer#registries"
+          post "plugin_installer/registries", to: "plugin_installer#create_registry"
+          patch "plugin_installer/registries/:id", to: "plugin_installer#update_registry"
+          delete "plugin_installer/registries/:id", to: "plugin_installer#destroy_registry"
+          post "plugin_installer/stage", to: "plugin_installer#stage"
+          post "plugin_installer/stage_remove", to: "plugin_installer#stage_remove"
+          post "plugin_installer/stage_release", to: "plugin_installer#stage_release"
+          post "plugin_installer/changes/:id/confirm", to: "plugin_installer#confirm"
+          get "plugin_installer/lockfile", to: "plugin_installer#export_lockfile"
+          post "plugin_installer/lockfile", to: "plugin_installer#import_lockfile"
           get "plugin_pages", to: "plugin_pages#index"
           get "plugin_services", to: "plugin_services#index"
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }

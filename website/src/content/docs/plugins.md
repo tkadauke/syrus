@@ -79,6 +79,40 @@ and mounts only the plugin directory; no instance credentials enter the
 container. Syrus contributors can use `--checkout PATH` to execute the same
 runner from a local Syrus checkout without Docker.
 
+Run `syrus plugin pack [DIR]` to produce a distributable package after the same
+validation. The `.syrus-plugin.tar.gz` archive uses sorted tar entries, fixed
+timestamps, normalized permissions, and deterministic gzip metadata, so
+packing unchanged input twice produces the same digest. Its root contains a
+generated `package.json` capability manifest and `CHECKSUMS.sha256`; the source
+tree and prebuilt frontend assets live under `plugin/`. Syrus rejects packages
+with changed or undeclared files, unsafe paths or links, excessive file sizes
+or counts, third-party Ruby gems, or non-public host API use. Package consumers
+and registry automation can enforce those checks with
+`bin/plugin-package-validate [--json] ARCHIVE`; invalid packages return a
+nonzero exit status.
+
+Generate a publisher key with `syrus plugin keygen`, keep the private key
+offline, and never commit or upload it. Sign the package digest with `syrus
+plugin sign PACKAGE --key KEY`, then verify the detached signature with `syrus
+plugin verify PACKAGE --signature PACKAGE.sig --trust-store TRUST.json`.
+Registry trust stores bind each publisher prefix to a fingerprint labeled
+**official**, **verified**, or **community** and can revoke a publisher key or one release;
+explicitly local packages may instead be **unsigned local**. A revoked
+installed release is fleet-quarantined for removal.
+
+Signing proves that the holder of a publisher key signed those exact package
+bytes. It does not sandbox a plugin, review its source, or authorize its tools
+and capabilities; normal Syrus permissions still apply after install.
+
+`syrus plugin publish DIR --key KEY --repository OWNER/REPO` validates, packs,
+signs, and uploads a GitHub release, then prints its registry entry. Add
+`--index-repository OWNER/INDEX --submit` only to explicitly consent to opening
+the index pull request from your fork and adding the release to `index.json`.
+Authentication comes from `GITHUB_TOKEN`; the command
+does not print or persist it. The description and license default to gemspec
+metadata; `--description`, `--license`, and `--category` provide explicit
+registry values when needed.
+
 ## Develop with live reload
 
 Run `syrus plugin dev [DIR]` for a fast editing loop against a real,
@@ -184,6 +218,60 @@ drains web, worker, and preview processes and lets the container restart policy
 rerun pre-boot sync. The status identifies processes still pending or stuck.
 Setup and web apply plugin migrations normally, while workers stop at boot if
 any migration remains pending.
+
+### Installing packaged plugins
+
+Administrators can upload a `.syrus-plugin.tar.gz` package on **Admin →
+Plugins** or run `syrus plugin install PATH`. Syrus validates the package,
+checks its publisher signature and revocation status, stores the content by
+digest, and shows the declared routes, credential types, CLI commands,
+extension points, process roles, and requested public host APIs. This first
+step is staging only. The desired plugin set changes only after an explicit
+confirmation (`--yes` provides that confirmation in scripts).
+
+The manifest is disclosure, not an in-process sandbox: installing a plugin
+does not grant its tools authority, and normal permission decisions still
+apply. Updates show additions and removals relative to the active release.
+Removal is staged and confirmed through the same flow. Older stored releases
+remain selectable, so installing a prior version provides rollback. After a
+confirmation, use **Apply changes** to synchronize the active set and restart
+the affected processes.
+
+`syrus plugin list` prints each external plugin's version, source, trust label,
+and health. `syrus plugin remove NAME` requires confirmation. The admin API can
+also export and import `syrus-plugins.lock.yml`; it records name, version,
+digest, and source while the database remains canonical.
+Registry-sourced entries also record the registry name so imports preserve
+provenance when catalogs collide.
+
+`syrus plugin install NAME[@VERSION]` uses a matching stored release when one
+is available, or resolves it across the enabled registry catalogs and
+downloads its HTTPS artifact and detached signature. Without a version, Syrus
+selects the highest indexed semantic version. Registry downloads use the same
+validation, signature verification, staging, and confirmation flow as uploaded
+archives.
+
+Syrus enables its canonical plugin registry and the Admin → Plugins browser by
+default; administrators can disable it and configure additional registries.
+The CLI can still use `SYRUS_PLUGIN_REGISTRY_URL` to let `syrus plugin search
+[TERM]` query an HTTPS mirror or HTTPS Git URL directly. Catalog results
+identify their source, canonical collisions are
+preferred for bare installs, and ambiguous non-canonical collisions require an
+explicit source. Each registry has isolated trust and revocation data, and
+only the canonical registry can grant the official label. The legacy
+`SYRUS_PLUGIN_REGISTRY_URL` setting remains available to the instance as a
+read-only source. Results include trust labels, exclude revoked releases, and are
+filtered for the running or connected Syrus version. Network and
+malformed-index errors are reported without taking down plugin administration.
+Use `syrus plugin install NAME[@VERSION] --registry REGISTRY` to select an
+ambiguous source by registry name or ID.
+
+Administrators can manage connected sources with `syrus plugin registry
+list|add|remove|enable|disable`. Adding a source requires confirmation (or
+`--yes`) and repeats the registry trust disclosure. Search accepts `--registry
+NAME`. `syrus plugin publish --submit` targets the canonical registry's GitHub
+repository by default; `--registry NAME` selects another configured GitHub
+registry, while `--index-repository OWNER/REPO` remains the explicit override.
 
 ### Reading fleet convergence
 

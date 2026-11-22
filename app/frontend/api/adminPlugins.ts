@@ -1,4 +1,4 @@
-import { getJson, patchJson, postJson } from "./client"
+import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { FilterSchemaField } from "../components/FilterBar"
 
 export type AdminPluginExtensionPoint = {
@@ -44,6 +44,7 @@ export type AdminPlugin = {
   display_name: string
   display_name_i18n_key?: string | null
   version: string
+  trust_label: "official" | "verified" | "community" | "unsigned_local"
   enabled: boolean
   default_enabled: boolean
   disableable: boolean
@@ -103,6 +104,59 @@ export type PluginConvergencePayload = {
 
 export type AdminPluginTogglePayload = { ok: true; plugin: { name: string; enabled: boolean } }
 
+export type PluginInstallerChange = {
+  id: number
+  name: string
+  action: "install" | "update" | "remove"
+  version: string | null
+  source: string | null
+  trust_label: string | null
+  capability_manifest: Record<string, string[]>
+  capability_diff: Record<string, { added: string[]; removed: string[] }>
+}
+
+export type PluginInstallerPayload = {
+  installations: Array<{ name: string; version: string; source: string; trust_label: string; digest: string; health: string }>
+  pending_changes: PluginInstallerChange[]
+  available_releases: Array<{ name: string; version: string; source: string; trust_label: string }>
+}
+
+export type PluginRegistryEntry = {
+  name: string
+  version: string
+  description: string
+  category: string
+  author: string
+  trust_label: string
+  capability_summary: Record<string, string[]>
+  registry_name: string
+  registry_id: number | null
+  registry_canonical: boolean
+}
+
+export type PluginRegistryCatalog = {
+  configured: boolean
+  error: string | null
+  errors: Record<string, string>
+  stale: boolean
+  stale_registries: string[]
+  entries: PluginRegistryEntry[]
+}
+
+export type AdminPluginRegistry = {
+  id: number | null
+  name: string
+  url: string
+  enabled: boolean
+  canonical: boolean
+  read_only: boolean
+  last_refresh_at: string | null
+  entry_count: number
+  error: string | null
+  stale: boolean
+  healthy: boolean
+}
+
 export type AdminPluginDisableConfirmation = {
   requires_confirmation: true
   plugin_name: string
@@ -116,6 +170,56 @@ export type AdminPluginExperimentalBlock = {
 
 export function fetchAdminPlugins(search = "") {
   return getJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins${search}`)
+}
+
+export function fetchPluginInstaller() {
+  return getJson<PluginInstallerPayload>("/api/v1/app/admin/plugin_installer")
+}
+
+export function fetchPluginRegistryCatalog(term = "", registry = "") {
+  const params = new URLSearchParams()
+  if (term) params.set("q", term)
+  if (registry) params.set("registry", registry)
+  const query = params.size ? `?${params}` : ""
+  return getJson<PluginRegistryCatalog>("/api/v1/app/admin/plugin_installer/catalog" + query)
+}
+
+export function fetchPluginRegistries() {
+  return getJson<{ registries: AdminPluginRegistry[] }>("/api/v1/app/admin/plugin_installer/registries")
+}
+
+export function createPluginRegistry(input: { name: string; url: string }) {
+  return postJson<AdminPluginRegistry>("/api/v1/app/admin/plugin_installer/registries", input)
+}
+
+export function updatePluginRegistry(id: number, enabled: boolean) {
+  return patchJson<AdminPluginRegistry>(`/api/v1/app/admin/plugin_installer/registries/${id}`, { enabled })
+}
+
+export function removePluginRegistry(id: number) {
+  return deleteJson<void>(`/api/v1/app/admin/plugin_installer/registries/${id}`)
+}
+
+export async function stagePluginArchive(file: File) {
+  const form = new FormData()
+  form.append("archive", file)
+  return postForm<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage", form)
+}
+
+export function stagePluginRemoval(name: string) {
+  return postJson<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage_remove", { name })
+}
+
+export function stageStoredPluginRelease(name: string, version: string, registry?: string) {
+  return postJson<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage_release", { name, version, registry })
+}
+
+export function confirmPluginChange(id: number) {
+  return postJson<{ change: PluginInstallerChange; restart_required: boolean; apply_path: string }>(`/api/v1/app/admin/plugin_installer/changes/${id}/confirm`)
+}
+
+export function applyPluginChanges() {
+  return postJson<Record<string, unknown>>("/api/v1/admin/plugin_desired_state/apply")
 }
 
 export function fetchAdminPlugin(name: string) {
