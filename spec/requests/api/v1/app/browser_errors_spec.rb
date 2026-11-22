@@ -104,4 +104,66 @@ RSpec.describe "API: /api/v1/app/browser_errors", type: :request do
 
     expect(BrowserErrorEvent.where(fingerprint: "react-426").count).to eq(2)
   end
+
+  it "retains safe startup resource evidence and aggregates a five-minute episode by user, route, revision transition, and target" do
+    other_user = Factories.user
+    sign_in_as(user)
+    payload = {
+      app_revision: "revision-2",
+      name: "StartupResourceError",
+      message: "SPA startup resource failed to load",
+      path: "/whiteboards/7",
+      metadata: {
+        resource_path: "/assets/spa-entry.js?token=secret&user=private",
+        resource_type: "script",
+        initiator_type: "script",
+        startup_phase: "startup",
+        last_completed_milestone: "shell_loaded",
+        event_kind: "error",
+        browser_online: false,
+        service_worker_present: true,
+        service_worker_controlled: true,
+        revision_changed: true,
+        previous_app_revision: "revision-1",
+        resource_timing: {
+          response_status: 503,
+          duration_bucket: "1s_to_5s",
+          transfer_size_bucket: "under_10kb",
+          encoded_size_bucket: "10kb_to_100kb",
+          transfer_classification: "network",
+          raw_url: "https://user.example/private?token=secret"
+        },
+        arbitrary_url: "https://user.example/private?token=secret",
+        body: "user-controlled content"
+      }
+    }
+
+    10.times do |index|
+      post "/api/v1/app/browser_errors", params: {
+        browser_error: payload.merge(occurred_at: (Time.zone.parse("2026-11-21T20:00:00Z") + index * 25.seconds).iso8601)
+      }
+    end
+
+    episode = BrowserErrorEvent.find(response.parsed_body.fetch("id"))
+    expect(episode).to have_attributes(occurrence_count: 10, burst_duration_ms: 225_000, recoverable: true)
+    expect(episode.metadata).to include(
+      "resource_path" => "/assets/spa-entry.js",
+      "resource_type" => "script",
+      "last_completed_milestone" => "shell_loaded",
+      "browser_online" => "false",
+      "service_worker_controlled" => "true"
+    )
+    expect(episode.metadata.fetch("resource_timing")).to include(
+      "response_status" => "503",
+      "transfer_classification" => "network"
+    )
+    expect(episode.metadata).not_to include("arbitrary_url", "body")
+    expect(episode.metadata.fetch("resource_timing")).not_to have_key("raw_url")
+
+    post "/api/v1/app/browser_errors", params: { browser_error: payload.merge(path: "/dashboard", occurred_at: "2026-11-21T20:04:00Z") }
+    sign_in_as(other_user)
+    post "/api/v1/app/browser_errors", params: { browser_error: payload.merge(occurred_at: "2026-11-21T20:04:00Z") }
+
+    expect(BrowserErrorEvent.where(name: "StartupResourceError").count).to eq(3)
+  end
 end
