@@ -6,13 +6,15 @@ module Syrus
       end
 
       def call
-        PluginInstallation.includes(:plugin_release).find_each.filter_map do |installation|
-          release = installation.plugin_release
-          next unless @trust_store.revoked?(release)
-
-          installation.update!(fleet_quarantined: true) unless installation.fleet_quarantined?
-          installation
+        revoked_installations = PluginInstallation.includes(:plugin_release).find_each.filter_map do |installation|
+          installation if @trust_store.revoked?(installation.plugin_release)
         end
+        return [] if revoked_installations.empty?
+
+        PluginInstallation.where(id: revoked_installations.map(&:id), fleet_quarantined: false)
+          .update_all(fleet_quarantined: true, updated_at: Time.current)
+        PluginDesiredState::Publisher.publish!
+        revoked_installations
       end
     end
   end
