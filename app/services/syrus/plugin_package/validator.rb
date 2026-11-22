@@ -19,11 +19,22 @@ module Syrus
         def valid? = valid
       end
 
-      def initialize(archive, max_files: MAX_FILES, max_file_size: MAX_FILE_SIZE, max_total_size: MAX_TOTAL_SIZE)
-        @archive = archive
+      def initialize(archive, signature: nil, trust_store: nil, local: false, max_files: MAX_FILES, max_file_size: MAX_FILE_SIZE, max_total_size: MAX_TOTAL_SIZE)
+        if archive.respond_to?(:read)
+          bytes = archive.read
+          archive.rewind if archive.respond_to?(:rewind)
+          @archive = StringIO.new(bytes)
+          @verification_package = StringIO.new(bytes)
+        else
+          @archive = archive
+          @verification_package = archive
+        end
         @max_files = max_files
         @max_file_size = max_file_size
         @max_total_size = max_total_size
+        @signature = signature
+        @trust_store = trust_store
+        @local = local
       end
 
       def call
@@ -32,6 +43,11 @@ module Syrus
         errors = validate_manifest(manifest, entries)
         errors.concat(validate_checksums(entries))
         errors.concat(validate_plugin(entries, manifest))
+        if @trust_store
+          verification = Verifier.new(package: @verification_package, signature: @signature, trust_store: @trust_store, local: @local,
+            name: manifest["name"], version: manifest["version"]).call
+          errors.concat(verification.errors)
+        end
         Result.new(valid: errors.empty?, errors:, manifest:)
       rescue Error, KeyError, JSON::ParserError, Zlib::GzipFile::Error, Gem::Package::TarInvalidError => error
         Result.new(valid: false, errors: [ error.message ], manifest: nil)
