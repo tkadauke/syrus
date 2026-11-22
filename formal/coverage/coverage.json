@@ -3390,7 +3390,7 @@
         "C. Keep as is: pausing a landing deliberately holds the repository queue."
       ],
       "recommendation": "A. It is the same rule NY7 chose before the first Run and the allowlist's own definition (a paused unit is not about to run); the only cost is that an unpaused landing may wait behind one that went ahead.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Add manual_pause to the externally cleared reasons: a paused started landing gives the slot back; on unpause it re-acquires the slot, waiting its turn if another landing took it. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Add manual_pause to the externally cleared reasons: a paused started landing gives the slot back; on unpause it re-acquires the slot, waiting its turn if another landing took it. Implemented as F101."
     },
     {
       "id": "NY28",

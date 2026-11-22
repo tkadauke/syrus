@@ -3728,6 +3728,51 @@ not changed here.
 
 ---
 
+## F101. A started landing paused by hand kept the repository landing slot — fixed (NY27)
+
+**Decision (NY27, A).** A paused started landing gives the slot back. On
+unpause it re-acquires it, waiting its turn if another landing took it.
+
+**Before.** `WorkUnit#block!` surrenders `landing:repository:<id>` for
+`EXTERNALLY_CLEARED_BLOCKED_REASONS`, or for any block before the first Run
+(NY7). `manual_pause` was in neither list once a Run existed. So a started
+landing paused by hand kept the slot for as long as the pause lasted, and
+every other approved Job in the repository waited behind work nobody was
+doing (`PrestartSlot.started_before_starves_on_manual_pause`).
+
+**Fix.**
+
+- `manual_pause` joins `EXTERNALLY_CLEARED_BLOCKED_REASONS`, so a hand pause
+  surrenders the landing slot. Job and Epic locks stay: they stop a second
+  attempt at the same work.
+- `JobManualPause.unpause!` re-acquires through `resume_for_workflow!`, as
+  before. If another landing took the slot, that raised `LockConflict` out of
+  the unpause; it now leaves the unit queued without the slot. Its next Run
+  start takes it through `WorkUnit#mark_running!`, and `RunJob` already
+  defers a start whose lock is held, so the landing waits its turn.
+- The same gap applies to F92's `agent_cannot_proceed`, whose release is
+  re-acquired through the same `resume_for_workflow!` paths that already
+  rescue `LockConflict` elsewhere. It is not changed here.
+
+**Proof.** `PrestartSlot.lean` gains the after-start case.
+`started_after_never_starves`: with `manual_pause` in the list, no indefinite
+block keeps the slot after the first Run either. Mutual exclusion stays the
+lock's unique index (`LockSafety`).
+
+**Specs.** All three were red before:
+
+- `work_unit_spec.rb`: "surrenders the landing slot when a started landing is
+  paused by hand";
+- `job_manual_pause_spec.rb`: "takes the landing slot back on unpause when it
+  is free";
+- `job_manual_pause_spec.rb`: "waits its turn on unpause instead of failing
+  when another landing took the slot".
+
+Also run and green, CI-only included: `spec/services/work_units`, the landing
+queue processor, `spec/services/work_engine`, `run_job_spec` and `job_spec`.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
