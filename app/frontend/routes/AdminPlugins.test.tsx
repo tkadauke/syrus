@@ -1403,6 +1403,7 @@ describe("AdminPlugins", () => {
       if (url.includes("plugin_installer")) {
         return Promise.resolve(jsonResponse({
           installations: [],
+          available_releases: [{ name: "weather", version: "1.0.0", source: "upload", trust_label: "verified" }],
           pending_changes: [{
             id: 4,
             name: "weather",
@@ -1424,6 +1425,7 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("routes: +/weather / −/forecast")).toBeInTheDocument()
     expect(screen.getByText(/disclosure, not enforcement/)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Confirm desired-state change" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument()
   })
 
   it("shows localized load states and messages for isolated plugins", async () => {

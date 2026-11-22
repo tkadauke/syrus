@@ -649,6 +649,8 @@
       "restart_required": "The desired state changed. Apply changes to synchronize and restart the fleet.",
       "apply": "Apply changes",
       "remove": "Remove",
+      "stored_releases": "Stored releases",
+      "restore": "Restore",
       "actions": { "install": "Install", "update": "Update", "remove": "Remove" }
     },
     "trust_labels": {
