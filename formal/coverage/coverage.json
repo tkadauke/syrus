@@ -1755,7 +1755,7 @@
       ],
       "status": "partial",
       "done_by": "F43",
-      "notes": "F43: the repair's re-check ignored blocked train Workflows and a pending preserved relaunch, so an owner appearing after planning did not stop it failing the train; classifier and repair now share WorkEngine::MergeTrainOwnership#owned?. Remaining: atomic terminal hooks (MergeTrainFailureHandler completing with the Workflow) and a fairness assumption for preserved relaunches."
+      "notes": "F43: the repair's re-check ignored blocked train Workflows and a pending preserved relaunch, so an owner appearing after planning did not stop it failing the train; classifier and repair now share WorkEngine::MergeTrainOwnership#owned?. Remaining: atomic terminal hooks (MergeTrainFailureHandler completing with the Workflow) and a fairness assumption for preserved relaunches. M51/Lead L6: the non-atomic part is Workflow#dispatch_hook, which swallows a MergeTrainFailureHandler error inside the terminal transaction without a savepoint (partial writes commit, train can stay active). 2 production repairs in 21 days, both 11-16."
     },
     {
       "id": "stack-children-rebased-after-train",

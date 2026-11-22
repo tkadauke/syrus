@@ -4208,6 +4208,43 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M51. Merge-train sweep (read-only): F25 verified, terminal hooks noted (Lead L6)
+
+**F25 verified in production.** The reconciler detected
+`succeeded_merge_train_failed_member_reconciliation` 9 times between 11-17 and
+11-20, 18:12 UTC. Each detection came within about 30 s of a successful train
+finishing, with 1–7 members wrongly failed per train. That is F25's
+signature: a member that landed through the integration rebase was rejected
+by the pre-rebase ancestry check.
+
+Since the 11-21 deploys, five trains have landed (three Epics and two Job
+bundles) with no detection. That includes the plugin capability-family Epic's
+train, which landed through `merge_train_land_after_rebase`, F25's exact path.
+
+**`stale_active_merge_train_without_runtime`.** Two repairs, both on 11-16,
+none since.
+
+**Lead L6: terminal hooks swallow their errors.** `Workflow#dispatch_hook`
+rescues `StandardError` and only logs it. `Workflows::MergeTrain.after_fail` /
+`after_cancel` run `MergeTrainFailureHandler` through it, inside the
+terminal transition's transaction and with no savepoint. If the handler raises
+partway through:
+
+- the Workflow still commits as failed or cancelled;
+- whatever the handler wrote before the error commits with it;
+- the train can be left active with no owner. That is the
+  `stale_active_merge_train_without_runtime` producer that coverage item
+  `stale-active-merge-train` lists as "atomic terminal hooks".
+
+The reconciler backstops the stale train (F43). Making it unreachable would
+mean either failing the transition when a hook fails, or running each hook in
+a savepoint and recording the failure for retry. Either changes a deliberate
+"a hook never blocks a transition" contract that every Workflow kind shares,
+so it is left as a lead, not changed. The swallowed exception leaves only a
+log line, so production cannot show how often it happens.
+
+---
+
 ## M50. Landing units can deadlock on a cycle the Job graph does not have — proved, latent (NY28)
 
 Coverage item `landing-queue-order` named the order computation as unmodelled.
