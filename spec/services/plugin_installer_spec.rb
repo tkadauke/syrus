@@ -38,7 +38,7 @@ RSpec.describe PluginInstaller do
   it "fetches an unstored registry release through package validation and staging" do
     admin = Factories.user(admin: true)
     allow(SsrfGuard).to receive(:safe_host?).and_return(true)
-    registry = PluginRegistry.create!(name: "partners", url: "https://partners.example.test")
+    registry = PluginRegistry.ensure_environment!("https://partners.example.test")
     trust_store = Syrus::PluginPackage::TrustStore.new("publishers" => [])
     fetcher = instance_double(PluginRegistryPackageFetcher)
     package = PluginRegistryPackageFetcher::Package.new(archive: StringIO.new("package"), signature: "signature",
@@ -56,6 +56,7 @@ RSpec.describe PluginInstaller do
 
     expect(change.plugin_release).to have_attributes(name: "weather", version: "2.0.0", source: "registry",
       trust_label: "verified", plugin_registry: registry)
+    expect(registry).to be_read_only
     expect(change.capability_manifest).to eq("routes" => [ "/weather" ])
   end
 
@@ -72,5 +73,37 @@ RSpec.describe PluginInstaller do
     expect { described_class.new(actor: admin, registry_fetcher: fetcher).stage_release!("weather", version: "2.0.0") }
       .to raise_error(described_class::Error, /name does not match/)
     expect(PluginRelease).not_to exist(name: "other")
+  end
+
+  it "applies canonical preference and explicit selection to stored registry collisions" do
+    admin = Factories.user(admin: true)
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    canonical = PluginRegistry.ensure_canonical!
+    partner = PluginRegistry.create!(name: "partner", url: "https://partner.example.test")
+    canonical_release = PluginRelease.create!(name: "acme_weather", version: "1.0.0", content_digest: "a" * 64,
+      source: "registry", trust_label: "official", size_bytes: 1, plugin_registry: canonical)
+    partner_release = PluginRelease.create!(name: "acme_weather", version: "1.0.0", content_digest: "b" * 64,
+      source: "registry", trust_label: "verified", size_bytes: 1, plugin_registry: partner)
+    allow(Syrus::PluginPackage::TrustStore).to receive(:for_release)
+      .and_return(instance_double(Syrus::PluginPackage::TrustStore, revoked?: false))
+
+    preferred = described_class.new(actor: admin).stage_release!("acme_weather", version: "1.0.0")
+    explicit = described_class.new(actor: admin).stage_release!("acme_weather", version: "1.0.0", registry: "partner")
+
+    expect(preferred.plugin_release).to eq(canonical_release)
+    expect(explicit.plugin_release).to eq(partner_release)
+  end
+
+  it "requires explicit selection for stored non-canonical registry collisions" do
+    admin = Factories.user(admin: true)
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    %w[first second].each_with_index do |name, index|
+      registry = PluginRegistry.create!(name:, url: "https://#{name}.example.test")
+      PluginRelease.create!(name: "acme_weather", version: "1.0.0", content_digest: index.to_s * 64,
+        source: "registry", trust_label: "verified", size_bytes: 1, plugin_registry: registry)
+    end
+
+    expect { described_class.new(actor: admin).stage_release!("acme_weather", version: "1.0.0") }
+      .to raise_error(described_class::Error, /ambiguous/)
   end
 end

@@ -3227,6 +3227,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.string "name", null: false
     t.string "url", null: false
     t.boolean "enabled", default: true, null: false
+    t.boolean "environment_managed", default: false, null: false
+    t.datetime "removed_at"
     t.integer "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -3249,7 +3251,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
     t.text "signature"
     t.integer "plugin_registry_id"
     t.index ["content_digest"], name: "index_plugin_releases_on_content_digest"
-    t.index ["name", "version", "content_digest"], name: "idx_plugin_releases_identity", unique: true
+    t.index ["name", "version", "content_digest", "plugin_registry_id"], name: "idx_plugin_releases_identity", unique: true
     t.index ["plugin_registry_id"], name: "index_plugin_releases_on_plugin_registry_id"
     t.index ["publisher_key_fingerprint"], name: "index_plugin_releases_on_publisher_key_fingerprint"
     t.index ["uploaded_by_id"], name: "index_plugin_releases_on_uploaded_by_id"

@@ -38,6 +38,13 @@ RSpec.describe "API: plugin installer", type: :request do
     expect(response).to have_http_status(:ok)
     expect(registry.reload).not_to be_enabled
 
+    registry_release = PluginRelease.create!(name: "partners_weather", version: "1.0.0", content_digest: "b" * 64,
+      source: "registry", trust_label: "verified", size_bytes: 1, plugin_registry: registry)
+    delete "/api/v1/app/admin/plugin_installer/registries/#{registry.id}"
+    expect(response).to have_http_status(:no_content)
+    expect(registry.reload.removed_at).to be_present
+    expect(registry_release.reload.plugin_registry).to eq(registry)
+
     canonical = PluginRegistry.ensure_canonical!
     delete "/api/v1/app/admin/plugin_installer/registries/#{canonical.id}"
     expect(response).to have_http_status(:unprocessable_content)
@@ -45,7 +52,11 @@ RSpec.describe "API: plugin installer", type: :request do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("SYRUS_PLUGIN_REGISTRY_URL").and_return("https://legacy.example.test")
     get "/api/v1/app/admin/plugin_installer/registries"
-    expect(JSON.parse(response.body).fetch("registries")).to include(include("url" => "https://legacy.example.test", "read_only" => true))
+    environment = PluginRegistry.find_by!(url: "https://legacy.example.test")
+    expect(JSON.parse(response.body).fetch("registries")).to include(include("id" => environment.id, "read_only" => true))
+
+    patch "/api/v1/app/admin/plugin_installer/registries/#{environment.id}", params: { enabled: false }
+    expect(response).to have_http_status(:unprocessable_content)
   end
 
   it "stages a stored release for rollback" do
