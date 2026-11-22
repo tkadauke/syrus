@@ -88,6 +88,16 @@ tag, role, test identifier, or control type; values and text are never read.
 Identical recoverable errors from the same user, revision, and path within a
 30-second burst are stored as one event with an occurrence count and duration.
 
+Application code that catches an unexpected frontend failure reports it through
+the same browser-error stream with stable product-surface, operation, stage,
+and recoverability identifiers. React Query supplies a fallback report for
+terminal query and mutation failures that a product surface did not report more
+specifically. Cancellation, validation outcomes, authorization prompts, and
+user-declined actions are treated as expected control flow and are not recorded
+as exceptions. Handled reports accept only centrally allowlisted scalar
+diagnostics; arbitrary content, URLs, filenames, request bodies, blobs, data
+URLs, and tokens are excluded.
+
 The initial SPA loading shell also becomes a retryable recovery surface when
 bundle evaluation, root mounting, the initial bootstrap request, or route
 initialization fails to complete. Its displayed startup reference correlates

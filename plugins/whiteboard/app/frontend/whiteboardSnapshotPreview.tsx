@@ -3,6 +3,7 @@ import { fetchWhiteboardSnapshot, type ChatWhiteboardScene } from "@app/api/chat
 import { asExcalidrawElements, normalizeWhiteboardScene } from "@app/routes/chat/whiteboardScene"
 import { MediaPreviewShell, type MediaPreviewItem } from "@app/routes/chat/mediaPreviewShell"
 import i18n from "i18next"
+import { reportHandledError } from "@app/lib/handledErrorReporting"
 
 type PreviewState = { status: "loading"; src: null } | { status: "ready"; src: string } | { status: "error"; src: null }
 
@@ -26,7 +27,13 @@ export function WhiteboardSnapshotPreview({
       .then((src) => {
         if (!cancelled) setPreview({ status: "ready", src })
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        reportHandledError(error, {
+          surface: "whiteboard_snapshot",
+          operation: "render_preview",
+          stage: "load_and_serialize",
+          recoverability: "retryable"
+        })
         if (!cancelled) setPreview({ status: "error", src: null })
       })
 
@@ -56,7 +63,13 @@ export function WhiteboardScenePreview({ scene, item }: { scene: Partial<ChatWhi
       .then((src) => {
         if (!cancelled) setPreview({ status: "ready", src })
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        reportHandledError(error, {
+          surface: "whiteboard_scene",
+          operation: "render_preview",
+          stage: "serialize",
+          recoverability: "retryable"
+        })
         if (!cancelled) setPreview({ status: "error", src: null })
       })
 

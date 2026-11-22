@@ -18,6 +18,9 @@ import {
 } from "./WalkthroughRecorder"
 import { MAX_WALKTHROUGH_DURATION_SECONDS } from "../api/videoWalkthroughs"
 import type { SyrusAnnotationBridge, SyrusRecorderHudBridge } from "../lib/desktopShell"
+import { reportHandledError } from "../lib/handledErrorReporting"
+
+vi.mock("../lib/handledErrorReporting", () => ({ reportHandledError: vi.fn() }))
 
 describe("formatClock", () => {
   it("renders zero as 0:00", () => {
@@ -249,6 +252,7 @@ describe("useWalkthroughRecorder lifecycle cleanup", () => {
   })
 
   it("surfaces MediaRecorder construction failures as an error state", async () => {
+    vi.mocked(reportHandledError).mockClear()
     vi.stubGlobal("MediaRecorder", class {
       static isTypeSupported = () => true
       constructor() {
@@ -273,6 +277,12 @@ describe("useWalkthroughRecorder lifecycle cleanup", () => {
     expect(result.current.state).toEqual({
       phase: "error",
       message: "This browser cannot record the screen. Drag a video file in instead."
+    })
+    expect(reportHandledError).toHaveBeenCalledWith(expect.any(Error), {
+      surface: "walkthrough_recorder",
+      operation: "start_recording",
+      stage: "media_recorder",
+      recoverability: "non_retryable"
     })
   })
 
@@ -498,6 +508,30 @@ describe("useWalkthroughRecorder annotation", () => {
       result.current.stop({ discard: true })
     })
     expect(bridge.disable).toHaveBeenCalled()
+  })
+
+  it("reports an unexpected desktop annotation bridge rejection while continuing recording", async () => {
+    vi.mocked(reportHandledError).mockClear()
+    stubMedia()
+    const bridgeError = new Error("annotation IPC failed")
+    const { bridge } = fakeAnnotation({ enable: vi.fn().mockRejectedValue(bridgeError) })
+    const { result } = renderHook(() =>
+      useWalkthroughRecorder({ onFinished: vi.fn(), annotation: bridge })
+    )
+
+    await act(async () => {
+      await result.current.start()
+      await Promise.resolve()
+    })
+
+    expect(result.current.state.phase).toBe("recording")
+    expect(result.current.annotationAvailable).toBe(false)
+    expect(reportHandledError).toHaveBeenCalledWith(bridgeError, {
+      surface: "walkthrough_recorder",
+      operation: "enable_annotation",
+      stage: "desktop_bridge",
+      recoverability: "retryable"
+    })
   })
 
   it("ignores a late enable() resolution that lands after the recording stopped", async () => {

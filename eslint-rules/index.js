@@ -21,6 +21,8 @@ module.exports = {
     "no-raw-status-colors": require("./no-raw-status-colors"),
     "no-panel-shell-repeats": require("./no-panel-shell-repeats"),
     "no-raw-table-classes": require("./no-raw-table-classes"),
-    "no-long-class-strings": require("./no-long-class-strings")
+    "no-long-class-strings": require("./no-long-class-strings"),
+    "no-swallowed-errors": require("./no-swallowed-errors"),
+    "no-direct-browser-error-payload": require("./no-direct-browser-error-payload")
   }
 }

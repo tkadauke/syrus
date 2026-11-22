@@ -1,6 +1,9 @@
 import { getRecentApiRequests, postJson } from "./client"
 import { readInitialBootstrap } from "./bootstrap"
 import { getRecentErrors } from "../lib/errorRingBuffer"
+import { scrubBrowserErrorText } from "../lib/browserErrorRedaction"
+
+export { scrubBrowserErrorText } from "../lib/browserErrorRedaction"
 
 const REDACTED = "[FILTERED]"
 const SENSITIVE_ROUTE_PARAM_KEYS = new Set(["token"])
@@ -44,6 +47,14 @@ export type BrowserErrorPayload = {
   metadata: Record<string, unknown>
 }
 
+export type HandledErrorMetadata = {
+  surface: string
+  operation: string
+  stage: string
+  recoverability: "retryable" | "non_retryable" | "unknown"
+  diagnostics?: Record<string, boolean | number | string>
+}
+
 export type BrowserErrorResponse = {
   id: number
   fingerprint: string
@@ -66,6 +77,7 @@ export function buildBrowserErrorPayload(
     lastInteraction?: BrowserErrorPayload["last_interaction"]
     recoverable?: boolean
     resourceTimings?: BrowserErrorPayload["resource_timings"]
+    handledError?: HandledErrorMetadata
   }
 ): BrowserErrorPayload {
   const bootstrap = readInitialBootstrap()
@@ -75,9 +87,9 @@ export function buildBrowserErrorPayload(
     occurred_at: new Date().toISOString(),
     app_revision: bootstrap?.app?.revision ?? null,
     fingerprint: options.fingerprint,
-    name: error.name || "Error",
-    message: error.message || "Unknown browser error",
-    stack: error.stack,
+    name: scrubBrowserErrorText(error.name || "Error"),
+    message: scrubBrowserErrorText(error.message || "Unknown browser error"),
+    stack: error.stack ? scrubBrowserErrorText(error.stack) : undefined,
     component_stack: options.componentStack,
     component_stack_unavailable_reason: options.componentStackUnavailableReason,
     error_cause: options.errorCause,
@@ -101,7 +113,8 @@ export function buildBrowserErrorPayload(
     metadata: {
       boundary: options.boundary,
       history_length: window.history.length,
-      visibility_state: document.visibilityState
+      visibility_state: document.visibilityState,
+      ...(options.handledError ? { handled_error: options.handledError } : {})
     }
   }
 }

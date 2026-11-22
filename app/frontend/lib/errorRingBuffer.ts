@@ -1,3 +1,5 @@
+import { scrubBrowserErrorText } from "./browserErrorRedaction"
+
 const MAX_ERRORS = 10
 
 export type RecentError = {
@@ -13,7 +15,7 @@ let errorHandler: ((e: ErrorEvent) => void) | null = null
 let rejectionHandler: ((e: PromiseRejectionEvent) => void) | null = null
 
 function recordError(message: string, source: string) {
-  const trimmedMessage = String(message).slice(0, 500)
+  const trimmedMessage = scrubBrowserErrorText(String(message)).slice(0, 500)
   const at = new Date().toISOString()
 
   const existing = recentErrors.find((e) => e.message === trimmedMessage && e.source === source)
@@ -31,11 +33,10 @@ export function initErrorRingBuffer() {
   if (errorHandler) return
 
   errorHandler = (event: ErrorEvent) => {
-    recordError(event.message || "Unknown error", event.filename || "unknown")
+    recordError(event.message || "Unknown error", event.filename ? "script" : "window")
   }
   rejectionHandler = (event: PromiseRejectionEvent) => {
-    const message =
-      event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unhandled rejection")
+    const message = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unhandled rejection")
     recordError(message, "promise")
   }
 

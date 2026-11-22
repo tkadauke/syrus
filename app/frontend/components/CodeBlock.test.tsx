@@ -2,6 +2,9 @@ import { render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { CodeBlock } from "./CodeBlock"
 import * as highlighterLib from "../lib/highlighter"
+import { reportHandledError } from "../lib/handledErrorReporting"
+
+vi.mock("../lib/handledErrorReporting", () => ({ reportHandledError: vi.fn() }))
 
 describe("CodeBlock", () => {
   it("renders Shiki tokens as spans colored with --shiki-token-* custom properties", async () => {
@@ -36,6 +39,12 @@ describe("CodeBlock", () => {
 
     await waitFor(() => expect(tokenizeSpy).toHaveBeenCalled())
     await waitFor(() => expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Code highlighting failed"), expect.any(Error)))
+    expect(reportHandledError).toHaveBeenCalledWith(expect.any(Error), {
+      surface: "code_block",
+      operation: "highlight",
+      stage: "tokenize",
+      recoverability: "non_retryable"
+    })
 
     const code = container.querySelector("code")
     expect(code?.textContent).toBe("class User")

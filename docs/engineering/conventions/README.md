@@ -19,6 +19,8 @@ Read the guide that matches the work in front of you:
   isolation.
 - [Frontend](frontend.md) — React routing, interaction patterns, and visual
   consistency.
+- [Handled frontend errors](handled_frontend_errors.md) — reporting taxonomy,
+  expected-control-flow exclusions, and the migration ratchet.
 - [Localization](localization.md) — frontend and backend user-visible copy.
 - [Plugins](plugins.md) — lifecycle, registration, boundaries, plugin-owned
   coverage, and the [full authoring reference](plugins/authoring.md).
