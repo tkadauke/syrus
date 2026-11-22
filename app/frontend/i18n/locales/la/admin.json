@@ -491,10 +491,10 @@
       "confirm": "Mutationem status desiderati confirma",
       "restart_required": "Status desideratus mutatus est. Mutationes applica ut classis congruat et denuo incipiat.",
       "apply": "Mutationes applica",
-      "remove": "Remove",
+      "remove": "Remove pluginum",
       "stored_releases": "Emissiones servatae",
       "restore": "Restitue",
-      "actions": { "install": "Institue", "update": "Renova", "remove": "Remove" }
+      "actions": { "install": "Institue", "update": "Renova", "remove": "Remove pluginum" }
     },
     "trust_labels": {
       "official": "Publicum",
