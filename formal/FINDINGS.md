@@ -3648,6 +3648,40 @@ and green: the classifier-dependent specs (`declared_problems_are_known`,
 
 ---
 
+## F99. Grader infrastructure failures were filed as provider auth failures — fixed (refines F98)
+
+**Evidence (production, read-only, 14 days).** 35 Runs were classified
+`provider_auth_or_config`, which is non-retryable. Six were *grader* Runs,
+which never authenticate to an agent provider:
+
+- three failed on `ActiveRecord::ConnectionNotEstablished: Can't connect to
+  server on 'syrus-mysql'` (11-14);
+- one failed on a missing table (11-14);
+- two failed on `immutable source prepare command failed: npm ci` (11-19,
+  and the 11-22 one in F98).
+
+Every one is an infrastructure failure, and none was retried. Each log
+contained `webauthn`, which F98 already handles. Two also contained the test
+name "automatically exchanges Codex OAuth callbacks", which F98's word-bounded
+`\bo?auth\b` still matched.
+
+**Fix.** `auth_or_config?` no longer accepts a bare auth word at all. It needs
+a failure phrasing: `(o)auth(entication|orization)` followed by failed,
+failure, error, required, denied, rejected, invalid or expired. These still
+classify as auth/config:
+
+- "Authentication failed for …";
+- "auth error";
+- the `authentication_failed` agent outcome;
+- "OAuth token expired" (through the existing token pattern).
+
+**Spec.** `run_failure_classifier_spec.rb` "does not treat a test name
+mentioning OAuth in grader output as provider auth/config" was red before.
+The classifier spec (121 examples, CI-only included) and its dependants are
+green.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
