@@ -16,16 +16,18 @@ import (
 )
 
 type fakePublisher struct {
-	uploads []string
-	path    string
-	entry   []byte
+	uploads         []string
+	path            string
+	entry           []byte
+	indexRepository string
 }
 
 func (publisher *fakePublisher) Upload(_ context.Context, repository, tag, name string, _ []byte) (string, error) {
 	publisher.uploads = append(publisher.uploads, repository+"/"+tag+"/"+name)
 	return "https://downloads.example.test/" + name, nil
 }
-func (publisher *fakePublisher) Submit(_ context.Context, _ string, path string, entry []byte) (string, error) {
+func (publisher *fakePublisher) Submit(_ context.Context, repository string, path string, entry []byte) (string, error) {
+	publisher.indexRepository = repository
 	publisher.path, publisher.entry = path, entry
 	return "https://github.example.test/pull/1", nil
 }
@@ -158,10 +160,32 @@ func TestPluginPublishRejectsIncompleteSubmissionBeforeUploading(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "secret")
 	command := NewRootCommand()
 	command.SetArgs([]string{"plugin", "publish", "--key", "unused", "--repository", "acme/weather", "--submit"})
-	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--index-repository") {
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "cannot select submission registry") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(publisher.uploads) != 0 {
 		t.Fatalf("uploaded before validating submission arguments: %v", publisher.uploads)
+	}
+}
+
+func TestPluginPublishDefaultsAndSelectsRegistryUnlessExplicitlyOverridden(t *testing.T) {
+	registries := []configuredPluginRegistry{
+		{ID: 1, Name: "canonical", URL: canonicalPluginRegistryURL, Canonical: true},
+		{ID: 2, Name: "partners", URL: "git+https://github.com/acme/plugin-index.git"},
+		{ID: 3, Name: "mirror", URL: "https://registry.example.test"},
+	}
+	api := &fakePluginRegistryAPI{registries: registries}
+	useFakePluginRegistryAPI(t, api)
+	if repository, err := resolveSubmissionRepository(t.Context(), "", ""); err != nil || repository != "tkadauke/syrus-plugins" {
+		t.Fatalf("canonical repository=%q error=%v", repository, err)
+	}
+	if repository, err := resolveSubmissionRepository(t.Context(), "", "partners"); err != nil || repository != "acme/plugin-index" {
+		t.Fatalf("selected repository=%q error=%v", repository, err)
+	}
+	if repository, err := resolveSubmissionRepository(t.Context(), "custom/index", "mirror"); err != nil || repository != "custom/index" {
+		t.Fatalf("override repository=%q error=%v", repository, err)
+	}
+	if _, err := resolveSubmissionRepository(t.Context(), "", "mirror"); err == nil || !strings.Contains(err.Error(), "explicit submission instructions") {
+		t.Fatalf("non-GitHub error=%v", err)
 	}
 }

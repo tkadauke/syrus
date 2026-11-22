@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tkadauke/syrus/cli/internal/config"
 )
 
 func TestPluginListShowsInstalledReleaseTrustAndHealth(t *testing.T) {
@@ -122,5 +124,27 @@ func TestPluginInstallStagesStoredVersionAndConfirms(t *testing.T) {
 	}
 	if !confirmed {
 		t.Fatal("confirmation endpoint was not called")
+	}
+}
+
+func TestPluginInstallAmbiguityListsRegistryChoices(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = io.WriteString(w, `{"error":"plugin release is ambiguous"}`)
+	}))
+	defer server.Close()
+	writePluginTestCredentials(t, server.URL)
+	api := &fakePluginRegistryAPI{catalog: pluginRegistryCatalog{Entries: []pluginCatalogEntry{
+		{Name: "weather", Version: "1.0.0", RegistryName: "partners"},
+		{Name: "weather", Version: "1.0.0", RegistryName: "community"},
+	}}}
+	previous := newPluginRegistryAPI
+	newPluginRegistryAPI = func(config.Credentials) pluginRegistryAPI { return api }
+	t.Cleanup(func() { newPluginRegistryAPI = previous })
+	command := NewRootCommand()
+	command.SetArgs([]string{"plugin", "install", "weather@1.0.0", "--yes"})
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "community, partners") {
+		t.Fatalf("error = %v", err)
 	}
 }
