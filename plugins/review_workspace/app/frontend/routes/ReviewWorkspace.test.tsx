@@ -261,9 +261,78 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
     fireEvent.pointerMove(card, { clientX: 170, clientY: 205, pointerId: 1, pointerType: "touch" })
     expect(screen.getByText("Release to review approval")).toBeInTheDocument()
+    expect(card.style.transform).toBe("translate3d(90px, 0px, 0) rotate(3deg)")
+    expect(card.style.transformOrigin).toBe("50% 75%")
+    const reveal = screen.getByTestId("mobile-gesture-reveal")
+    expect(reveal).toHaveClass("absolute", "inset-0", "z-0", "justify-start")
+    expect(reveal).not.toHaveClass("fixed", "top-20")
+    expect(card).toHaveClass("relative", "z-10")
     fireEvent.pointerUp(card, { clientX: 170, clientY: 205, pointerId: 1, pointerType: "touch" })
+    expect(card.style.transform).toBe("")
     expect(await screen.findByText("Approve JOB-42 for landing?")).toBeInTheDocument()
     expect(jobApi.postJobCommand).not.toHaveBeenCalled()
+  })
+
+  it("bounds rotation by drag direction and keeps vertical and reduced-motion gestures rotation-free", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42")
+    await screen.findByTestId("mobile-review-summary")
+    const card = screen.getByTestId("mobile-review-card")
+
+    fireEvent.pointerDown(card, { clientX: 180, clientY: 200, pointerId: 21, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 30, clientY: 202, pointerId: 21, pointerType: "touch" })
+    expect(card.style.transform).toContain("translate3d(-120px, 0px, 0)")
+    expect(card.style.transform).toContain("rotate(-4deg)")
+    fireEvent.pointerCancel(card, { pointerId: 21, pointerType: "touch" })
+    expect(card.style.transform).toBe("")
+
+    fireEvent.pointerDown(card, { clientX: 180, clientY: 240, pointerId: 22, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 182, clientY: 180, pointerId: 22, pointerType: "touch" })
+    expect(card.style.transform).toBe("translate3d(0px, -60px, 0)")
+    expect(card.style.transform).not.toContain("rotate")
+    fireEvent.pointerCancel(card, { pointerId: 22, pointerType: "touch" })
+
+    const originalMatchMedia = window.matchMedia
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 23, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 170, clientY: 200, pointerId: 23, pointerType: "touch" })
+    expect(card.style.transform).not.toContain("rotate")
+    fireEvent.pointerUp(card, { clientX: 170, clientY: 200, pointerId: 23, pointerType: "touch" })
+    expect(await screen.findByRole("dialog", { name: "Approve JOB-42 for landing?" })).toBeInTheDocument()
+    vi.stubGlobal("matchMedia", originalMatchMedia)
+  })
+
+  it("opens mobile approval in a separate safe-area sheet without reflowing the action grid", async () => {
+    const openerTitle = "A deliberately long Job title that wraps across a narrow iPhone viewport without colliding with gesture intent"
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [{ ...job(), title: openerTitle }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+    renderRoute("/review/JOB-42", 375)
+    await screen.findByRole("heading", { name: openerTitle })
+    const approveButton = screen.getByRole("button", { name: "Approve" })
+    const actionBar = approveButton.parentElement
+    expect(actionBar).toHaveClass("max-lg:grid-cols-4")
+    approveButton.focus()
+    fireEvent.click(approveButton)
+
+    const dialog = screen.getByRole("dialog", { name: "Approve JOB-42 for landing?" })
+    expect(dialog).not.toBe(actionBar)
+    expect(dialog).toHaveClass("rounded-t-2xl", "bg-surface", "pb-[max(1.25rem,env(safe-area-inset-bottom))]")
+    expect(screen.getByTestId("mobile-approval-backdrop")).toHaveClass("fixed", "inset-0", "z-[70]")
+    expect(actionBar).toHaveClass("max-lg:grid-cols-4")
+    expect(within(actionBar!).getAllByRole("button")).toHaveLength(3)
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus()
+    expect(document.body.style.overflow).toBe("hidden")
+
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(screen.queryByRole("dialog", { name: "Approve JOB-42 for landing?" })).not.toBeInTheDocument()
+    expect(document.body.style.overflow).toBe("")
+    expect(approveButton).toHaveFocus()
   })
 
   it("does not carry or replay approval gesture intent across Job navigation", async () => {
