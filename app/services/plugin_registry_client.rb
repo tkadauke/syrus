@@ -25,13 +25,14 @@ class PluginRegistryClient
 
     stale = false
     begin
-      refresh!
+      entries = refresh!
     rescue Error => error
       return Result.new(entries: [], configured: true, error: error.message, stale: false) unless cached_index?
       stale = true
       refresh_error = error.message
+      entries = parse_entries
     end
-    entries = parse_entries.select { |entry| compatible?(entry) }.reject(&:revoked)
+    entries = entries.select { |entry| compatible?(entry) }.reject(&:revoked)
     query = term.to_s.downcase.strip
     if query.present?
       entries.select! do |entry|
@@ -81,7 +82,7 @@ class PluginRegistryClient
     raise Error, "Plugin registry git URL must use HTTPS" unless uri.is_a?(URI::HTTPS)
     raise Error, "Plugin registry git host is not permitted" unless SsrfGuard.safe_host?(uri.host)
     refreshed_at = index_root.join(".syrus-refreshed-at")
-    return if index_root.join(".git").directory? && refreshed_at.exist? &&
+    return parse_entries(index_root) if index_root.join(".git").directory? && refreshed_at.exist? &&
       Time.current - refreshed_at.mtime < GIT_REFRESH_INTERVAL
     if index_root.join(".git").directory?
       _out, error, status = Open3.capture3("git", "-C", index_root.to_s, "pull", "--ff-only", "--quiet")
@@ -103,8 +104,9 @@ class PluginRegistryClient
     manifest = JSON.parse(fetch_http(base, "index.json", root: stage))
     validate_index!(manifest)
     ([ manifest.fetch("trust_store") ] + manifest.fetch("releases")).each { |path| fetch_http(base, path, root: stage) }
-    parse_entries(stage)
+    entries = parse_entries(stage)
     promote_index!(stage)
+    entries
   ensure
     FileUtils.rm_rf(stage) if stage&.exist?
   end
