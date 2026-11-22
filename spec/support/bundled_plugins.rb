@@ -143,11 +143,27 @@ module Syrus
       end
 
       def with_default_beta_mode(example)
-        previous = Current.beta_mode_enabled_cache
-        Current.beta_mode_enabled_cache = !beta_mode_excluded?(example)
+        previous_registry_value = Current.beta_mode_enabled_cache
+        previous_cache_enabled = Thread.current[:syrus_app_setting_current_cache_enabled]
+        previous_setting = Thread.current[:syrus_app_setting_current]
+
+        if beta_mode_excluded?(example)
+          Current.beta_mode_enabled_cache = nil
+          Thread.current[:syrus_app_setting_current_cache_enabled] = false
+          Thread.current[:syrus_app_setting_current] = nil
+        else
+          setting = AppSetting.current
+          setting.beta_mode_enabled = true
+          setting.send(:clear_attribute_change, :beta_mode_enabled)
+          Current.beta_mode_enabled_cache = true
+          Thread.current[:syrus_app_setting_current_cache_enabled] = true
+          Thread.current[:syrus_app_setting_current] = setting
+        end
         yield
       ensure
-        Current.beta_mode_enabled_cache = previous
+        Current.beta_mode_enabled_cache = previous_registry_value
+        Thread.current[:syrus_app_setting_current_cache_enabled] = previous_cache_enabled
+        Thread.current[:syrus_app_setting_current] = previous_setting
       end
 
       def establish_default_beta_mode

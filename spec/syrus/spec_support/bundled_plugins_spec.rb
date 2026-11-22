@@ -94,7 +94,8 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
       expect(AppSetting.current).not_to receive(:update!)
 
       described_class.with_default_beta_mode(example) do
-        expect(Syrus::PluginRegistry.beta_mode_enabled?).to be(true)
+        expect(Current.beta_mode_enabled_cache).to be(true)
+        expect(AppSetting.beta_mode_enabled?).to be(true)
       end
     end
 
@@ -102,7 +103,8 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
       example = Struct.new(:metadata).new({ file_path: "./spec/models/feature_spec.rb" })
 
       described_class.with_default_beta_mode(example) do
-        expect(Syrus::PluginRegistry.beta_mode_enabled?).to be(false)
+        expect(Current.beta_mode_enabled_cache).to be_nil
+        expect(Thread.current[:syrus_app_setting_current_cache_enabled]).to be(false)
       end
 
       expect(Syrus::PluginRegistry.beta_mode_enabled?).to be(true)
