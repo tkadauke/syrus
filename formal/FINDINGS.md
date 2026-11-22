@@ -4346,6 +4346,31 @@ the caller. It is not yet modelled.
 
 ---
 
+## M57. Main through `e6aa5d7d0e` — the permission matrix optimisation preserves decisions
+
+One commit: "Speed up permission rule specs with cached payload lookups". It is
+an app-code change, not only specs.
+
+**What changed.** `Permissions::RulesPayload` now groups the active rules by
+`subject_selector_type`. For each subject it passes only that subject's rules,
+and their policy rules, into `Management#matrix_state`. Previously every
+subject's matrix state was explained against *all* active rules.
+
+**Invariant it relies on.** A rule of one selector type never decides a
+matrix cell for another. This holds: `PermissionRule#to_policy_rule` puts the
+rule's own `subject_selector_type` into its selectors, and `matrix_state`
+explains with `context: { subject_selector_type: … }`. A rule whose selector
+type differs from the context can never match, so filtering it out
+beforehand cannot change a decision.
+
+This includes the `eligible_roles` selector. Its `subject_role_keys` would
+have suggested cross-subject reach, but they are not part of the policy
+selectors.
+
+Rebased without conflicts.
+
+---
+
 ## M56. One timed-out preflight grader stopped the repair of a reproducible main failure (NY30)
 
 **Production (read-only, 11-22).** The `main_branch_repair` from M55
@@ -5656,7 +5681,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `7fe0e61d29`. Each loop iteration continues from there:
+Checked through main `e6aa5d7d0e`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
