@@ -543,6 +543,7 @@ function ImageAnnotationModalContent({ dataUrl, name, initialShapes, originalDat
   const [isPanning, setIsPanning] = useState(false)
   const [isPanDragging, setIsPanDragging] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [exportError, setExportError] = useState<{ retry: () => void } | null>(null)
 
   // Keep shapesRef in sync for use in event handlers without closure staleness
   useEffect(() => {
@@ -1192,17 +1193,23 @@ function ImageAnnotationModalContent({ dataUrl, name, initialShapes, originalDat
     renderCanvas(currentShapes, null, overlayContext, overlayCanvas)
     imageContext.drawImage(overlayCanvas, 0, 0)
     const exportBlob = () => {
+      setExportError(null)
       try {
         imageCanvas.toBlob((blob) => {
           if (blob) {
+            setExportError(null)
             onDone(blob, currentShapes)
             return
           }
 
-          onExportError?.(new Error("Canvas PNG export returned no data"), exportBlob)
+          const error = new Error("Canvas PNG export returned no data")
+          setExportError({ retry: exportBlob })
+          onExportError?.(error, exportBlob)
         }, "image/png")
       } catch (error) {
-        onExportError?.(error instanceof Error ? error : new Error("Canvas PNG export failed"), exportBlob)
+        const exportFailure = error instanceof Error ? error : new Error("Canvas PNG export failed")
+        setExportError({ retry: exportBlob })
+        onExportError?.(exportFailure, exportBlob)
       }
     }
     exportBlob()
@@ -1252,6 +1259,25 @@ function ImageAnnotationModalContent({ dataUrl, name, initialShapes, originalDat
         open={showDiscardConfirm}
       />
       {helpOpen ? <ShortcutsHelpModal onClose={() => setHelpOpen(false)} open /> : null}
+      {exportError ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 shadow dark:border-red-800 dark:bg-red-950 dark:text-red-100"
+          role="alert"
+        >
+          <span>{t("image_annotation.export_error")}</span>
+          <span className="flex gap-2">
+            <Button onClick={exportError.retry} variant="secondary">
+              {t("image_annotation.retry")}
+            </Button>
+            <Button onClick={() => setExportError(null)} variant="secondary">
+              {t("image_annotation.dismiss")}
+            </Button>
+            <Button onClick={onClose} variant="secondary">
+              {t("image_annotation.cancel")}
+            </Button>
+          </span>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
         <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
           {TOOLS.map((item) => {

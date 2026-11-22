@@ -2510,21 +2510,13 @@ export function Compose({
                             setAnnotationError(null)
                             setAnnotatingIndex(null)
                           }}
-                          onExportError={(error, retryExport) => {
-                            setAnnotatingIndex(null)
+                          onExportError={(error) => {
                             reportHandledError(error, {
                               surface: "chat_composer",
                               operation: "replace_attachment",
                               stage: "blob_export",
                               recoverability: "retryable",
                               diagnostics: { mime_category: "image" }
-                            })
-                            setAnnotationError({
-                              message: t("annotation_replace_error"),
-                              retry: () => {
-                                setAnnotationError(null)
-                                retryExport()
-                              }
                             })
                           }}
                           onDone={(blob, shapes) => replaceAnnotatedAttachment(attachment, blob, shapes)}
