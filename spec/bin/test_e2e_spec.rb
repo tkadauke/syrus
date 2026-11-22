@@ -31,6 +31,7 @@ RSpec.describe "bin/test-e2e" do
         #!/usr/bin/env bash
         case "$*" in
           *chromium-headless-shell*) printf chromium_headless_shell-1 ;;
+          *webkit*) printf webkit-1 ;;
           *) printf chromium-1 ;;
         esac
       BASH
@@ -46,9 +47,11 @@ RSpec.describe "bin/test-e2e" do
       browser_root = File.join(dir, "browsers")
       FileUtils.mkdir_p(File.join(browser_root, "chromium-1/chrome-linux64"))
       FileUtils.mkdir_p(File.join(browser_root, "chromium_headless_shell-1/chrome-headless-shell-linux64"))
+      FileUtils.mkdir_p(File.join(browser_root, "webkit-1"))
       FileUtils.touch(File.join(browser_root, "chromium-1/chrome-linux64/chrome"))
       FileUtils.touch(File.join(browser_root, "chromium_headless_shell-1/chrome-headless-shell-linux64/chrome-headless-shell"))
-      FileUtils.chmod(0o755, Dir[File.join(browser_root, "**/chrome*")])
+      FileUtils.touch(File.join(browser_root, "webkit-1/pw_run.sh"))
+      FileUtils.chmod(0o755, Dir[File.join(browser_root, "**/{chrome*,pw_run.sh}")])
 
       caller_root = File.join(dir, "operator-data")
       FileUtils.mkdir_p(File.join(caller_root, "clones"))
