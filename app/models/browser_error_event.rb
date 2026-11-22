@@ -105,7 +105,10 @@ class BrowserErrorEvent < ApplicationRecord
     safe["initiator_type"] = "unknown" unless %w[script link].include?(safe["initiator_type"])
     safe["event_kind"] = "unknown" unless %w[error load].include?(safe["event_kind"])
     safe["startup_phase"] = "unknown" unless %w[startup post_render].include?(safe["startup_phase"])
-    safe["last_completed_milestone"] = "unknown" unless %w[none shell_loaded react_module_evaluated react_commit react_post_paint].include?(safe["last_completed_milestone"])
+    safe["last_completed_milestone"] = "unknown" unless %w[
+      none shell_loaded bootstrap_fetch_started bootstrap_fetch_succeeded
+      react_module_evaluated react_commit react_post_paint
+    ].include?(safe["last_completed_milestone"])
     %w[browser_online service_worker_present service_worker_controlled revision_changed].each do |key|
       safe[key] = ActiveModel::Type::Boolean.new.cast(safe[key])
     end
