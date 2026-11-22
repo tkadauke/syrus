@@ -14,7 +14,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/pkg/plugintrust"
@@ -89,8 +91,8 @@ func (p *githubPluginPublisher) Upload(ctx context.Context, repository, tag, nam
 }
 
 func (p *githubPluginPublisher) Submit(ctx context.Context, repository, path string, contents []byte) (string, error) {
-	owner := strings.Split(repository, "/")[0]
-	branch := "plugin-submission-" + strings.ReplaceAll(strings.TrimSuffix(filepath.Base(path), ".json"), ".", "-")
+	branchName := strings.TrimSuffix(filepath.ToSlash(path), ".json")
+	branch := "plugin-submission-" + strings.NewReplacer("/", "-", ".", "-").Replace(branchName)
 	api := githubAPIBase + "/repos/" + repository
 	res, err := p.request(ctx, http.MethodGet, api, nil, "application/json")
 	if err != nil {
@@ -98,6 +100,13 @@ func (p *githubPluginPublisher) Submit(ctx context.Context, repository, path str
 	}
 	var repositoryDetails struct {
 		DefaultBranch string `json:"default_branch"`
+		Name          string `json:"name"`
+		Owner         struct {
+			Login string `json:"login"`
+		} `json:"owner"`
+		Permissions struct {
+			Push bool `json:"push"`
+		} `json:"permissions"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&repositoryDetails); err != nil {
 		res.Body.Close()
@@ -108,6 +117,12 @@ func (p *githubPluginPublisher) Submit(ctx context.Context, repository, path str
 		return "", errors.New("GitHub repository did not report a default branch")
 	}
 	baseBranch := repositoryDetails.DefaultBranch
+	if repositoryDetails.Name == "" {
+		repositoryDetails.Name = strings.Split(repository, "/")[1]
+	}
+	if repositoryDetails.Owner.Login == "" {
+		repositoryDetails.Owner.Login = strings.Split(repository, "/")[0]
+	}
 	res, err = p.request(ctx, http.MethodGet, api+"/git/ref/heads/"+url.PathEscape(baseBranch), nil, "application/json")
 	if err != nil {
 		return "", err
@@ -121,17 +136,53 @@ func (p *githubPluginPublisher) Submit(ctx context.Context, repository, path str
 	if err := json.NewDecoder(res.Body).Decode(&ref); err != nil {
 		return "", err
 	}
+	res.Body.Close()
+	indexBytes, indexSHA, err := p.readRepositoryFile(ctx, repository, "index.json", baseBranch)
+	if err != nil {
+		return "", err
+	}
+	var index pluginRegistryIndex
+	if err := json.Unmarshal(indexBytes, &index); err != nil {
+		return "", fmt.Errorf("invalid index.json: %w", err)
+	}
+	if index.FormatVersion != 1 || index.Releases == nil {
+		return "", errors.New("index.json has an unsupported or incomplete format")
+	}
+	for _, release := range index.Releases {
+		if release == path {
+			return "", fmt.Errorf("index.json already lists %s", path)
+		}
+	}
+	index.Releases = append(index.Releases, path)
+	sort.Strings(index.Releases)
+	updatedIndex, _ := json.MarshalIndent(index, "", "  ")
+	updatedIndex = append(updatedIndex, '\n')
+	writableRepository, headOwner, err := p.submissionRepository(ctx, repository, repositoryDetails.Name, repositoryDetails.Owner.Login, repositoryDetails.Permissions.Push)
+	if err != nil {
+		return "", err
+	}
+	if !strings.EqualFold(writableRepository, repository) {
+		if err := p.waitForRepositoryRef(ctx, writableRepository, baseBranch); err != nil {
+			return "", err
+		}
+	}
+	writableAPI := githubAPIBase + "/repos/" + writableRepository
 	branchBody, _ := json.Marshal(map[string]string{"ref": "refs/heads/" + branch, "sha": ref.Object.SHA})
-	if res, err = p.request(ctx, http.MethodPost, api+"/git/refs", branchBody, "application/json"); err != nil {
+	if res, err = p.request(ctx, http.MethodPost, writableAPI+"/git/refs", branchBody, "application/json"); err != nil {
 		return "", err
 	}
 	res.Body.Close()
 	fileBody, _ := json.Marshal(map[string]string{"message": "Add " + path, "content": base64.StdEncoding.EncodeToString(contents), "branch": branch})
-	if res, err = p.request(ctx, http.MethodPut, api+"/contents/"+path, fileBody, "application/json"); err != nil {
+	if res, err = p.request(ctx, http.MethodPut, writableAPI+"/contents/"+path, fileBody, "application/json"); err != nil {
 		return "", err
 	}
 	res.Body.Close()
-	prBody, _ := json.Marshal(map[string]string{"title": "Add " + path, "head": owner + ":" + branch, "base": baseBranch, "body": "Automated plugin registry submission."})
+	indexBody, _ := json.Marshal(map[string]string{"message": "List " + path, "content": base64.StdEncoding.EncodeToString(updatedIndex), "branch": branch, "sha": indexSHA})
+	if res, err = p.request(ctx, http.MethodPut, writableAPI+"/contents/index.json", indexBody, "application/json"); err != nil {
+		return "", err
+	}
+	res.Body.Close()
+	prBody, _ := json.Marshal(map[string]string{"title": "Add " + path, "head": headOwner + ":" + branch, "base": baseBranch, "body": "Automated plugin registry submission."})
 	if res, err = p.request(ctx, http.MethodPost, api+"/pulls", prBody, "application/json"); err != nil {
 		return "", err
 	}
@@ -143,6 +194,99 @@ func (p *githubPluginPublisher) Submit(ctx context.Context, repository, path str
 		return "", err
 	}
 	return pr.URL, nil
+}
+
+func (p *githubPluginPublisher) waitForRepositoryRef(ctx context.Context, repository, branch string) error {
+	endpoint := githubAPIBase + "/repos/" + repository + "/git/ref/heads/" + url.PathEscape(branch)
+	for attempt := 0; attempt < 30; attempt++ {
+		if res, err := p.request(ctx, http.MethodGet, endpoint, nil, "application/json"); err == nil {
+			res.Body.Close()
+			return nil
+		}
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return fmt.Errorf("GitHub fork %s was not ready after 30 seconds", repository)
+}
+
+func (p *githubPluginPublisher) readRepositoryFile(ctx context.Context, repository, path, ref string) ([]byte, string, error) {
+	endpoint := githubAPIBase + "/repos/" + repository + "/contents/" + path + "?ref=" + url.QueryEscape(ref)
+	res, err := p.request(ctx, http.MethodGet, endpoint, nil, "application/json")
+	if err != nil {
+		return nil, "", err
+	}
+	defer res.Body.Close()
+	var file struct {
+		Content string `json:"content"`
+		SHA     string `json:"sha"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&file); err != nil {
+		return nil, "", err
+	}
+	contents, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(file.Content, "\n", ""))
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid GitHub file content: %w", err)
+	}
+	return contents, file.SHA, nil
+}
+
+func (p *githubPluginPublisher) submissionRepository(ctx context.Context, upstream, name, upstreamOwner string, canPush bool) (string, string, error) {
+	if canPush {
+		return upstream, upstreamOwner, nil
+	}
+	res, err := p.request(ctx, http.MethodGet, githubAPIBase+"/user", nil, "application/json")
+	if err != nil {
+		return "", "", err
+	}
+	var user struct {
+		Login string `json:"login"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&user); err != nil {
+		res.Body.Close()
+		return "", "", err
+	}
+	res.Body.Close()
+	if user.Login == "" {
+		return "", "", errors.New("GitHub did not report the authenticated user")
+	}
+	fork := user.Login + "/" + name
+	if existing, existingErr := p.request(ctx, http.MethodGet, githubAPIBase+"/repos/"+fork, nil, "application/json"); existingErr == nil {
+		var repositoryDetails struct {
+			Parent struct {
+				FullName string `json:"full_name"`
+			} `json:"parent"`
+		}
+		if err := json.NewDecoder(existing.Body).Decode(&repositoryDetails); err != nil {
+			existing.Body.Close()
+			return "", "", err
+		}
+		existing.Body.Close()
+		if !strings.EqualFold(repositoryDetails.Parent.FullName, upstream) {
+			return "", "", fmt.Errorf("GitHub repository %s exists but is not a fork of %s", fork, upstream)
+		}
+		return fork, user.Login, nil
+	}
+	res, err = p.request(ctx, http.MethodPost, githubAPIBase+"/repos/"+upstream+"/forks", []byte(`{}`), "application/json")
+	if err != nil {
+		return "", "", err
+	}
+	var created struct {
+		FullName string `json:"full_name"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&created); err != nil {
+		res.Body.Close()
+		return "", "", err
+	}
+	res.Body.Close()
+	if created.FullName != "" {
+		fork = created.FullName
+	}
+	return fork, strings.Split(fork, "/")[0], nil
 }
 
 func newPluginPublishCommand() *cobra.Command {

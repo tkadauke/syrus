@@ -13,7 +13,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git diff --name-only --diff-filter=AM "${{ github.event.pull_request.base.sha }}" HEAD -- '*/*.json' |
-            while IFS= read -r entry; do
-              syrus plugin index-check "$entry" --trust-store trust-store.json
-            done
+          mapfile -t entries < <(git diff --name-only --diff-filter=AM "${{ github.event.pull_request.base.sha }}" HEAD -- '*/*.json')
+          for entry in "${entries[@]}"; do
+            jq -e --arg entry "$entry" '.releases | index($entry) != null' index.json >/dev/null
+            syrus plugin index-check "$entry" --trust-store trust-store.json
+          done
+          while IFS= read -r entry; do
+            test -f "$entry" || { echo "index.json lists missing release: $entry" >&2; exit 1; }
+          done < <(jq -r '.releases[]' index.json)
