@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { createPortal } from "react-dom"
 import { useState } from "react"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { createMemoryRouter, Link, MemoryRouter, Route, RouterProvider, Routes, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import ReviewWorkspaceRoute from "./ReviewWorkspace"
 
@@ -93,7 +93,118 @@ function renderRoute(path = "/review", width = 390) {
   )
 }
 
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}</div>
+}
+
+function renderSessionRouter(entryPath: string, reviewPath: string, width = 390) {
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: width })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const prefix = entryPath.startsWith("/app-shell") ? "/app-shell" : ""
+  const router = createMemoryRouter(
+    [
+      {
+        path: "*",
+        element: (
+          <>
+            <LocationProbe />
+            <Link to={reviewPath}>Enter review</Link>
+          </>
+        )
+      },
+      { path: `${prefix}/review`, element: <ReviewWorkspaceRoute /> },
+      { path: `${prefix}/review/:job_id`, element: <ReviewWorkspaceRoute /> }
+    ],
+    { initialEntries: [entryPath] }
+  )
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  )
+  return router
+}
+
+function reviewJobs(count = 4) {
+  return Array.from({ length: count }, (_, index) => ({ ...job(), id: 42 + index, slug: `JOB-${42 + index}`, title: `Review ${index + 1}` }))
+}
+
 describe("ReviewWorkspaceRoute", () => {
+  it("keeps button and gesture movement inside one dashboard review history entry", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 4, jobs: reviewJobs() }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderSessionRouter("/dashboard/jobs", "/review")
+    fireEvent.click(screen.getByRole("link", { name: "Enter review" }))
+
+    await screen.findByRole("heading", { name: "Review 1" })
+    fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
+    await screen.findByRole("heading", { name: "Review 2" })
+    let card = screen.getByTestId("mobile-review-card")
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 31, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 31, pointerType: "touch" })
+    await screen.findByRole("heading", { name: "Review 3" })
+    card = screen.getByTestId("mobile-review-card")
+    fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 32, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 32, pointerType: "touch" })
+    await screen.findByRole("heading", { name: "Review 4" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Exit review workspace" }))
+    expect(await screen.findByTestId("location")).toHaveTextContent("/dashboard/jobs")
+  })
+
+  it("returns to another in-app entry route with X after a canonical redirect", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 4, jobs: reviewJobs() }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    const router = renderSessionRouter("/settings/profile", "/review/42")
+    fireEvent.click(screen.getByRole("link", { name: "Enter review" }))
+    await waitFor(() => expect(router.state.location.pathname).toBe("/review/JOB-42"))
+    await screen.findByRole("heading", { name: "Review 1" })
+    fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
+    await waitFor(() => expect(router.state.location.pathname).toBe("/review/JOB-43"))
+
+    fireEvent.click(screen.getByRole("button", { name: "Exit review workspace" }))
+    expect(await screen.findByTestId("location")).toHaveTextContent("/settings/profile")
+  })
+
+  it("makes browser Back leave the session after internal Job movement", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 4, jobs: reviewJobs() }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    const router = renderSessionRouter("/repositories/7", "/review/JOB-42")
+    fireEvent.click(screen.getByRole("link", { name: "Enter review" }))
+    await screen.findByRole("heading", { name: "Review 1" })
+    fireEvent.click(screen.getByRole("button", { name: "Next Job" }))
+    await screen.findByRole("heading", { name: "Review 2" })
+
+    await router.navigate(-1)
+    expect(await screen.findByTestId("location")).toHaveTextContent("/repositories/7")
+  })
+
+  it("uses the prefixed dashboard fallback for a direct deep link", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const router = createMemoryRouter(
+      [
+        { path: "/app-shell/review/:job_id", element: <ReviewWorkspaceRoute /> },
+        { path: "/app-shell/dashboard/jobs", element: <LocationProbe /> }
+      ],
+      { initialEntries: ["/app-shell/review/JOB-42"] }
+    )
+    render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(await screen.findByRole("button", { name: "Exit review workspace" }))
+    expect(await screen.findByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
+  })
+
   it("falls back from a stale deep link to the first eligible Job", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
