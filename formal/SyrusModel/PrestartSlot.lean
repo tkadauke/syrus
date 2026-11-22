@@ -49,5 +49,33 @@ theorem today_starves_on_manual_pause : Starves surrendersToday := ⟨.manualPau
 theorem option_a_never_starves : ¬ Starves surrendersA := by
   rintro ⟨r, _, h⟩; simp [surrendersA] at h
 
+/-! ## After the first Run (NY27, decided A)
+
+Once a landing has started, only `EXTERNALLY_CLEARED_BLOCKED_REASONS`
+surrenders the slot. A manual pause was not in that list, so a started landing
+paused by hand kept the slot until someone unpaused it. NY27 adds it, so no
+indefinite block keeps the slot after the start either.
+
+Unpause re-acquires the slot through `resume_for_workflow!`. If another
+landing took it, `JobManualPause` leaves the unit queued without it, and the
+next Run start takes it through `mark_running!`, deferred by `RunJob` while it
+is held. Mutual exclusion is the lock's unique index (`LockSafety`).
+-/
+
+/-- After the first Run, before NY27: only the operator-cleared reasons. -/
+def surrendersStartedBefore : Reason → Bool
+  | .externallyCleared => true
+  | _ => false
+
+/-- After the first Run, with `manual_pause` in the allowlist. -/
+def surrendersStartedAfter : Reason → Bool
+  | .externallyCleared | .manualPause => true
+  | _ => false
+
+theorem started_before_starves_on_manual_pause : Starves surrendersStartedBefore := ⟨.manualPause, rfl, rfl⟩
+
+theorem started_after_never_starves : ¬ Starves surrendersStartedAfter := by
+  rintro ⟨r, hi, h⟩; cases r <;> simp_all [indefinite, surrendersStartedAfter]
+
 end PrestartSlot
 end SyrusModel

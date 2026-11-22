@@ -249,6 +249,26 @@ RSpec.describe WorkUnit do
       expect(job_lock.reload.released_at).to be_nil
     end
 
+    # NY27 (decided A): a manual pause clears only when a person unpauses, so a
+    # started landing paused by hand gives the repository's landing slot back,
+    # like the other operator-cleared reasons. Before, the slot stayed with a
+    # Job nobody was working on and every other landing in the repository
+    # waited behind it.
+    it "surrenders the landing slot when a started landing is paused by hand" do
+      repository = Factories.repository
+      job = Factories.job_record(user: repository.user, repository: repository, state: "landing")
+      workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+      unit = workflow.work_unit
+      landing = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:%")
+      other_locks = unit.work_unit_locks.active.where.not(id: landing.id).to_a
+      Run.create!(job: job, step: workflow.first_step, trigger_kind: workflow.trigger_kind, state: "queued")
+
+      unit.block!(reason: "manual_pause")
+
+      expect(landing.reload).not_to be_active
+      expect(other_locks.map { |lock| lock.reload.active? }).to all(be(true))
+    end
+
     it "keeps the landing slot for reasons that clear on their own" do
       unit = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running",
                                      scope_type: "job", scope_id: 123)

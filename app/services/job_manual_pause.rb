@@ -16,9 +16,26 @@ class JobManualPause
     units.each do |unit|
       was_manual_pause_blocked = unit.blocked? && unit.blocked_reason == WorkUnits::Gates::ManualPause::REASON
       unit.clear_pause!
-      unit.resume_for_workflow! if was_manual_pause_blocked
+      resume_unit(unit) if was_manual_pause_blocked
     end
   end
+
+  # A started landing gave its repository landing slot back when it was paused
+  # (WorkUnit::EXTERNALLY_CLEARED_BLOCKED_REASONS). If another landing took the
+  # slot meanwhile, re-acquiring it conflicts: leave the unit queued without
+  # the slot instead of failing the unpause. Its next Run start takes the slot
+  # through WorkUnit#mark_running!, and RunJob defers that start while the
+  # slot is held, so the landing waits its turn.
+  def self.resume_unit(unit)
+    unit.resume_for_workflow!
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info(
+      "[JobManualPause] WorkUnit ##{unit.id} unpaused while #{e.lock_key} is held by WorkUnit ##{e.work_unit&.id}; " \
+      "it waits for the lock at its next start"
+    )
+    unit.reload.unblock!
+  end
+  private_class_method :resume_unit
 
   def self.resume_active_work_unit_workflows(units)
     units.filter_map(&:workflow).uniq(&:id).each do |workflow|

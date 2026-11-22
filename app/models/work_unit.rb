@@ -57,9 +57,13 @@ class WorkUnit < ApplicationRecord
   # `agent_cannot_proceed` belongs here too: a started landing whose repair
   # agent reported it cannot proceed waits for a person or the agent to act,
   # never for time to pass.
+  # `manual_pause` too (NY27): a person paused it and only a person unpauses
+  # it. Unpausing takes the slot back, or waits its turn when another landing
+  # took it meanwhile (JobManualPause.unpause!).
   EXTERNALLY_CLEARED_BLOCKED_REASONS = %w[
     agent_cannot_proceed
     ci_repair_disabled
+    manual_pause
     no_capable_worker
   ].freeze
 

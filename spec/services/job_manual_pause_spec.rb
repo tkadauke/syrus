@@ -56,6 +56,52 @@ RSpec.describe JobManualPause do
     expect(unit.reload.pause_requested?).to be false
   end
 
+  # NY27 (decided A): a started landing paused by hand gives the repository's
+  # landing slot back. Unpausing must take it again, or wait its turn when
+  # another landing took it meanwhile.
+  describe "a started landing paused by hand" do
+    def paused_started_landing
+      repository = Factories.repository
+      job = Factories.job_record(user: repository.user, repository: repository, state: "landing",
+                                 manual_paused: true, manual_paused_at: Time.current)
+      workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      Run.create!(job: job, step: workflow.first_step, trigger_kind: workflow.trigger_kind, state: "queued")
+      unit = workflow.work_unit
+      unit.mark_running!
+      landing_key = unit.work_unit_locks.active.find_by!("lock_key LIKE ?", "landing:%").lock_key
+      unit.request_pause!
+      unit.block!(reason: "manual_pause")
+      [ job, unit, landing_key ]
+    end
+
+    before { allow(WorkUnits::DeferredPhaseResume).to receive(:call) }
+
+    it "takes the landing slot back on unpause when it is free" do
+      job, unit, landing_key = paused_started_landing
+      expect(unit.work_unit_locks.active.where(lock_key: landing_key)).not_to exist
+
+      described_class.unpause!(job)
+
+      expect(unit.reload).to be_running
+      expect(unit.work_unit_locks.active.where(lock_key: landing_key)).to exist
+    end
+
+    it "waits its turn on unpause instead of failing when another landing took the slot" do
+      job, unit, landing_key = paused_started_landing
+      other_job = Factories.job_record(user: job.user, repository: job.repository, state: "landing")
+      other = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: other_job).work_unit
+      expect(other.work_unit_locks.active.where(lock_key: landing_key)).to exist
+
+      expect { described_class.unpause!(job) }.not_to raise_error
+
+      expect(job.reload.manual_paused?).to be false
+      expect(unit.reload).to be_queued
+      expect(unit.work_unit_locks.active.where(lock_key: landing_key)).not_to exist
+      expect(other.work_unit_locks.active.where(lock_key: landing_key)).to exist
+    end
+  end
+
   it "restores a running unit after a mid-workflow manual pause" do
     job = Factories.job_record(manual_paused: true, manual_paused_at: Time.current)
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 2.minutes.ago)
