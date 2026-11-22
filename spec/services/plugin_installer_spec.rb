@@ -106,4 +106,24 @@ RSpec.describe PluginInstaller do
     expect { described_class.new(actor: admin).stage_release!("acme_weather", version: "1.0.0") }
       .to raise_error(described_class::Error, /ambiguous/)
   end
+
+  # Without a version, staging picks the newest stored release. Naming a
+  # registry narrows the candidates and must not change that.
+  it "stages the newest stored release of a named registry when no version is given" do
+    admin = Factories.user(admin: true)
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    partner = PluginRegistry.create!(name: "partner", url: "https://partner.example.test")
+    %w[1.0.0 2.0.0 1.5.0].each_with_index do |version, index|
+      PluginRelease.create!(name: "acme_weather", version:, content_digest: index.to_s * 64,
+        source: "registry", trust_label: "verified", size_bytes: 1, plugin_registry: partner)
+    end
+    allow(Syrus::PluginPackage::TrustStore).to receive(:for_release)
+      .and_return(instance_double(Syrus::PluginPackage::TrustStore, revoked?: false))
+
+    named = described_class.new(actor: admin).stage_release!("acme_weather", registry: "partner")
+    unnamed = described_class.new(actor: admin).stage_release!("acme_weather")
+
+    expect(named.plugin_release.version).to eq("2.0.0")
+    expect(unnamed.plugin_release.version).to eq("2.0.0")
+  end
 end

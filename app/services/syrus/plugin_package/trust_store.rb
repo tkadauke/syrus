@@ -87,6 +87,10 @@ module Syrus
         @revoked_releases = Array(data.fetch("revoked_releases", []))
       end
 
+      # The publisher-owned part of a plugin name: everything before the first
+      # underscore. The registry listing and installation both read it here.
+      def self.name_prefix(name) = name.to_s.split("_", 2).first
+
       def publisher(fingerprint) = @publishers[fingerprint.to_s.downcase]
 
       def revoked_release?(name:, version:, digest:)

@@ -62,4 +62,41 @@ RSpec.describe Syrus::PluginPackage::Verifier do
     result = described_class.new(package:, signature:, trust_store:, name: "weather", version: "1.2.3").call
     expect(result.errors).to include(/release has been revoked/)
   end
+
+  # The registry listing accepts an entry only when its declared publisher owns
+  # the name prefix. The signature names its own key, so installation must hold
+  # the signer to the same rule, or any trusted publisher installs under
+  # another's prefix with its own trust label.
+  describe "name prefix ownership" do
+    def prefixed_store(prefix)
+      Syrus::PluginPackage::TrustStore.new(
+        "publishers" => [ { "fingerprint" => fingerprint, "label" => "official", "prefix" => prefix }.compact ]
+      )
+    end
+
+    it "accepts a registry package whose signer owns the name prefix" do
+      result = described_class.new(package:, signature:, trust_store: prefixed_store("acme"), name: "acme_weather", version: "1.0.0").call
+      expect(result).to be_valid
+    end
+
+    it "rejects a registry package signed by a publisher that owns another prefix" do
+      result = described_class.new(package:, signature:, trust_store: prefixed_store("other"), name: "acme_weather", version: "1.0.0").call
+      expect(result).not_to be_valid
+      expect(result.errors).to include(/does not own plugin name prefix/)
+    end
+
+    it "rejects a registry package signed by a publisher that owns no prefix" do
+      result = described_class.new(package:, signature:, trust_store: prefixed_store(nil), name: "acme_weather", version: "1.0.0").call
+      expect(result.errors).to include(/does not own plugin name prefix/)
+    end
+
+    it "holds a local upload to its signer's prefix when the signer declares one" do
+      wrong = described_class.new(package:, signature:, trust_store: prefixed_store("other"), local: true, name: "acme_weather", version: "1.0.0").call
+      expect(wrong.errors).to include(/does not own plugin name prefix/)
+
+      signature.rewind
+      unscoped = described_class.new(package:, signature:, trust_store: prefixed_store(nil), local: true, name: "acme_weather", version: "1.0.0").call
+      expect(unscoped).to be_valid
+    end
+  end
 end

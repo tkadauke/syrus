@@ -96,12 +96,12 @@ class PluginInstaller
       candidates.select! do |candidate|
         candidate.plugin_registry && [ candidate.plugin_registry.name, candidate.plugin_registry_id.to_s ].include?(registry.to_s)
       end
-      return candidates.first
     end
     return if candidates.empty?
 
     selected_version = candidates.map { |candidate| Gem::Version.new(candidate.version) }.max.to_s
     candidates.select! { |candidate| candidate.version == selected_version }
+    return candidates.first if registry.present?
     local = candidates.reject { |candidate| candidate.source == "registry" }
     return local.first if local.any?
 

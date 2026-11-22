@@ -99,6 +99,9 @@ Registry trust stores bind each publisher prefix to a fingerprint labeled
 **official**, **verified**, or **community** and can revoke a publisher key or one release;
 explicitly local packages may instead be **unsigned local**. A revoked
 installed release is fleet-quarantined for removal.
+Installation checks the key that actually signed the package: it must own the
+plugin's name prefix (the part before the first underscore). A signed local
+upload is held to its signer's prefix when the signer has one.
 
 Signing proves that the holder of a publisher key signed those exact package
 bytes. It does not sandbox a plugin, review its source, or authorize its tools

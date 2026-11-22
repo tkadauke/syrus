@@ -117,7 +117,7 @@ RSpec.describe Syrus::PluginPackage::Validator do
       signature: Base64.strict_encode64(key.sign(digest))
     ))
     trust_store = Syrus::PluginPackage::TrustStore.new(
-      "publishers" => [ { "fingerprint" => fingerprint, "label" => "community" } ]
+      "publishers" => [ { "fingerprint" => fingerprint, "label" => "community", "prefix" => "weather" } ]
     )
 
     expect(described_class.new(StringIO.new(bytes), signature:, trust_store:).call).to be_valid

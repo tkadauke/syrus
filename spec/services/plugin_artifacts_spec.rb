@@ -18,7 +18,7 @@ RSpec.describe PluginArtifacts do
     )
     release.update!(source: "registry", signature:)
     [ fingerprint, Syrus::PluginPackage::TrustStore.new(
-      "publishers" => [ { "fingerprint" => fingerprint, "label" => "community" } ]
+      "publishers" => [ { "fingerprint" => fingerprint, "label" => "community", "prefix" => "weather" } ]
     ) ]
   end
 

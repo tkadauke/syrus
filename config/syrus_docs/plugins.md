@@ -62,7 +62,8 @@ SHA-256 digest. `syrus plugin verify PACKAGE --signature PACKAGE.sig
 
 The registry trust store lists each publisher's name prefix, publisher-key
 SHA-256 fingerprint, and trust label, plus revoked keys and releases. A key may
-sign releases only for its assigned prefix. Revocation always wins: a revoked
+sign releases only for its assigned prefix; installation checks the actual
+signer, and holds signed local uploads to a declared prefix. Revocation always wins: a revoked
 package is refused and an installed release is fleet-quarantined for removal.
 A signature proves which private key signed the exact bytes. It does not
 sandbox the plugin, review its code, or authorize its tools.

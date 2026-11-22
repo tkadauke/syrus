@@ -3816,6 +3816,56 @@ Also run and green, CI-only included: `spec/services/work_engine` and
 
 ---
 
+## F103. A plugin signed by one publisher installed under another's name prefix — fixed
+
+**Before.** A registry trust store binds each publisher key to one name prefix
+(the part of the plugin name before the first underscore). The listing,
+`PluginRegistryClient#parse_entries`, accepts an entry only when the publisher
+it *declares* owns that prefix. The detached signature names its own key, and
+`Syrus::PluginPackage::Verifier` accepted any key in the trust store. So a
+package signed by publisher B, listed under publisher A's prefix, installed
+with B's trust label (`SignerPrefix.before_admits_foreign_signer`).
+
+The index repository's CI check (`syrus plugin index check`) ties the
+signature to the declared key. Syrus serves any configured registry, though,
+and does not get to assume that registry runs the check.
+
+**Fix.** `Verifier#owns_name?`: when a name is given, a registry package's
+signer must own its prefix, the listing's rule. A signed local upload is held
+to its signer's prefix when the signer declares one. `TrustStore.name_prefix`
+is the one place both read the prefix from. Public and searchable plugin docs
+say so.
+
+**Proof.** `SignerPrefix.lean`: `after_registry_signer_owns_prefix` (the
+install rule is exactly the listing's rule, now applied to the signer) and
+`after_local_respects_declared_prefix`.
+
+**Specs.** `verifier_spec.rb` "name prefix ownership": three examples red
+before (another prefix, no prefix, local upload with a declared prefix). Two
+fixtures had a registry publisher with no prefix signing `weather`, which the
+listing can never accept; they now declare `weather`. Plugin package,
+installer, registry, artifact and admin request specs: 414 examples, 0
+failures.
+
+---
+
+## F104. Naming a registry without a version staged its oldest stored release — fixed
+
+**Before.** `PluginInstaller#stored_release` picks the newest version when no
+version is given. When a registry was named, it filtered by registry and
+returned `candidates.first`, before the version selection, so
+`stage_release!("acme_weather", registry: "partner")` staged whichever release
+was stored first (1.0.0, with 2.0.0 stored).
+
+**Fix.** The registry filter only narrows the candidates; the newest-version
+selection runs on every path, and a named registry then takes its candidate
+without the canonical/ambiguity tie-break.
+
+**Spec.** `plugin_installer_spec.rb` "stages the newest stored release of a
+named registry when no version is given" was red before (got 1.0.0).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
@@ -4541,6 +4591,36 @@ reused test database.
 
 **To confirm:** list `db/*.sqlite3` in a grader's immutable checkout before
 the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
+
+---
+
+## M63. Main through `9a3ed75dbb`
+
+Forty commits, one Epic: deterministic plugin packages, ed25519 signing, trust
+stores and revocation, a staged installer, and multiple plugin registries with
+registry-scoped trust. Relied-on invariants:
+
+- **A signer owns the name it signs.** Counterexample: F103.
+- **No version means the newest version.** Counterexample when a registry is
+  named: F104.
+- **A non-canonical registry never grants "official".** Holds: the listing and
+  the cached trust store used at install both go through
+  `PluginRegistryClient#trust_store`, which caps the label to "verified" for
+  non-canonical sources.
+- **A revoked release is never staged, confirmed or left installed.** Holds:
+  `Verifier` refuses revoked keys and releases, `stage_release!` and
+  `confirm!` re-check against the release's own registry's trust store, and a
+  trust-store update writes a pending file that `RevocationReconciler`
+  applies before it becomes current. The reconciler runs again on the next
+  load if a crash interrupts it, so quarantine is not lost.
+- **Trust never crosses registries.** Holds by construction: each registry has
+  its own cached trust store, and revocation reconciles only that registry's
+  installations.
+- **Registry files stay inside the index root.** Holds:
+  `read_registry_file` resolves real paths and requires containment, so a
+  symlink cannot escape.
+- **Downloads are HTTPS, size-bounded, SSRF-guarded and digest-checked.**
+  Holds in `PluginRegistryPackageFetcher`.
 
 ---
 
@@ -6064,7 +6144,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `e09f7fbc78`. Each loop iteration continues from there:
+Checked through main `9a3ed75dbb`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

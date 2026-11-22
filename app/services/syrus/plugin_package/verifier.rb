@@ -38,6 +38,9 @@ module Syrus
         Ed25519::VerifyKey.new(public_key).verify(Base64.strict_decode64(envelope.fetch("signature")), digest)
         publisher = @trust_store.publisher(fingerprint)
         return failure("publisher key is not present in the trust store", fingerprint:) unless publisher
+        unless owns_name?(publisher)
+          return failure("publisher does not own plugin name prefix: #{@name}", fingerprint:)
+        end
 
         Result.new(valid: true, trust_label: publisher.label, fingerprint:, errors: [])
       rescue Ed25519::VerifyError
@@ -47,6 +50,16 @@ module Syrus
       end
 
       private
+
+      # The signer, not the publisher an index entry declares, must own the
+      # name prefix. A registry signer must declare one, as the listing
+      # requires; a local upload is held to its signer's prefix if it has one.
+      def owns_name?(publisher)
+        return true unless @name
+        return publisher.prefix.nil? || publisher.prefix == TrustStore.name_prefix(@name) if @local
+
+        publisher.prefix.present? && publisher.prefix == TrustStore.name_prefix(@name)
+      end
 
       def unsigned_result
         return Result.new(valid: true, trust_label: "unsigned_local", fingerprint: nil, errors: []) if @local

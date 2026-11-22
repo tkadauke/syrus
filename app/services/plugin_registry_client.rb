@@ -154,7 +154,7 @@ class PluginRegistryClient
       revoked = trust.revoked_keys.include?(fingerprint) ||
         trust.revoked_release?(name: data.fetch("name"), version: data.fetch("version"), digest:)
       publisher = trust.publisher(fingerprint)
-      prefix = data.fetch("name").split("_", 2).first
+      prefix = Syrus::PluginPackage::TrustStore.name_prefix(data.fetch("name"))
       raise Error, "publisher does not own plugin name prefix: #{data.fetch('name')}" unless publisher&.prefix == prefix
       label = publisher.label
       label = "verified" if !@source.canonical? && label == "official"
