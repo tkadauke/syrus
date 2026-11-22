@@ -381,9 +381,10 @@ RSpec.describe Steps::PreflightGraderFanout do
 
   # The property that actually matters: every grader is ready at once, so the
   # dispatcher's ready set contains the whole batch rather than one step.
-  # Temporarily disabled: this is flaky in CI and is blocking unrelated landing.
-  # Re-enable after the dependency-settling assertion is made deterministic.
-  xit "makes every preflight grader ready as soon as the fanout settles" do
+  # `dependencies_settled?(settled_step:)` only counts a settled step that is
+  # terminal, so the fanout has to actually finish here -- asserting readiness
+  # while it is still running is what made this example fail.
+  it "makes every preflight grader ready as soon as the fanout settles" do
     Feature.create!(slug: "distributed_workflow_dag", category: "Operations", name: "Distributed workflow DAG", enabled: true)
     job.repository.update!(distributed_workflow_dag_enabled: true)
     write_grade_config(<<~YAML)
@@ -397,6 +398,7 @@ RSpec.describe Steps::PreflightGraderFanout do
     YAML
 
     handler.call
+    step.update!(state: "succeeded")
 
     grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
     expect(grader_steps.size).to eq(3)
