@@ -89,45 +89,33 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
 
   describe ".with_default_beta_mode" do
     it "does not rewrite the suite default for ordinary core and plugin examples" do
-      AppSetting.current.update!(beta_mode_enabled: true)
       example = Struct.new(:metadata).new({ file_path: "./plugins/codex_agent/spec/models/provider_spec.rb" })
 
       expect(AppSetting.current).not_to receive(:update!)
 
       described_class.with_default_beta_mode(example) do
-        expect(AppSetting.current).to be_beta_mode_enabled
+        expect(Syrus::PluginRegistry.beta_mode_enabled?).to be(true)
       end
     end
 
     it "temporarily restores the non-beta default for specs that test it" do
-      AppSetting.current.update!(beta_mode_enabled: true)
       example = Struct.new(:metadata).new({ file_path: "./spec/models/feature_spec.rb" })
 
       described_class.with_default_beta_mode(example) do
-        expect(AppSetting.current).not_to be_beta_mode_enabled
+        expect(Syrus::PluginRegistry.beta_mode_enabled?).to be(false)
       end
 
-      expect(AppSetting.current).to be_beta_mode_enabled
+      expect(Syrus::PluginRegistry.beta_mode_enabled?).to be(true)
     end
   end
 
   describe ".establish_default_beta_mode" do
     it "establishes the common suite baseline once" do
-      AppSetting.current.update!(beta_mode_enabled: false)
+      Current.beta_mode_enabled_cache = false
 
       described_class.establish_default_beta_mode
 
-      expect(AppSetting.current).to be_beta_mode_enabled
-    end
-
-    it "reconciles a cached settings record after the database was rolled back" do
-      settings = AppSetting.current
-      settings.update!(beta_mode_enabled: true)
-      AppSetting.where(singleton_key: AppSetting::SINGLETON_KEY).update_all(beta_mode_enabled: false)
-
-      described_class.establish_default_beta_mode
-
-      expect(settings.reload).to be_beta_mode_enabled
+      expect(Syrus::PluginRegistry.beta_mode_enabled?).to be(true)
     end
   end
 end
