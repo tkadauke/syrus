@@ -12,7 +12,7 @@ import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { ReviewWorkspace as CanonicalReviewWorkspace } from "@app/routes/jobDetail/ReviewWorkspace"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react"
-import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom"
+import { Link, Navigate, useLocation, useNavigate, useNavigationType, useParams } from "react-router-dom"
 import { fetchReviewWorkspace, type ReviewWorkspaceJob } from "../api/reviewWorkspace"
 
 const WORKSPACE_SCROLL_CLASS =
@@ -24,11 +24,17 @@ const MOBILE_FEEDBACK_SHEET_CLASS =
 const MOBILE_DETAILS_SHEET_CLASS =
   "max-h-[92dvh] w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
 const MAX_CARD_ROTATION_DEGREES = 4
+const REVIEW_SESSION_STATE_KEY = "reviewWorkspaceCanReturn"
+
+function canReturnFromState(state: unknown) {
+  return Boolean(state && typeof state === "object" && (state as Record<string, unknown>)[REVIEW_SESSION_STATE_KEY] === true)
+}
 
 export default function ReviewWorkspaceRoute() {
   const { t } = useT("review_workspace")
   const location = useLocation()
   const navigate = useNavigate()
+  const entryNavigationType = useNavigationType()
   const { job_id: requestedJobId } = useParams()
   const prefix = routePrefix(location.pathname)
   const isDesktop = useDesktopReviewLayout()
@@ -41,6 +47,8 @@ export default function ReviewWorkspaceRoute() {
   const [detailsJobId, setDetailsJobId] = useState<number | null>(null)
   const [conversationTarget, setConversationTarget] = useState<HTMLDivElement | null>(null)
   const exitRef = useRef<HTMLButtonElement>(null)
+  const canReturnToEntry = useRef(canReturnFromState(location.state) || entryNavigationType === "PUSH")
+  const sessionState = { [REVIEW_SESSION_STATE_KEY]: canReturnToEntry.current }
   const handleDetail = useCallback((jobId: number, payload: JobDetailPayload) => setLoadedDetail({ jobId, payload }), [])
   usePageTitle(t("title"))
   useEffect(() => exitRef.current?.focus(), [review.isSuccess])
@@ -54,8 +62,8 @@ export default function ReviewWorkspaceRoute() {
   )
 
   function exitWorkspace() {
-    if (window.history.length > 1) navigate(-1)
-    else navigate(withRoutePrefix("/", prefix))
+    if (canReturnToEntry.current) navigate(-1)
+    else navigate(withRoutePrefix("/dashboard/jobs", prefix), { replace: true })
     window.setTimeout(() => {
       const reviewLink = document.querySelector('a[href*="/review"]') as HTMLElement | null
       reviewLink?.focus()
@@ -79,7 +87,12 @@ export default function ReviewWorkspaceRoute() {
   if (jobs.length === 0) return <EmptyWorkspace onExit={exitWorkspace} />
   const active = jobs.find((job) => job.slug === requestedJobId || String(job.id) === requestedJobId) ?? jobs[0]
   const canonicalPath = withRoutePrefix(`/review/${active.slug}`, prefix)
-  if (location.pathname !== canonicalPath) return <Navigate replace to={canonicalPath} />
+  if (location.pathname !== canonicalPath) return <Navigate replace state={sessionState} to={canonicalPath} />
+  const selectJob = (offset: number) =>
+    navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix), {
+      replace: true,
+      state: sessionState
+    })
 
   return (
     <main aria-label={t("title")} className="fixed inset-0 z-50 flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
@@ -94,7 +107,7 @@ export default function ReviewWorkspaceRoute() {
               <button
                 aria-label={t("previous_job")}
                 className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
-                onClick={() => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) - 1 + jobs.length) % jobs.length].slug}`, prefix))}
+                onClick={() => selectJob(-1)}
                 type="button"
               >
                 ↑
@@ -102,7 +115,7 @@ export default function ReviewWorkspaceRoute() {
               <button
                 aria-label={t("next_job")}
                 className="min-h-11 min-w-11 rounded border border-border bg-surface px-2 text-sm lg:hidden"
-                onClick={() => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + 1) % jobs.length].slug}`, prefix))}
+                onClick={() => selectJob(1)}
                 type="button"
               >
                 ↓
@@ -129,12 +142,12 @@ export default function ReviewWorkspaceRoute() {
         </div>
       </header>
       <div className={WORKSPACE_SCROLL_CLASS} data-review-workspace-scroll-container data-testid="review-workspace-scroll-container">
-        <JobRail active={active} jobs={jobs} prefix={prefix} />
+        <JobRail active={active} jobs={jobs} prefix={prefix} sessionState={sessionState} />
         <MobileGestureSurface
           onApprove={() => setGestureIntent((current) => ({ jobId: active.id, sequence: (current?.sequence ?? 0) + 1 }))}
           onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
           onDetails={() => setDetailsJobId(active.id)}
-          onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
+          onMove={selectJob}
         >
           <JobReview
             conversationTarget={conversationTarget}
@@ -155,7 +168,7 @@ export default function ReviewWorkspaceRoute() {
           onDefer={() => setDeferred((current) => new Set(current).add(active.id))}
           onEvidenceMove={(direction) => setEvidenceNavigation((current) => ({ jobId: active.id, direction, sequence: (current?.sequence ?? 0) + 1 }))}
           onExit={exitWorkspace}
-          onMove={(offset) => navigate(withRoutePrefix(`/review/${jobs[(jobs.indexOf(active) + offset + jobs.length) % jobs.length].slug}`, prefix))}
+          onMove={selectJob}
           setConversationTarget={setConversationTarget}
           gestureIntent={gestureIntent}
           isDesktop={isDesktop}
@@ -379,7 +392,17 @@ function DetailsSheet({ job, payload, onClose }: { job: ReviewWorkspaceJob; payl
   )
 }
 
-function JobRail({ active, jobs, prefix }: { active: ReviewWorkspaceJob; jobs: ReviewWorkspaceJob[]; prefix: string }) {
+function JobRail({
+  active,
+  jobs,
+  prefix,
+  sessionState
+}: {
+  active: ReviewWorkspaceJob
+  jobs: ReviewWorkspaceJob[]
+  prefix: string
+  sessionState: Record<string, boolean>
+}) {
   const { t } = useT("review_workspace")
   return (
     <aside aria-label={t("ready_now")} className="hidden overflow-y-auto border-r border-border bg-surface p-3 lg:block">
@@ -390,6 +413,8 @@ function JobRail({ active, jobs, prefix }: { active: ReviewWorkspaceJob; jobs: R
             aria-current={job.id === active.id ? "page" : undefined}
             className={`block rounded-lg border p-3 ${job.id === active.id ? "border-brand bg-brand-subtle" : "border-transparent hover:bg-surface-subtle"}`}
             key={job.id}
+            replace
+            state={sessionState}
             to={withRoutePrefix(`/review/${job.slug}`, prefix)}
           >
             <div className="flex justify-between gap-2 text-xs text-text-secondary">
