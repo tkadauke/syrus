@@ -3038,6 +3038,40 @@
       "status": "done",
       "done_by": "F93, F94",
       "notes": "The read itself is proved in EnablementRead.lean; routing every enablement decision through it is pinned by plugin_enablement_reads_fail_closed_spec."
+    },
+    {
+      "area": "plugins",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "safety",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "id": "plugin-signer-owns-prefix",
+      "title": "An installed plugin's actual signer owns its name prefix, and no revoked or non-canonical-official release is staged",
+      "producer": "Syrus::PluginPackage::Verifier; PluginRegistryClient#parse_entries/trust_store; PluginInstaller#stage_release!/confirm!; RevocationReconciler",
+      "done_by": "F103, M63",
+      "notes": "SignerPrefix.lean: the install rule is the listing's rule applied to the signer. M63 audited the official cap, registry-scoped revocation (pending-file reconcile survives a crash), index-root containment and download guards: all hold."
+    },
+    {
+      "area": "plugins",
+      "kind": "property",
+      "issue_kinds": [],
+      "classifiers": [],
+      "class": "a",
+      "safety_or_liveness": "liveness",
+      "prod_applied": 0,
+      "prod_skipped": 0,
+      "simulator": [],
+      "status": "done",
+      "id": "plugin-newest-release",
+      "title": "Staging a plugin without a version picks its newest stored release, with or without a named registry",
+      "producer": "PluginInstaller#stored_release",
+      "done_by": "F104",
+      "notes": "Pinned by plugin_installer_spec; no Lean model (a single selection function)."
     }
   ],
   "needs_you": [
