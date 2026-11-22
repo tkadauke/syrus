@@ -722,7 +722,10 @@ describe("ReviewWorkspaceRoute", () => {
     renderRoute("/review/JOB-42")
     await screen.findByTestId("mobile-review-summary")
     const carousel = configureCarousel(280)
-    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Show visual evidence 2 of 2" }))
     expect(carousel.scrollTo).toHaveBeenLastCalledWith({ behavior: "auto", left: 280 })
@@ -753,9 +756,7 @@ describe("ReviewWorkspaceRoute", () => {
       return elements
     })
     expect(touchActionAncestors.some((element) => element.classList.contains("touch-none"))).toBe(false)
-    expect(
-      touchActionAncestors.some((element) => element.classList.contains("touch-pan-y") && !element.classList.contains("touch-pan-x"))
-    ).toBe(false)
+    expect(touchActionAncestors.some((element) => element.classList.contains("touch-pan-y") && !element.classList.contains("touch-pan-x"))).toBe(false)
     expect(carousel.element).toHaveClass("overscroll-x-contain", "touch-pan-x", "touch-pan-y")
   })
 

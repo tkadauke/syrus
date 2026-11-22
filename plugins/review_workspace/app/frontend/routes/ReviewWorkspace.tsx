@@ -625,7 +625,9 @@ function MobileReviewCard({
             </div>
             <div className="flex min-h-11 items-center px-2 py-1 text-xs text-text-secondary" data-testid="mobile-evidence-caption">
               <span className="truncate">{evidence.page?.title || evidence.page?.path || t("visual_evidence")}</span>
-              <span aria-live="polite" className="sr-only">{t("evidence_position", { current: evidenceIndex + 1, count: screenshots.length })}</span>
+              <span aria-live="polite" className="sr-only">
+                {t("evidence_position", { current: evidenceIndex + 1, count: screenshots.length })}
+              </span>
             </div>
           </>
         ) : (
@@ -640,7 +642,9 @@ function MobileReviewCard({
             {canApprove ? t("checks_ready") : t("checks_blocked")}
           </span>
           {job.pr_number ? (
-            <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">{t("pull_request_number", { number: job.pr_number })}</span>
+            <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">
+              {t("pull_request_number", { number: job.pr_number })}
+            </span>
           ) : null}
         </div>
         <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
