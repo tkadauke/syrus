@@ -261,7 +261,11 @@ func TestPluginRegistryClientReadsFreshGitCacheWithoutPulling(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(root, ".syrus-refreshed-at"), nil, 0600); err != nil {
+	stamp, err := registryCachePath(client.URL, "git-refreshed-at")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stamp, nil, 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -302,13 +306,72 @@ func TestPluginRegistryClientRejectsGitSymlinkEscapingCache(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(root, "acme_weather", "1.2.3.json")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, ".syrus-refreshed-at"), nil, 0600); err != nil {
+	stamp, err := registryCachePath(client.URL, "git-refreshed-at")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stamp, nil, 0600); err != nil {
 		t.Fatal(err)
 	}
 
 	_, err = client.search(t.Context(), "")
 	if err == nil || !strings.Contains(err.Error(), "escapes the index root") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestPluginRegistryClientStoresRefreshMetadataOutsideCheckout(t *testing.T) {
+	directory := t.TempDir()
+	pluginRegistryCacheDir = func() (string, error) { return directory, nil }
+	pluginRegistryNow = time.Now
+	t.Cleanup(func() {
+		pluginRegistryCacheDir = os.UserCacheDir
+		pluginRegistryCommand = exec.CommandContext
+	})
+	client := pluginRegistryClient{URL: "git+https://registry.example.test/plugins.git", SyrusVersion: "2.0.0"}
+	root, err := registryCachePath(client.URL, "git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "acme_weather"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"index.json":              `{"format_version":1,"trust_store":"trust-store.json","releases":["acme_weather/1.2.3.json"]}`,
+		"trust-store.json":        `{"publishers":[{"fingerprint":"abc","label":"verified"}]}`,
+		"acme_weather/1.2.3.json": registryReleaseJSON("acme_weather", "1.2.3", ">= 1.0", "abc", "Weather tools"),
+	}
+	for path, body := range files {
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(path)), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	outside := filepath.Join(directory, "outside.txt")
+	if err := os.WriteFile(outside, []byte("preserve me"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, ".syrus-refreshed-at")); err != nil {
+		t.Fatal(err)
+	}
+	pluginRegistryCommand = func(context.Context, string, ...string) *exec.Cmd { return exec.Command("true") }
+
+	entries, err := client.search(t.Context(), "")
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("entries = %#v, error = %v", entries, err)
+	}
+	payload, err := os.ReadFile(outside)
+	if err != nil || string(payload) != "preserve me" {
+		t.Fatalf("outside payload = %q, error = %v", payload, err)
+	}
+	stamp, err := registryCachePath(client.URL, "git-refreshed-at")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stamp); err != nil {
+		t.Fatalf("external refresh marker: %v", err)
 	}
 }
 
