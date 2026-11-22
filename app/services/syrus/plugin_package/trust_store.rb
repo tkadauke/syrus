@@ -16,13 +16,43 @@ module Syrus
       end
 
       def self.cached(path: cache_path)
+        with_cache_lock(path) { reconcile_pending_or_load(path) }
+      end
+
+      def self.cache!(data, path: cache_path)
+        store = data.is_a?(self) ? data : new(data)
+        with_cache_lock(path) do
+          write_pending(store, path:)
+          reconcile_pending_or_load(path)
+        end
+      end
+
+      def self.reconcile_pending_or_load(path)
+        pending_path = reconciliation_path(path)
+        if File.exist?(pending_path)
+          store = load(pending_path)
+          RevocationReconciler.new(store).call
+          File.rename(pending_path, path)
+          return store
+        end
+
         return new({}) unless File.exist?(path)
 
         load(path)
       end
 
-      def self.cache!(data, path: cache_path)
-        store = data.is_a?(self) ? data : new(data)
+      def self.with_cache_lock(path)
+        FileUtils.mkdir_p(File.dirname(path))
+        File.open("#{path}.lock", File::RDWR | File::CREAT, 0o644) do |lock|
+          lock.flock(File::LOCK_EX)
+          yield
+        end
+      end
+
+      def self.reconciliation_path(path = cache_path) = Pathname.new("#{path}.pending")
+
+      def self.write_pending(store, path: cache_path)
+        pending_path = reconciliation_path(path)
         FileUtils.mkdir_p(File.dirname(path))
         tempfile = Tempfile.new([ "trust-store", ".json" ], File.dirname(path))
         tempfile.write(JSON.pretty_generate(store.as_json))
@@ -30,9 +60,7 @@ module Syrus
         tempfile.flush
         tempfile.fsync
         tempfile.close
-        File.rename(tempfile.path, path)
-        RevocationReconciler.new(store).call
-        store
+        File.rename(tempfile.path, pending_path)
       ensure
         tempfile&.close!
       end
