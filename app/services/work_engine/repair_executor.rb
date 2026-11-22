@@ -918,11 +918,17 @@ module WorkEngine
         # moved past that base, no health check will ever grade it, so the
         # workflow would sit "running" forever -- cancel it as superseded, the
         # same outcome CancelSupersededCiRepair gives a repair still queued.
+        SUPERSEDABLE_CI_REPAIR_BLOCKS = %w[base_not_known_healthy base_repair_active].freeze
+
         def cancel_superseded_ci_repair(workflow, step)
           return nil unless workflow.trigger_kind == "ci_failure" && workflow.work_unit
 
           gate = WorkUnits::Gates::CiRepairSafety.call(workflow.work_unit, step: step)
-          return nil unless gate.blocked? && gate.details["kind"] == "base_not_known_healthy"
+          # A superseded base makes the repair moot whatever holds it: waiting
+          # for an old base to be graded, or behind a main repair of that old
+          # base -- which kept an approved Job's CI repair parked all afternoon
+          # after main had moved four commits on.
+          return nil unless gate.blocked? && SUPERSEDABLE_CI_REPAIR_BLOCKS.include?(gate.details["kind"])
 
           base_sha = gate.details["base_sha"]
           return nil unless WorkUnits::Gates::CiRepairSafety.superseded_base?(workflow.job, base_sha, since: workflow.created_at)

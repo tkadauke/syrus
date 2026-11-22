@@ -661,6 +661,29 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(ci_workflow.artifact("cancelled_reason")).to eq(WorkUnits::Gates::CiRepairSafety::SUPERSEDED_BASE_REASON)
     end
 
+    # Regression: a CI repair held behind a running main-branch repair kept
+    # waiting after main moved four commits past its base -- the superseded
+    # base was only checked for the "not known healthy" block, so a stale
+    # main repair held an approved Job's landing all afternoon.
+    it "cancels a repair held behind a main repair once main has moved past its base" do
+      repair_job = job.repository.jobs.create!(
+        user: job.user, kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "repair", issue_body: "Main branch health is broken.\n\nCommit: #{base_sha}\n", agent_provider: "claude",
+        priority: "high", state: "queued"
+      )
+      Workflow.create!(job: repair_job, trigger_kind: "main_branch_repair", state: "running", started_at: 1.hour.ago)
+      MainBranchHealthCheck.create!(
+        repository: job.repository, branch: "main", sha: "fff1234567890000000000000000000000000000",
+        checked_at: 1.day.ago, source: "ci_poll", ci_health: "broken", grader_health: "broken"
+      )
+      expect(WorkUnits::Gates::CiRepairSafety.call(ci_workflow.work_unit, step: analyze).details["kind"]).to eq("base_repair_active")
+
+      execution = resume!
+
+      expect(execution.status).to eq("applied")
+      expect(ci_workflow.reload).to be_cancelled
+    end
+
     it "keeps waiting while the base can still be graded" do
       execution = resume!
 
