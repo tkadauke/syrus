@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,9 +21,12 @@ func TestPluginSearchPrintsCompatibleResultsWithTrust(t *testing.T) {
 	t.Setenv("SYRUS_PLUGIN_REGISTRY_URL", server.URL)
 	pluginRegistryCacheDir = func() (string, error) { return t.TempDir(), nil }
 	pluginRegistryHTTP = server.Client()
+	previousVersion := cliReleaseVersion
+	cliReleaseVersion = "2.0.0"
 	t.Cleanup(func() {
 		pluginRegistryCacheDir = os.UserCacheDir
 		pluginRegistryHTTP = &http.Client{Timeout: 30 * time.Second}
+		cliReleaseVersion = previousVersion
 	})
 	command := NewRootCommand()
 	var output strings.Builder
@@ -90,6 +94,148 @@ func TestPluginRegistryClientUsesConditionalCache(t *testing.T) {
 	}
 }
 
+func TestPluginRegistryClientPreservesHTTPMirrorPathPrefix(t *testing.T) {
+	server := pluginRegistryServerWithPrefix(t, "/registry")
+	defer server.Close()
+	pluginRegistryCacheDir = func() (string, error) { return t.TempDir(), nil }
+	pluginRegistryHTTP = server.Client()
+	t.Cleanup(func() {
+		pluginRegistryCacheDir = os.UserCacheDir
+		pluginRegistryHTTP = &http.Client{Timeout: 30 * time.Second}
+	})
+
+	entries, err := (pluginRegistryClient{URL: server.URL + "/registry", SyrusVersion: "2.0.0"}).search(t.Context(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name != "acme_weather" {
+		t.Fatalf("entries = %#v", entries)
+	}
+}
+
+func TestPluginRegistryClientRejectsParentRegistryPath(t *testing.T) {
+	if _, err := safeRegistryPath(".."); err == nil {
+		t.Fatal("expected parent path to be rejected")
+	}
+}
+
+func TestPluginRegistryClientSupportsRubyStyleRequirementsAndPrereleases(t *testing.T) {
+	tests := []struct {
+		requirement string
+		version     string
+		want        bool
+	}{
+		{requirement: ">=1.0, != 2.0.0", version: "1.5.0", want: true},
+		{requirement: ">=1.0, != 2.0.0", version: "2.0.0", want: false},
+		{requirement: "~> 2.0", version: "2.9.0", want: true},
+		{requirement: "~> 2.0", version: "3.0.0", want: false},
+		{requirement: ">= 2.0.0", version: "2.0.0-rc1", want: false},
+		{requirement: ">= 2.0.0", version: "2.0.0.rc1", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.requirement+"/"+test.version, func(t *testing.T) {
+			got, err := versionRequirementSatisfied(test.requirement, test.version)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != test.want {
+				t.Fatalf("got %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestPluginRegistryClientPropagatesContextToResourceRequests(t *testing.T) {
+	started := make(chan struct{})
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/index.json":
+			_, _ = io.WriteString(w, `{"format_version":1,"trust_store":"trust-store.json","releases":[]}`)
+		case "/trust-store.json":
+			close(started)
+			<-r.Context().Done()
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	pluginRegistryCacheDir = func() (string, error) { return t.TempDir(), nil }
+	client := pluginRegistryClient{URL: server.URL, SyrusVersion: "2.0.0", HTTPClient: server.Client()}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { _, err := client.search(ctx, ""); done <- err }()
+	<-started
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestPluginRegistryClientReturnsCachedEntriesWithRefreshWarning(t *testing.T) {
+	directory := t.TempDir()
+	pluginRegistryCacheDir = func() (string, error) { return directory, nil }
+	pluginRegistryNow = func() time.Time { return time.Unix(3600, 0) }
+	t.Cleanup(func() { pluginRegistryCacheDir = os.UserCacheDir; pluginRegistryNow = time.Now })
+	client := pluginRegistryClient{URL: "https://registry.example.test", SyrusVersion: "2.0.0",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, errors.New("offline") })}}
+	path, err := registryCachePath(client.cacheKey(), "catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := pluginRegistryCache{FetchedAt: time.Unix(0, 0), Entries: []pluginCatalogEntry{{Name: "acme_weather"}}}
+	if err := writePluginRegistryCache(path, cache); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := client.search(t.Context(), "")
+	if len(entries) != 1 || err == nil || !strings.Contains(err.Error(), "using cached") {
+		t.Fatalf("entries = %#v, error = %v", entries, err)
+	}
+}
+
+func TestPluginRegistryHTTPCacheIsScopedBySyrusVersion(t *testing.T) {
+	first := pluginRegistryClient{URL: "https://registry.example.test", SyrusVersion: "1.0.0"}
+	second := pluginRegistryClient{URL: first.URL, SyrusVersion: "2.0.0"}
+	if first.cacheKey() == second.cacheKey() {
+		t.Fatal("registry caches for different Syrus versions must not collide")
+	}
+}
+
+func TestPluginSearchPrintsStaleCacheWarningAndResults(t *testing.T) {
+	server := pluginRegistryServer(t)
+	directory := t.TempDir()
+	pluginRegistryCacheDir = func() (string, error) { return directory, nil }
+	pluginRegistryHTTP = server.Client()
+	pluginRegistryNow = func() time.Time { return time.Unix(0, 0) }
+	previousVersion := cliReleaseVersion
+	cliReleaseVersion = "2.0.0"
+	t.Setenv("SYRUS_PLUGIN_REGISTRY_URL", server.URL)
+	client := pluginRegistryClient{URL: server.URL, SyrusVersion: "2.0.0"}
+	if _, err := client.search(t.Context(), ""); err != nil {
+		t.Fatal(err)
+	}
+	server.Close()
+	pluginRegistryNow = func() time.Time { return time.Unix(3600, 0) }
+	t.Cleanup(func() {
+		pluginRegistryCacheDir = os.UserCacheDir
+		pluginRegistryHTTP = &http.Client{Timeout: 30 * time.Second}
+		pluginRegistryNow = time.Now
+		cliReleaseVersion = previousVersion
+	})
+	command := NewRootCommand()
+	var output, errors strings.Builder
+	command.SetOut(&output)
+	command.SetErr(&errors)
+	command.SetArgs([]string{"plugin", "search", "weather"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "acme_weather") || !strings.Contains(errors.String(), "using cached") {
+		t.Fatalf("output = %q, stderr = %q", output.String(), errors.String())
+	}
+}
+
 func TestPluginRegistryClientReadsFreshGitCacheWithoutPulling(t *testing.T) {
 	directory := t.TempDir()
 	pluginRegistryCacheDir = func() (string, error) { return directory, nil }
@@ -143,10 +289,24 @@ func TestPluginSearchExplainsUnconfiguredRegistry(t *testing.T) {
 }
 
 func pluginRegistryServer(t *testing.T) *httptest.Server {
-	return pluginRegistryServerWithIndexHook(t, nil)
+	return pluginRegistryServerWithPrefix(t, "")
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
+}
+
+func pluginRegistryServerWithPrefix(t *testing.T, prefix string) *httptest.Server {
+	return pluginRegistryServerWithIndexHookAndPrefix(t, prefix, nil)
 }
 
 func pluginRegistryServerWithIndexHook(t *testing.T, hook func(*http.Request, http.ResponseWriter) bool) *httptest.Server {
+	return pluginRegistryServerWithIndexHookAndPrefix(t, "", hook)
+}
+
+func pluginRegistryServerWithIndexHookAndPrefix(t *testing.T, prefix string, hook func(*http.Request, http.ResponseWriter) bool) *httptest.Server {
 	t.Helper()
 	files := map[string]string{
 		"/index.json":              `{"format_version":1,"trust_store":"trust-store.json","releases":["acme_weather/1.2.3.json","acme_future/3.0.0.json","acme_revoked/1.0.0.json"]}`,
@@ -159,12 +319,13 @@ func pluginRegistryServerWithIndexHook(t *testing.T, hook func(*http.Request, ht
 		if r.URL.Path == "/index.json" && hook != nil && hook(r, w) {
 			return
 		}
-		body, ok := files[r.URL.Path]
+		path := strings.TrimPrefix(r.URL.Path, prefix)
+		body, ok := files[path]
 		if !ok {
 			http.NotFound(w, r)
 			return
 		}
-		if r.URL.Path == "/index.json" {
+		if path == "/index.json" {
 			w.Header().Set("ETag", `"v1"`)
 		}
 		_, _ = io.WriteString(w, body)

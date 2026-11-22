@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	gem "github.com/aquasecurity/go-gem-version"
 	"github.com/spf13/cobra"
 )
 
@@ -27,9 +28,16 @@ func newPluginSearchCommand() *cobra.Command {
 		if len(args) == 1 {
 			term = args[0]
 		}
-		entries, err := (pluginRegistryClient{URL: registryURL, SyrusVersion: selectedPluginVersion(command.Context(), "")}).search(command.Context(), term)
-		if err != nil {
+		runningVersion := selectedPluginVersion(command.Context(), "")
+		if _, parseErr := gem.NewVersion(runningVersion); parseErr != nil {
+			runningVersion = ""
+		}
+		entries, err := (pluginRegistryClient{URL: registryURL, SyrusVersion: runningVersion}).search(command.Context(), term)
+		if err != nil && len(entries) == 0 {
 			return fmt.Errorf("plugin registry unavailable: %w", err)
+		}
+		if err != nil {
+			fmt.Fprintf(command.ErrOrStderr(), "Warning: %s\n", err)
 		}
 		if len(entries) == 0 {
 			fmt.Fprintln(command.OutOrStdout(), "No compatible plugins found.")
