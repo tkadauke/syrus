@@ -348,15 +348,17 @@ describe("startupDiagnostics", () => {
     const resourceUrl = `${window.location.origin}/assets/spa-WhiteboardTab.css?token=secret&user=private`
     const fetchSpy = installStartupShell({
       performanceEntries: {
-        resource: [{
-          name: resourceUrl,
-          entryType: "resource",
-          initiatorType: "link",
-          responseStatus: 503,
-          duration: 1400,
-          transferSize: 2048,
-          encodedBodySize: 12000
-        } as unknown as PerformanceEntry]
+        resource: [
+          {
+            name: resourceUrl,
+            entryType: "resource",
+            initiatorType: "link",
+            responseStatus: 503,
+            duration: 1400,
+            transferSize: 2048,
+            encodedBodySize: 12000
+          } as unknown as PerformanceEntry
+        ]
       }
     })
     const failedStylesheet = document.createElement("link")
