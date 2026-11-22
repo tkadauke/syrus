@@ -1,4 +1,4 @@
-import { getJson, patchJson, postJson } from "./client"
+import { getJson, patchJson, postForm, postJson } from "./client"
 import type { FilterSchemaField } from "../components/FilterBar"
 
 export type AdminPluginExtensionPoint = {
@@ -104,6 +104,22 @@ export type PluginConvergencePayload = {
 
 export type AdminPluginTogglePayload = { ok: true; plugin: { name: string; enabled: boolean } }
 
+export type PluginInstallerChange = {
+  id: number
+  name: string
+  action: "install" | "update" | "remove"
+  version: string | null
+  source: string | null
+  trust_label: string | null
+  capability_manifest: Record<string, string[]>
+  capability_diff: Record<string, { added: string[]; removed: string[] }>
+}
+
+export type PluginInstallerPayload = {
+  installations: Array<{ name: string; version: string; source: string; trust_label: string; digest: string; health: string }>
+  pending_changes: PluginInstallerChange[]
+}
+
 export type AdminPluginDisableConfirmation = {
   requires_confirmation: true
   plugin_name: string
@@ -117,6 +133,28 @@ export type AdminPluginExperimentalBlock = {
 
 export function fetchAdminPlugins(search = "") {
   return getJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins${search}`)
+}
+
+export function fetchPluginInstaller() {
+  return getJson<PluginInstallerPayload>("/api/v1/app/admin/plugin_installer")
+}
+
+export async function stagePluginArchive(file: File) {
+  const form = new FormData()
+  form.append("archive", file)
+  return postForm<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage", form)
+}
+
+export function stagePluginRemoval(name: string) {
+  return postJson<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage_remove", { name })
+}
+
+export function confirmPluginChange(id: number) {
+  return postJson<{ change: PluginInstallerChange; restart_required: boolean; apply_path: string }>(`/api/v1/app/admin/plugin_installer/changes/${id}/confirm`)
+}
+
+export function applyPluginChanges() {
+  return postJson<Record<string, unknown>>("/api/v1/admin/plugin_desired_state/apply")
 }
 
 export function fetchAdminPlugin(name: string) {

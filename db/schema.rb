@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_22_044818) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_065455) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3199,6 +3199,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_22_044818) do
     t.datetime "updated_at", null: false
     t.index ["platform", "external_id"], name: "index_platform_identities_on_platform_and_external_id", unique: true
     t.index ["user_id"], name: "index_platform_identities_on_user_id"
+  end
+
+  create_table "plugin_changes", force: :cascade do |t|
+    t.string "plugin_name", null: false
+    t.string "action", null: false
+    t.integer "plugin_release_id"
+    t.json "capability_manifest"
+    t.string "status", null: false
+    t.integer "staged_by_id", null: false
+    t.integer "confirmed_by_id"
+    t.datetime "confirmed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["confirmed_by_id"], name: "index_plugin_changes_on_confirmed_by_id"
+    t.index ["plugin_name", "status"], name: "index_plugin_changes_on_plugin_name_and_status"
+    t.index ["plugin_release_id"], name: "index_plugin_changes_on_plugin_release_id"
+    t.index ["staged_by_id"], name: "index_plugin_changes_on_staged_by_id"
   end
 
   create_table "plugin_desired_states", force: :cascade do |t|
