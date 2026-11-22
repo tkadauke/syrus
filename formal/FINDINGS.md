@@ -4544,7 +4544,7 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
-## M62. Main through `0fa6023754`
+## M62. Main through `e09f7fbc78`
 
 Eleven commits. Seven are mobile review UI (gestures, evidence carousel), and
 `eb1b9e1b0f` pre-pulls the app image before a rollout. The rest:
@@ -6064,7 +6064,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `0fa6023754`. Each loop iteration continues from there:
+Checked through main `e09f7fbc78`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
