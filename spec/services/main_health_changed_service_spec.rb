@@ -745,6 +745,33 @@ RSpec.describe MainHealthChangedService, :ci_only do
         }.to change { repository.jobs.where(kind: "direct").count }.by(1)
       end
 
+      # Regression: a repair whose graders died with their worker failed, with
+      # an auto-retry pending. A health signal two minutes later found no
+      # blocking repair (the Job was failed, for an older SHA) and spawned a
+      # second repair Job; the retry then relaunched the first. Two repairs ran
+      # at once, each with a full preflight grader fan-out.
+      it "does not spawn another fix Job while a failed repair has a pending auto-retry" do
+        failed = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "failed repair",
+          issue_body: "Main branch health is broken.\n\nCommit: old123def456\n",
+          agent_provider: "claude",
+          priority: "high",
+          state: "failed"
+        )
+        workflow = Workflow.create!(job: failed, trigger_kind: "main_branch_repair", state: "failed", finished_at: 1.minute.ago)
+        AutoRetryAttempt.create!(
+          job: failed, workflow: workflow, retry_kind: "retry_workflow", failure_classification: "worker_died",
+          agent_provider: "claude", attempt_number: 1, scheduled_at: 2.minutes.from_now
+        )
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.not_to change { repository.jobs.where(kind: "direct").count }
+      end
+
       it "spawns a new fix Job when the previous one is closed" do
         closed_job = repository.jobs.create!(
           user: user,

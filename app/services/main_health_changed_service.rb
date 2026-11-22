@@ -101,6 +101,16 @@ class MainHealthChangedService
       surface_stuck_blocking_repair!(stuck_job) if stuck_job
       return
     end
+    # A failed repair with a pending auto-retry is not over: the retry will
+    # relaunch it. Spawning another repair meanwhile ran two at once, each with
+    # a full preflight grader fan-out on the same main.
+    if (job = retrying_fix_job)
+      Rails.logger.info(
+        "[MainHealthChangedService] #{@repository.slug} not spawning main repair job; " \
+        "failed repair job #{job.slug} has a pending auto-retry"
+      )
+      return
+    end
     if !force && (job = failed_fix_job_for_current_sha)
       Rails.logger.warn(
         "[MainHealthChangedService] #{@repository.slug} not spawning main repair job; " \
@@ -579,6 +589,13 @@ class MainHealthChangedService
   def blocking_fix_job
     repair_jobs
       .where(state: BLOCKING_FIX_JOB_STATES)
+      .order(updated_at: :desc, id: :desc)
+      .first
+  end
+
+  def retrying_fix_job
+    open_failed_fix_jobs
+      .where(id: AutoRetryAttempt.pending.select(:job_id))
       .order(updated_at: :desc, id: :desc)
       .first
   end
