@@ -503,7 +503,8 @@ describe("ReviewWorkspaceRoute", () => {
     Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 1000 })
     scroller.scrollTop = 200
     let card = screen.getByTestId("mobile-review-card")
-    expect(card).toHaveClass("touch-none")
+    expect(card).toHaveClass("touch-pan-y")
+    expect(card).not.toHaveClass("touch-none")
     fireEvent.pointerDown(card, { clientX: 150, clientY: 250, pointerId: 12, pointerType: "touch" })
     fireEvent.pointerMove(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
     fireEvent.pointerUp(card, { clientX: 150, clientY: 150, pointerId: 12, pointerType: "touch" })
@@ -730,7 +731,11 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerUp(carousel.element, { clientX: 80, clientY: 182, pointerId: 50, pointerType: "touch" })
     expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
-    expect(screen.getByTestId("mobile-review-card").style.transform).toBe("")
+    const gestureSurface = screen.getByTestId("mobile-review-card")
+    expect(gestureSurface.style.transform).toBe("")
+    expect(gestureSurface).toHaveClass("touch-pan-y")
+    expect(gestureSurface).not.toHaveClass("touch-none")
+    expect(carousel.element.closest(".touch-none")).toBeNull()
     expect(carousel.element).toHaveClass("overscroll-x-contain", "touch-pan-x", "touch-pan-y")
   })
 
