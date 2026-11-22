@@ -83,10 +83,42 @@ RSpec.describe PluginRegistryPackageFetcher do
   end
 
   it "rejects a downloaded package whose digest does not match the index" do
+    root = Pathname.new(Dir.mktmpdir)
+    FileUtils.mkdir_p(root.join("weather"))
+    File.write(root.join("weather", "1.0.0.json"), JSON.generate(
+      "name" => "weather", "version" => "1.0.0",
+      "package_url" => "https://registry.example.test/archive.tar.gz", "package_digest" => "0" * 64,
+      "signature_url" => "https://registry.example.test/archive.sig"
+    ))
     stub_request(:get, "https://registry.example.test/archive.tar.gz").to_return(body: "tampered")
 
     expect {
-      described_class.new.send(:download_and_verify, "https://registry.example.test/archive.tar.gz", "0" * 64)
+      described_class.new(index_root: root).fetch(name: "weather", version: "1.0.0")
     }.to raise_error(described_class::Error, /digest does not match/)
+  ensure
+    FileUtils.remove_entry(root) if root&.exist?
+  end
+
+  it "activates registry trust only after both downloads succeed" do
+    root = Pathname.new(Dir.mktmpdir)
+    FileUtils.mkdir_p(root.join("acme_weather"))
+    File.write(root.join("acme_weather", "1.0.0.json"), JSON.generate(
+      "name" => "acme_weather", "version" => "1.0.0",
+      "package_url" => "https://registry.example.test/archive.tar.gz",
+      "package_digest" => Digest::SHA256.hexdigest("archive"),
+      "signature_url" => "https://registry.example.test/archive.sig"
+    ))
+    entry = instance_double(PluginRegistryClient::Entry, version: "1.0.0")
+    client = instance_double(PluginRegistryClient)
+    allow(client).to receive(:entry).with(name: "acme_weather", version: "1.0.0").and_return(entry)
+    allow(client).to receive(:activate_trust_store!)
+    stub_request(:get, "https://registry.example.test/archive.tar.gz").to_return(body: "archive")
+    stub_request(:get, "https://registry.example.test/archive.sig").to_return(body: "signature")
+
+    described_class.new(index_root: root, client:).fetch(name: "acme_weather", version: "1.0.0")
+
+    expect(client).to have_received(:activate_trust_store!).once
+  ensure
+    FileUtils.remove_entry(root) if root&.exist?
   end
 end

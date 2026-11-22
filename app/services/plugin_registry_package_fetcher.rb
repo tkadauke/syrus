@@ -22,11 +22,10 @@ class PluginRegistryPackageFetcher
     indexed_version = path.basename(".json").to_s
     raise Error, "registry entry version does not match its index path" unless metadata.fetch("version") == indexed_version
 
-    Package.new(
-      archive: StringIO.new(download_and_verify(metadata.fetch("package_url", metadata["artifact_url"]), metadata["package_digest"])),
-      signature: download(metadata.fetch("signature_url"), limit: MAX_SIGNATURE_BYTES),
-      name:, version: indexed_version
-    )
+    archive = download_and_verify(metadata.fetch("package_url", metadata["artifact_url"]), metadata["package_digest"])
+    signature = download(metadata.fetch("signature_url"), limit: MAX_SIGNATURE_BYTES)
+    @client&.activate_trust_store!
+    Package.new(archive: StringIO.new(archive), signature:, name:, version: indexed_version)
   rescue Errno::ENOENT
     raise Error, "plugin release is not present in the registry index: #{name}#{"@#{version}" if version.present?}"
   rescue JSON::ParserError, KeyError => error

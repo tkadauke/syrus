@@ -178,11 +178,12 @@ HTTPS. Omitting the version selects the highest indexed semantic version. The
 downloaded archive and detached signature pass through the same validation,
 trust, storage, and confirmation path as an upload.
 
-Set SYRUS_PLUGIN_REGISTRY_URL to an HTTPS mirror or HTTPS Git URL to enable
-the admin registry browser and the plugin search CLI command. It is unset by
-default. Search returns only releases compatible with the running Syrus
-version and omits revoked releases. Registry errors are non-fatal, and a
-valid cached index remains available when refresh fails.
+Set SYRUS_PLUGIN_REGISTRY_URL on the instance to enable the admin registry
+browser, or in the CLI environment to enable `syrus plugin search [TERM]`
+directly against an HTTPS mirror or HTTPS Git URL. It is unset by default.
+Search returns only releases compatible with the running or connected Syrus
+version and omits revoked releases. Registry errors are non-fatal, and a valid
+cached index remains available when refresh fails.
 
 For legacy hand placement, use the following stopped-process procedure.
 
