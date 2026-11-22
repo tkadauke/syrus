@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_134239) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_044818) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3201,27 +3201,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_134239) do
     t.index ["user_id"], name: "index_platform_identities_on_user_id"
   end
 
-  create_table "plugin_records", force: :cascade do |t|
-    t.string "name", null: false
-    t.boolean "enabled", default: true, null: false
-    t.json "config", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "default_enabled", default: true, null: false
-    t.boolean "disableable", default: true, null: false
-    t.string "display_name"
-    t.text "description"
-    t.string "category"
-    t.datetime "last_ticked_at"
-    t.string "author"
-    t.text "extension_points"
-    t.boolean "ever_enabled", default: false, null: false
-    t.boolean "experimental", default: false, null: false
-    t.bigint "request_count", default: 0, null: false
-    t.datetime "last_error_at"
-    t.index ["name"], name: "index_plugin_records_on_name", unique: true
-  end
-
   create_table "plugin_desired_states", force: :cascade do |t|
     t.integer "singleton_key", null: false
     t.bigint "revision", default: 0, null: false
@@ -3246,6 +3225,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_134239) do
     t.index ["plugin_release_id"], name: "index_plugin_installations_on_plugin_release_id"
   end
 
+  create_table "plugin_records", force: :cascade do |t|
+    t.string "name", null: false
+    t.boolean "enabled", default: true, null: false
+    t.json "config", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "default_enabled", default: true, null: false
+    t.boolean "disableable", default: true, null: false
+    t.string "display_name"
+    t.text "description"
+    t.string "category"
+    t.datetime "last_ticked_at"
+    t.string "author"
+    t.text "extension_points"
+    t.boolean "ever_enabled", default: false, null: false
+    t.boolean "experimental", default: false, null: false
+    t.bigint "request_count", default: 0, null: false
+    t.datetime "last_error_at"
+    t.index ["name"], name: "index_plugin_records_on_name", unique: true
+  end
+
   create_table "plugin_releases", force: :cascade do |t|
     t.string "name", null: false
     t.string "version", null: false
@@ -3256,8 +3256,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_134239) do
     t.bigint "size_bytes", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "publisher_key_fingerprint"
+    t.text "signature"
     t.index ["content_digest"], name: "index_plugin_releases_on_content_digest"
     t.index ["name", "version", "content_digest"], name: "idx_plugin_releases_identity", unique: true
+    t.index ["publisher_key_fingerprint"], name: "index_plugin_releases_on_publisher_key_fingerprint"
     t.index ["uploaded_by_id"], name: "index_plugin_releases_on_uploaded_by_id"
   end
 

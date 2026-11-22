@@ -7,7 +7,7 @@ RSpec.describe "API: plugin desired state", type: :request do
   before do
     allow(PluginDesiredState::Publisher).to receive(:publish!)
     release = PluginRelease.create!(name: "weather", version: "1.0.0", content_digest: "a" * 64,
-      source: "bundled", trust_label: "reviewed", size_bytes: 0, uploaded_by: admin)
+      source: "bundled", trust_label: "official", size_bytes: 0, uploaded_by: admin)
     PluginInstallation.create!(plugin_name: "weather", plugin_release: release, roles: [ "web" ])
   end
 

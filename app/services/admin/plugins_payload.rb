@@ -22,6 +22,7 @@ module Admin
         all_manifests = Syrus::PluginRegistry.all_plugins
         manifests = filtered_manifests(all_manifests)
         records = PluginRecord.where(name: manifests.map(&:name)).index_by(&:name)
+        @installed_releases = PluginInstallation.includes(:plugin_release).where(plugin_name: manifests.map(&:name)).index_by(&:plugin_name)
         # Dependency graph is built from *all* registered manifests, not the
         # filtered set, so a search hit still shows dependents/dependencies
         # that fell outside the query.
@@ -44,6 +45,7 @@ module Admin
         raise ActiveRecord::RecordNotFound, "Couldn't find Plugin #{name.inspect}" unless manifest
 
         records = PluginRecord.where(name: [ manifest.name ]).index_by(&:name)
+        @installed_releases = PluginInstallation.includes(:plugin_release).where(plugin_name: manifest.name).index_by(&:plugin_name)
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
 
         {
@@ -115,6 +117,7 @@ module Admin
           display_name: manifest.display_name.presence || metadata[:display_name].presence || manifest.name.to_s.titleize,
           display_name_i18n_key: manifest.display_name_i18n_key,
           version: manifest.version,
+          trust_label: trust_label_for(manifest),
           enabled: manifest.enabled?,
           default_enabled: manifest.default_enabled?,
           disableable: manifest.disableable?,
@@ -153,6 +156,10 @@ module Admin
         payload.merge!(docs: docs_payload(manifest, spec), metrics: metrics_payload(manifest)) if detail
         payload
       end
+    end
+
+    def trust_label_for(manifest)
+      @installed_releases&.dig(manifest.name)&.plugin_release&.trust_label || (manifest.external ? "unsigned_local" : "official")
     end
 
     def links_payload(manifest)

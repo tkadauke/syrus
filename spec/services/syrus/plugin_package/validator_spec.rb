@@ -104,4 +104,22 @@ RSpec.describe Syrus::PluginPackage::Validator do
 
     expect(described_class.new(archive(prefixed)).call).to be_valid
   end
+
+  it "applies publisher trust verification at the package validation boundary" do
+    package = archive(entries)
+    bytes = package.string
+    key = Ed25519::SigningKey.generate
+    public_key = key.verify_key.to_bytes
+    fingerprint = Digest::SHA256.hexdigest(public_key)
+    digest = Digest::SHA256.hexdigest(bytes)
+    signature = StringIO.new(JSON.generate(
+      algorithm: "ed25519", digest:, public_key: Base64.strict_encode64(public_key), fingerprint:,
+      signature: Base64.strict_encode64(key.sign(digest))
+    ))
+    trust_store = Syrus::PluginPackage::TrustStore.new(
+      "publishers" => [ { "fingerprint" => fingerprint, "label" => "community" } ]
+    )
+
+    expect(described_class.new(StringIO.new(bytes), signature:, trust_store:).call).to be_valid
+  end
 end

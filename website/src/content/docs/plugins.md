@@ -91,6 +91,19 @@ and registry automation can enforce those checks with
 `bin/plugin-package-validate [--json] ARCHIVE`; invalid packages return a
 nonzero exit status.
 
+Generate a publisher key with `syrus plugin keygen`, keep the private key
+offline, and never commit or upload it. Sign the package digest with `syrus
+plugin sign PACKAGE --key KEY`, then verify the detached signature with `syrus
+plugin verify PACKAGE --signature PACKAGE.sig --trust-store TRUST.json`.
+Registry trust stores label publisher fingerprints as **official**,
+**verified**, or **community** and can revoke a publisher key or one release;
+explicitly local packages may instead be **unsigned local**. A revoked
+installed release is fleet-quarantined for removal.
+
+Signing proves that the holder of a publisher key signed those exact package
+bytes. It does not sandbox a plugin, review its source, or authorize its tools
+and capabilities; normal Syrus permissions still apply after install.
+
 ## Develop with live reload
 
 Run `syrus plugin dev [DIR]` for a fast editing loop against a real,
