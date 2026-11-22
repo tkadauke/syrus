@@ -119,5 +119,15 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
 
       expect(AppSetting.current).to be_beta_mode_enabled
     end
+
+    it "reconciles a cached settings record after the database was rolled back" do
+      settings = AppSetting.current
+      settings.update!(beta_mode_enabled: true)
+      AppSetting.where(singleton_key: AppSetting::SINGLETON_KEY).update_all(beta_mode_enabled: false)
+
+      described_class.establish_default_beta_mode
+
+      expect(settings.reload).to be_beta_mode_enabled
+    end
   end
 end
