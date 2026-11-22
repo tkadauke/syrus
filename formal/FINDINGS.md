@@ -4160,6 +4160,32 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M48. Auto-retry is bounded in production — audit, no new counterexample
+
+Coverage item `auto-retry-bounded` asks whether a budget-exempt skip whose
+cause persists re-plans forever. Seven days of `auto_retry_attempts` were
+grouped by Job, reason, kind, classification and provider (read-only):
+
+- **"job branch was rewritten since the source run recorded its workspace"**
+  ran 324 times on one Run in 27 minutes, all attempt 1, as a `retry_workflow`.
+  That is the F44/F45 loop.
+  - Both worker versions live then, `4a424455d6` and `637033715e`, predate F45
+    (`cbbfcc5b39` landed on main at 12:00 ET).
+  - Since `d9be256158` (F45 included) went live, there have been none.
+  - The second instance (69 rows, 11-16) predates both fixes.
+- **"Job is already approved for landing"** (33 rows, one Job): every row is a
+  different failed Run, one skip each. Bounded by the Runs; no re-planning.
+- **A `grader_collect` Step retried in place 11 times** (attempt numbers up to
+  14, hourly, 11-16). This is F22's superseded-iteration cycle, already fixed.
+  It stayed inside the budget, because `worker_died` is budgeted at
+  `MAX_WORKER_DIED_ATTEMPTS = 20`, not `MAX_ATTEMPTS = 3`.
+- **No other reason repeats on a Job.**
+
+The budget-exempt reasons that persist in production are all ones the planner
+now excludes. "That agent is not available" never appeared in the window.
+
+---
+
 ## M47. Failure sweep (read-only): recent fixes verified in production
 
 Main had no new commits. The sweep looked at failed Runs and Workflows in the
