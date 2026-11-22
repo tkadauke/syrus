@@ -52,7 +52,11 @@ module Admin
       "read_repository_file" => "generic",
       "unland_job" => "generic",
       "unland_epic" => "generic",
-      "runtime_wait" => "generic"
+      "runtime_wait" => "generic",
+      "mail_search" => "generic",
+      "mail_read_message" => "generic",
+      "personal_calendar_list_events" => "generic",
+      "personal_calendar_get_event" => "generic"
     }.freeze
 
     class << self

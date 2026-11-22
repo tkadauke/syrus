@@ -12,6 +12,8 @@ require "syrus/host/external_reviewer"
 ].each { |name| require "syrus/plugin/#{name}" }
 require "syrus/host/admin_page"
 require "syrus/plugin_invocation"
+require "syrus/plugin/family"
+require "syrus/plugin/dispatch"
 
 module Syrus
   module Host
@@ -46,6 +48,8 @@ module Syrus
         Metrics: "Syrus::Metrics",
         PluginRegistry: "Syrus::PluginRegistry",
         PluginInvocation: "Syrus::PluginInvocation",
+        CapabilityFamily: "Syrus::Plugin::Family",
+        CapabilityDispatch: "Syrus::Plugin::Dispatch",
         CapabilityValidationError: "Syrus::Plugin::Dispatch::ValidationError",
         EcosystemGraderCoverage: "Syrus::Plugin::Ecosystem::GraderCoverage",
         EcosystemPreparePlan: "Syrus::Plugin::Ecosystem::PreparePlan",
@@ -82,6 +86,8 @@ module Syrus
         Metrics: [ "Fetches plugin-declared metrics instruments; registry mutation and core declarations are not promised.", %w[counter gauge histogram] ],
         PluginRegistry: [ "Registers manifests and reads extension providers; reset, health, and cache internals are not promised.", %w[register providers_for capability_providers providers_with_owner_for extension_point?] ],
         PluginInvocation: [ "Contains plugin provider failures behind the shared runtime health boundary; runtime-health internals are not promised.", %w[call] ],
+        CapabilityFamily: [ "Defines provider-neutral capability families and their composition contracts; registry internals are not promised.", %w[define fetch] ],
+        CapabilityDispatch: [ "Invokes declared capability providers through their composition and health boundaries.", %w[call] ],
         CapabilityValidationError: [ "Reports a deliberate caller-visible capability validation problem without counting it as a provider crash.", %w[new code details message] ],
         EcosystemGraderCoverage: [ "Shares the supported coverage-phase decision used by Ecosystem grader-type providers.", %w[coverage_for_phases?] ],
         EcosystemPreparePlan: [ "Carries one ecosystem's immutable repository detection and preparation answer.", %w[new detected detected? commands version_file span_labels label] ],
