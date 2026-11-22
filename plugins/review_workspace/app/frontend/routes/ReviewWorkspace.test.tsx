@@ -654,6 +654,7 @@ describe("ReviewWorkspaceRoute", () => {
     first.unmount()
     renderRoute("/review/JOB-42")
     expect(await screen.findByText("No submitted visual evidence for this Job.")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Visual evidence" })).not.toHaveAttribute("data-review-gesture-exempt")
   })
 
   it("resets the evidence position when navigating between cached Jobs", async () => {
@@ -728,6 +729,14 @@ describe("ReviewWorkspaceRoute", () => {
     await waitFor(() => expect(screen.getByText("2 of 2")).toBeInTheDocument())
     fireEvent.resize(window)
     expect(carousel.scrollTo).toHaveBeenLastCalledWith({ behavior: "auto", left: 280 })
+
+    const caption = screen.getByTestId("mobile-evidence-caption")
+    expect(caption.closest("[data-review-gesture-exempt]")).not.toBeNull()
+    fireEvent.pointerDown(caption, { clientX: 80, clientY: 220, pointerId: 49, pointerType: "touch" })
+    fireEvent.pointerMove(caption, { clientX: 180, clientY: 222, pointerId: 49, pointerType: "touch" })
+    fireEvent.pointerUp(caption, { clientX: 180, clientY: 222, pointerId: 49, pointerType: "touch" })
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
+    expect(screen.getByTestId("mobile-review-card").style.transform).toBe("")
 
     fireEvent.pointerDown(carousel.element, { clientX: 220, clientY: 180, pointerId: 50, pointerType: "touch" })
     fireEvent.pointerMove(carousel.element, { clientX: 80, clientY: 182, pointerId: 50, pointerType: "touch" })
