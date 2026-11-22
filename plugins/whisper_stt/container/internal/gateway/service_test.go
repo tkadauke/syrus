@@ -350,6 +350,33 @@ func TestRealDecoderAcceptsFragmentedWebM(t *testing.T) {
 	}
 }
 
+// Regression: the process reaper used to call cmd.Wait concurrently with the
+// stdout reader. Wait closes stdout as soon as the decoder exits, so whatever
+// PCM was still sitting in the pipe was dropped and Finish returned a
+// truncated stream.
+func TestMediaDecoderFinishKeepsOutputBufferedWhenProcessExits(t *testing.T) {
+	if _, err := exec.LookPath("head"); err != nil {
+		t.Skip("head unavailable")
+	}
+	const want = 60 * 1024
+	for attempt := 0; attempt < 300; attempt++ {
+		media, err := startMediaDecoder(exec.Command("head", "-c", fmt.Sprint(want), "/dev/zero"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err = media.Finish(ctx)
+		cancel()
+		media.Close()
+		if err != nil {
+			t.Fatalf("attempt %d: finish: %v", attempt, err)
+		}
+		if got := media.Size(); got != want {
+			t.Fatalf("attempt %d: decoded %d bytes, want %d", attempt, got, want)
+		}
+	}
+}
+
 func TestMediaDecoderCancellationUnblocksPipeWriteAndReapsProcess(t *testing.T) {
 	if _, err := exec.LookPath("sleep"); err != nil {
 		t.Skip("sleep unavailable")
