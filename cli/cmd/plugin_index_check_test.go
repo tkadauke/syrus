@@ -79,7 +79,8 @@ func TestPluginIndexCheckEndToEndAndFailureClasses(t *testing.T) {
 	t.Cleanup(func() { pluginIndexCheckHTTP, newDockerPluginRunner = previousHTTP, previousRunner })
 	sum := sha256.Sum256(packageBytes)
 	entry := pluginRegistryRelease{Name: "acme_weather", Version: "1.2.3", Description: "Weather", Category: "automation", Author: "Acme", Homepage: "https://example.test", License: "MIT", RequiresSyrus: ">= 1.0", PackageURL: server.URL + "/package", PackageDigest: "sha256:" + hex.EncodeToString(sum[:]), SignatureURL: server.URL + "/package.sig", PublisherKeyFingerprint: key.Fingerprint, TrustLabelInputs: json.RawMessage(`{}`), CapabilitySummary: mustJSON(manifest)}
-	trust, _ := json.Marshal(plugintrust.TrustStore{Publishers: []plugintrust.Publisher{{Fingerprint: key.Fingerprint, Label: "community"}}})
+	trustStore := plugintrust.TrustStore{Publishers: []plugintrust.Publisher{{Fingerprint: key.Fingerprint, Label: "community", Prefix: "acme"}}}
+	trust, _ := json.Marshal(trustStore)
 	root := t.TempDir()
 	trustPath := filepath.Join(root, "trust.json")
 	os.WriteFile(trustPath, trust, 0644)
@@ -124,7 +125,19 @@ func TestPluginIndexCheckEndToEndAndFailureClasses(t *testing.T) {
 	if err := run(bad); err == nil || !strings.Contains(err.Error(), "capability summary") {
 		t.Fatalf("capability mismatch: %v", err)
 	}
-	runner.runErr = os.ErrInvalid
+	trustStore.Publishers[0].Prefix = "other"
+	wrongPublisherTrust, _ := json.Marshal(trustStore)
+	os.WriteFile(trustPath, wrongPublisherTrust, 0644)
+	if err := run(entry); err == nil || !strings.Contains(err.Error(), "not listed for the plugin name prefix") {
+		t.Fatalf("cross-publisher key: %v", err)
+	}
+	os.WriteFile(trustPath, trust, 0644)
+	runner.runErrors = map[string]error{"package-validate": os.ErrInvalid}
+	if err := run(entry); err == nil || !strings.Contains(err.Error(), "package validator failed") {
+		t.Fatalf("invalid canonical package: %v", err)
+	}
+	runner.runErrors = nil
+	runner.runErrors = map[string]error{"test": os.ErrInvalid}
 	if err := run(entry); err == nil || !strings.Contains(err.Error(), "contract tests") {
 		t.Fatalf("failing tests: %v", err)
 	}

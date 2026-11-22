@@ -7,7 +7,7 @@ module Syrus
   module PluginPackage
     class TrustStore
       LABELS = %w[official verified community].freeze
-      Publisher = Data.define(:fingerprint, :label)
+      Publisher = Data.define(:fingerprint, :label, :prefix)
 
       attr_reader :revoked_keys, :revoked_releases
 
@@ -75,7 +75,7 @@ module Syrus
           fingerprint = publisher.fetch("fingerprint").downcase
           label = publisher.fetch("label")
           raise ArgumentError, "invalid publisher trust label: #{label}" unless LABELS.include?(label)
-          [ fingerprint, Publisher.new(fingerprint:, label:) ]
+          [ fingerprint, Publisher.new(fingerprint:, label:, prefix: publisher["prefix"]) ]
         end
         @revoked_keys = Array(data.fetch("revoked_keys", [])).map(&:downcase).to_set
         @revoked_releases = Array(data.fetch("revoked_releases", []))
@@ -97,7 +97,9 @@ module Syrus
 
       def as_json(*)
         {
-          "publishers" => @publishers.values.map { |publisher| { "fingerprint" => publisher.fingerprint, "label" => publisher.label } },
+          "publishers" => @publishers.values.map do |publisher|
+            { "fingerprint" => publisher.fingerprint, "label" => publisher.label, "prefix" => publisher.prefix }.compact
+          end,
           "revoked_keys" => revoked_keys.to_a.sort,
           "revoked_releases" => revoked_releases
         }

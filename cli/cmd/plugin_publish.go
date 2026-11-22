@@ -152,6 +152,9 @@ func newPluginPublishCommand() *cobra.Command {
 		if keyPath == "" || repository == "" {
 			return errors.New("--key and --repository are required")
 		}
+		if submit && indexRepository == "" {
+			return errors.New("--index-repository is required with --submit")
+		}
 		token := os.Getenv("GITHUB_TOKEN")
 		if token == "" {
 			return errors.New("GITHUB_TOKEN is required")
@@ -230,9 +233,6 @@ func newPluginPublishCommand() *cobra.Command {
 		entryBytes = append(entryBytes, '\n')
 		path := manifest.Name + "/" + manifest.Version + ".json"
 		if submit {
-			if indexRepository == "" {
-				return errors.New("--index-repository is required with --submit")
-			}
 			pr, err := publisher.Submit(command.Context(), indexRepository, path, entryBytes)
 			if err != nil {
 				return err

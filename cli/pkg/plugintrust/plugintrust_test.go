@@ -21,7 +21,7 @@ func TestSignAndVerifyTrustLabels(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, label := range []string{"official", "verified", "community"} {
-		result, err := Verify(path, signature, TrustStore{Publishers: []Publisher{{key.Fingerprint, label}}}, false)
+		result, err := Verify(path, signature, TrustStore{Publishers: []Publisher{{Fingerprint: key.Fingerprint, Label: label, Prefix: "acme"}}}, false)
 		if err != nil || result.TrustLabel != label {
 			t.Fatalf("label %s: result=%+v err=%v", label, result, err)
 		}
@@ -34,7 +34,7 @@ func TestVerifyRejectsTamperingWrongAndRevokedKeys(t *testing.T) {
 	os.WriteFile(path, []byte("package"), 0600)
 	key, _ := GenerateKey()
 	signature, _ := Sign(path, key)
-	store := TrustStore{Publishers: []Publisher{{key.Fingerprint, "verified"}}}
+	store := TrustStore{Publishers: []Publisher{{Fingerprint: key.Fingerprint, Label: "verified", Prefix: "acme"}}}
 	os.WriteFile(path, []byte("tampered"), 0600)
 	if _, err := Verify(path, signature, store, false); err == nil {
 		t.Fatal("accepted tampered package")
@@ -73,7 +73,7 @@ func TestVerifyRejectsRevokedRelease(t *testing.T) {
 	key, _ := GenerateKey()
 	signature, _ := Sign(path, key)
 	store := TrustStore{
-		Publishers:      []Publisher{{key.Fingerprint, "verified"}},
+		Publishers:      []Publisher{{Fingerprint: key.Fingerprint, Label: "verified", Prefix: "acme"}},
 		RevokedReleases: []RevokedRelease{{Name: "weather", Version: "1.2.3", Digest: signature.Digest}},
 	}
 	if _, err := VerifyRelease(path, signature, store, false, "weather", "1.2.3"); err == nil {
