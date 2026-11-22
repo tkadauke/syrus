@@ -1203,31 +1203,34 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(spans.map(&:command_excerpt)).not_to include("printf skipped")
   end
 
-  it "calls registered grader augmentors when the grader fails" do
+  it "logs diagnostics from a family-registered grader provider when the grader fails" do
     step.update!(details: step.details.merge("command" => "ruby -e 'exit 1'"))
-
-
-    augmentor = double("augmentor")
-    allow(augmentor).to receive(:augment_grader_failure)
-      .with(name: "tests", command: "ruby -e 'exit 1'", workspace_path: @ws_path)
-      .and_return(["[rspec failures from JSON output]\n", "MyTest fails\n"])
-
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
+    provider = Class.new do
+      def self.grader_diagnostics(context)
+        [ "family diagnostic for #{context.name}\n", "#{context.command}\n" ]
+      end
+    end
+    stub_const("FamilyGraderDiagnosticsSpecProvider", provider)
+    reference = Syrus::Plugin::CapabilityProvider.new(
+      plugin_name: "fixture", family: :ecosystem, capability: :grader_diagnostics,
+      provider_name: provider.name, key: nil, priority: 0
+    )
+    allow(Syrus::PluginRegistry).to receive(:capability_providers).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:capability_providers)
+      .with(:ecosystem, :grader_diagnostics).and_return([ reference ])
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed)
 
     logged = run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join
-    expect(logged).to include("[rspec failures from JSON output]")
-    expect(logged).to include("MyTest fails")
+    expect(logged).to include("family diagnostic for tests")
+    expect(logged).to include("ruby -e 'exit 1'")
   end
 
   it "does not call augmentors when the grader passes" do
     augmentor = double("augmentor")
     expect(augmentor).not_to receive(:augment_grader_failure)
 
-    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
+    allow(Syrus::PluginRegistry).to receive(:capability_providers).and_return([])
 
     handler.call
   end

@@ -10,7 +10,8 @@ Use `it_behaves_like "a valid review provider"` from `syrus/plugin/test_kit`, pa
 ### `external_reviewer`
 
 - Composition: `first_claim`
-- Absent/decline result: `nil`
+- Absent result: `nil`
+- Provider decline: `nil`
 - Tier: `provisional`
 - Context: `Syrus::Plugin::ExternalReviewContext`
 - Return shape: `Syrus::Plugin::ExternalReviewer`

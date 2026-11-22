@@ -2,8 +2,6 @@ require "shellwords"
 
 module Ruby
   class MinitestGraderType
-    include Syrus::Plugin::GraderType
-
     DEFAULT_TIMEOUT_MINUTES = 15
     DEFAULT_CHANGED_FILES = [
       "*.rb",

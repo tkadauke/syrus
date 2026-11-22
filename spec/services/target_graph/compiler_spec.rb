@@ -653,7 +653,7 @@ RSpec.describe TargetGraph::Compiler do
           diagnostics: { "query" => "//..." }
         )
       )
-      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      register_ecosystem_provider(name: "fake-target-graph", provider:, provisional: %i[target_graph], key: :fake)
       write(".syrus.yml", <<~YAML)
         target_graph:
           imports:
@@ -670,14 +670,14 @@ RSpec.describe TargetGraph::Compiler do
       expect(imported.owner_config_path).to include("target_graph.imports[0]")
       expect(imported.metadata["provenance"]).to include(
         "provider" => "fake",
-        "provider_class" => "FakeBuildGraphProvider"
+        "provider_class" => a_string_matching(/EcosystemProviderFixtureFakeTargetGraph/)
       )
 
       diagnostics = described_class.diagnose(@dir)
       expect(diagnostics.import_diagnostics).to contain_exactly(
         include(
           "provider" => "fake",
-          "provider_class" => "FakeBuildGraphProvider",
+          "provider_class" => a_string_matching(/EcosystemProviderFixtureFakeTargetGraph/),
           "status" => "imported",
           "project_ids" => [ "bazel" ],
           "target_labels" => [ "//bazel:app" ],
@@ -716,7 +716,7 @@ RSpec.describe TargetGraph::Compiler do
           diagnostics: { "query" => "//frontend:all" }
         )
       )
-      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      register_ecosystem_provider(name: "fake-target-graph", provider:, provisional: %i[target_graph], key: :fake)
       write(".syrus.yml", <<~YAML)
         target_graph:
           imports:
@@ -804,7 +804,7 @@ RSpec.describe TargetGraph::Compiler do
           ]
         )
       )
-      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      register_ecosystem_provider(name: "fake-target-graph", provider:, provisional: %i[target_graph], key: :fake)
       write(".syrus.yml", <<~YAML)
         target_graph:
           imports:
@@ -839,7 +839,7 @@ RSpec.describe TargetGraph::Compiler do
           ]
         )
       )
-      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      register_ecosystem_provider(name: "fake-target-graph", provider:, provisional: %i[target_graph], key: :fake)
       write(".syrus.yml", <<~YAML)
         target_graph:
           imports:
@@ -892,9 +892,9 @@ RSpec.describe TargetGraph::Compiler do
       )
     end
 
-    it "applies warning failure policy to provider exceptions" do
+    it "isolates provider exceptions while preserving their diagnostics under the warning failure policy" do
       provider = fake_build_graph_provider(raise_error: RuntimeError.new("build file unreadable"))
-      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      register_ecosystem_provider(name: "fake-target-graph", provider:, provisional: %i[target_graph], key: :fake)
       write(".syrus.yml", <<~YAML)
         target_graph:
           imports:
@@ -905,7 +905,7 @@ RSpec.describe TargetGraph::Compiler do
       expect(described_class.compile(@dir).targets.keys).to eq(%w[//:repo])
 
       diagnostics = described_class.diagnose(@dir)
-      expect(diagnostics.error).to include("build file unreadable")
+      expect(diagnostics.error).to include("RuntimeError: build file unreadable")
     end
 
     it "does not partially apply an invalid imported fragment in warning mode" do
@@ -930,7 +930,7 @@ RSpec.describe TargetGraph::Compiler do
           ]
         )
       )
-      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      register_ecosystem_provider(name: "fake-target-graph", provider:, provisional: %i[target_graph], key: :fake)
       write(".syrus.yml", <<~YAML)
         target_graph:
           imports:
@@ -985,7 +985,7 @@ RSpec.describe TargetGraph::Compiler do
           )
         end
       end
-      Syrus::PluginRegistry.register(:build_system_graph_provider, provider)
+      register_ecosystem_provider(name: "fake-target-graph", provider:, provisional: %i[target_graph], key: :fake)
       write(".syrus.yml", <<~YAML)
         target_graph:
           imports:
@@ -1381,15 +1381,12 @@ RSpec.describe TargetGraph::Compiler do
     stub_const(
       "FakeBuildGraphProvider",
       Class.new do
-        include Syrus::Plugin::BuildSystemGraphProvider
-
-        define_singleton_method(:provider_key) { "fake" }
-        define_singleton_method(:import_target_graph) do |repo_path:, config:|
+        define_singleton_method(:target_graph) do |context|
           raise raise_error if raise_error
 
-          @last_repo_path = repo_path
-          @last_config = config
-          resolver ? resolver.call(config) : (result || TargetGraph::Import.new)
+          @last_repo_path = context.repo_path
+          @last_config = context.config
+          resolver ? resolver.call(context.config) : (result || TargetGraph::Import.new)
         end
         define_singleton_method(:last_repo_path) { @last_repo_path }
         define_singleton_method(:last_config) { @last_config }

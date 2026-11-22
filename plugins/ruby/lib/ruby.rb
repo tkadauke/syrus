@@ -11,6 +11,7 @@ require "ruby/review_criteria_provider"
 require "ruby/rspec_parser"
 require "ruby/affected_test_analyzer"
 require "ruby/focused_test_command"
+require "ruby/ecosystem"
 
 module Ruby
   extend Syrus::PluginApi
@@ -32,16 +33,11 @@ module Ruby
       signals.repositories_detecting("ruby")
     end
 
-    provides coverage_analyzer: "Ruby::SimpleCovAnalyzer",
-             grader_augmentor: [ "Ruby::GraderAugmentor", "Ruby::RubocopGraderAugmentor" ],
-             prepare_detector: "Ruby::PrepareDetector",
-             grade_detector: "Ruby::GradeDetector",
-             grader_type: [ "Ruby::RspecGraderType", "Ruby::MinitestGraderType" ],
-             review_criteria_provider: "Ruby::ReviewCriteriaProvider",
-             "test_insights:parser" => "Ruby::RspecParser",
-             autofix_command: "Ruby::RubocopAutofix",
-             dependency_audit_command: "Ruby::BundlerAuditCommand",
-             affected_test_analyzer: "Ruby::AffectedTestAnalyzer",
-             focused_test_command: "Ruby::FocusedTestCommand"
+    provides "test_insights:parser" => "Ruby::RspecParser"
+    provides ecosystem: "Ruby::Ecosystem",
+      implements: %i[detect_prepare grade_candidates grader_diagnostics review_criteria autofix dependency_audit focused_tests analyze_coverage],
+      provisional: %i[affected_tests]
+    provides ecosystem: "Ruby::RspecEcosystem", key: :rspec, implements: %i[grader_types]
+    provides ecosystem: "Ruby::MinitestEcosystem", key: :minitest, implements: %i[grader_types]
   end
 end

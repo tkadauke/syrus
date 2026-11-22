@@ -18,6 +18,13 @@ RSpec.describe "Surface catalogs" do
     )
   end
 
+  it "renders each family provider as a Markdown row" do
+    catalog = Syrus::SurfaceCatalogs.render_families
+
+    expect(catalog).to include("| `ruby` | `Ruby::Ecosystem` |")
+    expect(catalog).not_to include('["| `ruby`')
+  end
+
   it "keeps plugin-owned API routes out of core catalogs" do
     catalogs = [
       Syrus::SurfaceCatalogs.render_user_api,

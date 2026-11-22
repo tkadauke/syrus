@@ -27,11 +27,10 @@ RSpec.describe "django depends_on python plugin cascade", type: :request, requir
                          "pytest JSON-report grader detail, venv/uv prompt reminder",
       homepage:         "https://github.com/tkadauke/syrus",
       prepare_priority: 30,
-      provides: {
-        prepare_detector: Python::PrepareDetector,
-        grader_augmentor: Python::GraderAugmentor,
-        prompt_injector:  Python::PromptContext
-      }
+      family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+        family: :ecosystem, provider: "Python::Ecosystem",
+        implements: %i[detect_prepare grader_diagnostics prompt_context]
+      ) ]
     )
 
     # Mirrors plugins/django/lib/django/engine.rb's after_initialize registration.

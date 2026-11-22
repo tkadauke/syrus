@@ -3,7 +3,7 @@ require "base64"
 
 module Ruby
   class RspecGraderType
-    include Syrus::Plugin::GraderType
+    include Syrus::Host::EcosystemGraderCoverage
 
     DEFAULT_TIMEOUT_MINUTES = 15
     DEFAULT_CHANGED_FILES = [

@@ -70,7 +70,7 @@ RSpec.describe RepoPrepPlan do
 
   describe "auto-detect", requires_plugin: %w[ruby javascript] do
     # RepoPrepPlan no longer hardcodes Ruby/Node signals — it delegates
-    # entirely to registered :prepare_detector plugins. Register the real
+    # entirely to registered Ecosystem providers. Register the real
     # bundled `ruby` and `javascript` plugins (mirroring their engine.rb
     # manifests) so these specs exercise the actual production wiring
     # instead of a RepoPrepPlan-local fixture.
@@ -78,14 +78,18 @@ RSpec.describe RepoPrepPlan do
       unless Syrus::PluginRegistry.registered_names.include?("ruby")
         Syrus::PluginRegistry.register(
           name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-          provides: { prepare_detector: Ruby::PrepareDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare]
+          ) ]
         )
       end
 
       unless Syrus::PluginRegistry.registered_names.include?("javascript")
         Syrus::PluginRegistry.register(
           name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
-          provides: { prepare_detector: JavaScript::PrepareDetector }
+          family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+            family: :ecosystem, provider: "JavaScript::Ecosystem", implements: %i[detect_prepare]
+          ) ]
         )
       end
     end
@@ -131,8 +135,8 @@ RSpec.describe RepoPrepPlan do
       write("yarn.lock", "")
       result = described_class.for(@dir)
       expect(result.commands).to eq([ "bundle install", "yarn install --frozen-lockfile" ])
-      expect(result.source).to include("Ruby::PrepareDetector")
-      expect(result.source).to include("JavaScript::PrepareDetector")
+      expect(result.source).to include("Ruby")
+      expect(result.source).to include("JavaScript")
     end
 
     it "no recognized signals → empty + diagnostic" do
@@ -142,7 +146,7 @@ RSpec.describe RepoPrepPlan do
     end
   end
 
-  describe ":prepare_detector plugins", :reset_plugin_registry do
+  describe "Ecosystem prepare providers", :reset_plugin_registry do
     around do |ex|
       Syrus::PluginRegistry.reset!
       ex.run
@@ -151,16 +155,17 @@ RSpec.describe RepoPrepPlan do
 
     def register_detector(plugin_name:, file:, command:, prepare_priority: 100)
       detector = Class.new do
-        include Syrus::Plugin::PrepareDetector
+        def self.key = :fixture
+        def self.display_name = name
       end
       detector.define_singleton_method(:name) { plugin_name.to_s.capitalize + "PrepareDetector" }
-      detector.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, file)) }
-      detector.define_singleton_method(:prepare_commands) { |_repo_path| [ command ] }
+      detector.define_singleton_method(:detect_prepare) do |context|
+        next [] unless File.exist?(File.join(context.repo_path, file))
+        [ Syrus::Host::EcosystemPreparePlan.new(detected: true, commands: [ command ], label: name) ]
+      end
 
-      Syrus::PluginRegistry.register(
-        name: plugin_name, version: "1.0.0", prepare_priority: prepare_priority,
-        provides: { prepare_detector: detector }
-      )
+      register_ecosystem_provider(name: plugin_name, provider: detector,
+        implements: %i[detect_prepare], prepare_priority:)
       detector
     end
 

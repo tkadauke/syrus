@@ -6,10 +6,10 @@ declarations rather than scheduler special cases.
 
 ## What it provides
 
-| Extension point | What it does |
+| Contribution | What it does |
 |---|---|
-| `:prepare_detector` | Detects root `Package.swift`, Xcode workspaces/projects, and Swift source layouts. It contributes `swift package resolve` only for root Swift packages; Xcode dependency resolution remains explicit because it needs the repository's workspace/project and scheme choice. |
-| `:grader_type` | Expands `type: xcodebuild` and `type: swiftpm` entries into shell-backed grader steps with macOS/Xcode capability metadata, isolated DerivedData or SwiftPM build paths, timeout defaults, and structured artifact metadata. |
+| `ecosystem.detect_prepare` | Detects root `Package.swift`, Xcode workspaces/projects, and Swift source layouts. It contributes `swift package resolve` only for root Swift packages; Xcode dependency resolution remains explicit because it needs the repository's workspace/project and scheme choice. |
+| `ecosystem.grader_types` | Expands `type: xcodebuild` and `type: swiftpm` entries into shell-backed grader steps with macOS/Xcode capability metadata, isolated DerivedData or SwiftPM build paths, timeout defaults, and structured artifact metadata. |
 
 ## Typed grader examples
 

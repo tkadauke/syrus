@@ -35,6 +35,21 @@ family registrations themselves.
 7. When the last plugin and caller have moved, delete the legacy extension
    points, adapters, bridge allowlist entries, and duplicate-report handling.
 
+## What the Ecosystem migration taught us
+
+- Move shared behavior that happened to live in a legacy interface module into
+  a family-owned helper before deleting the interface. Coverage-phase selection
+  was behavior used by providers, not part of registration validation.
+- Detection must declare its role in the family definition. A generic detector
+  cannot infer language support from capability names or from a legacy mapping
+  after the bridge disappears.
+- Removal needs a boot-isolation regression, not only registry assertions.
+  External plugins can lag behind core, so an obsolete declaration must become
+  a clear plugin-health finding while the host continues booting.
+- Generated catalogs prove structural freshness, but the handwritten authoring
+  guide still needs an explicit before/after migration example and reasons for
+  every capability that remains provisional.
+
 The architecture allowlists are deliberately explicit. Additions require a
 comment explaining why an existing migration still needs the entry; never add
 a wildcard or directory-wide exemption.

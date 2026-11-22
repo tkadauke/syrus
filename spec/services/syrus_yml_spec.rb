@@ -136,13 +136,9 @@ RSpec.describe SyrusYml do
 
   it "expands plugin-defined grader types" do
     provider = Class.new do
-      include Syrus::Plugin::GraderType
-
-      def self.type_name
-        "example"
-      end
-
-      def self.grade_steps(config:, default_failures:)
+      def self.grader_types(context)
+        config = context.config
+        default_failures = context.default_failures
         [
           SyrusYml::GradeStep.new(
             name: config["name"] || "example",
@@ -161,7 +157,7 @@ RSpec.describe SyrusYml do
         ]
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([ provider ])
+    register_ecosystem_provider(name: "example-grader", provider:, implements: %i[grader_types], key: :example)
 
     config = parse(<<~YAML)
       grade:
@@ -187,8 +183,6 @@ RSpec.describe SyrusYml do
   end
 
   it "rejects unknown plugin-defined grader types" do
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([])
-
     expect {
       parse(<<~YAML)
         grade:
@@ -1013,11 +1007,9 @@ RSpec.describe SyrusYml do
 
   it "does not default base_retry for a plugin-typed grader (the plugin owns its own base_retry decision)" do
     provider = Class.new do
-      include Syrus::Plugin::GraderType
-
-      def self.type_name = "example"
-
-      def self.grade_steps(config:, default_failures:)
+      def self.grader_types(context)
+        config = context.config
+        default_failures = context.default_failures
         [
           SyrusYml::GradeStep.new(
             name: config["name"] || "example",
@@ -1036,7 +1028,7 @@ RSpec.describe SyrusYml do
         ]
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([ provider ])
+    register_ecosystem_provider(name: "example-grader", provider:, implements: %i[grader_types], key: :example)
 
     config = parse(<<~YAML)
       grade:

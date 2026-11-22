@@ -8,11 +8,11 @@ remains the shared build-tool layer.
 
 ## What it provides
 
-| Extension point | What it does |
+| Contribution | What it does |
 |---|---|
-| `:prepare_detector` | Detects `.kt`, `.kts`, `build.gradle.kts`, `settings.gradle.kts`, Kotlin JVM Gradle plugin declarations, and conventional Kotlin source/test paths (`src/main/kotlin`, `src/test/kotlin`). It delegates concrete prepare commands to `Java::PrepareDetector`, so Gradle and Maven wrapper behavior stays centralized in the Java plugin. Kotlin Multiplatform and Kotlin native markers are intentionally skipped. |
-| `:prompt_injector` | Adds Kotlin/JVM guidance for implementation agents: prefer project Gradle wrappers, respect repository-declared JDK and Kotlin Gradle plugin versions, and keep KMP/native behavior out of the generic Kotlin path. |
-| `:review_criteria_provider` | Adds Kotlin/JVM review criteria for swallowed coroutine cancellation and unsafe null assertions at external boundaries. |
+| `ecosystem.detect_prepare` | Detects `.kt`, `.kts`, `build.gradle.kts`, `settings.gradle.kts`, Kotlin JVM Gradle plugin declarations, and conventional Kotlin source/test paths (`src/main/kotlin`, `src/test/kotlin`). It delegates concrete prepare commands to `Java::PrepareDetector`, so Gradle and Maven wrapper behavior stays centralized in the Java plugin. Kotlin Multiplatform and Kotlin native markers are intentionally skipped. |
+| `ecosystem.prompt_context` | Adds Kotlin/JVM guidance for implementation agents: prefer project Gradle wrappers, respect repository-declared JDK and Kotlin Gradle plugin versions, and keep KMP/native behavior out of the generic Kotlin path. |
+| `ecosystem.review_criteria` | Adds Kotlin/JVM review criteria for swallowed coroutine cancellation and unsafe null assertions at external boundaries. |
 
 ## Prepare behavior
 

@@ -2,8 +2,6 @@ require "shellwords"
 
 module Go
   class TestGraderType
-    include Syrus::Plugin::GraderType
-
     DEFAULT_TIMEOUT_MINUTES = 5
     DEFAULT_CHANGED_FILES = [
       "**/*.go",

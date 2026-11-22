@@ -7,23 +7,6 @@ RSpec.describe Ios::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "ios" }
     end
 
-    before do
-      unless Syrus::PluginRegistry.registered_names.include?("ios")
-        Syrus::PluginRegistry.register(
-          name:             "ios",
-          version:          Syrus::PluginApi.default_version,
-          description:      "iOS/Xcode grader support: typed xcodebuild and SwiftPM patterns with macOS capability requirements and isolated artifacts",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 48,
-          provides: {
-            prepare_detector: Ios::PrepareDetector,
-            grader_type: [ Ios::XcodebuildGraderType, Ios::SwiftpmGraderType ]
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end
@@ -38,11 +21,13 @@ RSpec.describe Ios::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "registers iOS grader types" do
-      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :grader_type)
-      expect(registration.provides[:prepare_detector]).to eq(Ios::PrepareDetector)
-      expect(registration.provides[:grader_type]).to eq([ Ios::XcodebuildGraderType, Ios::SwiftpmGraderType ])
-      expect(Syrus::PluginRegistry.providers_for(:grader_type)).to include(Ios::XcodebuildGraderType, Ios::SwiftpmGraderType)
+    it "registers its Ecosystem providers and none of the absorbed legacy points" do
+      expect(registration.provides).to be_empty
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] }).to contain_exactly(
+        [ "Ios::Ecosystem", %i[detect_prepare] ],
+        [ "Ios::XcodebuildEcosystem", %i[grader_types] ],
+        [ "Ios::SwiftpmEcosystem", %i[grader_types] ]
+      )
     end
   end
 

@@ -54,7 +54,10 @@ RSpec.describe IsolatedReproRecorder do
         "bundle exec rspec spec/foo_spec.rb -e 'does the thing'"
       end
     end
-    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:focused_test_command).and_return([ focused_provider ])
+    allow(Syrus::Plugin::Dispatch).to receive(:call).and_call_original
+    allow(Syrus::Plugin::Dispatch).to receive(:call)
+      .with(:ecosystem, :focused_tests, kind_of(Syrus::Plugin::Context::GraderContext))
+      .and_return("bundle exec rspec spec/foo_spec.rb -e 'does the thing'")
     result = ProcessRunner::Result.new(
       exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
       operator_killed: false, aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil

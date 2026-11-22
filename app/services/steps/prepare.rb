@@ -383,13 +383,9 @@ module Steps
     def mise_version_file?
       return true if UNIVERSAL_MISE_VERSION_FILES.any? { |f| workspace.path.join(f).exist? }
 
-      Syrus::PluginRegistry.providers_for(:prepare_detector).any? do |detector|
-        result = Syrus::PluginInvocation.call(
-          extension_point: :prepare_detector, provider: detector, operation: :mise_version_file, on_decline: nil
-        ) { detector.mise_version_file }
-        file = Syrus::PluginInvocation.value(result)
-        file.present? && workspace.path.join(file).exist?
-      end
+      context = Syrus::Plugin::Context::RepoContext.new(repo_path: workspace.path.to_s)
+      Syrus::Plugin::Dispatch.call(:ecosystem, :detect_prepare, context)
+        .any? { |plan| plan.version_file.present? && workspace.path.join(plan.version_file).exist? }
     end
 
     def run_mise_install

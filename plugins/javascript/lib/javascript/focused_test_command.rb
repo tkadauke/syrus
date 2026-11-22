@@ -2,8 +2,6 @@ require "shellwords"
 
 module JavaScript
   class FocusedTestCommand
-    include Syrus::Plugin::FocusedTestCommand
-
     TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?\z/.freeze
 
     def self.command_for(grader_name:, grader_command:, failed_cases:, base_retry:, project_path: nil)

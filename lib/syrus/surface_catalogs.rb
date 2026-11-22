@@ -122,7 +122,7 @@ module Syrus
       end
       sections = definitions.sort_by(&:name).map do |family|
         capability_rows = family.capabilities.values.sort_by(&:name).map do |capability|
-          "| `#{capability.name}` | `#{capability.composition}` | `#{capability.absent.inspect}` | `#{capability.tier}` | `#{context_label(capability.context)}` | `#{capability.return_contract.description}` |"
+          "| `#{capability.name}` | `#{capability.composition}` | `#{capability.absent.inspect}` | `#{capability.decline.inspect}` | `#{capability.tier}` | `#{context_label(capability.context)}` | `#{capability.return_contract.description}` |"
         end
         provider_rows = declarations.filter_map do |plugin, declaration|
           next unless declaration.family == family.name
@@ -135,13 +135,15 @@ module Syrus
 
           Shape: `#{family.shape}`. Required core: #{family.required_core.map { |name| "`#{name}`" }.join(", ")}.
 
-          | Capability | Composition | Absent behavior | Tier | Context | Return shape |
-          |---|---|---|---|---|---|
+          | Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+          |---|---|---|---|---|---|---|
           #{capability_rows.join("\n")}
+
+          For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
 
           | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
           |---|---|---|---|---|
-          #{provider_rows.presence || "| - | - | - | - | - |"}
+          #{provider_rows.any? ? provider_rows.join("\n") : "| - | - | - | - | - |"}
         MD
       end
       (<<~MD).sub(/\n+\z/, "\n")
@@ -153,7 +155,7 @@ module Syrus
         A stable capability requires at least two independent in-tree implementations
         and a generated contract test; all other capabilities are provisional.
 
-        #{sections.presence&.join("\n") || "No capability families are currently defined."}
+        #{sections.presence&.join("\n")&.rstrip || "No capability families are currently defined."}
       MD
     end
 

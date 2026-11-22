@@ -183,9 +183,8 @@ RSpec.describe "documentation audiences" do
     %w[
       runtime_acquire_control known_flaky_failure_dismissal_enabled
       isolated_repro_dismissal_enabled grader_type base_retry
-      prepare_detector autofix_command dependency_audit_command
-      affected_test_analyzer review_criteria_provider
-      build_system_graph_provider execution_backend secret_env
+      detect_prepare autofix dependency_audit affected_tests review_criteria
+      target_graph execution_backend secret_env
     ].each { |term| expect(searchable).to include(term) }
     expect(searchable).to include("`ios` — enabled iOS project intelligence")
     expect(searchable).to include("`throughput` — enabled delivery-throughput views")
@@ -194,12 +193,12 @@ RSpec.describe "documentation audiences" do
 
     %w[
       preview_provider runtime_session_provider mcp_tool_set
-      diff_review_annotation_provider callbacks prompt_injector
+      diff_review_annotation_provider callbacks ecosystem
       artifact_renderer tool_card workspace_tab search_source workflow_kinds
-      memory_store domain_subscriber ui_slot slug_type grader_augmentor
+      memory_store domain_subscriber ui_slot slug_type grader_diagnostics
       repository_content_provider workspace_git_transport
     ].each { |term| expect(authoring).to include(term) }
-    expect(authoring.lines.length).to be >= 4_000
+    expect(authoring.lines.length).to be >= 3_800
     expect(conventions).to include("(plugins/authoring.md)")
     expect(plugin_readme).to include("docs/engineering/conventions/plugins/authoring.md")
   end

@@ -8,29 +8,6 @@ RSpec.describe Kotlin::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "kotlin" }
     end
 
-    before do
-      # The after_initialize block runs once at boot; plugin_registry.rb resets
-      # the in-memory registry in test mode. Re-register here so examples see
-      # the manifest. Interface modules were included during after_initialize
-      # and are permanent on the classes.
-      unless Syrus::PluginRegistry.registered_names.include?("kotlin")
-        Syrus::PluginRegistry.register(
-          name:             "kotlin",
-          version:          Syrus::PluginApi.default_version,
-          description:      "Kotlin/JVM intelligence: Kotlin source and Gradle Kotlin DSL detection, JVM prepare reuse, and Kotlin-aware review guidance",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 46,
-          depends_on:       [ "java" ],
-          provides: {
-            prepare_detector:         Kotlin::PrepareDetector,
-            prompt_injector:          Kotlin::PromptContext,
-            review_criteria_provider: Kotlin::ReviewCriteriaProvider
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end
@@ -46,24 +23,11 @@ RSpec.describe Kotlin::Engine do
       expect(registration.depends_on).to eq([ "java" ])
     end
 
-    it "provides exactly the expected extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(
-        :prepare_detector,
-        :prompt_injector,
-        :review_criteria_provider
+    it "registers its Ecosystem provider and none of the absorbed legacy points" do
+      expect(registration.provides).to be_empty
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] }).to contain_exactly(
+        [ "Kotlin::Ecosystem", %i[detect_prepare prompt_context review_criteria] ]
       )
-    end
-
-    it "registers PrepareDetector as the :prepare_detector" do
-      expect(registration.provides[:prepare_detector]).to eq(Kotlin::PrepareDetector)
-    end
-
-    it "registers PromptContext as the :prompt_injector" do
-      expect(registration.provides[:prompt_injector]).to eq(Kotlin::PromptContext)
-    end
-
-    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
-      expect(registration.provides[:review_criteria_provider]).to eq(Kotlin::ReviewCriteriaProvider)
     end
   end
 

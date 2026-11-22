@@ -7,33 +7,6 @@ RSpec.describe Python::Engine do
       Syrus::PluginRegistry.all_plugins.find { |r| r.name == "python" }
     end
 
-    before do
-      # The after_initialize block runs once at boot; plugin_registry.rb resets
-      # the in-memory registry in test mode. Re-register here so examples see
-      # the manifest. Interface modules were included during after_initialize
-      # and are permanent on the classes.
-      unless Syrus::PluginRegistry.registered_names.include?("python")
-        Syrus::PluginRegistry.register(
-          name:             "python",
-          version:          Syrus::PluginApi.default_version,
-          description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
-                             "pytest JSON-report grader detail, venv/uv prompt reminder, " \
-                             "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
-          homepage:         "https://github.com/tkadauke/syrus",
-          category:         "language",
-          prepare_priority: 30,
-          provides: {
-            prepare_detector:         Python::PrepareDetector,
-            grader_augmentor:         Python::GraderAugmentor,
-            prompt_injector:          Python::PromptContext,
-            review_criteria_provider: Python::ReviewCriteriaProvider,
-            autofix_command:          [ Python::RuffFormatAutofix, Python::BlackAutofix ],
-            dependency_audit_command: Python::DependencyAuditCommand
-          }
-        )
-      end
-    end
-
     after do
       Syrus::PluginRegistry.reset!
     end
@@ -48,41 +21,13 @@ RSpec.describe Python::Engine do
       expect(registration.category).to eq("language")
     end
 
-    it "provides exactly the 6 extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(
-        :prepare_detector,
-        :grader_augmentor,
-        :prompt_injector,
-        :review_criteria_provider,
-        :autofix_command,
-        :dependency_audit_command
+    it "registers its Ecosystem providers and none of the absorbed legacy points" do
+      expect(registration.provides).to be_empty
+      expect(registration.family_provides.map { |entry| [ entry.provider, entry.capabilities ] }).to contain_exactly(
+        [ "Python::Ecosystem", %i[detect_prepare grader_diagnostics review_criteria prompt_context dependency_audit] ],
+        [ "Python::RuffEcosystem", %i[autofix] ],
+        [ "Python::BlackEcosystem", %i[autofix] ]
       )
-    end
-
-    it "registers RuffFormatAutofix and BlackAutofix as the :autofix_command providers" do
-      expect(registration.provides[:autofix_command]).to eq(
-        [ Python::RuffFormatAutofix, Python::BlackAutofix ]
-      )
-    end
-
-    it "registers DependencyAuditCommand as the :dependency_audit_command" do
-      expect(registration.provides[:dependency_audit_command]).to eq(Python::DependencyAuditCommand)
-    end
-
-    it "registers PrepareDetector as the :prepare_detector" do
-      expect(registration.provides[:prepare_detector]).to eq(Python::PrepareDetector)
-    end
-
-    it "registers GraderAugmentor as the :grader_augmentor" do
-      expect(registration.provides[:grader_augmentor]).to eq(Python::GraderAugmentor)
-    end
-
-    it "registers PromptContext as the :prompt_injector" do
-      expect(registration.provides[:prompt_injector]).to eq(Python::PromptContext)
-    end
-
-    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
-      expect(registration.provides[:review_criteria_provider]).to eq(Python::ReviewCriteriaProvider)
     end
   end
 

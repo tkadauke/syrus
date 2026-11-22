@@ -27,10 +27,6 @@ RSpec.describe SyrusRails::PromptContext do
     it "instructs the agent to call submit_artifact for migration changes" do
       expect(result).to include("rails_migration_diff")
     end
-
-    it "includes Syrus::Plugin::PromptInjector interface" do
-      expect(described_class.ancestors).to include(Syrus::Plugin::PromptInjector)
-    end
   end
 
   describe ".call" do

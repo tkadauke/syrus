@@ -27,13 +27,15 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     allow(WorkerCapabilities).to receive(:environment_fingerprint_metadata).and_return({})
 
     # RepoPrepPlan's Gemfile auto-detect signal now comes entirely from the
-    # `ruby` plugin's :prepare_detector (no more RepoPrepPlan::AUTO_DETECT
+    # `ruby` plugin's Ecosystem provider (no more RepoPrepPlan::AUTO_DETECT
     # fallback). Register the real bundled plugin, mirroring its engine.rb
     # manifest, so Gemfile-based specs below exercise production wiring.
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
       Syrus::PluginRegistry.register(
         name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-        provides: { prepare_detector: Ruby::PrepareDetector }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare]
+        ) ]
       )
     end
   end
@@ -187,7 +189,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     handler.call
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("source: auto-detect (Ruby::PrepareDetector)")
+    expect(chunks).to include("source: auto-detect (Ruby)")
     expect(chunks).to include("[stub-ran] bundle install")
   end
 
@@ -342,7 +344,7 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
     expect(step.reload.details["prepare_failure"]).to eq(failure)
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("source: auto-detect (Ruby::PrepareDetector)")
+    expect(chunks).to include("source: auto-detect (Ruby)")
     expect(chunks).to include("WARNING (guessed command, non-fatal)")
     expect(chunks).to include("handing off to the agent without it")
     # The success line must NOT print — setup did not complete.
@@ -561,11 +563,11 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
       end
     end
 
-    it "detects a universal version file with zero :prepare_detector plugins registered" do
+    it "detects a universal version file with zero Ecosystem prepare providers registered" do
       Syrus::PluginRegistry.reset!
       # reset! wipes every registered plugin, including the agent_provider
       # plugins the global support hook pre-registers — but this test only
-      # cares about zero :prepare_detector providers. Re-register just the
+      # cares about zero Ecosystem prepare providers. Re-register just the
       # agent_provider Steps::Prepare's plugin detection now writes a
       # workflow artifact on every run, which re-validates the whole record
       # (including the pre-existing "claude" agent_provider against
@@ -583,21 +585,27 @@ RSpec.describe Steps::Prepare, requires_plugin: %w[ruby javascript python go] do
         unless Syrus::PluginRegistry.registered_names.include?("javascript")
           Syrus::PluginRegistry.register(
             name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
-            provides: { prepare_detector: JavaScript::PrepareDetector }
+            family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+              family: :ecosystem, provider: "JavaScript::Ecosystem", implements: %i[detect_prepare]
+            ) ]
           )
         end
 
         unless Syrus::PluginRegistry.registered_names.include?("python")
           Syrus::PluginRegistry.register(
             name: "python", version: Syrus::PluginApi.default_version, prepare_priority: 30,
-            provides: { prepare_detector: Python::PrepareDetector }
+            family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+              family: :ecosystem, provider: "Python::Ecosystem", implements: %i[detect_prepare]
+            ) ]
           )
         end
 
         unless Syrus::PluginRegistry.registered_names.include?("go")
           Syrus::PluginRegistry.register(
             name: "go", version: Syrus::PluginApi.default_version, prepare_priority: 40,
-            provides: { prepare_detector: Go::PrepareDetector }
+            family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+              family: :ecosystem, provider: "Go::Ecosystem", implements: %i[detect_prepare]
+            ) ]
           )
         end
       end

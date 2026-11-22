@@ -69,28 +69,20 @@ module App
     end
 
     def diff_review_file_pattern_provider_patterns
-      Syrus::PluginRegistry.providers_for(:diff_review_file_pattern_provider).flat_map do |provider|
-        result = Syrus::PluginInvocation.call(
-          extension_point: :diff_review_file_pattern_provider, provider:, operation: :diff_review_file_patterns, on_decline: []
-        ) { provider.diff_review_file_patterns }
-        Array(Syrus::PluginInvocation.value(result)).filter_map do |entry|
+      context = Syrus::Plugin::Context::RepoContext.new(repo_path: nil, repository:)
+      Syrus::Plugin::Dispatch.call(:ecosystem, :review_file_patterns, context).filter_map do |entry|
           attrs = entry.respond_to?(:to_h) ? entry.to_h.with_indifferent_access : {}
           glob = attrs[:glob].to_s.strip
           next if glob.blank?
 
-          Pattern.new(glob, attrs[:reason].presence || "generated file", attrs[:source].presence || provider_source(provider))
-        end
+          Pattern.new(glob, attrs[:reason].presence || "generated file", attrs[:source].presence || "plugin")
       end
     end
 
     def plugin_lockfile_patterns
-      Syrus::PluginRegistry.providers_for(:dependency_audit_command).flat_map do |provider|
-        next [] unless provider.respond_to?(:lockfiles)
-
-        result = Syrus::PluginInvocation.call(
-          extension_point: :dependency_audit_command, provider:, operation: :lockfiles, on_decline: []
-        ) { provider.lockfiles }
-        Array(Syrus::PluginInvocation.value(result)).map { |glob| Pattern.new(glob, "lockfile", "dependency_audit") }
+      context = Syrus::Plugin::Context::WorkspaceContext.new(workspace_path: nil)
+      Syrus::Plugin::Dispatch.call(:ecosystem, :dependency_audit, context).flat_map do |plan|
+        plan.lockfiles.map { |glob| Pattern.new(glob, "lockfile", "dependency_audit") }
       end
     end
 
@@ -110,10 +102,6 @@ module App
 
     def normalize_path(path)
       path.to_s.delete_prefix("./").delete_prefix("/")
-    end
-
-    def provider_source(provider)
-      provider.respond_to?(:name) ? provider.name.presence || "plugin" : provider.class.name.presence || "plugin"
     end
   end
 end

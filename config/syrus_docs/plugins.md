@@ -344,8 +344,8 @@ focused retry is formed:
 
 ### Prepare detection
 
-When `.syrus.yml` has no explicit `prepare:`, each enabled `prepare_detector`
-plugin inspects the repository and contributes setup commands. Typical
+When `.syrus.yml` has no explicit `prepare:`, enabled Ecosystem providers with
+the `detect_prepare` capability inspect the repository and contribute setup commands. Typical
 detections include Ruby
 Bundler, JavaScript package managers, Python uv/Poetry/pip, Go modules, and JVM
 Gradle or Maven wrappers. Commands run in priority order and identical commands
@@ -354,16 +354,16 @@ installed through mise before setup. `prepare: []` or `prepare: false` opts out.
 
 ### Autofix, audits, affected tests, and review criteria
 
-`autofix_command` lets ecosystems contribute formatters or safe autofixes.
+The Ecosystem family's `autofix` capability contributes formatters or safe autofixes.
 Setting `formatters: []` opts into all applicable plugin defaults; an autofix
-failure is reported but does not fail implementation. `dependency_audit_command`
-adds ecosystem vulnerability checks. `affected_test_analyzer` expands changed
-files into likely affected tests. `review_criteria_provider` seeds relevant
+failure is reported but does not fail implementation. `dependency_audit`
+adds ecosystem vulnerability checks. `affected_tests` expands changed
+files into likely affected tests. `review_criteria` seeds relevant
 repository review criteria without overriding repository configuration.
 
 ### Build-system imports
 
-A `build_system_graph_provider` may import targets into `target_graph.imports`:
+An Ecosystem provider implementing `target_graph` may import targets into `target_graph.imports`:
 
 ```yaml
 target_graph:

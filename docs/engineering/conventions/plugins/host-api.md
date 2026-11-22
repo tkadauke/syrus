@@ -214,6 +214,45 @@ Supported members:
 
 - `read`
 
+### `Syrus::Host::EcosystemDependencyAuditPlan`
+
+Since: `0.1.16`
+
+Carries one ecosystem's immutable dependency-audit lockfiles and command. Only the listed members are supported.
+
+Supported members:
+
+- `command`
+- `label`
+- `lockfiles`
+- `new`
+
+### `Syrus::Host::EcosystemGraderCoverage`
+
+Since: `0.1.16`
+
+Shares the supported coverage-phase decision used by Ecosystem grader-type providers. Only the listed members are supported.
+
+Supported members:
+
+- `coverage_for_phases?`
+
+### `Syrus::Host::EcosystemPreparePlan`
+
+Since: `0.1.16`
+
+Carries one ecosystem's immutable repository detection and preparation answer. Only the listed members are supported.
+
+Supported members:
+
+- `commands`
+- `detected`
+- `detected?`
+- `label`
+- `new`
+- `span_labels`
+- `version_file`
+
 ### `Syrus::Host::ExternalReviewArtifact`
 
 Since: `0.1.16`
@@ -427,6 +466,7 @@ Registers manifests and reads extension providers; reset, health, and cache inte
 
 Supported members:
 
+- `capability_providers`
 - `extension_point?`
 - `providers_for`
 - `register`
@@ -976,11 +1016,8 @@ external plugins. Migrate to a public `Syrus::Host` facade instead.
 - `Syrus::Plugin::DiffReviewAnnotationProvider`
 - `Syrus::Plugin::DomainSubscriber`
 - `Syrus::Plugin::ExecutionBackend`
-- `Syrus::Plugin::FocusedTestCommand`
 - `Syrus::Plugin::GatedToolSet`
-- `Syrus::Plugin::GradeDetector`
 - `Syrus::Plugin::GraderFailureSummarizer`
-- `Syrus::Plugin::GraderType`
 - `Syrus::Plugin::InputSource`
 - `Syrus::Plugin::JobOrigin`
 - `Syrus::Plugin::JobVisibilityRestriction`

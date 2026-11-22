@@ -6,12 +6,12 @@ It is default-ON, disableable, category `language`, `prepare_priority: 45`.
 
 ## What it provides
 
-| Extension point | What it does |
+| Contribution | What it does |
 |---|---|
-| `:prepare_detector` | Detects Gradle files (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradlew`), Maven files (`pom.xml`, `mvnw`, `.mvn/wrapper/maven-wrapper.properties`), and conventional Java source/test paths (`src/main/java`, `src/test/java`). Gradle wins when both Gradle and Maven signals are present. Wrapper commands are preferred over system tools. Source-only Java layouts are detectable but do not add a prepare command. Also declares `.java-version` as the `mise` version file and labels common Gradle, Maven, `java -version`, and `javac` command spans for worker-health diagnostics. |
-| `:grader_type` | Expands `type: gradle` and `type: maven` into wrapper-aware test graders with Java/JVM file scopes, framework/mode metadata, and single-file JUnit aggregation for standard Gradle/Maven XML report directories. |
-| `:prompt_injector` | Reminds implementing agents to use project wrappers and repository-declared JDK versions instead of assuming the system JDK is correct. |
-| `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag swallowed InterruptedException without restoring interrupt status" — when a generic Java/JVM signal is present. |
+| `ecosystem.detect_prepare` | Detects Gradle files (`build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradlew`), Maven files (`pom.xml`, `mvnw`, `.mvn/wrapper/maven-wrapper.properties`), and conventional Java source/test paths (`src/main/java`, `src/test/java`). Gradle wins when both Gradle and Maven signals are present. Wrapper commands are preferred over system tools. Source-only Java layouts are detectable but do not add a prepare command. Also declares `.java-version` as the `mise` version file and labels common Gradle, Maven, `java -version`, and `javac` command spans for worker-health diagnostics. |
+| `ecosystem.grader_types` | Expands `type: gradle` and `type: maven` into wrapper-aware test graders with Java/JVM file scopes, framework/mode metadata, and single-file JUnit aggregation for standard Gradle/Maven XML report directories. |
+| `ecosystem.prompt_context` | Reminds implementing agents to use project wrappers and repository-declared JDK versions instead of assuming the system JDK is correct. |
+| `ecosystem.review_criteria` | Seeds a default adversarial-review checklist item — "Flag swallowed InterruptedException without restoring interrupt status" — when a generic Java/JVM signal is present. |
 
 ## Prepare behavior
 

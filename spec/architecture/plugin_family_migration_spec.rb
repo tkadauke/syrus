@@ -8,26 +8,9 @@ RSpec.describe "Plugin family migration architecture" do
     build_system_graph_provider
   ].freeze
 
-  # Existing registrations may shrink as plugins migrate. New files must never
-  # be added here; new implementations use the family declaration instead.
-  LEGACY_REGISTRATION_ALLOWLIST = {
-    prepare_detector: %w[go ios java javascript kotlin python ruby],
-    grade_detector: %w[javascript ruby],
-    grader_type: %w[go ios java javascript ruby],
-    grader_augmentor: %w[javascript python ruby],
-    review_criteria_provider: %w[go java javascript kotlin python ruby],
-    autofix_command: %w[go javascript python ruby],
-    dependency_audit_command: %w[go javascript python ruby],
-    focused_test_command: %w[javascript ruby],
-    coverage_analyzer: %w[go ruby],
-    affected_test_analyzer: %w[ruby],
-    ci_log_parser: [], prompt_injector: %w[java kotlin python rails],
-    diff_review_file_pattern_provider: [], build_system_graph_provider: []
-  }.freeze
-
   # Add a family only after all core callers use Dispatch; entries map the
   # family to every absorbed point so the assertion cannot silently narrow.
-  MIGRATED_FAMILIES = {}.freeze
+  DISPATCHED_FAMILIES = { ecosystem: ECOSYSTEM_POINTS }.freeze
 
   def registrations_in(source, point)
     source.scan(/\b#{Regexp.escape(point.to_s)}\s*:/).length
@@ -39,7 +22,7 @@ RSpec.describe "Plugin family migration architecture" do
     end
   end
 
-  it "allows no new legacy registrations for points absorbed by Ecosystem" do
+  it "allows no bundled plugin to register a legacy point absorbed by Ecosystem" do
     actual = ECOSYSTEM_POINTS.to_h do |point|
       plugins = Dir["plugins/*/lib/*.rb"].filter_map do |path|
         File.basename(File.dirname(File.dirname(path))) if registrations_in(File.read(path), point).positive?
@@ -47,19 +30,38 @@ RSpec.describe "Plugin family migration architecture" do
       [ point, plugins.sort ]
     end
 
-    expect(actual).to eq(LEGACY_REGISTRATION_ALLOWLIST.transform_values(&:sort))
+    expect(actual).to eq(ECOSYSTEM_POINTS.index_with { [] })
   end
 
-  it "demonstrates that a new legacy-registration fixture fails the allowlist" do
+  it "keeps bundled plugin documentation off removed Ecosystem point names" do
+    violations = Dir["plugins/**/*.{md,markdown}"].flat_map do |path|
+      source = File.read(path)
+      ECOSYSTEM_POINTS.filter_map do |point|
+        "#{path}: :#{point}" if source.match?(/:#{Regexp.escape(point.to_s)}\b/)
+      end
+    end
+
+    expect(violations).to be_empty
+  end
+
+  it "marks Ecosystem as migrated without a legacy bridge" do
+    definition = Syrus::Plugin::Family.fetch(:ecosystem)
+
+    expect(definition.legacy_mappings).to be_empty
+    expect(definition).to be_migrated
+    expect(Syrus::PluginRegistry::EXTENSION_POINTS & ECOSYSTEM_POINTS).to be_empty
+  end
+
+  it "detects a legacy registration in a manifest fixture" do
     fixture = "provides prepare_detector: NewLanguage::Prepare"
     expect(registrations_in(fixture, :prepare_detector)).to eq(1)
-    expect(LEGACY_REGISTRATION_ALLOWLIST[:prepare_detector]).not_to include("new_language")
+    expect(ECOSYSTEM_POINTS).to include(:prepare_detector)
   end
 
-  it "keeps migrated-family core callers off legacy registry lookups" do
+  it "keeps dispatched-family core callers off legacy registry lookups" do
     core = Dir["{app,lib}/**/*.rb"].to_h { |path| [ path, File.read(path) ] }
     violations = core.flat_map do |path, source|
-      forbidden_migrated_lookups(source, MIGRATED_FAMILIES).map { |family, point| "#{path}: #{family}/#{point}" }
+      forbidden_migrated_lookups(source, DISPATCHED_FAMILIES).map { |family, point| "#{path}: #{family}/#{point}" }
     end
     expect(violations).to be_empty
   end

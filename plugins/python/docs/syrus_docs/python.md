@@ -10,14 +10,14 @@ migrations, fixture seeding) lives in the separate `django` plugin, which
 
 ## What it provides
 
-| Extension point | What it does |
+| Contribution | What it does |
 |---|---|
-| `:prepare_detector` | Detects a Python package-manager signal at the repo root and contributes exactly one install command, in priority order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`, `requirements.txt` → `pip install -r requirements.txt`, else bare `pyproject.toml` → `pip install -e .` (`prepare_priority: 30`). Also declares `.python-version` as the `mise` version file used to select the Python toolchain version, and labels `pytest`/`ruff`/`mypy` command spans for worker-health diagnostics. |
-| `:grader_augmentor` | Reads pytest's [pytest-json-report](https://pypi.org/project/pytest-json-report/) output under `.syrus/pytest-json/*.json` and appends compact `FAILED: test_name — message` lines to a failed grader's log when the grader command contains `"pytest"`. Tolerates a partially-written/corrupt JSON file by skipping it rather than failing the whole augmentation. |
-| `:prompt_injector` | Light, unconditional reminder to the implementing agent to activate/use a virtual environment or dependency-manager run-prefix (`.venv`, `uv run`, `poetry run`) instead of assuming a global interpreter has the right packages installed. |
-| `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag missing type hints on new public functions" — when a Python package-manager signal is present (same signal as `:prepare_detector`). |
-| `:autofix_command` | Two providers: `Python::RuffFormatAutofix` runs `ruff format .`, gated on a `.ruff.toml`/`ruff.toml` file or a `[tool.ruff]` table in `pyproject.toml`; `Python::BlackAutofix` runs `black .`, gated on a `[tool.black]` table in `pyproject.toml` (black has no standalone config file convention). Either, both, or neither can apply depending on repo config. |
-| `:dependency_audit_command` | Runs `pip-audit` when `uv.lock`, `poetry.lock`, or `requirements.txt` is present. A bare `pyproject.toml` with no lockfile is excluded — there is nothing pinned for `pip-audit` to check. |
+| `ecosystem.detect_prepare` | Detects a Python package-manager signal at the repo root and contributes exactly one install command, in priority order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`, `requirements.txt` → `pip install -r requirements.txt`, else bare `pyproject.toml` → `pip install -e .` (`prepare_priority: 30`). Also declares `.python-version` as the `mise` version file used to select the Python toolchain version, and labels `pytest`/`ruff`/`mypy` command spans for worker-health diagnostics. |
+| `ecosystem.grader_diagnostics` | Reads pytest's [pytest-json-report](https://pypi.org/project/pytest-json-report/) output under `.syrus/pytest-json/*.json` and appends compact `FAILED: test_name — message` lines to a failed grader's log when the grader command contains `"pytest"`. Tolerates a partially-written/corrupt JSON file by skipping it rather than failing the whole augmentation. |
+| `ecosystem.prompt_context` | Light, unconditional reminder to the implementing agent to activate/use a virtual environment or dependency-manager run-prefix (`.venv`, `uv run`, `poetry run`) instead of assuming a global interpreter has the right packages installed. |
+| `ecosystem.review_criteria` | Seeds a default adversarial-review checklist item — "Flag missing type hints on new public functions" — when a Python package-manager signal is present (same signal as `ecosystem.detect_prepare`). |
+| `ecosystem.autofix` | Two providers: `Python::RuffFormatAutofix` runs `ruff format .`, gated on a `.ruff.toml`/`ruff.toml` file or a `[tool.ruff]` table in `pyproject.toml`; `Python::BlackAutofix` runs `black .`, gated on a `[tool.black]` table in `pyproject.toml` (black has no standalone config file convention). Either, both, or neither can apply depending on repo config. |
+| `ecosystem.dependency_audit` | Runs `pip-audit` when `uv.lock`, `poetry.lock`, or `requirements.txt` is present. A bare `pyproject.toml` with no lockfile is excluded — there is nothing pinned for `pip-audit` to check. |
 
 ## Self-suggestion
 
@@ -39,7 +39,7 @@ graders:
 
 ## What this plugin intentionally does NOT provide
 
-No custom `:test_result_parser` or `:coverage_analyzer`. Core already handles
+No custom `:test_result_parser` or `ecosystem.analyze_coverage`. Core already handles
 the common cases:
 
 - `pytest --junitxml=<path>` output is parsed by core's `JunitXmlParser`

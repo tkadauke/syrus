@@ -71,12 +71,9 @@ class RepoGradeSignals
   end
 
   def plugin_candidates
-    Syrus::PluginRegistry.providers_for(:grade_detector).flat_map do |provider|
-      result = Syrus::PluginInvocation.call(
-        extension_point: :grade_detector, provider:, operation: :grade_candidates, on_decline: []
-      ) { provider.grade_candidates(@path) }
-      Array(Syrus::PluginInvocation.value(result)).map { |candidate| normalize_candidate(candidate) }
-    end.compact
+    context = Syrus::Plugin::Context::RepoContext.new(repo_path: @path)
+    Syrus::Plugin::Dispatch.call(:ecosystem, :grade_candidates, context)
+      .map { |candidate| normalize_candidate(candidate) }.compact
   end
 
   def normalize_candidate(raw)

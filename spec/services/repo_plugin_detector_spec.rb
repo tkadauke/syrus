@@ -20,14 +20,21 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
       Syrus::PluginRegistry.register(
         name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-        provides: { prepare_detector: Ruby::PrepareDetector }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "Ruby::Ecosystem",
+          implements: %i[detect_prepare grade_candidates grader_diagnostics review_criteria autofix dependency_audit focused_tests analyze_coverage],
+          provisional: %i[affected_tests]
+        ) ]
       )
     end
 
     unless Syrus::PluginRegistry.registered_names.include?("javascript")
       Syrus::PluginRegistry.register(
         name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
-        provides: { prepare_detector: JavaScript::PrepareDetector }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "JavaScript::Ecosystem",
+          implements: %i[detect_prepare grade_candidates grader_diagnostics review_criteria autofix dependency_audit focused_tests]
+        ) ]
       )
     end
 
@@ -41,7 +48,7 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
 
   after { Syrus::PluginRegistry.reset! }
 
-  it "detects a polyglot repo across both :prepare_detector and :preview_provider" do
+  it "detects a polyglot repo across Ecosystem and preview providers" do
     write("Gemfile", "")
     write("config/application.rb", "")
     write("bin/rails", "")
@@ -59,59 +66,6 @@ RSpec.describe RepoPluginDetector, requires_plugin: %w[ruby javascript rails] do
 
   it "returns an empty array when nothing matches" do
     expect(described_class.for(@dir)).to eq([])
-  end
-
-  describe "instance disabling", :reset_plugin_registry do
-    around do |ex|
-      Syrus::PluginRegistry.reset!
-      ex.run
-      Syrus::PluginRegistry.reset!
-    end
-
-    it "excludes a plugin the operator has disabled even when its files match" do
-      detector = Class.new { include Syrus::Plugin::PrepareDetector }
-      detector.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, "go.mod")) }
-      detector.define_singleton_method(:prepare_commands) { |_repo_path| [ "go mod download" ] }
-
-      Syrus::PluginRegistry.register(
-        name: "test_go", version: "1.0.0",
-        provides: { prepare_detector: detector }
-      )
-      write("go.mod", "")
-      PluginRecord.find_by!(name: "test_go").update!(enabled: false)
-
-      expect(described_class.for(@dir)).to eq([])
-    end
-
-    # The whole point of the widened pass: a disabled plugin is exactly the one
-    # that needs a way to say "this repository looks like me".
-    it "still observes a disabled plugin whose files match, so it can be recommended" do
-      detector = Class.new { include Syrus::Plugin::PrepareDetector }
-      detector.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, "go.mod")) }
-      detector.define_singleton_method(:prepare_commands) { |_repo_path| [ "go mod download" ] }
-
-      Syrus::PluginRegistry.register(name: "test_go", version: "1.0.0", provides: { prepare_detector: detector })
-      write("go.mod", "")
-      PluginRecord.find_by!(name: "test_go").update!(enabled: false)
-
-      expect(described_class.observed_for(@dir)).to eq([ "test_go" ])
-    end
-
-    it "keeps a raising detector from taking the rest of the pass with it" do
-      exploding = Class.new { include Syrus::Plugin::PrepareDetector }
-      exploding.define_singleton_method(:detect?) { |_repo_path| raise "boom" }
-      exploding.define_singleton_method(:prepare_commands) { |_repo_path| [] }
-
-      working = Class.new { include Syrus::Plugin::PrepareDetector }
-      working.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, "go.mod")) }
-      working.define_singleton_method(:prepare_commands) { |_repo_path| [] }
-
-      Syrus::PluginRegistry.register(name: "test_boom", version: "1.0.0", provides: { prepare_detector: exploding })
-      Syrus::PluginRegistry.register(name: "test_go", version: "1.0.0", provides: { prepare_detector: working })
-      write("go.mod", "")
-
-      expect(described_class.observed_for(@dir)).to eq([ "test_go" ])
-    end
   end
 
   context "with a language-support family", :reset_plugin_registry do

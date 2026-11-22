@@ -9,14 +9,18 @@ RSpec.describe GraderCommandSpans::Plan, requires_plugin: %w[ruby javascript] do
     unless Syrus::PluginRegistry.registered_names.include?("ruby")
       Syrus::PluginRegistry.register(
         name: "ruby", version: Syrus::PluginApi.default_version, prepare_priority: 10,
-        provides: { prepare_detector: Ruby::PrepareDetector }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "Ruby::Ecosystem", implements: %i[detect_prepare]
+        ) ]
       )
     end
 
     unless Syrus::PluginRegistry.registered_names.include?("javascript")
       Syrus::PluginRegistry.register(
         name: "javascript", version: Syrus::PluginApi.default_version, prepare_priority: 20,
-        provides: { prepare_detector: JavaScript::PrepareDetector }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "JavaScript::Ecosystem", implements: %i[detect_prepare]
+        ) ]
       )
     end
   end
@@ -62,16 +66,15 @@ RSpec.describe GraderCommandSpans::Plan, requires_plugin: %w[ruby javascript] do
   describe "plugin-contributed span_labels" do
     def register_detector(plugin_name:, span_labels:, prepare_priority: 100)
       detector = Class.new do
-        include Syrus::Plugin::PrepareDetector
+        define_singleton_method(:key) { plugin_name.to_sym }
+        define_singleton_method(:display_name) { plugin_name }
       end
-      detector.define_singleton_method(:detect?) { |_repo_path| false }
-      detector.define_singleton_method(:prepare_commands) { |_repo_path| [] }
-      detector.define_singleton_method(:span_labels) { span_labels }
-
-      Syrus::PluginRegistry.register(
-        name: plugin_name, version: "1.0.0", prepare_priority: prepare_priority,
-        provides: { prepare_detector: detector }
-      )
+      detector.define_singleton_method(:detect_prepare) do |_context|
+        [ Syrus::Host::EcosystemPreparePlan.new(detected: false, commands: [], version_file: nil,
+          span_labels:, label: plugin_name) ]
+      end
+      register_ecosystem_provider(name: plugin_name, provider: detector, implements: %i[detect_prepare],
+        prepare_priority:)
     end
 
     it "uses a plugin's span_labels to name a sub-command" do

@@ -4,12 +4,12 @@
 
 ## What it provides
 
-| Extension point | What it does |
+| Contribution | What it does |
 |---|---|
-| `:prepare_detector` | Detects `go.mod` at the repo root and contributes `GOWORK=off go mod download` (`prepare_priority: 40`). Go modules have a single package-manifest signal, unlike `javascript`/`python`'s multi-lockfile priority lists. |
-| `:grader_type` | Expands `type: go-test` into a `go test ./...` grader. Nested project configs can set `path: cli` (or another module directory) and Syrus runs the command from the repository root with the correct `cd`. |
-| `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag swallowed errors (`_ = err`)" — when `go.mod` is present (same signal as `:prepare_detector`). |
-| `:coverage_analyzer` | Parses native `go test -coverprofile` output into repository and changed-line coverage without converter tools. |
+| `ecosystem.detect_prepare` | Detects `go.mod` at the repo root and contributes `GOWORK=off go mod download` (`prepare_priority: 40`). Go modules have a single package-manifest signal, unlike `javascript`/`python`'s multi-lockfile priority lists. |
+| `ecosystem.grader_types` | Expands `type: go-test` into a `go test ./...` grader. Nested project configs can set `path: cli` (or another module directory) and Syrus runs the command from the repository root with the correct `cd`. |
+| `ecosystem.review_criteria` | Seeds a default adversarial-review checklist item — "Flag swallowed errors (`_ = err`)" — when `go.mod` is present (same signal as `ecosystem.detect_prepare`). |
+| `ecosystem.analyze_coverage` | Parses native `go test -coverprofile` output into repository and changed-line coverage without converter tools. |
 
 ### What this plugin intentionally does NOT provide
 

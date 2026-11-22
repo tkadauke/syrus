@@ -14,7 +14,7 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
   let(:handler) { described_class.new(run) }
 
   # These examples exercise Steps::CoverageAnalyze's built-in parsing. The
-  # bundled `ruby` and `go` plugins also provide a :coverage_analyzer and are
+  # bundled `ruby` and `go` plugins also provide `analyze_coverage` and are
   # consulted first, so disable them here; the extension-point context below
   # covers the plugin path explicitly.
   before do
@@ -685,9 +685,8 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
   context "coverage_analyzer plugin extension point" do
     def coverage_analyzer_provider(callable)
       Class.new do
-        include Syrus::Plugin::CoverageAnalyzer
-        define_singleton_method(:call) do |artifact_path:, format_hint: nil|
-          callable.call(artifact_path: artifact_path, format_hint: format_hint)
+        define_singleton_method(:analyze_coverage) do |context|
+          callable.call(artifact_path: context.artifact_path, format_hint: context.format_hint)
         end
       end
     end
@@ -723,10 +722,8 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
 
       before do
         allow(plugin).to receive(:call).and_return(nil)
-        Syrus::PluginRegistry.register(
-          name: "nil_coverage_plugin", version: "1.0.0",
-          provides: { coverage_analyzer: coverage_analyzer_provider(plugin) }
-        )
+        register_ecosystem_provider(name: "nil_coverage_plugin", provider: coverage_analyzer_provider(plugin),
+          implements: %i[analyze_coverage])
       end
 
       it "tries the registered plugin before built-in detection" do
@@ -750,10 +747,8 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
 
       before do
         allow(plugin).to receive(:call).and_return(parse_result)
-        Syrus::PluginRegistry.register(
-          name: "result_coverage_plugin", version: "1.0.0",
-          provides: { coverage_analyzer: coverage_analyzer_provider(plugin) }
-        )
+        register_ecosystem_provider(name: "result_coverage_plugin", provider: coverage_analyzer_provider(plugin),
+          implements: %i[analyze_coverage])
       end
 
       it "uses the plugin result without calling the built-in parser" do
@@ -771,14 +766,10 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
       before do
         allow(first_plugin).to receive(:call).and_return(nil)
         allow(second_plugin).to receive(:call).and_return(parse_result)
-        Syrus::PluginRegistry.register(
-          name: "first_coverage_plugin", version: "1.0.0",
-          provides: { coverage_analyzer: coverage_analyzer_provider(first_plugin) }
-        )
-        Syrus::PluginRegistry.register(
-          name: "second_coverage_plugin", version: "1.0.0",
-          provides: { coverage_analyzer: coverage_analyzer_provider(second_plugin) }
-        )
+        register_ecosystem_provider(name: "first_coverage_plugin", provider: coverage_analyzer_provider(first_plugin),
+          implements: %i[analyze_coverage])
+        register_ecosystem_provider(name: "second_coverage_plugin", provider: coverage_analyzer_provider(second_plugin),
+          implements: %i[analyze_coverage])
       end
 
       it "tries plugins in registration order and uses the first non-nil result" do
@@ -791,7 +782,7 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
 
     context "when no plugins are registered (unregistered format fallback)" do
       it "works via built-in lcov fallback without any registered plugins" do
-        expect(Syrus::PluginRegistry.providers_for(:coverage_analyzer)).to be_empty
+        expect(Syrus::PluginRegistry.capability_providers(:ecosystem, :analyze_coverage)).to be_empty
         handler.call
         artifact = workflow.reload.artifact("coverage")
         expect(artifact["summary"]["lines_pct"]).to eq(66.67)
@@ -826,7 +817,9 @@ RSpec.describe Steps::CoverageAnalyze, :ci_only do
       )
       Syrus::PluginRegistry.register(
         name: "go_coverage_integration", version: "1.0.0",
-        provides: { coverage_analyzer: Go::CoverageAnalyzer }
+        family_provides: [ Syrus::Plugin::FamilyDeclaration.build(
+          family: :ecosystem, provider: "Go::Ecosystem", implements: %i[analyze_coverage]
+        ) ]
       )
     end
 

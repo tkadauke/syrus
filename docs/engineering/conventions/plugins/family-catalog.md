@@ -6,13 +6,60 @@ Families are defined by core and implementations are read from plugin manifests.
 A stable capability requires at least two independent in-tree implementations
 and a generated contract test; all other capabilities are provisional.
 
+## `ecosystem`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `affected_tests` | `collect` | `[]` | `nil` | `provisional` | `Syrus::Plugin::Context::WorkspaceContext` | `Array or NilClass` |
+| `analyze_coverage` | `first_claim` | `nil` | `nil` | `stable` | `Syrus::Plugin::Context::WorkspaceContext` | `Object` |
+| `autofix` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::WorkspaceContext` | `String or NilClass` |
+| `dependency_audit` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::WorkspaceContext` | `Syrus::Plugin::Ecosystem::DependencyAuditPlan or NilClass` |
+| `detect_prepare` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::RepoContext` | `Array<PreparePlan>` |
+| `focused_tests` | `first_claim` | `nil` | `nil` | `stable` | `Syrus::Plugin::Context::GraderContext` | `String or NilClass` |
+| `grade_candidates` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::RepoContext` | `Array` |
+| `grader_diagnostics` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::GraderContext` | `Array or NilClass` |
+| `grader_types` | `keyed` | `:configuration_error` | `nil` | `stable` | `Syrus::Plugin::Context::GraderContext` | `Array` |
+| `parse_ci_log` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::Context::GraderContext` | `Hash with parser, error_summary, and error_block, or nil` |
+| `prompt_context` | `collect` | `[]` | `nil` | `stable` | `Syrus::Plugin::Context::JobContext` | `String or NilClass` |
+| `review_criteria` | `collect` | `[]` | `[]` | `stable` | `Syrus::Plugin::Context::RepoContext` | `Array` |
+| `review_file_patterns` | `collect` | `[]` | `[]` | `provisional` | `Syrus::Plugin::Context::RepoContext` | `Array<String or Hash>` |
+| `target_graph` | `keyed` | `:configuration_error` | `nil` | `provisional` | `Syrus::Plugin::Context::RepoContext` | `Object` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| `go` | `Go::Ecosystem` | - | `detect_prepare`, `review_criteria`, `autofix`, `dependency_audit`, `analyze_coverage` | - |
+| `go` | `Go::TestEcosystem` | `go-test` | `grader_types` | - |
+| `ios` | `Ios::Ecosystem` | - | `detect_prepare` | - |
+| `ios` | `Ios::SwiftpmEcosystem` | `swiftpm` | `grader_types` | - |
+| `ios` | `Ios::XcodebuildEcosystem` | `xcodebuild` | `grader_types` | - |
+| `java` | `Java::Ecosystem` | - | `detect_prepare`, `prompt_context`, `review_criteria` | - |
+| `java` | `Java::GradleEcosystem` | `gradle` | `grader_types` | - |
+| `java` | `Java::MavenEcosystem` | `maven` | `grader_types` | - |
+| `javascript` | `JavaScript::Ecosystem` | - | `detect_prepare`, `grade_candidates`, `grader_diagnostics`, `review_criteria`, `autofix`, `dependency_audit`, `focused_tests` | - |
+| `javascript` | `JavaScript::PrettierEcosystem` | - | `autofix` | - |
+| `javascript` | `JavaScript::VitestEcosystem` | `vitest` | `grader_types` | - |
+| `kotlin` | `Kotlin::Ecosystem` | - | `detect_prepare`, `prompt_context`, `review_criteria` | - |
+| `python` | `Python::BlackEcosystem` | - | `autofix` | - |
+| `python` | `Python::Ecosystem` | - | `detect_prepare`, `grader_diagnostics`, `review_criteria`, `prompt_context`, `dependency_audit` | - |
+| `python` | `Python::RuffEcosystem` | - | `autofix` | - |
+| `ruby` | `Ruby::Ecosystem` | - | `detect_prepare`, `grade_candidates`, `grader_diagnostics`, `review_criteria`, `autofix`, `dependency_audit`, `focused_tests`, `analyze_coverage` | `affected_tests` |
+| `ruby` | `Ruby::MinitestEcosystem` | `minitest` | `grader_types` | - |
+| `ruby` | `Ruby::RspecEcosystem` | `rspec` | `grader_types` | - |
+| `syrus-rails` | `SyrusRails::Ecosystem` | - | `prompt_context` | - |
+
 ## `review`
 
 Shape: `facet`. Required core: `key`, `display_name`.
 
-| Capability | Composition | Absent behavior | Tier | Context | Return shape |
-|---|---|---|---|---|---|
-| `external_reviewer` | `first_claim` | `nil` | `provisional` | `Syrus::Plugin::ExternalReviewContext` | `Syrus::Plugin::ExternalReviewer` |
+| Capability | Composition | Absent behavior | Provider decline | Tier | Context | Return shape |
+|---|---|---|---|---|---|---|
+| `external_reviewer` | `first_claim` | `nil` | `nil` | `provisional` | `Syrus::Plugin::ExternalReviewContext` | `Syrus::Plugin::ExternalReviewer` |
+
+For keyed capabilities, absent behavior applies when no provider matches the requested key and raises `Dispatch::MissingKey`; a matched provider's decline value is separate.
 
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|

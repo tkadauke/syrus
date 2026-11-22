@@ -30,4 +30,17 @@ RSpec.describe Syrus::Plugin::FamilyPromotion do
     contracts = described_class.new(manifests: [ manifest("one"), manifest("two") ], contracted_capabilities: Set.new)
     expect(contracts.violations.first.message).to include("no generated contract test")
   end
+
+  it "counts mapped legacy registrations while a family is migrating" do
+    definition = Syrus::Plugin::Family.fetch(:promotion_fixture)
+    adapter = Module.new
+    definition.legacy(:legacy_items, capability: :items, adapter:)
+    legacy = ->(name) do
+      Syrus::Plugin::Manifest.new(name:, version: "1.0.0", provides: { legacy_items: Object.new },
+        family_provides: [], metadata: {})
+    end
+
+    promotion = described_class.new(manifests: [ legacy.call("one"), legacy.call("two") ])
+    expect(promotion.violations).to be_empty
+  end
 end

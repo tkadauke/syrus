@@ -747,19 +747,14 @@ class SyrusYml
   end
 
   def expand_plugin_grade_type(type, raw, label, default_failures:)
-    providers = Syrus::PluginRegistry.providers_for(:grader_type)
-    provider = providers.find { |candidate| candidate.type_name.to_s == type }
-    raise ParseError, "#{label}.type: unknown grader type #{type.inspect}" unless provider
-
     provider_config = raw.deep_stringify_keys
     provider_config["_syrus_project_path"] = @project_path if @project_path
-    result = Syrus::PluginInvocation.call(
-      extension_point: :grader_type, provider:, operation: :grade_steps, on_decline: []
-    ) { provider.grade_steps(config: provider_config, default_failures: default_failures) }
-    if result.is_a?(Syrus::PluginInvocation::Failed) && result.exception_class == "ArgumentError"
-      raise ParseError, "#{label}.type #{type.inspect}: #{result.message}"
-    end
-    Array(Syrus::PluginInvocation.value(result))
+    context = Syrus::Plugin::Context::GraderContext.new(config: provider_config, default_failures:)
+    Array(Syrus::Plugin::Dispatch.call(:ecosystem, :grader_types, context, key: type))
+  rescue Syrus::Plugin::Dispatch::MissingKey
+    raise ParseError, "#{label}.type: unknown grader type #{type.inspect}"
+  rescue Syrus::Plugin::Dispatch::ValidationError => e
+    raise ParseError, "#{label}.type #{type.inspect}: #{e.message}"
   end
 
   def validate_grade_step!(step, label, seen)

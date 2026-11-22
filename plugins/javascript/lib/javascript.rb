@@ -8,6 +8,7 @@ require "javascript/review_criteria_provider"
 require "javascript/focused_test_command"
 require "javascript/vitest_grader_type"
 require "javascript/grade_detector"
+require "javascript/ecosystem"
 
 module JavaScript
   extend Syrus::PluginApi
@@ -25,14 +26,10 @@ module JavaScript
       signals.repositories_detecting("javascript")
     end
 
-    provides prepare_detector: "JavaScript::PrepareDetector",
-             preview_provider: "JavaScript::PreviewProvider",
-             grader_augmentor: "JavaScript::EslintGraderAugmentor",
-             review_criteria_provider: "JavaScript::ReviewCriteriaProvider",
-             autofix_command: [ "JavaScript::EslintAutofix", "JavaScript::PrettierAutofix" ],
-             dependency_audit_command: "JavaScript::DependencyAuditCommand",
-             focused_test_command: "JavaScript::FocusedTestCommand",
-             grader_type: "JavaScript::VitestGraderType",
-             grade_detector: "JavaScript::GradeDetector"
+    provides preview_provider: "JavaScript::PreviewProvider"
+    provides ecosystem: "JavaScript::Ecosystem",
+      implements: %i[detect_prepare grade_candidates grader_diagnostics review_criteria autofix dependency_audit focused_tests]
+    provides ecosystem: "JavaScript::PrettierEcosystem", implements: %i[autofix]
+    provides ecosystem: "JavaScript::VitestEcosystem", key: :vitest, implements: %i[grader_types]
   end
 end

@@ -378,19 +378,11 @@ class MergeTrainMultisect
       return interpolate_explicit_command(config.fetch("command"), context.failed_cases) if config.fetch("strategy") == "command"
       return files_as_args_command(context.step, context.failed_cases) if config.fetch("strategy") == "files_as_args"
 
-      Syrus::PluginRegistry.providers_for(:focused_test_command).each do |provider|
-        result = Syrus::PluginInvocation.call(
-          extension_point: :focused_test_command, provider:, operation: :focused_test_command, on_decline: nil
-        ) do
-          Syrus::Plugin::FocusedTestCommand.invoke(
-            provider, grader_name: context.name, grader_command: context.step.details.to_h["command"],
-            failed_cases: context.failed_cases, base_retry: config, project_path: context.step.details.to_h["project_path"]
-          )
-        end
-        command = Syrus::PluginInvocation.value(result)
-        return command.to_s.strip if command.to_s.strip.present?
-      end
-      nil
+      grader_context = Syrus::Plugin::Context::GraderContext.new(
+        name: context.name, command: context.step.details.to_h["command"], failed_cases: context.failed_cases,
+        base_retry: config, project_path: context.step.details.to_h["project_path"], operation: :command
+      )
+      Syrus::Plugin::Dispatch.call(:ecosystem, :focused_tests, grader_context)&.to_s&.strip&.presence
     end
 
     def base_retry_config(grader_step)
