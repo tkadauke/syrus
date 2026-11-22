@@ -1564,17 +1564,33 @@ class GithubClient
       gh_rate_limit_resource:   resource,
       gh_rate_limit_observed_at: Time.current
     }
-    rate_limit_persist_scope(
-      subject,
-      remaining_i: remaining_i,
-      limit_i: limit_i,
-      reset_at: reset_at,
-      resource: resource
-    ).update_all(attributes) # rubocop:disable Rails/SkipsModelValidations
     subject.assign_attributes(attributes)
-    subject.mark_gh_api_blocked!("GitHub API rate limit exceeded for #{rate_limit_subject_label}; resets #{reset_at.utc.iso8601}") if remaining_i.zero?
+    label = rate_limit_subject_label
+    # Written after the outermost transaction commits, like AppEvents: issued
+    # inline, the UPDATE joined the caller's transaction and held the user's
+    # row -- the row every broadcast's sequence counter also updates -- until
+    # that transaction committed, so one slow transaction that called GitHub
+    # made unrelated broadcasts and runs time out on lock waits.
+    after_outer_commit do
+      rate_limit_persist_scope(
+        subject,
+        remaining_i: remaining_i,
+        limit_i: limit_i,
+        reset_at: reset_at,
+        resource: resource
+      ).update_all(attributes) # rubocop:disable Rails/SkipsModelValidations
+      subject.mark_gh_api_blocked!("GitHub API rate limit exceeded for #{label}; resets #{reset_at.utc.iso8601}") if remaining_i.zero?
+    end
   rescue => e
     Rails.logger.warn("[GithubClient] rate_limit persist failed: #{e.message}")
+  end
+
+  def after_outer_commit(&block)
+    ActiveRecord.after_all_transactions_commit do
+      block.call
+    rescue => e
+      Rails.logger.warn("[GithubClient] rate_limit persist failed: #{e.message}")
+    end
   end
 
   def rate_limit_persist_scope(subject, remaining_i:, limit_i:, reset_at:, resource:)
@@ -1660,9 +1676,12 @@ class GithubClient
       gh_rate_limit_resource: headers&.[]("x-ratelimit-resource").presence || "core",
       gh_rate_limit_observed_at: Time.current
     }.compact
-    subject.class.where(id: subject.id).update_all(attributes) # rubocop:disable Rails/SkipsModelValidations
     subject.assign_attributes(attributes)
-    subject.mark_gh_api_blocked!(error.message)
+    message = error.message
+    after_outer_commit do
+      subject.class.where(id: subject.id).update_all(attributes) # rubocop:disable Rails/SkipsModelValidations
+      subject.mark_gh_api_blocked!(message)
+    end
   rescue => e
     Rails.logger.warn("[GithubClient] rate_limit block persist failed: #{e.message}")
   end

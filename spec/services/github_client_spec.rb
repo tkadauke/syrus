@@ -1585,6 +1585,25 @@ RSpec.describe GithubClient do
       expect(user.gh_rate_limit_observed_at).to be_within(5.seconds).of(Time.current)
     end
 
+    # Regression: the snapshot was an UPDATE on the user's row issued inside
+    # whatever transaction the GitHub call happened in, so a long transaction
+    # that called GitHub held that row until it committed. Every broadcast
+    # bumps a counter on the same row, and on an instance where one user owns
+    # nearly all the work they all queued behind it and timed out after 50s.
+    it "writes the snapshot only after the surrounding transaction commits" do
+      stub_user_endpoint
+      stub_orgs_endpoint
+
+      inside = nil
+      ActiveRecord::Base.transaction(requires_new: true) do
+        client.accessible_owners
+        inside = User.where(id: user.id).pick(:gh_rate_limit_remaining)
+      end
+
+      expect(inside).to be_nil
+      expect(user.reload.gh_rate_limit_remaining).to eq(4221)
+    end
+
     it "persists rate limit columns and writes a kind=rate_limited JobLog on TooManyRequests" do
       run = Factories.run
       Thread.current[:syrus_current_run] = run
