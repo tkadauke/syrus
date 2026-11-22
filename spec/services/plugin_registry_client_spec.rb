@@ -136,7 +136,7 @@ RSpec.describe PluginRegistryClient do
   end
 
   it "caps official publisher trust at verified outside the canonical registry" do
-    source = PluginRegistry::EnvironmentSource.new(base_url)
+    source = PluginRegistry::TransientSource.new(base_url)
     stub_registry
     stub_request(:get, "#{base_url}trust-store.json").to_return(body: JSON.generate(
       publishers: [ { fingerprint: "abc", label: "official", prefix: "acme" },
