@@ -37,6 +37,7 @@ type pluginInstallerPayload struct {
 
 func newPluginInstallCommand() *cobra.Command {
 	var yes bool
+	var registry string
 	command := &cobra.Command{Use: "install <archive|name[@version]>", Short: "Stage and confirm a plugin installation", Args: cobra.ExactArgs(1), RunE: func(command *cobra.Command, args []string) error {
 		path, err := filepath.Abs(args[0])
 		if err != nil {
@@ -44,9 +45,12 @@ func newPluginInstallCommand() *cobra.Command {
 		}
 		var change pluginInstallerChange
 		if _, statErr := os.Stat(path); statErr == nil {
+			if registry != "" {
+				return fmt.Errorf("--registry is only valid when installing by plugin name")
+			}
 			change, err = uploadPluginArchive(command, path)
 		} else {
-			change, err = stageStoredPluginRelease(command, args[0])
+			change, err = stageStoredPluginRelease(command, args[0], registry)
 		}
 		if err != nil {
 			return err
@@ -63,16 +67,21 @@ func newPluginInstallCommand() *cobra.Command {
 		return confirmPluginChange(command, change.ID)
 	}}
 	command.Flags().BoolVar(&yes, "yes", false, "Confirm without prompting")
+	command.Flags().StringVar(&registry, "registry", "", "Select a registry by name or ID")
 	return command
 }
 
-func stageStoredPluginRelease(command *cobra.Command, reference string) (pluginInstallerChange, error) {
+func stageStoredPluginRelease(command *cobra.Command, reference string, registry string) (pluginInstallerChange, error) {
 	creds, err := loadCredentials()
 	if err != nil {
 		return pluginInstallerChange{}, err
 	}
 	name, version, _ := strings.Cut(reference, "@")
-	body, _ := json.Marshal(map[string]string{"name": name, "version": version})
+	payload := map[string]string{"name": name, "version": version}
+	if registry != "" {
+		payload["registry"] = registry
+	}
+	body, _ := json.Marshal(payload)
 	var change pluginInstallerChange
 	err = pluginInstallerJSON(command, http.MethodPost, creds, "/api/v1/app/admin/plugin_installer/stage_release", bytes.NewReader(body), "application/json", &change)
 	return change, err
