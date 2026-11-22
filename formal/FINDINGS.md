@@ -3682,6 +3682,52 @@ green.
 
 ---
 
+## F100. Two main-branch repairs ran at once after a repair failed with a retry pending — fixed
+
+**Evidence (production, read-only, 11-22 UTC).** Main-branch repair Job 9775
+had been retrying since 13:00, while worker pods kept dying (M59):
+
+- Workflow 66277 failed;
+- Workflow 66284 failed at 15:38:37, with an auto-retry scheduled;
+- at 15:40:20 a health signal spawned a **second** repair Job, 9786
+  (Workflow 66298);
+- at 15:43 the auto-retry relaunched 9775 as Workflow 66299.
+
+Both repairs then ran, each with a preflight fan-out of 134 graders, beside a
+main grader with 134 more, on workers that were already being lost. Main
+grader 66295 had *succeeded* at about 14:20. Only the stale `ci_health:
+broken` from before main's hand fix kept repairs being spawned.
+
+**Invariant.** At most one main-branch repair is in progress per repository.
+
+**Cause.** `MainHealthChangedService#ensure_repair_job!` treats a repair Job
+as blocking only in `BLOCKING_FIX_JOB_STATES`, which are the active and
+landing states. Between a repair Workflow's failure and its auto-retry, the
+Job is `failed`.
+
+- `failed_fix_job_for_current_sha` only suppresses a failure *for the current
+  SHA*, and 9775's covered an older commit.
+- The `MAX_OPEN_FAILED_FIX_JOBS` cap allows several failed repairs.
+
+So a health signal in that window spawned a new repair, and the retry then
+revived the old one.
+
+**Fix.** A failed repair Job with a pending `AutoRetryAttempt` now blocks
+spawning (`retrying_fix_job`), just as an active one does.
+
+**Spec.** `main_health_changed_service_spec.rb` (CI-only) "does not spawn
+another fix Job while a failed repair has a pending auto-retry" was red before.
+"Spawns another fix Job after main advances past a failed repair SHA", the same
+setup without the pending retry, still spawns. The spec file (114 examples)
+and the repair, auto-approver, preflight-collect and auto-retry specs are green.
+
+**Not changed.** Whether the duplicate load is what killed the pods is
+unproven (M59). What kept repairs coming was a stale `ci_health` while the
+grader said healthy. That is a question about which signal wins, and it is
+not changed here.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.
