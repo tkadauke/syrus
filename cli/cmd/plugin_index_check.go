@@ -25,7 +25,8 @@ import (
 )
 
 var pluginIndexCheckHTTP = http.DefaultClient
-var pluginIndexCheckURLValidator = validateIndexResourceURL
+var pluginIndexCheckLookupIP = net.DefaultResolver.LookupIPAddr
+var pluginIndexCheckDialContext = (&net.Dialer{}).DialContext
 
 func newPluginIndexCheckCommand() *cobra.Command {
 	var trustPath, checkout string
@@ -178,17 +179,20 @@ func runSubmittedPackageValidation(command *cobra.Command, archive, version, che
 }
 
 func downloadIndexResource(command *cobra.Command, raw string) ([]byte, error) {
-	if err := pluginIndexCheckURLValidator(command.Context(), raw); err != nil {
+	if err := validateIndexResourceURL(command.Context(), raw); err != nil {
 		return nil, err
 	}
 	request, err := http.NewRequestWithContext(command.Context(), http.MethodGet, raw, nil)
 	if err != nil {
 		return nil, err
 	}
-	client := *pluginIndexCheckHTTP
+	client, err := secureIndexResourceClient()
+	if err != nil {
+		return nil, err
+	}
 	previousRedirectCheck := client.CheckRedirect
 	client.CheckRedirect = func(request *http.Request, via []*http.Request) error {
-		if err := pluginIndexCheckURLValidator(request.Context(), request.URL.String()); err != nil {
+		if err := validateIndexResourceURL(request.Context(), request.URL.String()); err != nil {
 			return err
 		}
 		if previousRedirectCheck != nil {
@@ -210,6 +214,43 @@ func downloadIndexResource(command *cobra.Command, raw string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(response.Body, 256<<20))
 }
 
+func secureIndexResourceClient() (*http.Client, error) {
+	client := *pluginIndexCheckHTTP
+	baseTransport := client.Transport
+	if baseTransport == nil {
+		baseTransport = http.DefaultTransport
+	}
+	transport, ok := baseTransport.(*http.Transport)
+	if !ok {
+		return nil, errors.New("plugin index downloads require an HTTP transport")
+	}
+	securedTransport := transport.Clone()
+	securedTransport.Proxy = nil
+	securedTransport.DialTLS = nil
+	securedTransport.DialTLSContext = nil
+	securedTransport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("invalid download address: %w", err)
+		}
+		addresses, err := resolveSafeIndexResourceHost(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		var lastErr error
+		for _, resolved := range addresses {
+			connection, dialErr := pluginIndexCheckDialContext(ctx, network, net.JoinHostPort(resolved.String(), port))
+			if dialErr == nil {
+				return connection, nil
+			}
+			lastErr = dialErr
+		}
+		return nil, fmt.Errorf("connect to download host: %w", lastErr)
+	}
+	client.Transport = securedTransport
+	return &client, nil
+}
+
 func validateIndexResourceURL(ctx context.Context, raw string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil {
@@ -218,20 +259,27 @@ func validateIndexResourceURL(ctx context.Context, raw string) error {
 	if strings.Contains(parsed.Hostname(), "%") {
 		return errors.New("package and signature URLs must not use scoped IP addresses")
 	}
-	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, parsed.Hostname())
+	_, err = resolveSafeIndexResourceHost(ctx, parsed.Hostname())
+	return err
+}
+
+func resolveSafeIndexResourceHost(ctx context.Context, hostname string) ([]netip.Addr, error) {
+	addresses, err := pluginIndexCheckLookupIP(ctx, hostname)
 	if err != nil {
-		return fmt.Errorf("resolve download host: %w", err)
+		return nil, fmt.Errorf("resolve download host: %w", err)
 	}
 	if len(addresses) == 0 {
-		return errors.New("download host did not resolve")
+		return nil, errors.New("download host did not resolve")
 	}
+	resolved := make([]netip.Addr, 0, len(addresses))
 	for _, address := range addresses {
 		ip, ok := netip.AddrFromSlice(address.IP)
 		if !ok || unsafeIndexResourceAddress(ip.Unmap()) {
-			return fmt.Errorf("download host resolves to a private or reserved address: %s", address.IP)
+			return nil, fmt.Errorf("download host resolves to a private or reserved address: %s", address.IP)
 		}
+		resolved = append(resolved, ip.Unmap())
 	}
-	return nil
+	return resolved, nil
 }
 
 func unsafeIndexResourceAddress(address netip.Addr) bool {
