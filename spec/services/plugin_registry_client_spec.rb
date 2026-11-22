@@ -72,6 +72,24 @@ RSpec.describe PluginRegistryClient do
     expect(Open3).to have_received(:capture3).once
   end
 
+  it "rejects git registry symlinks that escape the checkout" do
+    client = described_class.new(url: "git+https://registry.example.test/plugins.git", cache_root: root,
+      syrus_version: Gem::Version.new("2.0.0"))
+    outside = root.join("outside.json")
+    outside.write(JSON.generate(registry_entry("acme_weather", "1.0.0", ">= 1.0", "abc")))
+    allow(Open3).to receive(:capture3) do |*_arguments|
+      materialize_registry(root.join("index"))
+      root.join("index/acme_weather/1.0.0.json").delete
+      File.symlink(outside, root.join("index/acme_weather/1.0.0.json"))
+      [ "", "", instance_double(Process::Status, success?: true) ]
+    end
+
+    result = client.search
+
+    expect(result.entries).to eq([])
+    expect(result.error).to include("escapes the index root")
+  end
+
   it "returns a non-fatal error for a malformed index" do
     stub_request(:get, "#{base_url}index.json").to_return(body: JSON.generate(format_version: 99))
 
