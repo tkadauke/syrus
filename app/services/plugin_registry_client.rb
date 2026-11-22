@@ -7,9 +7,10 @@ require "uri"
 class PluginRegistryClient
   Error = Class.new(StandardError)
   FORMAT_VERSION = 1
+  GIT_REFRESH_INTERVAL = 5.minutes
   Entry = Data.define(:name, :version, :description, :category, :author, :homepage, :license,
     :requires_syrus, :package_url, :package_digest, :signature_url, :publisher_key_fingerprint,
-    :trust_label, :capability_summary, :revoked)
+    :trust_label, :trust_label_inputs, :capability_summary, :revoked)
   Result = Data.define(:entries, :configured, :error, :stale)
 
   def initialize(url: ENV["SYRUS_PLUGIN_REGISTRY_URL"], cache_root: WorkflowWorkspace.data_root.join("plugin-registry"),
@@ -52,13 +53,22 @@ class PluginRegistryClient
       raise(Error, "compatible plugin release is not present in the registry: #{name}#{"@#{version}" if version.present?}")
   end
 
+  # Installation is the explicit boundary where registry revocations become
+  # instance policy. Catalog browsing intentionally remains read-only.
+  def activate_trust_store!
+    Syrus::PluginPackage::TrustStore.cache!(trust_store(index_root))
+  end
+
   def index_root = @cache_root.join("index")
 
   private
 
   def refresh!
     FileUtils.mkdir_p(@cache_root)
-    git_source? ? refresh_git! : refresh_http!
+    File.open(@cache_root.join("refresh.lock"), File::RDWR | File::CREAT, 0o644) do |lock|
+      lock.flock(File::LOCK_EX)
+      git_source? ? refresh_git! : refresh_http!
+    end
   rescue URI::InvalidURIError, SocketError, SystemCallError, Timeout::Error, OpenSSL::SSL::SSLError => error
     raise Error, "Plugin registry is unreachable: #{error.message}"
   end
@@ -70,6 +80,9 @@ class PluginRegistryClient
     uri = URI.parse(url)
     raise Error, "Plugin registry git URL must use HTTPS" unless uri.is_a?(URI::HTTPS)
     raise Error, "Plugin registry git host is not permitted" unless SsrfGuard.safe_host?(uri.host)
+    refreshed_at = index_root.join(".syrus-refreshed-at")
+    return if index_root.join(".git").directory? && refreshed_at.exist? &&
+      Time.current - refreshed_at.mtime < GIT_REFRESH_INTERVAL
     if index_root.join(".git").directory?
       _out, error, status = Open3.capture3("git", "-C", index_root.to_s, "pull", "--ff-only", "--quiet")
     else
@@ -77,21 +90,28 @@ class PluginRegistryClient
       _out, error, status = Open3.capture3("git", "clone", "--depth", "1", "--quiet", url, index_root.to_s)
     end
     raise Error, "Plugin registry git fetch failed: #{error.strip}" unless status.success?
+    FileUtils.touch(refreshed_at)
+    parse_entries(index_root)
   end
 
   def refresh_http!
     base = URI.parse(@url)
     raise Error, "Plugin registry mirror must use HTTPS" unless base.is_a?(URI::HTTPS)
     raise Error, "Plugin registry mirror host is not permitted" unless SsrfGuard.safe_host?(base.host)
-    FileUtils.mkdir_p(index_root)
-    manifest = JSON.parse(fetch_http(base, "index.json"))
+    stage = Pathname.new(Dir.mktmpdir("registry-refresh-", @cache_root))
+    FileUtils.cp_r(index_root.children, stage) if index_root.directory?
+    manifest = JSON.parse(fetch_http(base, "index.json", root: stage))
     validate_index!(manifest)
-    ([ manifest.fetch("trust_store") ] + manifest.fetch("releases")).each { |path| fetch_http(base, path) }
+    ([ manifest.fetch("trust_store") ] + manifest.fetch("releases")).each { |path| fetch_http(base, path, root: stage) }
+    parse_entries(stage)
+    promote_index!(stage)
+  ensure
+    FileUtils.rm_rf(stage) if stage&.exist?
   end
 
-  def fetch_http(base, relative)
+  def fetch_http(base, relative, root: index_root)
     path = safe_relative_path(relative)
-    destination = index_root.join(path)
+    destination = root.join(path)
     FileUtils.mkdir_p(destination.dirname)
     uri = URI.join(@url.end_with?("/") ? @url : "#{@url}/", path)
     metadata_path = Pathname.new("#{destination}.http.json")
@@ -107,13 +127,12 @@ class PluginRegistryClient
     response.body
   end
 
-  def parse_entries
-    manifest = JSON.parse(index_root.join("index.json").read)
+  def parse_entries(root = index_root)
+    manifest = JSON.parse(root.join("index.json").read)
     validate_index!(manifest)
-    trust = Syrus::PluginPackage::TrustStore.new(JSON.parse(index_root.join(safe_relative_path(manifest.fetch("trust_store"))).read))
-    Syrus::PluginPackage::TrustStore.cache!(trust)
+    trust = trust_store(root, manifest:)
     manifest.fetch("releases").map do |relative|
-      data = JSON.parse(index_root.join(safe_relative_path(relative)).read)
+      data = JSON.parse(root.join(safe_relative_path(relative)).read)
       validate_entry!(data, relative)
       fingerprint = data.fetch("publisher_key_fingerprint").downcase
       digest = data.fetch("package_digest").delete_prefix("sha256:")
@@ -125,6 +144,7 @@ class PluginRegistryClient
         license: data.fetch("license"), requires_syrus: data.fetch("requires_syrus"),
         package_url: data.fetch("package_url"), package_digest: digest, signature_url: data.fetch("signature_url"),
         publisher_key_fingerprint: fingerprint, trust_label: publisher&.label || "community",
+        trust_label_inputs: data.fetch("trust_label_inputs"),
         capability_summary: data.fetch("capability_summary"), revoked:)
     end
   end
@@ -153,4 +173,20 @@ class PluginRegistryClient
   end
 
   def cached_index? = index_root.join("index.json").file?
+
+  def trust_store(root, manifest: nil)
+    manifest ||= JSON.parse(root.join("index.json").read)
+    Syrus::PluginPackage::TrustStore.new(JSON.parse(root.join(safe_relative_path(manifest.fetch("trust_store"))).read))
+  end
+
+  def promote_index!(stage)
+    previous = @cache_root.join("index.previous")
+    FileUtils.rm_rf(previous)
+    File.rename(index_root, previous) if index_root.exist?
+    File.rename(stage, index_root)
+    FileUtils.rm_rf(previous)
+  rescue
+    File.rename(previous, index_root) if previous.exist? && !index_root.exist?
+    raise
+  end
 end
