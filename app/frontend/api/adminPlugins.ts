@@ -129,6 +129,9 @@ export type PluginRegistryEntry = {
   author: string
   trust_label: string
   capability_summary: Record<string, string[]>
+  registry_name: string
+  registry_id: number | null
+  registry_canonical: boolean
 }
 
 export type PluginRegistryCatalog = {

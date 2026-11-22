@@ -1,8 +1,17 @@
 # Operating a plugin registry
 
 Syrus plugin registries are static, versioned directory trees served by an
-HTTPS mirror or cloned from an HTTPS Git URL. Configure the instance through
-the SYRUS_PLUGIN_REGISTRY_URL environment variable; it is unset by default.
+HTTPS mirror or cloned from a `git+https` URL. The canonical registry at
+`https://github.com/tkadauke/syrus-plugins` is created by application code,
+enabled by default, and may be disabled but not removed. Administrators may
+configure up to ten additional registries. `SYRUS_PLUGIN_REGISTRY_URL` adds a
+read-only compatibility source named from its origin.
+
+Registry URLs are administrator-confirmed input. They may not contain URL
+credentials, and their destinations must pass the outbound-request guard.
+Each registry has an independent cache, refresh lock, stale fallback, and
+trust-store cache. A failed or malformed registry therefore does not suppress
+results from healthy registries.
 
 The root index.json discovery document has format_version 1, a trust_store
 path, and a releases array of relative paths such as
@@ -21,7 +30,14 @@ from the publisher fingerprint in the trust store.
 The trust-store file uses the plugin package trust-store format: publishers
 map Ed25519 key fingerprints to official, verified, or community;
 revoked_keys lists fingerprints; and revoked_releases lists name, version,
-and optional digest tuples. Revoked releases are not discoverable.
+and optional digest tuples. Revoked releases are not discoverable. Publisher
+prefix ownership is mandatory. Trust, revocation, and relabeling never cross
+registry boundaries. Only the canonical registry may confer `official`;
+`official` from another registry is displayed and persisted as `verified`.
+
+Catalog collisions remain visible with their source registry. A bare install
+prefers the canonical release for the selected version. If only multiple
+non-canonical matches remain, the caller must select a registry explicitly.
 
 Mirrors should return ETag and/or Last-Modified headers. Syrus sends
 conditional requests and retains the last valid cache when a refresh fails.

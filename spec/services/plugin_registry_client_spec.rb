@@ -135,10 +135,22 @@ RSpec.describe PluginRegistryClient do
     expect(described_class.new(url: "", cache_root: root).search.configured).to be(false)
   end
 
+  it "caps official publisher trust at verified outside the canonical registry" do
+    source = PluginRegistry::EnvironmentSource.new(base_url)
+    stub_registry
+    stub_request(:get, "#{base_url}trust-store.json").to_return(body: JSON.generate(
+      publishers: [ { fingerprint: "abc", label: "official", prefix: "acme" },
+        { fingerprint: "revoked", label: "community", prefix: "acme" } ], revoked_keys: [ "revoked" ]
+    ))
+    result = described_class.new(source:, cache_root: root).search
+    expect(result.entries.first.trust_label).to eq("verified")
+  end
+
   def stub_registry(not_modified: false)
     index = { format_version: 1, trust_store: "trust-store.json",
       releases: %w[acme_weather/1.0.0.json acme_weather/3.0.0.json acme_revoked/1.0.0.json] }
-    trust = { publishers: [ { fingerprint: "abc", label: "verified" } ], revoked_keys: [ "revoked" ] }
+    trust = { publishers: [ { fingerprint: "abc", label: "verified", prefix: "acme" },
+      { fingerprint: "revoked", label: "community", prefix: "acme" } ], revoked_keys: [ "revoked" ] }
     entries = {
       "acme_weather/1.0.0.json" => registry_entry("acme_weather", "1.0.0", ">= 1.0", "abc"),
       "acme_weather/3.0.0.json" => registry_entry("acme_weather", "3.0.0", ">= 3.0", "abc"),
@@ -163,7 +175,7 @@ RSpec.describe PluginRegistryClient do
     FileUtils.mkdir_p(destination)
     index = { format_version: 1, trust_store: "trust-store.json", releases: [ "acme_weather/1.0.0.json" ] }
     destination.join("index.json").write(JSON.generate(index))
-    destination.join("trust-store.json").write(JSON.generate(publishers: [ { fingerprint: "abc", label: "verified" } ]))
+    destination.join("trust-store.json").write(JSON.generate(publishers: [ { fingerprint: "abc", label: "verified", prefix: "acme" } ]))
     FileUtils.mkdir_p(destination.join("acme_weather"))
     destination.join("acme_weather/1.0.0.json").write(JSON.generate(registry_entry("acme_weather", "1.0.0", ">= 1.0", "abc")))
     FileUtils.mkdir_p(destination.join(".git"))

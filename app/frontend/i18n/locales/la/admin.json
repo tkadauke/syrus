@@ -481,6 +481,7 @@
     "registry": {
       "heading": "Registrum perlustra",
       "search": "Plugin congruentia quaere",
+      "source": "Registrum: {{name}}",
       "unconfigured": "Nullum registrum plugin configuratum est. SYRUS_PLUGIN_REGISTRY_URL constitue.",
       "empty": "Nulla plugin congruentia inventa sunt."
     },
