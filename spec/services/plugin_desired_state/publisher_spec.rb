@@ -22,7 +22,7 @@ RSpec.describe PluginDesiredState::Publisher do
   let(:digest) { Digest::SHA256.hexdigest(body) }
   let!(:release) do
     PluginRelease.create!(name: "weather", version: "2.0.0", content_digest: digest,
-      source: "registry", trust_label: "verified", size_bytes: body.bytesize)
+      source: "upload", trust_label: "unsigned_local", size_bytes: body.bytesize)
   end
 
   before do

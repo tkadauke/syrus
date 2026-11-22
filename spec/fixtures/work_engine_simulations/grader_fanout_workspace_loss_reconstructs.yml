@@ -2,7 +2,10 @@ name: grader fanout workspace loss reconstructs
 features:
   distributed_workflow_dag: true
 reconciler:
-  ignored_issue_kinds: []
+  # This scenario isolates workflow-level storage recovery. Worker-loss retry
+  # behavior has its own fanout scenarios and would otherwise repair the
+  # running grader before the missing workspace can be reconstructed.
+  ignored_issue_kinds: [running_run_without_live_worker_evidence]
 repository:
   owner: simulation
   name: grader-fanout-workspace-loss-reconstructs
@@ -86,8 +89,10 @@ jobs:
         - key: collect
           kind: grader_collect
           state: queued
+          placement_policy: pinned_workflow_workspace
           loop_id: grade-loop
           depends_on: [passed, died_one, died_two, active, pinned_one, pinned_two]
+          run: { state: queued }
         - key: summarize
           kind: summarize
           state: queued
