@@ -26,15 +26,81 @@ longest command path to the first word for a trusted `syrus-<path>` executable,
 passes it the unmatched arguments, and exposes the configured instance and
 token as `SYRUS_URL` and `SYRUS_TOKEN`.
 
-The built-in local SDK commands are `syrus plugin new NAME`, `validate [DIR]`,
-`test [DIR]`, and `dev [DIR]`. `new` creates a tested project; `validate` uses
-an isolated, release-matched SQLite host; `test` also runs the plugin's RSpec
-suite; and `dev` starts a disposable, reloadable host. Docker runners receive
-the plugin directory but no instance credentials. Use `--syrus-version` to
-select a release, `--json` for a machine-readable test summary, `--checkout`
-for contributor testing, and `--keep-data` to retain a stopped dev instance.
-The full authoring workflow and option reference live in
-`docs/engineering/conventions/plugins/external.md`.
+`syrus plugin validate [DIR]` and `syrus plugin test [DIR]` run the plugin in an
+isolated SQLite test host using the release-matched plugin-test container;
+`test` continues through the plugin's RSpec suite. `--syrus-version` selects a
+release, `--json` emits the stable final summary, and `--checkout PATH` uses a
+contributor checkout. The container never receives instance credentials.
+
+`syrus plugin pack [DIR]` validates the plugin and writes a deterministic
+`.syrus-plugin.tar.gz` package. When a frontend source exists but its bundle is
+missing, `--checkout PATH` uses that checkout's standard frontend builder.
+Packages contain `package.json`, `CHECKSUMS.sha256`, and the complete plugin
+tree under `plugin/`. The manifest records format version 1, plugin identity
+and compatibility, declared capabilities and assets, public host APIs, and a
+SHA-256 digest for every plugin file. Entries are sorted, timestamps are fixed,
+and permissions are normalized, so identical inputs produce identical bytes.
+Tar with gzip is used because it is streamable and supported by standard Unix,
+Ruby, and Go tooling.
+
+Packages may contain only regular files and directories. Absolute paths,
+traversal components, links, duplicate entries, unlisted files, digest changes,
+non-public host APIs, and third-party Ruby gem dependencies are rejected. The
+validator also applies bounded file-count, individual-file, and total-size
+limits. Package consumers and registry automation run
+`bin/plugin-package-validate [--json] ARCHIVE`; a nonzero exit status means the
+archive must not be accepted. Installer and registry integrations must consume
+this same validation boundary instead of implementing parallel package checks.
+
+Publishers create an Ed25519 key once with `syrus plugin keygen`, keep the
+generated private-key file offline, and never commit or upload it. `syrus
+plugin sign PACKAGE --key KEY` writes a detached signature over the package
+SHA-256 digest. `syrus plugin verify PACKAGE --signature PACKAGE.sig
+--trust-store TRUST.json` verifies provenance and prints `official`,
+`verified`, or `community`; only an explicitly local package may be
+`unsigned_local`.
+
+The registry trust store lists each publisher's name prefix, publisher-key
+SHA-256 fingerprint, and trust label, plus revoked keys and releases. A key may
+sign releases only for its assigned prefix. Revocation always wins: a revoked
+package is refused and an installed release is fleet-quarantined for removal.
+A signature proves which private key signed the exact bytes. It does not
+sandbox the plugin, review its code, or authorize its tools.
+
+`syrus plugin registry list|add|remove|enable|disable` manages the connected
+instance's sources and requires an administrator. Adding a registry requires
+confirmation (or `--yes`) because publisher trust is scoped to that registry
+and plugin capabilities are disclosure rather than enforcement. Search uses
+all enabled connected registries and accepts `--registry NAME`; without a
+reachable instance it falls back to `SYRUS_PLUGIN_REGISTRY_URL` or canonical.
+
+`syrus plugin publish DIR --key KEY --repository OWNER/REPO` validates, packs,
+signs, and uploads a GitHub release, then prints its registry entry. Passing
+`--submit` uses the canonical registry's GitHub repository by default;
+`--registry NAME` selects another configured GitHub registry and
+`--index-repository OWNER/INDEX` overrides the selection. Submission explicitly
+consents to opening the index pull request from the authenticated author's fork
+and listing the release in `index.json`. Authentication is read from
+`GITHUB_TOKEN` and is not printed or stored. The description and license default
+to gemspec metadata; use `--description`, `--license`, or `--category` to
+override registry metadata.
+
+`syrus plugin new NAME` creates a complete external plugin project in `./NAME`
+or the empty directory selected by `--path`. It rejects invalid Ruby namespace
+names and names that collide with installed or CLI-bundled plugins. The
+baseline includes a provider, three matching locales, host-contract specs, and
+CI that runs `syrus plugin test`. `--frontend`, `--model`, and `--cli` add the
+corresponding examples; `--syrus-version` overrides the generated
+`requires_syrus` requirement.
+
+`syrus plugin dev [DIR]` runs one plugin in a throwaway, release-matched Syrus
+container backed by SQLite. It prints the local URL and the seeded sign-in
+(`demo@syrus.local` / `password`), enables the mounted plugin, and reports its
+health. Frontend source changes are rebuilt inside the container; reload the
+browser to fetch the new content-hashed bundle. Ruby, manifest, and locale
+changes restart Syrus and print the resulting health, including load failures.
+Ctrl-C removes the container and its data volume unless `--keep-data` is used,
+which retains the stopped container and prints its name for later inspection.
 
 ## Per-origin Job visibility
 
@@ -67,7 +133,7 @@ Installation and enablement are separate:
 - **Experimental** plugins also require instance beta mode. Beta mode only
   permits enablement; it never enables a plugin automatically.
 
-New installations leave agent-provider plugins, Build Cache, Local Backups, Design Docs,
+New installations leave agent-provider plugins, Build Cache, Design Docs,
 Spending Insights, Team Directory, Credential Store, and Git History disabled.
 Credential Store and Git History are also experimental. Existing installations
 keep their explicit enablement choices when defaults change.
@@ -103,6 +169,43 @@ database, filesystem, network, and credential access. Install only reviewed
 plugin directories from trusted sources. Dropped-in plugins cannot add
 third-party Ruby gems; they may depend on Rails and use Syrus's plugin APIs.
 
+For packaged plugins, an administrator uploads the archive on **Admin →
+Plugins** or runs `syrus plugin install PATH`. Syrus validates the package and
+signature, rejects revoked releases, and stages a capability manifest for
+review. Staging does not change desired state. Confirmation is explicit; CLI
+scripts use `--yes`. The capability manifest is disclosure, not enforcement,
+and plugin tools still use normal permissions. Updates and removals follow the
+same confirmation gate. After confirmation, **Apply changes** synchronizes the
+active set and restarts the fleet. `syrus plugin list` reports versions, trust,
+sources, and health; `syrus plugin remove NAME` stages removal. Import/export
+lockfiles record name, version, digest, source, and registry provenance while
+the database remains canonical.
+
+`syrus plugin install NAME[@VERSION]` first reuses a stored release, which
+supports rollback, then consults the synchronized git registry index at
+`$SYRUS_DATA_ROOT/plugin-registry/index/NAME/VERSION.json`. Each entry contains
+`name`, `version`, `artifact_url`, and `signature_url`; artifact URLs must use
+HTTPS. Omitting the version selects the highest indexed semantic version. The
+downloaded archive and detached signature pass through the same validation,
+trust, storage, and confirmation path as an upload.
+
+The built-in canonical registry is enabled by default and administrators can
+disable it or add additional HTTPS or git+https registries. The legacy
+SYRUS_PLUGIN_REGISTRY_URL setting adds a read-only source. Registry catalogs
+show every source; bare installs prefer a canonical collision and require an
+explicit registry for ambiguity among non-canonical sources. Trust and
+revocations are isolated by registry, and non-canonical registries can grant
+at most the `verified` label. Registry URLs are administrator-confirmed input.
+
+Use `syrus plugin install NAME[@VERSION] --registry REGISTRY` to resolve an
+ambiguous collision by registry name or ID.
+
+Search returns only releases compatible with the running or connected Syrus
+version and omits revoked releases. Registry errors are non-fatal, and a valid
+cached index remains available when refresh fails.
+
+For legacy hand placement, use the following stopped-process procedure.
+
 Set `SYRUS_PLUGIN_PATH` to a root whose immediate children are complete plugin
 directories. Mount identical contents read-only at that path in every web,
 worker, setup, preview, and other container that boots Rails. Stage a complete
@@ -124,75 +227,6 @@ To remove a plugin, disable it and resolve any in-use blockers, stop every
 container, move its directory out of the shared root, and restart all
 containers. Uninstalling retains plugin data and migrations for rollback;
 purging data is a separate destructive operation.
-
-For fleet-managed plugins, set `SYRUS_PLUGIN_SYNC_ENABLED=1` and distribute
-the control plane's `SYRUS_PLUGIN_MANIFEST_PUBLIC_KEY` to every Rails process.
-The pre-boot sync reads the signed desired-state manifest and content-addressed
-archives from the configured S3-compatible attachment bucket. In single-node
-mode, `SYRUS_PLUGIN_SYNC_STORAGE_PATH` may point to the local attachment root.
-It verifies the Ed25519 signature plus every archive's size and SHA-256 digest,
-then atomically switches `$SYRUS_DATA_ROOT/plugin-sync/current`. The preceding
-set remains at `last-good`, and hand-placed plugins in `SYRUS_PLUGIN_PATH`
-continue to take precedence when a name occurs in both roots.
-
-Storage, signature, manifest, and artifact failures print one error, retain the
-last-good set, and allow boot. `SYRUS_PLUGIN_SYNC_STRICT=1` changes failures to
-a nonzero exit for diagnostic or explicitly fail-closed processes.
-`SYRUS_PLUGIN_SYNC_RETENTION` sets the number of additional inactive sets to
-keep (default `2`). Fleet-quarantined and revoked entries are removed from the
-activated set. Rails and spawned sidecars receive `SYRUS_PLUGIN_SET_DIGEST` and
-`SYRUS_PLUGIN_SET_REVISION` for the active set.
-
-Plugin manifests may declare `roles %w[web worker preview sidecar]`. Omitting
-`roles` (or using an empty desired-state list) loads the plugin everywhere.
-Only those four names are valid. An unlisted process skips the plugin and
-records the reason in plugin health. Preview-provider, language, and framework
-plugins must remain available to the `preview` role.
-
-Desired-state changes do not hot-unload Ruby code. **Apply changes** records
-the desired revision, gracefully drains web, worker, and preview processes,
-and relies on the container supervisor to restart them in place. The entrypoint
-then syncs before Rails boots. Setup and web apply plugin migrations through
-the existing database preparation path; workers abort while migrations are
-pending. Status reports each process as pending, restarted, or stuck. This is
-tested with Docker Compose restart policies; native macOS workers and external
-plugin distribution on Kubernetes are not supported by this flow.
-
-Admin → Plugins also shows fleet convergence. A process is **converged** when
-its role-specific plugin-set digest matches desired state. **Pending restart**
-means an applied revision has not started there; **behind** means an older set
-without a current restart request; **ahead** usually indicates the process is
-connected to the wrong control plane or manifest store; and **unreachable**
-means its heartbeat is stale. Restart pending/behind processes after verifying
-sync configuration, investigate the control-plane connection for ahead
-processes, and restore or replace unreachable processes. Per-plugin rows show
-running versions plus local skips, failures, missing entries, and quarantine.
-
-Divergence older than `SYRUS_PLUGIN_DIVERGENCE_THRESHOLD_SECONDS` (default:
-300) is highlighted and emits the standard system alarm linked to the Plugins
-page.
-
-## Safe-mode recovery
-
-`SYRUS_SAFE_MODE=third_party` withholds every hand-placed and synced plugin.
-`recent` withholds external plugins whose content differs from the last good
-boot, and `all` withholds every plugin; Syrus currently requires no plugin to
-boot. The loader records every withheld plugin and reason in Admin → Plugins.
-
-Boot attempts are stored in `$SYRUS_DATA_ROOT/plugin-boot-safety.json`, without
-using the database. Three incomplete boots in ten minutes automatically
-quarantine external plugins changed since the last good boot on the following
-start. Override these defaults with `SYRUS_BOOT_FAILURE_LIMIT`,
-`SYRUS_BOOT_FAILURE_WINDOW_SECONDS`, and `SYRUS_BOOT_SUCCESS_AFTER_SECONDS`.
-A fleet quarantine in desired state is also applied at the next restart.
-
-When the UI is available, the global warning links to Admin → Plugins; correct
-the plugin and use **Re-enable after restart** for one plugin at a time. When
-Rails cannot boot, run `bin/plugin-recovery list`, then
-`bin/plugin-recovery quarantine NAME` or `bin/plugin-recovery clear NAME`.
-Restart the affected processes after each change. Fleet quarantine must be
-cleared in desired state rather than locally. Remove `SYRUS_SAFE_MODE` only
-after the instance stays healthy, and reintroduce plugins one at a time.
 
 A plugin's full documentation lives under its own
 `plugins/<name>/docs/syrus_docs/` directory. Removing the plugin therefore
@@ -262,36 +296,6 @@ its engine declaration is made inert; the remaining plugins continue to load.
 Bundled plugins remain
 strict in development and test so defects are immediately visible; production
 isolates and reports their failures in the same way as external plugins.
-
-Plugin-owned routes follow the same environment rule. In development and test,
-an unhandled controller exception propagates so the defect remains visible. In
-production, Syrus contains the exception to that plugin, returns a structured
-error naming it, and records the failure under **Admin → Plugins**. Plugin
-health also shows each plugin's request count and the time of its latest route
-error. Timestamp writes are rate-limited so a hot failing route does not create
-unbounded health traffic. Each process retains at most 100 distinct recent
-failure signatures per plugin, bounding both runtime memory and the Admin
-health payload; a healthy plugin continues serving requests normally.
-
-Runtime provider failures are isolated from core work and recorded under
-**Admin → Plugins**. Repeated failures open a process-local circuit for that
-plugin capability; calls decline without invoking the provider until one trial
-is allowed after the cool-down. A successful trial closes the circuit, while a
-failed trial opens it again. Because circuit state is process-local, different
-web and worker processes can show different runtime histories.
-
-Operators can tune the breaker for every process at startup:
-
-| Environment variable | Default | Meaning |
-| --- | --- | --- |
-| `SYRUS_PLUGIN_CIRCUIT_FAILURE_THRESHOLD` | `5` | Failures within the window that open a circuit. |
-| `SYRUS_PLUGIN_CIRCUIT_WINDOW_SECONDS` | `60` | Sliding failure window in seconds. |
-| `SYRUS_PLUGIN_CIRCUIT_COOLDOWN_SECONDS` | `30` | Delay before one trial call may run. |
-
-Provider timeouts are opt-in at individual call sites rather than controlled by
-a global setting. In-process isolation contains ordinary provider bugs; it
-cannot contain malicious code, native-code hangs, memory growth, monkey
-patches, or process termination.
 
 Enablement can cascade through hard dependencies. Disabling a dependency can
 cascade through its enabled dependents, but the admin must confirm the complete

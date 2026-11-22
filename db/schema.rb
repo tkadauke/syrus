@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_172512) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_135958) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -3161,25 +3161,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_172512) do
     t.index ["user_id"], name: "index_platform_identities_on_user_id"
   end
 
-  create_table "plugin_records", force: :cascade do |t|
-    t.string "name", null: false
-    t.boolean "enabled", default: true, null: false
-    t.json "config", null: false
+  create_table "plugin_changes", force: :cascade do |t|
+    t.string "plugin_name", null: false
+    t.string "action", null: false
+    t.integer "plugin_release_id"
+    t.json "capability_manifest"
+    t.string "status", null: false
+    t.integer "staged_by_id", null: false
+    t.integer "confirmed_by_id"
+    t.datetime "confirmed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.boolean "default_enabled", default: true, null: false
-    t.boolean "disableable", default: true, null: false
-    t.string "display_name"
-    t.text "description"
-    t.string "category"
-    t.datetime "last_ticked_at"
-    t.string "author"
-    t.text "extension_points"
-    t.boolean "ever_enabled", default: false, null: false
-    t.boolean "experimental", default: false, null: false
-    t.bigint "request_count", default: 0, null: false
-    t.datetime "last_error_at"
-    t.index ["name"], name: "index_plugin_records_on_name", unique: true
+    t.index ["confirmed_by_id"], name: "index_plugin_changes_on_confirmed_by_id"
+    t.index ["plugin_name", "status"], name: "index_plugin_changes_on_plugin_name_and_status"
+    t.index ["plugin_release_id"], name: "index_plugin_changes_on_plugin_release_id"
+    t.index ["staged_by_id"], name: "index_plugin_changes_on_staged_by_id"
   end
 
   create_table "plugin_desired_states", force: :cascade do |t|
@@ -3206,6 +3202,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_172512) do
     t.index ["plugin_release_id"], name: "index_plugin_installations_on_plugin_release_id"
   end
 
+  create_table "plugin_records", force: :cascade do |t|
+    t.string "name", null: false
+    t.boolean "enabled", default: true, null: false
+    t.json "config", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "default_enabled", default: true, null: false
+    t.boolean "disableable", default: true, null: false
+    t.string "display_name"
+    t.text "description"
+    t.string "category"
+    t.datetime "last_ticked_at"
+    t.string "author"
+    t.text "extension_points"
+    t.boolean "ever_enabled", default: false, null: false
+    t.boolean "experimental", default: false, null: false
+    t.bigint "request_count", default: 0, null: false
+    t.datetime "last_error_at"
+    t.index ["name"], name: "index_plugin_records_on_name", unique: true
+  end
+
+  create_table "plugin_registries", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "url", null: false
+    t.boolean "enabled", default: true, null: false
+    t.boolean "environment_managed", default: false, null: false
+    t.datetime "removed_at"
+    t.integer "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_plugin_registries_on_created_by_id"
+    t.index ["name"], name: "index_plugin_registries_on_name", unique: true
+    t.index ["url"], name: "index_plugin_registries_on_url", unique: true
+  end
+
   create_table "plugin_releases", force: :cascade do |t|
     t.string "name", null: false
     t.string "version", null: false
@@ -3216,8 +3247,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_172512) do
     t.bigint "size_bytes", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "publisher_key_fingerprint"
+    t.text "signature"
+    t.integer "plugin_registry_id"
     t.index ["content_digest"], name: "index_plugin_releases_on_content_digest"
-    t.index ["name", "version", "content_digest"], name: "idx_plugin_releases_identity", unique: true
+    t.index ["name", "version", "content_digest", "plugin_registry_id"], name: "idx_plugin_releases_identity", unique: true
+    t.index ["plugin_registry_id"], name: "index_plugin_releases_on_plugin_registry_id"
+    t.index ["publisher_key_fingerprint"], name: "index_plugin_releases_on_publisher_key_fingerprint"
     t.index ["uploaded_by_id"], name: "index_plugin_releases_on_uploaded_by_id"
   end
 

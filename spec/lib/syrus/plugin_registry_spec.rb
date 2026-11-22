@@ -590,6 +590,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         expect(PluginRecord).to have_received(:all).at_least(described_class::ENABLEMENT_READ_ATTEMPTS).times
       end
 
+      it "rechecks a stale negative table lookup before treating the table as missing" do
+        allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+        allow(PluginRecord).to receive(:table_exists?).and_return(false, true)
+
+        expect { described_class.providers_for(:agent_provider) }.to raise_error(described_class::EnablementUnavailable)
+      end
+
       it "retries a transient error and answers from the records" do
         PluginRecord.find_by!(name: "plugin_a").update!(enabled: false)
         described_class.clear_plugin_record_cache!
@@ -1955,6 +1962,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       loads = count_app_setting_loads { 25.times { described_class.beta_mode_enabled? } }
 
       expect(loads).to eq(1)
+    end
+
+    it "rechecks a stale negative app settings table lookup" do
+      allow(AppSetting).to receive(:table_exists?).and_return(false, true)
+      described_class.clear_beta_mode_cache!
+
+      expect(described_class.beta_mode_enabled?).to be(false)
+      expect(AppSetting).to have_received(:table_exists?).twice
     end
 
     # Independent of query counting, and the property the caching actually

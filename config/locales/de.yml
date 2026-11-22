@@ -53,9 +53,16 @@ de:
         invalid_roles_shape: "muss eine Liste nicht leerer Namen sein"
         invalid_roles: "enthält ungültige Rollen: %{roles}"
         missing_verified_artifact: "muss ein verifiziertes Artefakt haben"
+        revoked_release: "wurde widerrufen"
       plugin_release:
         bundled_archive_present: "muss für gebündelte Veröffentlichungen fehlen"
         artifact_identity_immutable: "Die Artefaktidentität der Plugin-Veröffentlichung ist nach Speicherung oder Auswahl unveränderlich."
+      plugin_registry:
+        configured_limit: "höchstens %{count} Plugin-Registrys dürfen konfiguriert sein"
+        unsupported_transport: "muss HTTPS oder git+https verwenden"
+        credentials_forbidden: "darf keine Anmeldedaten enthalten"
+        host_not_permitted: "Host ist nicht zulässig"
+        invalid_url: "ist ungültig"
       chat_attachments:
         default_name: "Anhang"
         must_be_array: "Anhänge müssen als Array angegeben werden."

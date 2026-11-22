@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Deploy
-  # Warm the worker-dev image on every node that will run a compute worker,
+  # Warm the worker-dev and app images on every node that will run a compute worker,
   # in parallel, before any pod is replaced.
   #
   # Measured on a production rollout: a compute pod spent three seconds in its
@@ -43,7 +43,7 @@ module Deploy
         return false
       end
 
-      reporter.step("#{label}: pre-pulling #{config.worker_dev_registry}:#{sha} on every compute node")
+      reporter.step("#{label}: pre-pulling #{prepull_images.join(' and ')} on every compute node")
       controls.push("pre-pull daemonset/#{config.prepull_daemonset}") { remove! }
 
       unless kubectl.apply(manifest).success?
@@ -114,18 +114,25 @@ module Deploy
               "imagePullSecrets" => copied("imagePullSecrets", []),
               "affinity" => copied("affinity", {}),
               "tolerations" => copied("tolerations", []),
-              "containers" => [
+              "containers" => prepull_images.each_with_index.map do |image, index|
                 {
-                  "name" => "prepull",
-                  "image" => "#{config.worker_dev_registry}:#{sha}",
+                  "name" => index.zero? ? "prepull" : "prepull-#{index}",
+                  "image" => image,
                   "command" => [ "sleep", "600" ],
                   "resources" => { "requests" => { "cpu" => "10m", "memory" => "16Mi" } }
                 }
-              ]
+              end
             }
           }
         }
       }
+    end
+
+    # worker-dev for the compute pods, and the app image the migration pod and
+    # web pods run: warming only worker-dev left the migration pod pulling the
+    # app image cold, past its start timeout.
+    def prepull_images
+      [ "#{config.worker_dev_registry}:#{sha}", "#{config.registry}:#{sha}" ].uniq
     end
 
     def copied(key, fallback)

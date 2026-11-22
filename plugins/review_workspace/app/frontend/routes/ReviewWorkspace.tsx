@@ -23,6 +23,8 @@ const MOBILE_FEEDBACK_SHEET_CLASS =
   "mt-4 space-y-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:rounded-t-2xl max-lg:border max-lg:border-border max-lg:bg-surface max-lg:p-5 max-lg:pb-[max(1.25rem,env(safe-area-inset-bottom))] max-lg:shadow-xl"
 const MOBILE_DETAILS_SHEET_CLASS =
   "max-h-[92dvh] w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+const MOBILE_EVIDENCE_CAROUSEL_CLASS =
+  "flex w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 const MAX_CARD_ROTATION_DEGREES = 4
 const REVIEW_SESSION_STATE_KEY = "reviewWorkspaceCanReturn"
 
@@ -331,7 +333,7 @@ function MobileGestureSurface({
       )}
       <div
         aria-label={t("gesture_surface")}
-        className={`relative z-10 touch-none motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
+        className={`relative z-10 touch-pan-x touch-pan-y motion-reduce:transform-none lg:contents ${dragging ? "" : "motion-safe:transition-transform motion-safe:duration-200"}`}
         data-review-workspace-gesture-surface
         data-testid="mobile-review-card"
         onPointerCancel={reset}
@@ -487,7 +489,7 @@ function JobReview({
     )
   return (
     <section aria-label={t("evidence")} className="min-w-0 bg-page p-4 sm:p-6 lg:overflow-y-auto">
-      <div className="mb-5">
+      <div className="mb-5 touch-pan-y">
         <p className="text-xs text-text-secondary">
           {job.slug} · {job.repository.slug}
         </p>
@@ -523,76 +525,135 @@ function MobileReviewCard({
   const { t } = useT("review_workspace")
   const screenshots = (payload.visual_evidence?.screenshots ?? []).filter((screenshot) => screenshot.status === "submitted")
   const [evidenceIndex, setEvidenceIndex] = useState(0)
+  const carouselRef = useRef<HTMLDivElement>(null)
+  const settleTimerRef = useRef<number>()
+  const handledEvidenceNavigationRef = useRef<number>()
+
+  const settleEvidencePosition = useCallback(() => {
+    const carousel = carouselRef.current
+    if (!carousel || carousel.clientWidth <= 0) return
+    const nextIndex = Math.max(0, Math.min(screenshots.length - 1, Math.round(carousel.scrollLeft / carousel.clientWidth)))
+    setEvidenceIndex(nextIndex)
+  }, [screenshots.length])
+
+  const handleCarouselScroll = useCallback(() => {
+    if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
+    settleTimerRef.current = window.setTimeout(settleEvidencePosition, 80)
+  }, [settleEvidencePosition])
+
+  const scrollToEvidence = useCallback(
+    (index: number, behavior: ScrollBehavior = "smooth") => {
+      const carousel = carouselRef.current
+      if (!carousel || screenshots.length === 0) return
+      const nextIndex = (index + screenshots.length) % screenshots.length
+      const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+      carousel.scrollTo({ left: nextIndex * carousel.clientWidth, behavior: reducedMotion ? "auto" : behavior })
+    },
+    [screenshots.length]
+  )
+
   useEffect(() => {
-    if (!visualEvidenceNavigation || screenshots.length < 2) return
-    setEvidenceIndex((current) => (current + visualEvidenceNavigation.direction + screenshots.length) % screenshots.length)
-  }, [screenshots.length, visualEvidenceNavigation])
+    if (!visualEvidenceNavigation || screenshots.length < 2 || handledEvidenceNavigationRef.current === visualEvidenceNavigation.sequence) return
+    handledEvidenceNavigationRef.current = visualEvidenceNavigation.sequence
+    scrollToEvidence(evidenceIndex + visualEvidenceNavigation.direction)
+  }, [evidenceIndex, screenshots.length, scrollToEvidence, visualEvidenceNavigation])
+  useEffect(() => {
+    const carousel = carouselRef.current
+    if (!carousel) return
+    const preservePosition = () => carousel.scrollTo({ left: evidenceIndex * carousel.clientWidth, behavior: "auto" })
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(preservePosition)
+    observer?.observe(carousel)
+    window.addEventListener("resize", preservePosition)
+    return () => {
+      if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
+      observer?.disconnect()
+      window.removeEventListener("resize", preservePosition)
+    }
+  }, [evidenceIndex])
   const evidence = screenshots[evidenceIndex]
   const canApprove = Boolean(payload.actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented")
   return (
-    <article className="space-y-4 rounded-2xl border border-border bg-surface p-4 shadow-sm" data-testid="mobile-review-summary">
-      {payload.summary?.text ? (
-        <Markdown className="chat-prose text-sm text-text-secondary" text={payload.summary.text} />
-      ) : (
-        <p className="text-sm text-text-secondary">{t("summary_unavailable")}</p>
-      )}
-      <section aria-label={t("visual_evidence")} className="overflow-hidden rounded-xl border border-border bg-surface-subtle">
+    <article className="relative space-y-4 rounded-2xl border border-border bg-surface p-4 shadow-sm" data-testid="mobile-review-summary">
+      <div aria-hidden="true" className="absolute inset-0 touch-pan-y" data-testid="mobile-decision-touch-region" />
+      <div className="relative z-10 touch-pan-y">
+        {payload.summary?.text ? (
+          <Markdown className="chat-prose text-sm text-text-secondary" text={payload.summary.text} />
+        ) : (
+          <p className="text-sm text-text-secondary">{t("summary_unavailable")}</p>
+        )}
+      </div>
+      <section
+        aria-label={t("visual_evidence")}
+        className="relative z-10 overflow-hidden rounded-xl border border-border bg-surface-subtle"
+        data-review-gesture-exempt={evidence ? "true" : undefined}
+      >
         {evidence ? (
           <>
-            <button className="block min-h-11 w-full" data-review-gesture-exempt onClick={onDetails} type="button">
-              <img
-                alt={evidence.page?.title || evidence.page?.path || t("visual_evidence")}
-                className="max-h-[42dvh] w-full object-contain"
-                src={evidence.image_url}
-              />
-            </button>
-            <div className="flex min-h-11 items-center justify-between gap-3 px-2 py-1 text-xs text-text-secondary">
-              <span className="truncate">{evidence.page?.title || evidence.page?.path || t("visual_evidence")}</span>
-              <div className="flex items-center gap-1" data-review-gesture-exempt>
-                {screenshots.length > 1 ? (
-                  <button
-                    aria-label={t("previous_evidence")}
-                    className="min-h-11 min-w-11 rounded-lg border border-border"
-                    onClick={() => setEvidenceIndex((current) => (current - 1 + screenshots.length) % screenshots.length)}
-                    type="button"
-                  >
-                    ←
+            <div data-review-gesture-exempt>
+              <div
+                aria-label={t("visual_evidence_carousel")}
+                className={MOBILE_EVIDENCE_CAROUSEL_CLASS}
+                data-testid="mobile-evidence-carousel"
+                onScroll={handleCarouselScroll}
+                ref={carouselRef}
+                role="region"
+              >
+                {screenshots.map((screenshot) => (
+                  <button className="block min-h-11 w-full shrink-0 snap-center" key={screenshot.id} onClick={onDetails} type="button">
+                    <img
+                      alt={screenshot.page?.title || screenshot.page?.path || t("visual_evidence")}
+                      className="max-h-[42dvh] w-full object-contain"
+                      src={screenshot.image_url}
+                    />
                   </button>
-                ) : null}
-                <span aria-live="polite">{t("evidence_position", { current: evidenceIndex + 1, count: screenshots.length })}</span>
-                {screenshots.length > 1 ? (
-                  <button
-                    aria-label={t("next_evidence")}
-                    className="min-h-11 min-w-11 rounded-lg border border-border"
-                    onClick={() => setEvidenceIndex((current) => (current + 1) % screenshots.length)}
-                    type="button"
-                  >
-                    →
-                  </button>
-                ) : null}
+                ))}
               </div>
+              {screenshots.length > 1 ? (
+                <div aria-label={t("visual_evidence_pagination")} className="flex min-h-8 items-center justify-center gap-2 px-2" role="group">
+                  {screenshots.map((screenshot, index) => (
+                    <button
+                      aria-label={t("show_visual_evidence", { current: index + 1, count: screenshots.length })}
+                      aria-pressed={index === evidenceIndex}
+                      className={`h-2.5 w-2.5 rounded-full border ${index === evidenceIndex ? "scale-125 border-brand bg-brand" : "border-text-muted bg-transparent"}`}
+                      key={screenshot.id}
+                      onClick={() => scrollToEvidence(index)}
+                      type="button"
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex min-h-11 items-center px-2 py-1 text-xs text-text-secondary" data-testid="mobile-evidence-caption">
+              <span className="truncate">{evidence.page?.title || evidence.page?.path || t("visual_evidence")}</span>
+              <span aria-live="polite" className="sr-only">
+                {t("evidence_position", { current: evidenceIndex + 1, count: screenshots.length })}
+              </span>
             </div>
           </>
         ) : (
           <div className="grid min-h-40 place-items-center p-5 text-center text-sm text-text-secondary">{t("no_visual_evidence")}</div>
         )}
       </section>
-      <div className="flex flex-wrap gap-2" aria-label={t("checks")}>
-        <span
-          className={`rounded-full border px-3 py-1 text-xs font-medium ${canApprove ? "border-success-border bg-success-subtle text-success-text" : "border-border text-text-secondary"}`}
-        >
-          {canApprove ? t("checks_ready") : t("checks_blocked")}
-        </span>
-        {job.pr_number ? (
-          <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">{t("pull_request_number", { number: job.pr_number })}</span>
-        ) : null}
-      </div>
-      <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
-        <strong className="text-text">{t("why_needed")}</strong> {canApprove ? t("why_needed_ready") : t("why_needed_blocked")}
-      </div>
-      <p className="text-center text-xs text-text-secondary">{t("gesture_cue")}</p>
-      <div className="rounded-lg border border-brand/30 bg-brand-subtle p-3 text-xs text-text-secondary" data-testid="mobile-gesture-coach">
-        {t("gesture_coach")}
+      <div className="relative z-10 space-y-4 touch-pan-y">
+        <div className="flex flex-wrap gap-2" aria-label={t("checks")}>
+          <span
+            className={`rounded-full border px-3 py-1 text-xs font-medium ${canApprove ? "border-success-border bg-success-subtle text-success-text" : "border-border text-text-secondary"}`}
+          >
+            {canApprove ? t("checks_ready") : t("checks_blocked")}
+          </span>
+          {job.pr_number ? (
+            <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">
+              {t("pull_request_number", { number: job.pr_number })}
+            </span>
+          ) : null}
+        </div>
+        <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
+          <strong className="text-text">{t("why_needed")}</strong> {canApprove ? t("why_needed_ready") : t("why_needed_blocked")}
+        </div>
+        <p className="text-center text-xs text-text-secondary">{t("gesture_cue")}</p>
+        <div className="rounded-lg border border-brand/30 bg-brand-subtle p-3 text-xs text-text-secondary" data-testid="mobile-gesture-coach">
+          {t("gesture_coach")}
+        </div>
       </div>
     </article>
   )

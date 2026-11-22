@@ -240,6 +240,17 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.reload.ci_health).to eq("healthy")
   end
 
+  it "supersedes main repairs still in preflight when main advances" do
+    repository.update!(last_health_checked_sha: "old-sha")
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: true, any_failed?: false, all_passed?: false, any_cancelled?: false, failed_checks: [] })
+    allow(MainHealthChangedService).to receive(:supersede_stale_preflight_repairs!)
+
+    described_class.perform_now(repository.id)
+
+    expect(MainHealthChangedService).to have_received(:supersede_stale_preflight_repairs!).with(repository, head_sha: sha)
+  end
+
   it "re-evaluates a carried-forward broken CI signal once the new SHA's checks pass" do
     # Regression: main advanced off a broken SHA, so ci_health was carried
     # forward as "broken" and last_health_checked_sha advanced to `sha` while

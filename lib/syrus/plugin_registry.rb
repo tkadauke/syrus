@@ -844,7 +844,7 @@ module Syrus
       def beta_mode_enabled?
         return true unless defined?(AppSetting) && AppSetting.respond_to?(:current)
         return true if ENV["SECRET_KEY_BASE_DUMMY"].present?
-        return true unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
+        return true unless model_table_available?(AppSetting) && AppSetting.column_names.include?("beta_mode_enabled")
 
         cached = cached_beta_mode_enabled
         return cached unless cached.nil?
@@ -962,9 +962,20 @@ module Syrus
       def build_time_without_database? = ENV["SECRET_KEY_BASE_DUMMY"].present?
 
       def plugin_records_table_missing?
-        !PluginRecord.table_exists?
+        !model_table_available?(PluginRecord)
       rescue ActiveRecord::ActiveRecordError
         false
+      end
+
+      # A process can boot while another setup process is preparing the
+      # database. Active Record caches that initial negative table lookup, so
+      # retry it without the one-table cache entry before deciding that the
+      # table is genuinely absent.
+      def model_table_available?(model)
+        return true if model.table_exists?
+
+        model.connection.schema_cache.clear_data_source_cache!(model.table_name)
+        model.table_exists?
       end
 
       def enablement_retry_sleep(seconds) = sleep(seconds)

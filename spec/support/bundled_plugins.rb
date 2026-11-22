@@ -145,33 +145,65 @@ module Syrus
       def with_default_beta_mode(example)
         begin
           return yield unless defined?(AppSetting) && AppSetting.respond_to?(:current)
-          return yield unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
+          return yield unless app_settings_table_available? && AppSetting.column_names.include?("beta_mode_enabled")
 
           # The before(:suite) call establishes true as the common baseline.
           # Transactional examples roll their own changes back to that value,
           # so ordinary core and plugin specs should not pay for two writes to
           # the singleton settings row. Only default-policy specs toggle it.
-          settings = AppSetting.current
+          # Transaction rollback does not refresh the process-local singleton
+          # or the plugin registry's memoized beta-mode value.
+          settings = AppSetting.current.reload
+          Syrus::PluginRegistry.clear_beta_mode_cache!
           previous = settings.beta_mode_enabled?
           desired = !beta_mode_excluded?(example)
           settings.update!(beta_mode_enabled: desired) unless previous == desired
-        rescue ActiveRecord::ActiveRecordError
+        rescue ActiveRecord::ActiveRecordError => e
+          report_beta_mode_failure("could not set beta mode for #{example.metadata[:file_path]}", e)
           return yield
         end
 
         yield
       ensure
-        settings&.update!(beta_mode_enabled: previous) if defined?(settings) && settings && settings.beta_mode_enabled? != previous
+        if defined?(settings) && settings
+          begin
+            settings.reload
+            Syrus::PluginRegistry.clear_beta_mode_cache!
+            settings.update!(beta_mode_enabled: previous) if settings.beta_mode_enabled? != previous
+          rescue ActiveRecord::ActiveRecordError
+            nil
+          end
+        end
       end
 
       def establish_default_beta_mode
         return unless defined?(AppSetting) && AppSetting.respond_to?(:current)
-        return unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
+        return unless app_settings_table_available? && AppSetting.column_names.include?("beta_mode_enabled")
 
-        settings = AppSetting.current
+        settings = AppSetting.current.reload
+        Syrus::PluginRegistry.clear_beta_mode_cache!
         settings.update!(beta_mode_enabled: true) unless settings.beta_mode_enabled?
-      rescue ActiveRecord::ActiveRecordError
+      rescue ActiveRecord::ActiveRecordError => e
+        report_beta_mode_failure("could not establish the beta-mode baseline", e)
         nil
+      end
+
+      def app_settings_table_available?
+        return true if AppSetting.table_exists?
+
+        AppSetting.connection.schema_cache.clear_data_source_cache!(AppSetting.table_name)
+        AppSetting.table_exists?
+      end
+
+      # Both callers carry on without the beta-mode default, so the examples
+      # that depend on it fail far from the cause. Say why, once per error,
+      # where the failing run's output will show it.
+      def report_beta_mode_failure(context, error)
+        @reported_beta_mode_failures ||= Set.new
+        signature = "#{error.class}: #{error.message}"
+        return unless @reported_beta_mode_failures.add?(signature)
+
+        warn "[bundled_plugins] #{context}: #{signature}"
       end
     end
   end

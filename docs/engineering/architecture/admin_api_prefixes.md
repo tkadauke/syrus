@@ -30,6 +30,14 @@ The plugin convergence read and local-quarantine recovery action are UI-only
 app-admin routes. Desired-state inspection and apply remain token-authenticated
 operator API operations under `/api/v1/admin/*`.
 
+The packaged-plugin installer routes are app-admin surfaces. The registry
+catalog and registry-source management endpoints are page-shaped operations
+used by the administrator browser. The remaining installer routes are shared
+by the administrator page and the built-in CLI, which uses the authenticated
+app API; they stage uploads, registry or stored releases, removals,
+confirmations, and lockfile transfers. Fleet-wide
+desired-state application remains on the token-only operator API.
+
 `POST /api/v1/admin/pending_actions/invoke` is the generic operator
 automation bridge for `PendingActions` operations. The request names an
 `action_key`, a JSON `payload`, and a required `reason`; the API call itself is

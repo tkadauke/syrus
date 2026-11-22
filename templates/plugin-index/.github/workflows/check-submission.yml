@@ -1,0 +1,26 @@
+name: Check plugin submission
+on:
+  pull_request:
+    paths: ["**/*.json"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Syrus CLI
+        run: curl -fsSL https://get.syrus.dev/cli | sh
+      - name: Check changed releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          trusted_store="$(mktemp)"
+          trap 'rm -f "$trusted_store"' EXIT
+          git show "${{ github.event.pull_request.base.sha }}:trust-store.json" > "$trusted_store"
+          mapfile -t entries < <(git diff --name-only --diff-filter=AM "${{ github.event.pull_request.base.sha }}" HEAD -- '*/*.json')
+          for entry in "${entries[@]}"; do
+            jq -e --arg entry "$entry" '.releases | index($entry) != null' index.json >/dev/null
+            syrus plugin index-check "$entry" --trust-store "$trusted_store"
+          done
+          while IFS= read -r entry; do
+            test -f "$entry" || { echo "index.json lists missing release: $entry" >&2; exit 1; }
+          done < <(jq -r '.releases[]' index.json)

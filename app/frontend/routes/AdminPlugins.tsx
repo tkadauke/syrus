@@ -9,6 +9,17 @@ import {
   enableAdminPlugin,
   fetchAdminPlugin,
   fetchAdminPlugins,
+  fetchPluginInstaller,
+  fetchPluginRegistryCatalog,
+  fetchPluginRegistries,
+  createPluginRegistry,
+  updatePluginRegistry,
+  removePluginRegistry,
+  stagePluginArchive,
+  stagePluginRemoval,
+  stageStoredPluginRelease,
+  confirmPluginChange,
+  applyPluginChanges,
   type AdminPlugin,
   type AdminPluginCapability,
   type AdminPluginDisableConfirmation,
@@ -26,7 +37,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { Markdown } from "../lib/Markdown"
 import * as pageReload from "../lib/pageReload"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { DataTable, Page, Surface } from "../components/ui"
+import { DataTable, Input, Page, Select, Surface } from "../components/ui"
 
 export function AdminPlugins() {
   const { t } = useT("admin")
@@ -49,6 +60,8 @@ export function AdminPlugins() {
           <Page.Title className="mt-1">{t("plugins.heading")}</Page.Title>
         </Page.HeadingGroup>
       </Page.Header>
+
+      <PluginInstallerPanel />
 
       <PluginConvergencePanel data={plugins.data?.convergence} loading={plugins.isPending} />
 
@@ -81,6 +94,303 @@ export function AdminPlugins() {
         </AdminFiltersLayout>
       ) : null}
     </Page.Root>
+  )
+}
+
+function PluginInstallerPanel() {
+  const { t } = useT("admin")
+  const queryClient = useQueryClient()
+  const [file, setFile] = useState<File | null>(null)
+  const [fileInputKey, setFileInputKey] = useState(0)
+  const [restartRequired, setRestartRequired] = useState(false)
+  const [catalogTerm, setCatalogTerm] = useState("")
+  const [catalogRegistry, setCatalogRegistry] = useState("")
+  const installer = useQuery({ queryKey: ["admin", "plugin-installer"], queryFn: fetchPluginInstaller })
+  const catalog = useQuery({
+    queryKey: ["admin", "plugin-registry", catalogTerm, catalogRegistry],
+    queryFn: () => fetchPluginRegistryCatalog(catalogTerm, catalogRegistry)
+  })
+  const catalogOverview = useQuery({ queryKey: ["admin", "plugin-registry-overview"], queryFn: () => fetchPluginRegistryCatalog() })
+  const stage = useMutation({
+    mutationFn: stagePluginArchive,
+    onSuccess: () => {
+      setFile(null)
+      setFileInputKey((key) => key + 1)
+      void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
+    }
+  })
+  const restore = useMutation({
+    mutationFn: ({ name, version, registry }: { name: string; version: string; registry?: string }) => stageStoredPluginRelease(name, version, registry),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
+  })
+  const remove = useMutation({
+    mutationFn: stagePluginRemoval,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
+  })
+  const confirm = useMutation({
+    mutationFn: confirmPluginChange,
+    onSuccess: () => {
+      setRestartRequired(true)
+      void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
+      void queryClient.invalidateQueries({ queryKey: ["admin", "plugins"] })
+    }
+  })
+  const apply = useMutation({ mutationFn: applyPluginChanges, onSuccess: () => setRestartRequired(false) })
+
+  return (
+    <Surface aria-label={t("plugins.installer.aria")} role="region">
+      <SectionHeading>{t("plugins.installer.heading")}</SectionHeading>
+      <p className="mt-1 text-sm text-text-secondary">{t("plugins.installer.body")}</p>
+      <div className="mt-4 border-t border-border pt-4">
+        <PluginRegistriesPanel />
+      </div>
+      <div className="mt-4 border-t border-border pt-4">
+        <SectionHeading>{t("plugins.registry.heading")}</SectionHeading>
+        {!catalog.data?.configured && !catalog.isPending ? <p className="mt-2 text-sm text-text-secondary">{t("plugins.registry.unconfigured")}</p> : null}
+        {catalog.data?.configured ? (
+          <>
+            <Input
+              aria-label={t("plugins.registry.search")}
+              className="mt-2"
+              onChange={(event) => setCatalogTerm(event.target.value)}
+              placeholder={t("plugins.registry.search")}
+              type="search"
+              value={catalogTerm}
+            />
+            <label className="mt-2 block text-sm">
+              {t("plugins.registry.filter")}
+              <Select className="ml-2 inline-block" fullWidth={false} onChange={(event) => setCatalogRegistry(event.target.value)} value={catalogRegistry}>
+                <option value="">{t("plugins.registry.all")}</option>
+                {Array.from(new Set((catalogOverview.data?.entries || catalog.data.entries).map((entry) => entry.registry_name))).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {Object.entries(catalog.data.errors || {}).map(([name, message]) => (
+              <p className="mt-2 text-sm text-danger" key={name}>
+                {t("plugins.registry.source_error", { name, message })}
+              </p>
+            ))}
+            {(catalog.data.stale_registries || []).map((name) => (
+              <p className="mt-2 text-sm text-warning" key={name}>
+                {t("plugins.registry.source_stale", { name })}
+              </p>
+            ))}
+            <div className="mt-3 space-y-2">
+              {catalog.data.entries.map((entry) => (
+                <div className="rounded border border-border p-3" key={entry.registry_name + "-" + entry.name + "-" + entry.version}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong>{entry.name}</strong>
+                    <span>{entry.version}</span>
+                    <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{entry.trust_label}</span>
+                    <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{t("plugins.registry.source", { name: entry.registry_name })}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-text-secondary">{entry.description}</p>
+                  <Button
+                    className="mt-2"
+                    disabled={restore.isPending}
+                    onClick={() => restore.mutate({ name: entry.name, version: entry.version, registry: entry.registry_id?.toString() || entry.registry_name })}
+                  >
+                    {t("plugins.registry.install")}
+                  </Button>
+                </div>
+              ))}
+              {catalog.data.entries.length === 0 && !catalog.data.error ? <p className="text-sm text-text-secondary">{t("plugins.registry.empty")}</p> : null}
+            </div>
+          </>
+        ) : null}
+      </div>
+      <form
+        className="mt-3 flex flex-wrap items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (file) stage.mutate(file)
+        }}
+      >
+        <Input
+          aria-label={t("plugins.installer.archive")}
+          accept=".gz,.tgz,.tar.gz"
+          key={fileInputKey}
+          onChange={(event) => setFile(event.target.files?.[0] || null)}
+          type="file"
+        />
+        <Button disabled={!file || stage.isPending} type="submit">
+          {stage.isPending ? t("plugins.installer.staging") : t("plugins.installer.stage")}
+        </Button>
+      </form>
+      {stage.isError || restore.isError || remove.isError || confirm.isError ? (
+        <p className="mt-2 text-sm text-danger">{t("plugins.installer.error")}</p>
+      ) : null}
+      {restartRequired ? (
+        <div className="mt-3 rounded border border-warning p-3">
+          <p className="text-sm">{t("plugins.installer.restart_required")}</p>
+          <Button className="mt-2" disabled={apply.isPending} onClick={() => apply.mutate()}>
+            {t("plugins.installer.apply")}
+          </Button>
+        </div>
+      ) : null}
+      {installer.data?.pending_changes?.map((change) => (
+        <div className="mt-4 rounded border border-border p-3" key={change.id}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong>
+              {change.name} {change.version}
+            </strong>
+            <span>{t(`plugins.installer.actions.${change.action}`)}</span>
+          </div>
+          <p className="mt-2 text-sm font-medium">{t("plugins.installer.capabilities")}</p>
+          <ul className="mt-1 text-sm text-text-secondary">
+            {Object.entries(change.capability_diff).map(([key, diff]) => (
+              <li key={key}>
+                {key}: +{diff.added.join(", ") || "—"} / −{diff.removed.join(", ") || "—"}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-sm text-warning">{t("plugins.installer.disclosure")}</p>
+          <Button className="mt-2" disabled={confirm.isPending} onClick={() => confirm.mutate(change.id)}>
+            {t("plugins.installer.confirm")}
+          </Button>
+        </div>
+      ))}
+      {installer.data?.installations?.length ? (
+        <div className="mt-4 space-y-2">
+          {installer.data.installations.map((item) => (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={item.name}>
+              <span>
+                {item.name} {item.version} · {item.source} · {t(`plugins.trust_labels.${item.trust_label}`)} · {item.health}
+              </span>
+              <Button onClick={() => remove.mutate(item.name)}>{t("plugins.installer.remove")}</Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {installer.data?.available_releases?.length ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm font-medium">{t("plugins.installer.stored_releases")}</p>
+          {installer.data.available_releases.map((release) => (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={`${release.name}-${release.version}`}>
+              <span>
+                {release.name} {release.version} · {t(`plugins.trust_labels.${release.trust_label}`)}
+              </span>
+              <Button disabled={restore.isPending} onClick={() => restore.mutate(release)}>
+                {t("plugins.installer.restore")}
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </Surface>
+  )
+}
+
+function PluginRegistriesPanel() {
+  const { t } = useT("admin")
+  const queryClient = useQueryClient()
+  const [url, setUrl] = useState("")
+  const [name, setName] = useState("")
+  const [confirming, setConfirming] = useState(false)
+  const registries = useQuery({ queryKey: ["admin", "plugin-registries"], queryFn: fetchPluginRegistries })
+  const catalog = useQuery({ queryKey: ["admin", "plugin-registry-overview"], queryFn: () => fetchPluginRegistryCatalog() })
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-registries"] })
+    void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-registry"] })
+    void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-registry-overview"] })
+  }
+  const add = useMutation({
+    mutationFn: createPluginRegistry,
+    onSuccess: () => {
+      setUrl("")
+      setName("")
+      setConfirming(false)
+      refresh()
+    }
+  })
+  const toggle = useMutation({ mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => updatePluginRegistry(id, enabled), onSuccess: refresh })
+  const remove = useMutation({ mutationFn: removePluginRegistry, onSuccess: refresh })
+
+  return (
+    <section aria-label={t("plugins.registries.aria")}>
+      <SectionHeading>{t("plugins.registries.heading")}</SectionHeading>
+      {registries.isPending ? <p className="mt-2 text-sm text-text-secondary">{t("plugins.registries.loading")}</p> : null}
+      <div className="mt-3 space-y-2">
+        {registries.data?.registries?.map((registry) => (
+          <div className="rounded border border-border p-3" key={`${registry.id}-${registry.url}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <strong>{registry.name}</strong>
+              {registry.canonical ? <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{t("plugins.registries.canonical")}</span> : null}
+              {registry.read_only ? <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{t("plugins.registries.read_only")}</span> : null}
+              <span className="text-xs text-text-secondary">{registry.enabled ? t("plugins.registries.enabled") : t("plugins.registries.disabled")}</span>
+            </div>
+            <p className="mt-1 break-all text-sm text-text-secondary">{registry.url}</p>
+            <p className="mt-1 text-xs text-text-secondary">
+              {t("plugins.registries.details", {
+                count: catalog.data?.entries.filter((entry) => entry.registry_name === registry.name).length ?? registry.entry_count,
+                time: registry.last_refresh_at ? new Date(registry.last_refresh_at).toLocaleString() : t("plugins.registries.never")
+              })}
+            </p>
+            {registry.stale || catalog.data?.stale_registries?.includes(registry.name) ? (
+              <p className="mt-1 text-sm text-warning">{t("plugins.registries.stale")}</p>
+            ) : null}
+            {registry.error || catalog.data?.errors?.[registry.name] ? (
+              <p className="mt-1 text-sm text-danger">{registry.error || catalog.data?.errors[registry.name]}</p>
+            ) : null}
+            {!registry.read_only && registry.id !== null ? (
+              <div className="mt-2 flex gap-2">
+                <Button disabled={toggle.isPending} onClick={() => toggle.mutate({ id: registry.id!, enabled: !registry.enabled })}>
+                  {registry.enabled ? t("plugins.registries.disable") : t("plugins.registries.enable")}
+                </Button>
+                {!registry.canonical ? (
+                  <Button disabled={remove.isPending} onClick={() => remove.mutate(registry.id!)}>
+                    {t("plugins.registries.remove")}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <form
+        className="mt-4 space-y-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (confirming) add.mutate({ name: name || `registry-${new URL(url).hostname.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, url })
+          else setConfirming(true)
+        }}
+      >
+        <Input
+          aria-label={t("plugins.registries.url")}
+          onChange={(event) => {
+            setUrl(event.target.value)
+            setConfirming(false)
+          }}
+          placeholder={t("plugins.registries.url")}
+          required
+          type="url"
+          value={url}
+        />
+        <Input
+          aria-label={t("plugins.registries.name")}
+          onChange={(event) => {
+            setName(event.target.value)
+            setConfirming(false)
+          }}
+          pattern="[a-z][a-z0-9_-]*"
+          placeholder={t("plugins.registries.name")}
+          value={name}
+        />
+        {confirming ? (
+          <div className="rounded border border-warning p-3 text-sm">
+            <p>{t("plugins.registries.trust_disclosure")}</p>
+            <p className="mt-2">{t("plugins.installer.disclosure")}</p>
+          </div>
+        ) : null}
+        {add.isError ? <p className="text-sm text-danger">{errorMessage(add.error, t("plugins.registries.add_error"))}</p> : null}
+        <Button disabled={add.isPending} type="submit">
+          {confirming ? t("plugins.registries.confirm_add") : t("plugins.registries.add")}
+        </Button>
+      </form>
+    </section>
   )
 }
 
@@ -225,6 +535,7 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
               <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span>
             ) : null}
             <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{plugin.version}</span>
+            <StatusBadge status="required" label={t(`plugins.trust_labels.${plugin.trust_label}`)} />
             <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
             {plugin.experimental ? <StatusBadge status="experimental" label={t("plugins.experimental")} /> : null}

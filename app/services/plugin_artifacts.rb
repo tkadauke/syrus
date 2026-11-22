@@ -2,10 +2,11 @@ require "digest"
 
 module PluginArtifacts
   DigestMismatch = Class.new(StandardError)
+  TrustVerificationFailed = Class.new(StandardError)
 
   module_function
 
-  def store!(release, io)
+  def store!(release, io, trust_store: Syrus::PluginPackage::TrustStore.cached)
     raise ArgumentError, "bundled releases do not have an artifact" if release.source == "bundled"
 
     tempfile = Tempfile.new([ "plugin-release", ".archive" ], binmode: true)
@@ -22,6 +23,8 @@ module PluginArtifacts
       raise DigestMismatch, "plugin artifact digest does not match the release"
     end
     raise DigestMismatch, "plugin artifact size does not match the release" unless size == release.size_bytes
+
+    verify_trust!(release, tempfile, trust_store)
 
     tempfile.rewind
     blob = ActiveStorage::Blob.create_and_upload!(
@@ -44,5 +47,19 @@ module PluginArtifacts
 
   def key(digest)
     "plugins/artifacts/#{digest}"
+  end
+
+  def verify_trust!(release, package, trust_store)
+    package.rewind
+    signature = StringIO.new(release.signature) if release.signature.present?
+    result = Syrus::PluginPackage::Verifier.new(
+      package:, signature:, trust_store:, local: release.source != "registry",
+      name: release.name, version: release.version
+    ).call
+    raise TrustVerificationFailed, result.errors.join(", ") unless result.valid?
+
+    release.update!(trust_label: result.trust_label, publisher_key_fingerprint: result.fingerprint)
+  ensure
+    package.rewind
   end
 end
