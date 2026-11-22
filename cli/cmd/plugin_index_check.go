@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -40,7 +41,8 @@ func newPluginIndexCheckCommand() *cobra.Command {
 		if err = json.Unmarshal(entryBytes, &entry); err != nil {
 			return fail(fmt.Errorf("invalid index format: %w", err))
 		}
-		if err = validateRegistryRelease(entry.Name+"/"+entry.Version+".json", entry); err != nil {
+		entryPath := filepath.ToSlash(filepath.Join(filepath.Base(filepath.Dir(args[0])), filepath.Base(args[0])))
+		if err = validateRegistryRelease(entryPath, entry); err != nil {
 			return fail(err)
 		}
 		publisher := strings.Split(entry.Name, "_")[0]
@@ -101,8 +103,18 @@ func newPluginIndexCheckCommand() *cobra.Command {
 		if manifest.Name != entry.Name || manifest.Version != entry.Version || manifest.RequiresSyrus != entry.RequiresSyrus {
 			return fail(errors.New("package manifest is inconsistent with index entry"))
 		}
+		var declaredCapabilities any
+		var packagedCapabilities any
+		manifestBytes, _ := json.Marshal(manifest)
+		if json.Unmarshal(entry.CapabilitySummary, &declaredCapabilities) != nil || json.Unmarshal(manifestBytes, &packagedCapabilities) != nil || !reflect.DeepEqual(declaredCapabilities, packagedCapabilities) {
+			return fail(errors.New("capability summary is inconsistent with package manifest"))
+		}
 		minimum := minimumSyrusVersion(entry.RequiresSyrus)
 		if minimum == "" {
+			return fail(errors.New("requires_syrus must declare a plausible minimum version"))
+		}
+		compatible, requirementErr := versionRequirementSatisfied(entry.RequiresSyrus, minimum)
+		if requirementErr != nil || !compatible {
 			return fail(errors.New("requires_syrus must declare a plausible minimum version"))
 		}
 		runner := pluginRunner(checkoutPluginRunner{})
@@ -173,6 +185,7 @@ func extractSubmittedPackage(path, root string) (packageManifest, error) {
 	defer gz.Close()
 	reader := tar.NewReader(gz)
 	var manifest packageManifest
+	extractedFiles := map[string]string{}
 	for {
 		header, err := reader.Next()
 		if err == io.EOF {
@@ -205,9 +218,19 @@ func extractSubmittedPackage(path, root string) (packageManifest, error) {
 		if err = os.WriteFile(destination, contents, 0644); err != nil {
 			return manifest, err
 		}
+		digest := sha256.Sum256(contents)
+		extractedFiles[header.Name] = hex.EncodeToString(digest[:])
 	}
 	if manifest.Name == "" {
 		return manifest, errors.New("package manifest is missing")
+	}
+	if len(extractedFiles) != len(manifest.Files) {
+		return manifest, errors.New("package files do not match manifest")
+	}
+	for _, file := range manifest.Files {
+		if extractedFiles[file.Path] != file.SHA256 {
+			return manifest, fmt.Errorf("package file %s does not match manifest", file.Path)
+		}
 	}
 	return manifest, nil
 }
