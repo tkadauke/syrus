@@ -481,7 +481,7 @@
     "trust_labels": {
       "official": "Offiziell",
       "verified": "Verifiziert",
-      "community": "Community",
+      "community": "Gemeinschaft",
       "unsigned_local": "Lokal unsigniert"
     },
     "recovery_active": "Plugin-Wiederherstellungsmodus ist aktiv",
