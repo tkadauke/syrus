@@ -70,7 +70,7 @@ describe("pluginUiSlots", () => {
         </MemoryRouter>
       )
 
-      expect(await screen.findByRole("status")).toHaveTextContent("1 unlabeled open issue")
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 unlabeled open issue"))
       await waitFor(() => expect(observe).toHaveBeenCalled())
 
       observe.mockClear()
@@ -113,7 +113,7 @@ describe("pluginUiSlots", () => {
       </MemoryRouter>
     )
 
-    expect(await screen.findByRole("status")).toHaveTextContent("1 unlabeled open issue")
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 unlabeled open issue"))
 
     expect(() =>
       rerender(
