@@ -641,8 +641,8 @@
         "grader_fanout_worker_loss_stays_in_loop"
       ],
       "status": "partial",
-      "done_by": "M26/F91 (NY26 open)",
-      "notes": "Fault model: prove a recovery bound and that mutable steps stay pinned to the workspace's storage key. Bounds established so far: the in-place infrastructure retry is capped by INFRASTRUCTURE_STEP_RETRY_LIMIT, pinned host-admission deferral by the per-Run budget (F91, PinnedDeferralBudget.lean), dead resume queues are rerouted once (M32). Open: a lost failure cascade after worker death is recovered by failing the Workflow rather than retrying in place (NY26)."
+      "done_by": "M26/F91/F102",
+      "notes": "Fault model: prove a recovery bound and that mutable steps stay pinned to the workspace's storage key. Bounds established so far: the in-place infrastructure retry is capped by INFRASTRUCTURE_STEP_RETRY_LIMIT, pinned host-admission deferral by the per-Run budget (F91, PinnedDeferralBudget.lean), dead resume queues are rerouted once (M32). F102 (NY26): a lost failure cascade after worker death is recovered by replaying StepDispatcher.fail_from, so it retries in place like the live path, bounded by the same limit (CascadeReplay.lean)."
     },
     {
       "id": "active-run-on-terminal-step",
@@ -853,8 +853,8 @@
         "queued_workflow_with_failed_step"
       ],
       "status": "partial",
-      "done_by": "M26 (NY26 open)",
-      "notes": "Invariant: an unsuperseded failed step with no live work implies the Workflow is terminal or a loop continuation is pending. M26: the live dispatch (StepDispatcher#fail!) is total; a lost cascade is auto-repaired, but the fail_workflow repair hard-fails instead of replaying the cascade (skipping advance, try branches and the infrastructure retry) — NY26."
+      "done_by": "M26/F102",
+      "notes": "Invariant: an unsuperseded failed step with no live work implies the Workflow is terminal or a loop continuation is pending. M26: the live dispatch (StepDispatcher#fail!) is total; a lost cascade is auto-repaired, and F102 (NY26) makes the fail_workflow repair replay the cascade through StepDispatcher.fail_from, so recovery and the live path share one decision (CascadeReplay.repair_after_agrees)."
     },
     {
       "id": "running-workflow-with-failed-step",
@@ -3377,7 +3377,7 @@
         "C. Keep as is: the repair always fails the Workflow, and retries happen through the Job-level failed-step retry."
       ],
       "recommendation": "A. One function deciding what a Step failure means, used by both the live path and its recovery, is the only way the two can never disagree; the pinned case then retries in place, bounded by the existing infrastructure retry limit.",
-      "decision": "A (2026-11-22, answered on the lean-plan site): Replay the cascade: the repair calls StepDispatcher.fail_from(failed_step), so recovery reaches exactly the outcome the lost cascade would have (hard-failing only when nothing else applies). Update the pinned spec. To implement."
+      "decision": "A (2026-11-22, answered on the lean-plan site): Replay the cascade: the repair calls StepDispatcher.fail_from(failed_step), so recovery reaches exactly the outcome the lost cascade would have (hard-failing only when nothing else applies). Update the pinned spec. Implemented as F102."
     },
     {
       "id": "NY27",

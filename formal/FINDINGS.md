@@ -3773,6 +3773,49 @@ queue processor, `spec/services/work_engine`, `run_job_spec` and `job_spec`.
 
 ---
 
+## F102. Recovering a lost Step-failure cascade hard-failed the Workflow — fixed (NY26)
+
+**Decision (NY26, A).** The repair replays the cascade.
+
+**Before.** When a Step fails, `StepDispatcher#fail!` decides what that means:
+advance, the next loop iteration, an in-place infrastructure retry, a try
+branch, or (only when none applies) a hard fail. When that cascade was lost,
+the reconciler's `fail_workflow_from_failed_step` called `Workflow#fail!`
+directly. So a lost cascade on a Step whose worker died failed the Workflow
+and its Job, where the live cascade would have re-run the Step in place
+(`CascadeReplay.repair_before_diverges`). A spec pinned that behaviour for a
+retryable `agent_resume_unavailable` Run.
+
+**Fix.** `FailWorkflowFromFailedStep` calls
+`StepDispatcher.fail_from(failed_step)`, the function the live path uses, and
+reports the Workflow state it ends in. The planner's description and execution
+steps say so. The guards are unchanged: no live descendants, a failed Step that
+is not a superseded loop iteration, and a Workflow that may fail.
+
+**Proof.** `CascadeReplay.lean`.
+
+- `repair_after_agrees`: the repair reaches the live outcome on every input.
+- `replay_terminates`: repeated loss and replay cannot loop. Each in-place
+  retry adds a Run, and `INFRASTRUCTURE_STEP_RETRY_LIMIT` refuses the retry
+  once the count passes it, so a Step gets at most `limit` replayed retries
+  before the replay ends in a try branch or a hard fail.
+
+**Specs.**
+
+- `reconciler_spec.rb`: "replays the lost cascade for a running workflow with
+  a failed step and a queued tail" was red before. It is the old pinned
+  example, now expecting a re-run instead of a failed Workflow.
+- `reconciler_spec.rb`: "hard-fails a running workflow whose failed step the
+  cascade would not retry" was red only on the new message. It pins the
+  hard-fail case.
+- The queued-Workflow sibling keeps its hard-fail outcome; only its message
+  changed.
+
+Also run and green, CI-only included: `spec/services/work_engine` and
+`step_dispatcher_spec` (859 examples).
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

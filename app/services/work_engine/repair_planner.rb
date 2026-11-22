@@ -730,8 +730,8 @@ module WorkEngine
           automatic_plan(
             "fail_workflow_from_failed_step",
             primary_workflow,
-            "The Workflow is still running even though one of its Steps failed, so mark the Workflow failed and let the normal failed-step retry path take over.",
-            execution_steps: [ "Workflow#fail!" ],
+            "The Workflow is still running even though one of its Steps failed, so replay the failure cascade the lost dispatch would have run: advance, retry, try branch, or fail the Workflow.",
+            execution_steps: [ "StepDispatcher.fail_from(failed_step)" ],
             preconditions: {
               workflow_state: "running",
               failed_step_id: issue.evidence["failed_step_id"],
@@ -765,8 +765,8 @@ module WorkEngine
           automatic_plan(
             "fail_workflow_from_failed_step",
             primary_workflow,
-            "The Workflow is still queued even though one of its Steps failed, so mark the Workflow failed and let the normal failed-step retry path take over.",
-            execution_steps: [ "Workflow#fail!" ],
+            "The Workflow is still queued even though one of its Steps failed, so replay the failure cascade the lost dispatch would have run: advance, retry, try branch, or fail the Workflow.",
+            execution_steps: [ "StepDispatcher.fail_from(failed_step)" ],
             preconditions: {
               workflow_state: "queued",
               failed_step_id: issue.evidence["failed_step_id"],

@@ -5039,7 +5039,10 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(workflow.reload).to be_running
   end
 
-  it "fails a running workflow that already has a failed step and a queued tail" do
+  # NY26 (decided A): the repair replays the cascade the lost dispatch would
+  # have run, StepDispatcher.fail_from(failed_step), instead of hard-failing.
+  # A retryable infrastructure failure re-runs the Step, as it would have.
+  it "replays the lost cascade for a running workflow with a failed step and a queued tail" do
     pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
     step.update!(kind: "test_plan", next_step: pr_open)
     job.update_columns(state: "running", started_at: 30.minutes.ago)
@@ -5070,11 +5073,31 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       target_type: "Workflow",
       target_id: workflow.id
     )
+    expect(workflow.reload).to be_running
+    expect(step.reload).to be_queued
+    expect(step.runs.count).to eq(2)
+    expect(step.runs.reorder(id: :desc).first).to be_queued
+    expect(pr_open.reload).to be_queued
+    expect(result.repair_executions.map(&:message)).to include("replayed the failure cascade of #{step.slug} on #{workflow.slug}: workflow running")
+  end
+
+  it "hard-fails a running workflow whose failed step the cascade would not retry" do
+    pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 1)
+    step.update!(kind: "test_plan", next_step: pr_open)
+    job.update_columns(state: "running", started_at: 30.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 30.minutes.ago, finished_at: nil)
+    step.update_columns(state: "failed", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+    pr_open.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    run.update_columns(state: "failed", agent_outcome: "error", started_at: 20.minutes.ago, finished_at: 15.minutes.ago)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(plan(result, :fail_workflow_from_failed_step)).to be_present
     expect(workflow.reload).to be_failed
     expect(job.reload).to be_failed
     expect(step.reload).to be_failed
-    expect(pr_open.reload).to be_queued
-    expect(result.repair_executions.map(&:message)).to include("marked #{workflow.slug} failed from failed #{step.slug}")
+    expect(step.runs.count).to eq(1)
+    expect(result.repair_executions.map(&:message)).to include("replayed the failure cascade of #{step.slug} on #{workflow.slug}: workflow failed")
   end
 
   it "does not fail a manually restarted grade loop because of superseded loop failures" do
@@ -5349,7 +5372,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(job.reload).to be_failed
     expect(step.reload).to be_failed
     expect(pr_open.reload).to be_queued
-    expect(result.repair_executions.map(&:message)).to include("marked #{workflow.slug} failed from failed #{step.slug}")
+    expect(result.repair_executions.map(&:message)).to include("replayed the failure cascade of #{step.slug} on #{workflow.slug}: workflow failed")
   end
 
   it "reconciles a running Step whose only Run already succeeded" do

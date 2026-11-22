@@ -1241,11 +1241,15 @@ module WorkEngine
           return skipped("Workflow has no failed Step") unless failed_step
           return skipped("Workflow cannot transition to failed") unless workflow.may_fail?
 
+          # Replay the cascade the lost dispatch would have run, so recovery
+          # reaches the same outcome: advance, a loop iteration, an
+          # infrastructure retry, a try branch, or (only when none applies)
+          # a hard fail.
           with_transition_reason do
-            workflow.fail!
-            workflow.save!
+            StepDispatcher.fail_from(failed_step)
           end
-          success("marked #{workflow_label(workflow)} failed from failed #{step_label(failed_step)}")
+          workflow.reload
+          success("replayed the failure cascade of #{step_label(failed_step)} on #{workflow_label(workflow)}: workflow #{workflow.state}")
         end
       end
 
