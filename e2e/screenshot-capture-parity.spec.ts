@@ -97,6 +97,32 @@ async function openLargeReview(page: Page, viewport: { width: number; height: nu
   await page.evaluate(() => document.fonts.ready)
 }
 
+async function addInnerScrolledSurface(page: Page) {
+  const scrollTop = await page.evaluate(() => {
+    const surface = document.createElement("section")
+    surface.setAttribute("data-testid", "capture-inner-scroll-surface")
+    Object.assign(surface.style, {
+      height: "280px",
+      overflowY: "scroll",
+      border: "1px solid rgb(156, 163, 175)",
+      background: "white"
+    })
+    for (let index = 0; index < 1_000; index++) {
+      const row = document.createElement("div")
+      row.setAttribute("data-capture-hollow", "")
+      row.style.height = "24px"
+      row.style.whiteSpace = "nowrap"
+      row.textContent = `Inner-scrolled diagnostic row ${index}: ${"resource payload ".repeat(4)}`
+      surface.appendChild(row)
+    }
+    document.querySelector("[data-testid='agent-diff-viewer']")?.prepend(surface)
+    surface.scrollTop = 12_000
+    return surface.scrollTop
+  })
+  expect(scrollTop, "the synthetic complex surface must be inner-scrolled").toBeGreaterThan(10_000)
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+}
+
 // The element that scrolls the diff vertically: the window, or the nearest
 // scrollable ancestor of the viewer.
 async function scrollDiffTo(page: Page, fraction: number, extraPx = 0) {
@@ -206,8 +232,10 @@ for (const viewport of [
   { name: "mobile", width: 402, height: 812 }
 ]) {
   test(`hollowed viewport captures match full captures on a large review diff (${viewport.name})`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "core-webkit-screenshot" && viewport.name !== "mobile", "WebKit regression coverage targets the mobile-sized case")
     test.setTimeout(600_000)
     await openLargeReview(page, viewport)
+    if (viewport.name === "mobile") await addInnerScrolledSurface(page)
 
     // Top of the diff: rows below the fold get hollowed. Expanding the files
     // may have scrolled the page, so go back up first.

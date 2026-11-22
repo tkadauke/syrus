@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from "vitest"
-import { SCROLL_ATTRIBUTE, hollowOffscreenElements, planHollowing, restoreScrollPositions, tagScrollPositions } from "./screenshotCapture"
+import {
+  captureFullPage,
+  MAX_FULL_PAGE_CAPTURE_ELEMENTS,
+  SCROLL_ATTRIBUTE,
+  UnsafeFullPageCaptureError,
+  hollowOffscreenElements,
+  planHollowing,
+  restoreScrollPositions,
+  tagScrollPositions
+} from "./screenshotCapture"
 
 // jsdom has no layout, so rects are stubbed; the pixel-level guarantee lives
 // in e2e/screenshot-capture-parity.spec.ts.
@@ -164,5 +173,19 @@ describe("scroll restoration", () => {
     expect(clone.querySelector(`[${SCROLL_ATTRIBUTE}]`)).toBeNull()
     // Scroll anchoring would otherwise shift offsets once hollowed rows regain height.
     expect(clone.head.textContent).toContain("overflow-anchor: none")
+  })
+})
+
+describe("full-page resource policy", () => {
+  it("rejects a document whose DOM is too complex before invoking html2canvas", () => {
+    const html2canvas = vi.fn()
+    const elements = document.getElementsByTagName.bind(document)
+    vi.spyOn(document, "getElementsByTagName").mockImplementation(((name: string) => {
+      if (name === "*") return { length: MAX_FULL_PAGE_CAPTURE_ELEMENTS + 1 } as HTMLCollectionOf<Element>
+      return elements(name)
+    }) as typeof document.getElementsByTagName)
+
+    expect(() => captureFullPage(html2canvas as never)).toThrow(UnsafeFullPageCaptureError)
+    expect(html2canvas).not.toHaveBeenCalled()
   })
 })

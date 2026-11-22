@@ -90,5 +90,14 @@ export default defineConfig({
     // test times out with no action recorded. Use video until that is fixed.
     video: process.env.E2E_VIDEO ? "on" : "off"
   },
-  projects: [{ name: "core", testDir: "./e2e" }, ...pluginProjects]
+  projects: [
+    { name: "core", testDir: "./e2e" },
+    {
+      name: "core-webkit-screenshot",
+      testDir: "./e2e",
+      testMatch: "screenshot-capture-parity.spec.ts",
+      use: { browserName: "webkit", launchOptions: {} }
+    },
+    ...pluginProjects
+  ]
 })
