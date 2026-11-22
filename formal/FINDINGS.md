@@ -4160,6 +4160,36 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M49. Epic-conflict victims in production: every one was relaunched or legitimately held
+
+Coverage item `epic-conflict-victim-not-relaunched`. Every WorkUnit cancelled
+for `epic_wide_workflow_active` in the last 21 days was checked (read-only),
+51 units across 31 Jobs:
+
+- **Relaunched or finished.** Every victim's Job either got a later unit on the
+  same intent or a later Workflow, and all but three Jobs are closed.
+- **Three legitimately held.** Jobs 9454 → 9455 → 9456 of one Epic chain are
+  queued, with intents `waiting` on `dependency` and no later work. Their first
+  predecessor, 9453, *failed*. That is a correct hold behind a failed
+  predecessor, which `JobWakeup` starts once the dependency is satisfied. It is
+  not a stranded victim.
+- **Relaunch-into-cancellation loops, both before F34 was deployed.** These are
+  the once-a-minute relaunch loops F34 describes:
+  - Job 8686: 6 cancellations on 11-07;
+  - Job 9449: 10 cancellations on 11-20 and 9 more on 11-21, between 13:39
+    and 13:48 UTC.
+
+  F34 (`31b7c3e224`) reached main at 17:00 UTC on 11-21, after the 11-21
+  loop. It was first deployed in `d9be256158` (21:53 UTC). The workers live at
+  13:39 ran a version without it.
+
+There have been no Epic-conflict victims since 13:48 UTC on 11-21, so F34 is
+not yet *observed* under load, only unrefuted. The item stays partial: there
+is still no proof that every victim of a running-member/running-keeper race
+is relaunched.
+
+---
+
 ## M48. Auto-retry is bounded in production — audit, no new counterexample
 
 Coverage item `auto-retry-bounded` asks whether a budget-exempt skip whose

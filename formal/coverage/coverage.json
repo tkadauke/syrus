@@ -1820,7 +1820,7 @@
       "simulator": [],
       "status": "partial",
       "done_by": "F34",
-      "notes": "The main producer of victims was the reconciler itself: ConflictDetector cancelled members that were only waiting for the Epic-wide Workflow (11 of 13 applied cancellations in production had never started; one pass cancelled six queued members of one Epic), and the queued-job repair relaunched them into the same cancellation once a minute (JOB-9430's failed->queued drift). F34 stops cancelling waiters, so with F30 victims arise only from a running member and a running keeper together -- a race between the two start checks. Remaining: whether every such victim is relaunched (retry_job_after_epic_workflow_conflict covers queued Jobs only)."
+      "notes": "The main producer of victims was the reconciler itself: ConflictDetector cancelled members that were only waiting for the Epic-wide Workflow (11 of 13 applied cancellations in production had never started; one pass cancelled six queued members of one Epic), and the queued-job repair relaunched them into the same cancellation once a minute (JOB-9430's failed->queued drift). F34 stops cancelling waiters, so with F30 victims arise only from a running member and a running keeper together -- a race between the two start checks. Remaining: whether every such victim is relaunched (retry_job_after_epic_workflow_conflict covers queued Jobs only). M49 (production, 21 days, 51 victims): every victim was relaunched or its Job closed, except three Jobs correctly held behind a failed predecessor; the two once-a-minute relaunch loops both ran on versions without F34. No victims since F34 deployed."
     },
     {
       "id": "epic-blocked-job-releasable",
