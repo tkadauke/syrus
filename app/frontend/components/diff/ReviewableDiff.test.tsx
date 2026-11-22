@@ -1246,7 +1246,8 @@ describe("ReviewableDiff", () => {
 
     render(<ReviewableDiff files={[longPathFile]} mode="continuous" scroll="natural" showFileHeaders />)
     const viewer = screen.getByTestId("agent-diff-viewer")
-    expect(viewer).toHaveClass("min-w-0", "max-w-full", "overflow-x-hidden", "[contain:inline-size]")
+    expect(viewer).toHaveClass("min-w-0", "max-w-full", "overflow-x-clip", "[contain:inline-size]")
+    expect(viewer).not.toHaveClass("overflow-x-hidden")
     expect(viewer.querySelector("[data-total-file-count]")).toHaveClass("min-w-0", "max-w-full")
     expect(viewer.querySelector(".overflow-x-scroll")).toHaveClass("w-full", "min-w-0", "max-w-full", "[container-type:inline-size]")
     expect(within(screen.getByTitle(longPathFile.path)).getByText(longPathFile.path)).toHaveClass("min-w-0", "flex-1", "truncate")
