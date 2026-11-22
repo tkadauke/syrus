@@ -5,7 +5,7 @@ RSpec.describe PluginArtifacts do
   let(:digest) { Digest::SHA256.hexdigest(body) }
   let(:release) do
     PluginRelease.create!(name: "weather", version: "1.2.3", content_digest: digest,
-      source: "upload", trust_label: "reviewed", size_bytes: body.bytesize)
+      source: "upload", trust_label: "unsigned_local", size_bytes: body.bytesize)
   end
 
   it "stores a verified artifact at its content-addressed key" do
