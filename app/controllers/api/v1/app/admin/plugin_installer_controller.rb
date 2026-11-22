@@ -52,7 +52,8 @@ module Api
               pending_changes: PluginChange.pending.includes(:plugin_release).order(:created_at).map do |change|
                 serialize_change(change, installed_by_name:, manifests:)
               end,
-              available_releases: PluginRelease.where.not(id: installations.map(&:plugin_release_id)).order(:name, :version).map do |release|
+              available_releases: PluginRelease.where.not(id: installations.map(&:plugin_release_id)).order(:name, :version)
+                .reject { |release| trust_store.revoked?(release) }.map do |release|
                 { name: release.name, version: release.version, source: release.source, trust_label: release.trust_label }
               end
             }
@@ -83,6 +84,8 @@ module Api
           def capability_manifest(release)
             PluginChange.where(plugin_release: release, status: "confirmed").order(:confirmed_at).last&.capability_manifest || {}
           end
+
+          def trust_store = Syrus::PluginPackage::TrustStore.cached
 
           def capability_manifests(release_ids)
             PluginChange.where(plugin_release_id: release_ids, status: "confirmed").order(:confirmed_at).each_with_object({}) do |change, result|

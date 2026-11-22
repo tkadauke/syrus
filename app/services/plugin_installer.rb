@@ -63,6 +63,9 @@ class PluginInstaller
     PluginChange.transaction do
       change.lock!
       raise Error, "plugin change has already been confirmed" unless change.status == "pending"
+      if change.plugin_release && @trust_store.revoked?(change.plugin_release)
+        raise Error, "plugin release has been revoked"
+      end
 
       installation = PluginInstallation.find_by(plugin_name: change.plugin_name)
       if change.remove?
