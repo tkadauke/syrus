@@ -4253,6 +4253,52 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M55. Main through `7fe0e61d29` (the Ecosystem family migration), and main's broken React test
+
+**Epic #554** (25 commits) does two things:
+
+- migrates every bundled language plugin to the Ecosystem capability family;
+- removes the legacy `prepare_detector`-style extension points, routing core
+  ecosystem lookups (prepare plans, grader coverage, dependency audits)
+  through `Syrus::Plugin::Dispatch`.
+
+It relies on three invariants this branch already proved or fixed:
+
+- **Only conforming declarations are invoked.** That holds for dispatch, the
+  bridge and the detector (F94). It now matters for every bundled plugin, not
+  a latent external one. `RepoPluginDetector` is now
+  `preview_provider` plus the family language-support path, and F94's
+  per-manifest conformance gate merged unchanged.
+- **The capability lookup fails closed when enablement cannot be read**
+  (F93). Core Prepare now goes through that lookup, so a database outage now
+  retries and then raises in Prepare instead of running every installed
+  plugin. That is the behaviour decided for NY13.
+- **`restore_built_ins!` keeps built-in families** (M53).
+
+**Rebase.** The only conflicts were `host/public_apis.rb` (main added
+`capability_providers` and three Ecosystem value types; this branch added
+`providers_with_owner_for`, so both are kept) and the regenerated
+`plugin-spec.md`. `bin/check-plugin-boundaries` passes. `spec/lib`,
+`spec/architecture`, the detector, every plugin's specs, `spec/services/steps`,
+the plugin admin requests, and this branch's touched specs pass, CI-only
+included: 9,774 examples.
+
+**Main is red on two React tests (production, read-only, and reproduced
+locally).** `app/frontend/pluginUiSlots.test.tsx` fails twice. The test expects
+"1 unlabeled open issue" from `screen.findByRole("status")`, but receives
+"Loading...". That is the lazy plugin component's new loading status, from
+"Give suspending plugin components a loading state, not an error"
+(`2f0c0f60a3`). M45 waved that commit through as not engine-relevant; it
+needed its tests run.
+
+A `main_branch_repair` (Workflow 66236) is already working on it. Its
+preflight graders reproduce `react-tests-ci`, and an `e2e` timeout too. So
+this branch leaves the fix to that repair rather than racing it with a
+conflicting change. The main grader that triggered the repair failed first on
+F98's misclassified `npm ci` error; the React failure was underneath it.
+
+---
+
 ## M54. An unpublished stacked child whose work conflicts with its moved parent has no recovery (NY29)
 
 **Found by** the failure sweep (production, read-only, 11-22). Epic 553 is a
@@ -5467,7 +5513,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `127ea3b964`. Each loop iteration continues from there:
+Checked through main `7fe0e61d29`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
