@@ -118,6 +118,7 @@ export type PluginInstallerChange = {
 export type PluginInstallerPayload = {
   installations: Array<{ name: string; version: string; source: string; trust_label: string; digest: string; health: string }>
   pending_changes: PluginInstallerChange[]
+  available_releases: Array<{ name: string; version: string; source: string; trust_label: string }>
 }
 
 export type AdminPluginDisableConfirmation = {
@@ -147,6 +148,10 @@ export async function stagePluginArchive(file: File) {
 
 export function stagePluginRemoval(name: string) {
   return postJson<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage_remove", { name })
+}
+
+export function stageStoredPluginRelease(name: string, version: string) {
+  return postJson<PluginInstallerChange>("/api/v1/app/admin/plugin_installer/stage_release", { name, version })
 }
 
 export function confirmPluginChange(id: number) {

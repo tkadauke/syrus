@@ -27,7 +27,11 @@ type pluginInstallerChange struct {
 
 type pluginInstallerPayload struct {
 	Installations []struct {
-		Name, Version, Source, TrustLabel, Health string
+		Name       string `json:"name"`
+		Version    string `json:"version"`
+		Source     string `json:"source"`
+		TrustLabel string `json:"trust_label"`
+		Health     string `json:"health"`
 	} `json:"installations"`
 }
 
@@ -38,10 +42,12 @@ func newPluginInstallCommand() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if _, err := os.Stat(path); err != nil {
-			return fmt.Errorf("registry installs are not available from this instance; provide a plugin archive")
+		var change pluginInstallerChange
+		if _, statErr := os.Stat(path); statErr == nil {
+			change, err = uploadPluginArchive(command, path)
+		} else {
+			change, err = stageStoredPluginRelease(command, args[0])
 		}
-		change, err := uploadPluginArchive(command, path)
 		if err != nil {
 			return err
 		}
@@ -58,6 +64,18 @@ func newPluginInstallCommand() *cobra.Command {
 	}}
 	command.Flags().BoolVar(&yes, "yes", false, "Confirm without prompting")
 	return command
+}
+
+func stageStoredPluginRelease(command *cobra.Command, reference string) (pluginInstallerChange, error) {
+	creds, err := loadCredentials()
+	if err != nil {
+		return pluginInstallerChange{}, err
+	}
+	name, version, _ := strings.Cut(reference, "@")
+	body, _ := json.Marshal(map[string]string{"name": name, "version": version})
+	var change pluginInstallerChange
+	err = pluginInstallerJSON(command, http.MethodPost, creds, "/api/v1/app/admin/plugin_installer/stage_release", bytes.NewReader(body), "application/json", &change)
+	return change, err
 }
 
 func newPluginListCommand() *cobra.Command {
@@ -144,7 +162,11 @@ func confirmPluginChange(command *cobra.Command, id int) error {
 }
 
 func printPluginChange(out io.Writer, change pluginInstallerChange) {
-	fmt.Fprintf(out, "%s %s %s (%s, %s)\n", strings.Title(change.Action), change.Name, change.Version, change.Source, change.TrustLabel)
+	action := change.Action
+	if action != "" {
+		action = strings.ToUpper(action[:1]) + action[1:]
+	}
+	fmt.Fprintf(out, "%s %s %s (%s, %s)\n", action, change.Name, change.Version, change.Source, change.TrustLabel)
 	fmt.Fprintln(out, "Capability manifest (disclosure, not enforcement):")
 	for key, values := range change.CapabilityManifest {
 		fmt.Fprintf(out, "  %s: %s\n", key, strings.Join(values, ", "))
