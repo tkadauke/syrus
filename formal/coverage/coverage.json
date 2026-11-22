@@ -2137,7 +2137,7 @@
       ],
       "status": "partial",
       "done_by": "F26",
-      "notes": "Production: 1,275 executions all-time; 113 of the latest 150 skipped 'Workflow is no longer active' -- the classifier also flagged failed Workflows awaiting retry, which the repair never acts on. Fixed F26 (Agreement.ws_after_actionable). Still open: modelling storage loss as an environment action and proving recovery leaves no Run pinned to the lost storage key."
+      "notes": "Production: 1,275 executions all-time; 113 of the latest 150 skipped 'Workflow is no longer active' -- the classifier also flagged failed Workflows awaiting retry, which the repair never acts on. Fixed F26 (Agreement.ws_after_actionable). Still open: modelling storage loss as an environment action and proving recovery leaves no Run pinned to the lost storage key. Lead L7: recovery rebuilds on the current worker and records it as owner, then requeues stranded Runs with ignore_workflow_affinity, so they may run on a worker without the rebuilt workspace and rebuild again (converges, wasteful). Code reading: requeued Runs are unpinned and a still-running mutation returns retry_required, so no Run stays pinned to the lost key; not yet modelled."
     },
     {
       "id": "workspace-prune-risk",

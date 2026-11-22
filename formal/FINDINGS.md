@@ -4287,6 +4287,38 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## Lead L7: workspace recovery requeues stranded Runs away from the worker it rebuilt on
+
+Coverage item `workspace-missing` (storage loss). Production evidence is not
+checked: searching Run logs is too expensive for the read-only connection.
+
+`WorkflowWorkspaceRecovery` handles a missing workspace in three states:
+
+1. `Reconstruct` rebuilds the workspace on the current worker from a durable
+   source and records that worker as the Workflow's storage owner
+   (`WorkflowWorkspaceLifecycle.record_identity!`).
+2. `Resume` either refuses, returning `retry_required` when a mutating Run is
+   still marked running, or requeues every non-live active Run through
+   `Run#reenqueue!(ignore_workflow_affinity: true)`.
+3. With that flag, `RunQueueResolver#compatible_resume_queue` returns `nil`.
+   The Run goes to the general queue, not to the storage-specific resume
+   queue of the worker that holds the rebuilt workspace.
+
+The flag escapes the *lost* worker's affinity. By the time Resume runs,
+`record_identity!` has already replaced that affinity with the live
+rebuilding worker, so honouring it would route the Run where the workspace
+is. As written, any worker may claim the Run. One without the workspace finds
+it missing and rebuilds again.
+
+That converges, because every worker can rebuild from durable sources, but it
+can repeat a rebuild for nothing and stretches the window in which recovery
+can fail. The proof obligation for the item is still that recovery leaves no
+Run pinned to the lost storage key. On this reading that holds: requeued Runs
+are unpinned, and an unrequeued running mutation returns `retry_required` to
+the caller. It is not yet modelled.
+
+---
+
 ## M56. One timed-out preflight grader stopped the repair of a reproducible main failure (NY30)
 
 **Production (read-only, 11-22).** The `main_branch_repair` from M55
