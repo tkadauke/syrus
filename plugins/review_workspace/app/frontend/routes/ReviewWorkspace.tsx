@@ -582,7 +582,11 @@ function MobileReviewCard({
           <p className="text-sm text-text-secondary">{t("summary_unavailable")}</p>
         )}
       </div>
-      <section aria-label={t("visual_evidence")} className="relative z-10 overflow-hidden rounded-xl border border-border bg-surface-subtle">
+      <section
+        aria-label={t("visual_evidence")}
+        className="relative z-10 overflow-hidden rounded-xl border border-border bg-surface-subtle"
+        data-review-gesture-exempt={evidence ? "true" : undefined}
+      >
         {evidence ? (
           <>
             <div data-review-gesture-exempt>
@@ -619,7 +623,7 @@ function MobileReviewCard({
                 </div>
               ) : null}
             </div>
-            <div className="flex min-h-11 items-center px-2 py-1 text-xs text-text-secondary">
+            <div className="flex min-h-11 items-center px-2 py-1 text-xs text-text-secondary" data-testid="mobile-evidence-caption">
               <span className="truncate">{evidence.page?.title || evidence.page?.path || t("visual_evidence")}</span>
               <span aria-live="polite" className="sr-only">{t("evidence_position", { current: evidenceIndex + 1, count: screenshots.length })}</span>
             </div>
