@@ -130,6 +130,9 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       family_provides: [ declaration("LazyFamilySpec::Disabled") ])
     allow(described_class).to receive(:enablement_retry_sleep)
     allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+    # register cached the records it just wrote; without this the lookup can
+    # answer from that cache and never reach the failing read under test.
+    described_class.clear_plugin_record_cache!
 
     expect { described_class.capability_providers(:ecosystem, :detect_prepare) }
       .to raise_error(described_class::EnablementUnavailable)
