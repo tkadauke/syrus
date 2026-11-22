@@ -485,7 +485,7 @@
       "all": "Omnia registra",
       "install": "Installationem inspice",
       "source": "Registrum: {{name}}",
-      "source_error": "{{name}}: {{message}}",
+      "source_error": "Registrum {{name}}: {{message}}",
       "source_stale": "{{name}} eventus obsoletos conditos ostendit.",
       "unconfigured": "Nullum registrum plugin configuratum est. SYRUS_PLUGIN_REGISTRY_URL constitue.",
       "empty": "Nulla plugin congruentia inventa sunt."
@@ -503,7 +503,7 @@
       "stale": "Data condita obsoleta sunt.",
       "disable": "Inactiva",
       "enable": "Activa",
-      "remove": "Remove",
+      "remove": "Removere",
       "url": "URL registri",
       "name": "Nomen ostensum (facultativum)",
       "add": "Registrum inspice",
