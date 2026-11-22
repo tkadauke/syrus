@@ -1793,6 +1793,9 @@ export function Compose({
   }
 
   function replaceAnnotatedAttachment(attachment: ChatComposeAttachment, blob: Blob, shapes: NonNullable<ChatComposeAttachment["shapes"]>) {
+    // Replacement errors render in the composer, so release the modal backdrop
+    // before validation or upload can surface one.
+    setAnnotatingIndex(null)
     const retry = () => {
       setAnnotationError(null)
       replaceAnnotatedAttachment(attachment, blob, shapes)
@@ -2482,6 +2485,7 @@ export function Compose({
                           originalDataUrl={attachment.url}
                           onClose={() => { setAnnotationError(null); setAnnotatingIndex(null) }}
                           onExportError={(error, retryExport) => {
+                            setAnnotatingIndex(null)
                             reportHandledError(error, {
                               surface: "chat_composer", operation: "replace_attachment", stage: "blob_export", recoverability: "retryable",
                               diagnostics: { mime_category: "image" }

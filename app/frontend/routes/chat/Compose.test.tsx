@@ -441,6 +441,10 @@ describe("Compose attachments", () => {
     fireEvent.click(screen.getByRole("button", { name: "Finish annotation" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("The annotated image could not replace the original attachment.")
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeVisible()
     expect(screen.getByRole("button", { name: "Send message" })).not.toBeDisabled()
     expect(screen.getByTitle("screen.png")).toBeInTheDocument()
     expect(reportHandledError).toHaveBeenCalledTimes(1)
@@ -464,6 +468,10 @@ describe("Compose attachments", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fail export" }))
 
     expect(await screen.findByRole("alert")).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeVisible()
     expect(screen.getByRole("button", { name: "Send message" })).not.toBeDisabled()
     expect(reportHandledError).toHaveBeenCalledTimes(1)
     expect(reportHandledError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({
