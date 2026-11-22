@@ -170,6 +170,14 @@ sources, and health; `syrus plugin remove NAME` stages removal. Import/export
 lockfiles record name, version, digest, and source while the database remains
 canonical.
 
+`syrus plugin install NAME[@VERSION]` first reuses a stored release, which
+supports rollback, then consults the synchronized git registry index at
+`$SYRUS_DATA_ROOT/plugin-registry/index/NAME/VERSION.json`. Each entry contains
+`name`, `version`, `artifact_url`, and `signature_url`; artifact URLs must use
+HTTPS. Omitting the version selects the highest indexed semantic version. The
+downloaded archive and detached signature pass through the same validation,
+trust, storage, and confirmation path as an upload.
+
 For legacy hand placement, use the following stopped-process procedure.
 
 Set `SYRUS_PLUGIN_PATH` to a root whose immediate children are complete plugin
