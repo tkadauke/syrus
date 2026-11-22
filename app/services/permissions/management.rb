@@ -24,14 +24,15 @@ module Permissions
         context:, rules:).decision
     end
 
-    def matrix_state(descriptor:, role:, subject_selector_type:, active_rules: rules.to_a)
+    def matrix_state(descriptor:, role:, subject_selector_type:, active_rules: rules.to_a,
+      evaluator_rules: nil)
       matching_rules = active_rules.select do |rule|
         rule.subject_selector_type == subject_selector_type &&
           descriptor.names_capability?(rule.capability) &&
           (rule.operation.nil? || descriptor.names_operation?(rule.operation))
       end
       resource_scopes = [ {}, *matching_rules.map(&:resource_scope) ].uniq
-      evaluator_rules = active_rules.map(&:to_policy_rule)
+      evaluator_rules ||= active_rules.map(&:to_policy_rule)
       policies = resource_scopes.map do |resource_scope|
         explain(descriptor:, role:, resource_scope:, arguments: {},
           context: { user: @user, subject_selector_type: }, rules: evaluator_rules).policy.to_s

@@ -69,7 +69,15 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(active.pluck(:source).uniq).to eq([ "permission_profile:restricted@v1" ])
     expect(JSON.parse(response.body)).to include("profile" => "restricted@v1", "subject_selector_type" => "interactive_chat")
 
+    # Building the response matrix must convert each rule once, rather than
+    # rebuilding every policy rule for every descriptor and subject cell.
+    conversions = 0
+    allow_any_instance_of(PermissionRule).to receive(:to_policy_rule).and_wrap_original do |method|
+      conversions += 1
+      method.call
+    end
     get "/api/v1/app/permission_rules"
+    expect(conversions).to eq(active.size)
     expect(JSON.parse(response.body).dig("current_profiles", "interactive_chat")).to eq("restricted@v1")
   end
 

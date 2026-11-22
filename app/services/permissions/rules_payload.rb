@@ -7,12 +7,17 @@ module Permissions
     def as_json
       management = Management.new(user)
       active_rules = management.rules.includes(:owner_user).to_a
+      rules_by_subject = active_rules.group_by(&:subject_selector_type)
+      evaluator_rules_by_subject = rules_by_subject.transform_values do |rules|
+        rules.map(&:to_policy_rule)
+      end
       presenter = RulePresenter.new(user, descriptors:)
       {
         rules: active_rules.map { |rule| presenter.as_json(rule) },
         permission_hub_mode: user.permission_hub_mode,
         matrix_states: descriptors.to_h { |descriptor|
-          [ descriptor_key(descriptor), matrix_states(descriptor, management:, active_rules:) ]
+          [ descriptor_key(descriptor), matrix_states(descriptor, management:, rules_by_subject:,
+            evaluator_rules_by_subject:) ]
         },
         current_profiles: PermissionRule::SUBJECT_SELECTORS.filter_map { |subject, definition|
           next unless definition[:role]
@@ -29,11 +34,13 @@ module Permissions
     def descriptors = @descriptors ||= Catalog.descriptors
     def descriptor_key(descriptor) = [ descriptor.capability, descriptor.operation ].join("|")
 
-    def matrix_states(descriptor, management:, active_rules:)
+    def matrix_states(descriptor, management:, rules_by_subject:, evaluator_rules_by_subject:)
       PermissionRule::SUBJECT_SELECTORS.filter_map do |subject, definition|
         next unless definition[:role]
+        subject_rules = rules_by_subject.fetch(subject, [])
         [ subject, management.matrix_state(descriptor:, role: definition[:role],
-          subject_selector_type: subject, active_rules:) ]
+          subject_selector_type: subject, active_rules: subject_rules,
+          evaluator_rules: evaluator_rules_by_subject.fetch(subject, [])) ]
       end.to_h
     end
   end
