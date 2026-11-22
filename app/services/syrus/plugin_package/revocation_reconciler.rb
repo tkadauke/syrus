@@ -8,9 +8,7 @@ module Syrus
       def call
         PluginInstallation.includes(:plugin_release).find_each.filter_map do |installation|
           release = installation.plugin_release
-          revoked = release.publisher_key_fingerprint.present? && @trust_store.revoked_keys.include?(release.publisher_key_fingerprint.downcase)
-          revoked ||= @trust_store.revoked_release?(name: release.name, version: release.version, digest: release.content_digest)
-          next unless revoked
+          next unless @trust_store.revoked?(release)
 
           installation.update!(fleet_quarantined: true) unless installation.fleet_quarantined?
           installation
