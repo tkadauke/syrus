@@ -4392,6 +4392,50 @@ the caller. It is not yet modelled.
 
 ---
 
+## M60. Main through `357448bbd0` — the outage's cause, NY30 implemented, repair cap windowed
+
+This branch was fast-forwarded into main at the operator's request
+(`147cdbb145`). Thirty-four main commits are reviewed here: ten from just
+before the push (frontend handled-error reporting, review navigation, lint
+rules, all frontend) and twenty-four after it. The ones that touch invariants
+proved or fixed here:
+
+- **The outage's cause** ("Reserve a grader's declared memory, and declare it
+  for the e2e suite", `357448bbd0`). Every pod death in M59 lined up with an
+  e2e grader. Host admission charged the Playwright suite one generic unit
+  while its Rails server, Vite and Chromium used several GB. Hosts reached 99%
+  memory until a pod was OOM-killed, once taking the MySQL node and so every
+  process. A grader's declared `resources.memory` is now the floor of its
+  reservation, and each e2e shard declares 4 GB. The e2e suite also runs as
+  three shards (`e40f316d8e`), and main-repair preflight runs in lanes
+  (`f587417455`).
+
+  *Relied-on invariant:* a reservation larger than a host can offer must not
+  starve. It holds, because `memory_capacity_full?` returns false on an idle
+  host ("soft estimates must not deadlock an otherwise idle host"), and hard
+  measured pressure is handled separately.
+- **NY30 option A** ("Repair a reproducible main failure even when another
+  grader is unproven", `5b86f0d8b7`). `PreflightGraderCollect` now proceeds to
+  implement when at least one required grader failed reproducibly. It records
+  graders with no result as `preflight_unproven`, and the repair's grade loop
+  re-runs them. With no reproducible failure, an unproven grader still keeps
+  main inconclusive.
+- **The repair cap** ("Stop counting old failed repairs toward the main-repair
+  cap forever", `7b8f5e722b`). Only failed repair Jobs from the last six hours
+  count toward `MAX_OPEN_FAILED_FIX_JOBS`. That composes with F100:
+  `retrying_fix_job` reads the uncapped failed set and runs before the cap, so
+  a failed repair with a pending retry blocks a new spawn however old it is.
+- **Main CI from grader-only health records** (`31c1ba80f2`, `6b9232ae59`).
+  This addresses the stale `ci_health: broken` that kept spawning repairs in
+  F100 while the grader said healthy. Not reviewed further here.
+- **Lock-wait diagnostics** (`f6a48f8fb3`, `1492e2c4a7`, `7ed01897de`). A MySQL
+  lock-wait timeout now records what held the rows. That is Lead L8's
+  "next step if it recurs".
+
+Rebased without conflicts.
+
+---
+
 ## M59. A production outage on 11-22 (read-only observation, cause unknown)
 
 **Timeline (UTC).**
@@ -5793,7 +5837,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `7ebcdb2429`. Each loop iteration continues from there:
+Checked through main `357448bbd0`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 

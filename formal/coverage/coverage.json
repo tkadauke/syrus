@@ -3427,7 +3427,8 @@
         "C. Keep the rule, but surface 'inconclusive with a reproducible failure' to the operator as needing action (and pause landing).",
         "D. Keep as is."
       ],
-      "recommendation": "A plus B. The reproducible failure is evidence enough to start a repair, and its own grade loop re-runs every grader before landing, so 'partial evidence' cannot ship anything; retrying a single timeout removes most inconclusive verdicts. For today: main needs pluginUiSlots.test.tsx updated for the loading status (or a manual repair Job)."
+      "recommendation": "A plus B. The reproducible failure is evidence enough to start a repair, and its own grade loop re-runs every grader before landing, so 'partial evidence' cannot ship anything; retrying a single timeout removes most inconclusive verdicts. For today: main needs pluginUiSlots.test.tsx updated for the loading status (or a manual repair Job).",
+      "decision": "A, implemented on main in 5b86f0d8b7 (2026-11-22): a reproducible failure is repaired even when another required grader is unproven; unproven graders are recorded as preflight_unproven and re-run by the repair's grade loop."
     }
   ]
 }
