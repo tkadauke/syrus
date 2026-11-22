@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe PluginInstallation do
   let(:release) do
     PluginRelease.create!(name: "weather", version: "1.0.0", content_digest: "a" * 64,
-      source: "bundled", trust_label: "verified", size_bytes: 0)
+      source: "bundled", trust_label: "official", size_bytes: 0)
   end
 
   it "publishes after desired state is created, changed, and removed" do
@@ -28,12 +28,12 @@ RSpec.describe PluginInstallation do
     described_class.create!(plugin_name: "weather", plugin_release: release)
     expect(PluginDesiredState::Publisher).to receive(:publish!).once
 
-    release.update!(trust_label: "audited")
+    release.update!(trust_label: "verified")
   end
 
   it "does not enable an uploaded release before its artifact is verified" do
     uploaded = PluginRelease.create!(name: "uploaded", version: "1.0.0", content_digest: "b" * 64,
-      source: "upload", trust_label: "reviewed", size_bytes: 12)
+      source: "upload", trust_label: "unsigned_local", size_bytes: 12)
 
     installation = described_class.new(plugin_name: "uploaded", plugin_release: uploaded)
 

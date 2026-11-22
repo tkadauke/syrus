@@ -105,6 +105,7 @@ describe("AdminPlugins", () => {
             name: "weather",
             display_name: "Weather",
             version: "1.0.0",
+            trust_label: "verified",
             enabled: false,
             default_enabled: true,
             disableable: true,
@@ -129,6 +130,7 @@ describe("AdminPlugins", () => {
 
     renderRoute(<AdminPlugins />)
     expect(await screen.findByRole("alert")).toHaveTextContent("Plugin recovery mode is active")
+    expect(screen.getByText("Verified")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Re-enable after restart" }))
 
     await waitFor(() =>

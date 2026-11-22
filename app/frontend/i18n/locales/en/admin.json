@@ -635,6 +635,12 @@
     "aria": "Admin operational logs"
   },
   "plugins": {
+    "trust_labels": {
+      "official": "Official",
+      "verified": "Verified",
+      "community": "Community",
+      "unsigned_local": "Unsigned local"
+    },
     "recovery_active": "Plugin recovery mode is active",
     "recovery_active_body": "Safe mode: {{mode}}. Quarantined plugins: {{count}}. Changes take effect after restart.",
     "none": "none",

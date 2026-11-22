@@ -478,6 +478,12 @@
     "aria": "Admin-Betriebslogs"
   },
   "plugins": {
+    "trust_labels": {
+      "official": "Offiziell",
+      "verified": "Verifiziert",
+      "community": "Community",
+      "unsigned_local": "Lokal unsigniert"
+    },
     "recovery_active": "Plugin-Wiederherstellungsmodus ist aktiv",
     "recovery_active_body": "Abgesicherter Modus: {{mode}}. Plugins in Quarantäne: {{count}}. Änderungen werden nach einem Neustart wirksam.",
     "none": "keiner",

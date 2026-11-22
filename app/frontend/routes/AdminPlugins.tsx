@@ -225,6 +225,7 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
               <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span>
             ) : null}
             <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{plugin.version}</span>
+            <StatusBadge status="required" label={t(`plugins.trust_labels.${plugin.trust_label}`)} />
             <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
             {plugin.experimental ? <StatusBadge status="experimental" label={t("plugins.experimental")} /> : null}
