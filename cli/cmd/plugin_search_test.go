@@ -375,8 +375,20 @@ func TestPluginRegistryClientStoresRefreshMetadataOutsideCheckout(t *testing.T) 
 	}
 }
 
-func TestPluginSearchExplainsUnconfiguredRegistry(t *testing.T) {
-	t.Setenv("SYRUS_PLUGIN_REGISTRY_URL", "")
+func TestPluginSearchFallsBackToDirectEnvironmentRegistry(t *testing.T) {
+	server := pluginRegistryServer(t)
+	defer server.Close()
+	t.Setenv("SYRUS_PLUGIN_REGISTRY_URL", server.URL)
+	t.Setenv("HOME", t.TempDir())
+	pluginRegistryCacheDir = func() (string, error) { return t.TempDir(), nil }
+	pluginRegistryHTTP = server.Client()
+	previousVersion := cliReleaseVersion
+	cliReleaseVersion = "2.0.0"
+	t.Cleanup(func() {
+		pluginRegistryCacheDir = os.UserCacheDir
+		pluginRegistryHTTP = &http.Client{Timeout: 30 * time.Second}
+		cliReleaseVersion = previousVersion
+	})
 	command := NewRootCommand()
 	var output strings.Builder
 	command.SetOut(&output)
@@ -384,7 +396,7 @@ func TestPluginSearchExplainsUnconfiguredRegistry(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "No plugin registry is configured") {
+	if !strings.Contains(output.String(), "acme_weather") || !strings.Contains(output.String(), "canonical") {
 		t.Fatalf("output = %q", output.String())
 	}
 }

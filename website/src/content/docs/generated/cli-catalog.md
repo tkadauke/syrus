@@ -67,7 +67,13 @@ Generated catalog of commands registered in the Cobra command tree.
 | `syrus plugin keygen` | Generate a local Ed25519 publisher key | `--debug`, `--output`, `--profile` | no |
 | `syrus plugin new NAME` | Create a tested external plugin project | `--cli`, `--debug`, `--frontend`, `--model`, `--path`, `--profile`, `--syrus-version` | no |
 | `syrus plugin pack [DIR]` | Validate and build a deterministic plugin package | `--checkout`, `--debug`, `--output`, `--profile`, `--syrus-version` | no |
-| `syrus plugin publish [DIR]` | Pack, sign, and publish a plugin release | `--category`, `--checkout`, `--debug`, `--description`, `--index-repository`, `--key`, `--license`, `--profile`, `--repository`, `--submit`, `--syrus-version` | no |
+| `syrus plugin publish [DIR]` | Pack, sign, and publish a plugin release | `--category`, `--checkout`, `--debug`, `--description`, `--index-repository`, `--key`, `--license`, `--profile`, `--registry`, `--repository`, `--submit`, `--syrus-version` | no |
+| `syrus plugin registry` | Manage plugin registries on the connected instance | `--debug`, `--profile` | no |
+| `syrus plugin registry add URL` | Add a plugin registry | `--debug`, `--name`, `--profile`, `--yes` | no |
+| `syrus plugin registry disable NAME\|ID` | Disable a plugin registry | `--debug`, `--profile` | no |
+| `syrus plugin registry enable NAME\|ID` | Enable a plugin registry | `--debug`, `--profile` | no |
+| `syrus plugin registry list` | List configured plugin registries | `--debug`, `--json`, `--profile` | yes |
+| `syrus plugin registry remove NAME\|ID` | Remove a plugin registry | `--debug`, `--profile` | no |
 | `syrus plugin sign PACKAGE` | Create a detached Ed25519 package signature | `--debug`, `--key`, `--output`, `--profile` | no |
 | `syrus plugin test [DIR]` | Validate and test a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |
 | `syrus plugin validate [DIR]` | Validate a plugin against a Syrus release | `--checkout`, `--debug`, `--json`, `--profile`, `--syrus-version` | yes |

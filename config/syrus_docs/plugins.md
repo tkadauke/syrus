@@ -69,9 +69,19 @@ package is refused and an installed release is fleet-quarantined for removal.
 A signature proves which private key signed the exact bytes. It does not
 sandbox the plugin, review its code, or authorize its tools.
 
+`syrus plugin registry list|add|remove|enable|disable` manages the connected
+instance's sources and requires an administrator. Adding a registry requires
+confirmation (or `--yes`) because publisher trust is scoped to that registry
+and plugin capabilities are disclosure rather than enforcement. Search uses
+all enabled connected registries and accepts `--registry NAME`; without a
+reachable instance it falls back to `SYRUS_PLUGIN_REGISTRY_URL` or canonical.
+
 `syrus plugin publish DIR --key KEY --repository OWNER/REPO` validates, packs,
 signs, and uploads a GitHub release, then prints its registry entry. Passing
-`--index-repository OWNER/INDEX --submit` explicitly consents to opening the
+`--submit` uses the canonical registry's GitHub repository by default;
+`--registry NAME` selects another configured GitHub registry and
+`--index-repository OWNER/INDEX` overrides the selection. Submission explicitly
+consents to opening the
 index pull request from the authenticated author's fork and listing the release
 in `index.json`. Authentication is read from `GITHUB_TOKEN` and is not
 printed or stored. The description and license default to gemspec metadata;
