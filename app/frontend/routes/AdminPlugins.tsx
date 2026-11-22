@@ -126,7 +126,7 @@ function PluginInstallerPanel() {
           <Button className="mt-2" disabled={confirm.isPending} onClick={() => confirm.mutate(change.id)}>{t("plugins.installer.confirm")}</Button>
         </div>
       ))}
-      {installer.data?.installations?.length ? <div className="mt-4 space-y-2">{installer.data.installations.map((item) => <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={item.name}><span>{item.name} {item.version} · {t(`plugins.trust_labels.${item.trust_label}`)} · {item.health}</span><Button onClick={() => remove.mutate(item.name)}>{t("plugins.installer.remove")}</Button></div>)}</div> : null}
+      {installer.data?.installations?.length ? <div className="mt-4 space-y-2">{installer.data.installations.map((item) => <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={item.name}><span>{item.name} {item.version} · {item.source} · {t(`plugins.trust_labels.${item.trust_label}`)} · {item.health}</span><Button onClick={() => remove.mutate(item.name)}>{t("plugins.installer.remove")}</Button></div>)}</div> : null}
       {installer.data?.available_releases?.length ? <div className="mt-4 space-y-2"><p className="text-sm font-medium">{t("plugins.installer.stored_releases")}</p>{installer.data.available_releases.map((release) => <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={`${release.name}-${release.version}`}><span>{release.name} {release.version} · {t(`plugins.trust_labels.${release.trust_label}`)}</span><Button disabled={restore.isPending} onClick={() => restore.mutate(release)}>{t("plugins.installer.restore")}</Button></div>)}</div> : null}
     </Surface>
   )
