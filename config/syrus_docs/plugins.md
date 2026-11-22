@@ -176,8 +176,8 @@ and plugin tools still use normal permissions. Updates and removals follow the
 same confirmation gate. After confirmation, **Apply changes** synchronizes the
 active set and restarts the fleet. `syrus plugin list` reports versions, trust,
 sources, and health; `syrus plugin remove NAME` stages removal. Import/export
-lockfiles record name, version, digest, and source while the database remains
-canonical.
+lockfiles record name, version, digest, source, and registry provenance while
+the database remains canonical.
 
 `syrus plugin install NAME[@VERSION]` first reuses a stored release, which
 supports rollback, then consults the synchronized git registry index at
@@ -194,6 +194,10 @@ show every source; bare installs prefer a canonical collision and require an
 explicit registry for ambiguity among non-canonical sources. Trust and
 revocations are isolated by registry, and non-canonical registries can grant
 at most the `verified` label. Registry URLs are administrator-confirmed input.
+
+Use `syrus plugin install NAME[@VERSION] --registry REGISTRY` to resolve an
+ambiguous collision by registry name or ID.
+
 Search returns only releases compatible with the running or connected Syrus
 version and omits revoked releases. Registry errors are non-fatal, and a valid
 cached index remains available when refresh fails.

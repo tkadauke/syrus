@@ -21,4 +21,27 @@ RSpec.describe PluginLockfile do
       "name" => "weather", "version" => "1.2.3", "digest" => "a" * 64, "source" => "bundled"
     )
   end
+
+  it "round-trips the selected registry when release identities collide" do
+    admin = Factories.user(admin: true)
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    first = PluginRegistry.create!(name: "first", url: "https://first.example.test")
+    second = PluginRegistry.create!(name: "second", url: "https://second.example.test")
+    attributes = { name: "acme_weather", version: "1.0.0", content_digest: "b" * 64,
+      source: "registry", trust_label: "verified", size_bytes: 1 }
+    PluginRelease.create!(**attributes, plugin_registry: first)
+    selected = PluginRelease.create!(**attributes, plugin_registry: second)
+    selected.archive.attach(io: StringIO.new("x"), filename: "acme_weather.archive")
+    allow(PluginDesiredState::Publisher).to receive(:publish!)
+    allow(Syrus::PluginPackage::TrustStore).to receive(:for_release)
+      .and_return(instance_double(Syrus::PluginPackage::TrustStore, revoked?: false))
+    PluginInstallation.create!(plugin_name: selected.name, plugin_release: selected)
+
+    lockfile = described_class.export
+    PluginInstallation.delete_all
+    change = described_class.import!(lockfile, actor: admin).sole
+
+    expect(change.plugin_release).to eq(selected)
+    expect(YAML.safe_load(lockfile).fetch("plugins").sole).to include("registry" => "second")
+  end
 end
