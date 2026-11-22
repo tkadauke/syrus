@@ -105,7 +105,7 @@ func exitStatus(err error) error {
 
 func NewPluginCommand() *cobra.Command {
 	command := &cobra.Command{Use: "plugin", Short: "Develop and inspect Syrus plugins"}
-	command.AddCommand(newPluginNewCommand(), newPluginCapabilitiesCommand(), newPluginSearchCommand(), newPluginInstallCommand(), newPluginListCommand(), newPluginRemoveCommand(), newLocalPluginCommand("validate"), newLocalPluginCommand("test"), newPluginPackCommand(), newPluginKeygenCommand(), newPluginSignCommand(), newPluginVerifyCommand(), newPluginPublishCommand(), newPluginIndexCheckCommand(), newPluginDevCommand())
+	command.AddCommand(newPluginNewCommand(), newPluginCapabilitiesCommand(), newPluginRegistryCommand(), newPluginSearchCommand(), newPluginInstallCommand(), newPluginListCommand(), newPluginRemoveCommand(), newLocalPluginCommand("validate"), newLocalPluginCommand("test"), newPluginPackCommand(), newPluginKeygenCommand(), newPluginSignCommand(), newPluginVerifyCommand(), newPluginPublishCommand(), newPluginIndexCheckCommand(), newPluginDevCommand())
 	return command
 }
 

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -84,6 +86,21 @@ func stageStoredPluginRelease(command *cobra.Command, reference string, registry
 	body, _ := json.Marshal(payload)
 	var change pluginInstallerChange
 	err = pluginInstallerJSON(command, http.MethodPost, creds, "/api/v1/app/admin/plugin_installer/stage_release", bytes.NewReader(body), "application/json", &change)
+	if err != nil && registry == "" && strings.Contains(strings.ToLower(err.Error()), "ambiguous") {
+		catalog, catalogErr := newPluginRegistryAPI(creds).Search(command.Context(), name, "")
+		if catalogErr == nil {
+			choices := make([]string, 0)
+			for _, entry := range catalog.Entries {
+				if entry.Name == name && (version == "" || entry.Version == version) && !slices.Contains(choices, entry.RegistryName) {
+					choices = append(choices, entry.RegistryName)
+				}
+			}
+			sort.Strings(choices)
+			if len(choices) > 0 {
+				return pluginInstallerChange{}, fmt.Errorf("plugin release is ambiguous; choose --registry from: %s", strings.Join(choices, ", "))
+			}
+		}
+	}
 	return change, err
 }
 

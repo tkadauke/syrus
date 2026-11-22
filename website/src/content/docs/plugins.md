@@ -266,6 +266,13 @@ malformed-index errors are reported without taking down plugin administration.
 Use `syrus plugin install NAME[@VERSION] --registry REGISTRY` to select an
 ambiguous source by registry name or ID.
 
+Administrators can manage connected sources with `syrus plugin registry
+list|add|remove|enable|disable`. Adding a source requires confirmation (or
+`--yes`) and repeats the registry trust disclosure. Search accepts `--registry
+NAME`. `syrus plugin publish --submit` targets the canonical registry's GitHub
+repository by default; `--registry NAME` selects another configured GitHub
+registry, while `--index-repository OWNER/REPO` remains the explicit override.
+
 ### Reading fleet convergence
 
 **Admin → Plugins** compares the desired revision with every process heartbeat.
