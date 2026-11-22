@@ -1407,20 +1407,24 @@ describe("AdminPlugins", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = String(input)
       if (url.includes("plugin_installer")) {
-        return Promise.resolve(jsonResponse({
-          installations: [{ name: "calendar", version: "3.0.0", source: "registry", trust_label: "official", digest: "abc", health: "healthy" }],
-          available_releases: [{ name: "weather", version: "1.0.0", source: "upload", trust_label: "verified" }],
-          pending_changes: [{
-            id: 4,
-            name: "weather",
-            action: "update",
-            version: "2.0.0",
-            source: "upload",
-            trust_label: "verified",
-            capability_manifest: { routes: ["/weather"] },
-            capability_diff: { routes: { added: ["/weather"], removed: ["/forecast"] } }
-          }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            installations: [{ name: "calendar", version: "3.0.0", source: "registry", trust_label: "official", digest: "abc", health: "healthy" }],
+            available_releases: [{ name: "weather", version: "1.0.0", source: "upload", trust_label: "verified" }],
+            pending_changes: [
+              {
+                id: 4,
+                name: "weather",
+                action: "update",
+                version: "2.0.0",
+                source: "upload",
+                trust_label: "verified",
+                capability_manifest: { routes: ["/weather"] },
+                capability_diff: { routes: { added: ["/weather"], removed: ["/forecast"] } }
+              }
+            ]
+          })
+        )
       }
       return Promise.resolve(jsonResponse({ plugins: [] }))
     })
