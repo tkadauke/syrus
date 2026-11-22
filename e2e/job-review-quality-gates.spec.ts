@@ -126,9 +126,12 @@ async function mockReviewSourceDiffWithMobileReviewNote(page: Page) {
               "diff --git a/src/engine/gpu_display.h b/src/engine/gpu_display.h",
               "--- a/src/engine/gpu_display.h",
               "+++ b/src/engine/gpu_display.h",
-              "@@ -1,2 +1,3 @@",
+              "@@ -1,42 +1,43 @@",
               " #pragma once",
-              "+bool supportsPlatformDisplayResolveTonemap();"
+              "+bool supportsPlatformDisplayResolveTonemap();",
+              // Keep enough natural content after the header for the viewport
+              // to exercise the second header's sticky handoff point.
+              ...Array.from({ length: 40 }, (_, index) => ` declaration_${index};`)
             ].join("\n")
           }
         ],
