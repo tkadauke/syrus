@@ -11,12 +11,17 @@ module Api
 
           def catalog
             result = PluginRegistrySearch.new.search(params[:q])
+            entries = result.entries
+            entries = entries.select { |entry| [ entry.registry_name, entry.registry_id.to_s ].include?(params[:registry]) } if params[:registry].present?
             render json: { configured: true, error: result.errors.values.first, errors: result.errors, stale: result.stale.any?,
-              entries: result.entries.map(&:to_h) }
+              stale_registries: result.stale, entries: entries.map(&:to_h) }
           end
 
           def registries
-            render json: { registries: PluginRegistry.sources.map { |source| serialize_registry(source) } }
+            render json: { registries: PluginRegistry.sources.map do |source|
+              serialize_registry(source).merge(entry_count: source.id ? PluginRelease.where(plugin_registry_id: source.id).count : 0,
+                error: source.configuration_error, stale: false)
+            end }
           end
 
           def create_registry

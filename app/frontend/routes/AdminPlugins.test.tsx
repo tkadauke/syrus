@@ -1439,6 +1439,135 @@ describe("AdminPlugins", () => {
     expect(screen.getByText(/calendar 3\.0\.0 · registry · Official · healthy/)).toBeInTheDocument()
   })
 
+  it("manages registry states and confirms additions with inline API errors", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/registries") && init?.method === "POST")
+        return Promise.resolve(jsonResponse({ error: { message: "URL has already been taken" } }, 422))
+      if (url.endsWith("/registries/2") && init?.method === "PATCH") return Promise.resolve(jsonResponse({ id: 2, enabled: false }))
+      if (url.endsWith("/registries/2") && init?.method === "DELETE") return Promise.resolve(jsonResponse(undefined, 204))
+      if (url.endsWith("/registries"))
+        return Promise.resolve(
+          jsonResponse({
+            registries: [
+              {
+                id: 1,
+                name: "canonical",
+                url: "https://canonical.example",
+                enabled: true,
+                canonical: true,
+                read_only: false,
+                last_refresh_at: "2026-11-20T12:00:00Z",
+                entry_count: 4,
+                error: null,
+                stale: false,
+                healthy: true
+              },
+              {
+                id: 2,
+                name: "partners",
+                url: "https://partners.example",
+                enabled: true,
+                canonical: false,
+                read_only: false,
+                last_refresh_at: null,
+                entry_count: 2,
+                error: "unreachable",
+                stale: true,
+                healthy: false
+              },
+              {
+                id: 3,
+                name: "environment",
+                url: "https://env.example",
+                enabled: true,
+                canonical: false,
+                read_only: true,
+                last_refresh_at: null,
+                entry_count: 0,
+                error: null,
+                stale: false,
+                healthy: false
+              }
+            ]
+          })
+        )
+      if (url.includes("/catalog")) return Promise.resolve(jsonResponse({ configured: true, errors: {}, stale: false, stale_registries: [], entries: [] }))
+      if (url.endsWith("plugin_installer")) return Promise.resolve(jsonResponse({ installations: [], available_releases: [], pending_changes: [] }))
+      return Promise.resolve(jsonResponse({ plugins: [] }))
+    })
+    renderRoute(<AdminPlugins />)
+    expect(await screen.findByText("Canonical")).toBeInTheDocument()
+    expect(screen.getByText("Environment-provided · read-only")).toBeInTheDocument()
+    expect(screen.getByText("Cached data is stale.")).toBeInTheDocument()
+    expect(screen.getByText("unreachable")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Disable" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(1)
+    const partnersCard = screen.getByText("partners").closest("div.rounded") as HTMLElement
+    fireEvent.click(within(partnersCard).getByRole("button", { name: "Disable" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/registries\/2$/), expect.objectContaining({ method: "PATCH" })))
+    fireEvent.click(within(partnersCard).getByRole("button", { name: "Remove" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/registries\/2$/), expect.objectContaining({ method: "DELETE" })))
+    fireEvent.change(screen.getByLabelText("Registry URL"), { target: { value: "https://partners.example" } })
+    fireEvent.click(screen.getByRole("button", { name: "Review registry" }))
+    expect(screen.getByText(/trust labels apply only within this registry/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/disclosure, not enforcement/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and add" }))
+    expect(await screen.findByText("URL has already been taken")).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/admin/plugin_installer/registries", expect.objectContaining({ method: "POST" }))
+  })
+
+  it("keeps registry collisions separate, filters sources, and installs from the selected registry", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.includes("stage_release") && init?.method === "POST") return Promise.resolve(jsonResponse({ id: 8 }))
+      if (url.endsWith("/registries")) return Promise.resolve(jsonResponse({ registries: [] }))
+      if (url.includes("/catalog"))
+        return Promise.resolve(
+          jsonResponse({
+            configured: true,
+            errors: { broken: "timeout" },
+            stale: true,
+            stale_registries: ["broken"],
+            entries: [
+              {
+                name: "weather",
+                version: "1.0.0",
+                description: "Canonical weather",
+                trust_label: "official",
+                registry_name: "canonical",
+                registry_id: 1,
+                registry_canonical: true
+              },
+              {
+                name: "weather",
+                version: "1.0.0",
+                description: "Partner weather",
+                trust_label: "verified",
+                registry_name: "partners",
+                registry_id: 2,
+                registry_canonical: false
+              }
+            ]
+          })
+        )
+      if (url.endsWith("plugin_installer")) return Promise.resolve(jsonResponse({ installations: [], available_releases: [], pending_changes: [] }))
+      return Promise.resolve(jsonResponse({ plugins: [] }))
+    })
+    renderRoute(<AdminPlugins />)
+    expect((await screen.findAllByText("weather")).length).toBe(2)
+    expect(screen.getByText("broken: timeout")).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Registry"), { target: { value: "partners" } })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("registry=partners"), expect.anything()))
+    fireEvent.click((await screen.findAllByRole("button", { name: "Review installation" }))[1])
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/app/admin/plugin_installer/stage_release",
+        expect.objectContaining({ body: expect.stringContaining('"registry":"2"') })
+      )
+    )
+  })
+
   it("shows localized load states and messages for isolated plugins", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       jsonResponse({
