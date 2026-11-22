@@ -12,7 +12,7 @@ class PluginRegistry < ApplicationRecord
   validates :name, presence: true, uniqueness: true, format: { with: NAME_PATTERN }
   validates :url, presence: true, uniqueness: true
   validate :supported_safe_url
-  validate :configured_registry_limit, on: :create
+  validate :configured_registry_limit
 
   scope :active, -> { where(removed_at: nil) }
   scope :enabled, -> { active.where(enabled: true) }
@@ -63,7 +63,10 @@ class PluginRegistry < ApplicationRecord
 
   def configured_registry_limit
     return if canonical? || environment_managed?
-    configured = self.class.active.where(environment_managed: false).where.not(url: CANONICAL_URL)
+    reactivating = new_record? || (will_save_change_to_removed_at? && removed_at.nil?)
+    return unless reactivating
+
+    configured = self.class.active.where(environment_managed: false).where.not(url: CANONICAL_URL).where.not(id:)
     errors.add(:base, "at most #{MAX_CONFIGURED} plugin registries may be configured") if configured.count >= MAX_CONFIGURED
   end
 
