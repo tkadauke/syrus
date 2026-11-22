@@ -21,6 +21,8 @@ const MOBILE_ACTION_BAR_CLASS =
   "mt-5 space-y-2 max-lg:fixed max-lg:inset-x-3 max-lg:bottom-[max(.75rem,env(safe-area-inset-bottom))] max-lg:z-20 max-lg:grid max-lg:grid-cols-4 max-lg:gap-2 max-lg:space-y-0 max-lg:rounded-xl max-lg:border max-lg:border-border max-lg:bg-surface/95 max-lg:p-2 max-lg:shadow-lg max-lg:backdrop-blur"
 const MOBILE_FEEDBACK_SHEET_CLASS =
   "mt-4 space-y-2 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:rounded-t-2xl max-lg:border max-lg:border-border max-lg:bg-surface max-lg:p-5 max-lg:pb-[max(1.25rem,env(safe-area-inset-bottom))] max-lg:shadow-xl"
+const MOBILE_DETAILS_SHEET_CLASS =
+  "max-h-[92dvh] w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
 const MAX_CARD_ROTATION_DEGREES = 4
 
 export default function ReviewWorkspaceRoute() {
@@ -352,25 +354,24 @@ function DetailsSheet({ job, payload, onClose }: { job: ReviewWorkspaceJob; payl
     }
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-[60] flex items-end bg-black/40 p-0 lg:hidden" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <section
-        aria-label={t("details")}
-        aria-modal="true"
-        className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
-        role="dialog"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm text-text-secondary">
+    <div
+      className="fixed inset-0 z-[60] flex w-full max-w-full items-end overflow-x-hidden bg-black/40 p-0 lg:hidden"
+      data-testid="mobile-details-backdrop"
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <section aria-label={t("details")} aria-modal="true" className={MOBILE_DETAILS_SHEET_CLASS} data-testid="mobile-details-sheet" role="dialog">
+        <div className="flex w-full min-w-0 max-w-full items-start justify-between gap-4">
+          <div className="min-w-0 max-w-full flex-1">
+            <p className="break-all text-sm text-text-secondary">
               {job.slug} · {job.repository.slug}
             </p>
-            <h2 className="mt-1 text-lg font-semibold">{job.title}</h2>
+            <h2 className="mt-1 break-words text-lg font-semibold">{job.title}</h2>
           </div>
           <button aria-label={t("close_details")} className="min-h-11 min-w-11 rounded border border-border p-2" onClick={onClose} ref={closeRef} type="button">
             <CloseIcon className="h-5 w-5" />
           </button>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 w-full min-w-0 max-w-full" data-testid="mobile-details-content">
           <CanonicalReviewWorkspace key={job.id} payload={payload} />
         </div>
       </section>

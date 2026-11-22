@@ -318,6 +318,64 @@ test("shows inline Review Notes in the real review tab on a 402px mobile viewpor
   await expect(nextHunk).toBeVisible()
 })
 
+test("keeps natural-scroll file headers sticky beneath mobile chrome and hands off at the next file", async ({ page }) => {
+  await signInAsDemo(page)
+  await mockReviewSourceDiffWithMobileReviewNote(page)
+  await openImplementedDemoJob(page)
+  await page.setViewportSize({ width: 402, height: 812 })
+  await openReviewTab(page, ["src/engine/gpu_display.cpp", "src/engine/gpu_display.h"])
+
+  const pane = page.getByTestId("app-scroll-pane")
+  const viewer = page.getByTestId("agent-diff-viewer")
+  const firstHeader = page.locator('[data-diff-file="src/engine/gpu_display.cpp"] [title="src/engine/gpu_display.cpp"]')
+  const secondHeader = page.locator('[data-diff-file="src/engine/gpu_display.h"] [title="src/engine/gpu_display.h"]')
+
+  const overflow = await viewer.evaluate((element) => {
+    const capturedBy = []
+    for (let ancestor = element.parentElement; ancestor && !ancestor.matches('[data-testid="app-scroll-pane"]'); ancestor = ancestor.parentElement) {
+      const style = getComputedStyle(ancestor)
+      if (style.overflowY !== "visible" && style.overflowY !== "clip") capturedBy.push(style.overflowY)
+    }
+    const style = getComputedStyle(element)
+    return { capturedBy, overflowX: style.overflowX, overflowY: style.overflowY }
+  })
+  expect(overflow).toEqual({ capturedBy: [], overflowX: "clip", overflowY: "visible" })
+
+  async function scrollHeaderPastNaturalTop(headerSelector: string, extra = 0) {
+    await pane.evaluate(
+      (scrollPane, { extra, headerSelector }) => {
+        const header = document.querySelector(headerSelector)
+        if (!header) throw new Error(`diff header not found: ${headerSelector}`)
+        const inset = Number.parseFloat(getComputedStyle(scrollPane).getPropertyValue("--mobile-chrome-visible-top-inset")) || 0
+        scrollPane.scrollTop += header.getBoundingClientRect().top - scrollPane.getBoundingClientRect().top - inset + extra
+      },
+      { extra, headerSelector }
+    )
+  }
+
+  async function stickyOffset(header: typeof firstHeader) {
+    return header.evaluate((element) => {
+      const scrollPane = document.querySelector('[data-testid="app-scroll-pane"]') as HTMLElement
+      const inset = Number.parseFloat(getComputedStyle(scrollPane).getPropertyValue("--mobile-chrome-visible-top-inset")) || 0
+      return Math.round(element.getBoundingClientRect().top - scrollPane.getBoundingClientRect().top - inset)
+    })
+  }
+
+  await scrollHeaderPastNaturalTop('[data-diff-file="src/engine/gpu_display.cpp"] [title="src/engine/gpu_display.cpp"]', 120)
+  await expect.poll(() => stickyOffset(firstHeader)).toBe(0)
+
+  await scrollHeaderPastNaturalTop('[data-diff-file="src/engine/gpu_display.h"] [title="src/engine/gpu_display.h"]')
+  await expect.poll(async () => ({
+    separated: await page.evaluate(() => {
+      const first = document.querySelector('[data-diff-file="src/engine/gpu_display.cpp"] [title="src/engine/gpu_display.cpp"]') as HTMLElement
+      const second = document.querySelector('[data-diff-file="src/engine/gpu_display.h"] [title="src/engine/gpu_display.h"]') as HTMLElement
+      return first.getBoundingClientRect().bottom <= second.getBoundingClientRect().top + 1
+    }),
+    secondOffset: await stickyOffset(secondHeader)
+  })).toEqual({ separated: true, secondOffset: 0 })
+  expect(await stickyOffset(firstHeader)).toBeLessThan(0)
+})
+
 test("keeps the mobile line comment composer fixed after horizontal diff scrolling", async ({ page }) => {
   await signInAsDemo(page)
   await openImplementedDemoJob(page)
