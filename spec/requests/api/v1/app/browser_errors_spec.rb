@@ -155,6 +155,7 @@ RSpec.describe "API: /api/v1/app/browser_errors", type: :request do
     )
     expect(episode.metadata.fetch("resource_timing")).to include(
       "response_status" => "503",
+      "encoded_size_bucket" => "10kb_to_100kb",
       "transfer_classification" => "network"
     )
     expect(episode.metadata).not_to include("arbitrary_url", "body")
