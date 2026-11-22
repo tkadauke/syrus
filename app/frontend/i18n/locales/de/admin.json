@@ -478,6 +478,12 @@
     "aria": "Admin-Betriebslogs"
   },
   "plugins": {
+    "registry": {
+      "heading": "Registry durchsuchen",
+      "search": "Kompatible Plugins suchen",
+      "unconfigured": "Keine Plugin-Registry ist konfiguriert. Setze SYRUS_PLUGIN_REGISTRY_URL, um Plugins zu durchsuchen.",
+      "empty": "Keine kompatiblen Plugins gefunden."
+    },
     "installer": {
       "aria": "Installer für externe Plugins",
       "heading": "Externe Plugins installieren",
