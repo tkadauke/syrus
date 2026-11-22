@@ -10,27 +10,27 @@ import { ShortcutsHelpModal } from "./ShortcutsHelpModal"
 
 // --- Shape model ---
 
-type RectShape    = { id: string; kind: "rectangle"; x: number; y: number; w: number; h: number; color: string }
-type EllipseShape = { id: string; kind: "ellipse";   x: number; y: number; w: number; h: number; color: string }
-type LineShape    = { id: string; kind: "line";       x1: number; y1: number; x2: number; y2: number; color: string }
-type ArrowShape   = { id: string; kind: "arrow";      x1: number; y1: number; x2: number; y2: number; color: string }
-type FreehandShape = { id: string; kind: "freehand";  points: Array<{ x: number; y: number }>; color: string }
+type RectShape = { id: string; kind: "rectangle"; x: number; y: number; w: number; h: number; color: string }
+type EllipseShape = { id: string; kind: "ellipse"; x: number; y: number; w: number; h: number; color: string }
+type LineShape = { id: string; kind: "line"; x1: number; y1: number; x2: number; y2: number; color: string }
+type ArrowShape = { id: string; kind: "arrow"; x1: number; y1: number; x2: number; y2: number; color: string }
+type FreehandShape = { id: string; kind: "freehand"; points: Array<{ x: number; y: number }>; color: string }
 type TextSize = "small" | "medium" | "large"
-type TextShape    = { id: string; kind: "text";       x: number; y: number; value: string; color: string; size?: TextSize }
+type TextShape = { id: string; kind: "text"; x: number; y: number; value: string; color: string; size?: TextSize }
 export type Shape = RectShape | EllipseShape | LineShape | ArrowShape | FreehandShape | TextShape
 
-type Tool     = "select" | "rectangle" | "ellipse" | "line" | "arrow" | "freehand" | "text"
+type Tool = "select" | "rectangle" | "ellipse" | "line" | "arrow" | "freehand" | "text"
 type DrawTool = "rectangle" | "ellipse" | "line" | "arrow" | "freehand"
 
-type Point       = { x: number; y: number }
+type Point = { x: number; y: number }
 type BoundingBox = { x: number; y: number; w: number; h: number }
-type HandlePos   = "tl" | "t" | "tr" | "r" | "br" | "b" | "bl" | "l"
+type HandlePos = "tl" | "t" | "tr" | "r" | "br" | "b" | "bl" | "l"
 
 type TextPlacement = Point & { value: string }
 
 type Interaction =
   | { mode: "draw"; kind: DrawTool; start: Point; last: Point; pointerId: number; color: string; freehandPoints: Point[] }
-  | { mode: "move";   pointerId: number; shapeId: string; startPointer: Point; lastPointer: Point; startShape: Shape }
+  | { mode: "move"; pointerId: number; shapeId: string; startPointer: Point; lastPointer: Point; startShape: Shape }
   | { mode: "resize"; pointerId: number; shapeId: string; handle: HandlePos; startPointer: Point; lastPointer: Point; startShape: Shape }
 
 // --- Constants ---
@@ -46,12 +46,12 @@ const TOOLS: Array<{ id: Tool }> = [
 ]
 
 const COLORS = [
-  { key: "red",    value: "#ef4444" },
-  { key: "blue",   value: "#3b82f6" },
+  { key: "red", value: "#ef4444" },
+  { key: "blue", value: "#3b82f6" },
   { key: "yellow", value: "#eab308" },
-  { key: "green",  value: "#22c55e" },
-  { key: "white",  value: "#ffffff" },
-  { key: "black",  value: "#000000" }
+  { key: "green", value: "#22c55e" },
+  { key: "white", value: "#ffffff" },
+  { key: "black", value: "#000000" }
 ]
 
 type IconComponent = (props: SVGProps<SVGSVGElement>) => JSX.Element
@@ -66,18 +66,18 @@ const TOOL_ICONS: Record<Tool, IconComponent> = {
   text: TypeIcon
 }
 
-const STROKE_WIDTH    = 3
+const STROKE_WIDTH = 3
 const TEXT_SIZES: Record<TextSize, { px: number; lineHeight: number; charWidth: number }> = {
-  small:  { px: 16, lineHeight: 20, charWidth: 9.5 },
+  small: { px: 16, lineHeight: 20, charWidth: 9.5 },
   medium: { px: 20, lineHeight: 24, charWidth: 12 },
-  large:  { px: 28, lineHeight: 34, charWidth: 16.5 }
+  large: { px: 28, lineHeight: 34, charWidth: 16.5 }
 }
 const TEXT_SIZE_OPTIONS: TextSize[] = ["small", "medium", "large"]
-const MAX_UNDO_STEPS  = 50
-const HANDLE_SIZE     = 8
-const HANDLE_HIT_RAD  = 7
-const SELECTION_PAD   = 4
-const HIT_PAD         = 6
+const MAX_UNDO_STEPS = 50
+const HANDLE_SIZE = 8
+const HANDLE_HIT_RAD = 7
+const SELECTION_PAD = 4
+const HIT_PAD = 6
 const SELECTION_COLOR = "#3b82f6"
 const INTERACTIVE_ENTER_TARGET = [
   "button",
@@ -93,14 +93,18 @@ const INTERACTIVE_ENTER_TARGET = [
   "[role='slider']",
   "[role='switch']"
 ].join(",")
-const ZOOM_MIN  = 0.1
-const ZOOM_MAX  = 8
+const ZOOM_MIN = 0.1
+const ZOOM_MAX = 8
 const ZOOM_STEP = 0.25
 
 let nextShapeId = 0
-function makeId() { return `s${++nextShapeId}` }
+function makeId() {
+  return `s${++nextShapeId}`
+}
 
-function clampZoom(z: number) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)) }
+function clampZoom(z: number) {
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z))
+}
 
 function acceptsAnnotationEnterShortcut(target: EventTarget | null) {
   if (!target || target === window || target === document || target === document.body) return true
@@ -153,7 +157,10 @@ function shapeBounds(shape: Shape, context?: CanvasRenderingContext2D): Bounding
       }
     case "freehand": {
       if (shape.points.length === 0) return { x: 0, y: 0, w: 0, h: 0 }
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity
       for (const p of shape.points) {
         if (p.x < minX) minX = p.x
         if (p.y < minY) minY = p.y
@@ -169,23 +176,20 @@ function shapeBounds(shape: Shape, context?: CanvasRenderingContext2D): Bounding
 
 function hitTest(shape: Shape, point: Point, context?: CanvasRenderingContext2D): boolean {
   const b = shapeBounds(shape, context)
-  return (
-    point.x >= b.x - HIT_PAD && point.x <= b.x + b.w + HIT_PAD &&
-    point.y >= b.y - HIT_PAD && point.y <= b.y + b.h + HIT_PAD
-  )
+  return point.x >= b.x - HIT_PAD && point.x <= b.x + b.w + HIT_PAD && point.y >= b.y - HIT_PAD && point.y <= b.y + b.h + HIT_PAD
 }
 
 function getHandles(bounds: BoundingBox): Array<{ pos: HandlePos; x: number; y: number }> {
   const { x, y, w, h } = bounds
   return [
-    { pos: "tl", x,         y         },
-    { pos: "t",  x: x+w/2,  y         },
-    { pos: "tr", x: x+w,    y         },
-    { pos: "r",  x: x+w,    y: y+h/2  },
-    { pos: "br", x: x+w,    y: y+h    },
-    { pos: "b",  x: x+w/2,  y: y+h    },
-    { pos: "bl", x,         y: y+h    },
-    { pos: "l",  x,         y: y+h/2  }
+    { pos: "tl", x, y },
+    { pos: "t", x: x + w / 2, y },
+    { pos: "tr", x: x + w, y },
+    { pos: "r", x: x + w, y: y + h / 2 },
+    { pos: "br", x: x + w, y: y + h },
+    { pos: "b", x: x + w / 2, y: y + h },
+    { pos: "bl", x, y: y + h },
+    { pos: "l", x, y: y + h / 2 }
   ]
 }
 
@@ -202,7 +206,7 @@ function applyMove(startShape: Shape, dx: number, dy: number): Shape {
     case "arrow":
       return { ...startShape, x1: startShape.x1 + dx, y1: startShape.y1 + dy, x2: startShape.x2 + dx, y2: startShape.y2 + dy }
     case "freehand":
-      return { ...startShape, points: startShape.points.map(p => ({ x: p.x + dx, y: p.y + dy })) }
+      return { ...startShape, points: startShape.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
     case "text":
       return { ...startShape, x: startShape.x + dx, y: startShape.y + dy }
   }
@@ -215,22 +219,44 @@ function applyResize(startShape: Shape, handle: HandlePos, dx: number, dy: numbe
       // Work with normalized bounds then store as x,y,w,h
       const b = shapeBounds(startShape)
       let { x, y, w, h } = b
-      if (handle.includes("l")) { x += dx; w -= dx }
-      if (handle.includes("r")) { w += dx }
-      if (handle.includes("t")) { y += dy; h -= dy }
-      if (handle.includes("b")) { h += dy }
+      if (handle.includes("l")) {
+        x += dx
+        w -= dx
+      }
+      if (handle.includes("r")) {
+        w += dx
+      }
+      if (handle.includes("t")) {
+        y += dy
+        h -= dy
+      }
+      if (handle.includes("b")) {
+        h += dy
+      }
       return { ...startShape, x, y, w, h }
     }
     case "line":
     case "arrow": {
       // Map handles to endpoints based on which endpoint is at that boundary
       let { x1, y1, x2, y2 } = startShape
-      const leftIsX1  = startShape.x1 <= startShape.x2
-      const topIsY1   = startShape.y1 <= startShape.y2
-      if (handle.includes("l")) { if (leftIsX1) x1 += dx; else x2 += dx }
-      if (handle.includes("r")) { if (leftIsX1) x2 += dx; else x1 += dx }
-      if (handle.includes("t")) { if (topIsY1)  y1 += dy; else y2 += dy }
-      if (handle.includes("b")) { if (topIsY1)  y2 += dy; else y1 += dy }
+      const leftIsX1 = startShape.x1 <= startShape.x2
+      const topIsY1 = startShape.y1 <= startShape.y2
+      if (handle.includes("l")) {
+        if (leftIsX1) x1 += dx
+        else x2 += dx
+      }
+      if (handle.includes("r")) {
+        if (leftIsX1) x2 += dx
+        else x1 += dx
+      }
+      if (handle.includes("t")) {
+        if (topIsY1) y1 += dy
+        else y2 += dy
+      }
+      if (handle.includes("b")) {
+        if (topIsY1) y2 += dy
+        else y1 += dy
+      }
       return { ...startShape, x1, y1, x2, y2 }
     }
     case "text":
@@ -245,11 +271,11 @@ function applyResize(startShape: Shape, handle: HandlePos, dx: number, dy: numbe
 
 function configureStroke(context: CanvasRenderingContext2D, color: string) {
   context.strokeStyle = color
-  context.fillStyle   = color
-  context.lineWidth   = STROKE_WIDTH
-  context.lineCap     = "round"
-  context.lineJoin    = "round"
-  context.font        = textFont()
+  context.fillStyle = color
+  context.lineWidth = STROKE_WIDTH
+  context.lineCap = "round"
+  context.lineJoin = "round"
+  context.font = textFont()
 }
 
 function renderArrowHead(context: CanvasRenderingContext2D, start: Point, end: Point) {
@@ -314,7 +340,7 @@ function renderSelectionOverlay(shape: Shape, context: CanvasRenderingContext2D)
 
   context.save()
   context.strokeStyle = SELECTION_COLOR
-  context.lineWidth   = 1.5
+  context.lineWidth = 1.5
   context.setLineDash([4, 3])
   context.beginPath()
   context.rect(bx, by, bw, bh)
@@ -323,9 +349,9 @@ function renderSelectionOverlay(shape: Shape, context: CanvasRenderingContext2D)
 
   if (shape.kind !== "freehand") {
     const handles = getHandles({ x: bx, y: by, w: bw, h: bh })
-    context.fillStyle   = "white"
+    context.fillStyle = "white"
     context.strokeStyle = SELECTION_COLOR
-    context.lineWidth   = 1.5
+    context.lineWidth = 1.5
     for (const h of handles) {
       context.beginPath()
       context.rect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE)
@@ -337,27 +363,27 @@ function renderSelectionOverlay(shape: Shape, context: CanvasRenderingContext2D)
   context.restore()
 }
 
-function renderCanvas(
-  shapes: Shape[],
-  selectedShapeId: string | null,
-  context: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement
-) {
+function renderCanvas(shapes: Shape[], selectedShapeId: string | null, context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
   context.clearRect(0, 0, canvas.width, canvas.height)
   for (const shape of shapes) renderShape(shape, context)
   if (selectedShapeId) {
-    const sel = shapes.find(s => s.id === selectedShapeId)
+    const sel = shapes.find((s) => s.id === selectedShapeId)
     if (sel) renderSelectionOverlay(sel, context)
   }
 }
 
 function makePreviewShape(kind: DrawTool, start: Point, end: Point, color: string, points: Point[]): Shape {
   switch (kind) {
-    case "rectangle": return { id: "__preview__", kind, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color }
-    case "ellipse":   return { id: "__preview__", kind, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color }
-    case "line":      return { id: "__preview__", kind, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color }
-    case "arrow":     return { id: "__preview__", kind, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color }
-    case "freehand":  return { id: "__preview__", kind, points: [...points], color }
+    case "rectangle":
+      return { id: "__preview__", kind, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color }
+    case "ellipse":
+      return { id: "__preview__", kind, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, color }
+    case "line":
+      return { id: "__preview__", kind, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color }
+    case "arrow":
+      return { id: "__preview__", kind, x1: start.x, y1: start.y, x2: end.x, y2: end.y, color }
+    case "freehand":
+      return { id: "__preview__", kind, points: [...points], color }
   }
 }
 
@@ -458,7 +484,10 @@ function CheckIcon(props: SVGProps<SVGSVGElement>) {
 // --- Component ---
 
 export interface ImageAnnotationModalProps {
-  dataUrl: string; name: string; initialShapes?: Shape[]; originalDataUrl?: string
+  dataUrl: string
+  name: string
+  initialShapes?: Shape[]
+  originalDataUrl?: string
   onDone: (annotatedBlob: Blob, shapes: Shape[]) => void
   onExportError?: (error: Error, retry: () => void) => void
   onClose: () => void
@@ -472,54 +501,61 @@ export function ImageAnnotationModal(props: ImageAnnotationModalProps) {
   )
 }
 
-function ImageAnnotationModalContent({
-  dataUrl, name, initialShapes, originalDataUrl, onDone, onExportError, onClose
-}: ImageAnnotationModalProps) {
+function ImageAnnotationModalContent({ dataUrl, name, initialShapes, originalDataUrl, onDone, onExportError, onClose }: ImageAnnotationModalProps) {
   const { t } = useT("common")
-  const imageCanvasRef   = useRef<HTMLCanvasElement | null>(null)
+  const imageCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const viewportRef      = useRef<HTMLDivElement | null>(null)
-  const pastRef          = useRef<Shape[][]>([])
-  const futureRef        = useRef<Shape[][]>([])
-  const interactionRef   = useRef<Interaction | null>(null)
-  const shapesRef        = useRef<Shape[]>([])
-  const textInputRef     = useRef<HTMLInputElement | null>(null)
+  const viewportRef = useRef<HTMLDivElement | null>(null)
+  const pastRef = useRef<Shape[][]>([])
+  const futureRef = useRef<Shape[][]>([])
+  const interactionRef = useRef<Interaction | null>(null)
+  const shapesRef = useRef<Shape[]>([])
+  const textInputRef = useRef<HTMLInputElement | null>(null)
   // Captured at mount; stable ref avoids adding initialShapes to the image-load effect deps
   const initialShapesRef = useRef<Shape[]>(initialShapes ?? [])
 
   // Zoom / pan refs (kept in sync with state for use in non-React callbacks)
-  const zoomRef           = useRef(1)
-  const panRef            = useRef<Point>({ x: 0, y: 0 })
-  const isSpaceRef        = useRef(false)
+  const zoomRef = useRef(1)
+  const panRef = useRef<Point>({ x: 0, y: 0 })
+  const isSpaceRef = useRef(false)
   const activePointersRef = useRef<Map<number, Point>>(new Map())
-  const pinchRef          = useRef<{
-    startZoom: number; startDist: number
-    startMidClient: Point; startPan: Point; containerCenter: Point
+  const pinchRef = useRef<{
+    startZoom: number
+    startDist: number
+    startMidClient: Point
+    startPan: Point
+    containerCenter: Point
   } | null>(null)
-  const isPanDragRef      = useRef<{ startClient: Point; startPan: Point; pointerId: number } | null>(null)
+  const isPanDragRef = useRef<{ startClient: Point; startPan: Point; pointerId: number } | null>(null)
 
-  const [tool,              setTool]              = useState<Tool>("rectangle")
-  const [color,             setColor]             = useState(COLORS[0].value)
-  const [textSize,          setTextSize]          = useState<TextSize>("medium")
-  const [imageSize,         setImageSize]         = useState<{ width: number; height: number } | null>(null)
-  const [undoCount,         setUndoCount]         = useState(0)
-  const [redoCount,         setRedoCount]         = useState(0)
-  const [textPlacement,     setTextPlacement]     = useState<TextPlacement | null>(null)
-  const [shapes,            setShapes]            = useState<Shape[]>([])
-  const [selectedShapeId,   setSelectedShapeId]   = useState<string | null>(null)
+  const [tool, setTool] = useState<Tool>("rectangle")
+  const [color, setColor] = useState(COLORS[0].value)
+  const [textSize, setTextSize] = useState<TextSize>("medium")
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null)
+  const [undoCount, setUndoCount] = useState(0)
+  const [redoCount, setRedoCount] = useState(0)
+  const [textPlacement, setTextPlacement] = useState<TextPlacement | null>(null)
+  const [shapes, setShapes] = useState<Shape[]>([])
+  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
-  const [zoom,              setZoom]              = useState(1)
-  const [pan,               setPan]               = useState<Point>({ x: 0, y: 0 })
-  const [isPanning,         setIsPanning]         = useState(false)
-  const [isPanDragging,     setIsPanDragging]     = useState(false)
-  const [helpOpen,          setHelpOpen]          = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState<Point>({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [isPanDragging, setIsPanDragging] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   // Keep shapesRef in sync for use in event handlers without closure staleness
-  useEffect(() => { shapesRef.current = shapes }, [shapes])
+  useEffect(() => {
+    shapesRef.current = shapes
+  }, [shapes])
 
   // Keep zoom/pan refs in sync with state
-  useEffect(() => { zoomRef.current = zoom }, [zoom])
-  useEffect(() => { panRef.current = pan },   [pan])
+  useEffect(() => {
+    zoomRef.current = zoom
+  }, [zoom])
+  useEffect(() => {
+    panRef.current = pan
+  }, [pan])
 
   const constrainPan = useCallback((nextPan: Point, nextZoom = zoomRef.current): Point => {
     const viewport = viewportRef.current
@@ -539,20 +575,26 @@ function ImageAnnotationModalContent({
     }
   }, [])
 
-  const updatePan = useCallback((updater: Point | ((current: Point) => Point), nextZoom = zoomRef.current) => {
-    setPan((current) => {
-      const next = typeof updater === "function" ? updater(current) : updater
-      return constrainPan(next, nextZoom)
-    })
-  }, [constrainPan])
+  const updatePan = useCallback(
+    (updater: Point | ((current: Point) => Point), nextZoom = zoomRef.current) => {
+      setPan((current) => {
+        const next = typeof updater === "function" ? updater(current) : updater
+        return constrainPan(next, nextZoom)
+      })
+    },
+    [constrainPan]
+  )
 
-  const updateZoom = useCallback((nextZoom: number | ((current: number) => number)) => {
-    setZoom((current) => {
-      const resolvedZoom = clampZoom(typeof nextZoom === "function" ? nextZoom(current) : nextZoom)
-      setPan((currentPan) => constrainPan(currentPan, resolvedZoom))
-      return resolvedZoom
-    })
-  }, [constrainPan])
+  const updateZoom = useCallback(
+    (nextZoom: number | ((current: number) => number)) => {
+      setZoom((current) => {
+        const resolvedZoom = clampZoom(typeof nextZoom === "function" ? nextZoom(current) : nextZoom)
+        setPan((currentPan) => constrainPan(currentPan, resolvedZoom))
+        return resolvedZoom
+      })
+    },
+    [constrainPan]
+  )
 
   useEffect(() => {
     if (!imageSize) return
@@ -585,11 +627,14 @@ function ImageAnnotationModalContent({
   }, [])
 
   // Push current shapes onto past stack before a change; clears redo future
-  const pushUndo = useCallback((current: Shape[]) => {
-    pastRef.current = [...pastRef.current.slice(-(MAX_UNDO_STEPS - 1)), [...current]]
-    futureRef.current = []
-    syncHistoryCounts()
-  }, [syncHistoryCounts])
+  const pushUndo = useCallback(
+    (current: Shape[]) => {
+      pastRef.current = [...pastRef.current.slice(-(MAX_UNDO_STEPS - 1)), [...current]]
+      futureRef.current = []
+      syncHistoryCounts()
+    },
+    [syncHistoryCounts]
+  )
 
   const undo = useCallback(() => {
     if (pastRef.current.length === 0) return
@@ -612,11 +657,23 @@ function ImageAnnotationModalContent({
   }, [syncHistoryCounts])
 
   const handleEscapeShortcut = useCallback(() => {
-    if (helpOpen) { setHelpOpen(false); return }
-    if (showDiscardConfirm) { setShowDiscardConfirm(false); return }
+    if (helpOpen) {
+      setHelpOpen(false)
+      return
+    }
+    if (showDiscardConfirm) {
+      setShowDiscardConfirm(false)
+      return
+    }
     const hasShapes = shapesRef.current.length > 0
-    if (hasShapes && tool !== "select") { setTool("select"); return }
-    if (hasShapes) { setShowDiscardConfirm(true); return }
+    if (hasShapes && tool !== "select") {
+      setTool("select")
+      return
+    }
+    if (hasShapes) {
+      setShowDiscardConfirm(true)
+      return
+    }
     onClose()
   }, [helpOpen, onClose, showDiscardConfirm, tool])
 
@@ -624,19 +681,25 @@ function ImageAnnotationModalContent({
     if (!selectedShapeId) return
     const prev = shapesRef.current
     pushUndo(prev)
-    setShapes(prev.filter(s => s.id !== selectedShapeId))
+    setShapes(prev.filter((s) => s.id !== selectedShapeId))
     setSelectedShapeId(null)
   }, [pushUndo, selectedShapeId])
 
-  const selectToolByShortcut = useCallback((nextTool: Tool) => {
-    if (textPlacement) return
-    setTool(nextTool)
-  }, [textPlacement])
+  const selectToolByShortcut = useCallback(
+    (nextTool: Tool) => {
+      if (textPlacement) return
+      setTool(nextTool)
+    },
+    [textPlacement]
+  )
 
-  const handleEnterShortcut = useCallback((event: globalThis.KeyboardEvent) => {
-    if (textPlacement || showDiscardConfirm || !acceptsAnnotationEnterShortcut(event.target)) return
-    finishAnnotation()
-  }, [finishAnnotation, showDiscardConfirm, textPlacement])
+  const handleEnterShortcut = useCallback(
+    (event: globalThis.KeyboardEvent) => {
+      if (textPlacement || showDiscardConfirm || !acceptsAnnotationEnterShortcut(event.target)) return
+      finishAnnotation()
+    },
+    [finishAnnotation, showDiscardConfirm, textPlacement]
+  )
 
   const shortcutGroup = t("image_annotation.shortcuts_group")
   useOptionalShortcut("?", () => setHelpOpen(true), {
@@ -713,7 +776,7 @@ function ImageAnnotationModalContent({
   // Re-render overlay canvas whenever shapes or selection changes
   useEffect(() => {
     if (!imageSize) return
-    const canvas  = overlayCanvasRef.current
+    const canvas = overlayCanvasRef.current
     const context = canvas?.getContext("2d")
     if (!canvas || !context) return
     renderCanvas(shapes, selectedShapeId, context, canvas)
@@ -726,17 +789,17 @@ function ImageAnnotationModalContent({
     const image = new Image()
     image.onload = () => {
       if (cancelled) return
-      const width  = image.naturalWidth  || image.width
+      const width = image.naturalWidth || image.width
       const height = image.naturalHeight || image.height
-      const imageCanvas   = imageCanvasRef.current
+      const imageCanvas = imageCanvasRef.current
       const overlayCanvas = overlayCanvasRef.current
-      const imageContext  = imageCanvas?.getContext("2d")
+      const imageContext = imageCanvas?.getContext("2d")
       const overlayContext = overlayCanvas?.getContext("2d")
       if (!width || !height || !imageCanvas || !overlayCanvas || !imageContext || !overlayContext) return
 
-      imageCanvas.width    = width
-      imageCanvas.height   = height
-      overlayCanvas.width  = width
+      imageCanvas.width = width
+      imageCanvas.height = height
+      overlayCanvas.width = width
       overlayCanvas.height = height
       imageContext.clearRect(0, 0, width, height)
       imageContext.drawImage(image, 0, 0, width, height)
@@ -750,7 +813,9 @@ function ImageAnnotationModalContent({
       syncHistoryCounts()
     }
     image.src = baseImageUrl
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [baseImageUrl, syncHistoryCounts, updateZoom])
 
   // Keyboard state that is local to the canvas panning gesture.
@@ -788,7 +853,7 @@ function ImageAnnotationModalContent({
     if (!canvas) return
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
-      updatePan(p => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }))
+      updatePan((p) => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }))
     }
     canvas.addEventListener("wheel", onWheel, { passive: false })
     return () => canvas.removeEventListener("wheel", onWheel)
@@ -799,12 +864,12 @@ function ImageAnnotationModalContent({
   // so (clientX - rect.left) * (canvas.width / rect.width) gives correct canvas coords at any zoom/pan.
   function canvasPoint(event: ReactPointerEvent<HTMLCanvasElement>): Point {
     const canvas = event.currentTarget
-    const rect   = canvas.getBoundingClientRect()
-    const scaleX = rect.width  ? canvas.width  / rect.width  : 1
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = rect.width ? canvas.width / rect.width : 1
     const scaleY = rect.height ? canvas.height / rect.height : 1
     return {
-      x: Math.max(0, Math.min(canvas.width,  (event.clientX - rect.left) * scaleX)),
-      y: Math.max(0, Math.min(canvas.height, (event.clientY - rect.top)  * scaleY))
+      x: Math.max(0, Math.min(canvas.width, (event.clientX - rect.left) * scaleX)),
+      y: Math.max(0, Math.min(canvas.height, (event.clientY - rect.top) * scaleY))
     }
   }
 
@@ -821,23 +886,26 @@ function ImageAnnotationModalContent({
       // containerCenter is the natural (untransformed) center of the canvas element.
       // With transformOrigin:"center", rect.center = naturalCenter + pan.
       const containerCenter = {
-        x: rect ? rect.left + rect.width  / 2 - panRef.current.x : 0,
-        y: rect ? rect.top  + rect.height / 2 - panRef.current.y : 0
+        x: rect ? rect.left + rect.width / 2 - panRef.current.x : 0,
+        y: rect ? rect.top + rect.height / 2 - panRef.current.y : 0
       }
       pinchRef.current = {
-        startZoom: zoomRef.current, startDist: dist,
-        startMidClient: midClient, startPan: { ...panRef.current }, containerCenter
+        startZoom: zoomRef.current,
+        startDist: dist,
+        startMidClient: midClient,
+        startPan: { ...panRef.current },
+        containerCenter
       }
       // Cancel any in-progress drawing/pan-drag so only pinch runs
       interactionRef.current = null
-      isPanDragRef.current   = null
+      isPanDragRef.current = null
       setIsPanDragging(false)
       event.currentTarget.setPointerCapture?.(event.pointerId)
       return
     }
 
     if (!imageSize) return
-    const canvas  = overlayCanvasRef.current
+    const canvas = overlayCanvasRef.current
     const context = canvas?.getContext("2d")
     if (!canvas || !context) return
 
@@ -867,7 +935,7 @@ function ImageAnnotationModalContent({
 
       // Check if clicking on a resize handle of the selected shape
       if (selectedShapeId) {
-        const sel = currentShapes.find(s => s.id === selectedShapeId)
+        const sel = currentShapes.find((s) => s.id === selectedShapeId)
         if (sel && sel.kind !== "freehand") {
           const b = shapeBounds(sel, context)
           const paddedBounds = { x: b.x - SELECTION_PAD, y: b.y - SELECTION_PAD, w: b.w + SELECTION_PAD * 2, h: b.h + SELECTION_PAD * 2 }
@@ -875,9 +943,13 @@ function ImageAnnotationModalContent({
             if (hitHandle(handle, point)) {
               event.currentTarget.setPointerCapture?.(event.pointerId)
               interactionRef.current = {
-                mode: "resize", pointerId: event.pointerId,
-                shapeId: selectedShapeId, handle: handle.pos,
-                startPointer: point, lastPointer: point, startShape: sel
+                mode: "resize",
+                pointerId: event.pointerId,
+                shapeId: selectedShapeId,
+                handle: handle.pos,
+                startPointer: point,
+                lastPointer: point,
+                startShape: sel
               }
               return
             }
@@ -893,8 +965,12 @@ function ImageAnnotationModalContent({
           if (shape.kind === "text") setTextSize(normalizeTextSize(shape.size))
           event.currentTarget.setPointerCapture?.(event.pointerId)
           interactionRef.current = {
-            mode: "move", pointerId: event.pointerId,
-            shapeId: shape.id, startPointer: point, lastPointer: point, startShape: shape
+            mode: "move",
+            pointerId: event.pointerId,
+            shapeId: shape.id,
+            startPointer: point,
+            lastPointer: point,
+            startShape: shape
           }
           return
         }
@@ -909,9 +985,13 @@ function ImageAnnotationModalContent({
     event.currentTarget.setPointerCapture?.(event.pointerId)
     const drawTool = tool as DrawTool
     interactionRef.current = {
-      mode: "draw", kind: drawTool,
-      start: point, last: point, pointerId: event.pointerId,
-      color, freehandPoints: drawTool === "freehand" ? [point] : []
+      mode: "draw",
+      kind: drawTool,
+      start: point,
+      last: point,
+      pointerId: event.pointerId,
+      color,
+      freehandPoints: drawTool === "freehand" ? [point] : []
     }
   }
 
@@ -925,9 +1005,9 @@ function ImageAnnotationModalContent({
     if (pinchRef.current && activePointersRef.current.size >= 2) {
       const pinch = pinchRef.current
       const [p1, p2] = Array.from(activePointersRef.current.values())
-      const dist    = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
       const newZoom = clampZoom(pinch.startZoom * (dist / pinch.startDist))
-      const scale   = newZoom / pinch.startZoom
+      const scale = newZoom / pinch.startZoom
       // Adjust pan so the midpoint of the pinch stays fixed on screen.
       // M = midpoint offset from the canvas's natural (untransformed) center.
       // With transformOrigin:"center", the natural center stays at containerCenter,
@@ -956,7 +1036,7 @@ function ImageAnnotationModalContent({
     }
 
     const interaction = interactionRef.current
-    const canvas  = overlayCanvasRef.current
+    const canvas = overlayCanvasRef.current
     const context = canvas?.getContext("2d")
     if (!interaction || !canvas || !context) return
 
@@ -979,13 +1059,23 @@ function ImageAnnotationModalContent({
 
     if (interaction.mode === "move") {
       const updated = applyMove(interaction.startShape, dx, dy)
-      renderCanvas(current.map(s => s.id === interaction.shapeId ? updated : s), interaction.shapeId, context, canvas)
+      renderCanvas(
+        current.map((s) => (s.id === interaction.shapeId ? updated : s)),
+        interaction.shapeId,
+        context,
+        canvas
+      )
       return
     }
 
     if (interaction.mode === "resize") {
       const updated = applyResize(interaction.startShape, interaction.handle, dx, dy)
-      renderCanvas(current.map(s => s.id === interaction.shapeId ? updated : s), interaction.shapeId, context, canvas)
+      renderCanvas(
+        current.map((s) => (s.id === interaction.shapeId ? updated : s)),
+        interaction.shapeId,
+        context,
+        canvas
+      )
     }
   }
 
@@ -1038,13 +1128,13 @@ function ImageAnnotationModalContent({
     if (interaction.mode === "move") {
       const updated = applyMove(interaction.startShape, dx, dy)
       pushUndo(prev)
-      setShapes(prev.map(s => s.id === interaction.shapeId ? updated : s))
+      setShapes(prev.map((s) => (s.id === interaction.shapeId ? updated : s)))
     }
 
     if (interaction.mode === "resize") {
       const updated = applyResize(interaction.startShape, interaction.handle, dx, dy)
       pushUndo(prev)
-      setShapes(prev.map(s => s.id === interaction.shapeId ? updated : s))
+      setShapes(prev.map((s) => (s.id === interaction.shapeId ? updated : s)))
     }
   }
 
@@ -1073,7 +1163,7 @@ function ImageAnnotationModalContent({
 
     const prev = shapesRef.current
     pushUndo(prev)
-    setShapes(prev.map(shape => shape.id === selectedText.id ? { ...selectedText, size } : shape))
+    setShapes(prev.map((shape) => (shape.id === selectedText.id ? { ...selectedText, size } : shape)))
   }
 
   function handleTextKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -1090,9 +1180,9 @@ function ImageAnnotationModalContent({
   }
 
   function finishAnnotation() {
-    const imageCanvas   = imageCanvasRef.current
+    const imageCanvas = imageCanvasRef.current
     const overlayCanvas = overlayCanvasRef.current
-    const imageContext  = imageCanvas?.getContext("2d")
+    const imageContext = imageCanvas?.getContext("2d")
     const overlayContext = overlayCanvas?.getContext("2d")
     if (!imageCanvas || !overlayCanvas || !imageContext || !overlayContext) return
 
@@ -1119,24 +1209,25 @@ function ImageAnnotationModalContent({
   }
 
   function changeZoom(delta: number) {
-    updateZoom(z => z + delta)
+    updateZoom((z) => z + delta)
   }
 
-  const canvasStyle    = imageSize ? { aspectRatio: `${imageSize.width} / ${imageSize.height}` } : undefined
+  const canvasStyle = imageSize ? { aspectRatio: `${imageSize.width} / ${imageSize.height}` } : undefined
   const wrapperTransform = `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`
-  const overlayCursor  = isPanDragging ? "grabbing" : isPanning ? "grab" : undefined
-  const selectedTextShape = selectedShapeId
-    ? shapes.find((shape): shape is TextShape => shape.id === selectedShapeId && shape.kind === "text")
-    : null
+  const overlayCursor = isPanDragging ? "grabbing" : isPanning ? "grab" : undefined
+  const selectedTextShape = selectedShapeId ? shapes.find((shape): shape is TextShape => shape.id === selectedShapeId && shape.kind === "text") : null
   const activeTextSize = selectedTextShape ? normalizeTextSize(selectedTextShape.size) : textSize
   const showTextSizeControl = tool === "text" || Boolean(selectedTextShape)
-  const inputStyle     = textPlacement && imageSize ? {
-    left: `${(textPlacement.x / imageSize.width)  * 100}%`,
-    top:  `${(textPlacement.y / imageSize.height) * 100}%`,
-    color,
-    fontSize: `${TEXT_SIZES[textSize].px}px`,
-    lineHeight: `${TEXT_SIZES[textSize].lineHeight}px`
-  } : undefined
+  const inputStyle =
+    textPlacement && imageSize
+      ? {
+          left: `${(textPlacement.x / imageSize.width) * 100}%`,
+          top: `${(textPlacement.y / imageSize.height) * 100}%`,
+          color,
+          fontSize: `${TEXT_SIZES[textSize].px}px`,
+          lineHeight: `${TEXT_SIZES[textSize].lineHeight}px`
+        }
+      : undefined
 
   return (
     <Modal
@@ -1154,7 +1245,10 @@ function ImageAnnotationModalContent({
         destructive
         message={t("image_annotation.discard_confirm")}
         onCancel={() => setShowDiscardConfirm(false)}
-        onConfirm={() => { setShowDiscardConfirm(false); onClose() }}
+        onConfirm={() => {
+          setShowDiscardConfirm(false)
+          onClose()
+        }}
         open={showDiscardConfirm}
       />
       {helpOpen ? <ShortcutsHelpModal onClose={() => setHelpOpen(false)} open /> : null}
@@ -1212,16 +1306,46 @@ function ImageAnnotationModalContent({
           </div>
         ) : null}
         <div className="flex items-center gap-2">
-          <Button aria-label={t("image_annotation.undo")} className="h-8 w-8" title={t("image_annotation.undo")} variant="secondary" size="icon" disabled={undoCount === 0} onClick={undo}>
+          <Button
+            aria-label={t("image_annotation.undo")}
+            className="h-8 w-8"
+            title={t("image_annotation.undo")}
+            variant="secondary"
+            size="icon"
+            disabled={undoCount === 0}
+            onClick={undo}
+          >
             <UndoIcon className="h-4 w-4" />
           </Button>
-          <Button aria-label={t("image_annotation.redo")} className="h-8 w-8" title={t("image_annotation.redo")} variant="secondary" size="icon" disabled={redoCount === 0} onClick={redo}>
+          <Button
+            aria-label={t("image_annotation.redo")}
+            className="h-8 w-8"
+            title={t("image_annotation.redo")}
+            variant="secondary"
+            size="icon"
+            disabled={redoCount === 0}
+            onClick={redo}
+          >
             <RedoIcon className="h-4 w-4" />
           </Button>
-          <Button aria-label={t("image_annotation.cancel")} className="h-8 w-8" title={t("image_annotation.cancel")} variant="secondary" size="icon" onClick={requestClose}>
+          <Button
+            aria-label={t("image_annotation.cancel")}
+            className="h-8 w-8"
+            title={t("image_annotation.cancel")}
+            variant="secondary"
+            size="icon"
+            onClick={requestClose}
+          >
             <CloseIcon className="h-4 w-4" />
           </Button>
-          <Button aria-label={t("image_annotation.done")} className="h-8 w-8" title={t("image_annotation.done")} size="icon" disabled={!imageSize} onClick={finishAnnotation}>
+          <Button
+            aria-label={t("image_annotation.done")}
+            className="h-8 w-8"
+            title={t("image_annotation.done")}
+            size="icon"
+            disabled={!imageSize}
+            onClick={finishAnnotation}
+          >
             <CheckIcon className="h-4 w-4" />
           </Button>
         </div>
@@ -1230,11 +1354,12 @@ function ImageAnnotationModalContent({
         {/* Canvas viewport — clips zoom overflow so the zoom bar stays visible */}
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden" ref={viewportRef}>
           <div className="relative max-h-[calc(100dvh-6rem)] max-w-full" style={canvasStyle}>
-            <div
-              className="relative"
-              style={{ transform: wrapperTransform, transformOrigin: "center" }}
-            >
-              <canvas aria-hidden="true" className="block max-h-[calc(100dvh-6rem)] max-w-full rounded bg-white object-contain shadow-lg" ref={imageCanvasRef} />
+            <div className="relative" style={{ transform: wrapperTransform, transformOrigin: "center" }}>
+              <canvas
+                aria-hidden="true"
+                className="block max-h-[calc(100dvh-6rem)] max-w-full rounded bg-white object-contain shadow-lg"
+                ref={imageCanvasRef}
+              />
               <canvas
                 aria-label={t("image_annotation.canvas")}
                 className="absolute inset-0 h-full w-full touch-none rounded"
@@ -1251,7 +1376,7 @@ function ImageAnnotationModalContent({
                   autoFocus
                   className="absolute min-w-32 -translate-y-1/2 font-bold shadow"
                   fullWidth={false}
-                  onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
+                  onChange={(event) => setTextPlacement((current) => (current ? { ...current, value: event.target.value } : current))}
                   onKeyDown={handleTextKeyDown}
                   placeholder={t("image_annotation.text_placeholder")}
                   ref={textInputRef}

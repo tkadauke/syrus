@@ -14,8 +14,17 @@ export type HandledErrorContext = {
 }
 
 const SAFE_DIAGNOSTIC_KEYS = new Set([
-  "attempt", "byte_size_bucket", "count", "duration_ms", "height", "item_count",
-  "mime_category", "provider", "status_code", "transport", "width"
+  "attempt",
+  "byte_size_bucket",
+  "count",
+  "duration_ms",
+  "height",
+  "item_count",
+  "mime_category",
+  "provider",
+  "status_code",
+  "transport",
+  "width"
 ])
 const STABLE_NAME = /^[a-z][a-z0-9_.:-]{0,99}$/
 const explicitlyReported = new WeakSet<object>()
