@@ -4,13 +4,7 @@ const { relativePath, allowedCount, isTestFile, reportBeyondBaseline } = require
 
 const RULE_KEY = "no-swallowed-errors"
 const ESCAPE = "handled-error-expected"
-const NESTED_SCOPE_TYPES = new Set([
-  "ArrowFunctionExpression",
-  "FunctionDeclaration",
-  "FunctionExpression",
-  "ClassDeclaration",
-  "ClassExpression"
-])
+const NESTED_SCOPE_TYPES = new Set(["ArrowFunctionExpression", "FunctionDeclaration", "FunctionExpression", "ClassDeclaration", "ClassExpression"])
 
 function walk(node, visit, root = true) {
   if (!node || typeof node !== "object") return
