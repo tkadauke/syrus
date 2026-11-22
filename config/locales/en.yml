@@ -84,6 +84,7 @@ en:
         invalid_roles_shape: "must be an array of non-empty names"
         invalid_roles: "contains invalid roles: %{roles}"
         missing_verified_artifact: "must have a verified artifact"
+        revoked_release: "has been revoked"
       plugin_release:
         bundled_archive_present: "must be absent for bundled releases"
         artifact_identity_immutable: "plugin release artifact identity is immutable after storage or selection"
