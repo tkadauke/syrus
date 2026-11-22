@@ -105,12 +105,11 @@ class Coworkers::RemoteWorkspace
       @git.run("fetch", "--no-tags", authenticated_url,
         "+refs/heads/#{home_branch}:refs/remotes/workspace/home",
         "+refs/heads/#{run_prefix}*:refs/remotes/workspace/runs/*", chdir: path)
-      output = @git.run("for-each-ref", "--format=%(refname) %(objectname) %(committerdate:unix)",
+      output = @git.run("for-each-ref", "--merged=refs/remotes/workspace/home",
+        "--format=%(refname) %(objectname) %(committerdate:unix)",
         "refs/remotes/workspace/runs", chdir: path)
       output.lines.filter_map do |line|
         ref, sha, timestamp = line.split
-        next unless @git.capture("merge-base", "--is-ancestor", sha, "refs/remotes/workspace/home", chdir: path).success?
-
         branch = "#{run_prefix}#{ref.split('/').last}"
         next unless guard.allow!(branch)
         { branch:, sha:, committed_at: Time.zone.at(timestamp.to_i) }
