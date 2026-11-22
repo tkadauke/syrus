@@ -94,15 +94,31 @@ RSpec.describe "Syrus grader configuration" do
     expect(grader.timeout_minutes).to eq(3)
   end
 
-  it "allows the e2e grader to dismiss failures inherited from the base revision" do
+  it "allows every e2e shard to dismiss failures inherited from the base revision" do
     config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
-    grader = config.grade.steps.find { |step| step.name == "e2e" }
+    shards = config.grade.steps.select { |step| step.name.start_with?("e2e-") }
 
-    expect(grader).to have_attributes(
-      phases: [ "ci" ],
-      failures: "allow_inherited",
-      base_retry: SyrusYml::BaseRetry.new(strategy: "full_command", command: nil)
-    )
+    expect(shards.map(&:name)).to eq(%w[e2e-1-of-3 e2e-2-of-3 e2e-3-of-3])
+    shards.each do |grader|
+      expect(grader).to have_attributes(
+        phases: [ "ci" ],
+        failures: "allow_inherited",
+        base_retry: SyrusYml::BaseRetry.new(strategy: "full_command", command: nil)
+      )
+    end
+  end
+
+  # Regression: the whole Playwright suite ran as one grader on one worker and
+  # took 20-25 minutes against a 25-minute timeout. Every recent main-branch
+  # repair timed out on it, which left the repair unable to prove main healthy.
+  it "splits the e2e suite into Playwright shards that each run a distinct slice" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    shards = config.grade.steps.select { |step| step.name.start_with?("e2e-") }
+
+    expect(shards.map(&:run)).to eq((1..3).map { |index| "E2E_ISOLATE=1 bin/test-e2e --shard=#{index}/3" })
+    expect(shards.map(&:when_files_changed).uniq.size).to eq(1)
+    expect(shards.map(&:metadata).uniq).to eq([ { "landing_parity" => false } ])
+    expect(config.grade.steps.map(&:name)).not_to include("e2e")
   end
 
   it "gives every CI-mode RSpec shard enough time to finish its serial examples" do
