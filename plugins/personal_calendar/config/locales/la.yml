@@ -1,0 +1,6 @@
+la:
+  permissions:
+    capabilities:
+      personal_calendar.read@v1: { label: Calendarium legere, description: Eventus in ratione coniuncta enumerare et legere. }
+      personal_calendar.events/list@v1: { label: Eventus enumerare }
+      personal_calendar.event/read@v1: { label: Eventum legere }
