@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -96,19 +97,50 @@ func TestIndexResourceDownloadValidatesRedirectDestinations(t *testing.T) {
 		http.Redirect(response, request, "https://169.254.169.254/latest/meta-data", http.StatusFound)
 	}))
 	defer server.Close()
-	previousHTTP, previousValidator := pluginIndexCheckHTTP, pluginIndexCheckURLValidator
+	previousHTTP, previousLookup, previousDial := pluginIndexCheckHTTP, pluginIndexCheckLookupIP, pluginIndexCheckDialContext
 	pluginIndexCheckHTTP = server.Client()
-	pluginIndexCheckURLValidator = func(_ context.Context, raw string) error {
-		if raw == server.URL {
-			return nil
+	pluginIndexCheckLookupIP = func(_ context.Context, host string) ([]net.IPAddr, error) {
+		if host == "127.0.0.1" {
+			return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
 		}
-		return errors.New("unsafe redirect destination")
+		return nil, errors.New("unsafe redirect destination")
 	}
-	t.Cleanup(func() { pluginIndexCheckHTTP, pluginIndexCheckURLValidator = previousHTTP, previousValidator })
+	pluginIndexCheckDialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+	}
+	t.Cleanup(func() {
+		pluginIndexCheckHTTP, pluginIndexCheckLookupIP, pluginIndexCheckDialContext = previousHTTP, previousLookup, previousDial
+	})
 	command := &cobra.Command{}
 	command.SetContext(t.Context())
 	if _, err := downloadIndexResource(command, server.URL); err == nil || !strings.Contains(err.Error(), "unsafe redirect destination") {
 		t.Fatalf("redirect validation error: %v", err)
+	}
+}
+
+func TestIndexResourceDownloadRejectsDNSRebindingAtDialTime(t *testing.T) {
+	previousLookup, previousDial := pluginIndexCheckLookupIP, pluginIndexCheckDialContext
+	lookups := 0
+	pluginIndexCheckLookupIP = func(context.Context, string) ([]net.IPAddr, error) {
+		lookups++
+		if lookups == 1 {
+			return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
+		}
+		return []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, nil
+	}
+	dialed := false
+	pluginIndexCheckDialContext = func(context.Context, string, string) (net.Conn, error) {
+		dialed = true
+		return nil, errors.New("unexpected dial")
+	}
+	t.Cleanup(func() { pluginIndexCheckLookupIP, pluginIndexCheckDialContext = previousLookup, previousDial })
+	command := &cobra.Command{}
+	command.SetContext(t.Context())
+	if _, err := downloadIndexResource(command, "https://rebind.example/package"); err == nil || !strings.Contains(err.Error(), "private or reserved") {
+		t.Fatalf("DNS rebinding result: %v", err)
+	}
+	if dialed {
+		t.Fatal("dialed an address after DNS rebinding resolved to a private destination")
 	}
 }
 
@@ -132,13 +164,19 @@ func TestPluginIndexCheckEndToEndAndFailureClasses(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	previousHTTP, previousRunner, previousValidator := pluginIndexCheckHTTP, newDockerPluginRunner, pluginIndexCheckURLValidator
+	previousHTTP, previousRunner, previousLookup, previousDial := pluginIndexCheckHTTP, newDockerPluginRunner, pluginIndexCheckLookupIP, pluginIndexCheckDialContext
 	pluginIndexCheckHTTP = server.Client()
-	pluginIndexCheckURLValidator = func(context.Context, string) error { return nil }
+	pluginIndexCheckLookupIP = func(context.Context, string) ([]net.IPAddr, error) {
+		return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
+	}
+	pluginIndexCheckDialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+	}
 	runner := &fakePluginRunner{}
 	newDockerPluginRunner = func() pluginRunner { return runner }
 	t.Cleanup(func() {
-		pluginIndexCheckHTTP, newDockerPluginRunner, pluginIndexCheckURLValidator = previousHTTP, previousRunner, previousValidator
+		pluginIndexCheckHTTP, newDockerPluginRunner = previousHTTP, previousRunner
+		pluginIndexCheckLookupIP, pluginIndexCheckDialContext = previousLookup, previousDial
 	})
 	sum := sha256.Sum256(packageBytes)
 	entry := pluginRegistryRelease{Name: "acme_weather", Version: "1.2.3", Description: "Weather", Category: "automation", Author: "Acme", Homepage: "https://example.test", License: "MIT", RequiresSyrus: ">= 1.0", PackageURL: server.URL + "/package", PackageDigest: "sha256:" + hex.EncodeToString(sum[:]), SignatureURL: server.URL + "/package.sig", PublisherKeyFingerprint: key.Fingerprint, TrustLabelInputs: json.RawMessage(`{}`), CapabilitySummary: mustJSON(manifest)}
