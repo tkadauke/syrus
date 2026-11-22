@@ -33,6 +33,17 @@ RSpec.describe "Plugin family migration architecture" do
     expect(actual).to eq(ECOSYSTEM_POINTS.index_with { [] })
   end
 
+  it "keeps bundled plugin documentation off removed Ecosystem point names" do
+    violations = Dir["plugins/**/*.{md,markdown}"].flat_map do |path|
+      source = File.read(path)
+      ECOSYSTEM_POINTS.filter_map do |point|
+        "#{path}: :#{point}" if source.match?(/:#{Regexp.escape(point.to_s)}\b/)
+      end
+    end
+
+    expect(violations).to be_empty
+  end
+
   it "marks Ecosystem as migrated without a legacy bridge" do
     definition = Syrus::Plugin::Family.fetch(:ecosystem)
 

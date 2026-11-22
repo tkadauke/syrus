@@ -10,7 +10,7 @@ them too.
 
 ## What it provides
 
-| Extension point | What it does |
+| Contribution | What it does |
 |---|---|
 | `:preview_provider` | Boots `python manage.py runserver 0.0.0.0:<port>`, migrates and optionally seeds the database, and detects Django repos via `manage.py` plus an importable settings module. |
 
@@ -34,7 +34,7 @@ Django recommendation.
 ## Preview hosting
 
 - **Setup**: installs dependencies using the same priority order as the
-  `python` plugin's `:prepare_detector` (`uv.lock` → `uv sync`, `poetry.lock`
+  `python` plugin's `ecosystem.detect_prepare` (`uv.lock` → `uv sync`, `poetry.lock`
   → `poetry install`, `requirements.txt` → `pip install -r requirements.txt`,
   else bare `pyproject.toml` → `pip install -e .`), implemented independently
   as its own shell conditional per the `:preview_provider` interface's own

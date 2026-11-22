@@ -7,11 +7,11 @@ mixed-language repositories with Kotlin components.
 
 ## What it provides
 
-| Extension point | What it does |
+| Contribution | What it does |
 |---|---|
-| `:prepare_detector` | Detects Kotlin source files (`.kt`), Kotlin scripts (`.kts`), Gradle Kotlin DSL files (`build.gradle.kts`, `settings.gradle.kts`), Kotlin JVM Gradle plugin declarations, and conventional Kotlin source/test paths (`src/main/kotlin`, `src/test/kotlin`). It depends on the Java plugin and reuses Java's Gradle/Maven prepare commands instead of duplicating build-tool command logic. |
-| `:prompt_injector` | Reminds agents to treat Kotlin paths and Gradle Kotlin DSL files as JVM project signals, prefer `./gradlew`, and use repository-declared JDK/Kotlin Gradle plugin versions. |
-| `:review_criteria_provider` | Adds Kotlin/JVM review criteria for swallowed coroutine cancellation and unsafe null assertions at external boundaries. |
+| `ecosystem.detect_prepare` | Detects Kotlin source files (`.kt`), Kotlin scripts (`.kts`), Gradle Kotlin DSL files (`build.gradle.kts`, `settings.gradle.kts`), Kotlin JVM Gradle plugin declarations, and conventional Kotlin source/test paths (`src/main/kotlin`, `src/test/kotlin`). It depends on the Java plugin and reuses Java's Gradle/Maven prepare commands instead of duplicating build-tool command logic. |
+| `ecosystem.prompt_context` | Reminds agents to treat Kotlin paths and Gradle Kotlin DSL files as JVM project signals, prefer `./gradlew`, and use repository-declared JDK/Kotlin Gradle plugin versions. |
+| `ecosystem.review_criteria` | Adds Kotlin/JVM review criteria for swallowed coroutine cancellation and unsafe null assertions at external boundaries. |
 
 ## Typed grader examples
 

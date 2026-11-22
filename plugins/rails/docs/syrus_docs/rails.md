@@ -14,12 +14,12 @@ surfaces a confirm-and-cascade-disable prompt. See
 
 ## What it provides
 
-| Extension point | What it does |
+| Contribution | What it does |
 |---|---|
 | `:preview_provider` | Configures the Syrus preview host to run `bin/rails server`, seed via `db:create db:migrate db:seed`, health-check `/up` (falling back to `/` when the repo's `config/routes.rb` doesn't map `rails/health#show`), and tail `log/development.log` |
 | `:mcp_tool_set` | Rails schema/migration/route introspection tools for workflow agents |
 | `:artifact_renderer` | `SchemaErdRenderer` and `MigrationDiffRenderer`, mapping `submit_artifact` payload types to reviewer-facing ERD/migration-diff views |
-| `:prompt_injector` | Adds Rails-specific guidance (schema/migration awareness) to the implementing agent's system prompt |
+| `ecosystem.prompt_context` | Adds Rails-specific guidance (schema/migration awareness) to the implementing agent's system prompt |
 
 `explain_migration` discovers migrations newly added relative to the workflow base,
 loads the base schema into a uniquely named disposable database, and applies those
