@@ -6,4 +6,14 @@ Families are defined by core and implementations are read from plugin manifests.
 A stable capability requires at least two independent in-tree implementations
 and a generated contract test; all other capabilities are provisional.
 
-No capability families are currently defined.
+## `review`
+
+Shape: `facet`. Required core: `key`, `display_name`.
+
+| Capability | Composition | Absent behavior | Tier | Context | Return shape |
+|---|---|---|---|---|---|
+| `external_reviewer` | `first_claim` | `nil` | `provisional` | `Syrus::Plugin::ExternalReviewContext` | `Syrus::Plugin::ExternalReviewer` |
+
+| Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
+|---|---|---|---|---|
+| - | - | - | - | - |

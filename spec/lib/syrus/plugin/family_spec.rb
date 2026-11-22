@@ -6,7 +6,7 @@ RSpec.describe Syrus::Plugin::Family do
     begin
       example.run
     ensure
-      described_class.reset!
+      described_class.restore_built_ins!
     end
   end
 

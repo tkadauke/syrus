@@ -9,7 +9,7 @@ RSpec.describe Syrus::Plugin::FamilyPromotion do
     end
   end
 
-  after { Syrus::Plugin::Family.reset! }
+  after { Syrus::Plugin::Family.restore_built_ins! }
 
   def manifest(name)
     declaration = Syrus::Plugin::FamilyDeclaration.build(

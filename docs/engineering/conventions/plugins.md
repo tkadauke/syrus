@@ -26,6 +26,8 @@ icon pipeline, lifecycle hooks, and boundary tooling live in the
 this repository, start with [Authoring an external plugin](plugins/external.md).
 The [capability-family migration playbook](plugins/family-migration.md) owns the
 legacy-to-family inventory and the step-by-step removal process.
+The provisional external-review service contract and its core/provider
+ownership split are documented in [External reviewers](plugins/external-reviewers.md).
 
 ## Choosing the public host API
 
