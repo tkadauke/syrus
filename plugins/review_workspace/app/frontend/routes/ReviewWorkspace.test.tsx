@@ -388,19 +388,57 @@ describe("ReviewWorkspaceRoute", () => {
     expect(decisionTouchRegion).not.toHaveClass("touch-pan-x")
     fireEvent.pointerDown(decisionTouchRegion, { clientX: 80, clientY: 200, pointerId: 1, pointerType: "touch" })
     fireEvent.pointerMove(decisionTouchRegion, { clientX: 170, clientY: 205, pointerId: 1, pointerType: "touch" })
-    expect(screen.getByText("Release to review approval")).toBeInTheDocument()
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveTextContent("Approve")
     expect(card.style.transform).toBe("translate3d(90px, 0px, 0) rotate(3deg)")
     expect(card.style.transformOrigin).toBe("50% 75%")
     const reveal = screen.getByTestId("mobile-gesture-reveal")
-    expect(reveal).toHaveClass("absolute", "inset-y-0", "left-0", "z-0", "p-1")
-    expect(reveal).toHaveStyle({ width: "90px" })
-    expect(screen.getByText("Release to review approval")).toHaveClass("w-full", "break-words", "text-xs", "leading-tight")
+    expect(reveal).toHaveClass("absolute", "inset-y-0", "w-[min(7rem,30vw)]", "left-[max(.5rem,env(safe-area-inset-left))]", "z-0")
+    expect(reveal).not.toHaveAttribute("style")
+    expect(reveal).toHaveAttribute("aria-label", "Release to review approval")
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveClass("w-full", "whitespace-nowrap", "shrink-0", "text-sm")
     expect(reveal).not.toHaveClass("fixed", "top-20")
     expect(card).toHaveClass("relative", "z-10")
     fireEvent.pointerUp(decisionTouchRegion, { clientX: 170, clientY: 205, pointerId: 1, pointerType: "touch" })
     expect(card.style.transform).toBe("")
     expect(await screen.findByText("Approve JOB-42 for landing?")).toBeInTheDocument()
     expect(jobApi.postJobCommand).not.toHaveBeenCalled()
+  })
+
+  it.each([320, 430])("keeps horizontal action cues stable across drag progress at a %ipx viewport", async (viewport) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+    renderRoute("/review/JOB-42", viewport)
+    await screen.findByTestId("mobile-review-summary")
+    const card = screen.getByTestId("mobile-review-card")
+    const documentScrollLeft = document.documentElement.scrollLeft
+
+    for (const distance of [16, 48, 72, 120]) {
+      for (const direction of [-1, 1]) {
+        const pointerId = distance + direction + 200
+        fireEvent.pointerDown(card, { clientX: 160, clientY: 220, pointerId, pointerType: "touch" })
+        fireEvent.pointerMove(card, { clientX: 160 + distance * direction, clientY: 221, pointerId, pointerType: "touch" })
+        const reveal = screen.getByTestId("mobile-gesture-reveal")
+        const action = screen.getByTestId("mobile-gesture-action")
+        expect(reveal).toHaveClass("w-[min(7rem,30vw)]")
+        expect(reveal.style.width).toBe("")
+        expect(reveal).toHaveAttribute("data-gesture-direction", direction > 0 ? "right" : "left")
+        expect(action).toHaveTextContent(direction > 0 ? "Approve" : "Defer")
+        expect(action).toHaveClass("whitespace-nowrap")
+        expect(action).not.toHaveClass("break-words", "truncate", "overflow-hidden")
+        expect(Number(action.style.opacity)).toBeGreaterThan(0)
+        expect(document.documentElement.scrollLeft).toBe(documentScrollLeft)
+        fireEvent.pointerCancel(card, { pointerId, pointerType: "touch" })
+        expect(card.style.transform).toBe("")
+        expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
+      }
+    }
+
+    fireEvent.pointerDown(card, { clientX: 160, clientY: 220, pointerId: 399, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 205, clientY: 220, pointerId: 399, pointerType: "touch" })
+    fireEvent.pointerUp(card, { clientX: 205, clientY: 220, pointerId: 399, pointerType: "touch" })
+    expect(card.style.transform).toBe("")
+    expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
   })
 
   it("bounds rotation by drag direction and keeps vertical and reduced-motion gestures rotation-free", async () => {
@@ -415,8 +453,8 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerMove(card, { clientX: 30, clientY: 202, pointerId: 21, pointerType: "touch" })
     expect(card.style.transform).toContain("translate3d(-120px, 0px, 0)")
     expect(card.style.transform).toContain("rotate(-4deg)")
-    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveClass("right-0")
-    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveStyle({ width: "120px" })
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveClass("right-[max(.5rem,env(safe-area-inset-right))]", "w-[min(7rem,30vw)]")
+    expect(screen.getByTestId("mobile-gesture-reveal").style.width).toBe("")
     fireEvent.pointerCancel(card, { pointerId: 21, pointerType: "touch" })
     expect(card.style.transform).toBe("")
 
@@ -424,7 +462,16 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerMove(card, { clientX: 182, clientY: 180, pointerId: 22, pointerType: "touch" })
     expect(card.style.transform).toBe("translate3d(0px, -60px, 0)")
     expect(card.style.transform).not.toContain("rotate")
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveAttribute("data-gesture-direction", "up")
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveClass("w-[min(12rem,70vw)]", "whitespace-nowrap")
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveTextContent("Next")
     fireEvent.pointerCancel(card, { pointerId: 22, pointerType: "touch" })
+
+    fireEvent.pointerDown(card, { clientX: 180, clientY: 180, pointerId: 24, pointerType: "touch" })
+    fireEvent.pointerMove(card, { clientX: 178, clientY: 240, pointerId: 24, pointerType: "touch" })
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveAttribute("data-gesture-direction", "down")
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveTextContent("Previous")
+    fireEvent.pointerCancel(card, { pointerId: 24, pointerType: "touch" })
 
     const originalMatchMedia = window.matchMedia
     vi.stubGlobal(
@@ -433,7 +480,9 @@ describe("ReviewWorkspaceRoute", () => {
     )
     fireEvent.pointerDown(card, { clientX: 80, clientY: 200, pointerId: 23, pointerType: "touch" })
     fireEvent.pointerMove(card, { clientX: 170, clientY: 200, pointerId: 23, pointerType: "touch" })
-    expect(card.style.transform).not.toContain("rotate")
+    expect(card.style.transform).toBe("")
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveTextContent("Approve")
+    expect(screen.getByTestId("mobile-gesture-action")).not.toHaveAttribute("style")
     fireEvent.pointerUp(card, { clientX: 170, clientY: 200, pointerId: 23, pointerType: "touch" })
     expect(await screen.findByRole("dialog", { name: "Approve JOB-42 for landing?" })).toBeInTheDocument()
     vi.stubGlobal("matchMedia", originalMatchMedia)
@@ -743,6 +792,7 @@ describe("ReviewWorkspaceRoute", () => {
 
     fireEvent.pointerDown(carousel.element, { clientX: 220, clientY: 180, pointerId: 50, pointerType: "touch" })
     fireEvent.pointerMove(carousel.element, { clientX: 80, clientY: 182, pointerId: 50, pointerType: "touch" })
+    expect(screen.queryByTestId("mobile-gesture-reveal")).not.toBeInTheDocument()
     fireEvent.pointerUp(carousel.element, { clientX: 80, clientY: 182, pointerId: 50, pointerType: "touch" })
     expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "All caught up" })).not.toBeInTheDocument()
