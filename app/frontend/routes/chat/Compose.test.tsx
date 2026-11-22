@@ -46,13 +46,15 @@ vi.mock("../../api/chats", async (importOriginal) => {
 beforeEach(() => {
   setDraftAttachments("1", [])
   vi.mocked(reportHandledError).mockClear()
-  vi.mocked(uploadChatAttachment).mockReset().mockImplementation(async (_chatId, file) => ({
-    id: 991,
-    name: file.name,
-    mime_type: file.type || "application/octet-stream",
-    size: file.size,
-    url: "/api/v1/app/chats/1/attachments/991/file"
-  }))
+  vi.mocked(uploadChatAttachment)
+    .mockReset()
+    .mockImplementation(async (_chatId, file) => ({
+      id: 991,
+      name: file.name,
+      mime_type: file.type || "application/octet-stream",
+      size: file.size,
+      url: "/api/v1/app/chats/1/attachments/991/file"
+    }))
 })
 
 function makePayload(): ChatPayload {
@@ -448,9 +450,14 @@ describe("Compose attachments", () => {
     expect(screen.getByRole("button", { name: "Send message" })).not.toBeDisabled()
     expect(screen.getByTitle("screen.png")).toBeInTheDocument()
     expect(reportHandledError).toHaveBeenCalledTimes(1)
-    expect(reportHandledError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({
-      surface: "chat_composer", operation: "replace_attachment", stage: "upload"
-    }))
+    expect(reportHandledError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        surface: "chat_composer",
+        operation: "replace_attachment",
+        stage: "upload"
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }))
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument())
@@ -474,9 +481,14 @@ describe("Compose attachments", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toBeVisible()
     expect(screen.getByRole("button", { name: "Send message" })).not.toBeDisabled()
     expect(reportHandledError).toHaveBeenCalledTimes(1)
-    expect(reportHandledError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({
-      surface: "chat_composer", operation: "replace_attachment", stage: "blob_export"
-    }))
+    expect(reportHandledError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        surface: "chat_composer",
+        operation: "replace_attachment",
+        stage: "blob_export"
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }))
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument())

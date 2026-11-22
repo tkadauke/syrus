@@ -1800,9 +1800,9 @@ export function Compose({
       setAnnotationError(null)
       replaceAnnotatedAttachment(attachment, blob, shapes)
     }
-    const validationError = attachmentValidationMessage(attachments.map((item) =>
-      item.id === attachment.id ? { ...item, mimeType: "image/png", size: blob.size } : item
-    ))
+    const validationError = attachmentValidationMessage(
+      attachments.map((item) => (item.id === attachment.id ? { ...item, mimeType: "image/png", size: blob.size } : item))
+    )
     if (validationError) {
       setAnnotationError({ message: validationError, retry })
       return
@@ -1810,17 +1810,22 @@ export function Compose({
 
     void uploadChatAttachment(chatId, new File([blob], attachment.name, { type: "image/png" }))
       .then((uploaded) => {
-        setAttachments((current) => current.map((item) =>
-          item.id === attachment.id
-            ? { id: uploaded.id, name: uploaded.name, mimeType: uploaded.mime_type, size: uploaded.size, url: uploaded.url, shapes }
-            : item
-        ))
+        setAttachments((current) =>
+          current.map((item) =>
+            item.id === attachment.id
+              ? { id: uploaded.id, name: uploaded.name, mimeType: uploaded.mime_type, size: uploaded.size, url: uploaded.url, shapes }
+              : item
+          )
+        )
         setAnnotationError(null)
         setAnnotatingIndex(null)
       })
       .catch((error: unknown) => {
         reportHandledError(error, {
-          surface: "chat_composer", operation: "replace_attachment", stage: "upload", recoverability: "retryable",
+          surface: "chat_composer",
+          operation: "replace_attachment",
+          stage: "upload",
+          recoverability: "retryable",
           diagnostics: { mime_category: "image", byte_size_bucket: byteSizeBucket(blob.size) }
         })
         setAnnotationError({ message: t("annotation_replace_error"), retry })
@@ -2377,12 +2382,27 @@ export function Compose({
           ) : null}
           {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
           {annotationError ? (
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100" role="alert">
+            <div
+              className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100"
+              role="alert"
+            >
               <span>{annotationError.message}</span>
               <span className="flex gap-2">
-                <Button onClick={annotationError.retry} variant="secondary">{t("annotation_retry")}</Button>
-                <Button onClick={() => setAnnotationError(null)} variant="secondary">{t("annotation_dismiss")}</Button>
-                <Button onClick={() => { setAnnotationError(null); setAnnotatingIndex(null) }} variant="secondary">{t("cancel")}</Button>
+                <Button onClick={annotationError.retry} variant="secondary">
+                  {t("annotation_retry")}
+                </Button>
+                <Button onClick={() => setAnnotationError(null)} variant="secondary">
+                  {t("annotation_dismiss")}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setAnnotationError(null)
+                    setAnnotatingIndex(null)
+                  }}
+                  variant="secondary"
+                >
+                  {t("cancel")}
+                </Button>
               </span>
             </div>
           ) : null}
@@ -2466,7 +2486,10 @@ export function Compose({
                       <button
                         aria-label={t("aria_annotate_attachment", { name: attachment.name })}
                         className="group relative rounded focus:outline-none focus:ring-2 focus:ring-brand"
-                        onClick={() => { setAnnotationError(null); setAnnotatingIndex(index) }}
+                        onClick={() => {
+                          setAnnotationError(null)
+                          setAnnotatingIndex(index)
+                        }}
                         type="button"
                       >
                         <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.url} />
@@ -2483,14 +2506,26 @@ export function Compose({
                           initialShapes={attachment.shapes}
                           name={attachment.name}
                           originalDataUrl={attachment.url}
-                          onClose={() => { setAnnotationError(null); setAnnotatingIndex(null) }}
+                          onClose={() => {
+                            setAnnotationError(null)
+                            setAnnotatingIndex(null)
+                          }}
                           onExportError={(error, retryExport) => {
                             setAnnotatingIndex(null)
                             reportHandledError(error, {
-                              surface: "chat_composer", operation: "replace_attachment", stage: "blob_export", recoverability: "retryable",
+                              surface: "chat_composer",
+                              operation: "replace_attachment",
+                              stage: "blob_export",
+                              recoverability: "retryable",
                               diagnostics: { mime_category: "image" }
                             })
-                            setAnnotationError({ message: t("annotation_replace_error"), retry: () => { setAnnotationError(null); retryExport() } })
+                            setAnnotationError({
+                              message: t("annotation_replace_error"),
+                              retry: () => {
+                                setAnnotationError(null)
+                                retryExport()
+                              }
+                            })
                           }}
                           onDone={(blob, shapes) => replaceAnnotatedAttachment(attachment, blob, shapes)}
                         />
