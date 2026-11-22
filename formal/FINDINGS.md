@@ -4392,6 +4392,50 @@ the caller. It is not yet modelled.
 
 ---
 
+## M61. Main through `7a6949c328` — main green again, the F88 spec settled on main
+
+Main's grader went red after this branch was pushed to main. There were three
+causes:
+
+- `spec/models/workflow_spec.rb` (CI-only) still pinned the pre-F88 behaviour,
+  that a failed `coding_handoff` leaves its Job running. **This branch caused
+  it**: the gate ran the CI-only specs only for the areas touched, and missed
+  this file's interaction.
+- `installer_spec.rb` failed once, depending on order: an extra `:install`
+  after beta mode was switched off, from a stale read. It does not reproduce
+  locally in random orders or alongside its shard companion. Left as a flaky
+  spec to watch.
+- A TypeScript type error in the startup diagnostics test.
+
+Main fixed them itself:
+
+- "Bring the coding-handoff failure spec in line with settling the Job"
+  (`7a6949c328`) keeps F88's behaviour and updates the spec. This branch's
+  own fix for the same spec was dropped in the rebase as redundant.
+- "Type-check the startup diagnostics script test" (`e545e6b579`).
+
+**"Release a lost workspace that no live Run uses instead of failing"**
+(`e605c3b1ae`). When reconstruction fails, `WorkflowWorkspaceRecovery` now
+checks whether every active Run is placed outside the mutable workspace
+(immutable checkout, control plane or external context). If so, it releases
+the dead worker's routing hold and requeues the stranded Runs instead of
+failing the Workflow.
+
+*Relied-on invariant:* nothing that reads the mutable workspace runs against
+a lost one. This holds:
+
+- the release requires every active Run to be workspace-free;
+- a workspace-bound Step that starts later finds the workspace missing and
+  goes through recovery again, so it can still require a fresh attempt.
+
+This is the Lead L7 area: it also clears the affinity that L7's requeue was
+working around.
+
+**Process note.** Before the next push to main, run the full CI-only suite,
+not a subset.
+
+---
+
 ## M60. Main through `357448bbd0` — the outage's cause, NY30 implemented, repair cap windowed
 
 This branch was fast-forwarded into main at the operator's request
@@ -5837,7 +5881,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `357448bbd0`. Each loop iteration continues from there:
+Checked through main `7a6949c328`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
