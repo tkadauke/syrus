@@ -73,6 +73,31 @@ RSpec.describe "API: plugin installer", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
   end
 
+  it "loads release counts for all registries in one query" do
+    sign_in_as(admin)
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    first_registry = PluginRegistry.create!(name: "partners", url: "https://partners.example.test")
+    second_registry = PluginRegistry.create!(name: "community", url: "https://community.example.test")
+    PluginRelease.create!(name: "partners_weather", version: "1.0.0", content_digest: "b" * 64,
+      source: "registry", trust_label: "verified", size_bytes: 1, plugin_registry: first_registry)
+    PluginRelease.create!(name: "community_weather", version: "1.0.0", content_digest: "c" * 64,
+      source: "registry", trust_label: "community", size_bytes: 1, plugin_registry: second_registry)
+
+    count_queries = []
+    subscriber = lambda do |*, payload|
+      sql = payload[:sql]
+      count_queries << sql if sql.match?(/COUNT\(\*\).*plugin_releases/i)
+    end
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      get "/api/v1/app/admin/plugin_installer/registries"
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(count_queries.size).to eq(1)
+    counts = JSON.parse(response.body).fetch("registries").to_h { |registry| [ registry["name"], registry["entry_count"] ] }
+    expect(counts).to include("partners" => 1, "community" => 1)
+  end
+
   it "stages a stored release for rollback" do
     sign_in_as(admin)
     PluginChange.create!(plugin_name: "weather", action: "install", plugin_release: release,

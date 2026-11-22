@@ -18,8 +18,11 @@ module Api
           end
 
           def registries
-            render json: { registries: PluginRegistry.sources.map do |source|
-              serialize_registry(source).merge(entry_count: source.id ? PluginRelease.where(plugin_registry_id: source.id).count : 0,
+            sources = PluginRegistry.sources
+            source_ids = sources.filter_map(&:id)
+            release_counts = PluginRelease.where(plugin_registry_id: source_ids).group(:plugin_registry_id).count
+            render json: { registries: sources.map do |source|
+              serialize_registry(source).merge(entry_count: release_counts.fetch(source.id, 0),
                 error: source.configuration_error, stale: false)
             end }
           end
