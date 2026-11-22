@@ -151,11 +151,14 @@ function PluginInstallerPanel() {
             {catalog.data.error ? <p className="mt-2 text-sm text-danger">{catalog.data.error}</p> : null}
             <div className="mt-3 space-y-2">
               {catalog.data.entries.map((entry) => (
-                <div className="rounded border border-border p-3" key={entry.name + "-" + entry.version}>
+                <div className="rounded border border-border p-3" key={entry.registry_name + "-" + entry.name + "-" + entry.version}>
                   <div className="flex flex-wrap items-center gap-2">
                     <strong>{entry.name}</strong>
                     <span>{entry.version}</span>
                     <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{entry.trust_label}</span>
+                    <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">
+                      {t("plugins.registry.source", { name: entry.registry_name })}
+                    </span>
                   </div>
                   <p className="mt-1 text-sm text-text-secondary">{entry.description}</p>
                 </div>

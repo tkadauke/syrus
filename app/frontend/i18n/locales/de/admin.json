@@ -481,6 +481,7 @@
     "registry": {
       "heading": "Registry durchsuchen",
       "search": "Kompatible Plugins suchen",
+      "source": "Registry: {{name}}",
       "unconfigured": "Keine Plugin-Registry ist konfiguriert. Setze SYRUS_PLUGIN_REGISTRY_URL, um Plugins zu durchsuchen.",
       "empty": "Keine kompatiblen Plugins gefunden."
     },

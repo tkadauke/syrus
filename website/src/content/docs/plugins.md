@@ -243,16 +243,22 @@ also export and import `syrus-plugins.lock.yml`; it records name, version,
 digest, and source while the database remains canonical.
 
 `syrus plugin install NAME[@VERSION]` uses a matching stored release when one
-is available, or reads the synchronized git registry entry from
-`$SYRUS_DATA_ROOT/plugin-registry/index/NAME/VERSION.json` and downloads its
-HTTPS artifact and detached signature. Without a version, Syrus selects the
-highest indexed semantic version. Registry downloads use the same validation,
-signature verification, staging, and confirmation flow as uploaded archives.
+is available, or resolves it across the enabled registry catalogs and
+downloads its HTTPS artifact and detached signature. Without a version, Syrus
+selects the highest indexed semantic version. Registry downloads use the same
+validation, signature verification, staging, and confirmation flow as uploaded
+archives.
 
-Set SYRUS_PLUGIN_REGISTRY_URL on the instance to enable the Admin → Plugins
-browser, or in the CLI environment to let `syrus plugin search [TERM]` query
-an HTTPS mirror or HTTPS Git URL directly. No registry is configured by
-default. Results include trust labels, exclude revoked releases, and are
+Syrus enables its canonical plugin registry and the Admin → Plugins browser by
+default; administrators can disable it and configure additional registries.
+The CLI can still use `SYRUS_PLUGIN_REGISTRY_URL` to let `syrus plugin search
+[TERM]` query an HTTPS mirror or HTTPS Git URL directly. Catalog results
+identify their source, canonical collisions are
+preferred for bare installs, and ambiguous non-canonical collisions require an
+explicit source. Each registry has isolated trust and revocation data, and
+only the canonical registry can grant the official label. The legacy
+`SYRUS_PLUGIN_REGISTRY_URL` setting remains available to the instance as a
+read-only source. Results include trust labels, exclude revoked releases, and are
 filtered for the running or connected Syrus version. Network and
 malformed-index errors are reported without taking down plugin administration.
 
