@@ -325,7 +325,7 @@ function MobileGestureSurface({
           aria-label={gesture.consequence}
           className={`pointer-events-none absolute z-0 flex font-semibold text-brand lg:hidden ${
             horizontal
-              ? `inset-y-0 w-[min(7rem,30vw)] items-center ${offset.x > 0 ? "left-[max(.5rem,env(safe-area-inset-left))]" : "right-[max(.5rem,env(safe-area-inset-right))]"}`
+              ? `inset-y-0 w-[min(7.5rem,calc(100vw_-_1rem))] items-center ${offset.x > 0 ? "left-[max(.5rem,env(safe-area-inset-left))]" : "right-[max(.5rem,env(safe-area-inset-right))]"}`
               : `inset-x-0 p-5 text-sm ${offset.y < 0 ? "bottom-0 justify-center" : "top-0 justify-center"}`
           }`}
           data-gesture-direction={gesture.direction}
@@ -334,7 +334,7 @@ function MobileGestureSurface({
         >
           <span
             aria-hidden="true"
-            className={`${MOBILE_GESTURE_ACTION_CLASS} ${horizontal ? "w-full px-2 py-2 text-sm" : "w-[min(12rem,70vw)] px-3 py-2"}`}
+            className={`${MOBILE_GESTURE_ACTION_CLASS} ${horizontal ? "w-full gap-1 px-1.5 py-2 text-xs" : "w-[min(12rem,70vw)] px-3 py-2"}`}
             data-testid="mobile-gesture-action"
             style={cueStyle}
           >
@@ -366,7 +366,7 @@ function MobileGestureSurface({
 function GestureDirectionIcon({ direction }: { direction: "left" | "right" | "up" | "down" }) {
   const rotation = { right: "", left: "rotate-180", up: "-rotate-90", down: "rotate-90" }[direction]
   return (
-    <svg aria-hidden="true" className={`h-4 w-4 shrink-0 ${rotation}`} fill="none" viewBox="0 0 20 20">
+    <svg aria-hidden="true" className={`h-3.5 w-3.5 shrink-0 ${rotation}`} fill="none" viewBox="0 0 20 20">
       <path d="M4 10h11m-4-4 4 4-4 4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
     </svg>
   )

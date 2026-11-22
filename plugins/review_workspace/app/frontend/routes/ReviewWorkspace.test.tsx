@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import { useState } from "react"
 import { createMemoryRouter, Link, MemoryRouter, Route, RouterProvider, Routes, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import i18n from "@app/i18n"
 import ReviewWorkspaceRoute from "./ReviewWorkspace"
 
 class TestPointerEvent extends MouseEvent {
@@ -392,10 +393,10 @@ describe("ReviewWorkspaceRoute", () => {
     expect(card.style.transform).toBe("translate3d(90px, 0px, 0) rotate(3deg)")
     expect(card.style.transformOrigin).toBe("50% 75%")
     const reveal = screen.getByTestId("mobile-gesture-reveal")
-    expect(reveal).toHaveClass("absolute", "inset-y-0", "w-[min(7rem,30vw)]", "left-[max(.5rem,env(safe-area-inset-left))]", "z-0")
+    expect(reveal).toHaveClass("absolute", "inset-y-0", "w-[min(7.5rem,calc(100vw_-_1rem))]", "left-[max(.5rem,env(safe-area-inset-left))]", "z-0")
     expect(reveal).not.toHaveAttribute("style")
     expect(reveal).toHaveAttribute("aria-label", "Release to review approval")
-    expect(screen.getByTestId("mobile-gesture-action")).toHaveClass("w-full", "whitespace-nowrap", "shrink-0", "text-sm")
+    expect(screen.getByTestId("mobile-gesture-action")).toHaveClass("w-full", "whitespace-nowrap", "shrink-0", "text-xs")
     expect(reveal).not.toHaveClass("fixed", "top-20")
     expect(card).toHaveClass("relative", "z-10")
     fireEvent.pointerUp(decisionTouchRegion, { clientX: 170, clientY: 205, pointerId: 1, pointerType: "touch" })
@@ -420,7 +421,7 @@ describe("ReviewWorkspaceRoute", () => {
         fireEvent.pointerMove(card, { clientX: 160 + distance * direction, clientY: 221, pointerId, pointerType: "touch" })
         const reveal = screen.getByTestId("mobile-gesture-reveal")
         const action = screen.getByTestId("mobile-gesture-action")
-        expect(reveal).toHaveClass("w-[min(7rem,30vw)]")
+        expect(reveal).toHaveClass("w-[min(7.5rem,calc(100vw_-_1rem))]")
         expect(reveal.style.width).toBe("")
         expect(reveal).toHaveAttribute("data-gesture-direction", direction > 0 ? "right" : "left")
         expect(action).toHaveTextContent(direction > 0 ? "Approve" : "Defer")
@@ -441,6 +442,32 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.queryByRole("dialog", { name: /Approve/ })).not.toBeInTheDocument()
   })
 
+  it("keeps the longest localized horizontal action inside the fixed narrow-phone cue", async () => {
+    await i18n.changeLanguage("de")
+    try {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
+      )
+      renderRoute("/review/JOB-42", 320)
+      await screen.findByTestId("mobile-review-summary")
+      const card = screen.getByTestId("mobile-review-card")
+
+      fireEvent.pointerDown(card, { clientX: 160, clientY: 220, pointerId: 410, pointerType: "touch" })
+      fireEvent.pointerMove(card, { clientX: 40, clientY: 220, pointerId: 410, pointerType: "touch" })
+
+      const reveal = screen.getByTestId("mobile-gesture-reveal")
+      const action = screen.getByTestId("mobile-gesture-action")
+      expect(reveal).toHaveClass("w-[min(7.5rem,calc(100vw_-_1rem))]")
+      expect(reveal.style.width).toBe("")
+      expect(action).toHaveTextContent("Zurückstellen")
+      expect(action).toHaveClass("w-full", "whitespace-nowrap", "gap-1", "px-1.5", "text-xs")
+      expect(action).not.toHaveClass("overflow-hidden", "truncate", "text-ellipsis")
+      expect(action.querySelector("svg")).toHaveClass("h-3.5", "w-3.5", "shrink-0")
+    } finally {
+      await i18n.changeLanguage("en")
+    }
+  })
+
   it("bounds rotation by drag direction and keeps vertical and reduced-motion gestures rotation-free", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ count: 1, jobs: [job()] }), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -453,7 +480,7 @@ describe("ReviewWorkspaceRoute", () => {
     fireEvent.pointerMove(card, { clientX: 30, clientY: 202, pointerId: 21, pointerType: "touch" })
     expect(card.style.transform).toContain("translate3d(-120px, 0px, 0)")
     expect(card.style.transform).toContain("rotate(-4deg)")
-    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveClass("right-[max(.5rem,env(safe-area-inset-right))]", "w-[min(7rem,30vw)]")
+    expect(screen.getByTestId("mobile-gesture-reveal")).toHaveClass("right-[max(.5rem,env(safe-area-inset-right))]", "w-[min(7.5rem,calc(100vw_-_1rem))]")
     expect(screen.getByTestId("mobile-gesture-reveal").style.width).toBe("")
     fireEvent.pointerCancel(card, { pointerId: 21, pointerType: "touch" })
     expect(card.style.transform).toBe("")
