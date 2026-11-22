@@ -90,6 +90,24 @@ RSpec.describe PluginRegistryClient do
     expect(result.error).to include("escapes the index root")
   end
 
+  it "stores git refresh metadata outside the untrusted checkout" do
+    client = described_class.new(url: "git+https://registry.example.test/plugins.git", cache_root: root,
+      syrus_version: Gem::Version.new("2.0.0"))
+    outside = root.join("outside.txt")
+    outside.write("preserve me")
+    FileUtils.touch(outside, mtime: Time.at(1))
+    allow(Open3).to receive(:capture3) do |*_arguments|
+      materialize_registry(root.join("index"))
+      File.symlink(outside, root.join("index/.syrus-refreshed-at"))
+      [ "", "", instance_double(Process::Status, success?: true) ]
+    end
+
+    expect(client.search.entries.map(&:name)).to include("acme_weather")
+    expect(outside.read).to eq("preserve me")
+    expect(outside.mtime).to eq(Time.at(1))
+    expect(root.join("git-refreshed-at")).to be_file
+  end
+
   it "returns a non-fatal error for a malformed index" do
     stub_request(:get, "#{base_url}index.json").to_return(body: JSON.generate(format_version: 99))
 

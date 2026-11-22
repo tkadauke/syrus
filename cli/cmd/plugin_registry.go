@@ -183,7 +183,10 @@ func (client pluginRegistryClient) loadGit(ctx context.Context, source string) (
 	if err != nil {
 		return nil, err
 	}
-	stamp := filepath.Join(directory, ".syrus-refreshed-at")
+	stamp, err := registryCachePath(client.URL, "git-refreshed-at")
+	if err != nil {
+		return nil, err
+	}
 	var refreshErr error
 	if info, statErr := os.Stat(stamp); statErr != nil || pluginRegistryNow().Sub(info.ModTime()) >= pluginRegistryTTL {
 		if _, statErr := os.Stat(filepath.Join(directory, ".git")); statErr == nil {
@@ -198,6 +201,7 @@ func (client pluginRegistryClient) loadGit(ctx context.Context, source string) (
 			}
 			refreshErr = fmt.Errorf("plugin registry git refresh failed: %w", err)
 		} else {
+			_ = os.MkdirAll(filepath.Dir(stamp), 0700)
 			_ = os.WriteFile(stamp, nil, 0600)
 		}
 	}
