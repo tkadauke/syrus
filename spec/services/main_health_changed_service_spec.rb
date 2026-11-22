@@ -2098,4 +2098,57 @@ RSpec.describe MainHealthChangedService, :ci_only do
     )
     repository.reload
   end
+
+  # Regression: main advanced (a fix was pushed) while a repair was still in
+  # preflight on the previous commit. The repair kept grading the old snapshot
+  # for an hour, reported failures main no longer had, and would have handed
+  # an agent work that was already done.
+  describe ".supersede_stale_preflight_repairs!" do
+    def repair_job(state: "queued")
+      repository.jobs.create!(
+        user: user, kind: "direct", system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "repair", issue_body: "Main branch health is broken.", agent_provider: "claude",
+        priority: "high", state: state
+      )
+    end
+
+    def repair_workflow(job, snapshot_sha:, implement_started: false)
+      workflow = Workflow.create!(job: job, trigger_kind: "main_branch_repair", state: "running", started_at: 10.minutes.ago)
+      fanout = Step.create!(workflow: workflow, kind: "preflight_grader_fanout", position: 0, state: "succeeded")
+      implement = Step.create!(workflow: workflow, kind: "implement", position: 5, state: implement_started ? "running" : "queued")
+      if implement_started
+        implement.runs.create!(job: job, trigger_kind: "main_branch_repair", agent_provider: "claude", state: "running")
+      end
+      WorkflowSourceSnapshots.record!(workflow: workflow, creator_step: fanout, source_sha: snapshot_sha,
+                                      source_ref: "refs/heads/main", tree_sha: "t" * 40)
+      workflow
+    end
+
+    it "closes a repair still in preflight on a commit main has moved past" do
+      job = repair_job
+      repair_workflow(job, snapshot_sha: "a" * 40)
+
+      described_class.supersede_stale_preflight_repairs!(repository, head_sha: "b" * 40)
+
+      expect(job.reload).to have_attributes(state: "closed", closure_reason: "superseded")
+    end
+
+    it "keeps a repair whose preflight targets the current head" do
+      job = repair_job
+      repair_workflow(job, snapshot_sha: "b" * 40)
+
+      described_class.supersede_stale_preflight_repairs!(repository, head_sha: "b" * 40)
+
+      expect(job.reload).not_to be_closed
+    end
+
+    it "keeps a repair that has already started implementing" do
+      job = repair_job(state: "running")
+      repair_workflow(job, snapshot_sha: "a" * 40, implement_started: true)
+
+      described_class.supersede_stale_preflight_repairs!(repository, head_sha: "b" * 40)
+
+      expect(job.reload).not_to be_closed
+    end
+  end
 end

@@ -60,6 +60,7 @@ class PollMainBranchHealthJob < ApplicationJob
                                    .where.not(source: "concern_quorum").recent.first
     previous_sha = latest&.sha || (repository.last_health_checked_sha if default_track_branch)
     if default_track_branch && repository.last_health_checked_sha != sha
+      MainHealthChangedService.supersede_stale_preflight_repairs!(repository, head_sha: sha)
       repository.update_columns(
         last_health_checked_sha: sha,
         ci_health: repository.ci_health_broken? ? "broken" : "unknown",

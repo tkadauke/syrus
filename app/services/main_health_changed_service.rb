@@ -30,6 +30,40 @@ class MainHealthChangedService
     new(repository).recovered!
   end
 
+  SUPERSEDED_PREFLIGHT_CLOSURE = "superseded".freeze
+
+  # A repair still in preflight diagnoses the commit it snapshotted. When main
+  # advances before the repair starts implementing, that diagnosis is stale:
+  # a pushed fix had a repair grading the old commit for an hour and reporting
+  # failures main no longer had. Close it; if the new head is still broken,
+  # the ordinary health flow opens a repair for that commit. A repair that has
+  # begun implementing is left alone -- it may already be fixing the head.
+  def self.supersede_stale_preflight_repairs!(repository, head_sha:)
+    return if head_sha.blank?
+
+    repository.jobs.where.not(state: "closed").find_each do |job|
+      next unless job.main_branch_repair?
+
+      workflow = job.latest_workflow
+      next unless workflow&.trigger_kind == "main_branch_repair" && workflow.running?
+      next if repair_implementation_started?(workflow)
+
+      snapshot_sha = WorkflowSourceSnapshots.current_for(workflow)&.source_sha
+      next if snapshot_sha.blank? || snapshot_sha == head_sha
+
+      Rails.logger.info(
+        "[MainHealthChangedService] #{repository.slug} superseding #{job.slug}: preflight graded " \
+        "#{snapshot_sha.first(12)}, main is now #{head_sha.first(12)}"
+      )
+      job.cancel_active_runs_and_close!(SUPERSEDED_PREFLIGHT_CLOSURE)
+    end
+  end
+
+  def self.repair_implementation_started?(workflow)
+    workflow.steps.where(kind: "implement").joins(:runs).exists?
+  end
+  private_class_method :repair_implementation_started?
+
   def self.ensure_repair_job!(repository, force: false)
     new(repository).ensure_repair_job!(force: force)
   end
