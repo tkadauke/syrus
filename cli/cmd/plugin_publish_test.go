@@ -116,3 +116,19 @@ func TestPluginPublishRequiresGitHubToken(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestPluginPublishRejectsIncompleteSubmissionBeforeUploading(t *testing.T) {
+	publisher := &fakePublisher{}
+	previousPublisher := newPluginPublisher
+	newPluginPublisher = func(string) pluginPublisher { return publisher }
+	t.Cleanup(func() { newPluginPublisher = previousPublisher })
+	t.Setenv("GITHUB_TOKEN", "secret")
+	command := NewRootCommand()
+	command.SetArgs([]string{"plugin", "publish", "--key", "unused", "--repository", "acme/weather", "--submit"})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "--index-repository") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(publisher.uploads) != 0 {
+		t.Fatalf("uploaded before validating submission arguments: %v", publisher.uploads)
+	}
+}
