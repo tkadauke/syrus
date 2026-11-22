@@ -17,6 +17,8 @@ itself (most likely the repository devcontainer).
 4. **Syrus's own agents cannot run Lean.** Most engine changes are made by
    Syrus Jobs, and the workers have no Lean toolchain.
 
+> **Operator decision (2026-11-22, lean-plan site):** go ahead with all seven layers.
+
 ## The layers
 
 | # | Layer | What it does | Status |

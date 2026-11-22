@@ -3195,7 +3195,7 @@
         "C. Keep as is: plugins are trusted code reviewed like core."
       ],
       "recommendation": "A. It makes the exemption derived rather than declared, the same way pending-action tools already are, and costs nothing for today's tools (the spawn-chat tools can register their pending actions).",
-      "decision": "A, and check it (2026-11-21). Implementation detail pending: the only plugin tools that declare approval_effect (the Coworkers spawn tools) create their card themselves, through AuthorizationSupport.pending_coworker_plugin_approval, with normalized arguments. Requiring a registered pending action means giving those tools pending-action classes; letting the generic layer create the card instead risks a second card on the approved re-run, because the arguments differ. Needs a choice between the two."
+      "decision": "A, and check it (2026-11-21). Implementation detail pending: the only plugin tools that declare approval_effect (the Coworkers spawn tools) create their card themselves, through AuthorizationSupport.pending_coworker_plugin_approval, with normalized arguments. Requiring a registered pending action means giving those tools pending-action classes; letting the generic layer create the card instead risks a second card on the approved re-run, because the arguments differ. Needs a choice between the two. Follow-up answered A (2026-11-22, answered on the lean-plan site): give the Coworkers spawn tools pending-action classes, so approval_effect is derived from a registered pending action. To implement."
     },
     {
       "id": "NY13",
@@ -3260,7 +3260,7 @@
         "C. Keep as is: a fleet plugin rollout can fail in-flight steps of that plugin's kinds."
       ],
       "recommendation": "A. It reuses the existing capability-routing contract and the no_capable_worker diagnosis, so a blocked start explains itself. B is smaller, but it spins on a worker that will never have the plugin.",
-      "decision": "Prevent it (2026-11-21). Implemented as F73: a worker that does not provide a step's kind hands the Run back (30 s, up to 20 times) instead of failing it, and an unknown kind's Step can fail cleanly. Per-plugin queue routing, which would avoid the hand-backs, is a larger change and not done."
+      "decision": "Prevent it (2026-11-21). Implemented as F73: a worker that does not provide a step's kind hands the Run back (30 s, up to 20 times) instead of failing it, and an unknown kind's Step can fail cleanly. Per-plugin queue routing, which would avoid the hand-backs, is a larger change and not done. Follow-up answered B (2026-11-22, answered on the lean-plan site): per-plugin queue routing is not needed now; the F73 hand-back is enough until plugins are installed on only part of the fleet."
     },
     {
       "id": "NY18",
@@ -3312,7 +3312,7 @@
         "C. Keep as is: an abandoned upload pins its backup until an operator deletes it."
       ],
       "recommendation": "A. It never deletes under a live or recoverable upload, and it releases exactly the case that cannot recover on its own.",
-      "decision": null
+      "decision": "A (2026-11-22, answered on the lean-plan site): Keep deletion conservative, and add a sweep that marks a replication 'failed' once its lease has expired and its destination is no longer configured, so only an abandoned upload is released. To implement."
     },
     {
       "id": "NY22",
@@ -3325,7 +3325,7 @@
         "C. Keep as is."
       ],
       "recommendation": "A, in line with NY13: an unknown is not a pass, and restore is destructive. The break-glass flag keeps the empty-instance and development cases possible on purpose.",
-      "decision": null
+      "decision": "A (2026-11-22, answered on the lean-plan site): Treat every unknown as a failure, and allow it only with an explicit operator flag (like the existing --break-glass-no-safety-backup), named after what is unknown. To implement."
     },
     {
       "id": "NY23",
@@ -3338,7 +3338,7 @@
         "C. Keep as is: hooks are a convenience for trusted repositories, and --no-hooks is the escape hatch."
       ],
       "recommendation": "A. It keeps the convenience for hooks the repository already trusts on its base branch, and stops the one path where text from outside becomes code running on the operator's machine without anyone reading it.",
-      "decision": null
+      "decision": "A (2026-11-22, answered on the lean-plan site): Run a hook without asking only if the same command is already in the .syrus.yml on the Job's base branch. Show any new or changed hook and ask before running it (refuse in non-interactive use unless --hooks is passed). Also gate on an allow-list of kinds (issue, direct, cron), so unknown kinds fail closed. To implement."
     },
     {
       "id": "NY24",
@@ -3351,7 +3351,7 @@
         "C. Keep as is: reclaim all space immediately, and rely on re-pulling for rollback."
       ],
       "recommendation": "A. It bounds disk use at two images, and it keeps the one image that makes a local rollback possible.",
-      "decision": null
+      "decision": "B (2026-11-22, answered on the lean-plan site): Keep the previous image only until the next successful update or for a fixed period, such as 7 days. To implement."
     },
     {
       "id": "NY25",
@@ -3364,7 +3364,7 @@
         "C. Keep as is: InnoDB detects deadlocks and aborts one side; the callers already tolerate failures."
       ],
       "recommendation": "A. The order matches what the hot paths already do, so the changes are confined to four rarer paths. The checker stops new sites from reintroducing a cycle, which an audit alone cannot.",
-      "decision": null
+      "decision": "A (2026-11-22, answered on the lean-plan site): Adopt the order AppSetting → Epic → Run → Job → WorkIntent → Workflow → Step → WorkUnit → User. Fix the four inverted edge kinds (landing slot release and the Workflow#start-under-Workflow-lock paths lock the Job first; planned-execution overrides lock Runs before the Job; the merge-train rebuild locks the Epic before member Jobs). Add a test-mode lock-order checker that fails when a transaction takes locks out of order. To implement."
     },
     {
       "id": "NY26",
@@ -3377,7 +3377,7 @@
         "C. Keep as is: the repair always fails the Workflow, and retries happen through the Job-level failed-step retry."
       ],
       "recommendation": "A. One function deciding what a Step failure means, used by both the live path and its recovery, is the only way the two can never disagree; the pinned case then retries in place, bounded by the existing infrastructure retry limit.",
-      "decision": null
+      "decision": "A (2026-11-22, answered on the lean-plan site): Replay the cascade: the repair calls StepDispatcher.fail_from(failed_step), so recovery reaches exactly the outcome the lost cascade would have (hard-failing only when nothing else applies). Update the pinned spec. To implement."
     },
     {
       "id": "NY27",
@@ -3390,7 +3390,7 @@
         "C. Keep as is: pausing a landing deliberately holds the repository queue."
       ],
       "recommendation": "A. It is the same rule NY7 chose before the first Run and the allowlist's own definition (a paused unit is not about to run); the only cost is that an unpaused landing may wait behind one that went ahead.",
-      "decision": null
+      "decision": "A (2026-11-22, answered on the lean-plan site): Add manual_pause to the externally cleared reasons: a paused started landing gives the slot back; on unpause it re-acquires the slot, waiting its turn if another landing took it. To implement."
     },
     {
       "id": "NY28",
@@ -3402,7 +3402,8 @@
         "B. Allow it, and land the outside Job inside the Epic's merge train (pull it into the unit).",
         "C. Leave it: rare, and the operator can override the dependencies."
       ],
-      "recommendation": "A. It matches the existing rule (cycles are refused up front) on the graph landing actually uses, costs one more graph walk at creation, and the proposing agent gets an actionable error instead of a silent deadlock later. B changes what an Epic train contains, which other proofs (EpicAtomicLanding) rely on."
+      "recommendation": "A. It matches the existing rule (cycles are refused up front) on the graph landing actually uses, costs one more graph walk at creation, and the proposing agent gets an actionable error instead of a silent deadlock later. B changes what an Epic train contains, which other proofs (EpicAtomicLanding) rely on.",
+      "decision": "A (2026-11-22, answered on the lean-plan site): Reject it when the dependency is created: extend JobDependency#no_cycle to treat each Epic as one node, with an error naming the Epic and the outside Job. To implement."
     },
     {
       "id": "NY29",
@@ -3414,7 +3415,8 @@
         "B. Let StackRebaseCoordinator run its Rebase Workflow for an unpublished child too (rebase the local work, then let the original Workflow publish).",
         "C. Classify a rebase conflict as non-retryable (not awaiting_stable_base) so it fails once with a clear 'needs manual rebase' reason instead of burning retries; operators resolve it."
       ],
-      "recommendation": "A, with C's classification as the fallback when the agent fails. The workspace and completed work are right there, conflicts after a parent restack are expected in long Epic chains, and it reuses an existing pattern. For 9453 today: it needs a manual rebase onto syrus/direct-9452 (or a retry once one of A/B exists)."
+      "recommendation": "A, with C's classification as the fallback when the agent fails. The workspace and completed work are right there, conflicts after a parent restack are expected in long Epic chains, and it reuses an existing pattern. For 9453 today: it needs a manual rebase onto syrus/direct-9452 (or a retry once one of A/B exists).",
+      "decision": "A (2026-11-22, answered on the lean-plan site): On a rebase conflict, have pr_open (or the retry it schedules) run an agent conflict resolution in the same workspace -- the merge-train pattern (merge_train_agent_rebase) -- and only fail if the agent cannot resolve it. To implement."
     },
     {
       "id": "NY30",
