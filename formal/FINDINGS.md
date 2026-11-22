@@ -4417,6 +4417,19 @@ checking against the previous production failures in the operator notes:
 MySQL OOM kills from glibc arena retention, and a MySQL volume filled by
 `--log-output=TABLE`. The two earlier pod deaths may have been the first sign.
 
+**After the restart (UTC).** Worker pods kept being replaced, all on the same
+version `424204c35b`:
+
+- compute `rnfjm` at 15:34, then `j27bx` at 16:07;
+- the old-version Mac worker (`6570ee323f`, data root 85–86% full) at 15:38
+  and again at 15:52.
+
+Each restart fails the Runs on that worker as `worker_died`. The two
+concurrent main-branch repairs (F100) were cancelled at the operator's request
+at about 15:55, and `j27bx` still restarted afterwards. So the duplicate
+repair load was not the only cause. The cause remains unknown from this
+session.
+
 ---
 
 ## M58. Main through `c2e7a2f7cb` — main's React failure fixed by hand, coworker ref filter equivalent
