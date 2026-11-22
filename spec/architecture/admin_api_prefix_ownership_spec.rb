@@ -16,6 +16,13 @@ RSpec.describe "admin API prefix ownership" do
     POST /api/v1/app/admin/macos_worker_update/force_terminate api/v1/app/admin/macos_worker_updates#force_terminate
     GET /api/v1/app/admin/plugins api/v1/app/admin/plugins#index
     GET /api/v1/app/admin/plugin_convergence api/v1/app/admin/plugin_convergence#show
+    GET /api/v1/app/admin/plugin_installer api/v1/app/admin/plugin_installer#index
+    POST /api/v1/app/admin/plugin_installer/stage api/v1/app/admin/plugin_installer#stage
+    POST /api/v1/app/admin/plugin_installer/stage_remove api/v1/app/admin/plugin_installer#stage_remove
+    POST /api/v1/app/admin/plugin_installer/stage_release api/v1/app/admin/plugin_installer#stage_release
+    POST /api/v1/app/admin/plugin_installer/changes/:id/confirm api/v1/app/admin/plugin_installer#confirm
+    GET /api/v1/app/admin/plugin_installer/lockfile api/v1/app/admin/plugin_installer#export_lockfile
+    POST /api/v1/app/admin/plugin_installer/lockfile api/v1/app/admin/plugin_installer#import_lockfile
     POST /api/v1/app/admin/plugins/:name/enable api/v1/app/admin/plugins#enable
     POST /api/v1/app/admin/plugins/:name/disable api/v1/app/admin/plugins#disable
     GET /api/v1/app/admin/plugins/:name/config api/v1/app/admin/plugins#show_config
