@@ -325,6 +325,37 @@ RSpec.describe WorkUnit do
     end
   end
 
+  # A terminal unit and its intent end together or not at all. The intent sync
+  # used to run after the unit's transaction had committed, so an exception
+  # or a crash in between left a finished unit with an open intent, the state
+  # the reconciler's three unit/intent agreement classifiers repair
+  # (coverage item unit-intent-outcome-agreement).
+  describe "terminal intent sync is part of the terminal transition" do
+    def running_unit
+      described_class.create!(work_intent: intent, kind: "initial", state: "running", scope_type: "job", scope_id: 123)
+    end
+
+    before do
+      allow(WorkIntents::TerminalUnitSync).to receive(:call).and_raise(ActiveRecord::LockWaitTimeout, "intent row locked")
+    end
+
+    it "does not commit mark_terminal! when the intent sync fails" do
+      unit = running_unit
+
+      expect { unit.mark_terminal!("succeeded") }.to raise_error(ActiveRecord::LockWaitTimeout)
+
+      expect(unit.reload).to be_running
+    end
+
+    it "does not commit preempt! when the intent sync fails" do
+      unit = running_unit
+
+      expect { unit.preempt!(reason: "job_closed") }.to raise_error(ActiveRecord::LockWaitTimeout)
+
+      expect(unit.reload).to be_running
+    end
+  end
+
   describe "blocked_at" do
     # `blocked since` used to be read off updated_at, which every re-check
     # bumped: main-branch health re-polls every five minutes, so a block in

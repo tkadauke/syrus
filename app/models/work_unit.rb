@@ -224,9 +224,11 @@ class WorkUnit < ApplicationRecord
         blocked_by_user: nil
       )
       work_unit_locks.active.find_each(&:release!)
+      # Inside the transaction: a finished unit and its intent's outcome commit
+      # together, so neither a crash nor a failing sync can leave a terminal
+      # unit with an open intent.
+      WorkIntents::TerminalUnitSync.call(self)
     end
-
-    WorkIntents::TerminalUnitSync.call(self)
   end
 
   def preempt!(reason:, by_work_unit: nil)
@@ -255,9 +257,10 @@ class WorkUnit < ApplicationRecord
         work_unit_locks.active.find_each(&:release!)
         sync_terminal = true
       end
+      # Same transaction as the cancellation, as in mark_terminal!.
+      WorkIntents::TerminalUnitSync.call(self) if sync_terminal
     end
 
-    WorkIntents::TerminalUnitSync.call(self) if sync_terminal
     self
   end
 
