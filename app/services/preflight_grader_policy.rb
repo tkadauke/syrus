@@ -6,8 +6,9 @@
 # database resources, and a single lock timeout or worker death then looked
 # like a source failure. This policy owns the three knobs that prevent that:
 #
-# * wave size       -- how many preflight graders may be released at once; the
-#                      fanout chains each wave behind the previous one.
+# * wave size       -- how many preflight graders may be active at once; the
+#                      fanout runs them in that many lanes, each grader behind
+#                      the previous one in its lane.
 # * retry budget    -- how many times one grader that settled as
 #                      `infrastructure_failed` is re-run on a fresh Step/Run
 #                      (and so a fresh eligible execution context).

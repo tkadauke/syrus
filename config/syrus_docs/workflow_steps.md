@@ -1196,7 +1196,7 @@ Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/prefl
 
 Preflight graders use the same command-span instrumentation as normal graders. Each one runs with its own test database namespace (`TEST_ENV_NUMBER` and `SYRUS_TEST_DB_NAMESPACE` set to `pf<step id>`, which parallel RSpec workers extend to `pf<step id>-<n>`) so concurrent database-using graders never share mutable state; the files of that namespace are removed when the grader ends, pass or fail.
 
-`preflight_grader_fanout` does not release the whole CI plan at once. Graders are released in bounded waves (`PreflightGraderPolicy.wave_size`, default 6, override with `SYRUS_PREFLIGHT_GRADER_WAVE_SIZE`, hard maximum 16); each wave waits for the previous one to settle, whatever its outcome, on top of normal run-host admission.
+`preflight_grader_fanout` does not release the whole CI plan at once. Graders run in a bounded number of lanes (default 6, override with `SYRUS_PREFLIGHT_GRADER_WAVE_SIZE`, hard maximum 16), so at most that many are active at once; each grader waits only for the one before it in its lane to settle, whatever its outcome, on top of normal run-host admission. A slow grader holds back its own lane, not the whole batch.
 
 ### preflight_grader_collect
 
