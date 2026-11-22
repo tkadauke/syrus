@@ -4160,6 +4160,41 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M50. Landing units can deadlock on a cycle the Job graph does not have — proved, latent (NY28)
+
+Coverage item `landing-queue-order` named the order computation as unmodelled.
+`LandingQueueProcessor#ordered_landing_units` contracts each Epic to one
+landing unit (its merge train) and sorts the units topologically, appending
+any cyclic remainder. A unit is blocked while a transitive prerequisite
+outside it is not closed (`transitive_blocker_jobs_for` /
+`dependency_blocker?`).
+
+`JobDependency#no_cycle` rejects cycles in the *Job* graph only. The derived
+Epic edges (`EpicDependencies::DerivedEdgeReconciler`) relate only Epic to
+Epic, so a path through an Epic-less Job is never contracted. Take Epic child
+J1 ← outside Job J2 ← Epic child J3:
+
+- each edge is accepted, and the Job graph is acyclic;
+- the Epic's unit waits for J2, J3's prerequisite;
+- J2 waits for J1, which only lands with the Epic's train.
+
+Neither unit ever becomes landable.
+
+`formal/SyrusModel/LandingUnitCycle.lean` checks four Jobs, up to two Epics
+and every dependency relation (332k cases):
+
+- `contracted_acyclic_progress`: when the Epic-contracted graph is acyclic,
+  some unit is always free to land;
+- `epic_through_outside_job_deadlocks`: the counterexample blocks both units;
+- `job_acyclic_not_enough`: Job-level acyclicity does not imply the
+  contracted condition.
+
+**Production (read-only).** No Epic child has ever depended on an outside Job
+that depends back into the same Epic, so nothing is stuck today. The shape is
+reachable by filing dependencies, so whether to refuse it is NY28.
+
+---
+
 ## M49. Epic-conflict victims in production: every one was relaunched or legitimately held
 
 Coverage item `epic-conflict-victim-not-relaunched`. Every WorkUnit cancelled

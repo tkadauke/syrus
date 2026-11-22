@@ -1540,8 +1540,8 @@
         "stale_pr_check_base"
       ],
       "status": "partial",
-      "done_by": "LockSafety · LandingSlot (F7) · F13 · QueueOrder.lean (F35)",
-      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Order: the ordered pass lands the first eligible unit (QueueOrder.firstEligible_in_order). F35: the inline try_land! door checked only its own Job and could take the slot ahead of an earlier eligible Job; it now defers to the ordered pass (tryLand_after_agrees). Not modelled: how the order itself is computed (epic grouping, dependency topological sort and its cycle fallback), and the merge-train and bundle dispatchers' own selection."
+      "done_by": "LockSafety · LandingSlot (F7) · F13 · QueueOrder.lean (F35) · LandingUnitCycle.lean (M50)",
+      "notes": "Mutual exclusion: the repository landing slot is a WorkUnit lock (unique index; LockSafety proves running holders exclusive, F13 closed the lost-race acquisition), and F7 removed the only in-flight surrender (landings now fail and hold instead of parking). Pre-start surrender (urgent block before the first Run) remains and is safe. Order: the ordered pass lands the first eligible unit (QueueOrder.firstEligible_in_order). F35: the inline try_land! door checked only its own Job and could take the slot ahead of an earlier eligible Job; it now defers to the ordered pass (tryLand_after_agrees). Not modelled: how the order itself is computed (epic grouping, dependency topological sort and its cycle fallback), and the merge-train and bundle dispatchers' own selection. M50: the unit order is a topological sort of the Epic-contracted graph; LandingUnitCycle.lean proves an acyclic contracted graph always leaves a landable unit, and that Job-level acyclicity (all JobDependency#no_cycle checks) does not imply it: Epic child <- outside Job <- Epic child deadlocks both units. Latent (never in production); NY28."
     },
     {
       "id": "externally-blocked-landing-slot",
@@ -3391,6 +3391,18 @@
       ],
       "recommendation": "A. It is the same rule NY7 chose before the first Run and the allowlist's own definition (a paused unit is not about to run); the only cost is that an unpaused landing may wait behind one that went ahead.",
       "decision": null
+    },
+    {
+      "id": "NY28",
+      "item": "landing-queue-order",
+      "title": "Should Syrus refuse a dependency that makes an Epic depend on itself through an outside Job?",
+      "context": "An Epic lands as one unit (its merge train), and a unit waits until every prerequisite outside it has landed. JobDependency only rejects cycles between Jobs, so this is accepted: Epic child A <- outside Job B <- Epic child C (B needs A, C needs B). The Epic's train then waits for B, and B waits for A, which only lands with that train; neither ever lands, with no error, until an operator overrides the dependencies. LandingUnitCycle.lean proves this deadlock and that rejecting cycles in the Epic-contracted graph is exactly what guarantees progress. Production has never had the shape.",
+      "options": [
+        "A. Reject it when the dependency is created: extend JobDependency#no_cycle to treat each Epic as one node, with an error naming the Epic and the outside Job.",
+        "B. Allow it, and land the outside Job inside the Epic's merge train (pull it into the unit).",
+        "C. Leave it: rare, and the operator can override the dependencies."
+      ],
+      "recommendation": "A. It matches the existing rule (cycles are refused up front) on the graph landing actually uses, costs one more graph walk at creation, and the proposing agent gets an actionable error instead of a silent deadlock later. B changes what an Epic train contains, which other proofs (EpicAtomicLanding) rely on."
     }
   ]
 }

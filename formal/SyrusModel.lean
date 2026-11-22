@@ -8,6 +8,7 @@ import SyrusModel.Artifacts
 import SyrusModel.QueueExecution
 import SyrusModel.JobClosure
 import SyrusModel.ClosedIntent
+import SyrusModel.LandingUnitCycle
 import SyrusModel.LandingBase
 import SyrusModel.ValidationGate
 import SyrusModel.RepairReuse
