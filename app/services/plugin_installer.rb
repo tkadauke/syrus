@@ -10,21 +10,40 @@ class PluginInstaller
 
   def stage_archive!(io, signature: nil, source: "upload")
     bytes = io.read
+    signature = signature.read if signature.respond_to?(:read)
     result = Syrus::PluginPackage::Validator.new(StringIO.new(bytes), signature: signature_io(signature),
       trust_store: @trust_store, local: source != "registry").call
     raise Error, result.errors.join("; ") unless result.valid?
 
+    verification = Syrus::PluginPackage::Verifier.new(package: StringIO.new(bytes), signature: signature_io(signature),
+      trust_store: @trust_store, local: source != "registry", name: result.manifest["name"], version: result.manifest["version"]).call
+    raise Error, verification.errors.join("; ") unless verification.valid?
+
     manifest = result.manifest
     release = PluginRelease.find_or_initialize_by(name: manifest.fetch("name"), version: manifest.fetch("version"),
       content_digest: Digest::SHA256.hexdigest(bytes))
-    release.assign_attributes(source:, trust_label: "unsigned_local", size_bytes: bytes.bytesize,
-      uploaded_by: @actor, signature: signature)
+    release.assign_attributes(source:, trust_label: verification.trust_label, size_bytes: bytes.bytesize,
+      uploaded_by: @actor, signature: signature, publisher_key_fingerprint: verification.fingerprint)
     release.save!
     PluginArtifacts.store!(release, StringIO.new(bytes), trust_store: @trust_store) unless release.archive.attached?
     stage!(release.name, PluginInstallation.exists?(plugin_name: release.name) ? "update" : "install", release, manifest.slice(
       "extension_points", "routes", "credential_types", "cli_commands", "roles", "public_host_apis"
     ))
   rescue Syrus::PluginPackage::Validator::Error, PluginArtifacts::TrustVerificationFailed, PluginArtifacts::DigestMismatch => error
+    raise Error, error.message
+  end
+
+  def stage_release!(name, version: nil, digest: nil, source: nil)
+    releases = PluginRelease.where(name:)
+    releases = releases.where(content_digest: digest) if digest.present?
+    releases = releases.where(source:) if source.present?
+    release = version.present? ? releases.find_by(version:) : releases.to_a.max_by { |candidate| Gem::Version.new(candidate.version) }
+    raise ActiveRecord::RecordNotFound, "stored plugin release not found: #{name}#{"@#{version}" if version.present?}" unless release
+    raise Error, "plugin release has been revoked" if @trust_store.revoked?(release)
+
+    manifest = capability_manifest(release)
+    stage!(release.name, PluginInstallation.exists?(plugin_name: release.name) ? "update" : "install", release, manifest)
+  rescue ArgumentError => error
     raise Error, error.message
   end
 
@@ -52,6 +71,10 @@ class PluginInstaller
   end
 
   private
+
+  def capability_manifest(release)
+    PluginChange.where(plugin_release: release).where.not(action: "remove").order(:created_at).last&.capability_manifest || {}
+  end
 
   def stage!(name, action, release, manifest)
     PluginChange.transaction do

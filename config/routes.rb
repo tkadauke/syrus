@@ -502,6 +502,7 @@ Rails.application.routes.draw do
           get "plugin_installer", to: "plugin_installer#index"
           post "plugin_installer/stage", to: "plugin_installer#stage"
           post "plugin_installer/stage_remove", to: "plugin_installer#stage_remove"
+          post "plugin_installer/stage_release", to: "plugin_installer#stage_release"
           post "plugin_installer/changes/:id/confirm", to: "plugin_installer#confirm"
           get "plugin_installer/lockfile", to: "plugin_installer#export_lockfile"
           post "plugin_installer/lockfile", to: "plugin_installer#import_lockfile"

@@ -182,23 +182,6 @@ export async function postJson<T>(path: string, body?: unknown): Promise<T> {
   return writeJson<T>(path, "POST", body)
 }
 
-export async function postForm<T>(path: string, body: FormData): Promise<T> {
-  invalidateInFlightJsonReadsAfterWrite()
-  const headers: Record<string, string> = { Accept: "application/json" }
-  const csrfToken = document.querySelector<HTMLMetaElement>("meta[name='csrf-token']")?.content
-  if (csrfToken) headers["X-CSRF-Token"] = csrfToken
-  try {
-    const response = await fetch(path, { method: "POST", credentials: "same-origin", headers, body })
-    if (!response.ok) {
-      const payload = await readErrorPayload(response)
-      throw new ApiError(payload.error?.message || `Request failed with ${response.status}`, { status: response.status, code: payload.error?.code, payload })
-    }
-    return readJsonResponse<T>(response)
-  } finally {
-    invalidateInFlightJsonReadsAfterWrite()
-  }
-}
-
 export async function patchJson<T>(path: string, body?: unknown): Promise<T> {
   return writeJson<T>(path, "PATCH", body)
 }

@@ -14,13 +14,11 @@ module PluginLockfile
     data = YAML.safe_load(contents, permitted_classes: [], aliases: false)
     raise ArgumentError, "unsupported plugin lockfile" unless data.is_a?(Hash) && data["version"] == 1 && data["plugins"].is_a?(Array)
 
+    installer = PluginInstaller.new(actor:)
     data["plugins"].map do |entry|
       release = PluginRelease.find_by!(name: entry.fetch("name"), version: entry.fetch("version"),
         content_digest: entry.fetch("digest"), source: entry.fetch("source"))
-      PluginChange.pending.where(plugin_name: release.name).update_all(status: "superseded", updated_at: Time.current)
-      PluginChange.create!(plugin_name: release.name,
-        action: PluginInstallation.exists?(plugin_name: release.name) ? "update" : "install",
-        plugin_release: release, capability_manifest: {}, status: "pending", staged_by: actor)
+      installer.stage_release!(release.name, version: release.version, digest: release.content_digest, source: release.source)
     end
   end
 end
