@@ -55,6 +55,25 @@ Payloads are sanitized and size-capped in `BrowserErrorEvent` before storage so
 large stacks or recent-error blobs cannot create a second incident while being
 reported.
 
+Caught frontend failures use `reportHandledError(error, context)` and the same
+browser-error stream. Context names are stable lowercase identifiers: `surface`
+names the product area, `operation` names the user or system action, and `stage`
+names the failed phase. Callers also declare whether the operation is retryable.
+Only centrally allowlisted scalar diagnostics are retained; never pass request
+bodies, URLs, filenames, displayed text, blobs, data URLs, tokens, or arbitrary
+objects. The reporter preserves the scrubbed exception name, message, and stack
+and inherits browser-error fingerprinting, route and runtime context, recent
+safe requests, and burst deduplication.
+
+A catch that turns an unexpected failure into product recovery UI must report
+it. Expected control flow must not: cancellation/`AbortError`, validation
+outcomes, authorization prompts, and user-declined actions are exclusions.
+React Query reports otherwise-unreported terminal query and mutation failures
+centrally. A surface that can identify a more precise stage should call the
+shared reporter with that context; the central hook defers and suppresses its
+fallback event for the same error object. Reporting is best-effort, and errors
+from telemetry submission are swallowed rather than entering the reporter.
+
 The SPA shell also installs a very early startup diagnostic hook before the
 Vite module entrypoint loads. During startup it captures global `error` and
 `unhandledrejection` events, including failed script/stylesheet loads, and

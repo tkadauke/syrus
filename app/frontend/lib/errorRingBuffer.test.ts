@@ -16,7 +16,7 @@ describe("errorRingBuffer", () => {
 
     const errors = getRecentErrors()
     expect(errors).toHaveLength(1)
-    expect(errors[0]).toMatchObject({ message: "Test error", source: "app.js", count: 1 })
+    expect(errors[0]).toMatchObject({ message: "Test error", source: "script", count: 1 })
     expect(errors[0].at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
 
@@ -27,17 +27,20 @@ describe("errorRingBuffer", () => {
 
     const errors = getRecentErrors()
     expect(errors).toHaveLength(1)
-    expect(errors[0]).toMatchObject({ message: "Same error", source: "app.js", count: 3 })
+    expect(errors[0]).toMatchObject({ message: "Same error", source: "script", count: 3 })
   })
 
-  it("does not dedupe errors with the same message but a different source", () => {
-    window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "app.js" }))
-    window.dispatchEvent(new ErrorEvent("error", { message: "Same error", filename: "other.js" }))
+  it("does not retain filenames or sensitive URL values", () => {
+    window.dispatchEvent(
+      new ErrorEvent("error", {
+        message: "Failed https://example.test/file?token=private-token",
+        filename: "/users/thomas/private-document.js"
+      })
+    )
 
-    const errors = getRecentErrors()
-    expect(errors).toHaveLength(2)
-    expect(errors[0].count).toBe(1)
-    expect(errors[1].count).toBe(1)
+    expect(getRecentErrors()[0]).toMatchObject({ message: "Failed https://example.test/file?[FILTERED]", source: "script" })
+    expect(JSON.stringify(getRecentErrors())).not.toContain("private-document")
+    expect(JSON.stringify(getRecentErrors())).not.toContain("private-token")
   })
 
   it("captures unhandledrejection with Error reason", () => {

@@ -1,4 +1,4 @@
-import { buildBrowserErrorPayload, recordBrowserError, type BrowserErrorPayload } from "../api/browserErrors"
+import { buildBrowserErrorPayload, recordBrowserError, scrubBrowserErrorText, type BrowserErrorPayload } from "../api/browserErrors"
 import { computeBrowserErrorFingerprint } from "./browserErrorFingerprint"
 
 const RESOURCE_LIMIT = 8
@@ -99,8 +99,8 @@ export function serializeErrorCause(cause: unknown): BrowserErrorPayload["error_
   if (cause instanceof Error) {
     return {
       name: cause.name.slice(0, 100),
-      message: scrubSensitiveText(cause.message).slice(0, 500),
-      stack: scrubSensitiveText(cause.stack || "").slice(0, 2_000)
+      message: scrubBrowserErrorText(cause.message).slice(0, 500),
+      stack: scrubBrowserErrorText(cause.stack || "").slice(0, 2_000)
     }
   }
   return cause == null ? undefined : { name: "NonError", message: "Non-Error cause unavailable" }
@@ -128,12 +128,4 @@ function safePathname(path: string): string {
 
 function boundedAttribute(value: string | null): string | undefined {
   return value?.slice(0, TEST_ID_MAX_LENGTH) || undefined
-}
-
-function scrubSensitiveText(value: string): string {
-  return value
-    .replace(/(https?:\/\/[^\s?#]+)\?[^\s#]+/gi, "$1?[FILTERED]")
-    .replace(/([?&](?:token|key|secret|password|authorization)=)[^\s&#]+/gi, "$1[FILTERED]")
-    .replace(/(\/chats\/shared\/)[^/?#\s]+/gi, "$1[FILTERED]")
-    .replace(/(\/passwords\/)[^/?#\s]+(\/edit\b)/gi, "$1[FILTERED]$2")
 }
