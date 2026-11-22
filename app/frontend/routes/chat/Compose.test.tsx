@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
-import { updateChatRepository, type ChatPayload, type ChatPendingAction, type ChatPendingActionGroup } from "../../api/chats"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { updateChatRepository, uploadChatAttachment, type ChatPayload, type ChatPendingAction, type ChatPendingActionGroup } from "../../api/chats"
 import { useWalkthroughRecorder } from "../../components/WalkthroughRecorder"
+import { reportHandledError } from "../../lib/handledErrorReporting"
 import { Compose, PendingActionCarousel } from "./Compose"
+import { setDraftAttachments } from "./attachmentDraftStore"
 
 vi.mock("../../components/WalkthroughRecorder", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../components/WalkthroughRecorder")>()
@@ -13,6 +15,18 @@ vi.mock("../../components/WalkthroughRecorder", async (importOriginal) => {
     useWalkthroughRecorder: vi.fn()
   }
 })
+
+vi.mock("../../components/ImageAnnotationModal", () => ({
+  ImageAnnotationModal: ({ onDone, onExportError }: { onDone: (blob: Blob, shapes: []) => void; onExportError: (error: Error, retry: () => void) => void }) => (
+    <div role="dialog">
+      <button onClick={() => onDone(new Blob(["annotated"], { type: "image/png" }), [])}>Finish annotation</button>
+      <button onClick={() => onDone(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: "image/png" }), [])}>Finish oversized annotation</button>
+      <button onClick={() => onExportError(new Error("export failed"), () => onDone(new Blob(["retry"], { type: "image/png" }), []))}>Fail export</button>
+    </div>
+  )
+}))
+
+vi.mock("../../lib/handledErrorReporting", () => ({ reportHandledError: vi.fn(() => true) }))
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -27,6 +41,18 @@ vi.mock("../../api/chats", async (importOriginal) => {
       url: `/api/v1/app/chats/1/attachments/991/file`
     }))
   }
+})
+
+beforeEach(() => {
+  setDraftAttachments("1", [])
+  vi.mocked(reportHandledError).mockClear()
+  vi.mocked(uploadChatAttachment).mockReset().mockImplementation(async (_chatId, file) => ({
+    id: 991,
+    name: file.name,
+    mime_type: file.type || "application/octet-stream",
+    size: file.size,
+    url: "/api/v1/app/chats/1/attachments/991/file"
+  }))
 })
 
 function makePayload(): ChatPayload {
@@ -378,6 +404,91 @@ describe("Compose attachments", () => {
 
     expect(await screen.findByTitle("Dockerfile")).toBeInTheDocument()
     expect(screen.queryByText("Dockerfile is not a supported attachment type.")).not.toBeInTheDocument()
+  })
+
+  it("replaces an annotated image with a Blob without fetching a data URL", async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    renderCompose()
+
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["original"], "screen.png", { type: "image/png" })] }
+    })
+    await screen.findByTitle("screen.png")
+    fireEvent.click(screen.getByRole("button", { name: "Annotate screen.png" }))
+    fireEvent.click(screen.getByRole("button", { name: "Finish annotation" }))
+
+    await waitFor(() => expect(vi.mocked(uploadChatAttachment)).toHaveBeenCalledTimes(2))
+    const replacement = vi.mocked(uploadChatAttachment).mock.calls[1][1]
+    expect(replacement).toBeInstanceOf(File)
+    expect(replacement.type).toBe("image/png")
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringMatching(/^data:/))
+  })
+
+  it("keeps the original sendable after replacement failure and recovers on retry with one report", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
+    vi.mocked(uploadChatAttachment)
+      .mockResolvedValueOnce({ id: 10, name: "screen.png", mime_type: "image/png", size: 8, url: "/original" })
+      .mockRejectedValueOnce(new Error("upload failed"))
+      .mockResolvedValueOnce({ id: 11, name: "screen.png", mime_type: "image/png", size: 9, url: "/replacement" })
+    renderCompose()
+
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["original"], "screen.png", { type: "image/png" })] }
+    })
+    await screen.findByTitle("screen.png")
+    fireEvent.click(screen.getByRole("button", { name: "Annotate screen.png" }))
+    fireEvent.click(screen.getByRole("button", { name: "Finish annotation" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The annotated image could not replace the original attachment.")
+    expect(screen.getByRole("button", { name: "Send message" })).not.toBeDisabled()
+    expect(screen.getByTitle("screen.png")).toBeInTheDocument()
+    expect(reportHandledError).toHaveBeenCalledTimes(1)
+    expect(reportHandledError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({
+      surface: "chat_composer", operation: "replace_attachment", stage: "upload"
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument())
+    expect(vi.mocked(uploadChatAttachment)).toHaveBeenCalledTimes(3)
+    expect(reportHandledError).toHaveBeenCalledTimes(1)
+  })
+
+  it("reports Blob export failure once and retries without invalidating the original", async () => {
+    renderCompose()
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["original"], "screen.png", { type: "image/png" })] }
+    })
+    await screen.findByTitle("screen.png")
+    fireEvent.click(screen.getByRole("button", { name: "Annotate screen.png" }))
+    fireEvent.click(screen.getByRole("button", { name: "Fail export" }))
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Send message" })).not.toBeDisabled()
+    expect(reportHandledError).toHaveBeenCalledTimes(1)
+    expect(reportHandledError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({
+      surface: "chat_composer", operation: "replace_attachment", stage: "blob_export"
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument())
+    expect(vi.mocked(uploadChatAttachment)).toHaveBeenCalledTimes(2)
+    expect(reportHandledError).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps the original sendable when the annotated Blob is oversized", async () => {
+    renderCompose()
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["original"], "screen.png", { type: "image/png" })] }
+    })
+    await screen.findByTitle("screen.png")
+    fireEvent.click(screen.getByRole("button", { name: "Annotate screen.png" }))
+    fireEvent.click(screen.getByRole("button", { name: "Finish oversized annotation" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Each attachment must be 5 MB or smaller.")
+    expect(screen.getByRole("button", { name: "Send message" })).not.toBeDisabled()
+    expect(vi.mocked(uploadChatAttachment)).toHaveBeenCalledTimes(1)
+    expect(reportHandledError).not.toHaveBeenCalled()
   })
 })
 

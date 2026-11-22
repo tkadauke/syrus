@@ -459,7 +459,9 @@ function CheckIcon(props: SVGProps<SVGSVGElement>) {
 
 export interface ImageAnnotationModalProps {
   dataUrl: string; name: string; initialShapes?: Shape[]; originalDataUrl?: string
-  onDone: (annotatedDataUrl: string, shapes: Shape[]) => void; onClose: () => void
+  onDone: (annotatedBlob: Blob, shapes: Shape[]) => void
+  onExportError?: (error: Error, retry: () => void) => void
+  onClose: () => void
 }
 
 export function ImageAnnotationModal(props: ImageAnnotationModalProps) {
@@ -471,7 +473,7 @@ export function ImageAnnotationModal(props: ImageAnnotationModalProps) {
 }
 
 function ImageAnnotationModalContent({
-  dataUrl, name, initialShapes, originalDataUrl, onDone, onClose
+  dataUrl, name, initialShapes, originalDataUrl, onDone, onExportError, onClose
 }: ImageAnnotationModalProps) {
   const { t } = useT("common")
   const imageCanvasRef   = useRef<HTMLCanvasElement | null>(null)
@@ -1099,7 +1101,21 @@ function ImageAnnotationModalContent({
     // Re-render without selection overlay before compositing
     renderCanvas(currentShapes, null, overlayContext, overlayCanvas)
     imageContext.drawImage(overlayCanvas, 0, 0)
-    onDone(imageCanvas.toDataURL("image/png"), currentShapes)
+    const exportBlob = () => {
+      try {
+        imageCanvas.toBlob((blob) => {
+          if (blob) {
+            onDone(blob, currentShapes)
+            return
+          }
+
+          onExportError?.(new Error("Canvas PNG export returned no data"), exportBlob)
+        }, "image/png")
+      } catch (error) {
+        onExportError?.(error instanceof Error ? error : new Error("Canvas PNG export failed"), exportBlob)
+      }
+    }
+    exportBlob()
   }
 
   function changeZoom(delta: number) {

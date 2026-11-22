@@ -26,7 +26,7 @@ describe("ImageAnnotationModal", () => {
       return canvas.__mockContext
     })
 
-    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,YW5ub3RhdGVk")
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => callback(new Blob(["annotated"], { type: "image/png" })))
     vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
       bottom: 80, height: 80, left: 0, right: 100, top: 0, width: 100,
       x: 0, y: 0, toJSON: () => ({})
@@ -78,7 +78,7 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
-    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/), expect.any(Array))
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ type: "image/png" }), expect.any(Array))
     expect(contexts[0].drawImage).toHaveBeenCalled()
   })
 
@@ -89,7 +89,7 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.keyDown(window, { key: "Enter" })
 
-    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/), expect.any(Array))
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ type: "image/png" }), expect.any(Array))
   })
 
   it("does not accept the annotation when Enter is pressed on the focused Cancel button", async () => {
@@ -202,7 +202,7 @@ describe("ImageAnnotationModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
     expect(onDone).toHaveBeenCalledWith(
-      expect.stringMatching(/^data:image\/png;base64,\S+/),
+      expect.objectContaining({ type: "image/png" }),
       expect.arrayContaining([expect.objectContaining({ kind: "text", value: "Done note", x: 30, y: 32 })])
     )
     expect(contexts[0].drawImage).toHaveBeenCalled()
@@ -261,7 +261,7 @@ describe("ImageAnnotationModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
     expect(onDone).toHaveBeenCalledWith(
-      expect.stringMatching(/^data:image\/png;base64,\S+/),
+      expect.objectContaining({ type: "image/png" }),
       expect.arrayContaining([expect.objectContaining({ kind: "text", value: "Large note", size: "large" })])
     )
   })
@@ -292,7 +292,7 @@ describe("ImageAnnotationModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
     expect(onDone).toHaveBeenCalledWith(
-      expect.stringMatching(/^data:image\/png;base64,\S+/),
+      expect.objectContaining({ type: "image/png" }),
       expect.arrayContaining([expect.objectContaining({ id: "s1", kind: "text", size: "small" })])
     )
   })
@@ -893,9 +893,26 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
-    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/), expect.any(Array))
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ type: "image/png" }), expect.any(Array))
     // Image canvas should have the overlay composited onto it
     expect(contexts[0].drawImage).toHaveBeenCalled()
+  })
+
+  it("reports an empty Blob export and provides a local retry", async () => {
+    const onDone = vi.fn()
+    const onExportError = vi.fn()
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob")
+      .mockImplementationOnce((callback) => callback(null))
+      .mockImplementationOnce((callback) => callback(new Blob(["retry"], { type: "image/png" })))
+    renderModal({ onDone, onExportError })
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }))
+
+    expect(onDone).not.toHaveBeenCalled()
+    expect(onExportError).toHaveBeenCalledWith(expect.any(Error), expect.any(Function))
+    onExportError.mock.calls[0][1]()
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ type: "image/png" }), expect.any(Array))
   })
 
   // --- Shape persistence across open/close cycles ---
@@ -1209,7 +1226,7 @@ describe("ImageAnnotationModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
     expect(onDone).toHaveBeenCalledWith(
-      expect.stringMatching(/^data:image\/png;base64,\S+/),
+      expect.objectContaining({ type: "image/png" }),
       expect.arrayContaining([expect.objectContaining({ id: "s1", kind: "rectangle" })])
     )
   })

@@ -115,6 +115,7 @@ import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttach
 import { useT } from "../../hooks/useT"
 import i18n from "../../i18n"
 import { errorMessage } from "../../lib/errorMessage"
+import { reportHandledError } from "../../lib/handledErrorReporting"
 import { syrusShellBridge } from "../../lib/desktopShell"
 import {
   type ChatDraftAttachmentsChangedDetail,
@@ -334,6 +335,13 @@ export function PendingActionCarousel({
 // textarea/enter/proposal helpers. Compose is the entry point ChatColumn renders.
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
+function byteSizeBucket(size: number): string {
+  if (size < 100_000) return "under_100kb"
+  if (size < 1_000_000) return "under_1mb"
+  if (size < 10_000_000) return "under_10mb"
+  return "over_10mb"
+}
+
 export function Compose({
   autoFocus = false,
   canLoadEarlierMessages = false,
@@ -389,6 +397,7 @@ export function Compose({
   const currentDraftRef = useRef<ComposerDraftSnapshot>({ composerText: text, attachments })
   currentDraftRef.current = { composerText: text, attachments }
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null)
+  const [annotationError, setAnnotationError] = useState<{ message: string; retry: () => void } | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingSlashCommandConfirmation | null>(null)
@@ -1780,6 +1789,39 @@ export function Compose({
       return current > index ? current - 1 : current
     })
     setAttachmentError(null)
+    setAnnotationError(null)
+  }
+
+  function replaceAnnotatedAttachment(attachment: ChatComposeAttachment, blob: Blob, shapes: NonNullable<ChatComposeAttachment["shapes"]>) {
+    const retry = () => {
+      setAnnotationError(null)
+      replaceAnnotatedAttachment(attachment, blob, shapes)
+    }
+    const validationError = attachmentValidationMessage(attachments.map((item) =>
+      item.id === attachment.id ? { ...item, mimeType: "image/png", size: blob.size } : item
+    ))
+    if (validationError) {
+      setAnnotationError({ message: validationError, retry })
+      return
+    }
+
+    void uploadChatAttachment(chatId, new File([blob], attachment.name, { type: "image/png" }))
+      .then((uploaded) => {
+        setAttachments((current) => current.map((item) =>
+          item.id === attachment.id
+            ? { id: uploaded.id, name: uploaded.name, mimeType: uploaded.mime_type, size: uploaded.size, url: uploaded.url, shapes }
+            : item
+        ))
+        setAnnotationError(null)
+        setAnnotatingIndex(null)
+      })
+      .catch((error: unknown) => {
+        reportHandledError(error, {
+          surface: "chat_composer", operation: "replace_attachment", stage: "upload", recoverability: "retryable",
+          diagnostics: { mime_category: "image", byte_size_bucket: byteSizeBucket(blob.size) }
+        })
+        setAnnotationError({ message: t("annotation_replace_error"), retry })
+      })
   }
 
   function openAttachmentFilePicker() {
@@ -2331,6 +2373,16 @@ export function Compose({
             <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, t("command_failed"))}</div>
           ) : null}
           {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
+          {annotationError ? (
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100" role="alert">
+              <span>{annotationError.message}</span>
+              <span className="flex gap-2">
+                <Button onClick={annotationError.retry} variant="secondary">{t("annotation_retry")}</Button>
+                <Button onClick={() => setAnnotationError(null)} variant="secondary">{t("annotation_dismiss")}</Button>
+                <Button onClick={() => { setAnnotationError(null); setAnnotatingIndex(null) }} variant="secondary">{t("cancel")}</Button>
+              </span>
+            </div>
+          ) : null}
           {dictation.message ? (
             <div className={`mb-2 text-sm ${dictation.messageTone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>
               {dictation.message}
@@ -2411,7 +2463,7 @@ export function Compose({
                       <button
                         aria-label={t("aria_annotate_attachment", { name: attachment.name })}
                         className="group relative rounded focus:outline-none focus:ring-2 focus:ring-brand"
-                        onClick={() => setAnnotatingIndex(index)}
+                        onClick={() => { setAnnotationError(null); setAnnotatingIndex(index) }}
                         type="button"
                       >
                         <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.url} />
@@ -2428,23 +2480,15 @@ export function Compose({
                           initialShapes={attachment.shapes}
                           name={attachment.name}
                           originalDataUrl={attachment.url}
-                          onClose={() => setAnnotatingIndex(null)}
-                          onDone={(annotatedDataUrl, shapes) => {
-                            void fetch(annotatedDataUrl)
-                              .then((response) => response.blob())
-                              .then((blob) => uploadChatAttachment(chatId, new File([blob], attachment.name, { type: "image/png" })))
-                              .then((uploaded) => {
-                                setAttachments((current) =>
-                                  current.map((item, attachmentIndex) =>
-                                    attachmentIndex === index
-                                      ? { id: uploaded.id, name: uploaded.name, mimeType: uploaded.mime_type, size: uploaded.size, url: uploaded.url, shapes }
-                                      : item
-                                  )
-                                )
-                                setAnnotatingIndex(null)
-                              })
-                              .catch(() => setAttachmentError(t("attachment_read_error")))
+                          onClose={() => { setAnnotationError(null); setAnnotatingIndex(null) }}
+                          onExportError={(error, retryExport) => {
+                            reportHandledError(error, {
+                              surface: "chat_composer", operation: "replace_attachment", stage: "blob_export", recoverability: "retryable",
+                              diagnostics: { mime_category: "image" }
+                            })
+                            setAnnotationError({ message: t("annotation_replace_error"), retry: () => { setAnnotationError(null); retryExport() } })
                           }}
+                          onDone={(blob, shapes) => replaceAnnotatedAttachment(attachment, blob, shapes)}
                         />
                       ) : null}
                     </>
