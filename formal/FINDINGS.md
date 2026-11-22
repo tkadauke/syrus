@@ -4426,6 +4426,34 @@ lanes) change which graders share a host. Runs do not record their worker
 host, so the theory needs the grader logs' host lines, or a test database
 name per process, to confirm or refute.
 
+**Update: deterministic in CI, not reproducible locally.**
+
+- *In CI:* the merge train for Job 9783 failed all four `rspec-ci` shards on
+  each of six fix-loop iterations, with the same examples every time. These
+  were the beta-mode ones ("Enabled requires beta mode", a 422 enabling a
+  plugin, the beta baseline helper reading the opposite value) plus the F93
+  example. So it is not flaky.
+- *Locally:* every `ci_only` example in the suite, run in one process (5,304
+  examples), gives **0 failures**.
+
+So neither in-process order nor running everything together reproduces it,
+and the difference is in the grader's environment. The multi-process theory
+above is weaker now: each shard's CI-only phase is a single process.
+
+**New hypothesis, unverified (no access to grader workers):** stale rows in a
+reused test database.
+
+- Graders reuse a worker-local prepared dependency layer.
+- `bin/rspec-ci` runs `bin/rails db:test:prepare`, which rebuilds the main
+  test database. The parallel workers' databases are prepared separately.
+- If those SQLite files survive inside a reused layer or checkout, a leftover
+  `AppSetting` beta-mode row would contradict the suite baseline in every run
+  on that worker. That would make it deterministic per worker and absent
+  locally.
+
+**To confirm:** list `db/*.sqlite3` in a grader's immutable checkout before
+the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
+
 ---
 
 ## M61. Main through `7a6949c328` — main green again, the F88 spec settled on main
