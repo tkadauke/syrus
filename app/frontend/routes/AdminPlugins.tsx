@@ -140,14 +140,21 @@ function PluginInstallerPanel() {
         {!catalog.data?.configured && !catalog.isPending ? <p className="mt-2 text-sm text-text-secondary">{t("plugins.registry.unconfigured")}</p> : null}
         {catalog.data?.configured ? (
           <>
-            <Input aria-label={t("plugins.registry.search")} className="mt-2" onChange={(event) => setCatalogTerm(event.target.value)}
-              placeholder={t("plugins.registry.search")} type="search" value={catalogTerm} />
+            <Input
+              aria-label={t("plugins.registry.search")}
+              className="mt-2"
+              onChange={(event) => setCatalogTerm(event.target.value)}
+              placeholder={t("plugins.registry.search")}
+              type="search"
+              value={catalogTerm}
+            />
             {catalog.data.error ? <p className="mt-2 text-sm text-danger">{catalog.data.error}</p> : null}
             <div className="mt-3 space-y-2">
               {catalog.data.entries.map((entry) => (
                 <div className="rounded border border-border p-3" key={entry.name + "-" + entry.version}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <strong>{entry.name}</strong><span>{entry.version}</span>
+                    <strong>{entry.name}</strong>
+                    <span>{entry.version}</span>
                     <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{entry.trust_label}</span>
                   </div>
                   <p className="mt-1 text-sm text-text-secondary">{entry.description}</p>
