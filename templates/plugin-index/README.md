@@ -3,7 +3,9 @@
 This repository is a reviewable registry of signed Syrus plugin releases. A
 publisher submits one JSON file at `publisher_plugin/version.json` and adds its
 path to `index.json`. CI runs `syrus plugin index-check` against every changed
-release before review.
+release before review, rejects unlisted submissions, and verifies every listed
+release file exists. `syrus plugin publish --submit` creates or reuses the
+author's GitHub fork and updates both files in one pull request.
 
 ## Submission and review rules
 

@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,18 +30,41 @@ func (publisher *fakePublisher) Submit(_ context.Context, _ string, path string,
 	return "https://github.example.test/pull/1", nil
 }
 
-func TestGitHubPublisherSubmitsAgainstRepositoryDefaultBranch(t *testing.T) {
-	var pullRequestBase string
+func TestGitHubPublisherSubmitsFromForkAgainstRepositoryDefaultBranch(t *testing.T) {
+	var pullRequestBase, pullRequestHead string
+	written := map[string]map[string]string{}
+	forkCreated := false
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.Path == "/repos/syrus/index":
-			json.NewEncoder(response).Encode(map[string]string{"default_branch": "stable"})
+			json.NewEncoder(response).Encode(map[string]any{"default_branch": "stable", "name": "index", "owner": map[string]string{"login": "syrus"}, "permissions": map[string]bool{"push": false}})
 		case request.Method == http.MethodGet && request.URL.Path == "/repos/syrus/index/git/ref/heads/stable":
 			json.NewEncoder(response).Encode(map[string]any{"object": map[string]string{"sha": "abc123"}})
+		case request.Method == http.MethodGet && request.URL.Path == "/repos/syrus/index/contents/index.json":
+			index := `{"format_version":1,"trust_store":"trust-store.json","releases":[]}`
+			json.NewEncoder(response).Encode(map[string]string{"sha": "index-sha", "content": base64.StdEncoding.EncodeToString([]byte(index))})
+		case request.Method == http.MethodGet && request.URL.Path == "/user":
+			json.NewEncoder(response).Encode(map[string]string{"login": "publisher"})
+		case request.Method == http.MethodGet && request.URL.Path == "/repos/publisher/index":
+			response.WriteHeader(http.StatusNotFound)
+			response.Write([]byte(`{"message":"Not Found"}`))
+		case request.Method == http.MethodPost && request.URL.Path == "/repos/syrus/index/forks":
+			forkCreated = true
+			response.WriteHeader(http.StatusAccepted)
+			response.Write([]byte(`{"full_name":"publisher/index"}`))
+		case request.Method == http.MethodGet && request.URL.Path == "/repos/publisher/index/git/ref/heads/stable":
+			json.NewEncoder(response).Encode(map[string]any{"object": map[string]string{"sha": "abc123"}})
+		case request.Method == http.MethodPut && strings.HasPrefix(request.URL.Path, "/repos/publisher/index/contents/"):
+			var payload map[string]string
+			json.NewDecoder(request.Body).Decode(&payload)
+			written[strings.TrimPrefix(request.URL.Path, "/repos/publisher/index/contents/")] = payload
+			response.WriteHeader(http.StatusCreated)
+			response.Write([]byte(`{}`))
 		case request.Method == http.MethodPost && request.URL.Path == "/repos/syrus/index/pulls":
 			var payload map[string]string
 			json.NewDecoder(request.Body).Decode(&payload)
 			pullRequestBase = payload["base"]
+			pullRequestHead = payload["head"]
 			json.NewEncoder(response).Encode(map[string]string{"html_url": "https://example.test/pull/1"})
 		default:
 			response.WriteHeader(http.StatusCreated)
@@ -55,8 +79,17 @@ func TestGitHubPublisherSubmitsAgainstRepositoryDefaultBranch(t *testing.T) {
 	if _, err := publisher.Submit(context.Background(), "syrus/index", "acme_weather/1.2.3.json", []byte("entry")); err != nil {
 		t.Fatal(err)
 	}
-	if pullRequestBase != "stable" {
-		t.Fatalf("pull request base=%q, want stable", pullRequestBase)
+	if pullRequestBase != "stable" || pullRequestHead != "publisher:plugin-submission-acme_weather-1-2-3" || !forkCreated {
+		t.Fatalf("pull request base=%q head=%q fork=%v", pullRequestBase, pullRequestHead, forkCreated)
+	}
+	entryWrite, entryOK := written["acme_weather/1.2.3.json"]
+	indexWrite, indexOK := written["index.json"]
+	if !entryOK || !indexOK || indexWrite["sha"] != "index-sha" || entryWrite["branch"] != indexWrite["branch"] {
+		t.Fatalf("submission writes: %#v", written)
+	}
+	decodedIndex, _ := base64.StdEncoding.DecodeString(indexWrite["content"])
+	if !strings.Contains(string(decodedIndex), `"acme_weather/1.2.3.json"`) {
+		t.Fatalf("updated index: %s", decodedIndex)
 	}
 }
 
