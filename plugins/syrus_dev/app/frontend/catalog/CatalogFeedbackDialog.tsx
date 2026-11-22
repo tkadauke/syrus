@@ -146,9 +146,14 @@ export function CatalogFeedbackDialog<Metadata extends CatalogFeedbackMetadata>(
     setAnnotating(false)
   }
 
-  function applyAnnotation(annotatedDataUrl: string, shapes: Shape[]) {
-    setScreenshot((current) => (current ? { ...current, dataUrl: annotatedDataUrl, shapes } : current))
-    setAnnotating(false)
+  function applyAnnotation(annotatedBlob: Blob, shapes: Shape[]) {
+    const reader = new FileReader()
+    reader.addEventListener("load", () => {
+      if (typeof reader.result !== "string") return
+      setScreenshot((current) => (current ? { ...current, dataUrl: reader.result as string, shapes } : current))
+      setAnnotating(false)
+    })
+    reader.readAsDataURL(annotatedBlob)
   }
 
   function submitChat() {

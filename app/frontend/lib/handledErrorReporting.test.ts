@@ -71,6 +71,19 @@ describe("handled error reporting", () => {
     })
   })
 
+  it("allows only bounded image replacement diagnostics", () => {
+    expect(sanitizeHandledErrorContext({
+      surface: "chat_composer",
+      operation: "replace_attachment",
+      stage: "upload",
+      recoverability: "retryable",
+      diagnostics: {
+        mime_category: "image", width: 1280, height: 720, byte_size_bucket: "under_1mb",
+        filename: "private.png", annotation_text: "secret", data_url: "data:image/png;base64,secret"
+      }
+    }).diagnostics).toEqual({ mime_category: "image", width: 1280, height: 720, byte_size_bucket: "under_1mb" })
+  })
+
   it("excludes cancellation and deliberate control-flow outcomes", () => {
     expect(isReportableHandledError(new DOMException("aborted", "AbortError"))).toBe(false)
     expect(isReportableHandledError(new ApiError("validation", { status: 422 }))).toBe(false)

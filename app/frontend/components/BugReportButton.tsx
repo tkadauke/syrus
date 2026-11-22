@@ -333,15 +333,15 @@ export const BugReportButton = forwardRef<
     setConfirmDiscardOpen(false)
   }
 
-  function applyAnnotation(choice: CapturedScreenshotChoice, annotatedDataUrl: string, shapes: Shape[]) {
+  function applyAnnotation(choice: CapturedScreenshotChoice, annotatedBlob: Blob, shapes: Shape[]) {
     setCaptures((current) => {
       const existing = current[choice]
       if (!existing) return current
       if (existing.previewUrl !== existing.originalPreviewUrl && typeof URL.revokeObjectURL === "function") {
         URL.revokeObjectURL(existing.previewUrl)
       }
-      const file = dataUrlToFile(annotatedDataUrl, existing.file.name)
-      const previewUrl = typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : annotatedDataUrl
+      const file = new File([annotatedBlob], existing.file.name, { type: "image/png" })
+      const previewUrl = typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : existing.previewUrl
       return { ...current, [choice]: { ...existing, file, previewUrl, shapes } }
     })
     setAnnotatingChoice(null)
@@ -565,7 +565,7 @@ export const BugReportButton = forwardRef<
                   name={captures[annotatingChoice].file.name}
                   originalDataUrl={captures[annotatingChoice].originalPreviewUrl}
                   onClose={() => setAnnotatingChoice(null)}
-                  onDone={(annotatedDataUrl, shapes) => applyAnnotation(annotatingChoice, annotatedDataUrl, shapes)}
+                  onDone={(annotatedBlob, shapes) => applyAnnotation(annotatingChoice, annotatedBlob, shapes)}
                 />
               ) : null}
 
@@ -914,15 +914,6 @@ function revokeCaptures(captures: ScreenshotCaptures) {
     URL.revokeObjectURL(capture.previewUrl)
     if (capture.originalPreviewUrl !== capture.previewUrl) URL.revokeObjectURL(capture.originalPreviewUrl)
   })
-}
-
-function dataUrlToFile(dataUrl: string, filename: string): File {
-  const [header, base64 = ""] = dataUrl.split(",")
-  const mimeType = /data:(.*?);base64/.exec(header)?.[1] || "image/png"
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new File([bytes], filename, { type: mimeType })
 }
 
 async function buildSelectedOptionalAttachments(attachments: BugReportOptionalAttachment[], selectedIds: Set<string>) {
