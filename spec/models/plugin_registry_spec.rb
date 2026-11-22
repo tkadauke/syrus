@@ -22,6 +22,7 @@ RSpec.describe PluginRegistry do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("SYRUS_PLUGIN_REGISTRY_URL").and_return("https://legacy.example.test")
     source = described_class.sources.find(&:read_only?)
-    expect(source).to have_attributes(url: "https://legacy.example.test", enabled?: true)
+    expect(source).to have_attributes(url: "https://legacy.example.test", enabled?: true, environment_managed?: true)
+    expect(source).to be_persisted
   end
 end

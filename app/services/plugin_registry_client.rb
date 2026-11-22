@@ -15,7 +15,7 @@ class PluginRegistryClient
 
   def initialize(source: nil, url: nil, cache_root: nil,
     syrus_version: SyrusVersion.release, git: GitRunner.new)
-    @source = source || PluginRegistry::EnvironmentSource.new(url || ENV["SYRUS_PLUGIN_REGISTRY_URL"].to_s)
+    @source = source || PluginRegistry::TransientSource.new(url || ENV["SYRUS_PLUGIN_REGISTRY_URL"].to_s)
     @url = @source.url.to_s.strip
     @cache_root = Pathname.new(cache_root || WorkflowWorkspace.data_root.join("plugin-registries", @source.cache_key))
     @syrus_version = syrus_version
