@@ -121,6 +121,15 @@ RSpec.describe "Syrus grader configuration" do
     expect(config.grade.steps.map(&:name)).not_to include("e2e")
   end
 
+  # Regression: undeclared, the browser suite was charged one generic memory
+  # unit while it used several gigabytes, and concurrent graders OOM-killed
+  # worker pods. A declared working set is what admission reserves.
+  it "declares the e2e shards' working set so admission reserves it" do
+    shards = RepoGradePlan.for(Rails.root).graders.select { |grader| grader.name.start_with?("e2e-") }
+
+    expect(shards.map { |grader| grader.resources.memory_bytes }).to eq([ 4.gigabytes ] * 3)
+  end
+
   it "gives every CI-mode RSpec shard enough time to finish its serial examples" do
     shards = RepoGradePlan.for(Rails.root).graders.select { |entry| entry.name.start_with?("rspec-ci-") }
 
