@@ -1,12 +1,9 @@
 name: grader fanout workspace loss reconstructs
-features:
-  distributed_workflow_dag: true
 reconciler:
   ignored_issue_kinds: []
 repository:
   owner: simulation
   name: grader-fanout-workspace-loss-reconstructs
-  distributed_workflow_dag_enabled: true
 jobs:
   job:
     title: Grader fanout workspace loss reconstructs

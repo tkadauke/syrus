@@ -1,12 +1,9 @@
-import { readFileSync } from "node:fs"
-import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import SCRIPT from "../../assets/javascripts/startup_diagnostics.js?raw"
 
 // The inline startup script (app/assets/javascripts/startup_diagnostics.js)
 // runs before the SPA bundle exists, so it is exercised here as the browser
 // loads it: evaluated into the page, then driven with real DOM events.
-const SCRIPT = readFileSync(path.join(__dirname, "../../assets/javascripts/startup_diagnostics.js"), "utf8")
-
 type StartupWindow = Window & { __syrusStartupReload?: () => void; __syrusReactFirstRender?: boolean; SyrusStartupDiagnostics?: { mark: (name: string) => void } }
 
 function loadScript() {
@@ -22,13 +19,13 @@ function failEntryScript() {
 
 describe("startup diagnostics script", () => {
   const win = window as StartupWindow
-  let reload: ReturnType<typeof vi.fn>
+  let reload: () => void
 
   beforeEach(() => {
     vi.useFakeTimers()
     vi.spyOn(window, "fetch").mockResolvedValue(new Response(null, { status: 204 }))
     window.sessionStorage.clear()
-    reload = vi.fn()
+    reload = vi.fn<() => void>()
     win.__syrusStartupReload = reload
     delete win.__syrusReactFirstRender
   })
