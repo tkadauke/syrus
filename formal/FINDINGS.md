@@ -3555,6 +3555,54 @@ boundary, which the state models abstract away. The spec is the evidence.
 
 ---
 
+## F97. A terminal WorkUnit and its intent committed separately — fixed
+
+**Found by** coverage item `unit-intent-outcome-agreement`. Its note said that
+making the intent sync part of the terminal transition would make the
+disagreement states unreachable instead of repaired.
+
+**Cause.**
+
+- `WorkUnit#mark_terminal!` and `#preempt!` committed the unit's terminal
+  state and lock release in a transaction, and only then called
+  `WorkIntents::TerminalUnitSync`.
+- When the call came from inside a Workflow transition, an outer transaction
+  covered both and the result was atomic. A standalone call was not: an
+  exception in the sync (a lock-wait timeout on the intent row, say) or a crash
+  between the two left a finished unit with an open intent. Those are
+  `succeeded_work_unit_unsatisfied_intent`,
+  `failed_work_unit_unfailed_intent` and
+  `superseded_work_unit_uncancelled_intent`.
+- The Lean ownership model (`WorkUnits.lean`: `markTerminal`, `preempt`)
+  already treats the sync as part of the same step, so its proofs assumed an
+  atomicity the code did not provide on failure.
+
+**Fix.** The sync runs inside both transactions. This adds no new lock order:
+the sync only updates the unit's own intent, which the common path already
+did inside the outer Workflow transaction. The only intent row lock
+(`Launcher#instantiate`) precedes units of *other* intents.
+
+**Evidence (production, read-only).** In 14 days there were 72
+`superseded_work_unit_uncancelled_intent` repairs and none of the other two.
+All 72 ran on 11-21, for units that finished 1–85 days earlier with
+`job_closed` / `terminal_parent_work_unit`. That is F42's backstop draining
+its backlog, not a live producer.
+
+**Specs.** `work_unit_spec.rb` "does not commit mark_terminal! / preempt! when
+the intent sync fails". Both were red before the fix: the unit committed as
+terminal. Also run and green: the models, work intents, work units, work
+engine (CI-only included), workflows, step dispatcher, jobs, landing and Epic
+specs (3,878 examples).
+
+**Still reachable (noted, not changed).** The sync skips while a sibling unit
+of the same intent is active. If unit A succeeds while sibling B runs, and B
+is then cancelled for a non-superseding reason, the intent stays open beside
+a succeeded unit. It did not occur in 14 days. Which outcome the intent
+should take then (A's success, or nothing because B was a newer attempt) is a
+question about attempt semantics, so the classifier remains the backstop.
+
+---
+
 ## M1. Required reviews vs. the HEAD that is pushed — modelled, by design (NY1: C)
 
 **Decision (2026-11-20).** Agent-authored commits after approval are intended.

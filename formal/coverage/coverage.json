@@ -220,8 +220,8 @@
         "superseded_unit_uncancelled_intent"
       ],
       "status": "partial",
-      "done_by": "model round 1 (Reconciler.lean, Proofs.lean) · F41",
-      "notes": "Repairs satisfyFromSucceeded / failFromFailed / cancelFromSuperseded are proved to preserve Inv; making the intent sync part of the terminal transition would make the states unreachable."
+      "done_by": "model round 1 (Reconciler.lean, Proofs.lean) · F41 · F97",
+      "notes": "Repairs satisfyFromSucceeded / failFromFailed / cancelFromSuperseded are proved to preserve Inv; making the intent sync part of the terminal transition would make the states unreachable. F97: the sync now runs inside mark_terminal!/preempt!'s transaction, so a failing sync or a crash can no longer split them (the model already assumed this). Still reachable: a unit finishing while a sibling is active is skipped, and if that sibling then ends with a non-superseding cancel the intent stays open (0 occurrences in 14 days)."
     },
     {
       "id": "mixed-unit-outcomes",
