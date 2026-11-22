@@ -26,10 +26,10 @@ class PluginInstaller
 
     manifest = result.manifest
     release = PluginRelease.find_or_initialize_by(name: manifest.fetch("name"), version: manifest.fetch("version"),
-      content_digest: Digest::SHA256.hexdigest(bytes))
+      content_digest: Digest::SHA256.hexdigest(bytes), plugin_registry:)
     release.assign_attributes(source:, trust_label: verification.trust_label, size_bytes: bytes.bytesize,
       uploaded_by: @actor, signature: signature, publisher_key_fingerprint: verification.fingerprint,
-      plugin_registry: plugin_registry.is_a?(PluginRegistry) ? plugin_registry : nil)
+      plugin_registry:)
     release.save!
     PluginArtifacts.store!(release, StringIO.new(bytes), trust_store:) unless release.archive.attached?
     stage!(release.name, PluginInstallation.exists?(plugin_name: release.name) ? "update" : "install", release, manifest.slice(
@@ -43,7 +43,7 @@ class PluginInstaller
     releases = PluginRelease.where(name:)
     releases = releases.where(content_digest: digest) if digest.present?
     releases = releases.where(source:) if source.present?
-    release = version.present? ? releases.find_by(version:) : releases.to_a.max_by { |candidate| Gem::Version.new(candidate.version) }
+    release = stored_release(releases, version:, registry:)
     unless release
       arguments = { name:, version: }
       arguments[:registry] = registry if registry.present?
@@ -88,6 +88,26 @@ class PluginInstaller
   end
 
   private
+
+  def stored_release(releases, version:, registry:)
+    candidates = releases.includes(:plugin_registry).to_a
+    candidates.select! { |candidate| candidate.version == version } if version.present?
+    if registry.present?
+      candidates.select! do |candidate|
+        candidate.plugin_registry && [ candidate.plugin_registry.name, candidate.plugin_registry_id.to_s ].include?(registry.to_s)
+      end
+      return candidates.first
+    end
+    return if candidates.empty?
+
+    selected_version = candidates.map { |candidate| Gem::Version.new(candidate.version) }.max.to_s
+    candidates.select! { |candidate| candidate.version == selected_version }
+    local = candidates.reject { |candidate| candidate.source == "registry" }
+    return local.first if local.any?
+
+    candidates.find { |candidate| candidate.plugin_registry&.canonical? } ||
+      (candidates.one? ? candidates.first : raise(Error, "plugin release is ambiguous; choose a registry explicitly"))
+  end
 
   def trust_store_for(release)
     return @trust_store unless release.plugin_registry

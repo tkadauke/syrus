@@ -20,21 +20,29 @@ module Api
           end
 
           def create_registry
-            registry = PluginRegistry.create!(name: params.require(:name), url: params.require(:url), enabled: true,
-              created_by: Current.user)
+            registry = PluginRegistry.find_by(url: params.require(:url))
+            if registry&.removed_at?
+              registry.update!(name: params.require(:name), enabled: true, environment_managed: false,
+                removed_at: nil, created_by: Current.user)
+            else
+              registry = PluginRegistry.create!(name: params.require(:name), url: params.require(:url), enabled: true,
+                created_by: Current.user)
+            end
             render json: serialize_registry(registry), status: :created
           end
 
           def update_registry
-            registry = PluginRegistry.find(params[:id])
+            registry = PluginRegistry.active.find(params[:id])
+            raise PluginInstaller::Error, "environment-provided registries are read-only" if registry.read_only?
             registry.update!(enabled: ActiveModel::Type::Boolean.new.cast(params.require(:enabled)))
             render json: serialize_registry(registry)
           end
 
           def destroy_registry
-            registry = PluginRegistry.find(params[:id])
+            registry = PluginRegistry.active.find(params[:id])
             raise PluginInstaller::Error, "the canonical registry can be disabled but not removed" if registry.canonical?
-            registry.destroy!
+            raise PluginInstaller::Error, "environment-provided registries are read-only" if registry.read_only?
+            registry.update!(enabled: false, removed_at: Time.current)
             head :no_content
           end
 

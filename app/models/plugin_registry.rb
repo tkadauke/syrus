@@ -14,10 +14,11 @@ class PluginRegistry < ApplicationRecord
   validate :supported_safe_url
   validate :configured_registry_limit, on: :create
 
-  scope :enabled, -> { where(enabled: true) }
+  scope :active, -> { where(removed_at: nil) }
+  scope :enabled, -> { active.where(enabled: true) }
 
   def canonical? = url == CANONICAL_URL
-  def read_only? = false
+  def read_only? = environment_managed?
   def cache_key = "registry-#{id}"
 
   def self.ensure_canonical!
@@ -26,27 +27,44 @@ class PluginRegistry < ApplicationRecord
 
   def self.sources
     ensure_canonical!
-    configured = order(:id).to_a
+    configured = active.where(environment_managed: false).order(:id).to_a
     env_url = ENV["SYRUS_PLUGIN_REGISTRY_URL"].to_s.strip
     return configured if env_url.blank? || configured.any? { |source| source.url == env_url }
-    configured + [ EnvironmentSource.new(env_url) ]
+    configured + [ ensure_environment!(env_url) ]
   end
 
-  class EnvironmentSource
+  def self.ensure_environment!(url)
+    registry = find_or_initialize_by(url:)
+    if registry.new_record? || registry.removed_at?
+      registry.assign_attributes(name: environment_name(url), enabled: true, environment_managed: true, removed_at: nil)
+    end
+    registry.save! if registry.changed?
+    registry
+  end
+
+  def self.environment_name(url)
+    host = URI.parse(url.delete_prefix("git+")).host.to_s.parameterize
+    "environment-#{host}-#{Digest::SHA256.hexdigest(url)[0, 8]}"
+  end
+
+  class TransientSource
     attr_reader :url
-    def initialize(url) = @url = url
+
+    def initialize(url) = @url = url.to_s
     def id = nil
-    def name = "environment-#{URI.parse(url).host.to_s.parameterize}"
+    def name = "transient-#{Digest::SHA256.hexdigest(url)[0, 8]}"
     def enabled? = true
     def canonical? = url == CANONICAL_URL
     def read_only? = true
-    def cache_key = "environment-#{Digest::SHA256.hexdigest(url)[0, 16]}"
+    def cache_key = "transient-#{Digest::SHA256.hexdigest(url)[0, 16]}"
   end
 
   private
 
   def configured_registry_limit
-    errors.add(:base, "at most #{MAX_CONFIGURED} plugin registries may be configured") if self.class.count >= MAX_CONFIGURED
+    return if canonical? || environment_managed?
+    configured = self.class.active.where(environment_managed: false).where.not(url: CANONICAL_URL)
+    errors.add(:base, "at most #{MAX_CONFIGURED} plugin registries may be configured") if configured.count >= MAX_CONFIGURED
   end
 
   def supported_safe_url

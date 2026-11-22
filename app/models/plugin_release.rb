@@ -13,7 +13,7 @@ class PluginRelease < ApplicationRecord
   validates :trust_label, inclusion: { in: TRUST_LABELS }
   validates :publisher_key_fingerprint, format: { with: DIGEST_PATTERN }, allow_nil: true
   validates :source, inclusion: { in: SOURCES }
-  validates :content_digest, format: { with: DIGEST_PATTERN }, uniqueness: { scope: %i[name version] }
+  validates :content_digest, format: { with: DIGEST_PATTERN }, uniqueness: { scope: %i[name version plugin_registry_id] }
   validates :size_bytes, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :bundled_release_has_no_archive
   validate :artifact_identity_is_immutable, on: :update
