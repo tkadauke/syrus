@@ -201,7 +201,7 @@ func (client pluginRegistryClient) loadGit(ctx context.Context, source string) (
 			_ = os.WriteFile(stamp, nil, 0600)
 		}
 	}
-	payload, err := os.ReadFile(filepath.Join(directory, "index.json"))
+	payload, err := readRegistryFile(directory, "index.json")
 	if err != nil {
 		return nil, err
 	}
@@ -210,11 +210,7 @@ func (client pluginRegistryClient) loadGit(ctx context.Context, source string) (
 		return nil, fmt.Errorf("malformed plugin registry: %w", err)
 	}
 	read := func(path string, target any) error {
-		relative, err := safeRegistryPath(path)
-		if err != nil {
-			return err
-		}
-		payload, err := os.ReadFile(filepath.Join(directory, filepath.FromSlash(relative)))
+		payload, err := readRegistryFile(directory, path)
 		if err != nil {
 			return err
 		}
@@ -326,6 +322,30 @@ func safeRegistryPath(path string) (string, error) {
 		return "", errors.New("invalid registry path")
 	}
 	return clean, nil
+}
+
+func readRegistryFile(root, path string) ([]byte, error) {
+	relative, err := safeRegistryPath(path)
+	if err != nil {
+		return nil, err
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil, fmt.Errorf("invalid registry root: %w", err)
+	}
+	resolvedPath, err := filepath.EvalSymlinks(filepath.Join(root, filepath.FromSlash(relative)))
+	if err != nil {
+		return nil, fmt.Errorf("invalid registry file %q: %w", relative, err)
+	}
+	contained, err := filepath.Rel(resolvedRoot, resolvedPath)
+	if err != nil || contained == ".." || strings.HasPrefix(contained, ".."+string(filepath.Separator)) {
+		return nil, fmt.Errorf("registry file %q escapes the index root", relative)
+	}
+	info, err := os.Stat(resolvedPath)
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("registry file %q is not a regular file", relative)
+	}
+	return os.ReadFile(resolvedPath)
 }
 
 func decodeRegistryJSON(reader io.Reader, target any) error {

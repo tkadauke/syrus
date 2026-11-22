@@ -274,6 +274,44 @@ func TestPluginRegistryClientReadsFreshGitCacheWithoutPulling(t *testing.T) {
 	}
 }
 
+func TestPluginRegistryClientRejectsGitSymlinkEscapingCache(t *testing.T) {
+	directory := t.TempDir()
+	pluginRegistryCacheDir = func() (string, error) { return directory, nil }
+	t.Cleanup(func() { pluginRegistryCacheDir = os.UserCacheDir })
+	client := pluginRegistryClient{URL: "git+https://registry.example.test/plugins.git", SyrusVersion: "2.0.0"}
+	root, err := registryCachePath(client.URL, "git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "acme_weather"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"index.json":       `{"format_version":1,"trust_store":"trust-store.json","releases":["acme_weather/1.2.3.json"]}`,
+		"trust-store.json": `{"publishers":[{"fingerprint":"abc","label":"verified"}]}`,
+	}
+	for path, body := range files {
+		if err := os.WriteFile(filepath.Join(root, path), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	outside := filepath.Join(directory, "outside.json")
+	if err := os.WriteFile(outside, []byte(registryReleaseJSON("acme_weather", "1.2.3", ">= 1.0", "abc", "Weather tools")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "acme_weather", "1.2.3.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".syrus-refreshed-at"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.search(t.Context(), "")
+	if err == nil || !strings.Contains(err.Error(), "escapes the index root") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestPluginSearchExplainsUnconfiguredRegistry(t *testing.T) {
 	t.Setenv("SYRUS_PLUGIN_REGISTRY_URL", "")
 	command := NewRootCommand()

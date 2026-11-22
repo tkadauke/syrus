@@ -130,11 +130,11 @@ class PluginRegistryClient
   end
 
   def parse_entries(root = index_root)
-    manifest = JSON.parse(root.join("index.json").read)
+    manifest = JSON.parse(read_registry_file(root, "index.json"))
     validate_index!(manifest)
     trust = trust_store(root, manifest:)
     manifest.fetch("releases").map do |relative|
-      data = JSON.parse(root.join(safe_relative_path(relative)).read)
+      data = JSON.parse(read_registry_file(root, relative))
       validate_entry!(data, relative)
       fingerprint = data.fetch("publisher_key_fingerprint").downcase
       digest = data.fetch("package_digest").delete_prefix("sha256:")
@@ -177,8 +177,19 @@ class PluginRegistryClient
   def cached_index? = index_root.join("index.json").file?
 
   def trust_store(root, manifest: nil)
-    manifest ||= JSON.parse(root.join("index.json").read)
-    Syrus::PluginPackage::TrustStore.new(JSON.parse(root.join(safe_relative_path(manifest.fetch("trust_store"))).read))
+    manifest ||= JSON.parse(read_registry_file(root, "index.json"))
+    Syrus::PluginPackage::TrustStore.new(JSON.parse(read_registry_file(root, manifest.fetch("trust_store"))))
+  end
+
+  def read_registry_file(root, relative)
+    path = root.join(safe_relative_path(relative)).realpath
+    resolved_root = root.realpath
+    contained = path.to_s.start_with?("#{resolved_root}#{File::SEPARATOR}")
+    raise Error, "registry file escapes the index root" unless contained
+    raise Error, "registry file is missing or invalid" unless path.file?
+    path.read
+  rescue SystemCallError
+    raise Error, "registry file is missing or invalid"
   end
 
   def promote_index!(stage)
