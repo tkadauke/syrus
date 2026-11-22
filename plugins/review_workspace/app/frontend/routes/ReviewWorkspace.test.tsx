@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { createPortal } from "react-dom"
+import { useState } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import ReviewWorkspaceRoute from "./ReviewWorkspace"
@@ -49,15 +50,26 @@ vi.mock("@app/routes/jobDetail/ReviewWorkspace", () => ({
     payload?: { job?: { id: number }; visual_evidence?: { screenshots?: unknown[] } }
     showConversation?: boolean
     visualEvidenceNavigation?: { direction: number }
-  }) => (
-    <div>
-      Canonical review evidence for Job {payload?.job?.id}
-      <span>Conversation {showConversation === false ? "hidden" : "shown"}</span>
-      <span>{payload?.visual_evidence?.screenshots?.length ? `${payload.visual_evidence.screenshots.length} screenshots` : "No screenshots"}</span>
-      {conversationPortalTarget ? createPortal(<div>Canonical contributed findings</div>, conversationPortalTarget) : null}
-      {visualEvidenceNavigation ? <span>Evidence direction {visualEvidenceNavigation.direction}</span> : null}
-    </div>
-  )
+  }) => {
+    const [intrinsicWidth, setIntrinsicWidth] = useState(640)
+    return (
+      <div className="w-full min-w-0 max-w-full" data-testid="canonical-review-workspace">
+        Canonical review evidence for Job {payload?.job?.id}
+        <span>Conversation {showConversation === false ? "hidden" : "shown"}</span>
+        <span>{payload?.visual_evidence?.screenshots?.length ? `${payload.visual_evidence.screenshots.length} screenshots` : "No screenshots"}</span>
+        <p className="break-words">{"A long Job summary ".repeat(20)}</p>
+        <button onClick={() => setIntrinsicWidth((width) => (width === 640 ? 960 : 640))} type="button">
+          Switch review version
+        </button>
+        <button type="button">Show all captured</button>
+        <div className="w-full min-w-0 max-w-full overflow-x-scroll" data-intrinsic-width={intrinsicWidth} data-testid="diff-file-scroll">
+          <div style={{ width: `${intrinsicWidth}px` }}>{"long/unbroken/path/".repeat(30)}</div>
+        </div>
+        {conversationPortalTarget ? createPortal(<div>Canonical contributed findings</div>, conversationPortalTarget) : null}
+        {visualEvidenceNavigation ? <span>Evidence direction {visualEvidenceNavigation.direction}</span> : null}
+      </div>
+    )
+  }
 }))
 
 afterEach(() => {
@@ -434,6 +446,57 @@ describe("ReviewWorkspaceRoute", () => {
     expect(screen.getByRole("dialog", { name: "Job details" })).toBeInTheDocument()
     expect(screen.getByText("Canonical review evidence for Job 42")).toBeInTheDocument()
     vi.useRealTimers()
+  })
+
+  it("contains content-dependent horizontal overflow inside the mobile details diff scroller", async () => {
+    const longTitle = `Review ${"an unusually long unbroken Job title".repeat(8)}`
+    const longPath = `${"nested-directory/".repeat(18)}repository`
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ count: 1, jobs: [{ ...job(), title: longTitle, repository: { id: 1, slug: longPath } }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+    renderRoute("/review/JOB-42", 375)
+    await screen.findByRole("heading", { name: longTitle })
+
+    const documentScrollLeft = document.documentElement.scrollLeft
+    fireEvent.click(screen.getByRole("button", { name: "Job details" }))
+
+    const dialog = await screen.findByRole("dialog", { name: "Job details" })
+    const backdrop = screen.getByTestId("mobile-details-backdrop")
+    const content = screen.getByTestId("mobile-details-content")
+    const diffScroller = screen.getByTestId("diff-file-scroll")
+    expect(backdrop).toHaveClass("w-full", "max-w-full", "overflow-x-hidden")
+    expect(dialog).toHaveClass("w-full", "min-w-0", "max-w-full", "overflow-x-hidden", "overflow-y-auto")
+    expect(content).toHaveClass("w-full", "min-w-0", "max-w-full")
+    expect(screen.getByTestId("canonical-review-workspace")).toHaveClass("w-full", "min-w-0", "max-w-full")
+    expect(diffScroller).toHaveClass("w-full", "min-w-0", "max-w-full", "overflow-x-scroll")
+
+    Object.defineProperties(dialog, {
+      clientWidth: { configurable: true, value: 335 },
+      scrollWidth: { configurable: true, value: 335 }
+    })
+    Object.defineProperties(diffScroller, {
+      clientWidth: { configurable: true, value: 303 },
+      scrollWidth: { configurable: true, get: () => Number(diffScroller.dataset.intrinsicWidth) }
+    })
+    expect(dialog.scrollWidth).toBe(dialog.clientWidth)
+    expect(diffScroller.scrollWidth).toBeGreaterThan(diffScroller.clientWidth)
+    expect(document.documentElement.scrollLeft).toBe(documentScrollLeft)
+    expect(dialog.scrollLeft).toBe(0)
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch review version" }))
+    expect(diffScroller).toHaveAttribute("data-intrinsic-width", "960")
+    expect(dialog.scrollWidth).toBe(dialog.clientWidth)
+    expect(diffScroller.scrollWidth).toBeGreaterThan(diffScroller.clientWidth)
+    expect(document.documentElement.scrollLeft).toBe(documentScrollLeft)
+    expect(dialog.scrollLeft).toBe(0)
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all captured" }))
+    fireEvent.click(screen.getByRole("button", { name: "Close Job details" }))
+    expect(screen.queryByRole("dialog", { name: "Job details" })).not.toBeInTheDocument()
+    expect(document.documentElement.scrollLeft).toBe(documentScrollLeft)
   })
 
   it("defers with a leftward swipe and ignores browser-edge approval swipes", async () => {
