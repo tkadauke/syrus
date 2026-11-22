@@ -461,7 +461,7 @@ describe("BugReportButton", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   })
 
-  it("blocks submit, chat, and shortcuts while full-page capture is in flight", async () => {
+  it("keeps editing and submit-without-screenshot available while full-page capture is in flight", async () => {
     let resolveFullPageCapture: (canvas: HTMLCanvasElement) => void = () => {}
     mockHtml2canvas.mockResolvedValueOnce(captureCanvas("viewport")).mockReturnValueOnce(
       new Promise((resolve) => {
@@ -474,22 +474,20 @@ describe("BugReportButton", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
 
-    await waitFor(() => expect(screen.getByRole("button", { name: /create job/i })).toBeDisabled())
-    expect(screen.getByRole("button", { name: "Discuss" })).toBeDisabled()
-    expect(screen.getByLabelText("Title")).toBeDisabled()
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Capturing..."))
+    expect(screen.getByRole("button", { name: /create job/i })).not.toBeDisabled()
+    expect(screen.getByRole("button", { name: "Discuss" })).not.toBeDisabled()
+    expect(screen.getByLabelText("Title")).not.toBeDisabled()
 
-    const form = screen.getByRole("dialog").querySelector("form")!
-    fireEvent.submit(form)
-    fireEvent.keyDown(form, { key: "Enter", ctrlKey: true })
-    fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Submit while capture continues." } })
+    fireEvent.click(screen.getByRole("radio", { name: "No screenshot" }))
+    fireEvent.click(screen.getByRole("button", { name: /create job/i }))
 
-    expect(mockCreateBugReport).not.toHaveBeenCalled()
-    expect(mockStartBugReportChat).not.toHaveBeenCalled()
+    await waitFor(() => expect(mockCreateBugReport).toHaveBeenCalledOnce())
+    expect(mockCreateBugReport.mock.calls[0][0]).toMatchObject({ description: "Submit while capture continues.", screenshot: null })
 
     resolveFullPageCapture(captureCanvas("full page"))
-
-    await waitFor(() => expect(screen.getByRole("button", { name: /create job/i })).not.toBeDisabled())
-    expect(screen.getByRole("button", { name: "Discuss" })).not.toBeDisabled()
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url"))
   })
 
   describe("when opened without messages", () => {
@@ -798,9 +796,10 @@ describe("BugReportButton", () => {
       expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument()
     })
 
-    it("falls back to a usable form when viewport capture never resolves", async () => {
+    it("accepts a viewport capture that completes after the slow-state threshold", async () => {
       vi.useFakeTimers()
-      mockHtml2canvas.mockReturnValueOnce(new Promise(() => {}))
+      let resolveCapture: (canvas: HTMLCanvasElement) => void = () => {}
+      mockHtml2canvas.mockReturnValueOnce(new Promise((resolve) => (resolveCapture = resolve)))
       const ref = renderButton()
 
       act(() => ref.current?.open())
@@ -808,11 +807,51 @@ describe("BugReportButton", () => {
 
       await act(async () => vi.advanceTimersByTimeAsync(5_000))
 
+      expect(screen.getByRole("status")).toHaveTextContent("Taking longer than usual")
+      fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Capture is still progressing." } })
+      expect(screen.getByLabelText("Description")).toHaveValue("Capture is still progressing.")
+      expect(screen.getByRole("button", { name: "Create Job" })).not.toBeDisabled()
+      expect(screen.getByRole("radio", { name: "No screenshot" })).not.toBeDisabled()
+
+      resolveCapture(captureCanvas("slow but valid"))
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+
+      expect(screen.queryByRole("status")).not.toBeInTheDocument()
+      expect(screen.getByRole("radio", { name: "Viewport" })).toBeChecked()
+      expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument()
+    })
+
+    it("falls back to a usable form only after the terminal capture deadline", async () => {
+      vi.useFakeTimers()
+      mockHtml2canvas.mockReturnValueOnce(new Promise(() => {}))
+      const ref = renderButton()
+
+      act(() => ref.current?.open())
+      await act(async () => vi.advanceTimersByTimeAsync(5_000))
+      expect(screen.getByRole("status")).toHaveTextContent("Taking longer than usual")
+
+      await act(async () => vi.advanceTimersByTimeAsync(25_000))
+
       expect(screen.getByText("Screenshot capture failed. You can still create the bug report without one.")).toBeInTheDocument()
       expect(screen.getByRole("radio", { name: "No screenshot" })).toBeChecked()
       fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Capture timed out." } })
       expect(screen.getByLabelText("Description")).toHaveValue("Capture timed out.")
       expect(screen.getByRole("button", { name: "Create Job" })).not.toBeDisabled()
+    })
+
+    it("falls back from an unsafe full-page capture to the viewport screenshot", async () => {
+      const ref = renderButton()
+      await openDialog(ref)
+      Object.defineProperty(document.body, "scrollWidth", { configurable: true, value: 40_000 })
+      Object.defineProperty(document.body, "scrollHeight", { configurable: true, value: 40_000 })
+      Object.defineProperty(document.documentElement, "scrollWidth", { configurable: true, value: 40_000 })
+      Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 40_000 })
+
+      fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
+
+      expect(await screen.findByText("This page is too complex for a safe full-page screenshot. The viewport screenshot is still available.")).toBeInTheDocument()
+      expect(screen.getByRole("radio", { name: "Viewport" })).toBeChecked()
+      expect(mockHtml2canvas).toHaveBeenCalledOnce()
     })
 
     it("ignores and revokes a late viewport capture from a closed dialog generation", async () => {
