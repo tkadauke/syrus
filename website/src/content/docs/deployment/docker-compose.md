@@ -11,13 +11,20 @@ The Compose stack creates a `syrus-plugins` named volume for externally
 installed plugins. Web, worker, preview, and setup mount it read-only at
 `/home/rails/.syrus-plugins`; `SYRUS_PLUGIN_PATH` points Syrus at that root.
 The volume is empty by default, so existing installations continue to use only
-the plugins bundled with Syrus. A reserved `plugin-installer` profile has the
-only writable mount, but does not install anything yet. To hand-install a
-plugin, stop the stack and populate that volume through an operator-controlled
-helper container or volume-management procedure, then restart the full stack.
-Do not copy files into the live volume one at a time. See
-[Plugins](/docs/plugins#hand-install-an-external-plugin) for the complete
-install, migration, health-check, and removal procedure.
+the plugins bundled with Syrus. The `plugin-installer` profile has the only
+writable mount. Package uploads are stored in the canonical attachment store;
+confirmation publishes a signed desired-state manifest; the installer/sync
+step verifies that manifest and the content-addressed archives, builds a
+complete replacement set in the shared volume, and atomically activates it.
+Web, worker, preview, and setup see that same active set through their
+read-only mounts after restart. Never copy individual files into the live
+volume.
+
+In clustered layouts, each process performs the same verified pre-boot sync
+from shared object storage into its worker-local prepared set instead of using
+the Compose volume. In both layouts the database is canonical, archives are
+immutable, and activation follows confirmation plus **Apply changes**. See
+[Plugins](/docs/plugins#installing-packaged-plugins) for the operator flow.
 
 Docker Compose is the lowest-friction way to run the real Syrus app on a
 single machine — your Mac, a laptop, a small box — without a Kubernetes
