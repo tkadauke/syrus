@@ -4287,6 +4287,33 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## Lead L8: a CI-failure repair lost to lock waits on a landing Job (see Lead L2)
+
+**Production (read-only, 11-22, 17:10–17:12 UTC).** Job 9748 (a cron Job, in
+`landing`) got a `ci_failure` Workflow (66262) at 17:10:22.
+
+- Its Prepare failed three times in two minutes on
+  `ActiveRecord::LockWaitTimeout`. The waits were about 35–45 s each, the
+  failures were classified `timeout` (retryable), and the Workflow failed
+  without ever starting its first Step.
+- Seconds later the landing queue launched `auto_merge` (Workflow 66267) for
+  the same Job.
+
+The landing is not unsafe: auto-merge runs its own mergeability preflight and
+graders before merging. But the CI repair is lost, and nothing records who
+held the lock. Step failures do not reach `backend_exception_events`, and the
+Run logs carry no backtrace.
+
+The likely holder is the landing path working on the same Job row while it
+prepared the auto-merge. That is the same shape as Lead L2's hot rows, and as
+F96's long finish transaction (F96 is not deployed).
+
+**Next step if it recurs.** Record the waiting statement and the lock holder
+(`performance_schema.data_lock_waits`, or a backtrace on the Run) before
+changing anything.
+
+---
+
 ## Lead L7: workspace recovery requeues stranded Runs away from the worker it rebuilt on
 
 Coverage item `workspace-missing` (storage loss). Production evidence is not
