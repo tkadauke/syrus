@@ -99,35 +99,114 @@ function PluginInstallerPanel() {
   const [fileInputKey, setFileInputKey] = useState(0)
   const [restartRequired, setRestartRequired] = useState(false)
   const installer = useQuery({ queryKey: ["admin", "plugin-installer"], queryFn: fetchPluginInstaller })
-  const stage = useMutation({ mutationFn: stagePluginArchive, onSuccess: () => { setFile(null); setFileInputKey((key) => key + 1); void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] }) } })
-  const restore = useMutation({ mutationFn: ({ name, version }: { name: string; version: string }) => stageStoredPluginRelease(name, version), onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] }) })
-  const remove = useMutation({ mutationFn: stagePluginRemoval, onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] }) })
-  const confirm = useMutation({ mutationFn: confirmPluginChange, onSuccess: () => { setRestartRequired(true); void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] }); void queryClient.invalidateQueries({ queryKey: ["admin", "plugins"] }) } })
+  const stage = useMutation({
+    mutationFn: stagePluginArchive,
+    onSuccess: () => {
+      setFile(null)
+      setFileInputKey((key) => key + 1)
+      void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
+    }
+  })
+  const restore = useMutation({
+    mutationFn: ({ name, version }: { name: string; version: string }) => stageStoredPluginRelease(name, version),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
+  })
+  const remove = useMutation({
+    mutationFn: stagePluginRemoval,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
+  })
+  const confirm = useMutation({
+    mutationFn: confirmPluginChange,
+    onSuccess: () => {
+      setRestartRequired(true)
+      void queryClient.invalidateQueries({ queryKey: ["admin", "plugin-installer"] })
+      void queryClient.invalidateQueries({ queryKey: ["admin", "plugins"] })
+    }
+  })
   const apply = useMutation({ mutationFn: applyPluginChanges, onSuccess: () => setRestartRequired(false) })
 
   return (
     <Surface aria-label={t("plugins.installer.aria")} role="region">
       <SectionHeading>{t("plugins.installer.heading")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("plugins.installer.body")}</p>
-      <form className="mt-3 flex flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); if (file) stage.mutate(file) }}>
-        <Input aria-label={t("plugins.installer.archive")} accept=".gz,.tgz,.tar.gz" key={fileInputKey} onChange={(event) => setFile(event.target.files?.[0] || null)} type="file" />
-        <Button disabled={!file || stage.isPending} type="submit">{stage.isPending ? t("plugins.installer.staging") : t("plugins.installer.stage")}</Button>
+      <form
+        className="mt-3 flex flex-wrap items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (file) stage.mutate(file)
+        }}
+      >
+        <Input
+          aria-label={t("plugins.installer.archive")}
+          accept=".gz,.tgz,.tar.gz"
+          key={fileInputKey}
+          onChange={(event) => setFile(event.target.files?.[0] || null)}
+          type="file"
+        />
+        <Button disabled={!file || stage.isPending} type="submit">
+          {stage.isPending ? t("plugins.installer.staging") : t("plugins.installer.stage")}
+        </Button>
       </form>
-      {stage.isError || restore.isError || remove.isError || confirm.isError ? <p className="mt-2 text-sm text-danger">{t("plugins.installer.error")}</p> : null}
-      {restartRequired ? <div className="mt-3 rounded border border-warning p-3"><p className="text-sm">{t("plugins.installer.restart_required")}</p><Button className="mt-2" disabled={apply.isPending} onClick={() => apply.mutate()}>{t("plugins.installer.apply")}</Button></div> : null}
+      {stage.isError || restore.isError || remove.isError || confirm.isError ? (
+        <p className="mt-2 text-sm text-danger">{t("plugins.installer.error")}</p>
+      ) : null}
+      {restartRequired ? (
+        <div className="mt-3 rounded border border-warning p-3">
+          <p className="text-sm">{t("plugins.installer.restart_required")}</p>
+          <Button className="mt-2" disabled={apply.isPending} onClick={() => apply.mutate()}>
+            {t("plugins.installer.apply")}
+          </Button>
+        </div>
+      ) : null}
       {installer.data?.pending_changes?.map((change) => (
         <div className="mt-4 rounded border border-border p-3" key={change.id}>
-          <div className="flex flex-wrap items-center justify-between gap-2"><strong>{change.name} {change.version}</strong><span>{t(`plugins.installer.actions.${change.action}`)}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong>
+              {change.name} {change.version}
+            </strong>
+            <span>{t(`plugins.installer.actions.${change.action}`)}</span>
+          </div>
           <p className="mt-2 text-sm font-medium">{t("plugins.installer.capabilities")}</p>
           <ul className="mt-1 text-sm text-text-secondary">
-            {Object.entries(change.capability_diff).map(([key, diff]) => <li key={key}>{key}: +{diff.added.join(", ") || "—"} / −{diff.removed.join(", ") || "—"}</li>)}
+            {Object.entries(change.capability_diff).map(([key, diff]) => (
+              <li key={key}>
+                {key}: +{diff.added.join(", ") || "—"} / −{diff.removed.join(", ") || "—"}
+              </li>
+            ))}
           </ul>
           <p className="mt-2 text-sm text-warning">{t("plugins.installer.disclosure")}</p>
-          <Button className="mt-2" disabled={confirm.isPending} onClick={() => confirm.mutate(change.id)}>{t("plugins.installer.confirm")}</Button>
+          <Button className="mt-2" disabled={confirm.isPending} onClick={() => confirm.mutate(change.id)}>
+            {t("plugins.installer.confirm")}
+          </Button>
         </div>
       ))}
-      {installer.data?.installations?.length ? <div className="mt-4 space-y-2">{installer.data.installations.map((item) => <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={item.name}><span>{item.name} {item.version} · {item.source} · {t(`plugins.trust_labels.${item.trust_label}`)} · {item.health}</span><Button onClick={() => remove.mutate(item.name)}>{t("plugins.installer.remove")}</Button></div>)}</div> : null}
-      {installer.data?.available_releases?.length ? <div className="mt-4 space-y-2"><p className="text-sm font-medium">{t("plugins.installer.stored_releases")}</p>{installer.data.available_releases.map((release) => <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={`${release.name}-${release.version}`}><span>{release.name} {release.version} · {t(`plugins.trust_labels.${release.trust_label}`)}</span><Button disabled={restore.isPending} onClick={() => restore.mutate(release)}>{t("plugins.installer.restore")}</Button></div>)}</div> : null}
+      {installer.data?.installations?.length ? (
+        <div className="mt-4 space-y-2">
+          {installer.data.installations.map((item) => (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={item.name}>
+              <span>
+                {item.name} {item.version} · {item.source} · {t(`plugins.trust_labels.${item.trust_label}`)} · {item.health}
+              </span>
+              <Button onClick={() => remove.mutate(item.name)}>{t("plugins.installer.remove")}</Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {installer.data?.available_releases?.length ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm font-medium">{t("plugins.installer.stored_releases")}</p>
+          {installer.data.available_releases.map((release) => (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm" key={`${release.name}-${release.version}`}>
+              <span>
+                {release.name} {release.version} · {t(`plugins.trust_labels.${release.trust_label}`)}
+              </span>
+              <Button disabled={restore.isPending} onClick={() => restore.mutate(release)}>
+                {t("plugins.installer.restore")}
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </Surface>
   )
 }
