@@ -489,7 +489,7 @@ function JobReview({
     )
   return (
     <section aria-label={t("evidence")} className="min-w-0 bg-page p-4 sm:p-6 lg:overflow-y-auto">
-      <div className="mb-5">
+      <div className="mb-5 touch-pan-y">
         <p className="text-xs text-text-secondary">
           {job.slug} · {job.repository.slug}
         </p>
@@ -573,13 +573,16 @@ function MobileReviewCard({
   const evidence = screenshots[evidenceIndex]
   const canApprove = Boolean(payload.actions.can_approve && payload.job.summary_state.toLowerCase() === "implemented")
   return (
-    <article className="space-y-4 rounded-2xl border border-border bg-surface p-4 shadow-sm" data-testid="mobile-review-summary">
-      {payload.summary?.text ? (
-        <Markdown className="chat-prose text-sm text-text-secondary" text={payload.summary.text} />
-      ) : (
-        <p className="text-sm text-text-secondary">{t("summary_unavailable")}</p>
-      )}
-      <section aria-label={t("visual_evidence")} className="overflow-hidden rounded-xl border border-border bg-surface-subtle">
+    <article className="relative space-y-4 rounded-2xl border border-border bg-surface p-4 shadow-sm" data-testid="mobile-review-summary">
+      <div aria-hidden="true" className="absolute inset-0 touch-pan-y" data-testid="mobile-decision-touch-region" />
+      <div className="relative z-10 touch-pan-y">
+        {payload.summary?.text ? (
+          <Markdown className="chat-prose text-sm text-text-secondary" text={payload.summary.text} />
+        ) : (
+          <p className="text-sm text-text-secondary">{t("summary_unavailable")}</p>
+        )}
+      </div>
+      <section aria-label={t("visual_evidence")} className="relative z-10 overflow-hidden rounded-xl border border-border bg-surface-subtle">
         {evidence ? (
           <>
             <div data-review-gesture-exempt>
@@ -625,22 +628,24 @@ function MobileReviewCard({
           <div className="grid min-h-40 place-items-center p-5 text-center text-sm text-text-secondary">{t("no_visual_evidence")}</div>
         )}
       </section>
-      <div className="flex flex-wrap gap-2" aria-label={t("checks")}>
-        <span
-          className={`rounded-full border px-3 py-1 text-xs font-medium ${canApprove ? "border-success-border bg-success-subtle text-success-text" : "border-border text-text-secondary"}`}
-        >
-          {canApprove ? t("checks_ready") : t("checks_blocked")}
-        </span>
-        {job.pr_number ? (
-          <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">{t("pull_request_number", { number: job.pr_number })}</span>
-        ) : null}
-      </div>
-      <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
-        <strong className="text-text">{t("why_needed")}</strong> {canApprove ? t("why_needed_ready") : t("why_needed_blocked")}
-      </div>
-      <p className="text-center text-xs text-text-secondary">{t("gesture_cue")}</p>
-      <div className="rounded-lg border border-brand/30 bg-brand-subtle p-3 text-xs text-text-secondary" data-testid="mobile-gesture-coach">
-        {t("gesture_coach")}
+      <div className="relative z-10 space-y-4 touch-pan-y">
+        <div className="flex flex-wrap gap-2" aria-label={t("checks")}>
+          <span
+            className={`rounded-full border px-3 py-1 text-xs font-medium ${canApprove ? "border-success-border bg-success-subtle text-success-text" : "border-border text-text-secondary"}`}
+          >
+            {canApprove ? t("checks_ready") : t("checks_blocked")}
+          </span>
+          {job.pr_number ? (
+            <span className="rounded-full border border-border px-3 py-1 text-xs text-text-secondary">{t("pull_request_number", { number: job.pr_number })}</span>
+          ) : null}
+        </div>
+        <div className="rounded-lg border-l-4 border-brand bg-brand-subtle p-3 text-sm text-text-secondary">
+          <strong className="text-text">{t("why_needed")}</strong> {canApprove ? t("why_needed_ready") : t("why_needed_blocked")}
+        </div>
+        <p className="text-center text-xs text-text-secondary">{t("gesture_cue")}</p>
+        <div className="rounded-lg border border-brand/30 bg-brand-subtle p-3 text-xs text-text-secondary" data-testid="mobile-gesture-coach">
+          {t("gesture_coach")}
+        </div>
       </div>
     </article>
   )
