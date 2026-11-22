@@ -1165,6 +1165,26 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result.dig(:landing_queue, :status, :summary)).not_to include("should pick it up shortly")
     end
 
+    # Regression: an Epic gained new child Jobs after its first five were
+    # approved. The approved Jobs were first in line, the new ones still
+    # running, and the status told the operator the processor "should pick it
+    # up shortly" for half an hour -- the Epic was correctly waiting for its
+    # unfinished members, but nothing said so.
+    it "says an approved Epic is waiting for its unfinished members, not about to dispatch" do
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      first = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
+      first.approve!(via: "github_review")
+      Factories.job_record(user: user, repository: repo, epic: epic, parent_job: first, state: "running")
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+
+      expect(result.dig(:landing_queue, :status, :summary)).not_to include("should pick it up shortly")
+      expect(result.dig(:landing_queue, :status, :title)).to eq("Landing queue is waiting for an Epic merge-train.")
+      expect(result.dig(:landing_queue, :status, :summary)).to include("is approved, but 1 Epic member is still unfinished")
+    end
+
     it "reports merge-train waits instead of sequential blockers for an approved linear Epic" do
       repo.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
