@@ -32,7 +32,7 @@ For keyed capabilities, absent behavior applies when no provider matches the req
 | Plugin | Provider | Key | Stable capabilities | Provisional capabilities |
 |---|---|---|---|---|
 | `go` | `Go::Ecosystem` | - | `detect_prepare`, `review_criteria`, `autofix`, `dependency_audit`, `analyze_coverage` | - |
-| `go` | `Go::TestEcosystem` | `go_test` | `grader_types` | - |
+| `go` | `Go::TestEcosystem` | `go-test` | `grader_types` | - |
 | `ios` | `Ios::Ecosystem` | - | `detect_prepare` | - |
 | `ios` | `Ios::SwiftpmEcosystem` | `swiftpm` | `grader_types` | - |
 | `ios` | `Ios::XcodebuildEcosystem` | `xcodebuild` | `grader_types` | - |
