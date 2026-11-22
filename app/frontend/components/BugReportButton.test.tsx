@@ -120,8 +120,10 @@ describe("BugReportButton", () => {
 
     const dialog = screen.getByRole("dialog")
     expect(dialog.parentElement).toHaveClass("overflow-x-hidden")
-    expect(dialog).toHaveClass("max-w-[min(42rem,calc(100vw-2rem))]", "overflow-x-hidden", "overflow-y-auto")
-    expect(screen.getByText(window.location.href).closest("dd")).toHaveClass("min-w-0", "truncate")
+    expect(dialog).toHaveClass("min-w-0", "max-w-[min(42rem,calc(100vw-2rem))]", "overflow-x-clip", "overflow-y-auto")
+    expect(dialog.querySelector("form")).toHaveClass("min-w-0", "max-w-full")
+    expect(within(dialog).getByText("Cancel").parentElement).toHaveClass("flex-wrap")
+    expect(screen.getByText(window.location.href).closest("dd")).toHaveClass("min-w-0", "break-all")
   })
 
   it("pre-fills the title with context + ' bug'", async () => {

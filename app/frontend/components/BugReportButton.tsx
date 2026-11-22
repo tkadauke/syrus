@@ -530,7 +530,7 @@ export const BugReportButton = forwardRef<
           <section
             aria-labelledby="bug-report-title"
             aria-modal="true"
-            className={`relative max-h-[calc(100vh-2rem)] w-full max-w-[min(42rem,calc(100vw-2rem))] overflow-x-hidden overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
+            className={`relative min-w-0 max-h-[calc(100vh-2rem)] w-full max-w-[min(42rem,calc(100vw-2rem))] overflow-x-clip overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
@@ -542,7 +542,7 @@ export const BugReportButton = forwardRef<
                 <p className="rounded-md bg-white dark:bg-gray-900 px-4 py-2 text-sm font-semibold text-brand shadow">{t("bug_report.drop_to_attach")}</p>
               </div>
             ) : null}
-            <form className="space-y-5 p-5 sm:p-6" onKeyDown={submitOnShortcut} onSubmit={submit}>
+            <form className="min-w-0 max-w-full space-y-5 p-5 sm:p-6" onKeyDown={submitOnShortcut} onSubmit={submit}>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="bug-report-title">
@@ -581,16 +581,16 @@ export const BugReportButton = forwardRef<
                 />
               </label>
 
-              <fieldset className="space-y-2">
+              <fieldset className="min-w-0 space-y-2">
                 <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("bug_report.screenshot")}</legend>
                 {captureError ? (
-                  <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                  <p className="min-w-0 break-words rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
                     {captureError}
                   </p>
                 ) : capturing || capturingFullPage ? (
                   <Notice role="status">{t(captureSlow ? "bug_report.capturing_slow" : "bug_report.capturing")}</Notice>
                 ) : null}
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid min-w-0 gap-3 sm:grid-cols-3">
                   <ScreenshotOption
                     capture={captures.viewport}
                     choice="viewport"
@@ -723,7 +723,7 @@ export const BugReportButton = forwardRef<
                 </p>
               ) : null}
 
-              <div className="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-4">
+              <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-4">
                 <Button disabled={formDisabled} onClick={closeDialog} variant="secondary">
                   {t("bug_report.cancel")}
                 </Button>
@@ -854,7 +854,7 @@ function ContextRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 gap-1.5">
       <dt className="shrink-0 font-medium text-gray-700 dark:text-gray-300">{label}:</dt>
-      <dd className="min-w-0 truncate">{value}</dd>
+      <dd className="min-w-0 break-all">{value}</dd>
     </div>
   )
 }
@@ -898,7 +898,7 @@ function ScreenshotOption({
 
   return (
     <label
-      className={`flex cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+      className={`flex min-w-0 cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
     >
       <Input
         aria-label={label}
