@@ -478,6 +478,22 @@
     "aria": "Admin-Betriebslogs"
   },
   "plugins": {
+    "installer": {
+      "aria": "Installer für externe Plugins",
+      "heading": "Externe Plugins installieren",
+      "body": "Lade ein geprüftes Paket hoch, prüfe seine Fähigkeiten und bestätige danach die Änderung des Sollzustands.",
+      "archive": "Plugin-Archiv",
+      "stage": "Paket prüfen",
+      "staging": "Wird geprüft...",
+      "error": "Die Plugin-Änderung konnte nicht vorbereitet oder bestätigt werden.",
+      "capabilities": "Änderungen der Fähigkeiten",
+      "disclosure": "Bei In-Process-Plugins dient dieses Manifest der Offenlegung, nicht der Durchsetzung. Für Tools gilt weiterhin das normale Berechtigungssystem.",
+      "confirm": "Sollzustandsänderung bestätigen",
+      "restart_required": "Der Sollzustand wurde geändert. Wende die Änderungen an, um die Flotte zu synchronisieren und neu zu starten.",
+      "apply": "Änderungen anwenden",
+      "remove": "Entfernen",
+      "actions": { "install": "Installieren", "update": "Aktualisieren", "remove": "Entfernen" }
+    },
     "trust_labels": {
       "official": "Offiziell",
       "verified": "Verifiziert",

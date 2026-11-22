@@ -210,6 +210,29 @@ rerun pre-boot sync. The status identifies processes still pending or stuck.
 Setup and web apply plugin migrations normally, while workers stop at boot if
 any migration remains pending.
 
+### Installing packaged plugins
+
+Administrators can upload a `.syrus-plugin.tar.gz` package on **Admin →
+Plugins** or run `syrus plugin install PATH`. Syrus validates the package,
+checks its publisher signature and revocation status, stores the content by
+digest, and shows the declared routes, credential types, CLI commands,
+extension points, process roles, and requested public host APIs. This first
+step is staging only. The desired plugin set changes only after an explicit
+confirmation (`--yes` provides that confirmation in scripts).
+
+The manifest is disclosure, not an in-process sandbox: installing a plugin
+does not grant its tools authority, and normal permission decisions still
+apply. Updates show additions and removals relative to the active release.
+Removal is staged and confirmed through the same flow. Older stored releases
+remain selectable, so installing a prior version provides rollback. After a
+confirmation, use **Apply changes** to synchronize the active set and restart
+the affected processes.
+
+`syrus plugin list` prints each external plugin's version, source, trust label,
+and health. `syrus plugin remove NAME` requires confirmation. The admin API can
+also export and import `syrus-plugins.lock.yml`; it records name, version,
+digest, and source while the database remains canonical.
+
 ### Reading fleet convergence
 
 **Admin → Plugins** compares the desired revision with every process heartbeat.
