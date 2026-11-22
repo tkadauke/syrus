@@ -960,7 +960,7 @@ module Syrus
       end
 
       def build_time_without_database?
-        Rails.env.production? && ENV["SECRET_KEY_BASE_DUMMY"].present?
+        ENV["RAILS_ENV"] != "test" && Rails.env.production? && ENV["SECRET_KEY_BASE_DUMMY"].present?
       end
 
       def plugin_records_table_missing?
