@@ -3415,6 +3415,19 @@
         "C. Classify a rebase conflict as non-retryable (not awaiting_stable_base) so it fails once with a clear 'needs manual rebase' reason instead of burning retries; operators resolve it."
       ],
       "recommendation": "A, with C's classification as the fallback when the agent fails. The workspace and completed work are right there, conflicts after a parent restack are expected in long Epic chains, and it reuses an existing pattern. For 9453 today: it needs a manual rebase onto syrus/direct-9452 (or a retry once one of A/B exists)."
+    },
+    {
+      "id": "NY30",
+      "item": "stuck-main-branch-repair",
+      "title": "Should a reproducible main failure still be repaired when another preflight grader timed out?",
+      "context": "Live now: main is red on two React tests (app/frontend/pluginUiSlots.test.tsx, from the 'loading state for suspending plugin components' commit). The main-branch repair's preflight reproduced react-tests-ci as test_failed, but e2e timed out; a timeout is 'inconclusive' and never retried, and any inconclusive required grader makes the whole preflight inconclusive, so no coding repair ran, health became 'inconclusive' (landing not paused) and the repair Job closed. A slow e2e can keep re-masking real failures.",
+      "options": [
+        "A. Repair what is proven: if some required graders reproducibly failed, hand those to the repair agent even when others are inconclusive; keep main health unhealthy (not inconclusive) while a reproducible failure exists.",
+        "B. Retry a timed-out preflight grader once (as GraderCollect already treats timed_out as infrastructure) before declaring the preflight inconclusive.",
+        "C. Keep the rule, but surface 'inconclusive with a reproducible failure' to the operator as needing action (and pause landing).",
+        "D. Keep as is."
+      ],
+      "recommendation": "A plus B. The reproducible failure is evidence enough to start a repair, and its own grade loop re-runs every grader before landing, so 'partial evidence' cannot ship anything; retrying a single timeout removes most inconclusive verdicts. For today: main needs pluginUiSlots.test.tsx updated for the loading status (or a manual repair Job)."
     }
   ]
 }

@@ -4253,6 +4253,56 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M56. One timed-out preflight grader stopped the repair of a reproducible main failure (NY30)
+
+**Production (read-only, 11-22).** The `main_branch_repair` from M55
+(Workflow 66236) ran 134 preflight graders. Two did not pass:
+
+- `react-tests-ci` failed with a genuine assertion failure (`test_failed`):
+  `pluginUiSlots.test.tsx`, reproduced locally on `7fe0e61d29`.
+- `e2e` timed out after about 25 minutes (exit 124).
+
+`Steps::PreflightGraderCollect` then logged:
+
+```
+required preflight graders have no conclusive result: e2e (inconclusive: timed_out)
+— main health stays inconclusive, not spawning a coding repair
+```
+
+It skipped `implement`, every grader step, `summarize`, `test_plan` and
+`pr_open`. `Workflows::MainBranchRepair.mark_inconclusive!` set the
+repository's grader and CI health to `inconclusive` and closed the anchor Job
+as `preflight_inconclusive`. The Workflow *succeeded*.
+
+**Why.** This is the documented rule:
+
+- `GraderOutcome` classifies a timeout as `inconclusive`, not
+  `infrastructure_failed`, so `retryable_infrastructure_failure?` never retries
+  it. Note that `GraderCollect` lists `timed_out` among its infrastructure
+  classifications.
+- `PreflightGraderCollect` makes the whole preflight inconclusive whenever any
+  required grader is unproven, "even when another grader reproducibly failed",
+  so that a repair never proceeds on partial evidence.
+
+**Result.** Main is genuinely red on two React tests, but:
+
+- its health reads `inconclusive`, not unhealthy;
+- landing is not paused;
+- the repair Job is closed;
+- no coding repair runs.
+
+Whether this ever ends depends on a later main grader both failing
+`react-tests-ci` and getting a repair whose `e2e` preflight does not time out.
+A slow e2e suite under load can keep re-masking the failure.
+
+**Also observed.** The newer main grader, Workflow 66241, ran only 22 graders,
+apparently not `react-tests-ci`, and succeeded at 05:20. At 06:22 the repair,
+deciding from its own earlier evidence, stamped `inconclusive` onto the
+current `last_health_checked_sha`. Here that is closer to the truth, but it is
+a verdict about one commit recorded against another.
+
+---
+
 ## M55. Main through `7fe0e61d29` (the Ecosystem family migration), and main's broken React test
 
 **Epic #554** (25 commits) does two things:
