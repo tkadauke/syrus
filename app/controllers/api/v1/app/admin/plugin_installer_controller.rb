@@ -81,8 +81,9 @@ module Api
 
           def serialize_registry(source)
             cache = WorkflowWorkspace.data_root.join("plugin-registries", source.cache_key)
+            refreshed_at = cache.join("refreshed-at")
             { id: source.id, name: source.name, url: source.url, enabled: source.enabled?, canonical: source.canonical?,
-              read_only: source.read_only?, last_refresh_at: cache.join("git-refreshed-at").exist? ? cache.join("git-refreshed-at").mtime : nil,
+              read_only: source.read_only?, last_refresh_at: refreshed_at.exist? ? refreshed_at.mtime : nil,
               healthy: cache.join("index", "index.json").exist? }
           end
 
