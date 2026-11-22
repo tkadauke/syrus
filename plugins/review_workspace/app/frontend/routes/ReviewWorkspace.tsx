@@ -323,9 +323,9 @@ function MobileGestureSurface({
       {Boolean(offset.x || offset.y) && (
         <div
           aria-label={gesture.consequence}
-          className={`pointer-events-none absolute z-0 flex font-semibold text-brand lg:hidden ${
+          className={`pointer-events-none absolute z-20 flex font-semibold text-brand lg:hidden ${
             horizontal
-              ? `inset-y-0 w-[min(7.5rem,calc(100vw_-_1rem))] items-center ${offset.x > 0 ? "left-[max(.5rem,env(safe-area-inset-left))]" : "right-[max(.5rem,env(safe-area-inset-right))]"}`
+              ? `inset-y-0 w-[min(8.5rem,calc(100vw_-_1rem))] items-center ${offset.x > 0 ? "left-[max(.5rem,env(safe-area-inset-left))]" : "right-[max(.5rem,env(safe-area-inset-right))]"}`
               : `inset-x-0 p-5 text-sm ${offset.y < 0 ? "bottom-0 justify-center" : "top-0 justify-center"}`
           }`}
           data-gesture-direction={gesture.direction}
