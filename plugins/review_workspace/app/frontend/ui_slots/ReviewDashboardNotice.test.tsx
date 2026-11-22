@@ -13,7 +13,7 @@ describe("ReviewDashboardNotice", () => {
     )
 
     expect(screen.getByText("5 Jobs are ready for your review.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Open active review" })).toHaveAttribute("href", "/review")
+    expect(screen.getByRole("link", { name: "Start review" })).toHaveAttribute("href", "/review")
   })
 
   it("renders nothing without actionable Jobs", () => {
