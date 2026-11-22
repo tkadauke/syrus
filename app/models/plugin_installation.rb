@@ -43,7 +43,7 @@ class PluginInstallation < ApplicationRecord
   def release_is_not_revoked
     return unless plugin_release
     return if fleet_quarantined?
-    return unless Syrus::PluginPackage::TrustStore.cached.revoked?(plugin_release)
+    return unless Syrus::PluginPackage::TrustStore.for_release(plugin_release).revoked?(plugin_release)
 
     errors.add(:plugin_release, I18n.t("server.errors.plugin_installation.revoked_release"))
   end

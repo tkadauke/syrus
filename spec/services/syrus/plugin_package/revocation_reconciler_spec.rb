@@ -3,11 +3,12 @@ require "rails_helper"
 RSpec.describe Syrus::PluginPackage::RevocationReconciler do
   before { allow(PluginDesiredState::Publisher).to receive(:publish!) }
 
-  def installed_release(name: "weather", version: "1.2.3", fingerprint: "a" * 64)
+  def installed_release(name: "weather", version: "1.2.3", fingerprint: "a" * 64, plugin_registry: nil)
     body = "plugin archive"
     digest = Digest::SHA256.hexdigest(body)
     release = PluginRelease.create!(name:, version:, content_digest: digest,
-      source: "registry", trust_label: "verified", publisher_key_fingerprint: fingerprint, size_bytes: body.bytesize)
+      source: "registry", trust_label: "verified", publisher_key_fingerprint: fingerprint, size_bytes: body.bytesize,
+      plugin_registry:)
     release.archive.attach(io: StringIO.new(body), filename: "#{name}.archive")
     PluginInstallation.create!(plugin_name: name, plugin_release: release)
   end
@@ -56,5 +57,18 @@ RSpec.describe Syrus::PluginPackage::RevocationReconciler do
 
     expect(installation.reload).to be_fleet_quarantined
     expect(attempts).to eq(2)
+  end
+
+  it "applies revocations only to installations from the matching registry" do
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    source = PluginRegistry.create!(name: "source", url: "https://source.example.test")
+    other = PluginRegistry.create!(name: "other", url: "https://other.example.test")
+    matching = installed_release(name: "source_weather", plugin_registry: source)
+    isolated = installed_release(name: "other_weather", plugin_registry: other)
+    store = Syrus::PluginPackage::TrustStore.new("revoked_keys" => [ "a" * 64 ])
+
+    expect(described_class.new(store, plugin_registry: source).call).to eq([ matching ])
+    expect(matching.reload).to be_fleet_quarantined
+    expect(isolated.reload).not_to be_fleet_quarantined
   end
 end

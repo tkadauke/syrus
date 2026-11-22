@@ -24,6 +24,8 @@ class PluginRegistrySearch
 
   def client_for(entry)
     source = @sources.find { |candidate| candidate.name == entry.registry_name && candidate.id == entry.registry_id }
+    raise PluginRegistryClient::Error, "plugin registry is no longer enabled: #{entry.registry_name}" unless source
+
     @client_factory.call(source)
   end
 end

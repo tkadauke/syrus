@@ -37,20 +37,25 @@ RSpec.describe PluginInstaller do
 
   it "fetches an unstored registry release through package validation and staging" do
     admin = Factories.user(admin: true)
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    registry = PluginRegistry.create!(name: "partners", url: "https://partners.example.test")
+    trust_store = Syrus::PluginPackage::TrustStore.new("publishers" => [])
     fetcher = instance_double(PluginRegistryPackageFetcher)
     package = PluginRegistryPackageFetcher::Package.new(archive: StringIO.new("package"), signature: "signature",
-      name: "weather", version: "2.0.0")
+      name: "weather", version: "2.0.0", registry:, trust_store:)
     allow(fetcher).to receive(:fetch).with(name: "weather", version: "2.0.0").and_return(package)
     manifest = { "name" => "weather", "version" => "2.0.0", "routes" => [ "/weather" ] }
     validation = Syrus::PluginPackage::Validator::Result.new(valid: true, errors: [], manifest:)
     verification = Syrus::PluginPackage::Verifier::Result.new(valid: true, trust_label: "verified", fingerprint: "a" * 64, errors: [])
     allow_any_instance_of(Syrus::PluginPackage::Validator).to receive(:call).and_return(validation)
-    allow_any_instance_of(Syrus::PluginPackage::Verifier).to receive(:call).and_return(verification)
+    verifier = instance_double(Syrus::PluginPackage::Verifier, call: verification)
+    expect(Syrus::PluginPackage::Verifier).to receive(:new).with(hash_including(trust_store:)).and_return(verifier)
     allow(PluginArtifacts).to receive(:store!)
 
     change = described_class.new(actor: admin, registry_fetcher: fetcher).stage_release!("weather", version: "2.0.0")
 
-    expect(change.plugin_release).to have_attributes(name: "weather", version: "2.0.0", source: "registry", trust_label: "verified")
+    expect(change.plugin_release).to have_attributes(name: "weather", version: "2.0.0", source: "registry",
+      trust_label: "verified", plugin_registry: registry)
     expect(change.capability_manifest).to eq("routes" => [ "/weather" ])
   end
 
