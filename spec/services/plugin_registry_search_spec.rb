@@ -50,4 +50,23 @@ RSpec.describe PluginRegistrySearch do
     expect { search.client_for(entry(source)) }
       .to raise_error(PluginRegistryClient::Error, /no longer enabled: removed/)
   end
+
+  it "keeps healthy results when an environment source has invalid configuration" do
+    good = Source.new(id: 1, name: "good", canonical: true)
+    invalid = PluginRegistry::InvalidEnvironmentSource.new("http://invalid.example.test", "must use HTTPS")
+    search = described_class.new(sources: [ good, invalid ], client_factory: ->(source) {
+      if source == good
+        instance_double(PluginRegistryClient, search: PluginRegistryClient::Result.new(
+          entries: [ entry(good) ], configured: true, error: nil, stale: false
+        ))
+      else
+        PluginRegistryClient.new(source:)
+      end
+    })
+
+    result = search.search
+
+    expect(result.entries.map(&:name)).to eq([ "acme_weather" ])
+    expect(result.errors).to eq(invalid.name => "must use HTTPS")
+  end
 end

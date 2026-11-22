@@ -26,6 +26,18 @@ RSpec.describe PluginRegistry do
     expect(source).to be_persisted
   end
 
+  it "represents an invalid environment registry without hiding configured sources" do
+    configured = described_class.create!(name: "configured", url: "https://configured.example.test")
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SYRUS_PLUGIN_REGISTRY_URL").and_return("http://invalid.example.test")
+
+    sources = described_class.sources
+
+    expect(sources).to include(configured)
+    invalid = sources.find { |source| source.is_a?(described_class::InvalidEnvironmentSource) }
+    expect(invalid.configuration_error).to include("must use HTTPS")
+  end
+
   it "enforces the configured limit when a removed registry is restored" do
     first = described_class.create!(name: "first", url: "https://first.example.test")
     first.update!(enabled: false, removed_at: Time.current)
