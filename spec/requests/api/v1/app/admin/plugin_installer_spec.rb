@@ -34,6 +34,13 @@ RSpec.describe "API: plugin installer", type: :request do
     expect(response).to have_http_status(:created)
     registry = PluginRegistry.find_by!(name: "partners")
 
+    refresh_marker = WorkflowWorkspace.data_root.join("plugin-registries", registry.cache_key, "refreshed-at")
+    FileUtils.mkdir_p(refresh_marker.dirname)
+    FileUtils.touch(refresh_marker)
+    get "/api/v1/app/admin/plugin_installer/registries"
+    serialized = JSON.parse(response.body).fetch("registries").find { |entry| entry["id"] == registry.id }
+    expect(serialized.fetch("last_refresh_at")).to be_present
+
     patch "/api/v1/app/admin/plugin_installer/registries/#{registry.id}", params: { enabled: false }
     expect(response).to have_http_status(:ok)
     expect(registry.reload).not_to be_enabled
@@ -44,6 +51,11 @@ RSpec.describe "API: plugin installer", type: :request do
     expect(response).to have_http_status(:no_content)
     expect(registry.reload.removed_at).to be_present
     expect(registry_release.reload.plugin_registry).to eq(registry)
+
+    stub_const("PluginRegistry::MAX_CONFIGURED", 1)
+    PluginRegistry.create!(name: "replacement", url: "https://replacement.example.test")
+    post "/api/v1/app/admin/plugin_installer/registries", params: { name: "partners", url: registry.url }
+    expect(response).to have_http_status(:unprocessable_content)
 
     canonical = PluginRegistry.ensure_canonical!
     delete "/api/v1/app/admin/plugin_installer/registries/#{canonical.id}"

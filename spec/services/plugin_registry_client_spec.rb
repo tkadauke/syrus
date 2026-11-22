@@ -119,7 +119,7 @@ RSpec.describe PluginRegistryClient do
     expect(client.search.entries.map(&:name)).to include("acme_weather")
     expect(outside.read).to eq("preserve me")
     expect(outside.mtime).to eq(Time.at(1))
-    expect(root.join("git-refreshed-at")).to be_file
+    expect(root.join("refreshed-at")).to be_file
   end
 
   it "returns a non-fatal error for a malformed index" do
@@ -144,6 +144,14 @@ RSpec.describe PluginRegistryClient do
     ))
     result = described_class.new(source:, cache_root: root).search
     expect(result.entries.first.trust_label).to eq("verified")
+  end
+
+  it "records a successful HTTPS mirror refresh" do
+    stub_registry
+
+    described_class.new(url: base_url, cache_root: root).search
+
+    expect(root.join("refreshed-at")).to be_file
   end
 
   def stub_registry(not_modified: false)
