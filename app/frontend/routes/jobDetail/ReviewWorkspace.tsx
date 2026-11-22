@@ -417,7 +417,7 @@ export function ReviewWorkspace({
   if (selectedRange && rangeDiff.isError) {
     return (
       <div className="space-y-4">
-        <Section.Root>
+        <Section.Root className="min-w-0 max-w-full">
           <SectionHeading>{t("review_summary_title")}</SectionHeading>
           <div className="mt-3 text-xs">
             <DiffReviewVersionSelector
@@ -446,11 +446,11 @@ export function ReviewWorkspace({
           onToggle={(metricGutter) => metricGutterMutation.mutate({ metric_gutter: metricGutter })}
         />
       ) : null}
-      <div className="relative grid min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
-        <div className="min-w-0 space-y-4 lg:flex-1">
-          <Section.Root>
+      <div className="relative grid w-full min-w-0 max-w-full gap-4 lg:flex lg:items-start lg:gap-0">
+        <div className="w-full min-w-0 max-w-full space-y-4 lg:flex-1">
+          <Section.Root className="min-w-0 max-w-full">
             <div className="space-y-3">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 max-w-full items-start justify-between gap-3">
                 <div className="min-w-0">
                   <SectionHeading>{t("review_summary_title")}</SectionHeading>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("review_version_files", { count: activeDiff.files.length })}</p>
@@ -698,7 +698,7 @@ export function VisualEvidenceGallery({
   if (evidence.captured_count === 0 && typedArtifacts.length === 0) {
     if (!showEmptyState) return null
     return (
-      <Section.Root>
+      <Section.Root className="min-w-0 max-w-full">
         <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
         <p className="mt-3 text-sm text-text-muted">{t("visual_evidence_none")}</p>
       </Section.Root>
@@ -706,9 +706,9 @@ export function VisualEvidenceGallery({
   }
 
   return (
-    <Section.Root>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <Section.Root className="min-w-0 max-w-full">
+      <div className="flex min-w-0 max-w-full flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 max-w-full">
           <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
           {evidence.captured_count > 0 ? (
             <p className="mt-1 text-sm text-text-muted">
@@ -733,12 +733,12 @@ export function VisualEvidenceGallery({
           </p>
         ) : null
       ) : (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid min-w-0 max-w-full gap-4 sm:grid-cols-2">
           {screenshots.map((screenshot) => {
             const pageLabel = screenshot.page?.title || screenshot.page?.path || t("visual_evidence_unknown_page")
             const viewport = screenshot.viewport?.width && screenshot.viewport?.height ? `${screenshot.viewport.width}×${screenshot.viewport.height}` : null
             return (
-              <figure className={`${surfaceClasses("panel", "sm")} max-w-lg`} key={screenshot.id}>
+              <figure className={`${surfaceClasses("panel", "sm")} min-w-0 max-w-full`} key={screenshot.id}>
                 <button className="flex w-full cursor-zoom-in justify-center" onClick={() => setPreviewIndex(screenshots.indexOf(screenshot))} type="button">
                   <img
                     alt={pageLabel}
@@ -747,8 +747,8 @@ export function VisualEvidenceGallery({
                     src={screenshot.image_url}
                   />
                 </button>
-                <figcaption className="mt-2 space-y-1 text-xs text-text-muted">
-                  <p className="font-medium text-text-primary">{pageLabel}</p>
+                <figcaption className="mt-2 min-w-0 max-w-full space-y-1 text-xs text-text-muted">
+                  <p className="break-words font-medium text-text-primary">{pageLabel}</p>
                   <p>
                     {t("visual_evidence_metadata", {
                       sequence: screenshot.sequence,
@@ -1052,8 +1052,8 @@ function ReviewArtifactsPanel({
   const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || typedArtifacts.length > 0
 
   return (
-    <Section.Root>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <Section.Root className="min-w-0 max-w-full">
+      <div className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-3">
         <SectionHeading>{t("review_artifacts_title")}</SectionHeading>
         {hasArtifacts ? (
           <Button onClick={() => setExpanded((value) => !value)} size="sm" variant="secondary">
@@ -1063,9 +1063,9 @@ function ReviewArtifactsPanel({
       </div>
       {!hasArtifacts ? <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">{t("section_no_artifacts")}</p> : null}
       {hasArtifacts && expanded ? (
-        <div className="mt-3 space-y-4">
+        <div className="mt-3 min-w-0 max-w-full space-y-4">
           {payload.test_plan || reviewArtifacts.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid min-w-0 max-w-full gap-3 md:grid-cols-2">
               {payload.test_plan ? (
                 <div className={surfaceClasses("inset", "sm", "min-w-0 overflow-x-auto")}>
                   <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("section_test_plan")}</p>
