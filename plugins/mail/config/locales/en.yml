@@ -1,0 +1,10 @@
+en:
+  permissions:
+    capabilities:
+      mail.read@v1:
+        label: Read mail
+        description: Search and read mail in a connected account.
+      mail/search@v1:
+        label: Search mail
+      mail.message/read@v1:
+        label: Read a mail message
