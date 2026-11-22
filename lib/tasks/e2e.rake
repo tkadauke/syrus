@@ -5,6 +5,7 @@ namespace :e2e do
       claude_agent
       codex_agent
       credential_store
+      design_docs
       git_history
       k8s_cluster
       mysql_db_browser

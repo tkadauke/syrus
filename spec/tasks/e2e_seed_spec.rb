@@ -74,6 +74,27 @@ RSpec.describe "e2e:seed" do
     )
   end
 
+  # Regression: the seed resets every plugin to its manifest default, and the
+  # Design Docs spec opens /design_docs without enabling a default-off plugin
+  # first. On CI's fresh database the page was the SPA fallback, and main's e2e
+  # check stayed red. A plugin whose e2e spec never enables it has to be
+  # enabled by default or by the seed.
+  it "leaves no plugin e2e spec relying on an enablement nothing provides" do
+    source = Rails.root.join("lib/tasks/e2e.rake").read
+    seeded = source[/def enable_e2e_required_plugins!.*?%w\[(.*?)\]/m, 1].to_s.split
+    missing = Dir[Rails.root.join("plugins/*/e2e/*.spec.ts")].group_by { |path| path.split("/plugins/").last.split("/").first }.filter_map do |plugin, specs|
+      next if specs.any? { |spec| File.read(spec).match?(/enable/i) }
+
+      manifest = Dir[Rails.root.join("plugins", plugin, "lib", "*.rb")].map { |file| File.read(file) }.join("\n")
+      next unless manifest.match?(/^\s*default_enabled\s+false\b/)
+      next if seeded.include?(plugin)
+
+      plugin
+    end
+
+    expect(missing).to eq([])
+  end
+
   # Regression: the Agent Insights fixture needs a plugin-contributed Job kind,
   # and when that kind was not registered the validation error aborted the whole
   # seed. Previews then came up with no data at all, which in turn made every
