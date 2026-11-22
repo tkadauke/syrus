@@ -145,7 +145,7 @@ module Syrus
       def with_default_beta_mode(example)
         begin
           return yield unless defined?(AppSetting) && AppSetting.respond_to?(:current)
-          return yield unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
+          return yield unless app_settings_table_available? && AppSetting.column_names.include?("beta_mode_enabled")
 
           # The before(:suite) call establishes true as the common baseline.
           # Transactional examples roll their own changes back to that value,
@@ -178,7 +178,7 @@ module Syrus
 
       def establish_default_beta_mode
         return unless defined?(AppSetting) && AppSetting.respond_to?(:current)
-        return unless AppSetting.table_exists? && AppSetting.column_names.include?("beta_mode_enabled")
+        return unless app_settings_table_available? && AppSetting.column_names.include?("beta_mode_enabled")
 
         settings = AppSetting.current.reload
         Syrus::PluginRegistry.clear_beta_mode_cache!
@@ -186,6 +186,13 @@ module Syrus
       rescue ActiveRecord::ActiveRecordError => e
         report_beta_mode_failure("could not establish the beta-mode baseline", e)
         nil
+      end
+
+      def app_settings_table_available?
+        return true if AppSetting.table_exists?
+
+        AppSetting.connection.schema_cache.clear_data_source_cache!(AppSetting.table_name)
+        AppSetting.table_exists?
       end
 
       # Both callers carry on without the beta-mode default, so the examples
