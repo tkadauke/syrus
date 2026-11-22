@@ -14,10 +14,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
+
+	gem "github.com/aquasecurity/go-gem-version"
 )
 
 const pluginRegistryTTL = 5 * time.Minute
@@ -79,7 +81,7 @@ type pluginRegistryClient struct {
 
 func (client pluginRegistryClient) search(ctx context.Context, term string) ([]pluginCatalogEntry, error) {
 	entries, err := client.load(ctx)
-	if err != nil {
+	if err != nil && len(entries) == 0 {
 		return nil, err
 	}
 	query := strings.ToLower(strings.TrimSpace(term))
@@ -95,7 +97,7 @@ func (client pluginRegistryClient) search(ctx context.Context, term string) ([]p
 		}
 		return result[i].Name < result[j].Name
 	})
-	return result, nil
+	return result, err
 }
 
 func (client pluginRegistryClient) load(ctx context.Context) ([]pluginCatalogEntry, error) {
@@ -110,12 +112,15 @@ func (client pluginRegistryClient) load(ctx context.Context) ([]pluginCatalogEnt
 }
 
 func (client pluginRegistryClient) loadHTTP(ctx context.Context, base *url.URL) ([]pluginCatalogEntry, error) {
-	cache, cachePath := readPluginRegistryCache(client.URL)
+	cache, cachePath := readPluginRegistryCache(client.cacheKey())
 	if cache != nil && pluginRegistryNow().Sub(cache.FetchedAt) < pluginRegistryTTL {
 		return cache.Entries, nil
 	}
-	requestURL := *base
-	requestURL.Path = strings.TrimRight(requestURL.Path, "/") + "/index.json"
+	directoryBase := *base
+	directoryBase.Path = strings.TrimRight(directoryBase.Path, "/") + "/"
+	directoryBase.RawQuery = ""
+	directoryBase.Fragment = ""
+	requestURL := directoryBase.ResolveReference(&url.URL{Path: "index.json"})
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
 	if err != nil {
 		return staleRegistry(cache, err)
@@ -149,9 +154,12 @@ func (client pluginRegistryClient) loadHTTP(ctx context.Context, base *url.URL) 
 		if err != nil {
 			return err
 		}
-		reference, _ := url.Parse(relative)
-		resource := base.ResolveReference(reference)
-		resourceResponse, err := httpClient.Get(resource.String())
+		resource := directoryBase.ResolveReference(&url.URL{Path: relative})
+		resourceRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, resource.String(), nil)
+		if err != nil {
+			return err
+		}
+		resourceResponse, err := httpClient.Do(resourceRequest)
 		if err != nil {
 			return err
 		}
@@ -176,6 +184,7 @@ func (client pluginRegistryClient) loadGit(ctx context.Context, source string) (
 		return nil, err
 	}
 	stamp := filepath.Join(directory, ".syrus-refreshed-at")
+	var refreshErr error
 	if info, statErr := os.Stat(stamp); statErr != nil || pluginRegistryNow().Sub(info.ModTime()) >= pluginRegistryTTL {
 		if _, statErr := os.Stat(filepath.Join(directory, ".git")); statErr == nil {
 			err = pluginRegistryCommand(ctx, "git", "-C", directory, "pull", "--ff-only", "--quiet").Run()
@@ -184,9 +193,13 @@ func (client pluginRegistryClient) loadGit(ctx context.Context, source string) (
 			err = pluginRegistryCommand(ctx, "git", "clone", "--depth", "1", "--quiet", source, directory).Run()
 		}
 		if err != nil {
-			return nil, fmt.Errorf("plugin registry git refresh failed: %w", err)
+			if _, cacheErr := os.Stat(filepath.Join(directory, "index.json")); cacheErr != nil {
+				return nil, fmt.Errorf("plugin registry git refresh failed: %w", err)
+			}
+			refreshErr = fmt.Errorf("plugin registry git refresh failed: %w", err)
+		} else {
+			_ = os.WriteFile(stamp, nil, 0600)
 		}
-		_ = os.WriteFile(stamp, nil, 0600)
 	}
 	payload, err := os.ReadFile(filepath.Join(directory, "index.json"))
 	if err != nil {
@@ -207,7 +220,11 @@ func (client pluginRegistryClient) loadGit(ctx context.Context, source string) (
 		}
 		return json.Unmarshal(payload, target)
 	}
-	return parsePluginRegistry(index, read, client.SyrusVersion)
+	entries, err := parsePluginRegistry(index, read, client.SyrusVersion)
+	if err != nil {
+		return nil, err
+	}
+	return entries, refreshErr
 }
 
 func parsePluginRegistry(index pluginRegistryIndex, read func(string, any) error, syrusVersion string) ([]pluginCatalogEntry, error) {
@@ -268,85 +285,44 @@ func validateRegistryRelease(path string, release pluginRegistryRelease) error {
 	if release.Description == "" || release.Category == "" || release.Author == "" || release.Homepage == "" || release.License == "" || release.RequiresSyrus == "" || release.PackageURL == "" || release.PackageDigest == "" || release.SignatureURL == "" || release.PublisherKeyFingerprint == "" || len(release.TrustLabelInputs) == 0 || len(release.CapabilitySummary) == 0 {
 		return errors.New("registry entry is missing required metadata")
 	}
+	if _, err := gem.NewVersion(release.Version); err != nil {
+		return fmt.Errorf("invalid registry release version %q: %w", release.Version, err)
+	}
 	return nil
 }
 
-func versionRequirementSatisfied(requirement, version string) (bool, error) {
-	if strings.TrimSpace(version) == "" {
+func versionRequirementSatisfied(requirement, runningVersion string) (bool, error) {
+	if strings.TrimSpace(runningVersion) == "" {
 		return true, nil
 	}
-	for _, constraint := range strings.Split(requirement, ",") {
-		parts := strings.Fields(strings.TrimSpace(constraint))
-		if len(parts) == 1 {
-			parts = []string{"=", parts[0]}
-		}
-		if len(parts) != 2 {
-			return false, fmt.Errorf("invalid requires_syrus %q", requirement)
-		}
-		comparison := compareVersions(version, parts[1])
-		if parts[0] != "=" && parts[0] != ">" && parts[0] != ">=" && parts[0] != "<" && parts[0] != "<=" && parts[0] != "~>" {
-			return false, fmt.Errorf("invalid requires_syrus operator %q", parts[0])
-		}
-		matched := map[string]bool{"=": comparison == 0, ">": comparison > 0, ">=": comparison >= 0, "<": comparison < 0, "<=": comparison <= 0}[parts[0]]
-		if parts[0] == "~>" {
-			base := versionParts(parts[1])
-			upper := append([]int(nil), base...)
-			index := len(upper) - 2
-			if index < 0 {
-				index = 0
-			}
-			upper[index]++
-			for i := index + 1; i < len(upper); i++ {
-				upper[i] = 0
-			}
-			matched = comparison >= 0 && compareVersionParts(versionParts(version), upper) < 0
-		}
-		if !matched {
-			return false, nil
-		}
+	if strings.Contains(requirement, "||") {
+		return false, fmt.Errorf("invalid requires_syrus %q: alternatives are not supported by Gem::Requirement", requirement)
 	}
-	return true, nil
+	running, err := gem.NewVersion(strings.TrimPrefix(strings.TrimSpace(runningVersion), "v"))
+	if err != nil {
+		return false, fmt.Errorf("invalid Syrus version %q: %w", runningVersion, err)
+	}
+	constraints, err := gem.NewConstraints(requirement)
+	if err != nil {
+		return false, fmt.Errorf("invalid requires_syrus %q: %w", requirement, err)
+	}
+	return constraints.Check(running), nil
 }
 
 func compareVersions(left, right string) int {
-	return compareVersionParts(versionParts(left), versionParts(right))
-}
-func versionParts(value string) []int {
-	value = strings.TrimPrefix(strings.TrimSpace(value), "v")
-	value = strings.SplitN(value, "-", 2)[0]
-	parts := strings.Split(value, ".")
-	result := make([]int, len(parts))
-	for index, part := range parts {
-		result[index], _ = strconv.Atoi(part)
+	leftVersion, leftErr := gem.NewVersion(left)
+	rightVersion, rightErr := gem.NewVersion(right)
+	if leftErr != nil || rightErr != nil {
+		return strings.Compare(left, right)
 	}
-	return result
-}
-func compareVersionParts(left, right []int) int {
-	length := len(left)
-	if len(right) > length {
-		length = len(right)
-	}
-	for index := 0; index < length; index++ {
-		l, r := 0, 0
-		if index < len(left) {
-			l = left[index]
-		}
-		if index < len(right) {
-			r = right[index]
-		}
-		if l < r {
-			return -1
-		}
-		if l > r {
-			return 1
-		}
-	}
-	return 0
+	return leftVersion.Compare(rightVersion)
 }
 
 func safeRegistryPath(path string) (string, error) {
 	clean := filepath.ToSlash(filepath.Clean(path))
-	if clean == "." || clean != path || strings.HasPrefix(clean, "../") || strings.HasPrefix(clean, "/") {
+	valid := clean != "." && clean != ".." && clean == path && !strings.HasPrefix(clean, "/") &&
+		!strings.Contains(clean, "\\") && !slices.Contains(strings.Split(clean, "/"), "..")
+	if !valid {
 		return "", errors.New("invalid registry path")
 	}
 	return clean, nil
@@ -357,7 +333,7 @@ func decodeRegistryJSON(reader io.Reader, target any) error {
 }
 func staleRegistry(cache *pluginRegistryCache, err error) ([]pluginCatalogEntry, error) {
 	if cache != nil {
-		return cache.Entries, nil
+		return cache.Entries, fmt.Errorf("using cached plugin registry after refresh failed: %w", err)
 	}
 	return nil, err
 }
@@ -369,6 +345,10 @@ func registryCachePath(source, suffix string) (string, error) {
 	}
 	digest := sha256.Sum256([]byte(source))
 	return filepath.Join(root, "syrus", "plugin-registry-"+hex.EncodeToString(digest[:8])+"-"+suffix), nil
+}
+
+func (client pluginRegistryClient) cacheKey() string {
+	return client.URL + "\x00" + client.SyrusVersion
 }
 func readPluginRegistryCache(source string) (*pluginRegistryCache, string) {
 	path, err := registryCachePath(source, "catalog.json")
