@@ -216,7 +216,10 @@ export function planHollowing(originalDoc: Document, bounds: Bounds): HollowPlan
     // Table rows hollow cell by cell, so column widths still see every cell.
     const targets: Array<[number, HTMLElement]> =
       original.tagName === "TR" ? Array.from(original.children as HTMLCollectionOf<HTMLElement>).map((cell, i) => [i, cell]) : [[-1, original]]
-    plan.rows.set(index, targets.map(([i, target]) => [i, target.getBoundingClientRect()]))
+    plan.rows.set(
+      index,
+      targets.map(([i, target]) => [i, target.getBoundingClientRect()])
+    )
     targets.forEach(([, target]) => plan.emptied.add(target))
     return true
   })
