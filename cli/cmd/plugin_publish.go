@@ -290,14 +290,18 @@ func (p *githubPluginPublisher) submissionRepository(ctx context.Context, upstre
 }
 
 func newPluginPublishCommand() *cobra.Command {
-	var keyPath, repository, indexRepository, version, checkout, description, category, license string
+	var keyPath, repository, indexRepository, registry, version, checkout, description, category, license string
 	var submit bool
 	command := &cobra.Command{Use: "publish [DIR]", Short: "Pack, sign, and publish a plugin release", Args: cobra.MaximumNArgs(1), RunE: func(command *cobra.Command, args []string) error {
 		if keyPath == "" || repository == "" {
 			return errors.New("--key and --repository are required")
 		}
-		if submit && indexRepository == "" {
-			return errors.New("--index-repository is required with --submit")
+		if submit {
+			var err error
+			indexRepository, err = resolveSubmissionRepository(command.Context(), indexRepository, registry)
+			if err != nil {
+				return err
+			}
 		}
 		token := os.Getenv("GITHUB_TOKEN")
 		if token == "" {
@@ -391,6 +395,7 @@ func newPluginPublishCommand() *cobra.Command {
 	command.Flags().StringVar(&keyPath, "key", "", "publisher private key file")
 	command.Flags().StringVar(&repository, "repository", "", "GitHub release repository (OWNER/REPO)")
 	command.Flags().StringVar(&indexRepository, "index-repository", "", "GitHub index repository (OWNER/REPO)")
+	command.Flags().StringVar(&registry, "registry", "", "Configured registry to submit to (defaults to canonical)")
 	command.Flags().BoolVar(&submit, "submit", false, "open an index pull request (explicit consent)")
 	command.Flags().StringVar(&version, "syrus-version", "", "Syrus release to validate against")
 	command.Flags().StringVar(&checkout, "checkout", "", "run validation from a local Syrus checkout")
@@ -398,6 +403,20 @@ func newPluginPublishCommand() *cobra.Command {
 	command.Flags().StringVar(&category, "category", "other", "registry category")
 	command.Flags().StringVar(&license, "license", "", "registry license (defaults to the gemspec license)")
 	return command
+}
+
+func resolveSubmissionRepository(ctx context.Context, override, registry string) (string, error) {
+	if override != "" {
+		return override, nil
+	}
+	if registry == "" {
+		registry = "canonical"
+	}
+	_, source, err := findConfiguredRegistry(ctx, registry)
+	if err != nil {
+		return "", fmt.Errorf("cannot select submission registry: %w", err)
+	}
+	return githubRepositoryForRegistry(source)
 }
 
 func pluginPublicationMetadata(files map[string][]byte) (string, string) {
