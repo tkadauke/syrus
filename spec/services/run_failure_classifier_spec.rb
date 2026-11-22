@@ -574,6 +574,36 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).not_to eq("provider_auth_or_config")
   end
 
+  # Regression: a bare `auth` matched "webauthn" in an ordinary dependency
+  # install log, so a main-branch grader whose `npm ci` hit a transient
+  # extraction error was filed as a non-retryable provider auth/config failure.
+  it "does not treat a dependency named webauthn in an install log as provider auth/config" do
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "immutable source prepare command failed: npm ci")
+    JobLog.append!(run: run, chunk: "Installing webauthn 3.5.1", kind: "system")
+    JobLog.append!(
+      run: run,
+      chunk: "npm warn deprecated @github/webauthn-json@2.1.1: Deprecated: Modern browsers support built-in WebAuthn JSON methods.",
+      kind: "system"
+    )
+    JobLog.append!(run: run, chunk: "npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat 'node_modules/@x'", kind: "system")
+
+    expect(classification.classification).not_to eq("provider_auth_or_config")
+  end
+
+  [
+    "fatal: Authentication failed for 'https://github.com/acme/widgets.git/'",
+    "OAuth token expired",
+    "auth error: provider rejected the request"
+  ].each do |message|
+    it "still classifies #{message.inspect} as provider auth/config" do
+      run.update!(state: "failed")
+      diagnostic("StandardError", message)
+
+      expect(classification.classification).to eq("provider_auth_or_config")
+    end
+  end
+
   it "still classifies a genuine invalid/expired/missing token message as provider auth/config" do
     run.update!(state: "failed")
     diagnostic("StandardError", "Request failed: the access token is invalid, please reauthorize.")
