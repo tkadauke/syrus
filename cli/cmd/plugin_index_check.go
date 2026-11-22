@@ -3,13 +3,16 @@ package cmd
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -22,6 +25,7 @@ import (
 )
 
 var pluginIndexCheckHTTP = http.DefaultClient
+var pluginIndexCheckURLValidator = validateIndexResourceURL
 
 func newPluginIndexCheckCommand() *cobra.Command {
 	var trustPath, checkout string
@@ -174,15 +178,28 @@ func runSubmittedPackageValidation(command *cobra.Command, archive, version, che
 }
 
 func downloadIndexResource(command *cobra.Command, raw string) ([]byte, error) {
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-		return nil, errors.New("package and signature URLs must use HTTPS")
+	if err := pluginIndexCheckURLValidator(command.Context(), raw); err != nil {
+		return nil, err
 	}
 	request, err := http.NewRequestWithContext(command.Context(), http.MethodGet, raw, nil)
 	if err != nil {
 		return nil, err
 	}
-	response, err := pluginIndexCheckHTTP.Do(request)
+	client := *pluginIndexCheckHTTP
+	previousRedirectCheck := client.CheckRedirect
+	client.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+		if err := pluginIndexCheckURLValidator(request.Context(), request.URL.String()); err != nil {
+			return err
+		}
+		if previousRedirectCheck != nil {
+			return previousRedirectCheck(request, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -191,6 +208,53 @@ func downloadIndexResource(command *cobra.Command, raw string) ([]byte, error) {
 		return nil, fmt.Errorf("download returned %s", response.Status)
 	}
 	return io.ReadAll(io.LimitReader(response.Body, 256<<20))
+}
+
+func validateIndexResourceURL(ctx context.Context, raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil {
+		return errors.New("package and signature URLs must use HTTPS without credentials")
+	}
+	if strings.Contains(parsed.Hostname(), "%") {
+		return errors.New("package and signature URLs must not use scoped IP addresses")
+	}
+	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, parsed.Hostname())
+	if err != nil {
+		return fmt.Errorf("resolve download host: %w", err)
+	}
+	if len(addresses) == 0 {
+		return errors.New("download host did not resolve")
+	}
+	for _, address := range addresses {
+		ip, ok := netip.AddrFromSlice(address.IP)
+		if !ok || unsafeIndexResourceAddress(ip.Unmap()) {
+			return fmt.Errorf("download host resolves to a private or reserved address: %s", address.IP)
+		}
+	}
+	return nil
+}
+
+func unsafeIndexResourceAddress(address netip.Addr) bool {
+	if !address.IsValid() || !address.IsGlobalUnicast() || address.IsPrivate() || address.IsLoopback() || address.IsLinkLocalUnicast() {
+		return true
+	}
+	reserved := []netip.Prefix{
+		netip.MustParsePrefix("0.0.0.0/8"),
+		netip.MustParsePrefix("100.64.0.0/10"),
+		netip.MustParsePrefix("192.0.0.0/24"),
+		netip.MustParsePrefix("192.0.2.0/24"),
+		netip.MustParsePrefix("198.18.0.0/15"),
+		netip.MustParsePrefix("198.51.100.0/24"),
+		netip.MustParsePrefix("203.0.113.0/24"),
+		netip.MustParsePrefix("240.0.0.0/4"),
+		netip.MustParsePrefix("2001:db8::/32"),
+	}
+	for _, prefix := range reserved {
+		if prefix.Contains(address) {
+			return true
+		}
+	}
+	return false
 }
 
 func minimumSyrusVersion(requirement string) string {
