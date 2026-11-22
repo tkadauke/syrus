@@ -4684,6 +4684,13 @@ the run, or log `AppSetting.count` / `beta_mode_enabled` at suite start.
 
 ---
 
+## M64. Main through `d381b27bd3`
+
+Four commits, all mobile review gestures (cue visibility, localized cue fit,
+swipe reveals). No engine invariant.
+
+---
+
 ## Lead L10. E2E on main: one new failure fixed, two that only fail in the full CI run
 
 Main's E2E workflow has been red for at least fifteen runs. On `46989b055f`
@@ -6260,7 +6267,7 @@ Later commits, checked through main `cb5b006575` (two merge trains):
   state isolation hold (M22). The remaining commits are layout and
   accessibility only.
 
-Checked through main `9a3ed75dbb`. Each loop iteration continues from there:
+Checked through main `d381b27bd3`. Each loop iteration continues from there:
 new commits on `origin/main` that are not this branch's, their invariants,
 and a proof or a counterexample and fix for each.
 
