@@ -74,6 +74,18 @@ RSpec.describe "API: plugin installer", type: :request do
     expect(PluginInstallation).not_to exist(plugin_name: "weather")
   end
 
+  it "does not offer revoked stored releases for restoration" do
+    sign_in_as(admin)
+    trust_store = instance_double(Syrus::PluginPackage::TrustStore)
+    allow(trust_store).to receive(:revoked?).with(release).and_return(true)
+    allow(Syrus::PluginPackage::TrustStore).to receive(:cached).and_return(trust_store)
+
+    get "/api/v1/app/admin/plugin_installer"
+
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body).fetch("available_releases")).to be_empty
+  end
+
   it "does not change desired state until the staged install is confirmed" do
     sign_in_as(admin)
     change = PluginChange.create!(plugin_name: "weather", action: "install", plugin_release: release,
