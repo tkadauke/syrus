@@ -119,9 +119,12 @@ describe("hollowOffscreenElements", () => {
 
   it("hollows a whole off-screen file, and only the off-screen rows of a visible one", () => {
     const html = ["far", "near"]
-      .map((id) => `<div data-capture-hollow="" id="${id}"><table><tbody>${[0, 1]
-        .map((row) => `<tr data-capture-hollow="" id="${id}-${row}"><td><span class="tok">${id}${row}</span></td></tr>`)
-        .join("")}</tbody></table></div>`)
+      .map(
+        (id) =>
+          `<div data-capture-hollow="" id="${id}"><table><tbody>${[0, 1]
+            .map((row) => `<tr data-capture-hollow="" id="${id}-${row}"><td><span class="tok">${id}${row}</span></td></tr>`)
+            .join("")}</tbody></table></div>`
+      )
       .join("")
     const original = document.implementation.createHTMLDocument("original")
     const clone = document.implementation.createHTMLDocument("clone")
