@@ -359,13 +359,7 @@ function DetailsSheet({ job, payload, onClose }: { job: ReviewWorkspaceJob; payl
       data-testid="mobile-details-backdrop"
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
-      <section
-        aria-label={t("details")}
-        aria-modal="true"
-        className={MOBILE_DETAILS_SHEET_CLASS}
-        data-testid="mobile-details-sheet"
-        role="dialog"
-      >
+      <section aria-label={t("details")} aria-modal="true" className={MOBILE_DETAILS_SHEET_CLASS} data-testid="mobile-details-sheet" role="dialog">
         <div className="flex w-full min-w-0 max-w-full items-start justify-between gap-4">
           <div className="min-w-0 max-w-full flex-1">
             <p className="break-all text-sm text-text-secondary">
