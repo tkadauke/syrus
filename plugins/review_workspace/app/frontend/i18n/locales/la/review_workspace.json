@@ -28,6 +28,8 @@
   "approve_mobile": "Approbare",
   "approve_shortcut": "Ad coniunctionem approbare (A)",
   "approve_confirm": "{{slug}} ad coniunctionem approbare?",
+  "approve_consequence": "Hoc Job in ordinem coniunctionis mittit. Facultas approbandi ante acceptationem iterum examinatur.",
+  "approving": "Approbatur...",
   "feedback_shortcut": "Responsum dare (F)",
   "feedback": "Responsum dare",
   "feedback_label": "Quid mutandum est?",
