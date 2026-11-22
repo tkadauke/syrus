@@ -156,9 +156,7 @@ function PluginInstallerPanel() {
                     <strong>{entry.name}</strong>
                     <span>{entry.version}</span>
                     <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{entry.trust_label}</span>
-                    <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">
-                      {t("plugins.registry.source", { name: entry.registry_name })}
-                    </span>
+                    <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-xs">{t("plugins.registry.source", { name: entry.registry_name })}</span>
                   </div>
                   <p className="mt-1 text-sm text-text-secondary">{entry.description}</p>
                 </div>
