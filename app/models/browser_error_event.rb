@@ -70,8 +70,11 @@ class BrowserErrorEvent < ApplicationRecord
 
   def self.record_attributes(user:, payload:)
     raw = payload.respond_to?(:to_unsafe_h) ? payload.to_unsafe_h : payload.to_h
-    attrs = Observability::EventPayloadSanitizer.sanitize(raw.deep_symbolize_keys)
-    attrs[:metadata] = sanitize_startup_resource_metadata(attrs[:metadata]) if attrs[:name] == "StartupResourceError"
+    raw_attrs = raw.deep_symbolize_keys
+    attrs = Observability::EventPayloadSanitizer.sanitize(raw_attrs)
+    if attrs[:name] == "StartupResourceError"
+      attrs[:metadata] = sanitize_startup_resource_metadata(attrs[:metadata], raw_metadata: raw_attrs[:metadata])
+    end
     occurred_at = parse_event_time(attrs[:occurred_at]) || Time.current
     startup_resource = attrs[:name] == "StartupResourceError"
     fingerprint = startup_resource ? startup_resource_fingerprint(attrs) : attrs[:fingerprint]
@@ -96,7 +99,7 @@ class BrowserErrorEvent < ApplicationRecord
     }
   end
 
-  def self.sanitize_startup_resource_metadata(metadata)
+  def self.sanitize_startup_resource_metadata(metadata, raw_metadata: metadata)
     source = normalized_event_json(metadata)
     safe = source.slice(*STARTUP_RESOURCE_METADATA_KEYS)
     path = safe["resource_path"].to_s.split(/[?#]/, 2).first
@@ -117,6 +120,8 @@ class BrowserErrorEvent < ApplicationRecord
       safe[key] = value.match?(%r{\A[A-Za-z0-9._-]{1,100}\z}) ? value : nil
     end
     safe["resource_timing"] = sanitize_startup_resource_timing(safe["resource_timing"])
+    raw_timing = sanitize_startup_resource_timing(normalized_event_json(raw_metadata)["resource_timing"])
+    safe["resource_timing"]["encoded_size_bucket"] = raw_timing["encoded_size_bucket"] if safe["resource_timing"] && raw_timing
     safe
   end
 

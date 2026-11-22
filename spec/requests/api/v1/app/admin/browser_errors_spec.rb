@@ -16,13 +16,13 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
 
   it "returns searchable browser error events for admins" do
     admin = Factories.user
-    BrowserErrorEvent.record!(
+    browser_error = BrowserErrorEvent.record!(
       user: admin,
       payload: {
         "occurred_at" => 5.minutes.ago.iso8601,
         "app_revision" => "current-sha",
         "fingerprint" => "map-fingerprint",
-        "name" => "TypeError",
+        "name" => "StartupResourceError",
         "message" => "undefined is not an object (evaluating 'n.map')",
         "path" => "/jobs/3188",
         "recoverable" => true,
@@ -36,7 +36,11 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
           "last_completed_milestone" => "shell_loaded",
           "browser_online" => false,
           "service_worker_controlled" => true,
-          "resource_timing" => { "response_status" => 503, "transfer_classification" => "network" }
+          "resource_timing" => {
+            "response_status" => 503,
+            "encoded_size_bucket" => "10kb_to_100kb",
+            "transfer_classification" => "network"
+          }
         },
         "recent_api_requests" => [ { "path" => "/api/v1/app/jobs/3188", "status" => 200 } ]
       }
@@ -59,7 +63,7 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
     body = response.parsed_body
     expect(body.fetch("events").length).to eq(1)
     expect(body.dig("events", 0)).to include(
-      "fingerprint" => "map-fingerprint",
+      "fingerprint" => browser_error.fingerprint,
       "message" => "undefined is not an object (evaluating 'n.map')",
       "path" => "/jobs/3188",
       "correlation_id" => "correlation-123",
@@ -89,7 +93,11 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
       "last_completed_milestone" => "shell_loaded",
       "browser_online" => "false",
       "service_worker_controlled" => "true",
-      "resource_timing" => include("response_status" => "503", "transfer_classification" => "network")
+      "resource_timing" => include(
+        "response_status" => "503",
+        "encoded_size_bucket" => "10kb_to_100kb",
+        "transfer_classification" => "network"
+      )
     )
   end
 
