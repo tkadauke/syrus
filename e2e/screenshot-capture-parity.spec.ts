@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs"
-import { expect, test, type Page, type TestInfo } from "@playwright/test"
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
 import { jobsListRow } from "./support/dashboard"
 
@@ -121,6 +121,14 @@ async function addInnerScrolledSurface(page: Page) {
   })
   expect(scrollTop, "the synthetic complex surface must be inner-scrolled").toBeGreaterThan(10_000)
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+}
+
+async function expectContainedBy(locator: Locator, container: Locator) {
+  const [box, containerBox] = await Promise.all([locator.boundingBox(), container.boundingBox()])
+  expect(box).not.toBeNull()
+  expect(containerBox).not.toBeNull()
+  expect(box!.x, "content must not be clipped by the dialog's left edge").toBeGreaterThanOrEqual(containerBox!.x)
+  expect(box!.x + box!.width, "content must not overflow the dialog's right edge").toBeLessThanOrEqual(containerBox!.x + containerBox!.width)
 }
 
 // The element that scrolls the diff vertically: the window, or the nearest
@@ -270,3 +278,34 @@ for (const viewport of [
     await expectPixelParity(page, testInfo, `${viewport.name}-horizontal-scroll`)
   })
 }
+
+test("unsafe full-page fallback stays readable inside the mobile bug-report dialog", async ({ page }, testInfo) => {
+  test.skip(!["core", "core-webkit-screenshot"].includes(testInfo.project.name), "Only core browser projects exercise this dialog")
+  await page.setViewportSize({ width: 393, height: 852 })
+  await signInAsDemo(page)
+
+  await page.getByRole("button", { name: "Report a bug" }).first().click()
+  const dialog = page.getByRole("dialog", { name: "Report a bug" })
+  await expect(dialog).toBeVisible()
+  await expect(page.getByText("Capturing...")).toBeHidden({ timeout: 30_000 })
+
+  await page.evaluate(() => {
+    for (const element of [document.body, document.documentElement]) {
+      Object.defineProperties(element, {
+        scrollHeight: { configurable: true, value: 40_000 },
+        scrollWidth: { configurable: true, value: 40_000 }
+      })
+    }
+  })
+
+  await dialog.getByText("Full page", { exact: true }).click()
+  const warning = dialog.getByText(/too complex for a safe full-page screenshot/i)
+  await expect(warning).toBeVisible()
+  await expect(dialog.getByLabel("Viewport")).toBeChecked()
+
+  expect(await dialog.evaluate((element) => element.scrollLeft)).toBe(0)
+  await expectContainedBy(dialog.getByText("Report a bug"), dialog)
+  await expectContainedBy(warning, dialog)
+  await expectContainedBy(dialog.getByText("Screenshot", { exact: true }), dialog)
+  await expectContainedBy(dialog.getByText("Viewport", { exact: true }).last(), dialog)
+})
