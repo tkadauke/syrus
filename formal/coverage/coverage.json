@@ -3403,6 +3403,18 @@
         "C. Leave it: rare, and the operator can override the dependencies."
       ],
       "recommendation": "A. It matches the existing rule (cycles are refused up front) on the graph landing actually uses, costs one more graph walk at creation, and the proposing agent gets an actionable error instead of a silent deadlock later. B changes what an Epic train contains, which other proofs (EpicAtomicLanding) rely on."
+    },
+    {
+      "id": "NY29",
+      "item": "branch-diverged",
+      "title": "How should an unpublished stacked Job recover when its finished work conflicts with its parent's new base?",
+      "context": "Live in production now: JOB-9453 (Epic 553) finished three days of work, then pr_open's mechanical rebase onto its restacked parent conflicted in cli/cmd/plugin_local.go (the plugin capability-family Epic and 9453 both edit it). pr_open reports any freshness error as awaiting_stable_base, which is retryable, so the auto-retry replayed the same rebase and failed again; the agent-capable path (StackRebaseCoordinator -> Rebase Workflow) skips children without a PR, and 9453 never opened one. 9453 is failed and 9454-9456 wait behind it.",
+      "options": [
+        "A. On a rebase conflict, have pr_open (or the retry it schedules) run an agent conflict resolution in the same workspace -- the merge-train pattern (merge_train_agent_rebase) -- and only fail if the agent cannot resolve it.",
+        "B. Let StackRebaseCoordinator run its Rebase Workflow for an unpublished child too (rebase the local work, then let the original Workflow publish).",
+        "C. Classify a rebase conflict as non-retryable (not awaiting_stable_base) so it fails once with a clear 'needs manual rebase' reason instead of burning retries; operators resolve it."
+      ],
+      "recommendation": "A, with C's classification as the fallback when the agent fails. The workspace and completed work are right there, conflicts after a parent restack are expected in long Epic chains, and it reuses an existing pattern. For 9453 today: it needs a manual rebase onto syrus/direct-9452 (or a retry once one of A/B exists)."
     }
   ]
 }

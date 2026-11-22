@@ -4253,6 +4253,48 @@ prompt, unless `--no-hooks` is passed. Two concerns follow:
 
 ---
 
+## M54. An unpublished stacked child whose work conflicts with its moved parent has no recovery (NY29)
+
+**Found by** the failure sweep (production, read-only, 11-22). Epic 553 is a
+linear chain, 9452 → 9453 → 9454 → 9455 → 9456. Job 9453's initial Workflow
+ran a grader loop from 11-19 to 11-22, then failed at `pr_open`:
+
+```
+stack_base_freshness: stack base syrus/direct-9452 moved (5f15df7d -> b0bb597b); rebasing completed work (attempt 1/3)
+CONFLICT (content): Merge conflict in cli/cmd/plugin_local.go
+error: could not apply b3b225b2f... Add plugin package signing and trust verification
+FAIL: Steps::PrOpen::AwaitingStableBase: rebasing completed work onto syrus/direct-9452 (b0bb597b) failed
+```
+
+The parent had been restacked onto main after the plugin capability-family
+Epic landed, and that Epic changed `cli/cmd/plugin_local.go`, which 9453's own
+first commit also edits. This is a genuine content conflict. An auto-retry
+(`retry` Workflow 66238) replayed the same mechanical rebase twice and failed
+the same way. 9453 is failed, and 9454–9456 wait on it (M49).
+
+**Why nothing recovers it.**
+
+1. `StackBaseFreshness#rebase_onto!` raises `RebaseConflict` on a conflict.
+   `Steps::PrOpen#raise_awaiting_stable_base!` converts every
+   `StackBaseFreshness::Error` into `AwaitingStableBase`. The artifact keeps
+   `reason: rebase_conflict`, but the failure is classified
+   `awaiting_stable_base`, which is *retryable*. That is right for a parent
+   that keeps moving, and pointless for a conflict: every retry repeats the
+   same deterministic rebase.
+2. The path that can resolve conflicts with an agent is
+   `StackRebaseCoordinator#enqueue_rebase`, a Rebase Workflow. It skips a child
+   with no PR (`return if child.pr_number.blank?`). A child that fails *at*
+   `pr_open` has never published one.
+3. The coordinator does supersede a pending `awaiting_stable_base` retry with
+   a stack rebase (`SUPERSEDABLE_RETRY_CLASSIFICATION`), but only for children
+   it is willing to rebase. Point 2 excludes this one.
+
+So an unpublished stacked child whose completed work conflicts with its
+parent's new base ends failed, and takes the rest of its chain with it, until
+an operator rebases by hand.
+
+---
+
 ## M53. Main commits through `127ea3b964` — the external-reviewer contract
 
 Five commits, one Epic merge. They add a provisional `review` plugin family
