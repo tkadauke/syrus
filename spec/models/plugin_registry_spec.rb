@@ -25,4 +25,16 @@ RSpec.describe PluginRegistry do
     expect(source).to have_attributes(url: "https://legacy.example.test", enabled?: true, environment_managed?: true)
     expect(source).to be_persisted
   end
+
+  it "enforces the configured limit when a removed registry is restored" do
+    first = described_class.create!(name: "first", url: "https://first.example.test")
+    first.update!(enabled: false, removed_at: Time.current)
+    described_class.create!(name: "second", url: "https://second.example.test")
+    stub_const("PluginRegistry::MAX_CONFIGURED", 1)
+
+    first.assign_attributes(enabled: true, removed_at: nil)
+
+    expect(first).not_to be_valid
+    expect(first.errors.full_messages.join).to include("at most 1")
+  end
 end

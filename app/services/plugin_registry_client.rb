@@ -89,7 +89,7 @@ class PluginRegistryClient
     uri = URI.parse(url)
     raise Error, "Plugin registry git URL must use HTTPS" unless uri.is_a?(URI::HTTPS)
     raise Error, "Plugin registry git host is not permitted" unless SsrfGuard.safe_host?(uri.host)
-    refreshed_at = @cache_root.join("git-refreshed-at")
+    refreshed_at = refresh_marker
     return parse_entries(index_root) if index_root.join(".git").directory? && refreshed_at.exist? &&
       Time.current - refreshed_at.mtime < GIT_REFRESH_INTERVAL
     if index_root.join(".git").directory?
@@ -115,6 +115,7 @@ class PluginRegistryClient
     ([ manifest.fetch("trust_store") ] + manifest.fetch("releases")).each { |path| fetch_http(base, path, root: stage) }
     entries = parse_entries(stage)
     promote_index!(stage)
+    FileUtils.touch(refresh_marker)
     entries
   ensure
     FileUtils.rm_rf(stage) if stage&.exist?
@@ -189,6 +190,7 @@ class PluginRegistryClient
   end
 
   def cached_index? = index_root.join("index.json").file?
+  def refresh_marker = @cache_root.join("refreshed-at")
   def trust_store_cache_path = @cache_root.join("trust-store.json")
 
   def trust_store(root, manifest: nil)
