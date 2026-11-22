@@ -478,6 +478,22 @@
     "aria": "Acta operationalia administrativa"
   },
   "plugins": {
+    "installer": {
+      "aria": "Installer pluginorum externorum",
+      "heading": "Plugina externa institue",
+      "body": "Fasciculum probatum mitte, facultates inspice, deinde mutationem status desiderati confirma.",
+      "archive": "Archivum plugini",
+      "stage": "Fasciculum inspice",
+      "staging": "Probatur...",
+      "error": "Mutatio plugini parari aut confirmari non potuit.",
+      "capabilities": "Mutationes facultatum",
+      "disclosure": "Pluginis intra processum hoc manifestum indicium est, non coercitio. Instrumenta communi permissionum ratione adhuc reguntur.",
+      "confirm": "Mutationem status desiderati confirma",
+      "restart_required": "Status desideratus mutatus est. Mutationes applica ut classis congruat et denuo incipiat.",
+      "apply": "Mutationes applica",
+      "remove": "Remove",
+      "actions": { "install": "Institue", "update": "Renova", "remove": "Remove" }
+    },
     "trust_labels": {
       "official": "Publicum",
       "verified": "Comprobatum",
