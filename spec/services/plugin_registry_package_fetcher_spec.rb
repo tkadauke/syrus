@@ -1,6 +1,11 @@
 require "rails_helper"
 
 RSpec.describe PluginRegistryPackageFetcher do
+  before do
+    allow(SsrfGuard).to receive(:safe_host?).and_call_original
+    allow(SsrfGuard).to receive(:safe_host?).with("registry.example.test").and_return(true)
+  end
+
   it "resolves a versioned registry entry and downloads its package and signature" do
     root = Pathname.new(Dir.mktmpdir)
     FileUtils.mkdir_p(root.join("weather"))
@@ -51,5 +56,29 @@ RSpec.describe PluginRegistryPackageFetcher do
       .to raise_error(described_class::Error, /must use HTTPS/)
   ensure
     FileUtils.remove_entry(root) if root&.exist?
+  end
+
+  it "rejects registry artifact hosts that resolve to private addresses" do
+    root = Pathname.new(Dir.mktmpdir)
+    FileUtils.mkdir_p(root.join("weather"))
+    File.write(root.join("weather", "1.0.0.json"), JSON.generate(
+      "name" => "weather", "version" => "1.0.0",
+      "artifact_url" => "https://127.0.0.1/archive.tar.gz",
+      "signature_url" => "https://registry.example.test/archive.sig"
+    ))
+
+    expect { described_class.new(index_root: root).fetch(name: "weather", version: "1.0.0") }
+      .to raise_error(described_class::Error, /host is not permitted/)
+    expect(WebMock).not_to have_requested(:get, "https://127.0.0.1/archive.tar.gz")
+  ensure
+    FileUtils.remove_entry(root) if root&.exist?
+  end
+
+  it "stops reading a registry download when its body exceeds the limit" do
+    stub_request(:get, "https://registry.example.test/archive.tar.gz").to_return(body: "oversized")
+
+    expect {
+      described_class.new.send(:download, "https://registry.example.test/archive.tar.gz", limit: 4)
+    }.to raise_error(described_class::Error, /too large/)
   end
 end
