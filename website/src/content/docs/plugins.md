@@ -104,6 +104,12 @@ Signing proves that the holder of a publisher key signed those exact package
 bytes. It does not sandbox a plugin, review its source, or authorize its tools
 and capabilities; normal Syrus permissions still apply after install.
 
+`syrus plugin publish DIR --key KEY --repository OWNER/REPO` validates, packs,
+signs, and uploads a GitHub release, then prints its registry entry. Add
+`--index-repository OWNER/INDEX --submit` only to explicitly consent to opening
+the index pull request. Authentication comes from `GITHUB_TOKEN`; the command
+does not print or persist it.
+
 ## Develop with live reload
 
 Run `syrus plugin dev [DIR]` for a fast editing loop against a real,

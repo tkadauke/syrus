@@ -68,6 +68,12 @@ package is refused and an installed release is fleet-quarantined for removal.
 A signature proves which private key signed the exact bytes. It does not
 sandbox the plugin, review its code, or authorize its tools.
 
+`syrus plugin publish DIR --key KEY --repository OWNER/REPO` validates, packs,
+signs, and uploads a GitHub release, then prints its registry entry. Passing
+`--index-repository OWNER/INDEX --submit` explicitly consents to opening the
+index pull request. Authentication is read from `GITHUB_TOKEN` and is not
+printed or stored.
+
 `syrus plugin new NAME` creates a complete external plugin project in `./NAME`
 or the empty directory selected by `--path`. It rejects invalid Ruby namespace
 names and names that collide with installed or CLI-bundled plugins. The
