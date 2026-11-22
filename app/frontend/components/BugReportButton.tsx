@@ -17,7 +17,13 @@ import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
 import { formatBytes } from "../lib/format"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { mergeOptionalAttachments } from "../lib/bugReportOptionalAttachments"
-import { captureFullPage, captureViewport, installScreenshotCaptureDebugHook, loadHtml2Canvas } from "../lib/screenshotCapture"
+import {
+  captureFullPage,
+  captureViewport,
+  installScreenshotCaptureDebugHook,
+  loadHtml2Canvas,
+  UnsafeFullPageCaptureError
+} from "../lib/screenshotCapture"
 
 installScreenshotCaptureDebugHook()
 
@@ -46,7 +52,8 @@ type BugReportContext = {
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
 const MAX_EXTRA_ATTACHMENTS = 9
 const OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS = 300
-const VIEWPORT_CAPTURE_TIMEOUT_MS = 5_000
+const SCREENSHOT_CAPTURE_SLOW_MS = 5_000
+const SCREENSHOT_CAPTURE_TIMEOUT_MS = 30_000
 const ACCEPTED_ATTACHMENT_TYPES = [
   "text/plain",
   "text/markdown",
@@ -101,6 +108,7 @@ export const BugReportButton = forwardRef<
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
   const [capturingFullPage, setCapturingFullPage] = useState(false)
+  const [captureSlow, setCaptureSlow] = useState(false)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [captures, setCaptures] = useState<ScreenshotCaptures>({})
@@ -159,6 +167,7 @@ export const BugReportButton = forwardRef<
   // survive that update so re-opening the annotator can keep editing from the pristine capture.
   const capturesRef = useRef<ScreenshotCaptures>({})
   const dialogGenerationRef = useRef(0)
+  const captureGenerationRef = useRef<Record<CapturedScreenshotChoice, number>>({ viewport: 0, fullPage: 0 })
   useEffect(() => {
     capturesRef.current = captures
   }, [captures])
@@ -215,11 +224,13 @@ export const BugReportButton = forwardRef<
     bugReportChat.reset()
     setTitle(`${context} bug`)
     setDescription("")
-    revokeCaptures(captures)
+    revokeCaptures(capturesRef.current)
+    capturesRef.current = {}
     setCaptures({})
     setAnnotatingChoice(null)
     setScreenshotChoice("viewport")
     setCaptureError(null)
+    setCaptureSlow(false)
     setAttachments([])
     setAttachmentError(null)
     setOptionalAttachments(mergedOptionalAttachments)
@@ -235,32 +246,46 @@ export const BugReportButton = forwardRef<
   }
 
   async function captureInitialViewport(generation: number) {
-    let timedOut = false
+    const captureGeneration = ++captureGenerationRef.current.viewport
+    const isCurrent = () => dialogGenerationRef.current === generation && captureGenerationRef.current.viewport === captureGeneration
+    const slowTimer = window.setTimeout(() => {
+      if (isCurrent()) setCaptureSlow(true)
+    }, SCREENSHOT_CAPTURE_SLOW_MS)
     const timeout = window.setTimeout(() => {
-      if (dialogGenerationRef.current !== generation) return
-      timedOut = true
+      if (!isCurrent()) return
+      captureGenerationRef.current.viewport += 1
       setCapturing(false)
+      setCaptureSlow(false)
       setScreenshotChoice("none")
       setCaptureError(t("bug_report.screenshot_failed"))
-    }, VIEWPORT_CAPTURE_TIMEOUT_MS)
+    }, SCREENSHOT_CAPTURE_TIMEOUT_MS)
 
     try {
       const html2canvas = await loadHtml2Canvas()
       const viewportCanvas = await captureViewport(html2canvas)
       const viewport = await canvasToCapture(viewportCanvas, "bug-report-viewport.png")
-      if (dialogGenerationRef.current !== generation || timedOut) {
+      if (!isCurrent()) {
         revokeCaptures({ viewport })
         return
       }
-      setCaptures({ viewport })
+      setCaptures((current) => {
+        if (current.viewport) revokeCaptures({ viewport: current.viewport })
+        const next = { ...current, viewport }
+        capturesRef.current = next
+        return next
+      })
     } catch (error) {
-      if (dialogGenerationRef.current !== generation || timedOut) return
+      if (!isCurrent()) return
       console.error(error)
       setScreenshotChoice("none")
       setCaptureError(t("bug_report.screenshot_failed"))
     } finally {
+      window.clearTimeout(slowTimer)
       window.clearTimeout(timeout)
-      if (dialogGenerationRef.current === generation && !timedOut) setCapturing(false)
+      if (isCurrent()) {
+        setCapturing(false)
+        setCaptureSlow(false)
+      }
     }
   }
 
@@ -271,25 +296,60 @@ export const BugReportButton = forwardRef<
     if (choice !== "fullPage" || captures.fullPage || capturingFullPage) return
 
     const generation = dialogGenerationRef.current
+    if (capturing) {
+      captureGenerationRef.current.viewport += 1
+      setCapturing(false)
+    }
+    const captureGeneration = ++captureGenerationRef.current.fullPage
+    const isCurrent = () => dialogGenerationRef.current === generation && captureGenerationRef.current.fullPage === captureGeneration
     setCaptureError(null)
     setCapturingFullPage(true)
+    setCaptureSlow(false)
+    const slowTimer = window.setTimeout(() => {
+      if (isCurrent()) setCaptureSlow(true)
+    }, SCREENSHOT_CAPTURE_SLOW_MS)
+    const timeout = window.setTimeout(() => {
+      if (!isCurrent()) return
+      captureGenerationRef.current.fullPage += 1
+      setCapturingFullPage(false)
+      setCaptureSlow(false)
+      const viewportAvailable = Boolean(capturesRef.current.viewport)
+      setScreenshotChoice(viewportAvailable ? "viewport" : "none")
+      setCaptureError(t(viewportAvailable ? "bug_report.full_page_failed" : "bug_report.screenshot_failed"))
+    }, SCREENSHOT_CAPTURE_TIMEOUT_MS)
 
     try {
       const html2canvas = await loadHtml2Canvas()
       const fullPageCanvas = await captureFullPage(html2canvas)
       const fullPage = await canvasToCapture(fullPageCanvas, "bug-report-full-page.png")
-      if (dialogGenerationRef.current !== generation) {
+      if (!isCurrent()) {
         revokeCaptures({ fullPage })
         return
       }
-      setCaptures((current) => ({ ...current, fullPage }))
+      setCaptures((current) => {
+        if (current.fullPage) revokeCaptures({ fullPage: current.fullPage })
+        const next = { ...current, fullPage }
+        capturesRef.current = next
+        return next
+      })
     } catch (error) {
-      console.error(error)
-      if (dialogGenerationRef.current !== generation) return
-      setScreenshotChoice(captures.viewport ? "viewport" : "none")
-      setCaptureError(t("bug_report.full_page_failed"))
+      if (!isCurrent()) return
+      if (!(error instanceof UnsafeFullPageCaptureError)) console.error(error)
+      const viewportAvailable = Boolean(capturesRef.current.viewport)
+      setScreenshotChoice(viewportAvailable ? "viewport" : "none")
+      setCaptureError(t(error instanceof UnsafeFullPageCaptureError ? "bug_report.full_page_unsafe" : "bug_report.full_page_failed"))
+      if (!viewportAvailable) {
+        setCapturing(true)
+        setScreenshotChoice("viewport")
+        void captureInitialViewport(generation)
+      }
     } finally {
-      if (dialogGenerationRef.current === generation) setCapturingFullPage(false)
+      window.clearTimeout(slowTimer)
+      window.clearTimeout(timeout)
+      if (isCurrent()) {
+        setCapturingFullPage(false)
+        setCaptureSlow(false)
+      }
     }
   }
 
@@ -297,10 +357,12 @@ export const BugReportButton = forwardRef<
     dialogGenerationRef.current += 1
     bugReport.reset()
     bugReportChat.reset()
-    revokeCaptures(captures)
+    revokeCaptures(capturesRef.current)
+    capturesRef.current = {}
     setCaptures({})
     setAnnotatingChoice(null)
     setCaptureError(null)
+    setCaptureSlow(false)
     setCapturing(false)
     setCapturingFullPage(false)
     setAttachments([])
@@ -317,11 +379,13 @@ export const BugReportButton = forwardRef<
     setOpen(false)
     setTitle("")
     setDescription("")
-    revokeCaptures(captures)
+    revokeCaptures(capturesRef.current)
+    capturesRef.current = {}
     setCaptures({})
     setAnnotatingChoice(null)
     setScreenshotChoice("viewport")
     setCaptureError(null)
+    setCaptureSlow(false)
     setCapturing(false)
     setCapturingFullPage(false)
     setAttachments([])
@@ -447,7 +511,7 @@ export const BugReportButton = forwardRef<
   }
 
   const isGitHubIssueMode = bugReportMode === "github_issue"
-  const formDisabled = bugReport.isPending || bugReportChat.isPending || capturingFullPage
+  const formDisabled = bugReport.isPending || bugReportChat.isPending
   const submitLabel = bugReport.isPending
     ? isGitHubIssueMode
       ? t("bug_report.submitting_issue")
@@ -523,8 +587,8 @@ export const BugReportButton = forwardRef<
                   <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
                     {captureError}
                   </p>
-                ) : capturing ? (
-                  <Notice role="status">{t("bug_report.capturing")}</Notice>
+                ) : capturing || capturingFullPage ? (
+                  <Notice role="status">{t(captureSlow ? "bug_report.capturing_slow" : "bug_report.capturing")}</Notice>
                 ) : null}
                 <div className="grid gap-3 sm:grid-cols-3">
                   <ScreenshotOption
