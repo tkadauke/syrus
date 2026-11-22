@@ -4,9 +4,10 @@ module PluginLockfile
   module_function
 
   def export
-    { "version" => 1, "plugins" => PluginInstallation.includes(:plugin_release).order(:plugin_name).map do |installation|
+    { "version" => 1, "plugins" => PluginInstallation.includes(plugin_release: :plugin_registry).order(:plugin_name).map do |installation|
       release = installation.plugin_release
-      { "name" => release.name, "version" => release.version, "digest" => release.content_digest, "source" => release.source }
+      { "name" => release.name, "version" => release.version, "digest" => release.content_digest, "source" => release.source,
+        "registry" => release.plugin_registry&.name }.compact
     end }.to_yaml
   end
 
@@ -16,9 +17,13 @@ module PluginLockfile
 
     installer = PluginInstaller.new(actor:)
     data["plugins"].map do |entry|
-      release = PluginRelease.find_by!(name: entry.fetch("name"), version: entry.fetch("version"),
+      releases = PluginRelease.where(name: entry.fetch("name"), version: entry.fetch("version"),
         content_digest: entry.fetch("digest"), source: entry.fetch("source"))
-      installer.stage_release!(release.name, version: release.version, digest: release.content_digest, source: release.source)
+      registry = entry["registry"]
+      releases = releases.joins(:plugin_registry).where(plugin_registries: { name: registry }) if registry.present?
+      release = releases.first!
+      installer.stage_release!(release.name, version: release.version, digest: release.content_digest,
+        source: release.source, registry:)
     end
   end
 end

@@ -38,6 +38,9 @@ registry boundaries. Only the canonical registry may confer `official`;
 Catalog collisions remain visible with their source registry. A bare install
 prefers the canonical release for the selected version. If only multiple
 non-canonical matches remain, the caller must select a registry explicitly.
+The CLI accepts `syrus plugin install NAME[@VERSION] --registry REGISTRY`,
+where `REGISTRY` is the stable registry name or database ID. Plugin lockfiles
+record the stable name to preserve provenance across export and import.
 
 Mirrors should return ETag and/or Last-Modified headers. Syrus sends
 conditional requests and retains the last valid cache when a refresh fails.
