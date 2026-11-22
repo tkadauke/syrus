@@ -55,6 +55,12 @@ func (dockerPluginRunner) Pull(ctx context.Context, image string, stdout, stderr
 }
 
 func (dockerPluginRunner) Run(ctx context.Context, request pluginRunRequest, stdin io.Reader, stdout, stderr io.Writer) error {
+	if request.Mode == "package-validate" {
+		args := []string{"run", "--rm", "--entrypoint", "/rails/bin/plugin-package-validate", "-v", request.Directory + ":/plugins/package.tar.gz:ro", request.Image, "--json", "/plugins/package.tar.gz"}
+		command := exec.CommandContext(ctx, "docker", args...)
+		command.Stdin, command.Stdout, command.Stderr = stdin, stdout, stderr
+		return exitStatus(command.Run())
+	}
 	args := []string{"run", "--rm", "-e", "SYRUS_PLUGIN_TEST_MODE=" + request.Mode}
 	if request.JSON {
 		args = append(args, "-e", "SYRUS_PLUGIN_TEST_JSON=1")
@@ -74,6 +80,12 @@ type checkoutPluginRunner struct{}
 func (checkoutPluginRunner) Available() error                                         { return nil }
 func (checkoutPluginRunner) Pull(context.Context, string, io.Writer, io.Writer) error { return nil }
 func (checkoutPluginRunner) Run(ctx context.Context, request pluginRunRequest, stdin io.Reader, stdout, stderr io.Writer) error {
+	if request.Mode == "package-validate" {
+		entrypoint := filepath.Join(request.Checkout, "bin", "plugin-package-validate")
+		command := exec.CommandContext(ctx, entrypoint, "--json", request.Directory)
+		command.Stdin, command.Stdout, command.Stderr = stdin, stdout, stderr
+		return exitStatus(command.Run())
+	}
 	entrypoint := filepath.Join(request.Checkout, "bin", "plugin-test")
 	command := exec.CommandContext(ctx, entrypoint, request.Directory)
 	command.Stdin, command.Stdout, command.Stderr = stdin, stdout, stderr

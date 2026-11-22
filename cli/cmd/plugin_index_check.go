@@ -53,8 +53,16 @@ func newPluginIndexCheckCommand() *cobra.Command {
 		if declaredPublisher == "" || publisher != declaredPublisher {
 			return fail(errors.New("plugin name prefix does not match the publisher"))
 		}
+		minimum := minimumSyrusVersion(entry.RequiresSyrus)
+		if minimum == "" {
+			return fail(errors.New("requires_syrus must declare a plausible minimum version"))
+		}
+		compatible, requirementErr := versionRequirementSatisfied(entry.RequiresSyrus, minimum)
+		if requirementErr != nil || !compatible {
+			return fail(errors.New("requires_syrus must declare a plausible minimum version"))
+		}
 		if trustPath == "" {
-			trustPath = filepath.Join(filepath.Dir(args[0]), "..", "..", "trust-store.json")
+			trustPath = filepath.Join(filepath.Dir(args[0]), "..", "trust-store.json")
 		}
 		trustBytes, err := os.ReadFile(trustPath)
 		if err != nil {
@@ -63,6 +71,16 @@ func newPluginIndexCheckCommand() *cobra.Command {
 		var trust plugintrust.TrustStore
 		if err = json.Unmarshal(trustBytes, &trust); err != nil {
 			return fail(fmt.Errorf("invalid trust store: %w", err))
+		}
+		publisherKeyMatches := false
+		for _, trustedPublisher := range trust.Publishers {
+			if strings.EqualFold(trustedPublisher.Fingerprint, entry.PublisherKeyFingerprint) && trustedPublisher.Prefix == publisher {
+				publisherKeyMatches = true
+				break
+			}
+		}
+		if !publisherKeyMatches {
+			return fail(errors.New("publisher key is not listed for the plugin name prefix"))
 		}
 		packageBytes, err := downloadIndexResource(command, entry.PackageURL)
 		if err != nil {
@@ -95,6 +113,9 @@ func newPluginIndexCheckCommand() *cobra.Command {
 		if _, err = plugintrust.VerifyRelease(archive, signature, trust, false, entry.Name, entry.Version); err != nil {
 			return fail(err)
 		}
+		if err = runSubmittedPackageValidation(command, archive, minimum, checkout); err != nil {
+			return fail(fmt.Errorf("package validator failed: %w", err))
+		}
 		pluginRoot := filepath.Join(temporary, "plugin")
 		manifest, err := extractSubmittedPackage(archive, temporary)
 		if err != nil {
@@ -108,14 +129,6 @@ func newPluginIndexCheckCommand() *cobra.Command {
 		manifestBytes, _ := json.Marshal(manifest)
 		if json.Unmarshal(entry.CapabilitySummary, &declaredCapabilities) != nil || json.Unmarshal(manifestBytes, &packagedCapabilities) != nil || !reflect.DeepEqual(declaredCapabilities, packagedCapabilities) {
 			return fail(errors.New("capability summary is inconsistent with package manifest"))
-		}
-		minimum := minimumSyrusVersion(entry.RequiresSyrus)
-		if minimum == "" {
-			return fail(errors.New("requires_syrus must declare a plausible minimum version"))
-		}
-		compatible, requirementErr := versionRequirementSatisfied(entry.RequiresSyrus, minimum)
-		if requirementErr != nil || !compatible {
-			return fail(errors.New("requires_syrus must declare a plausible minimum version"))
 		}
 		runner := pluginRunner(checkoutPluginRunner{})
 		request := pluginRunRequest{Mode: "test", Directory: pluginRoot, Checkout: checkout, JSON: true}
@@ -142,6 +155,22 @@ func newPluginIndexCheckCommand() *cobra.Command {
 	command.Flags().StringVar(&trustPath, "trust-store", "", "publisher trust store (defaults relative to entry)")
 	command.Flags().StringVar(&checkout, "checkout", "", "local Syrus checkout used by the plugin test runner")
 	return command
+}
+
+func runSubmittedPackageValidation(command *cobra.Command, archive, version, checkout string) error {
+	runner := pluginRunner(checkoutPluginRunner{})
+	request := pluginRunRequest{Mode: "package-validate", Directory: archive, Checkout: checkout, JSON: true}
+	if checkout == "" {
+		runner = newDockerPluginRunner()
+		if err := runner.Available(); err != nil {
+			return err
+		}
+		request.Image = pluginTestImage + ":" + version
+		if err := runner.Pull(command.Context(), request.Image, io.Discard, io.Discard); err != nil {
+			return err
+		}
+	}
+	return runner.Run(command.Context(), request, command.InOrStdin(), io.Discard, command.ErrOrStderr())
 }
 
 func downloadIndexResource(command *cobra.Command, raw string) ([]byte, error) {

@@ -41,6 +41,7 @@ type pluginRegistryTrustStore struct {
 	Publishers []struct {
 		Fingerprint string `json:"fingerprint"`
 		Label       string `json:"label"`
+		Prefix      string `json:"prefix"`
 	} `json:"publishers"`
 	RevokedKeys     []string `json:"revoked_keys"`
 	RevokedReleases []struct {

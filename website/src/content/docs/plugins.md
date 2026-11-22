@@ -95,8 +95,8 @@ Generate a publisher key with `syrus plugin keygen`, keep the private key
 offline, and never commit or upload it. Sign the package digest with `syrus
 plugin sign PACKAGE --key KEY`, then verify the detached signature with `syrus
 plugin verify PACKAGE --signature PACKAGE.sig --trust-store TRUST.json`.
-Registry trust stores label publisher fingerprints as **official**,
-**verified**, or **community** and can revoke a publisher key or one release;
+Registry trust stores bind each publisher prefix to a fingerprint labeled
+**official**, **verified**, or **community** and can revoke a publisher key or one release;
 explicitly local packages may instead be **unsigned local**. A revoked
 installed release is fleet-quarantined for removal.
 

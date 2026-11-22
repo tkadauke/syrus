@@ -7,8 +7,9 @@ release before review.
 
 ## Submission and review rules
 
-- Anyone may submit a publisher-prefixed plugin. The prefix must identify the
-  publisher represented by a key in `trust-store.json`; maintainers approve new identities and keys.
+- Anyone may submit a publisher-prefixed plugin. Each publisher entry in
+  `trust-store.json` binds its `prefix` to one fingerprint; maintainers approve
+  new identities and keys, and CI rejects keys used for another prefix.
 - **Community** releases receive automated checks plus one maintainer review.
 - **Verified** publishers additionally receive identity/ownership and changed-capability reviews.
 - **Official** releases require two maintainer approvals, including capability review.
