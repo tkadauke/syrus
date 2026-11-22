@@ -4611,10 +4611,12 @@ it fails three tests:
 - **`onboarding.spec.ts`**, failing since about `e6aa5d7d0e`: the Dashboard
   heading never appears after the checklist completes.
 
-CI runs the whole core project in one worker on one database, and onboarding
-(test 44) runs before signup (test 59). The working hypothesis is state that
-one test leaves behind for a later one, the same shape as Lead L9. Next step:
-run the core project from onboarding through signup locally, in CI order.
+Ruled out locally (macOS): ordering, since the whole core project in CI order
+passes, 59 of 59 in 11.8 minutes; and time zone, since onboarding and signup
+pass under `TZ=UTC`. The E2E workflow sets no other environment. What is left
+is the platform: CI runs Linux Chromium on the GitHub runner. Next step: run
+the pair in the Linux worker image, or have CI upload the Playwright error
+context for failed tests (it uploads no artifacts today).
 
 ---
 
