@@ -118,7 +118,7 @@ RSpec.describe "API: /api/v1/app/browser_errors", type: :request do
         resource_type: "script",
         initiator_type: "script",
         startup_phase: "startup",
-        last_completed_milestone: "shell_loaded",
+        last_completed_milestone: "bootstrap_fetch_started",
         event_kind: "error",
         browser_online: false,
         service_worker_present: true,
@@ -149,7 +149,7 @@ RSpec.describe "API: /api/v1/app/browser_errors", type: :request do
     expect(episode.metadata).to include(
       "resource_path" => "/assets/spa-entry.js",
       "resource_type" => "script",
-      "last_completed_milestone" => "shell_loaded",
+      "last_completed_milestone" => "bootstrap_fetch_started",
       "browser_online" => "false",
       "service_worker_controlled" => "true"
     )
