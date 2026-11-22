@@ -223,8 +223,20 @@ func extractSubmittedPackage(path, root string) (packageManifest, error) {
 		if err != nil {
 			return manifest, err
 		}
-		clean := filepath.ToSlash(filepath.Clean(header.Name))
-		if clean != header.Name || strings.HasPrefix(clean, "../") || header.Typeflag != tar.TypeReg {
+		entryName := strings.TrimSuffix(header.Name, "/")
+		clean := filepath.ToSlash(filepath.Clean(entryName))
+		if entryName == "" || clean != entryName || strings.HasPrefix(clean, "../") {
+			return manifest, errors.New("unsafe package entry")
+		}
+		if header.Typeflag == tar.TypeDir {
+			if strings.HasPrefix(entryName, "plugin/") || entryName == "plugin" {
+				if err = os.MkdirAll(filepath.Join(root, filepath.FromSlash(entryName)), 0755); err != nil {
+					return manifest, err
+				}
+			}
+			continue
+		}
+		if header.Typeflag != tar.TypeReg {
 			return manifest, errors.New("unsafe package entry")
 		}
 		if header.Name == "package.json" {

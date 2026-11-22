@@ -107,7 +107,8 @@ and capabilities; normal Syrus permissions still apply after install.
 `syrus plugin publish DIR --key KEY --repository OWNER/REPO` validates, packs,
 signs, and uploads a GitHub release, then prints its registry entry. Add
 `--index-repository OWNER/INDEX --submit` only to explicitly consent to opening
-the index pull request. Authentication comes from `GITHUB_TOKEN`; the command
+the index pull request from your fork and adding the release to `index.json`.
+Authentication comes from `GITHUB_TOKEN`; the command
 does not print or persist it. The description and license default to gemspec
 metadata; `--description`, `--license`, and `--category` provide explicit
 registry values when needed.
