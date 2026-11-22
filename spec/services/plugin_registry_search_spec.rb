@@ -40,4 +40,14 @@ RSpec.describe PluginRegistrySearch do
     })
     expect { ambiguous.resolve(name: "acme_weather") }.to raise_error(PluginRegistryClient::Error, /ambiguous/)
   end
+
+  it "rejects an entry whose source is no longer enabled instead of constructing another client" do
+    source = Source.new(id: 1, name: "removed", canonical: false)
+    factory = instance_double(Proc)
+    expect(factory).not_to receive(:call)
+    search = described_class.new(sources: [], client_factory: factory)
+
+    expect { search.client_for(entry(source)) }
+      .to raise_error(PluginRegistryClient::Error, /no longer enabled: removed/)
+  end
 end

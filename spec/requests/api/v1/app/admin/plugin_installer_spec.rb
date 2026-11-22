@@ -107,6 +107,24 @@ RSpec.describe "API: plugin installer", type: :request do
     expect(JSON.parse(response.body).fetch("available_releases")).to be_empty
   end
 
+  it "uses each stored release's registry trust store when offering restoration" do
+    sign_in_as(admin)
+    allow(SsrfGuard).to receive(:safe_host?).and_return(true)
+    registry = PluginRegistry.create!(name: "partners", url: "https://partners.example.test")
+    registry_release = PluginRelease.create!(name: "partners_weather", version: "1.0.0", content_digest: "b" * 64,
+      source: "registry", trust_label: "verified", size_bytes: 1, plugin_registry: registry)
+    global_store = instance_double(Syrus::PluginPackage::TrustStore, revoked?: false)
+    registry_store = instance_double(Syrus::PluginPackage::TrustStore, revoked?: true)
+    allow(Syrus::PluginPackage::TrustStore).to receive(:cached).and_return(global_store)
+    allow_any_instance_of(PluginRegistryClient).to receive(:cached_trust_store).and_return(registry_store)
+
+    get "/api/v1/app/admin/plugin_installer"
+
+    offered_ids = JSON.parse(response.body).fetch("available_releases").map { |entry| [ entry["name"], entry["version"] ] }
+    expect(offered_ids).not_to include([ registry_release.name, registry_release.version ])
+    expect(registry_store).to have_received(:revoked?).with(registry_release)
+  end
+
   it "does not change desired state until the staged install is confirmed" do
     sign_in_as(admin)
     change = PluginChange.create!(plugin_name: "weather", action: "install", plugin_release: release,

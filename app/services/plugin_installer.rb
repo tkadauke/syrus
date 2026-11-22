@@ -91,7 +91,8 @@ class PluginInstaller
 
   def trust_store_for(release)
     return @trust_store unless release.plugin_registry
-    PluginRegistryClient.new(source: release.plugin_registry).cached_trust_store
+
+    Syrus::PluginPackage::TrustStore.for_release(release)
   end
 
   def capability_manifest(release)
