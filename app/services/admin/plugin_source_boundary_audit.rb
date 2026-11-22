@@ -29,6 +29,9 @@ module Admin
     end
 
     CORE_ROOTS = %w[app lib config bin].freeze
+    # Compiled output, never committed source. Skipped even when the git index
+    # is unavailable and the audit falls back to scanning every file.
+    BUILD_OUTPUT_DIRS = %w[app/assets/builds/].freeze
     SOURCE_EXTENSIONS = %w[.rb .rake .erb .ts .tsx .js .jsx].freeze
     COMMENT_ONLY = /\A\s*(#|\/\/)/
 
@@ -298,6 +301,7 @@ module Admin
         Dir.glob(absolute.join("**/*").to_s)
            .map { |candidate| Pathname.new(candidate) }
            .select { |candidate| candidate.file? && SOURCE_EXTENSIONS.include?(candidate.extname) }
+           .reject { |candidate| build_output?(candidate) }
            .select { |candidate| tracked?(candidate) }
       end
     end
@@ -310,6 +314,11 @@ module Admin
     # bin/plugin-boundary-audit runs against a `git archive HEAD` copy that has
     # no .git directory, so an unavailable index means "scan everything" rather
     # than "scan nothing".
+    def build_output?(candidate)
+      rel = relative(candidate)
+      BUILD_OUTPUT_DIRS.any? { |dir| rel.start_with?(dir) }
+    end
+
     def tracked?(candidate)
       return true if tracked_paths.nil?
 
