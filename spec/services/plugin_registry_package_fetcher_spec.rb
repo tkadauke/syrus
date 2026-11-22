@@ -81,4 +81,12 @@ RSpec.describe PluginRegistryPackageFetcher do
       described_class.new.send(:download, "https://registry.example.test/archive.tar.gz", limit: 4)
     }.to raise_error(described_class::Error, /too large/)
   end
+
+  it "rejects a downloaded package whose digest does not match the index" do
+    stub_request(:get, "https://registry.example.test/archive.tar.gz").to_return(body: "tampered")
+
+    expect {
+      described_class.new.send(:download_and_verify, "https://registry.example.test/archive.tar.gz", "0" * 64)
+    }.to raise_error(described_class::Error, /digest does not match/)
+  end
 end

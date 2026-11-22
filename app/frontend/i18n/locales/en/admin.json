@@ -635,6 +635,12 @@
     "aria": "Admin operational logs"
   },
   "plugins": {
+    "registry": {
+      "heading": "Browse registry",
+      "search": "Search compatible plugins",
+      "unconfigured": "No plugin registry is configured. Set SYRUS_PLUGIN_REGISTRY_URL to browse plugins.",
+      "empty": "No compatible plugins found."
+    },
     "installer": {
       "aria": "External plugin installer",
       "heading": "Install external plugins",
