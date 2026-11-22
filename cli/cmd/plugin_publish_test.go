@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,19 +29,53 @@ func (publisher *fakePublisher) Submit(_ context.Context, _ string, path string,
 	return "https://github.example.test/pull/1", nil
 }
 
+func TestGitHubPublisherSubmitsAgainstRepositoryDefaultBranch(t *testing.T) {
+	var pullRequestBase string
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodGet && request.URL.Path == "/repos/syrus/index":
+			json.NewEncoder(response).Encode(map[string]string{"default_branch": "stable"})
+		case request.Method == http.MethodGet && request.URL.Path == "/repos/syrus/index/git/ref/heads/stable":
+			json.NewEncoder(response).Encode(map[string]any{"object": map[string]string{"sha": "abc123"}})
+		case request.Method == http.MethodPost && request.URL.Path == "/repos/syrus/index/pulls":
+			var payload map[string]string
+			json.NewDecoder(request.Body).Decode(&payload)
+			pullRequestBase = payload["base"]
+			json.NewEncoder(response).Encode(map[string]string{"html_url": "https://example.test/pull/1"})
+		default:
+			response.WriteHeader(http.StatusCreated)
+			response.Write([]byte(`{}`))
+		}
+	}))
+	defer server.Close()
+	previousBase := githubAPIBase
+	githubAPIBase = server.URL
+	t.Cleanup(func() { githubAPIBase = previousBase })
+	publisher := &githubPluginPublisher{token: "secret", client: server.Client()}
+	if _, err := publisher.Submit(context.Background(), "syrus/index", "acme_weather/1.2.3.json", []byte("entry")); err != nil {
+		t.Fatal(err)
+	}
+	if pullRequestBase != "stable" {
+		t.Fatalf("pull request base=%q, want stable", pullRequestBase)
+	}
+}
+
 func TestPluginPublishUsesHostingInterfaceAndRequiresSubmissionConsent(t *testing.T) {
 	root := packageFixture(t)
 	gemspec := filepath.Join(root, "weather.gemspec")
 	contents, _ := os.ReadFile(gemspec)
 	os.WriteFile(gemspec, []byte(strings.ReplaceAll(string(contents), `"weather"`, `"acme_weather"`)), 0644)
+	os.MkdirAll(filepath.Join(root, "frontend"), 0755)
+	os.WriteFile(filepath.Join(root, "frontend", "entry.tsx"), []byte("export default {}\n"), 0644)
 	key, _ := plugintrust.GenerateKey()
 	keyBytes, _ := json.Marshal(key)
 	keyPath := filepath.Join(t.TempDir(), "publisher.json")
 	os.WriteFile(keyPath, keyBytes, 0600)
 	publisher := &fakePublisher{}
 	previousPublisher, previousRunner := newPluginPublisher, newDockerPluginRunner
+	runner := &fakePluginRunner{}
 	newPluginPublisher = func(string) pluginPublisher { return publisher }
-	newDockerPluginRunner = func() pluginRunner { return &fakePluginRunner{} }
+	newDockerPluginRunner = func() pluginRunner { return runner }
 	t.Setenv("GITHUB_TOKEN", "secret-that-must-not-be-printed")
 	t.Cleanup(func() { newPluginPublisher, newDockerPluginRunner = previousPublisher, previousRunner })
 
@@ -53,6 +89,9 @@ func TestPluginPublishUsesHostingInterfaceAndRequiresSubmissionConsent(t *testin
 	}
 	if len(publisher.uploads) != 2 || publisher.path != "" {
 		t.Fatalf("uploads=%v submitted=%q", publisher.uploads, publisher.path)
+	}
+	if runner.request.Mode != "build" {
+		t.Fatalf("publish runner mode=%q, want frontend build", runner.request.Mode)
 	}
 	if strings.Contains(output.String(), "secret-that-must-not-be-printed") || !strings.Contains(output.String(), "acme_weather/1.2.3.json") {
 		t.Fatalf("unexpected output: %s", output)

@@ -16,6 +16,8 @@ func packageFixture(t *testing.T) string {
 	os.WriteFile(filepath.Join(root, "weather.gemspec"), []byte(`Gem::Specification.new do |spec|
   spec.name = "weather"
   spec.version = "1.2.3"
+  spec.summary = "Weather automation"
+  spec.license = "MIT"
   spec.metadata["requires_syrus"] = ">= 1.0"
 end
 `), 0644)
