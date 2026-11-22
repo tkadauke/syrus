@@ -53,6 +53,7 @@ la:
         invalid_roles_shape: "series nominum non inanium esse debet"
         invalid_roles: "munera invalida continet: %{roles}"
         missing_verified_artifact: "artefactum verificatum habere debet"
+        revoked_release: "revocata est"
       plugin_release:
         bundled_archive_present: "abesse debet pro emissionibus inclusis"
         artifact_identity_immutable: "Identitas artefacti emissionis plugin post conservationem vel electionem immutabilis est."

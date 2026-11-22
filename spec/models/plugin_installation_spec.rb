@@ -41,6 +41,17 @@ RSpec.describe PluginInstallation do
     expect(installation.errors[:plugin_release]).to include("must have a verified artifact")
   end
 
+  it "refuses to select a release revoked by the cached trust store" do
+    release.update!(publisher_key_fingerprint: "a" * 64)
+    trust_store = Syrus::PluginPackage::TrustStore.new("revoked_keys" => [ "a" * 64 ])
+    allow(Syrus::PluginPackage::TrustStore).to receive(:cached).and_return(trust_store)
+
+    installation = described_class.new(plugin_name: "weather", plugin_release: release)
+
+    expect(installation).not_to be_valid
+    expect(installation.errors[:plugin_release]).to include("has been revoked")
+  end
+
   it "accepts only supported process roles, with an empty list meaning all roles" do
     expect(described_class.new(plugin_name: "weather", plugin_release: release, roles: [])).to be_valid
     expect(described_class.new(plugin_name: "weather", plugin_release: release, roles: %w[web sidecar])).to be_valid
