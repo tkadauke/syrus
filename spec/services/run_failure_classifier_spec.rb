@@ -743,6 +743,46 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.retryable).to eq(true)
   end
 
+  # Regression: a main grader's `npm ci` hit ECONNRESET. `auth` matched the
+  # `@github/webauthn-json` deprecation warning in the same output, so the
+  # network blip was recorded as non-retryable provider auth/config.
+  def failed_prepare_grader_run(log)
+    workflow = Workflow.create!(job: job, trigger_kind: "main_grader", agent_provider: "codex")
+    grader_step = Step.create!(workflow: workflow, kind: "grader", position: 0)
+    grader_run = Run.create!(job: job, user: job.user, step: grader_step, trigger_kind: "main_grader",
+                             state: "failed", agent_provider: "codex", finished_at: Time.current)
+    RunDiagnostic.create!(run: grader_run, error_class: "Steps::Base::StepFailed",
+                          error_message: "immutable source prepare command failed: npm ci")
+    JobLog.append!(run: grader_run, chunk: log, kind: "system")
+    grader_run
+  end
+
+  it "classifies a dependency install that lost its registry connection as retryable network noise" do
+    grader_run = failed_prepare_grader_run(<<~LOG)
+      npm warn deprecated @github/webauthn-json@2.1.1: Deprecated: Modern browsers support built-in WebAuthn JSON methods.
+      npm error code ECONNRESET
+      npm error network aborted
+      FAIL: Steps::Base::StepFailed: immutable source prepare command failed: npm ci
+    LOG
+
+    result = described_class.persist!(grader_run)
+
+    expect(result.classification).to eq("prepare_network_transient")
+    expect(result.retryable).to eq(true)
+    expect(Steps::GraderCollect::INFRASTRUCTURE_FAILURE_CLASSIFICATIONS).to include("prepare_network_transient")
+  end
+
+  it "does not read a webauthn package name as provider auth" do
+    grader_run = failed_prepare_grader_run(<<~LOG)
+      npm warn deprecated @github/webauthn-json@2.1.1: Deprecated
+      npm error code ERESOLVE
+      npm error could not resolve dependency tree
+      FAIL: Steps::Base::StepFailed: immutable source prepare command failed: npm ci
+    LOG
+
+    expect(described_class.persist!(grader_run).classification).not_to eq("provider_auth_or_config")
+  end
+
   it "does not classify grader output mentioning rate-limit migration names as a rate limit" do
     workflow = Workflow.create!(job: job, trigger_kind: "merge_train", agent_provider: "codex")
     grader_step = Step.create!(workflow: workflow, kind: "grader", position: 0)

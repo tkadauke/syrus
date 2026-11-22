@@ -103,6 +103,10 @@ class RunFailureClassifier
       result("source_snapshot_base_ref_unavailable", 1.0, false, "The recorded source snapshot base ref was deleted and neither its parent merge commit nor the default branch resolves.")
     # ImmutableSourceCheckout wraps GitRunner::GitError so transport evidence
     # must win before the generic source-snapshot infrastructure category.
+    # A dependency install (`npm ci`, `bundle install`) that lost its registry
+    # connection: network noise, not the job's code and not provider auth.
+    when prepare_network_transient?
+      result("prepare_network_transient", 0.90, true, "A dependency install lost its connection to the package registry; retry once the network recovers.")
     when git_transport_transient?
       result("git_transport_transient", 0.90, true, "The Git remote was temporarily unreachable or interrupted; retry the operation through the bounded workflow retry path.")
     when source_snapshot_metadata_invalid?
@@ -522,6 +526,14 @@ class RunFailureClassifier
   # checked before git_state_corrupt?, which matches GitRunner::GitError by
   # class alone. Explicitly exclude permanent remote and semantic failures so
   # coincidental transport wording cannot spend the bounded retry budget.
+  PREPARE_NETWORK_ERROR_PATTERN = /\b(?:ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|ENETUNREACH|EHOSTUNREACH)\b|socket hang up|npm error network|Gem::RemoteFetcher::(?:FetchError|UnknownHostError)|Net::OpenTimeout|Could not fetch specs from|could not resolve host|connection reset by peer/i
+
+  def prepare_network_transient?
+    diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
+      text_match?(/prepare command failed/i) &&
+      text_match?(PREPARE_NETWORK_ERROR_PATTERN)
+  end
+
   def git_transport_transient?
     return false unless diagnostic&.error_class.to_s.match?(/GitRunner::GitError|WorkflowSourceSnapshots::InfrastructureStateError/)
     return false if text_match?(/authentication failed|could not read username|permission denied|access denied|repository not found|not found|couldn't find remote ref|remote ref does not exist|invalid refspec|non-fast-forward|fetch first|stale info|merge conflict|unmerged files|not a git repository|bad revision|unrelated histories/i)
