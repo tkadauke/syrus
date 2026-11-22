@@ -1,4 +1,4 @@
-import { jsonResponse } from "../testSupport"
+import { jsonResponse as buildJsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
@@ -13,6 +13,12 @@ vi.mock("../lib/pageReload", () => ({
 }))
 
 import { AdminPluginDetail, AdminPlugins } from "./AdminPlugins"
+
+function jsonResponse(body: unknown, status = 200) {
+  const response = buildJsonResponse(body, status)
+  response.json = async () => body
+  return response
+}
 
 const pluginFilterSchema = [
   {
